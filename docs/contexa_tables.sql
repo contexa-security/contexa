@@ -2093,7 +2093,6 @@ create table public.sealed_evidence_package
     canonical_context_jsonb         jsonb,
     baseline_snapshot_jsonb         jsonb,
     rag_results_jsonb               jsonb,
-    prompt_execution_metadata_jsonb jsonb,
     decision_jsonb                  jsonb
 );
 
@@ -2121,8 +2120,6 @@ create index idx_sep_baseline_snapshot_jsonb
 create index idx_sep_rag_results_jsonb
     on public.sealed_evidence_package using gin (rag_results_jsonb);
 
-create index idx_sep_prompt_execution_metadata_jsonb
-    on public.sealed_evidence_package using gin (prompt_execution_metadata_jsonb);
 
 create unique index idx_sep_package_id
     on public.sealed_evidence_package (package_id);

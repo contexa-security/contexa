@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
 import io.contexa.contexacore.verification.persistence.VerificationLedgerService;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
@@ -11,6 +12,7 @@ import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContr
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationResult;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -38,6 +40,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunMetri
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunTechnicalLedger;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunRemediationGroup;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunSummaryCounts;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialActualPromptProblem;
@@ -46,15 +49,22 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerifica
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePromptConsistencyResult;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityCertificateService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityCertificateService.PromptQualityCertificate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.text.MessageFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -67,6 +77,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashSet;
 
@@ -75,6 +86,42 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     private static final Logger log = LoggerFactory.getLogger(DefaultPromptQualityOfficialRunDetailService.class);
     private static final Duration DETAIL_CACHE_TTL = Duration.ofSeconds(30);
     private static final int DETAIL_CACHE_MAX_SIZE = 128;
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+    private static final int PROMPT_PREVIEW_LIMIT = 900;
+    private static final int TECHNICAL_LEDGER_MAP_ENTRY_LIMIT = 40;
+    private static final int TECHNICAL_LEDGER_LIST_ENTRY_LIMIT = 20;
+    private static final int TECHNICAL_LEDGER_STRING_LIMIT = 2000;
+    private static final String LIGHTWEIGHT_EVIDENCE_SQL = """
+            SELECT package_id,
+                   correlation_id,
+                   tenant_id,
+                   user_id,
+                   captured_at,
+                   request_facts_json,
+                   auth_state_json,
+                   baseline_snapshot_json,
+                   rag_results_json,
+                   raw_system_prompt,
+                   raw_user_prompt,
+                   system_prompt_text,
+                   user_prompt_text,
+                   prompt_hash,
+                   system_prompt_hash,
+                   user_prompt_hash,
+                   raw_system_prompt_hash,
+                   raw_user_prompt_hash,
+                   prompt_execution_metadata_json,
+                   seal_state,
+                   seal_failure_reason,
+                   decision_json,
+                   package_hash,
+                   schema_version,
+                   sealed,
+                   expires_at,
+                   created_at
+              FROM sealed_evidence_package
+             WHERE package_id = ?
+            """;
 
     private static final Set<String> PASS_STATES = Set.of("SUCCESS", "PASS", "PASSED");
     private static final Set<String> NOT_APPLICABLE_STATES = Set.of("NOT_APPLICABLE", "NOT_APPLICABLE_METRIC");
@@ -88,6 +135,9 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     private final PromptQualityAssuranceCaseService assuranceCaseService;
     private final PromptQualityProcessRunService processRunService;
     private final OfficialVerificationOperatorSnapshotService operatorSnapshotService;
+    private final JdbcOperations jdbcOperations;
+    private final ObjectMapper objectMapper;
+    private final RuntimeEvidencePromptConsistencyGate lightweightPromptConsistencyGate;
     private final FinalPromptMetricContractCatalog finalPromptMetricContracts =
             FinalPromptMetricContractCatalog.load(new ObjectMapper());
     private final ConcurrentHashMap<String, CachedOfficialRunPackageDetail> detailCache = new ConcurrentHashMap<>();
@@ -157,6 +207,30 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             PromptQualityAssuranceCaseService assuranceCaseService,
             PromptQualityProcessRunService processRunService,
             OfficialVerificationOperatorSnapshotService operatorSnapshotService) {
+        this(
+                officialRuntime,
+                verificationLedgerService,
+                evidenceService,
+                metricCatalog,
+                messageResolver,
+                certificateService,
+                assuranceCaseService,
+                processRunService,
+                operatorSnapshotService,
+                null);
+    }
+
+    public DefaultPromptQualityOfficialRunDetailService(
+            OfficialSealedEvidenceVerificationRuntime officialRuntime,
+            VerificationLedgerService verificationLedgerService,
+            PromptQualityRuntimeEvidenceService evidenceService,
+            PromptQualityOfficialMetricCatalog metricCatalog,
+            PromptQualityMessageResolver messageResolver,
+            PromptQualityCertificateService certificateService,
+            PromptQualityAssuranceCaseService assuranceCaseService,
+            PromptQualityProcessRunService processRunService,
+            OfficialVerificationOperatorSnapshotService operatorSnapshotService,
+            JdbcOperations jdbcOperations) {
         this.officialRuntime = officialRuntime;
         this.verificationLedgerService = verificationLedgerService;
         this.evidenceService = evidenceService;
@@ -166,6 +240,12 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         this.assuranceCaseService = assuranceCaseService;
         this.processRunService = processRunService == null ? new NoopPromptQualityProcessRunService() : processRunService;
         this.operatorSnapshotService = operatorSnapshotService;
+        this.jdbcOperations = jdbcOperations;
+        this.objectMapper = new ObjectMapper();
+        this.lightweightPromptConsistencyGate = new DefaultRuntimeEvidencePromptConsistencyGate(
+                this.objectMapper,
+                null,
+                messageResolver);
     }
 
     @Override
@@ -229,8 +309,8 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public OfficialRunPackageDetail findTechnicalLedger(String packageId, String aggregateRunId) {
-        return findPackageDetail(packageId, aggregateRunId);
+    public OfficialRunTechnicalLedger findTechnicalLedger(String packageId, String aggregateRunId) {
+        return technicalLedger(findPackageDetail(packageId, aggregateRunId));
     }
 
     @Override
@@ -247,7 +327,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         }
         long startedNanos = System.nanoTime();
         long evidenceStartedNanos = startedNanos;
-        RuntimeEvidencePackageDetail sealedEvidence = evidenceService.findDetail(normalizedPackageId);
+        RuntimeEvidencePackageDetail sealedEvidence = findOfficialEvidenceDetail(normalizedPackageId);
         long evidenceMs = elapsedMillis(evidenceStartedNanos);
         long ledgerStartedNanos = System.nanoTime();
         List<OfficialVerificationRunView> allPackageRuns =
@@ -379,6 +459,98 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         return detail;
     }
 
+    private OfficialRunTechnicalLedger technicalLedger(OfficialRunPackageDetail detail) {
+        List<OfficialRunTechnicalLedger.Run> runs = detail.runs().stream()
+                .map(run -> new OfficialRunTechnicalLedger.Run(
+                        run.metricCode(),
+                        run.officialRunId(),
+                        run.state(),
+                        run.passedChecks(),
+                        run.totalChecks(),
+                        limitedStringMap(run.requestFacts()),
+                        limitedStringMap(run.promptFacts()),
+                        limitedStringMap(run.analysisFacts()),
+                        limitedObjectMap(run.rawEvidence())))
+                .toList();
+        return new OfficialRunTechnicalLedger(
+                detail.packageId(),
+                detail.aggregateRunId(),
+                detail.totalRunCount(),
+                true,
+                runs);
+    }
+
+    private Map<String, String> limitedStringMap(Map<String, String> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        int count = 0;
+        for (Map.Entry<String, String> entry : source.entrySet()) {
+            if (count++ >= TECHNICAL_LEDGER_MAP_ENTRY_LIMIT) {
+                result.put("_truncated", "true");
+                break;
+            }
+            result.put(entry.getKey(), truncateTechnicalValue(entry.getValue()));
+        }
+        return result;
+    }
+
+    private Map<String, Object> limitedObjectMap(Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        return limitedObjectMap(source, 0);
+    }
+
+    private Map<String, Object> limitedObjectMap(Map<?, ?> source, int depth) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        int count = 0;
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            if (count++ >= TECHNICAL_LEDGER_MAP_ENTRY_LIMIT) {
+                result.put("_truncated", true);
+                break;
+            }
+            result.put(String.valueOf(entry.getKey()), limitedTechnicalValue(entry.getValue(), depth + 1));
+        }
+        return result;
+    }
+
+    private Object limitedTechnicalValue(Object value, int depth) {
+        if (value == null || value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof CharSequence sequence) {
+            return truncateTechnicalValue(sequence.toString());
+        }
+        if (depth >= 2) {
+            return truncateTechnicalValue(String.valueOf(value));
+        }
+        if (value instanceof Map<?, ?> map) {
+            return limitedObjectMap(map, depth);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> result = new ArrayList<>();
+            int count = 0;
+            for (Object item : list) {
+                if (count++ >= TECHNICAL_LEDGER_LIST_ENTRY_LIMIT) {
+                    result.add("[truncated " + (list.size() - TECHNICAL_LEDGER_LIST_ENTRY_LIMIT) + " items]");
+                    break;
+                }
+                result.add(limitedTechnicalValue(item, depth + 1));
+            }
+            return result;
+        }
+        return truncateTechnicalValue(String.valueOf(value));
+    }
+
+    private String truncateTechnicalValue(String value) {
+        if (value == null || value.length() <= TECHNICAL_LEDGER_STRING_LIMIT) {
+            return value;
+        }
+        return value.substring(0, TECHNICAL_LEDGER_STRING_LIMIT) + "...[truncated "
+                + (value.length() - TECHNICAL_LEDGER_STRING_LIMIT) + " chars]";
+    }
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public OfficialVerificationMetricTrace findRunDetail(String runId) {
@@ -401,7 +573,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         }
         String packageId = value(record.evidenceReferences(), "packageId");
         RuntimeEvidencePackageDetail sealedEvidence = StringUtils.hasText(packageId)
-                ? evidenceService.findDetail(packageId)
+                ? findOfficialEvidenceDetail(packageId)
                 : null;
         String aggregateRunId = firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId());
         OperatorSnapshot operatorSnapshot = StringUtils.hasText(packageId)
@@ -410,6 +582,221 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         return toMetricDetail(run, sealedEvidence, operatorSnapshot);
     }
 
+    private RuntimeEvidencePackageDetail findOfficialEvidenceDetail(String packageId) {
+        if (jdbcOperations == null) {
+            return evidenceService.findDetail(packageId);
+        }
+        try {
+            SealedEvidencePackage pkg = jdbcOperations.queryForObject(
+                    LIGHTWEIGHT_EVIDENCE_SQL,
+                    lightweightEvidenceMapper(),
+                    packageId);
+            if (pkg == null) {
+                return evidenceService.findDetail(packageId);
+            }
+            return toLightweightEvidenceDetail(pkg);
+        }
+        catch (DataAccessException exception) {
+            log.warn("[PQA-OFFICIAL-DETAIL] Lightweight evidence lookup failed; falling back to full evidence detail. packageId={}",
+                    packageId,
+                    exception);
+            return evidenceService.findDetail(packageId);
+        }
+    }
+
+    private RowMapper<SealedEvidencePackage> lightweightEvidenceMapper() {
+        return this::mapLightweightEvidence;
+    }
+
+    private SealedEvidencePackage mapLightweightEvidence(ResultSet rs, int rowNum) throws SQLException {
+        SealedEvidencePackage pkg = new SealedEvidencePackage();
+        pkg.setPackageId(rs.getString("package_id"));
+        pkg.setCorrelationId(rs.getString("correlation_id"));
+        pkg.setTenantId(rs.getString("tenant_id"));
+        pkg.setUserId(rs.getString("user_id"));
+        pkg.setCapturedAt(instant(rs, "captured_at"));
+        pkg.setRequestFactsJson(rs.getString("request_facts_json"));
+        pkg.setAuthStateJson(rs.getString("auth_state_json"));
+        pkg.setBaselineSnapshotJson(rs.getString("baseline_snapshot_json"));
+        pkg.setRagResultsJson(rs.getString("rag_results_json"));
+        pkg.setRawSystemPrompt(rs.getString("raw_system_prompt"));
+        pkg.setRawUserPrompt(rs.getString("raw_user_prompt"));
+        pkg.setSystemPromptText(rs.getString("system_prompt_text"));
+        pkg.setUserPromptText(rs.getString("user_prompt_text"));
+        pkg.setPromptHash(rs.getString("prompt_hash"));
+        pkg.setSystemPromptHash(rs.getString("system_prompt_hash"));
+        pkg.setUserPromptHash(rs.getString("user_prompt_hash"));
+        pkg.setRawSystemPromptHash(rs.getString("raw_system_prompt_hash"));
+        pkg.setRawUserPromptHash(rs.getString("raw_user_prompt_hash"));
+        pkg.setPromptExecutionMetadataJson(rs.getString("prompt_execution_metadata_json"));
+        pkg.setSealState(rs.getString("seal_state"));
+        pkg.setSealFailureReason(rs.getString("seal_failure_reason"));
+        pkg.setDecisionJson(rs.getString("decision_json"));
+        pkg.setPackageHash(rs.getString("package_hash"));
+        int schemaVersion = rs.getInt("schema_version");
+        pkg.setSchemaVersion(rs.wasNull() ? 2 : schemaVersion);
+        pkg.setSealed(rs.getBoolean("sealed"));
+        pkg.setExpiresAt(instant(rs, "expires_at"));
+        pkg.setCreatedAt(instant(rs, "created_at"));
+        return pkg;
+    }
+
+    private RuntimeEvidencePackageDetail toLightweightEvidenceDetail(SealedEvidencePackage pkg) {
+        Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
+        Map<String, Object> authState = parseJson(pkg.getAuthStateJson());
+        Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
+        Map<String, Object> decision = parseJson(pkg.getDecisionJson());
+        Map<String, Object> baselineSnapshot = parseJson(pkg.getBaselineSnapshotJson());
+        Map<String, Object> ragResults = parseJson(pkg.getRagResultsJson());
+        boolean integrityValid = storedSealLooksValid(pkg);
+        RuntimeEvidencePromptConsistencyResult promptConsistency = lightweightPromptConsistencyGate.evaluate(pkg);
+        return new RuntimeEvidencePackageDetail(
+                toLightweightSummary(pkg, requestFacts, promptMetadata, decision, integrityValid),
+                StringUtils.hasText(pkg.getRawSystemPrompt()),
+                StringUtils.hasText(pkg.getRawUserPrompt()),
+                StringUtils.hasText(pkg.getSystemPromptText()),
+                StringUtils.hasText(pkg.getUserPromptText()),
+                StringUtils.hasText(pkg.getBaselineSnapshotJson()),
+                StringUtils.hasText(pkg.getRagResultsJson()),
+                promptPreview(pkg.getSystemPromptText()),
+                promptPreview(pkg.getUserPromptText()),
+                requestFacts,
+                authState,
+                promptMetadata,
+                decision,
+                baselineSnapshot,
+                ragResults,
+                List.of(),
+                List.of(),
+                qualityWarnings(pkg, integrityValid),
+                promptConsistency,
+                pkg.getSystemPromptText(),
+                pkg.getUserPromptText());
+    }
+
+    private RuntimeEvidencePackageSummary toLightweightSummary(
+            SealedEvidencePackage pkg,
+            Map<String, Object> requestFacts,
+            Map<String, Object> promptMetadata,
+            Map<String, Object> decision,
+            boolean integrityValid) {
+        String requestPath = firstNonBlank(
+                raw(requestFacts, "requestPath"),
+                raw(requestFacts, "resourceUrl"),
+                raw(requestFacts, "path"),
+                raw(requestFacts, "uri"));
+        String resourceId = firstNonBlank(
+                raw(requestFacts, "protectableResourceId"),
+                raw(promptMetadata, "protectableResourceId"),
+                raw(requestFacts, "resourceId"),
+                raw(requestFacts, "endpointKey"),
+                raw(promptMetadata, "resourceId"),
+                raw(promptMetadata, "endpointKey"),
+                pkg.getPackageId());
+        String httpMethod = firstNonBlank(raw(requestFacts, "httpMethod"), raw(requestFacts, "method"), "GET")
+                .toUpperCase(Locale.ROOT);
+        String stateLabel = integrityValid
+                ? message("enterprise.pqa.runtimeEvidence.state.ready.label", "검사 가능")
+                : message("enterprise.pqa.runtimeEvidence.state.integrityWarning.label", "증거 확인 필요");
+        String nextAction = integrityValid
+                ? message("enterprise.pqa.runtimeEvidence.state.ready.nextAction", "공식검사를 실행할 수 있습니다.")
+                : message("enterprise.pqa.runtimeEvidence.state.integrityWarning.nextAction", "증거 봉인 상태를 확인하십시오.");
+        return new RuntimeEvidencePackageSummary(
+                pkg.getPackageId(),
+                pkg.getCorrelationId(),
+                pkg.getTenantId(),
+                pkg.getUserId(),
+                pkg.getCapturedAt(),
+                requestPath,
+                resourceId,
+                httpMethod,
+                firstNonBlank(raw(decision, "action"), raw(decision, "decisionAction")),
+                doubleValue(decision, "confidence", "decisionConfidence"),
+                pkg.isSealed(),
+                integrityValid,
+                pkg.getPromptHash(),
+                promptTextLength(pkg),
+                stateLabel,
+                nextAction,
+                integrityValid ? "READY" : "INTEGRITY_WARNING",
+                null);
+    }
+
+    private List<String> qualityWarnings(SealedEvidencePackage pkg, boolean integrityValid) {
+        return Stream.of(
+                        StringUtils.hasText(pkg.getRawSystemPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawSystemPromptMissing", "Raw system prompt is not stored."),
+                        StringUtils.hasText(pkg.getRawUserPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawUserPromptMissing", "Raw user prompt is not stored."),
+                        StringUtils.hasText(pkg.getSystemPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmSystemPromptMissing", "System prompt sent to the LLM is missing."),
+                        StringUtils.hasText(pkg.getUserPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmUserPromptMissing", "User prompt sent to the LLM is missing."),
+                        integrityValid ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch", "Evidence hash does not match."))
+                .filter(StringUtils::hasText)
+                .toList();
+    }
+
+    private Map<String, Object> parseJson(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(json, MAP_TYPE);
+            return parsed == null ? Map.of() : parsed;
+        }
+        catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    private Double doubleValue(Map<String, Object> map, String... keys) {
+        if (map == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof Number number) {
+                return number.doubleValue();
+            }
+            if (value != null) {
+                try {
+                    return Double.parseDouble(String.valueOf(value));
+                }
+                catch (NumberFormatException ignored) {
+                    // Try next key.
+                }
+            }
+        }
+        return null;
+    }
+
+    private int promptTextLength(SealedEvidencePackage pkg) {
+        if (pkg == null) {
+            return 0;
+        }
+        int systemLength = pkg.getSystemPromptText() == null ? 0 : pkg.getSystemPromptText().length();
+        int userLength = pkg.getUserPromptText() == null ? 0 : pkg.getUserPromptText().length();
+        return systemLength + userLength;
+    }
+
+    private String promptPreview(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        return normalized.length() <= PROMPT_PREVIEW_LIMIT
+                ? normalized
+                : normalized.substring(0, PROMPT_PREVIEW_LIMIT) + "\n...";
+    }
+
+    private boolean storedSealLooksValid(SealedEvidencePackage pkg) {
+        return pkg != null
+                && pkg.isSealed()
+                && StringUtils.hasText(pkg.getPackageHash())
+                && !"FAILED".equalsIgnoreCase(firstNonBlank(pkg.getSealState(), "SEALED"));
+    }
+
+    private Instant instant(ResultSet rs, String column) throws SQLException {
+        Timestamp timestamp = rs.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toInstant();
+    }
     private OfficialSealedEvidenceVerificationResult officialResultFromStoredRuns(
             String packageId,
             String aggregateRunId,
@@ -528,7 +915,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 safeMap(run.promptFacts()),
                 safeMap(run.analysisFacts()),
                 events(run),
-                run.rawEvidence() == null ? Map.of() : Map.copyOf(run.rawEvidence()),
+                limitedObjectMap(run.rawEvidence()),
                 comparisons(sealedEvidence, run, operatorSnapshot),
                 actualPromptProblemsForMetric(operatorSnapshot, run.endpointKey()),
                 failures,

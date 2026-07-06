@@ -40,6 +40,30 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private static final DateTimeFormatter KOREA_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String EXECUTION_PATH = "CORE_OFFICIAL_SEALED_EVIDENCE_REPLAY";
+    private static final String[] PROMPT_METADATA_FACT_KEYS = {
+            "promptVersion",
+            "contractVersion",
+            "templateKey",
+            "templateName",
+            "promptHash",
+            "contextHash",
+            "canonicalContextHash",
+            "estimatedInputTokens",
+            "estimatedOutputTokens",
+            "actualPromptTokens",
+            "budgetProfile",
+            "budgetViewProfile",
+            "promptTransformationMode",
+            "promptBudgetExceeded",
+            "promptBudgetRemainingTokens",
+            "rawUserPromptLength",
+            "llmUserPromptLength",
+            "runtimeProvider",
+            "runtimeModelId",
+            "runtimeTemperature",
+            "runtimeTopP",
+            "runtimeSeed"
+    };
 
     private final SealedEvidencePackageLookupService evidenceLookupService;
     private final OfficialVerificationMetricCatalog metricCatalog;
@@ -247,7 +271,8 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
     }
 
     private Map<String, String> promptFacts(SealedEvidencePackage evidencePackage, Map<String, Object> promptMetadata) {
-        Map<String, String> facts = new LinkedHashMap<>(stringMap(promptMetadata));
+        Map<String, String> facts = new LinkedHashMap<>();
+        copyPromptMetadataFacts(facts, promptMetadata);
         Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
         OfficialContextHashStateResolver.Resolution contextHashResolution =
                 OfficialContextHashStateResolver.resolve(requestFacts, promptMetadata, evidencePackage.getCanonicalContextJson());
@@ -269,6 +294,16 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         putIfPresent(facts, "rawUserPromptRef", promptRef(evidencePackage, "raw_user_prompt"));
         putIfPresent(facts, "systemPromptTextRef", promptRef(evidencePackage, "system_prompt_text"));
         putIfPresent(facts, "userPromptTextRef", promptRef(evidencePackage, "user_prompt_text"));
+        putIfPresent(facts, "promptExecutionMetadataRef", promptRef(evidencePackage, "prompt_execution_metadata_json"));
+        putIfPresent(facts, "promptEvidenceManifestRef", promptRef(evidencePackage, "prompt_evidence_manifest_json"));
+        putIfPresent(facts, "promptFieldStateLedgerRef",
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFieldStateLedger");
+        putIfPresent(facts, "promptSourceContextLedgerRef",
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptSourceContextLedger");
+        putIfPresent(facts, "promptRawUserFieldLedgerRef",
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptRawUserFieldLedger");
+        putIfPresent(facts, "promptFinalUserFieldLedgerRef",
+                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFinalUserFieldLedger");
         return facts;
     }
 
@@ -318,6 +353,18 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         Map<String, String> result = new LinkedHashMap<>();
         raw.forEach((key, value) -> putIfPresent(result, key, value == null ? null : String.valueOf(value)));
         return result;
+    }
+    private void copyPromptMetadataFacts(Map<String, String> facts, Map<String, Object> promptMetadata) {
+        if (promptMetadata == null || promptMetadata.isEmpty()) {
+            return;
+        }
+        for (String key : PROMPT_METADATA_FACT_KEYS) {
+            Object value = promptMetadata.get(key);
+            if (value instanceof Map<?, ?> || value instanceof Iterable<?> || (value != null && value.getClass().isArray())) {
+                continue;
+            }
+            putIfPresent(facts, key, value == null ? null : String.valueOf(value));
+        }
     }
 
     private String text(Map<String, Object> raw, String key) {

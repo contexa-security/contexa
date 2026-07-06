@@ -5,6 +5,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunAudit
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailureCause;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunTechnicalLedger;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialActualPromptProblem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 
@@ -22,8 +23,14 @@ public interface PromptQualityOfficialRunDetailService {
         return findPackageDetail(packageId);
     }
 
-    default OfficialRunPackageDetail findTechnicalLedger(String packageId, String aggregateRunId) {
-        return findPackageDetail(packageId, aggregateRunId);
+    default OfficialRunTechnicalLedger findTechnicalLedger(String packageId, String aggregateRunId) {
+        OfficialRunPackageDetail detail = findPackageDetail(packageId, aggregateRunId);
+        return new OfficialRunTechnicalLedger(
+                detail.packageId(),
+                detail.aggregateRunId(),
+                detail.totalRunCount(),
+                false,
+                List.of());
     }
 
     default OfficialRunPackageSummary findPackageSummary(String packageId, String aggregateRunId) {

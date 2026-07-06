@@ -2474,8 +2474,6 @@ ALTER TABLE sealed_evidence_package
 ALTER TABLE sealed_evidence_package
     ADD COLUMN IF NOT EXISTS rag_results_jsonb JSONB;
 ALTER TABLE sealed_evidence_package
-    ADD COLUMN IF NOT EXISTS prompt_execution_metadata_jsonb JSONB;
-ALTER TABLE sealed_evidence_package
     ADD COLUMN IF NOT EXISTS decision_jsonb JSONB;
 
 UPDATE sealed_evidence_package
@@ -2484,14 +2482,12 @@ UPDATE sealed_evidence_package
        canonical_context_jsonb = COALESCE(canonical_context_jsonb, contexa_safe_jsonb(canonical_context_json)),
        baseline_snapshot_jsonb = COALESCE(baseline_snapshot_jsonb, contexa_safe_jsonb(baseline_snapshot_json)),
        rag_results_jsonb = COALESCE(rag_results_jsonb, contexa_safe_jsonb(rag_results_json)),
-       prompt_execution_metadata_jsonb = COALESCE(prompt_execution_metadata_jsonb, contexa_safe_jsonb(prompt_execution_metadata_json)),
        decision_jsonb = COALESCE(decision_jsonb, contexa_safe_jsonb(decision_json))
  WHERE (request_facts_jsonb IS NULL AND request_facts_json IS NOT NULL)
     OR (auth_state_jsonb IS NULL AND auth_state_json IS NOT NULL)
     OR (canonical_context_jsonb IS NULL AND canonical_context_json IS NOT NULL)
     OR (baseline_snapshot_jsonb IS NULL AND baseline_snapshot_json IS NOT NULL)
     OR (rag_results_jsonb IS NULL AND rag_results_json IS NOT NULL)
-    OR (prompt_execution_metadata_jsonb IS NULL AND prompt_execution_metadata_json IS NOT NULL)
     OR (decision_jsonb IS NULL AND decision_json IS NOT NULL);
 
 CREATE INDEX IF NOT EXISTS idx_sep_request_facts_jsonb
@@ -2502,8 +2498,6 @@ CREATE INDEX IF NOT EXISTS idx_sep_baseline_snapshot_jsonb
     ON sealed_evidence_package USING GIN (baseline_snapshot_jsonb);
 CREATE INDEX IF NOT EXISTS idx_sep_rag_results_jsonb
     ON sealed_evidence_package USING GIN (rag_results_jsonb);
-CREATE INDEX IF NOT EXISTS idx_sep_prompt_execution_metadata_jsonb
-    ON sealed_evidence_package USING GIN (prompt_execution_metadata_jsonb);
 
 CREATE OR REPLACE FUNCTION contexa_sync_sealed_evidence_jsonb()
 RETURNS TRIGGER
@@ -2515,7 +2509,6 @@ BEGIN
     NEW.canonical_context_jsonb = contexa_safe_jsonb(NEW.canonical_context_json);
     NEW.baseline_snapshot_jsonb = contexa_safe_jsonb(NEW.baseline_snapshot_json);
     NEW.rag_results_jsonb = contexa_safe_jsonb(NEW.rag_results_json);
-    NEW.prompt_execution_metadata_jsonb = contexa_safe_jsonb(NEW.prompt_execution_metadata_json);
     NEW.decision_jsonb = contexa_safe_jsonb(NEW.decision_json);
     RETURN NEW;
 END;

@@ -10,10 +10,14 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +25,10 @@ import java.util.Map;
 public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunStore {
 
     private final JdbcOperations jdbcOperations;
+    private static final int STORED_TEXT_VALUE_LIMIT = 4096;
+    private static final int STORED_MAP_ENTRY_LIMIT = 80;
+    private static final int STORED_LIST_ENTRY_LIMIT = 80;
+
     private final ObjectMapper objectMapper;
 
     public JdbcOfficialVerificationRunStore(JdbcOperations jdbcOperations, ObjectMapper objectMapper) {
@@ -100,10 +108,10 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 write(detailedView.checks()),
                 write(detailedView.requestFacts()),
                 write(detailedView.eventFacts()),
-                write(detailedView.promptFacts()),
+                write(storedStringMap(detailedView.promptFacts())),
                 write(detailedView.analysisFacts()),
                 write(detailedView.events()),
-                write(rawEvidenceWithAggregateRunId(detailedView, aggregateRunId)),
+                write(storedObjectMap(rawEvidenceWithAggregateRunId(detailedView, aggregateRunId))),
                 timestamp(record.requestedAt()),
                 timestamp(record.startedAt()),
                 timestamp(record.completedAt()));
@@ -327,6 +335,89 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         }
         raw.putIfAbsent("aggregateRunId", aggregateRunId);
         return raw;
+    }
+    private Map<String, String> storedStringMap(Map<String, String> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        source.forEach((key, value) -> {
+            if (StringUtils.hasText(key) && value != null) {
+                result.put(key, storedText(value));
+            }
+        });
+        return result;
+    }
+
+    private Map<String, Object> storedObjectMap(Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        int count = 0;
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (!StringUtils.hasText(entry.getKey())) {
+                continue;
+            }
+            if (count++ >= STORED_MAP_ENTRY_LIMIT) {
+                result.put("__omittedEntryCount", source.size() - STORED_MAP_ENTRY_LIMIT);
+                break;
+            }
+            result.put(entry.getKey(), storedObject(entry.getValue()));
+        }
+        return result;
+    }
+
+    private Object storedObject(Object value) {
+        if (value instanceof String text) {
+            return storedText(text);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            int count = 0;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() == null) {
+                    continue;
+                }
+                if (count++ >= STORED_MAP_ENTRY_LIMIT) {
+                    result.put("__omittedEntryCount", map.size() - STORED_MAP_ENTRY_LIMIT);
+                    break;
+                }
+                result.put(String.valueOf(entry.getKey()), storedObject(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            List<Object> result = new ArrayList<>();
+            int count = 0;
+            for (Object item : iterable) {
+                if (count++ >= STORED_LIST_ENTRY_LIMIT) {
+                    result.add(Map.of("__omittedItemCount", "more-than-" + STORED_LIST_ENTRY_LIMIT));
+                    break;
+                }
+                result.add(storedObject(item));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private String storedText(String value) {
+        if (value == null || value.length() <= STORED_TEXT_VALUE_LIMIT) {
+            return value;
+        }
+        return "[omitted-large-official-run-value length=" + value.length()
+                + " sha256=" + sha256Text(value) + "]";
+    }
+
+    private String sha256Text(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        }
+        catch (Exception exception) {
+            return Integer.toHexString(value.hashCode());
+        }
     }
 
     private Timestamp timestamp(Instant value) {

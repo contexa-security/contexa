@@ -50,6 +50,9 @@ import java.util.regex.Pattern;
 public class SealedEvidencePackageAssembler {
 
     private static final Duration DEFAULT_RETENTION = Duration.ofDays(90);
+    private static final int SEALED_METADATA_TEXT_LIMIT = 512;
+    private static final int SEALED_METADATA_GENERIC_LIST_LIMIT = 512;
+    private static final int SEALED_METADATA_FIELD_LEDGER_LIMIT = 512;
     private static final HexFormat HEX = HexFormat.of();
 
     private final ObjectMapper objectMapper;
@@ -534,7 +537,7 @@ public class SealedEvidencePackageAssembler {
                 || prompt.contains("related documents")
                 || prompt.contains("retrieved document")
                 || prompt.contains("document evidence")
-                || prompt.contains("검색 문서")) {
+                || prompt.contains("\uAC80\uC0C9 \uBB38\uC11C")) {
             return true;
         }
         for (Map<String, Object> document : documents) {
@@ -742,7 +745,169 @@ public class SealedEvidencePackageAssembler {
             metadata.putAll(promptSnapshot.metadata());
         }
         normalizeFaultedPromptHashes(promptSnapshot, metadata);
-        return toJson(metadata);
+        return toJson(compactPromptExecutionMetadata(metadata));
+    }
+    private Map<String, Object> compactPromptExecutionMetadata(Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> compact = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            String key = entry.getKey();
+            if (!hasText(key)) {
+                continue;
+            }
+            Object value = entry.getValue();
+            switch (key) {
+                case "promptSourceContextLedger" -> {
+                    compact.put("promptSourceContextLedgerStoragePolicy", "SUMMARY_ONLY");
+                    compact.put("promptSourceContextLedgerOriginalCount", collectionSize(value));
+                }
+                case "promptFieldStateLedger" -> {
+                    compact.put("promptFieldStateLedgerStoragePolicy", "OFFICIAL_RELEVANT_ROWS_ONLY");
+                    compact.put("promptFieldStateLedgerOriginalCount", collectionSize(value));
+                    compact.put("promptFieldStateLedger", compactFieldStateLedger(value));
+                }
+                case "promptRawUserFieldLedger", "promptFinalUserFieldLedger", "promptUserFieldDiffLedger" -> {
+                    compact.put(key + "StoragePolicy", "COMPACT_ROWS");
+                    compact.put(key + "OriginalCount", collectionSize(value));
+                    compact.put(key, compactLedgerRows(value, false));
+                }
+                default -> compact.put(key, compactMetadataValue(value));
+            }
+        }
+        return compact;
+    }
+
+    private List<Object> compactFieldStateLedger(Object value) {
+        if (!(value instanceof Iterable<?> rows)) {
+            return List.of();
+        }
+        List<Object> result = new ArrayList<>();
+        for (Object row : rows) {
+            if (!(row instanceof Map<?, ?> map) || !officialRelevantFieldStateRow(map)) {
+                continue;
+            }
+            result.add(compactLedgerRow(map));
+            if (result.size() >= SEALED_METADATA_FIELD_LEDGER_LIMIT) {
+                result.add(Map.of("omittedReason", "SEALED_METADATA_FIELD_LEDGER_LIMIT", "limit", SEALED_METADATA_FIELD_LEDGER_LIMIT));
+                break;
+            }
+        }
+        return result;
+    }
+
+    private boolean officialRelevantFieldStateRow(Map<?, ?> row) {
+        return truthy(row.get("blockingCandidate"))
+                || truthy(row.get("rawBlockingCandidate"))
+                || truthy(row.get("officialBlockingCandidate"))
+                || "LLM_DECISION_CONTRACT".equalsIgnoreCase(objectText(row.get("qualityRelevance")))
+                || hasMetricCodes(row.get("metricCodes"));
+    }
+
+    private boolean hasMetricCodes(Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            for (Object ignored : iterable) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Object> compactLedgerRows(Object value, boolean officialOnly) {
+        if (!(value instanceof Iterable<?> rows)) {
+            return List.of();
+        }
+        List<Object> result = new ArrayList<>();
+        int count = 0;
+        for (Object row : rows) {
+            if (!(row instanceof Map<?, ?> map)) {
+                continue;
+            }
+            if (officialOnly && !officialRelevantFieldStateRow(map)) {
+                continue;
+            }
+            if (count++ >= SEALED_METADATA_GENERIC_LIST_LIMIT) {
+                result.add(Map.of("omittedReason", "SEALED_METADATA_GENERIC_LIST_LIMIT", "limit", SEALED_METADATA_GENERIC_LIST_LIMIT));
+                break;
+            }
+            result.add(compactLedgerRow(map));
+        }
+        return result;
+    }
+
+    private Map<String, Object> compactLedgerRow(Map<?, ?> row) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : row.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            String key = String.valueOf(entry.getKey());
+            Object value = entry.getValue();
+            if (value instanceof Map<?, ?> || value instanceof Iterable<?>) {
+                compact.put(key, compactMetadataValue(value));
+            }
+            else {
+                compact.put(key, compactTextValue(value));
+            }
+        }
+        return compact;
+    }
+
+    private Object compactMetadataValue(Object value) {
+        if (value instanceof String || value instanceof Number || value instanceof Boolean || value == null) {
+            return compactTextValue(value);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> compact = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() != null) {
+                    compact.put(String.valueOf(entry.getKey()), compactMetadataValue(entry.getValue()));
+                }
+            }
+            return compact;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            List<Object> compact = new ArrayList<>();
+            int count = 0;
+            for (Object item : iterable) {
+                if (count++ >= SEALED_METADATA_GENERIC_LIST_LIMIT) {
+                    compact.add(Map.of("omittedReason", "SEALED_METADATA_GENERIC_LIST_LIMIT", "limit", SEALED_METADATA_GENERIC_LIST_LIMIT));
+                    break;
+                }
+                compact.add(compactMetadataValue(item));
+            }
+            return compact;
+        }
+        return compactTextValue(value);
+    }
+
+    private Object compactTextValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        String text = String.valueOf(value);
+        if (text.length() <= SEALED_METADATA_TEXT_LIMIT) {
+            return text;
+        }
+        return Map.of(
+                "storagePolicy", "OMITTED_LARGE_TEXT",
+                "length", text.length(),
+                "sha256", sha256Prefixed(text));
+    }
+
+    private int collectionSize(Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            int count = 0;
+            for (Object ignored : iterable) {
+                count++;
+            }
+            return count;
+        }
+        return 0;
     }
 
     private void normalizeFaultedPromptHashes(SealedEvidencePromptSnapshot promptSnapshot, Map<String, Object> metadata) {

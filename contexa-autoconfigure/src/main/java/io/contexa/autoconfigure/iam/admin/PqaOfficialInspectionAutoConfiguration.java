@@ -312,7 +312,8 @@ public class PqaOfficialInspectionAutoConfiguration {
             PromptQualityCertificateService certificateService,
             PromptQualityAssuranceCaseService assuranceCaseService,
             PromptQualityProcessRunService processRunService,
-            OfficialVerificationOperatorSnapshotService operatorSnapshotService) {
+            OfficialVerificationOperatorSnapshotService operatorSnapshotService,
+            @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
         return new DefaultPromptQualityOfficialRunDetailService(
                 officialRuntime,
                 verificationLedgerService,
@@ -322,7 +323,8 @@ public class PqaOfficialInspectionAutoConfiguration {
                 certificateService,
                 assuranceCaseService,
                 processRunService,
-                operatorSnapshotService);
+                operatorSnapshotService,
+                jdbcTemplateProvider.getIfAvailable());
     }
 
     @Bean(name = "pqaOfficialVerificationExecutionLockService")

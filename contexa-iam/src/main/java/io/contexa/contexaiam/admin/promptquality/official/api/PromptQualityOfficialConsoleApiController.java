@@ -16,6 +16,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailu
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunTechnicalLedger;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationExecutionStatus;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
@@ -378,7 +379,7 @@ public class PromptQualityOfficialConsoleApiController {
                 stringList(body == null ? null : body.get("issueIds"))));
     }
     @GetMapping("/verification/runtime-runs/package/{packageId}/technical-ledger")
-    public OfficialRunPackageDetail packageTechnicalLedger(
+    public OfficialRunTechnicalLedger packageTechnicalLedger(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
         return officialRunDetailService.findTechnicalLedger(packageId, aggregateRunId);
