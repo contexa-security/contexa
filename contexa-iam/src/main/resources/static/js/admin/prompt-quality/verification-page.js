@@ -28,7 +28,7 @@ function promptQualityApiRoot() {
 }
 
 function promptQualityApiPath(path) {
-    const base = promptQualityApiRoot().replace(/\/+$, '');
+    const base = promptQualityApiRoot().replace(/\/+$/, '');
     const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
     return `${base}${suffix}`;
 }
