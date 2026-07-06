@@ -137,8 +137,9 @@ public class DefaultPromptQualityRuntimeEvidenceService
         List<String> missingSignals = missingSignalDetails.stream()
                 .map(RuntimeEvidenceMissingKnowledgeSignal::title)
                 .toList();
+        boolean integrityValid = lookupService.verifyIntegrity(pkg);
         return new RuntimeEvidencePackageDetail(
-                toSummary(pkg),
+                toSummary(pkg, integrityValid),
                 hasText(pkg.getRawSystemPrompt()),
                 hasText(pkg.getRawUserPrompt()),
                 hasText(pkg.getSystemPromptText()),
@@ -155,7 +156,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
                 ragResults,
                 missingSignals,
                 missingSignalDetails,
-                qualityWarnings(pkg),
+                qualityWarnings(pkg, integrityValid),
                 promptConsistencyGate.evaluate(pkg),
                 pkg.getSystemPromptText(),
                 pkg.getUserPromptText());
@@ -266,10 +267,13 @@ public class DefaultPromptQualityRuntimeEvidenceService
     }
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg) {
+        return toSummary(pkg, lookupService.verifyIntegrity(pkg));
+    }
+
+    private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg, boolean integrityValid) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
         Map<String, Object> promptMetadata = parseJson(pkg.getPromptExecutionMetadataJson());
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
-        boolean integrityValid = lookupService.verifyIntegrity(pkg);
         PromptQualityStateDescriptor state = stateCatalog.runtimeEvidence(
                 pkg.isSealed(),
                 integrityValid,
@@ -298,13 +302,13 @@ public class DefaultPromptQualityRuntimeEvidenceService
                 state);
     }
 
-    private List<String> qualityWarnings(SealedEvidencePackage pkg) {
+    private List<String> qualityWarnings(SealedEvidencePackage pkg, boolean integrityValid) {
         return Stream.of(
                         hasText(pkg.getRawSystemPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawSystemPromptMissing", "Raw system prompt is not stored."),
                         hasText(pkg.getRawUserPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawUserPromptMissing", "Raw user prompt is not stored."),
                         hasText(pkg.getSystemPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmSystemPromptMissing", "System prompt sent to the LLM is missing."),
                         hasText(pkg.getUserPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmUserPromptMissing", "User prompt sent to the LLM is missing."),
-                        lookupService.verifyIntegrity(pkg) ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch", "Evidence hash does not match."))
+                        integrityValid ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch", "Evidence hash does not match."))
                 .filter(StringUtils::hasText)
                 .toList();
     }

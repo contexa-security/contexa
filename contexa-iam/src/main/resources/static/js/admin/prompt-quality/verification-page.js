@@ -625,6 +625,7 @@ async function runVerification(pageRoot, item) {
             packageId
         });
         pageRoot.__selectedAggregateRunId = rawText(run.aggregateRunId) || rawText(run.runId);
+        syncAggregateRunIdToLocation(pageRoot.__selectedAggregateRunId);
         updateRunProgress(pageRoot, progress,
                 t('enterprise.pqa.verification.run.progress.ledger.title'),
                 t('enterprise.pqa.verification.run.progress.ledger.detail'),
@@ -787,6 +788,7 @@ function startRunProgressPolling(pageRoot, progress) {
                 if (computedStatus.percent !== null && computedStatus.percent !== undefined) {
                     if (rawText(status.aggregateRunId)) {
                         pageRoot.__selectedAggregateRunId = rawText(status.aggregateRunId);
+                        syncAggregateRunIdToLocation(pageRoot.__selectedAggregateRunId);
                     }
                     setRunProgress(
                             pageRoot,
@@ -827,6 +829,7 @@ async function waitForExecutionCompletion(pageRoot, progress, packageId) {
         if (computed.percent !== null && computed.percent !== undefined) {
             if (rawText(status.aggregateRunId)) {
                 pageRoot.__selectedAggregateRunId = rawText(status.aggregateRunId);
+                syncAggregateRunIdToLocation(pageRoot.__selectedAggregateRunId);
             }
             setRunProgress(
                     pageRoot,
@@ -2203,6 +2206,7 @@ async function renderOfficialLedger(pageRoot, packageId) {
         const hasLedgerRuns = officialLedgerHasRuns(detail);
         pageRoot.__officialLedgerAvailable = hasLedgerRuns;
         pageRoot.__selectedAggregateRunId = rawText(detail.aggregateRunId) || aggregateRunIdFromLocation();
+        syncAggregateRunIdToLocation(pageRoot.__selectedAggregateRunId);
         renderOfficialLedgerSummary(summary, detail);
         renderOfficialAttempts(attempts, detail, pageRoot);
         renderOfficialProcess(process, detail);
@@ -3989,6 +3993,19 @@ function aggregateRunIdFromLocation() {
     return rawText(new URLSearchParams(window.location.search || '').get('aggregateRunId'));
 }
 
+function syncAggregateRunIdToLocation(aggregateRunId) {
+    const resolvedAggregateRunId = rawText(aggregateRunId);
+    if (!resolvedAggregateRunId || typeof window === 'undefined' || !window.history?.replaceState) {
+        return;
+    }
+    const url = new URL(window.location.href);
+    if (rawText(url.searchParams.get('aggregateRunId')) === resolvedAggregateRunId) {
+        return;
+    }
+    url.searchParams.set('aggregateRunId', resolvedAggregateRunId);
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+}
+
 function routeIdentityFromLocation() {
     const params = new URLSearchParams(window.location.search || '');
     return {
@@ -5682,6 +5699,11 @@ function renderMetricFailureCard(run, group) {
     });
 }
 
+function metricIsLlmDecisionRun(run) {
+    const metricCode = upperText(run?.metricCode || run?.endpointKey || run?.code);
+    const metricGroup = upperText(run?.metricGroup || run?.group || run?.category);
+    return LLM_DECISION_OFFICIAL_METRICS.has(metricCode) || metricGroup === 'LLM_DECISION';
+}
 function renderMetricCheckTable(run) {
     if (metricNotApplicable(run)) {
         return '';
@@ -5692,15 +5714,46 @@ function renderMetricCheckTable(run) {
     }
     const passed = checks.filter(check => check.pass).length;
     const failedChecks = checks.filter(check => !check.pass);
-    const purposeFailedChecks = failedChecks.filter(check => metricCheckCustomerVisible(run, check));
-    const reviewChecks = failedChecks.filter(check => !metricCheckCustomerVisible(run, check));
     const passedChecks = checks.filter(check => check.pass);
+    const decisionMetricMode = metricIsLlmDecisionRun(run);
     const counts = metricCheckCounts(run, [], {
         promptComparisons: run?.comparisons || [],
         actualPromptProblems: run?.actualPromptProblems || []
     });
-    const promptProblemMode = counts.actualProblemCount > 0;
+    const promptProblemMode = counts.actualProblemCount > 0 && !decisionMetricMode;
+    if (decisionMetricMode) {
+        return `
+            <section class="pqa-official-run-subsection pqa-metric-ledger-section">
+                <div class="pqa-metric-section-title">
+                    <div>
+                        <h4>${escapeHtml(t('enterprise.pqa.resolutionHub.meta.check'))}</h4>
+                        <p>${escapeHtml('LLM 판정 공식검사의 실제 실패 기준과 통과 기준을 분리해 확인합니다.')}</p>
+                    </div>
+                    <span>${escapeHtml(`${checks.length}개 중 ${passed}개 충족`)}</span>
+                </div>
+                ${failedChecks.length
+                        ? `<section class="pqa-metric-review-panel pqa-metric-raw-ledger-shell pqa-metric-review-criteria is-blocking">
+                                <div class="pqa-metric-review-head">
+                                    <strong>${escapeHtml('실패한 LLM 판정 기준')} ${escapeHtml(String(failedChecks.length))}개</strong>
+                                    <span>${escapeHtml('기대 기준, 실제 값, evidence 위치를 확인한 뒤 다시 검사하십시오.')}</span>
+                                </div>
+                                ${renderMetricCriteriaList(failedChecks, false, run)}
+                           </section>`
+                        : `<div class="pqa-metric-criteria-empty">${badge('모든 기준 통과', { tone: 'ready' })}<span>${escapeHtml('LLM 판정 공식검사 기준을 모두 충족했습니다.')}</span></div>`}
+                ${passedChecks.length
+                        ? `<details class="pqa-metric-raw-ledger-shell pqa-metric-passed-criteria">
+                                <summary>
+                                    <span>통과한 기준 ${escapeHtml(String(passedChecks.length))}개</span>
+                                    <small>${escapeHtml(t('enterprise.pqa.verification.checkOnlyWhenNeeded'))}</small>
+                                </summary>
+                                ${renderMetricCriteriaList(passedChecks, true, run)}
+                           </details>`
+                        : ''}
+            </section>
+        `;
+    }
     if (promptProblemMode) {
+        const reviewChecks = failedChecks.filter(check => !metricCheckCustomerVisible(run, check));
         return `
             <section class="pqa-official-run-subsection pqa-metric-ledger-section">
                 <div class="pqa-metric-section-title">
@@ -5713,7 +5766,7 @@ function renderMetricCheckTable(run) {
                 ${passedChecks.length
                         ? `<details class="pqa-metric-raw-ledger-shell pqa-metric-passed-criteria">
                                 <summary>
-                                    <span>충족한 기준 ${escapeHtml(String(passedChecks.length))}개</span>
+                                    <span>통과한 기준 ${escapeHtml(String(passedChecks.length))}개</span>
                                     <small>${escapeHtml(t('enterprise.pqa.verification.checkOnlyWhenNeeded'))}</small>
                                 </summary>
                                 ${renderMetricCriteriaList(passedChecks, true, run)}
@@ -5731,6 +5784,8 @@ function renderMetricCheckTable(run) {
             </section>
         `;
     }
+    const purposeFailedChecks = failedChecks.filter(check => metricCheckCustomerVisible(run, check));
+    const reviewChecks = failedChecks.filter(check => !metricCheckCustomerVisible(run, check));
     return `
         <section class="pqa-official-run-subsection pqa-metric-ledger-section">
             <div class="pqa-metric-section-title">
@@ -5742,7 +5797,7 @@ function renderMetricCheckTable(run) {
             </div>
             ${purposeFailedChecks.length
                     ? renderMetricCriteriaList(purposeFailedChecks, false, run)
-                    : `<div class="pqa-metric-criteria-empty">${badge(reviewChecks.length ? '프롬프트 문제 없음' : '모두 충족', { tone: 'ready' })}<span>${escapeHtml(reviewChecks.length ? 'LLM 사용자 프롬프트 개선 대상은 없습니다.' : '이 지표의 판정 기준을 모두 충족했습니다.')}</span></div>`}
+                    : `<div class="pqa-metric-criteria-empty">${badge(reviewChecks.length ? '프롬프트 문제 없음' : '모두 충족', { tone: 'ready' })}<span>${escapeHtml(reviewChecks.length ? 'LLM 사용자 프롬프트 개선 대상은 없습니다. 아래 추가 확인 항목을 처리하십시오.' : '이 지표의 판정 기준을 모두 충족했습니다.')}</span></div>`}
             ${reviewChecks.length
                     ? `<section class="pqa-metric-review-panel pqa-metric-raw-ledger-shell pqa-metric-review-criteria">
                             <div class="pqa-metric-review-head">
@@ -5755,7 +5810,7 @@ function renderMetricCheckTable(run) {
             ${passedChecks.length
                     ? `<details class="pqa-metric-raw-ledger-shell pqa-metric-passed-criteria">
                             <summary>
-                                <span>충족한 기준 ${escapeHtml(String(passedChecks.length))}개</span>
+                                <span>통과한 기준 ${escapeHtml(String(passedChecks.length))}개</span>
                                 <small>${escapeHtml(t('enterprise.pqa.verification.checkOnlyWhenNeeded'))}</small>
                             </summary>
                             ${renderMetricCriteriaList(passedChecks, true, run)}
@@ -5810,26 +5865,31 @@ function renderMetricCriteriaList(checks, passedOnly = false, run = null) {
 }
 
 function metricCriteriaFallbackEvidence(check, evidence = [], passedOnly = false) {
-    if (!passedOnly && !check?.pass) {
-        return null;
-    }
     const signalKey = firstCleanText(
             check?.checkLabel,
             check?.label,
             metricPassedFriendlyTitle(check),
             check?.checkCode,
             t('enterprise.pqa.resolutionHub.meta.check'));
+    const expected = firstCleanText(check?.expectedValue, check?.expected, check?.expectedEvidence, check?.criteria);
+    const actual = firstCleanText(check?.actualValue, check?.actual, check?.operatorReason, check?.evidenceValue);
+    const source = firstCleanText(
+            check?.sourceFieldPath,
+            check?.source,
+            check?.evidenceLocation,
+            check?.fieldPath,
+            check?.evidencePath);
     const evidenceValue = firstCleanText(
             metricCriteriaResultSummary(check),
-            check?.operatorReason,
-            check?.actualValue,
-            check?.expectedValue,
-            check?.decisionUtility,
-            '검사 기준을 통과했습니다.');
-    const runtimeFacts = customerVisibleItemList(
-            check?.runtimeFacts,
-            check?.facts,
-            check?.evidenceFacts);
+            check?.pass ? actual : '',
+            check?.pass ? expected : '',
+            check?.pass ? '검사 기준을 충족했습니다.' : '공식검사 기준을 충족하지 못했습니다.');
+    const runtimeFacts = distinctText([
+        ...customerVisibleItemList(check?.runtimeFacts, check?.facts, check?.evidenceFacts),
+        ...(!check?.pass && expected ? [expected] : []),
+        ...(!check?.pass && actual ? [actual] : []),
+        ...(!check?.pass && source ? [`Evidence: ${source}`] : [])
+    ]);
     const contextItems = distinctText([
         ...customerVisibleItemsFromEvidence(evidence),
         ...customerVisibleItemList(
@@ -5940,6 +6000,9 @@ function metricCriteriaResultSummary(check) {
 }
 
 function metricCriteriaCardLabel(run, check) {
+    if (!check?.pass && metricIsLlmDecisionRun(run)) {
+        return { kicker: 'LLM 판정 기준', badge: '실패', tone: 'blocked' };
+    }
     if (check?.pass) {
         return { kicker: t('enterprise.pqa.promptConsistency.criteria.title'), badge: '충족', tone: 'ready' };
     }
@@ -5998,6 +6061,9 @@ function metricCheckCustomerVisible(run, check) {
 }
 
 function metricReviewSectionLabel(run, checks = []) {
+    if (metricIsLlmDecisionRun(run)) {
+        return '실패한 LLM 판정 기준';
+    }
     const evidence = checks.flatMap(check => metricPurposeEvidenceForCheck(run, check));
     if (evidence.some(item => upperText(item?.readinessScope) === 'INPUT_READINESS')) {
         return '사전 입력 문제';
@@ -6009,6 +6075,9 @@ function metricReviewSectionLabel(run, checks = []) {
 }
 
 function metricReviewActionText(run, checks = []) {
+    if (metricIsLlmDecisionRun(run)) {
+        return '기대 기준, 실제 값, evidence 위치를 확인한 뒤 다시 검사하십시오.';
+    }
     const evidence = checks.flatMap(check => metricPurposeEvidenceForCheck(run, check));
     if (evidence.some(item => upperText(item?.readinessScope) === 'INPUT_READINESS')) {
         return '사전 입력값을 보강한 뒤 다시 검사하십시오.';

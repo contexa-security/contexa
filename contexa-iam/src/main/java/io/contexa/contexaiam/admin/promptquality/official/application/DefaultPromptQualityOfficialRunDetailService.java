@@ -45,14 +45,18 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialMetricPu
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageSummary;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityCertificateService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityCertificateService.PromptQualityCertificate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -63,9 +67,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashSet;
 
 public class DefaultPromptQualityOfficialRunDetailService implements PromptQualityOfficialRunDetailService {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultPromptQualityOfficialRunDetailService.class);
+    private static final Duration DETAIL_CACHE_TTL = Duration.ofSeconds(30);
+    private static final int DETAIL_CACHE_MAX_SIZE = 128;
 
     private static final Set<String> PASS_STATES = Set.of("SUCCESS", "PASS", "PASSED");
     private static final Set<String> NOT_APPLICABLE_STATES = Set.of("NOT_APPLICABLE", "NOT_APPLICABLE_METRIC");
@@ -81,6 +90,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     private final OfficialVerificationOperatorSnapshotService operatorSnapshotService;
     private final FinalPromptMetricContractCatalog finalPromptMetricContracts =
             FinalPromptMetricContractCatalog.load(new ObjectMapper());
+    private final ConcurrentHashMap<String, CachedOfficialRunPackageDetail> detailCache = new ConcurrentHashMap<>();
 
     public DefaultPromptQualityOfficialRunDetailService(
             OfficialSealedEvidenceVerificationRuntime officialRuntime,
@@ -229,18 +239,38 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         String normalizedPackageId = requireText(packageId, message(
                 "enterprise.pqa.runtimeVerification.error.packageId.required",
                 "Request evidence packageId is required."));
+        String normalizedAggregateRunId = StringUtils.hasText(aggregateRunId) ? aggregateRunId.trim() : null;
+        String cacheKey = detailCacheKey(normalizedPackageId, normalizedAggregateRunId);
+        OfficialRunPackageDetail cachedDetail = cachedDetail(cacheKey);
+        if (cachedDetail != null) {
+            return cachedDetail;
+        }
+        long startedNanos = System.nanoTime();
+        long evidenceStartedNanos = startedNanos;
         RuntimeEvidencePackageDetail sealedEvidence = evidenceService.findDetail(normalizedPackageId);
-        OfficialSealedEvidenceVerificationResult officialResult = officialRuntime.findByPackageId(normalizedPackageId);
+        long evidenceMs = elapsedMillis(evidenceStartedNanos);
+        long ledgerStartedNanos = System.nanoTime();
         List<OfficialVerificationRunView> allPackageRuns =
                 safeRunViews(verificationLedgerService.findMetricRunsByPackageId(normalizedPackageId));
-        if (StringUtils.hasText(aggregateRunId)) {
-            String requestedAggregateRunId = aggregateRunId.trim();
+        long ledgerMs = elapsedMillis(ledgerStartedNanos);
+        long runtimeMs = 0L;
+        OfficialSealedEvidenceVerificationResult officialResult = officialResultFromStoredRuns(
+                normalizedPackageId,
+                normalizedAggregateRunId,
+                sealedEvidence,
+                allPackageRuns);
+        if (officialResult == null) {
+            long runtimeStartedNanos = System.nanoTime();
+            officialResult = officialRuntime.findByPackageId(normalizedPackageId);
+            runtimeMs = elapsedMillis(runtimeStartedNanos);
+        }
+        if (StringUtils.hasText(normalizedAggregateRunId)) {
             List<OfficialVerificationRunView> selectedRuns = allPackageRuns.stream()
-                    .filter(run -> same(requestedAggregateRunId, firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId())))
+                    .filter(run -> same(normalizedAggregateRunId, firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId())))
                     .toList();
             if (!selectedRuns.isEmpty()) {
                 officialResult = new OfficialSealedEvidenceVerificationResult(
-                        requestedAggregateRunId,
+                        normalizedAggregateRunId,
                         officialResult.packageId(),
                         officialResult.operatorId(),
                         officialResult.generatedAt(),
@@ -250,7 +280,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         }
         OperatorSnapshot operatorSnapshot = operatorSnapshot(
                 normalizedPackageId,
-                firstNonBlank(aggregateRunId, officialResult.aggregateRunId()));
+                officialResult.aggregateRunId());
         List<? extends OfficialVerificationRunView> coreRuns = safeRuns(officialResult);
         final OperatorSnapshot selectedOperatorSnapshot = operatorSnapshot;
         String resolvedAggregateRunId = firstNonBlank(
@@ -315,7 +345,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         List<OfficialActualPromptProblem> actualPromptProblems = actualPromptProblems(selectedOperatorSnapshot);
         OfficialRunSummaryCounts summaryCounts = summaryCounts(runs, actualPromptProblems);
         String nextActionHref = nextActionHref(normalizedPackageId, resolvedAggregateRunId, summaryCounts);
-        return new OfficialRunPackageDetail(
+        OfficialRunPackageDetail detail = new OfficialRunPackageDetail(
                 normalizedPackageId,
                 resolvedAggregateRunId,
                 officialResult.integrityValid(),
@@ -344,6 +374,9 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 processHistory,
                 processEvents,
                 auditSnapshots);
+        cacheDetail(cacheKey, detail);
+        logSlowPackageDetail(normalizedPackageId, resolvedAggregateRunId, startedNanos, evidenceMs, ledgerMs, runtimeMs, runs.size());
+        return detail;
     }
 
     @Override
@@ -375,6 +408,75 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 ? operatorSnapshot(packageId, aggregateRunId)
                 : OperatorSnapshot.empty();
         return toMetricDetail(run, sealedEvidence, operatorSnapshot);
+    }
+
+    private OfficialSealedEvidenceVerificationResult officialResultFromStoredRuns(
+            String packageId,
+            String aggregateRunId,
+            RuntimeEvidencePackageDetail sealedEvidence,
+            List<OfficialVerificationRunView> allPackageRuns) {
+        if (allPackageRuns == null || allPackageRuns.isEmpty()) {
+            return null;
+        }
+        String resolvedAggregateRunId = null;
+        List<OfficialVerificationRunView> selectedRuns = List.of();
+        if (StringUtils.hasText(aggregateRunId)) {
+            resolvedAggregateRunId = aggregateRunId.trim();
+            String requestedAggregateRunId = resolvedAggregateRunId;
+            selectedRuns = allPackageRuns.stream()
+                    .filter(run -> same(requestedAggregateRunId, firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId())))
+                    .toList();
+        }
+        if (selectedRuns.isEmpty()) {
+            resolvedAggregateRunId = latestAggregateRunId(allPackageRuns);
+            if (StringUtils.hasText(resolvedAggregateRunId)) {
+                String latestRunId = resolvedAggregateRunId;
+                selectedRuns = allPackageRuns.stream()
+                        .filter(run -> same(latestRunId, firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId())))
+                        .toList();
+            }
+            else {
+                selectedRuns = List.copyOf(allPackageRuns);
+            }
+        }
+        if (selectedRuns.isEmpty()) {
+            return null;
+        }
+        RuntimeEvidencePackageSummary summary = sealedEvidence == null ? null : sealedEvidence.summary();
+        boolean integrityValid = summary != null && summary.integrityValid();
+        String operatorId = summary == null ? null : summary.userId();
+        String generatedAt = selectedRuns.stream()
+                .map(run -> firstNonBlank(run.completedAt(), run.startedAt()))
+                .filter(StringUtils::hasText)
+                .max(String::compareTo)
+                .orElseGet(() -> Instant.now().toString());
+        return new OfficialSealedEvidenceVerificationResult(
+                resolvedAggregateRunId,
+                packageId,
+                firstNonBlank(operatorId, "stored-official-ledger"),
+                generatedAt,
+                integrityValid,
+                selectedRuns);
+    }
+
+    private String latestAggregateRunId(List<OfficialVerificationRunView> runs) {
+        if (runs == null || runs.isEmpty()) {
+            return null;
+        }
+        String latestAggregateRunId = null;
+        String latestCompletedAt = "";
+        for (OfficialVerificationRunView run : runs) {
+            if (run == null) {
+                continue;
+            }
+            String aggregateRunId = firstNonBlank(raw(run.rawEvidence(), "aggregateRunId"), run.runId());
+            String completedAt = firstNonBlank(run.completedAt(), run.startedAt());
+            if (!StringUtils.hasText(latestAggregateRunId) || completedAt.compareTo(latestCompletedAt) >= 0) {
+                latestAggregateRunId = aggregateRunId;
+                latestCompletedAt = completedAt;
+            }
+        }
+        return latestAggregateRunId;
     }
 
     private OfficialVerificationMetricTrace toMetricDetail(
@@ -1710,6 +1812,11 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         return StringUtils.hasText(value) ? value.trim() : "";
     }
 
+    private record CachedOfficialRunPackageDetail(
+            OfficialRunPackageDetail detail,
+            long expiresAtNanos) {
+    }
+
     private record AttemptGroup(
             String aggregateRunId,
             String packageId,
@@ -1729,6 +1836,76 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 .filter(metric -> normalize(metric.code()).equals(normalized))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String detailCacheKey(String packageId, String aggregateRunId) {
+        if (!StringUtils.hasText(packageId) || !StringUtils.hasText(aggregateRunId)) {
+            return null;
+        }
+        return packageId.trim() + "\n" + aggregateRunId.trim();
+    }
+
+    private OfficialRunPackageDetail cachedDetail(String cacheKey) {
+        if (!StringUtils.hasText(cacheKey)) {
+            return null;
+        }
+        CachedOfficialRunPackageDetail cached = detailCache.get(cacheKey);
+        if (cached == null) {
+            return null;
+        }
+        if (System.nanoTime() > cached.expiresAtNanos()) {
+            detailCache.remove(cacheKey, cached);
+            return null;
+        }
+        return cached.detail();
+    }
+
+    private void cacheDetail(String cacheKey, OfficialRunPackageDetail detail) {
+        if (!StringUtils.hasText(cacheKey) || detail == null) {
+            return;
+        }
+        pruneDetailCache();
+        detailCache.put(cacheKey, new CachedOfficialRunPackageDetail(
+                detail,
+                System.nanoTime() + DETAIL_CACHE_TTL.toNanos()));
+    }
+
+    private void pruneDetailCache() {
+        if (detailCache.size() < DETAIL_CACHE_MAX_SIZE) {
+            return;
+        }
+        long now = System.nanoTime();
+        detailCache.entrySet().removeIf(entry -> entry.getValue() == null || now > entry.getValue().expiresAtNanos());
+        if (detailCache.size() >= DETAIL_CACHE_MAX_SIZE) {
+            detailCache.clear();
+        }
+    }
+
+    private long elapsedMillis(long startedNanos) {
+        return Math.max(0L, (System.nanoTime() - startedNanos) / 1_000_000L);
+    }
+
+    private void logSlowPackageDetail(
+            String packageId,
+            String aggregateRunId,
+            long startedNanos,
+            long evidenceMs,
+            long ledgerMs,
+            long runtimeMs,
+            int runCount) {
+        long totalMs = elapsedMillis(startedNanos);
+        if (totalMs < 1_000L) {
+            return;
+        }
+        log.warn(
+                "[PQA-OFFICIAL-DETAIL-SLOW] packageId={} aggregateRunId={} totalMs={} evidenceMs={} ledgerMs={} runtimeFallbackMs={} runCount={}",
+                packageId,
+                valueOrEmpty(aggregateRunId),
+                totalMs,
+                evidenceMs,
+                ledgerMs,
+                runtimeMs,
+                runCount);
     }
 
     private List<OfficialVerificationRunView> safeRuns(OfficialSealedEvidenceVerificationResult officialResult) {
