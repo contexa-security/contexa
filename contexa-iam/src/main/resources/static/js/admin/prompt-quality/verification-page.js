@@ -23,6 +23,15 @@ const RESOURCE_ELIGIBILITY_OFFICIAL_METRICS = new Set(['PRE']);
 const PROMPT_OFFICIAL_METRICS = new Set([
     'EIR', 'CCR', 'CCSR', 'PFR', 'MTR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'PRE'
 ]);
+function promptQualityApiRoot() {
+    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+}
+
+function promptQualityApiPath(path) {
+    const base = promptQualityApiRoot().replace(/\/+$, '');
+    const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    return `${base}${suffix}`;
+}
 const OFFICIAL_METRIC_FAMILY_LABELS = {
     prompt: '프롬프트 12지표',
     decision: 'LLM 판정 6지표',
@@ -329,7 +338,7 @@ function explainAction(pageRoot, anchor, title, detail) {
 }
 
 async function loadSelectedEvidenceDetail(pageRoot, packageId) {
-    const detail = await getJson(`/contexa/admin/api/prompt-quality/runtime-evidence/${encodeURIComponent(packageId)}`);
+    const detail = await getJson(promptQualityApiPath(`/runtime-evidence/${encodeURIComponent(packageId)}`));
     const item = withRouteIdentity(pageRoot, detail.summary || { packageId });
     detail.summary = item;
     pageRoot.__selectedEvidence = item;
@@ -621,7 +630,7 @@ async function runVerification(pageRoot, item) {
         updateRunProgress(pageRoot, progress,
                 t('enterprise.pqa.verification.run.progress.prepare.title'),
                 t('enterprise.pqa.verification.run.progress.prepare.detail'));
-        const run = await postJson(`/contexa/admin/api/prompt-quality/verification/runtime-runs?packageId=${encodeURIComponent(packageId)}`, {
+        const run = await postJson(promptQualityApiPath(`/verification/runtime-runs?packageId=${encodeURIComponent(packageId)}`), {
             packageId
         });
         pageRoot.__selectedAggregateRunId = rawText(run.aggregateRunId) || rawText(run.runId);
@@ -859,7 +868,7 @@ async function loadExecutionStatus(packageId) {
     if (!packageId) {
         return null;
     }
-    return getJson(`/contexa/admin/api/prompt-quality/verification/runtime-runs/package/${encodeURIComponent(packageId)}/execution-status`);
+    return getJson(promptQualityApiPath(`/verification/runtime-runs/package/${encodeURIComponent(packageId)}/execution-status`));
 }
 
 function isRunningExecution(run) {
@@ -2195,7 +2204,6 @@ async function renderOfficialLedger(pageRoot, packageId) {
     const remediation = $(pageRoot, '[data-pqa-official-ledger-remediation]');
     const reverify = $(pageRoot, '[data-pqa-official-ledger-reverify]');
     const runs = $(pageRoot, '[data-pqa-official-ledger-runs]');
-    const raw = $(pageRoot, '[data-pqa-official-ledger-raw]');
     if (summary) {
         summary.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.loading'))}</p></div>`;
     }
@@ -2217,7 +2225,6 @@ async function renderOfficialLedger(pageRoot, packageId) {
         renderOfficialRemediationGroups(remediation, detail);
         renderOfficialReverifySummary(reverify, detail);
         renderOfficialRuns(runs, detail);
-        renderOfficialRaw(raw, detail);
         updateSubrouteLinks(pageRoot, {
             ...pageRoot.__selectedEvidence,
             packageId,
@@ -2237,7 +2244,7 @@ async function renderOfficialLedger(pageRoot, packageId) {
         if (summary) {
             summary.innerHTML = errorHtml;
         }
-        [prompt, runs, process, audit, failures, remediation, reverify, raw].filter(Boolean).forEach(target => {
+        [prompt, runs, process, audit, failures, remediation, reverify].filter(Boolean).forEach(target => {
             target.innerHTML = errorHtml;
         });
         const runSummary = $(pageRoot, '[data-pqa-run-summary]');
@@ -2258,68 +2265,7 @@ async function loadOfficialLedgerDetail(packageId) {
         params.set('aggregateRunId', aggregateRunId);
     }
     const query = params.toString();
-    return getJson(`/contexa/admin/api/prompt-quality/verification/runtime-runs/package/${encodeURIComponent(packageId)}${query ? `?${query}` : ''}`);
-}
-
-async function loadOfficialTechnicalLedger(packageId) {
-    const params = new URLSearchParams();
-    const aggregateRunId = rawText(root?.__selectedAggregateRunId) || aggregateRunIdFromLocation();
-    if (aggregateRunId) {
-        params.set('aggregateRunId', aggregateRunId);
-    }
-    const query = params.toString();
-    return getJson(`/contexa/admin/api/prompt-quality/verification/runtime-runs/package/${encodeURIComponent(packageId)}/technical-ledger${query ? `?${query}` : ''}`);
-}
-
-async function loadOfficialPromptComparison(packageId) {
-    const params = new URLSearchParams();
-    const aggregateRunId = rawText(root?.__selectedAggregateRunId) || aggregateRunIdFromLocation();
-    if (aggregateRunId) {
-        params.set('aggregateRunId', aggregateRunId);
-    }
-    const query = params.toString();
-    return getJson(`/contexa/admin/api/prompt-quality/verification/packages/${encodeURIComponent(packageId)}/prompt-comparison${query ? `?${query}` : ''}`);
-}
-
-async function loadOfficialActualPromptProblems(packageId) {
-    const params = new URLSearchParams();
-    const aggregateRunId = rawText(root?.__selectedAggregateRunId) || aggregateRunIdFromLocation();
-    if (aggregateRunId) {
-        params.set('aggregateRunId', aggregateRunId);
-    }
-    const query = params.toString();
-    return getJson(`/contexa/admin/api/prompt-quality/verification/packages/${encodeURIComponent(packageId)}/actual-prompt-problems${query ? `?${query}` : ''}`);
-}
-
-async function officialPromptComparisonDetail(packageId, detail) {
-    const promptComparisons = ensureArray(detail?.promptComparisons);
-    const actualPromptProblems = ensureArray(detail?.actualPromptProblems);
-    if (promptComparisons.length && actualPromptProblems.length) {
-        return {
-            ...detail,
-            promptComparisons,
-            actualPromptProblems
-        };
-    }
-    try {
-        const [loadedComparisons, loadedActualProblems] = await Promise.all([
-            promptComparisons.length ? Promise.resolve(promptComparisons) : loadOfficialPromptComparison(packageId),
-            actualPromptProblems.length ? Promise.resolve(actualPromptProblems) : loadOfficialActualPromptProblems(packageId)
-        ]);
-        return {
-            ...detail,
-            promptComparisons: ensureArray(loadedComparisons),
-            actualPromptProblems: ensureArray(loadedActualProblems)
-        };
-    }
-    catch (error) {
-        return {
-            ...detail,
-            promptComparisons,
-            actualPromptProblems,
-            promptComparisonError: publicError(error)
-        };
-    }
+    return getJson(promptQualityApiPath(`/verification/runtime-runs/package/${encodeURIComponent(packageId)}${query ? `?${query}` : ''}`));
 }
 
 async function loadOfficialAuditPayloads(packageId) {
@@ -2329,7 +2275,7 @@ async function loadOfficialAuditPayloads(packageId) {
         params.set('aggregateRunId', aggregateRunId);
     }
     const query = params.toString();
-    return getJson(`/contexa/admin/api/prompt-quality/verification/runtime-runs/package/${encodeURIComponent(packageId)}/audit-payloads${query ? `?${query}` : ''}`);
+    return getJson(promptQualityApiPath(`/verification/runtime-runs/package/${encodeURIComponent(packageId)}/audit-payloads${query ? `?${query}` : ''}`));
 }
 
 function officialLedgerHasRuns(detail) {
@@ -4722,7 +4668,7 @@ function bindOfficialReverifyActions(target, detail = {}) {
                 message: t('enterprise.pqa.verification.reverify.running', 'Reverification is running.')
             });
             try {
-                const result = await postJson('/contexa/admin/api/prompt-quality/runtime-evidence/reverify', {
+                const result = await postJson(promptQualityApiPath('/runtime-evidence/reverify'), {
                     packageId,
                     operatorId: rawText(document.body?.dataset?.currentUser) || 'admin',
                     reason: `official-verification-ui:${scope}`,
@@ -5468,7 +5414,7 @@ function closeOfficialRunDetailModal() {
 }
 
 async function loadMetricDetail(runId) {
-    return getJson(`/contexa/admin/api/prompt-quality/verification/runs/${encodeURIComponent(runId)}/metric-detail`);
+    return getJson(promptQualityApiPath(`/verification/runs/${encodeURIComponent(runId)}/metric-detail`));
 }
 
 function renderOfficialRunDetail(run) {
@@ -6580,54 +6526,6 @@ function sourceNeedsEvidenceUpgrade(source) {
             || normalized === 'evidencereplay'
             || normalized === 'missing_source'
             || normalized.includes('coreevidencereplay');
-}
-
-function renderOfficialRaw(target, detail) {
-    if (!target) {
-        return;
-    }
-    const packageId = rawText(detail?.packageId) || packageIdFromLocation();
-    target.innerHTML = `
-        <details data-pqa-technical-ledger>
-            <summary>${escapeHtml(t('enterprise.pqa.verification.ledger.raw.title'))}</summary>
-            <div class="pqa-official-lazy-ledger">
-                <p>${escapeHtml(t('enterprise.pqa.verification.ledger.raw.lazy'))}</p>
-                <button type="button" class="pqa-action-button" data-pqa-load-technical-ledger>
-                    ${escapeHtml(t('enterprise.pqa.verification.ledger.raw.load'))}
-                </button>
-                <div data-pqa-technical-ledger-body></div>
-            </div>
-        </details>
-    `;
-    target.querySelector('[data-pqa-load-technical-ledger]')?.addEventListener('click', async event => {
-        const button = event.currentTarget;
-        const body = target.querySelector('[data-pqa-technical-ledger-body]');
-        button.setAttribute('aria-disabled', 'true');
-        if (body) {
-            body.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.loading'))}</p></div>`;
-        }
-        try {
-            const technical = await loadOfficialTechnicalLedger(packageId);
-            const rawRuns = ensureArray(technical?.runs).map(run => ({
-                metricCode: run.metricCode,
-                officialRunId: run.officialRunId,
-                requestFacts: run.requestFacts,
-                promptFacts: run.promptFacts,
-                analysisFacts: run.analysisFacts,
-                rawEvidence: run.rawEvidence
-            }));
-            if (body) {
-                body.innerHTML = `<pre>${escapeHtml(JSON.stringify(rawRuns, null, 2))}</pre>`;
-            }
-            button.hidden = true;
-        }
-        catch (error) {
-            if (body) {
-                body.innerHTML = `<div class="pqa-empty pqa-empty-error"><p>${escapeHtml(publicError(error))}</p></div>`;
-            }
-            button.setAttribute('aria-disabled', 'false');
-        }
-    });
 }
 
 function comparisonTone(state) {

@@ -151,32 +151,6 @@ public class OfficialVerificationOperatorSnapshotService {
             return;
         }
         String normalizedPackageId = packageId.trim();
-        List<String> officialRunIds = new ArrayList<>(safeList(jdbcTemplate.queryForList("""
-                        select distinct official_run_id
-                          from official_verification_metric_snapshot
-                         where package_id = ?
-                           and official_run_id is not null
-                           and trim(official_run_id) <> ''
-                          """,
-                String.class,
-                normalizedPackageId)));
-        List<String> packageRunIds = jdbcTemplate.queryForList("""
-                        select distinct run_id
-                          from verification_run_ledger
-                         where package_id = ?
-                           and run_id is not null
-                           and trim(run_id) <> ''
-                        """,
-                String.class,
-                normalizedPackageId);
-        if (packageRunIds != null) {
-            officialRunIds.addAll(packageRunIds);
-        }
-        for (String runId : officialRunIds) {
-            if (StringUtils.hasText(runId)) {
-                deleteVerificationRunLedger(runId.trim());
-            }
-        }
         jdbcTemplate.update("""
                         delete from official_verification_metric_execution_ledger
                          where package_id = ?
@@ -225,16 +199,6 @@ public class OfficialVerificationOperatorSnapshotService {
         jdbcTemplate.update("delete from official_verification_metric_snapshot where package_id = ?", normalizedPackageId);
         jdbcTemplate.update("delete from official_verification_run_batch where package_id = ?", normalizedPackageId);
     }
-
-    private void deleteVerificationRunLedger(String runId) {
-        jdbcTemplate.update("delete from verification_run_round_ledger where run_id = ?", runId);
-        jdbcTemplate.update("delete from verification_run_check_ledger where run_id = ?", runId);
-        jdbcTemplate.update("delete from verification_run_fact_ledger where run_id = ?", runId);
-        jdbcTemplate.update("delete from verification_run_event_ledger where run_id = ?", runId);
-        jdbcTemplate.update("delete from verification_raw_evidence_artifact_ledger where run_id = ?", runId);
-        jdbcTemplate.update("delete from verification_run_ledger where run_id = ?", runId);
-    }
-
     private <T> List<T> safeList(List<T> values) {
         return values == null ? List.of() : values;
     }

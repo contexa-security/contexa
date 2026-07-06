@@ -230,17 +230,21 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
                 started,
                 completed,
                 runView.message(),
-                evidenceReferences(evidencePackage, requestFacts, promptFacts));
+                evidenceReferences(evidencePackage, runView, requestFacts, promptFacts));
         runStore.saveDetailed(operatorId, record, runView);
         casePublisher.register(operatorId, record);
     }
 
     private Map<String, String> evidenceReferences(
             SealedEvidencePackage evidencePackage,
+            OfficialVerificationRunView runView,
             Map<String, String> requestFacts,
             Map<String, String> promptFacts) {
         Map<String, String> references = new LinkedHashMap<>();
         putIfPresent(references, "packageId", evidencePackage.getPackageId());
+        putIfPresent(references, "aggregateRunId", aggregateRunId(runView));
+        putIfPresent(references, "runId", runView == null ? null : runView.runId());
+        putIfPresent(references, "metricCode", runView == null ? null : runView.endpointKey());
         putIfPresent(references, "requestId", firstNonBlank(requestFacts.get("requestId"), evidencePackage.getCorrelationId()));
         putIfPresent(references, "correlationId", evidencePackage.getCorrelationId());
         putIfPresent(references, "promptHash", evidencePackage.getPromptHash());

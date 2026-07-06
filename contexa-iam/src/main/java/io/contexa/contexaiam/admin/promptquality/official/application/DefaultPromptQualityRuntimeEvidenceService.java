@@ -11,6 +11,7 @@ import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityP
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceMissingKnowledgeSignal;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageSummary;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePromptConsistencyResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceSearchCriteria;
 import io.contexa.contexaiam.admin.promptquality.official.application.support.AbstractPromptQualityRuntimeEvidenceSupport;
 import io.contexa.contexaiam.admin.promptquality.official.state.NoopPromptQualityStateCatalog;
@@ -93,7 +94,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
                 ? new RuntimeEvidenceSearchCriteria(null, null, null, null, null, null, null, null, 0, 20)
                 : criteria;
         if (StringUtils.hasText(safeCriteria.packageId())) {
-            return lookupService.findByPackageId(safeCriteria.packageId().trim())
+            return lookupService.findLightweightByPackageId(safeCriteria.packageId().trim())
                     .filter(pkg -> matches(pkg, safeCriteria))
                     .map(pkg -> List.of(toSummary(pkg)))
                     .orElse(List.of());
@@ -122,7 +123,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     @Override
     public RuntimeEvidencePackageDetail findDetail(String packageId) {
-        SealedEvidencePackage pkg = lookupService.findByPackageId(packageId)
+        SealedEvidencePackage pkg = lookupService.findLightweightByPackageId(packageId)
                 .orElseThrow(() -> new IllegalArgumentException(message(
                         "enterprise.pqa.runtimeVerification.error.packageId.notFound",
                         "Request evidence packageId was not found: {0}",
@@ -137,11 +138,11 @@ public class DefaultPromptQualityRuntimeEvidenceService
         List<String> missingSignals = missingSignalDetails.stream()
                 .map(RuntimeEvidenceMissingKnowledgeSignal::title)
                 .toList();
-        boolean integrityValid = lookupService.verifyIntegrity(pkg);
+        boolean integrityValid = pkg.isSealed() && hasText(pkg.getPackageHash());
         return new RuntimeEvidencePackageDetail(
                 toSummary(pkg, integrityValid),
-                hasText(pkg.getRawSystemPrompt()),
-                hasText(pkg.getRawUserPrompt()),
+                false,
+                false,
                 hasText(pkg.getSystemPromptText()),
                 hasText(pkg.getUserPromptText()),
                 hasText(pkg.getBaselineSnapshotJson()),
@@ -157,7 +158,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
                 missingSignals,
                 missingSignalDetails,
                 qualityWarnings(pkg, integrityValid),
-                promptConsistencyGate.evaluate(pkg),
+                RuntimeEvidencePromptConsistencyResult.empty(),
                 pkg.getSystemPromptText(),
                 pkg.getUserPromptText());
     }
@@ -304,8 +305,6 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private List<String> qualityWarnings(SealedEvidencePackage pkg, boolean integrityValid) {
         return Stream.of(
-                        hasText(pkg.getRawSystemPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawSystemPromptMissing", "Raw system prompt is not stored."),
-                        hasText(pkg.getRawUserPrompt()) ? null : message("enterprise.pqa.runtimeEvidence.warning.rawUserPromptMissing", "Raw user prompt is not stored."),
                         hasText(pkg.getSystemPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmSystemPromptMissing", "System prompt sent to the LLM is missing."),
                         hasText(pkg.getUserPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmUserPromptMissing", "User prompt sent to the LLM is missing."),
                         integrityValid ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch", "Evidence hash does not match."))

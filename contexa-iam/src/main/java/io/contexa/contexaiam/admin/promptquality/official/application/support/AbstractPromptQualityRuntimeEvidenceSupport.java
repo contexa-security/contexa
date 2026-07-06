@@ -36,6 +36,7 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
             "modelProfile",
             "promptCompressionApplied",
             "compressionApplied",
+            "promptCompressionLedger",
             "promptSourceContextLedgerStoragePolicy",
             "promptFieldStateLedgerStoragePolicy",
             "promptRawUserFieldLedgerStoragePolicy",
@@ -106,6 +107,9 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
                 }
                 else if (valueToken == JsonToken.VALUE_NULL) {
                     result.put(key, null);
+                }
+                else if ("promptCompressionLedger".equals(key) && valueToken == JsonToken.START_ARRAY) {
+                    result.put(key, objectMapper.readValue(parser, List.class));
                 }
                 else {
                     parser.skipChildren();

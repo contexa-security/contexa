@@ -59,6 +59,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
@@ -161,8 +162,9 @@ public class PqaOfficialInspectionAutoConfiguration {
     @Bean(name = "pqaSealedEvidencePackageQueryService")
     @ConditionalOnMissingBean(SealedEvidencePackageQueryService.class)
     public SealedEvidencePackageQueryService pqaSealedEvidencePackageQueryService(
-            SealedEvidencePackageLookupService evidenceLookupService) {
-        return new DefaultSealedEvidencePackageQueryService(evidenceLookupService);
+            SealedEvidencePackageLookupService evidenceLookupService,
+            JdbcTemplate jdbcTemplate) {
+        return new DefaultSealedEvidencePackageQueryService(evidenceLookupService, jdbcTemplate);
     }
 
     @Bean(name = "pqaVerificationLedgerService")

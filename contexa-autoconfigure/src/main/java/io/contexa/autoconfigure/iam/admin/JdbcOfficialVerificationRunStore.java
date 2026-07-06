@@ -111,7 +111,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 write(storedStringMap(detailedView.promptFacts())),
                 write(detailedView.analysisFacts()),
                 write(detailedView.events()),
-                write(storedObjectMap(rawEvidenceWithAggregateRunId(detailedView, aggregateRunId))),
+                write(storedObjectMap(rawEvidenceWithRunIdentity(detailedView, aggregateRunId, packageId, record))),
                 timestamp(record.requestedAt()),
                 timestamp(record.startedAt()),
                 timestamp(record.completedAt()));
@@ -243,14 +243,29 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         if (!StringUtils.hasText(packageId)) {
             return List.of();
         }
-        return jdbcOperations.query("""
+        String normalizedPackageId = packageId.trim();
+        List<OfficialVerificationRunView> directRows = jdbcOperations.query("""
                         select *
                           from verification_run_ledger
                          where package_id = ?
                       order by requested_at desc nulls last, created_at desc, metric_code asc
                         """,
                 (rs, rowNum) -> readView(rs),
-                packageId.trim());
+                normalizedPackageId);
+        List<OfficialVerificationRunView> fallbackRows = jdbcOperations.query("""
+                        select *
+                          from verification_run_ledger
+                         where evidence_references_json like ?
+                           and evidence_references_json like ?
+                      order by requested_at desc nulls last, created_at desc, metric_code asc
+                        """,
+                (rs, rowNum) -> readView(rs),
+                "%\"packageId\"%",
+                "%\"" + normalizedPackageId + "\"%");
+        Map<String, OfficialVerificationRunView> merged = new LinkedHashMap<>();
+        directRows.forEach(row -> merged.putIfAbsent(runIdentity(row), row));
+        fallbackRows.forEach(row -> merged.putIfAbsent(runIdentity(row), row));
+        return List.copyOf(merged.values());
     }
 
     private String aggregateRunId(OfficialVerificationRunView detailedView) {
@@ -328,13 +343,28 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
         }
     }
 
-    private Map<String, Object> rawEvidenceWithAggregateRunId(OfficialVerificationRunView view, String aggregateRunId) {
+    private Map<String, Object> rawEvidenceWithRunIdentity(
+            OfficialVerificationRunView view,
+            String aggregateRunId,
+            String packageId,
+            OfficialVerificationRunRecord record) {
         Map<String, Object> raw = new LinkedHashMap<>();
         if (view.rawEvidence() != null) {
             raw.putAll(view.rawEvidence());
         }
         raw.putIfAbsent("aggregateRunId", aggregateRunId);
+        raw.putIfAbsent("packageId", packageId);
+        raw.putIfAbsent("runId", view.runId());
+        raw.putIfAbsent("metricCode", view.endpointKey());
+        raw.putIfAbsent("requestId", evidence(record, "requestId"));
         return raw;
+    }
+
+    private String runIdentity(OfficialVerificationRunView view) {
+        if (view == null || !StringUtils.hasText(view.runId())) {
+            return "__missing__";
+        }
+        return view.runId().trim();
     }
     private Map<String, String> storedStringMap(Map<String, String> source) {
         if (source == null || source.isEmpty()) {

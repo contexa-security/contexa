@@ -11,6 +11,10 @@ public interface SealedEvidencePackageQueryService {
 
     Optional<SealedEvidencePackage> findByPackageId(String packageId);
 
+    default Optional<SealedEvidencePackage> findLightweightByPackageId(String packageId) {
+        return findByPackageId(packageId);
+    }
+
     Page<SealedEvidencePackage> searchRecent(Instant from, Instant to, Pageable pageable);
 
     Page<SealedEvidencePackage> searchByTenantId(String tenantId, Instant from, Instant to, Pageable pageable);

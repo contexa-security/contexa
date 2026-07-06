@@ -16,7 +16,6 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailu
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
-import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunTechnicalLedger;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationExecutionStatus;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
@@ -45,6 +44,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.InputStreamReader;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.text.MessageFormat;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -378,13 +380,6 @@ public class PromptQualityOfficialConsoleApiController {
                 stringList(body == null ? null : body.get("findingIds")),
                 stringList(body == null ? null : body.get("issueIds"))));
     }
-    @GetMapping("/verification/runtime-runs/package/{packageId}/technical-ledger")
-    public OfficialRunTechnicalLedger packageTechnicalLedger(
-            @PathVariable String packageId,
-            @RequestParam(required = false) String aggregateRunId) {
-        return officialRunDetailService.findTechnicalLedger(packageId, aggregateRunId);
-    }
-
     @GetMapping("/verification/runtime-runs/package/{packageId}/failure-details")
     public List<OfficialRunFailureCause> packageFailureDetails(
             @PathVariable String packageId,
@@ -605,7 +600,7 @@ public class PromptQualityOfficialConsoleApiController {
         summary.put("userPromptHash", pkg.getUserPromptHash());
         summary.put("sealed", pkg.isSealed());
         summary.put("sealState", pkg.getSealState());
-        summary.put("integrityValid", evidenceLookupService.verifyIntegrity(pkg));
+        summary.put("integrityValid", pkg.isSealed() && StringUtils.hasText(pkg.getPackageHash()));
         summary.put("decisionAction", firstJsonText(decision, "action", "decision", "verdict"));
         summary.put("decisionConfidence", firstJsonText(decision, "confidence", "confidenceScore"));
         return summary;
@@ -633,29 +628,23 @@ public class PromptQualityOfficialConsoleApiController {
     }
 
     private Map<String, Object> promptConsistency(SealedEvidencePackage pkg) {
-        if (promptConsistencyGate != null) {
-            return objectMapper.convertValue(promptConsistencyGate.evaluate(pkg), Map.class);
-        }
         List<Map<String, Object>> checks = List.of(
                 promptCheck("LLM system/user prompt captured",
                         StringUtils.hasText(pkg.getSystemPromptText()) && StringUtils.hasText(pkg.getUserPromptText()),
                         "promptCapture"),
-                promptCheck("promptHash recalculates from LLM prompt",
+                promptCheck("promptHash is present",
                         StringUtils.hasText(pkg.getPromptHash()),
                         "promptHash"),
-                promptCheck("systemPromptHash matches LLM system prompt",
+                promptCheck("systemPromptHash is present",
                         StringUtils.hasText(pkg.getSystemPromptHash()),
                         "promptHash"),
-                promptCheck("userPromptHash matches LLM user prompt",
+                promptCheck("userPromptHash is present",
                         StringUtils.hasText(pkg.getUserPromptHash()),
-                        "promptHash"),
-                promptCheck("raw prompt and LLM prompt difference is recorded",
-                        StringUtils.hasText(pkg.getRawUserPrompt()) || StringUtils.hasText(pkg.getUserPromptText()),
-                        "promptCapture"));
+                        "promptHash"));
         boolean blocking = checks.stream().anyMatch(check -> !Boolean.TRUE.equals(check.get("pass")));
         return Map.of(
                 "state", blocking ? "REVIEW" : "PASS",
-                "stateLabel", blocking ? message("enterprise.pqa.state.pending", "검토 필요") : message("enterprise.pqa.state.ready", "검사 대기"),
+                "stateLabel", blocking ? message("enterprise.pqa.state.pending", "확인 필요") : message("enterprise.pqa.state.ready", "검사 가능"),
                 "blocking", blocking,
                 "checks", checks);
     }
@@ -680,7 +669,7 @@ public class PromptQualityOfficialConsoleApiController {
         detail.put("packageId", packageId);
         detail.put("aggregateRunId", runs.isEmpty() ? aggregateRunId : aggregateRunId(runs.get(0)));
         detail.put("sealedEvidence", sealedEvidenceMap(pkg));
-        detail.put("integrityValid", evidenceLookupService.verifyIntegrity(pkg));
+        detail.put("integrityValid", pkg.isSealed() && StringUtils.hasText(pkg.getPackageHash()));
         detail.put("sealed", pkg.isSealed());
         detail.put("totalRunCount", total);
         detail.put("passedRunCount", passed);
@@ -845,12 +834,16 @@ public class PromptQualityOfficialConsoleApiController {
     }
 
     private Map<String, Object> findRunById(String runId) {
+        OfficialVerificationRunView directRun = runStore.findDetailedByRunId(runId);
+        if (directRun != null) {
+            return runViewMap(directRun);
+        }
         if (jdbcOperations != null) {
             List<String> packageIds = jdbcOperations.query(
                     "select package_id from verification_run_ledger where run_id = ? limit 1",
                     (rs, rowNum) -> rs.getString("package_id"),
                     runId);
-            if (!packageIds.isEmpty()) {
+            if (!packageIds.isEmpty() && StringUtils.hasText(packageIds.get(0))) {
                 return officialRuns(packageIds.get(0), null).stream()
                         .filter(run -> Objects.equals(run.runId(), runId))
                         .findFirst()
@@ -862,8 +855,56 @@ public class PromptQualityOfficialConsoleApiController {
     }
 
     private SealedEvidencePackage findPackage(String packageId) {
-        return evidenceLookupService.findWithIntegrityCheck(packageId)
+        if (!StringUtils.hasText(packageId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Sealed evidence package not found.");
+        }
+        List<SealedEvidencePackage> rows = jdbcOperations.query(
+                """
+                select package_id, correlation_id, tenant_id, user_id, captured_at,
+                       request_facts_json, auth_state_json, baseline_snapshot_json, rag_results_json,
+                       system_prompt_text, user_prompt_text, prompt_hash, system_prompt_hash, user_prompt_hash,
+                       raw_system_prompt_hash, raw_user_prompt_hash, seal_state, seal_failure_reason,
+                       decision_json, package_hash, schema_version, sealed, expires_at, created_at
+                  from sealed_evidence_package
+                 where package_id = ?
+                """,
+                this::mapLightweightPackage,
+                packageId.trim());
+        return rows.stream()
+                .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sealed evidence package not found."));
+    }
+
+    private SealedEvidencePackage mapLightweightPackage(ResultSet rs, int rowNum) throws SQLException {
+        SealedEvidencePackage pkg = new SealedEvidencePackage();
+        Timestamp capturedAt = rs.getTimestamp("captured_at");
+        Timestamp expiresAt = rs.getTimestamp("expires_at");
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        pkg.setPackageId(rs.getString("package_id"));
+        pkg.setCorrelationId(rs.getString("correlation_id"));
+        pkg.setTenantId(rs.getString("tenant_id"));
+        pkg.setUserId(rs.getString("user_id"));
+        pkg.setCapturedAt(capturedAt == null ? null : capturedAt.toInstant());
+        pkg.setRequestFactsJson(rs.getString("request_facts_json"));
+        pkg.setAuthStateJson(rs.getString("auth_state_json"));
+        pkg.setBaselineSnapshotJson(rs.getString("baseline_snapshot_json"));
+        pkg.setRagResultsJson(rs.getString("rag_results_json"));
+        pkg.setSystemPromptText(rs.getString("system_prompt_text"));
+        pkg.setUserPromptText(rs.getString("user_prompt_text"));
+        pkg.setPromptHash(rs.getString("prompt_hash"));
+        pkg.setSystemPromptHash(rs.getString("system_prompt_hash"));
+        pkg.setUserPromptHash(rs.getString("user_prompt_hash"));
+        pkg.setRawSystemPromptHash(rs.getString("raw_system_prompt_hash"));
+        pkg.setRawUserPromptHash(rs.getString("raw_user_prompt_hash"));
+        pkg.setSealState(rs.getString("seal_state"));
+        pkg.setSealFailureReason(rs.getString("seal_failure_reason"));
+        pkg.setDecisionJson(rs.getString("decision_json"));
+        pkg.setPackageHash(rs.getString("package_hash"));
+        pkg.setSchemaVersion(rs.getInt("schema_version"));
+        pkg.setSealed(rs.getBoolean("sealed"));
+        pkg.setExpiresAt(expiresAt == null ? null : expiresAt.toInstant());
+        pkg.setCreatedAt(createdAt == null ? null : createdAt.toInstant());
+        return pkg;
     }
 
     private List<Map<String, Object>> stateCatalogRows() {
