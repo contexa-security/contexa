@@ -14,7 +14,7 @@
       data-pqa-verification-stage="readiness"
       th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
    <section class="pqa-workspace">
-        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(${verificationPageHeaderTitle}, ${verificationPageHeaderSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 
         <nav class="pqa-verification-subnav"
@@ -130,9 +130,9 @@
             <div class="pqa-panel-head">
                 <div>
                     <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.title}">Evidence selection handoff</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.readiness.description}">?좏깮???붿껌 利앷굅瑜?怨듭떇寃?ъ뿉 ?ъ슜?????덈뒗吏 ?뺤씤?⑸땲??</p>
+                    <p th:text="#{enterprise.pqa.verification.readiness.description}">Confirm that the selected evidence can be used as official inspection input.</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-route" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.pill}">利앷굅 ?뺤씤</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-route" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.pill}">Evidence Check</span></span>
             </div>
             <div data-pqa-readiness-selected class="pqa-verification-selected"></div>
         </section>
@@ -141,12 +141,12 @@
             <div class="pqa-panel-head">
                 <div>
                     <h2><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">Evidence and prompt consistency</span></h2>
-                    <p th:text="#{enterprise.pqa.promptConsistency.description}">遊됱씤 利앷굅? LLM ?ъ슜???꾨＼?꾪듃媛 媛숈? ?붿껌?먯꽌 留뚮뱾?댁죱?붿? ?뺤씤?⑸땲??</p>
+                    <p th:text="#{enterprise.pqa.promptConsistency.description}">Confirm that sealed evidence and the final LLM prompt belong to the same request.</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">寃?????뺤씤</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">Consistency Check</span></span>
             </div>
             <div data-pqa-prompt-consistency-content class="pqa-runtime-detail-empty">
-                <p th:text="#{enterprise.pqa.promptConsistency.empty}">?붿껌 利앷굅瑜??좏깮?섎㈃ LLM ?ъ슜???꾨＼?꾪듃? ?곌껐?먮뒗吏 ?뺤씤?⑸땲??</p>
+                <p th:text="#{enterprise.pqa.promptConsistency.empty}">Select evidence to verify prompt consistency.</p>
             </div>
             <div class="pqa-action-row" data-pqa-readiness-actions></div>
         </section>
@@ -154,7 +154,7 @@
 </main>
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
-<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260707-llm-official-ui-cleanup')}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260708-llm-official-ui-final')}"></script>
 </body>
 </html>
 

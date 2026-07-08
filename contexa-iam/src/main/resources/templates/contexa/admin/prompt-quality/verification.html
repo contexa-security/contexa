@@ -14,93 +14,65 @@
       data-pqa-verification-stage="run"
       th:attr="data-pqa-verification-stage=${verificationStage},data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
    <section class="pqa-workspace">
-        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.pageTitle.verification}, #{enterprise.pqa.verification.pageSubtitle})}"></div>
+        <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(${verificationPageHeaderTitle}, ${verificationPageHeaderSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
-
-        <section class="pqa-verification-stage-hero" th:remove="all">
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
-                <span>怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1>寃?ы븷 ?붿껌 利앷굅瑜??뺤씤?⑸땲??</h1>
-                <p>??λ맂 ?ㅼ젣 ?붿껌 利앷굅留?怨듭떇 寃???낅젰?쇰줈 ?ъ슜?⑸땲??</p>
-            </div>
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'run'}">
-                <span>怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1>12媛?吏?쒕줈 LLM ?낅젰 以鍮??곹깭瑜?寃?ы빀?덈떎.</h1>
-                <p>媛숈? 利앷굅??理쒖떊 怨듭떇 寃??寃곌낵媛 ?꾩옱 寃곌낵媛 ?⑸땲??</p>
-            </div>
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'comparison'}">
-                <span>怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1>?ㅼ젣 ?꾨＼?꾪듃?먯꽌 諛쒓껄??臾몄젣瑜?癒쇱? ?뺤씤?⑸땲??</h1>
-                <p>怨듭떇 寃?ъ뿉??諛쒓껄??臾몄젣? ?곹뼢??諛쏆? 吏?쒕? 蹂댁뿬以띾땲??</p>
-            </div>
-            <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'prompt-metrics'}">
-                <span>怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1>吏?쒕퀎 ?먯젙 ?댁쑀瑜?援щ텇?댁꽌 ?뺤씤?⑸땲??</h1>
-                <p>諛쒓껄??臾몄젣, ?곹뼢 吏?? 寃??湲곗??????붾㈃?먯꽌 ?뺤씤?⑸땲??</p>
-            </div>
-            <div class="pqa-verification-stage-rules">
-                <article><strong>湲곗?</strong><span>LLM ?ъ슜???낅젰</span></article>
-                <article><strong>???/strong><span>媛숈? 利앷굅??理쒖떊 ?ㅽ뻾</span></article>
-                <article><strong>蹂닿린</strong><span>臾몄젣 ?곗꽑</span></article>
-            </div>
-        </section>
 
         <section class="pqa-verification-stage-hero">
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'summary'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.summary}">?듯빀 寃곌낵</h1>
-                <p th:text="#{enterprise.pqa.verification.summary.description}">?꾨＼?꾪듃 12吏?쒖? LLM ?먯젙 ?댁쁺 吏?쒕? 媛숈? 利앷굅 湲곗??쇰줈 ?④퍡 ?뺤씤?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.summary}">Integrated Result</h1>
+                <p th:text="#{enterprise.pqa.verification.summary.description}">Review prompt 12 metrics and LLM decision verification on the same sealed evidence.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'readiness'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.hero.readiness.title}">寃?ы븷 ?붿껌 利앷굅瑜??뺤씤?⑸땲??</h1>
-                <p th:text="#{enterprise.pqa.verification.hero.readiness.description}">??λ맂 ?ㅼ젣 ?붿껌 利앷굅留?怨듭떇 寃???낅젰?쇰줈 ?ъ슜?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.readiness.title}">Check Evidence Readiness</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.readiness.description}">Confirm that sealed request evidence can be used as official inspection input.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'run'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.hero.run.title}">12媛?吏?쒕줈 LLM ?낅젰 以鍮??곹깭瑜?寃?ы빀?덈떎.</h1>
-                <p th:text="#{enterprise.pqa.verification.hero.run.description}">?좏깮??利앷굅??理쒖떊 怨듭떇 寃??寃곌낵瑜??뺤씤?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.run.title}">Run Official Inspection</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.run.description}">Execute prompt 12 metrics and LLM decision verification against the selected evidence.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'comparison'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.hero.comparison.title}">?ㅼ젣 ?꾨＼?꾪듃?먯꽌 諛쒓껄??臾몄젣瑜?癒쇱? ?뺤씤?⑸땲??</h1>
-                <p th:text="#{enterprise.pqa.verification.hero.comparison.description}">怨듭떇 寃?ъ뿉??諛쒓껄??臾몄젣? ?곹뼢??諛쏆? 吏?쒕? 蹂댁뿬以띾땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.hero.comparison.title}">Review Prompt Issues First</h1>
+                <p th:text="#{enterprise.pqa.verification.hero.comparison.description}">Shows issues found in the actual prompt and the metrics affected by them.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'prompt-metrics'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">?꾨＼?꾪듃 12吏??/h1>
-                <p th:text="#{enterprise.pqa.verification.metrics.description}">吏?쒕퀎 ?듦낵, ?꾨＼?꾪듃 臾몄젣, ?ъ쟾 ?낅젰 臾몄젣, 異붽? ?뺤씤??援щ텇?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">Prompt 12 Metrics</h1>
+                <p th:text="#{enterprise.pqa.verification.metrics.description}">Separate passed metrics, prompt issues, input readiness, and additional checks.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'llm-metrics' and promptQualityUiMode == 'enterprise'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM ?먯젙 ?댁쁺 吏??/h1>
-                <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">湲곕낯 寃뚯씠??4媛쒖? ?댁쁺 吏??24媛쒕줈 LLM ?먯젙??留λ씫 ?댄빐, 異붾줎, action ?좊ː?깆쓣 寃利앺빀?덈떎.</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM Decision Verification</h1>
+                <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">Verify that the LLM understands prompt context, infers security meaning, and selects the expected decision.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'failures'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.failures}">?ㅽ뙣 ?먯씤</h1>
-                <p th:text="#{enterprise.pqa.verification.failures.description}">prompt, context, evidence, model, output contract 湲곗??쇰줈 ?ㅽ뙣 ?먯씤??援щ텇?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.failures}">Failure Reasons</h1>
+                <p th:text="#{enterprise.pqa.verification.failures.description}">Separate failure causes across prompt, context, evidence, model, and output contract.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'evidence-package'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">利앷굅 ?⑦궎吏</h1>
-                <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">遊됱씤 利앷굅, prompt/context hash, provider/model, decision payload, evidenceRefs瑜??뺤씤?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">Evidence Package</h1>
+                <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">Review sealed evidence, prompt/context hashes, provider/model, decision payload, and evidence references.</p>
             </div>
             <div class="pqa-verification-stage-copy" th:if="${verificationStage == 'reverify'}">
-                <span th:text="#{enterprise.pqa.verification.stage.label}">怨듭떇 ?꾨＼?꾪듃 寃??/span>
-                <h1 th:text="#{enterprise.pqa.verification.subnav.reverify}">?ш?利?/h1>
-                <p th:text="#{enterprise.pqa.verification.reverify.description}">?꾨＼?꾪듃留? LLM ?먯젙留? ?꾩껜 ?ш?利앹쓣 遺꾨━???ㅽ뻾?⑸땲??</p>
+                <span th:text="#{enterprise.pqa.verification.stage.label}">Official inspection</span>
+                <h1 th:text="#{enterprise.pqa.verification.subnav.reverify}">Re-verify</h1>
+                <p th:text="#{enterprise.pqa.verification.reverify.description}">Run separate or integrated verification again after prompt or LLM decision fixes.</p>
             </div>
             <div class="pqa-verification-stage-rules">
-                <article><strong th:text="#{enterprise.pqa.verification.rule.input.label}">湲곗?</strong><span th:text="#{enterprise.pqa.verification.rule.input.value}">LLM ?ъ슜???낅젰</span></article>
-                <article><strong th:text="#{enterprise.pqa.verification.rule.target.label}">???/strong><span th:text="#{enterprise.pqa.verification.rule.target.value}">媛숈? 利앷굅??理쒖떊 ?ㅽ뻾</span></article>
-                <article><strong th:text="#{enterprise.pqa.verification.rule.view.label}">蹂닿린</strong><span th:text="#{enterprise.pqa.verification.rule.view.value}">臾몄젣 ?곗꽑</span></article>
+                <article><strong th:text="#{enterprise.pqa.verification.rule.input.label}">Input</strong><span th:text="#{enterprise.pqa.verification.rule.input.value}">LLM user prompt</span></article>
+                <article><strong th:text="#{enterprise.pqa.verification.rule.target.label}">Target</strong><span th:text="#{enterprise.pqa.verification.rule.target.value}">Latest run for the same evidence</span></article>
+                <article><strong th:text="#{enterprise.pqa.verification.rule.view.label}">View</strong><span th:text="#{enterprise.pqa.verification.rule.view.value}">Issue first</span></article>
             </div>
         </section>
 
         <nav class="pqa-verification-subnav"
              data-pqa-verification-subnav
-             th:if="${verificationStage != 'readiness'}"
+
              aria-label="Official quality inspection screens"
              th:aria-label="#{enterprise.pqa.verification.subnav.aria}">
             <div class="pqa-verification-nav-section-label" th:text="#{enterprise.pqa.verification.subnav.mainLabel}">Inspection areas</div>
@@ -229,40 +201,40 @@
         <section class="pqa-panel" th:if="${verificationStage == 'readiness'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-filter" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.title}">寃?ы븷 遊됱씤 利앷굅 李얘린</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.find.description}">利앷굅 踰덊샇瑜?紐곕씪??理쒓렐 ??λ맂 ?ㅼ젣 ?붿껌 利앷굅媛 ?먮룞?쇰줈 ?쒖떆?⑸땲??</p>
+                    <h2><i class="fa-solid fa-filter" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.title}">Find Sealed Evidence</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.find.description}">Search by evidence package ID, URL, resource ID, or request time.</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.pill}">理쒖쥌 蹂댁쬆 ?꾩슜</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.pill}">Inspection Input</span></span>
             </div>
             <form class="pqa-runtime-filter" data-pqa-verification-search-form>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.startTime}">?쒖옉 ?쒓컖</span>
+                    <span th:text="#{enterprise.pqa.verification.find.startTime}">Start time</span>
                     <input type="datetime-local" name="from">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.endTime}">醫낅즺 ?쒓컖</span>
+                    <span th:text="#{enterprise.pqa.verification.find.endTime}">End time</span>
                     <input type="datetime-local" name="to">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.tenant}">?뚮꼳??/span>
+                    <span th:text="#{enterprise.pqa.verification.find.tenant}">Tenant</span>
                     <input type="text" name="tenantId" placeholder="default">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.user}">?ъ슜??/span>
-                    <input type="text" name="userId" placeholder="?ъ슜??ID" th:placeholder="#{enterprise.pqa.verification.find.userPlaceholder}">
+                    <span th:text="#{enterprise.pqa.verification.find.user}">User</span>
+                    <input type="text" name="userId" placeholder="User ID" th:placeholder="#{enterprise.pqa.verification.find.userPlaceholder}">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.requestUrl}">?붿껌 URL</span>
+                    <span th:text="#{enterprise.pqa.verification.find.requestUrl}">Request URL</span>
                     <input type="text" name="resourceUrl" placeholder="/api/...">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.resourceId}">由ъ냼??ID</span>
+                    <span th:text="#{enterprise.pqa.verification.find.resourceId}">Resource ID</span>
                     <input type="text" name="resourceId" placeholder="@Protectable resourceId">
                 </label>
                 <label>
-                    <span th:text="#{enterprise.pqa.verification.find.httpMethod}">HTTP 諛⑹떇</span>
+                    <span th:text="#{enterprise.pqa.verification.find.httpMethod}">HTTP method</span>
                     <select name="httpMethod">
-                        <option value="" th:text="#{enterprise.pqa.verification.find.httpMethodAll}">?꾩껜</option>
+                        <option value="" th:text="#{enterprise.pqa.verification.find.httpMethodAll}">All</option>
                         <option>GET</option>
                         <option>POST</option>
                         <option>PUT</option>
@@ -271,13 +243,13 @@
                     </select>
                 </label>
                 <div class="pqa-runtime-filter-actions">
-                    <button type="submit" class="pqa-link-button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.searchBtn}">寃??/span></button>
-                    <button type="button" class="pqa-action-button" data-pqa-verification-reset><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.resetBtn}">珥덇린??/span></button>
+                    <button type="submit" class="pqa-link-button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.searchBtn}">Search</span></button>
+                    <button type="button" class="pqa-action-button" data-pqa-verification-reset><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.find.resetBtn}">Reset</span></button>
                 </div>
                 <details class="pqa-verification-advanced">
-                    <summary th:text="#{enterprise.pqa.verification.advancedSearch}">怨좉툒 寃?? 利앷굅 踰덊샇瑜??뚭퀬 ?덉쓣 ?뚮쭔 ?ъ슜</summary>
+                    <summary th:text="#{enterprise.pqa.verification.advancedSearch}">Advanced evidence search</summary>
                     <label>
-                        <span th:text="#{enterprise.pqa.verification.advancedSearch.packageId}">?붿껌 利앷굅 踰덊샇</span>
+                        <span th:text="#{enterprise.pqa.verification.advancedSearch.packageId}">Evidence package ID</span>
                         <input type="text" name="packageId" placeholder="sep-...">
                     </label>
                 </details>
@@ -288,8 +260,8 @@
             <section class="pqa-panel">
                 <div class="pqa-panel-head">
                     <div>
-                        <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.list.title}">遊됱씤 利앷굅 紐⑸줉</span></h2>
-                        <p th:text="#{enterprise.pqa.verification.list.description}">?좏깮??利앷굅媛 怨듭떇 ?덉쭏 寃?ъ쓽 ?낅젰???⑸땲??</p>
+                        <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.list.title}">Sealed Evidence List</span></h2>
+                        <p th:text="#{enterprise.pqa.verification.list.description}">Select evidence to use as official inspection input.</p>
                     </div>
                 </div>
                 <div class="pqa-table-wrap" data-pqa-verification-results></div>
@@ -298,12 +270,12 @@
             <section class="pqa-panel pqa-runtime-detail-panel">
                 <div class="pqa-panel-head">
                     <div>
-                        <h2><i class="fa-solid fa-file-shield" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.preview.title}">?좏깮 利앷굅 誘몃━蹂닿린</span></h2>
-                        <p th:text="#{enterprise.pqa.verification.preview.description}">遊됱씤, ?꾨＼?꾪듃 ??? ?먯젙 寃곌낵瑜??ㅽ뻾 ?꾩뿉 ?뺤씤?⑸땲??</p>
+                        <h2><i class="fa-solid fa-file-shield" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.preview.title}">Selected Evidence Preview</span></h2>
+                        <p th:text="#{enterprise.pqa.verification.preview.description}">Review sealed evidence, prompt summary, and decision result before running inspection.</p>
                     </div>
                 </div>
                 <div data-pqa-verification-detail class="pqa-runtime-detail-empty">
-                    <p th:text="#{enterprise.pqa.verification.preview.empty}">紐⑸줉?먯꽌 利앷굅瑜??좏깮?섎㈃ 寃??媛???щ?媛 ?쒖떆?⑸땲??</p>
+                    <p th:text="#{enterprise.pqa.verification.preview.empty}">Select evidence to review official inspection readiness.</p>
                 </div>
             </section>
         </section>
@@ -313,38 +285,38 @@
                   th:if="${verificationStage == 'readiness'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">利앷굅쨌?꾨＼?꾪듃 ?쇱튂??/span></h2>
-                    <p th:text="#{enterprise.pqa.promptConsistency.description}">遊됱씤 利앷굅媛 ?ㅼ젣 LLM ?꾨＼?꾪듃瑜???쒗븯?붿? 癒쇱? ?뺤씤?⑸땲??</p>
+                    <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">Evidence and Prompt Consistency</span></h2>
+                    <p th:text="#{enterprise.pqa.promptConsistency.description}">Confirm that sealed evidence and the final LLM prompt belong to the same request.</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">利앷굅 ?뺤씤</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">Evidence Check</span></span>
             </div>
             <div data-pqa-prompt-consistency-content class="pqa-runtime-detail-empty">
-                <p th:text="#{enterprise.pqa.promptConsistency.empty}">遊됱씤 利앷굅瑜??좏깮?섎㈃ ?ㅼ젣 ?꾨＼?꾪듃????쇱튂?깆쓣 ?뺤씤?⑸땲??</p>
+                <p th:text="#{enterprise.pqa.promptConsistency.empty}">Select sealed evidence to check prompt consistency.</p>
             </div>
         </section>
 
         <section class="pqa-panel pqa-verification-run-panel" th:if="${verificationStage == 'run'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.titleAlt}">怨듭떇 寃???ㅽ뻾</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.run.description}">?좏깮???ㅼ젣 ?붿껌 利앷굅瑜??꾨＼?꾪듃 12吏?쒖? LLM ?먯젙 ?댁쁺 吏?쒕줈 ?④퍡 怨듭떇寃?ы빀?덈떎.</p>
+                    <h2><i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.titleAlt}">Run Official Inspection</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.run.description}">Run prompt 12 metrics and LLM decision verification together against the selected evidence.</p>
                 </div>
                 <button type="button"
                         class="pqa-link-button is-disabled"
                         data-pqa-run-verification
                         aria-disabled="true"
                         th:attr="data-pqa-disabled-reason=#{enterprise.pqa.verification.run.needEvidence.detail}">
-                        <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.execute}">?듯빀 怨듭떇寃???ㅽ뻾</span>
+                        <i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.execute}">Run Integrated Official Inspection</span>
                 </button>
             </div>
-            <div class="pqa-run-scope-grid" aria-label="怨듭떇寃???ㅽ뻾 踰붿쐞">
+            <div class="pqa-run-scope-grid" aria-label="Official inspection execution scope" th:aria-label="#{enterprise.pqa.verification.run.scopeAria}">
                 <article>
-                    <span><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.prompt}">?꾨＼?꾪듃 12吏??/span></span>
-                    <p th:text="#{enterprise.pqa.verification.run.scope.prompt.detail}">?꾨＼?꾪듃, 而⑦뀓?ㅽ듃, 利앷굅 ?⑦궎吏媛 LLM ?먯젙 ?낅젰?쇰줈 異⑸텇?쒖? 寃?ы빀?덈떎.</p>
+                    <span><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.prompt}">Prompt 12 Metrics</span></span>
+                    <p th:text="#{enterprise.pqa.verification.run.scope.prompt.detail}">Checks that prompt, context, and evidence package are sufficient as LLM decision input.</p>
                 </article>
                 <article>
-                    <span><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.llm}">LLM ?먯젙 ?댁쁺 吏??/span></span>
-                    <p th:text="#{enterprise.pqa.verification.run.scope.llm.detail}">湲곕낯 寃뚯씠??4媛쒖? ?댁쁺 吏??24媛쒕줈 LLM ?먯젙??留λ씫 ?댄빐, 異붾줎, action ?좊ː?깆쓣 寃利앺빀?덈떎.</p>
+                    <span><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.run.scope.llm}">LLM Decision Verification</span></span>
+                    <p th:text="#{enterprise.pqa.verification.run.scope.llm.detail}">Checks whether the LLM infers the security meaning and chooses the expected decision.</p>
                 </article>
             </div>
                         <div class="pqa-verification-progress"
@@ -355,25 +327,25 @@
                  hidden>
                 <div class="pqa-verification-progress-head">
                     <strong data-pqa-verification-progress-title
-                            th:text="#{enterprise.pqa.verification.run.progress.start.title}">寃??以鍮?以?/strong>
+                            th:text="#{enterprise.pqa.verification.run.progress.start.title}">Preparing inspection</strong>
                     <span data-pqa-verification-progress-percent>0%</span>
                 </div>
                 <div class="pqa-verification-progress-track">
                     <i data-pqa-verification-progress-fill style="width:0%"></i>
                 </div>
                 <p data-pqa-verification-progress-message
-                   th:text="#{enterprise.pqa.verification.run.progress.start.detail}">?좏깮??利앷굅 ?⑦궎吏瑜?以鍮꾪븯怨??덉뒿?덈떎.</p>
+                   th:text="#{enterprise.pqa.verification.run.progress.start.detail}">Preparing the selected evidence package.</p>
             </div>
             <div data-pqa-verification-selected class="pqa-verification-selected" th:text="#{enterprise.pqa.verification.run.noSelection}">
-                ?꾩쭅 ?좏깮??遊됱씤 利앷굅媛 ?놁뒿?덈떎.
+                No sealed evidence is selected yet.
             </div>
         </section>
 
         <section class="pqa-panel" th:if="${verificationStage == 'run'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-chart-pie" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.result.titleAlt}">寃??寃곌낵</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.result.description}">李⑤떒??吏?쒕뒗 臾몄젣 吏꾨떒怨?媛쒖꽑 泥섎갑 ?④퀎?먯꽌 ?먯씤??怨좎묩?덈떎.</p>
+                    <h2><i class="fa-solid fa-chart-pie" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.result.titleAlt}">Inspection Result</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.result.description}">Review discovered issues, passed status, and official inspection result.</p>
                 </div>
             </div>
             <div data-pqa-run-summary></div>
@@ -381,7 +353,7 @@
                 <div class="pqa-chart-box compact">
                     <canvas data-pqa-verification-chart
                             role="img"
-                            aria-label="怨듭떇 ?덉쭏 寃??寃곌낵"
+                            aria-label="Official inspection result"
                             th:aria-label="#{enterprise.pqa.verification.result.canvasAria}"></canvas>
                 </div>
             </div>
@@ -392,8 +364,8 @@
                  th:if="${verificationStage == 'comparison'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">?ㅼ젣 ?꾨＼?꾪듃 鍮꾧탳</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.comparison.description}">LLM ?ъ슜???꾨＼?꾪듃?먯꽌 諛쒓껄??臾몄젣? ?닿껐 湲곗?留??뺤씤?⑸땲??</p>
+                    <h2><i class="fa-solid fa-code-compare" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.comparison}">Actual Prompt Comparison</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.comparison.description}">Review only issues found in the LLM user prompt and their resolution criteria.</p>
                 </div>
             </div>
             <div data-pqa-official-ledger-prompt></div>
@@ -404,8 +376,8 @@
                  th:if="${verificationStage == 'prompt-metrics'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">?꾨＼?꾪듃 12吏??/span></h2>
-                            <p th:text="#{enterprise.pqa.verification.metrics.description}">吏?쒕퀎 ?듦낵, ?꾨＼?꾪듃 臾몄젣, ?ъ쟾 ?낅젰 臾몄젣, 異붽? ?뺤씤??援щ텇?⑸땲??</p>
+                    <h2><i class="fa-solid fa-list-check" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.promptMetrics}">Prompt 12 Metrics</span></h2>
+                            <p th:text="#{enterprise.pqa.verification.metrics.description}">Separate passed metrics, prompt issues, input readiness, and additional checks.</p>
                 </div>
             </div>
             <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs data-pqa-official-ledger-runs-family="prompt"></div>
@@ -423,8 +395,8 @@
                  th:if="${verificationStage == 'llm-metrics' and promptQualityUiMode == 'enterprise'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM ?먯젙 ?댁쁺 吏??/span></h2>
-                    <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">湲곕낯 寃뚯씠??4媛쒖? ?댁쁺 吏??24媛쒕줈 LLM ?먯젙??留λ씫 ?댄빐, 異붾줎, action ?좊ː?깆쓣 寃利앺빀?덈떎.</p>
+                    <h2><i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM Decision Verification</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.llmMetrics.description}">Verify that the LLM understands prompt context, infers security meaning, and selects the expected decision.</p>
                 </div>
             </div>
             <div class="pqa-official-ledger-runs" data-pqa-official-ledger-runs data-pqa-official-ledger-runs-family="decision"></div>
@@ -436,8 +408,8 @@
                  th:if="${verificationStage == 'failures'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.failures}">?ㅽ뙣 ?먯씤</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.failures.description}">prompt, context, evidence, model, output contract 湲곗??쇰줈 ?ㅽ뙣 ?먯씤??援щ텇?⑸땲??</p>
+                    <h2><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.failures}">Failure Reasons</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.failures.description}">Separate failure causes across prompt, context, evidence, model, and output contract.</p>
                 </div>
             </div>
             <div data-pqa-official-ledger-failures></div>
@@ -449,8 +421,8 @@
                  th:if="${verificationStage == 'evidence-package'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">利앷굅 ?⑦궎吏</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">遊됱씤 利앷굅, prompt/context hash, provider/model, decision payload, evidenceRefs瑜??뺤씤?⑸땲??</p>
+                    <h2><i class="fa-solid fa-box-archive" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.evidencePackage}">Evidence Package</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.evidencePackage.description}">Review sealed evidence, prompt/context hashes, provider/model, decision payload, and evidence references.</p>
                 </div>
             </div>
             <div data-pqa-official-ledger-summary></div>
@@ -463,8 +435,8 @@
                  th:if="${verificationStage == 'reverify'}">
             <div class="pqa-panel-head">
                 <div>
-                    <h2><i class="fa-solid fa-rotate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.reverify}">?ш?利?/span></h2>
-                    <p th:text="#{enterprise.pqa.verification.reverify.description}">?꾨＼?꾪듃留? LLM ?먯젙留? ?꾩껜 ?ш?利앹쓣 遺꾨━???ㅽ뻾?⑸땲??</p>
+                    <h2><i class="fa-solid fa-rotate" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.reverify}">Re-verify</span></h2>
+                    <p th:text="#{enterprise.pqa.verification.reverify.description}">Run separate or integrated verification again after prompt or LLM decision fixes.</p>
                 </div>
             </div>
             <div data-pqa-official-ledger-reverify></div>
@@ -475,8 +447,9 @@
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
 <script th:src="@{/js/vendor/chart.umd.min.js}"></script>
-<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260707-llm-official-ui-cleanup')}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260708-llm-official-ui-final')}"></script>
 </body>
 </html>
+
 
 

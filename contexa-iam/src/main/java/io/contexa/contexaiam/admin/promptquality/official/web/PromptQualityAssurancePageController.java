@@ -143,6 +143,9 @@ public class PromptQualityAssurancePageController {
 
     private String page(Model model, String activeKey, String pageTitle, String viewName) {
         model.addAttribute("pageTitle", pageTitle);
+        model.addAttribute("verificationPageHeaderTitle", pageTitle);
+        model.addAttribute("verificationPageHeaderSubtitle",
+                message("enterprise.pqa.verification.pageSubtitle", "Review official inspection evidence and results."));
         model.addAttribute("activeKey", activeKey);
         model.addAttribute("navigation", navigation(activeKey));
         model.addAttribute("promptQualityRouteRoot", ROUTE_ROOT);
