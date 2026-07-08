@@ -41,7 +41,7 @@ class PromptQualityOfficialConsoleApiControllerTest {
     );
 
     @Test
-    void metricFamiliesSeparatePromptTwelveAndLlmDecisionSix() {
+    void metricFamiliesSeparatePromptTwelveAndLlmDecisionOfficialInspection() {
         when(runDetailService.findPackageDetail("pkg-001", "agg-001")).thenReturn(packageDetail());
 
         Map<String, Object> payload = controller.packageMetricFamilies("pkg-001", "agg-001");
@@ -50,21 +50,49 @@ class PromptQualityOfficialConsoleApiControllerTest {
         Map<?, ?> decision = (Map<?, ?>) payload.get("decision");
         Map<?, ?> other = (Map<?, ?>) payload.get("other");
         assertThat(prompt.get("label")).isEqualTo("\uD504\uB86C\uD504\uD2B8 12\uC9C0\uD45C");
-        assertThat(decision.get("label")).isEqualTo("LLM \uD310\uC815 6\uC9C0\uD45C");
+        assertThat(decision.get("label")).isEqualTo("LLM \uD310\uC815 \uACF5\uC2DD\uAC80\uC0AC");
         assertThat(other.get("label")).isEqualTo("\uAE30\uD0C0 \uACF5\uC2DD\uAC80\uC0AC");
         assertThat(prompt.get("totalRunCount")).isEqualTo(2);
         assertThat(decision.get("totalRunCount")).isEqualTo(2);
         assertThat(other.get("totalRunCount")).isEqualTo(1);
         assertThat(decision.get("failedRunCount")).isEqualTo(1);
+        assertThat(prompt.get("expectedMetricCount")).isEqualTo(12);
+        assertThat(prompt.get("executedMetricCount")).isEqualTo(2);
+        assertThat(prompt.get("notAppliedMetricCount")).isEqualTo(10L);
+        assertThat(decision.get("expectedMetricCount")).isEqualTo(28);
+        assertThat(decision.get("executedMetricCount")).isEqualTo(2);
+        assertThat(decision.get("notAppliedMetricCount")).isEqualTo(26L);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> expectedDecisionMetrics =
+                (List<Map<String, Object>>) decision.get("expectedMetrics");
+        assertThat(expectedDecisionMetrics).hasSize(28);
+        assertThat(expectedDecisionMetrics).extracting(metric -> metric.get("metricCode"))
+                .contains("G01", "M01", "M04", "M24")
+                .doesNotContain("CDC", "ERA", "SUHR", "OCR", "DSS", "ARR");
+        assertThat(expectedDecisionMetrics)
+                .filteredOn(metric -> "G01".equals(metric.get("metricCode")))
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.get("executed")).isEqualTo(true);
+                    assertThat(metric.get("status")).isEqualTo("EXECUTED");
+                });
+        assertThat(expectedDecisionMetrics)
+                .filteredOn(metric -> "M01".equals(metric.get("metricCode")))
+                .singleElement()
+                .satisfies(metric -> {
+                    assertThat(metric.get("executed")).isEqualTo(false);
+                    assertThat(metric.get("status")).isEqualTo("NOT_APPLIED_TO_THIS_EVIDENCE");
+                });
     }
 
     @Test
     void metricFailureDetailsFiltersByRequestedMetricOnly() {
         when(runDetailService.findFailureDetails("pkg-001", "agg-001")).thenReturn(packageDetail().failureCauses());
 
-        List<OfficialRunFailureCause> failures = controller.packageMetricFailureDetails("pkg-001", "arr", "agg-001");
+        List<OfficialRunFailureCause> failures = controller.packageMetricFailureDetails("pkg-001", "m04", "agg-001");
 
-        assertThat(failures).extracting(OfficialRunFailureCause::metricCode).containsExactly("ARR");
+        assertThat(failures).extracting(OfficialRunFailureCause::metricCode).containsExactly("M04");
     }
 
     @Test
@@ -93,14 +121,14 @@ class PromptQualityOfficialConsoleApiControllerTest {
         List<OfficialVerificationMetricTrace> runs = List.of(
                 metric("EIR", "IMPLEMENTATION_ALIGNMENT", "SUCCESS"),
                 metric("PRE", "RESOURCE_ELIGIBILITY", "SUCCESS"),
-                metric("CDC", "LLM_DECISION", "SUCCESS"),
-                metric("ARR", "LLM_DECISION", "ERROR"),
+                metric("G01", "LLM_DECISION_GATE", "SUCCESS"),
+                metric("M04", "LLM_DECISION", "ERROR"),
                 metric("CUSTOM", "CUSTOM_GROUP", "ERROR")
         );
         List<OfficialRunFailureCause> failures = List.of(
                 failure("EIR"),
-                failure("CDC"),
-                failure("ARR"),
+                failure("G01"),
+                failure("M04"),
                 failure("CUSTOM")
         );
         return new OfficialRunPackageDetail(

@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 public final class OfficialVerificationMetricRuntimeProfileSupport {
 
@@ -37,13 +36,11 @@ public final class OfficialVerificationMetricRuntimeProfileSupport {
     public static final String DEFAULT_CONTEXT_MODEL = "qwen2.5:7b";
     public static final String DEFAULT_DECISION_MODEL = "qwen3.1:8b";
 
-    private static final Set<String> DECISION_METRICS = Set.of("CDC", "ERA", "SUHR");
-
     private OfficialVerificationMetricRuntimeProfileSupport() {
     }
 
     public static boolean isDecisionMetric(String metricCode) {
-        return DECISION_METRICS.contains(normalizeMetricCode(metricCode));
+        return normalizeMetricCode(metricCode).matches("G\\d{2}|M\\d{2}");
     }
 
     public static RuntimeSelection resolve(

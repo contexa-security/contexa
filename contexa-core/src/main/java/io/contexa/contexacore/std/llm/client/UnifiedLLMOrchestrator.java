@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -205,7 +206,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
                     context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
                     context.addMetadata("securityDecisionRawExecutionFailureClass", error.getClass().getName());
-                    context.addMetadata("securityDecisionRawExecutionFailureMessage", error.getMessage());
+                    context.addMetadata("securityDecisionRawExecutionFailureMessage", SensitiveValueSanitizer.sanitizeText(error.getMessage()));
                     context.addMetadata("structuredOutputComplete", true);
                     return Mono.just(targetType.cast(parseSecurityDecisionRawResponse("", context)));
                 });
@@ -466,7 +467,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         context.addMetadata("providerCallFailed", true);
         context.addMetadata("providerCallFailureCategory", failureCategory);
         context.addMetadata("providerCallFailureClass", error.getClass().getName());
-        context.addMetadata("providerCallFailureMessage", error.getMessage());
+        context.addMetadata("providerCallFailureMessage", SensitiveValueSanitizer.sanitizeText(error.getMessage()));
         context.addMetadata("providerCallTimeoutMs", providerCallTimeoutMs());
         if ("PROVIDER_CALL_TIMEOUT".equals(failureCategory)) {
             context.addMetadata("providerCallExceededTimeout", true);

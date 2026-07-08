@@ -71,9 +71,14 @@ import java.util.Set;
 public class PromptQualityOfficialConsoleApiController {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
-    private static final Set<String> LLM_DECISION_METRIC_CODES = Set.of("CDC", "ERA", "SUHR", "OCR", "DSS", "ARR");
     private static final Set<String> PROMPT_OFFICIAL_METRIC_CODES = Set.of(
             "EIR", "CCR", "CCSR", "PFR", "MTR", "COR", "RAP", "RPI", "BMA", "USNS", "BSR", "PRE");
+
+    private static final Set<String> LLM_DECISION_GATE_CODES = Set.of("G01", "G02", "G03", "G04");
+    private static final Set<String> LLM_DECISION_METRIC_CODES = Set.of(
+            "M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08",
+            "M09", "M10", "M11", "M12", "M13", "M14", "M15", "M16",
+            "M17", "M18", "M19", "M20", "M21", "M22", "M23", "M24");
 
     private final SealedEvidencePackageLookupService evidenceLookupService;
     private final PromptQualityRuntimeVerificationService verificationService;
@@ -333,7 +338,8 @@ public class PromptQualityOfficialConsoleApiController {
     public Map<String, Object> packageLlmDecisionMetrics(
             @PathVariable String packageId,
             @RequestParam(required = false) String aggregateRunId) {
-        return metricFamilyPayload(officialRunDetailService.findPackageDetail(packageId, aggregateRunId), "decision");
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                "LLM decision official inspection is an enterprise endpoint.");
     }
 
     @GetMapping("/verification/runtime-runs/package/{packageId}/metrics/{metricCode}/failure-details")
@@ -427,21 +433,110 @@ public class PromptQualityOfficialConsoleApiController {
         List<OfficialVerificationMetricTrace> runs = detail.runs().stream()
                 .filter(run -> family.equals(metricFamily(run)))
                 .toList();
+        Set<String> executedMetricCodes = new LinkedHashSet<>();
+        for (OfficialVerificationMetricTrace run : runs) {
+            String code = normalizeMetricCode(run.metricCode());
+            if (StringUtils.hasText(code)) {
+                executedMetricCodes.add(code);
+            }
+        }
+        List<Map<String, Object>> expectedMetrics = expectedMetricCodes(family).stream()
+                .map(code -> expectedMetricPayload(code, executedMetricCodes.contains(code)))
+                .toList();
+        long notAppliedCount = expectedMetrics.stream()
+                .filter(metric -> Boolean.FALSE.equals(metric.get("executed")))
+                .count();
+
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("packageId", detail.packageId());
         payload.put("aggregateRunId", detail.aggregateRunId());
         payload.put("family", family);
         payload.put("label", metricFamilyLabel(family));
+        payload.put("expectedMetricCount", expectedMetrics.size());
+        payload.put("executedMetricCount", runs.size());
+        payload.put("notAppliedMetricCount", notAppliedCount);
+        payload.put("expectedMetrics", expectedMetrics);
         payload.put("totalRunCount", runs.size());
         payload.put("passedRunCount", (int) runs.stream().filter(run -> passState(run.state())).count());
         payload.put("failedRunCount", (int) runs.stream().filter(run -> !passState(run.state())).count());
         payload.put("runs", runs);
         payload.put("failureCauses", detail.failureCauses().stream()
-                .filter(failure -> runs.stream().anyMatch(run -> normalizeMetricCode(run.metricCode()).equals(normalizeMetricCode(failure.metricCode()))))
+                .filter(failure -> runs.stream().anyMatch(run ->
+                        normalizeMetricCode(run.metricCode()).equals(normalizeMetricCode(failure.metricCode()))))
                 .toList());
         return payload;
     }
 
+    private List<String> expectedMetricCodes(String family) {
+        if ("prompt".equals(family)) {
+            return PROMPT_OFFICIAL_METRIC_CODES.stream().sorted().toList();
+        }
+        if ("decision".equals(family)) {
+            List<String> codes = new ArrayList<>();
+            codes.addAll(LLM_DECISION_GATE_CODES.stream().sorted().toList());
+            codes.addAll(LLM_DECISION_METRIC_CODES.stream().sorted().toList());
+            return codes;
+        }
+        return List.of();
+    }
+
+    private Map<String, Object> expectedMetricPayload(String metricCode, boolean executed) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("metricCode", metricCode);
+        item.put("label", expectedMetricLabel(metricCode));
+        item.put("executed", executed);
+        item.put("status", executed ? "EXECUTED" : "NOT_APPLIED_TO_THIS_EVIDENCE");
+        item.put("description", executed
+                ? "선택한 증거에서 이 공식검사 결과가 저장된 지표입니다."
+                : "정의된 공식검사 지표이지만 선택한 증거에는 실행 결과가 아직 저장되지 않았습니다.");
+        return item;
+    }
+
+    private String expectedMetricLabel(String metricCode) {
+        return switch (normalizeMetricCode(metricCode)) {
+            case "G01" -> "공식 액션 계약";
+            case "G02" -> "판정 응답 해석";
+            case "G03" -> "봉인 증거 연결";
+            case "G04" -> "실행 실패 없음";
+            case "M01" -> "기본 판정 일치";
+            case "M02" -> "위험-판정 보정";
+            case "M03" -> "권한 경계 준수";
+            case "M04" -> "위험 허용 방지";
+            case "M05" -> "추가 인증 적정성";
+            case "M06" -> "동적 컨텍스트 반응";
+            case "M07" -> "MFA 신선도 해석";
+            case "M08" -> "리소스 민감도 반응";
+            case "M09" -> "세션 연속성 해석";
+            case "M10" -> "행동 이상 해석";
+            case "M11" -> "기준선 성숙도 보정";
+            case "M12" -> "사용자별 신규성 인식";
+            case "M13" -> "RAG 권한 경계";
+            case "M14" -> "semantic evidence 신선도";
+            case "M15" -> "증거 누락과 충돌 안전 처리";
+            case "M16" -> "증거 설명 정렬";
+            case "M17" -> "추론과 판정 일관성";
+            case "M18" -> "불확실성 안전 처리";
+            case "M19" -> "근거 없는 증거 생성 방지";
+            case "M20" -> "프롬프트 인젝션 대응";
+            case "M21" -> "위조 클라이언트 신호 거부";
+            case "M22" -> "토큰 재사용 오염 방지";
+            case "M23" -> "반복 판정 안정성";
+            case "M24" -> "버전 태그 일관성";
+            case "BMA" -> "기준선 성숙도";
+            case "BSR" -> "행동 맥락 해석";
+            case "CCR" -> "컨텍스트 완전성";
+            case "CCSR" -> "컨텍스트 일관성";
+            case "COR" -> "컨텍스트 오염 방지";
+            case "EIR" -> "이벤트 무결성";
+            case "MTR" -> "메타데이터 추적성";
+            case "PFR" -> "프롬프트 충실성";
+            case "PRE" -> "보호 리소스 자격";
+            case "RAP" -> "RAG 권한 정밀도";
+            case "RPI" -> "라운드 진행 무결성";
+            case "USNS" -> "사용자별 신규성 민감도";
+            default -> metricCode;
+        };
+    }
     private Map<String, Object> reverifyOptionsPayload(OfficialRunPackageDetail detail) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("packageId", detail.packageId());
@@ -473,7 +568,11 @@ public class PromptQualityOfficialConsoleApiController {
     private String metricFamily(OfficialVerificationMetricTrace run) {
         String code = normalizeMetricCode(run == null ? null : run.metricCode());
         String group = normalizeMetricCode(run == null ? null : run.groupName());
-        if (LLM_DECISION_METRIC_CODES.contains(code) || "LLM_DECISION".equals(group) || "DECISION_OFFICIAL".equals(group)) {
+        if (LLM_DECISION_GATE_CODES.contains(code)
+                || LLM_DECISION_METRIC_CODES.contains(code)
+                || "LLM_DECISION".equals(group)
+                || "LLM_DECISION_GATE".equals(group)
+                || "DECISION_OFFICIAL".equals(group)) {
             return "decision";
         }
         if (PROMPT_OFFICIAL_METRIC_CODES.contains(code)
@@ -485,12 +584,11 @@ public class PromptQualityOfficialConsoleApiController {
 
     private String metricFamilyLabel(String family) {
         return switch (family) {
-            case "prompt" -> "\uD504\uB86C\uD504\uD2B8 12\uC9C0\uD45C";
-            case "decision" -> "LLM \uD310\uC815 6\uC9C0\uD45C";
-            default -> "\uAE30\uD0C0 \uACF5\uC2DD\uAC80\uC0AC";
+            case "prompt" -> "프롬프트 12지표";
+            case "decision" -> "LLM 판정 공식검사";
+            default -> "기타 공식검사";
         };
     }
-
     private String normalizeMetricCode(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

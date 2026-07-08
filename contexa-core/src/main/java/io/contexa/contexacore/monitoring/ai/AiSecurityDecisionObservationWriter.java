@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.monitoring.ai;
 
+import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -261,7 +262,7 @@ public class AiSecurityDecisionObservationWriter {
                     containsModelUnavailable(failureReason) || "MODEL_UNAVAILABLE".equals(failureType),
                     failureType,
                     result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
-                    result != null ? summarize(result.getTechnicalFallbackReason(), 1024) : null,
+                    result != null ? summarize(SensitiveValueSanitizer.sanitizeText(result.getTechnicalFallbackReason()), 1024) : null,
                     outcomeClass,
                     writeJson(storedMetadata),
                     result != null && result.isSuccess() && failureType == null,
@@ -325,7 +326,7 @@ public class AiSecurityDecisionObservationWriter {
     private Map<String, Object> metadataWithLatencyBreakdown(Map<String, Object> metadata, ProcessingResult result, long observationRecordedAtMs) {
         Map<String, Object> copy = new LinkedHashMap<>();
         if (metadata != null) {
-            copy.putAll(metadata);
+            metadata.forEach((key, value) -> copy.put(key, SensitiveValueSanitizer.sanitizeValueForKey(key, value)));
         }
         copy.putIfAbsent("analysisObservationRecordedAt", observationRecordedAtMs);
         Long executionStartedAt = longValue(copy.get("analysisExecutionStartedAt"));
@@ -501,7 +502,7 @@ public class AiSecurityDecisionObservationWriter {
                 parserFailure,
                 technicalFallback,
                 result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
-                result != null ? summarize(firstText(result.getTechnicalFallbackReason(), failureType), 1024) : null,
+                result != null ? summarize(SensitiveValueSanitizer.sanitizeText(firstText(result.getTechnicalFallbackReason(), failureType)), 1024) : null,
                 firstText(outcomeClass, HcadOutcomeClassifier.UNKNOWN),
                 now,
                 hcadEvaluationId);
@@ -974,7 +975,7 @@ public class AiSecurityDecisionObservationWriter {
                 || finalAction == ZeroTrustAction.BLOCK;
     }
     private String failureReason(ProcessingResult result, Map<String, Object> metadata) {
-        return firstText(
+        return SensitiveValueSanitizer.sanitizeText(firstText(
                 result != null ? result.getErrorMessage() : null,
                 result != null ? result.getMessage() : null,
                 result != null ? result.getTechnicalFallbackReason() : null,
@@ -984,7 +985,7 @@ public class AiSecurityDecisionObservationWriter {
                 firstText(metadata, "decisionFailureMessage"),
                 firstText(metadata, "structuredOutputFailureCategory"),
                 firstText(metadata, "securityDecisionParseFailureCategory"),
-                firstText(metadata, "providerCallFailureCategory"));
+                firstText(metadata, "providerCallFailureCategory")));
     }
 
     private boolean containsParserFailure(String value) {

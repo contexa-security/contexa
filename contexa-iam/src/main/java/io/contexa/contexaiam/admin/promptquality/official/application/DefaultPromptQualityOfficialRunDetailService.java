@@ -280,7 +280,10 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 "Request evidence packageId is required."));
         OperatorSnapshot snapshot = operatorSnapshot(normalizedPackageId, aggregateRunId);
         if (snapshot.available()) {
-            return operatorFailureCauses(snapshot);
+            List<OfficialRunFailureCause> operatorFailures = operatorFailureCauses(snapshot);
+            if (!operatorFailures.isEmpty()) {
+                return operatorFailures;
+            }
         }
         return findPackageDetail(normalizedPackageId, aggregateRunId).failureCauses();
     }
@@ -883,12 +886,13 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         List<OfficialRunFailureCause> operatorFailures = operatorFailureCauses(operatorSnapshot).stream()
                 .filter(cause -> same(cause.metricCode(), run.endpointKey()))
                 .toList();
-        List<OfficialRunFailureCause> failures = operatorSnapshot != null && operatorSnapshot.available()
-                ? operatorFailures
-                : checks.stream()
+        List<OfficialRunFailureCause> checkFailures = checks.stream()
                 .filter(check -> !check.pass())
                 .map(check -> failure(run, metric, check))
                 .toList();
+        List<OfficialRunFailureCause> failures = !operatorFailures.isEmpty()
+                ? operatorFailures
+                : checkFailures;
         return new OfficialVerificationMetricTrace(
                 normalize(run.endpointKey()),
                 metric == null ? run.endpointKey() : metric.metricName(),
@@ -1192,15 +1196,16 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         if (run == null || (metricNotApplicable(run) && actualProblemCount == 0)) {
             return MetricSummarySplit.empty();
         }
-        List<OfficialRunCheckDetail> allChecks = run.checks() == null
-                ? List.of()
-                : run.checks().stream()
-                        .filter(Objects::nonNull)
-                        .toList();
         List<OfficialRunCheckDetail> checks = evaluatedChecks(run);
-        int technicalTotal = Math.max(Math.max(run.totalChecks(), 0), allChecks.size());
-        int allPassed = (int) allChecks.stream().filter(OfficialRunCheckDetail::pass).count();
-        int technicalPassed = Math.max(Math.max(run.passedChecks(), 0), allPassed);
+        int technicalTotal;
+        int technicalPassed;
+        if (!checks.isEmpty()) {
+            technicalTotal = checks.size();
+            technicalPassed = (int) checks.stream().filter(OfficialRunCheckDetail::pass).count();
+        } else {
+            technicalTotal = Math.max(run.totalChecks(), 0);
+            technicalPassed = Math.max(run.passedChecks(), 0);
+        }
         int failed = Math.max(technicalTotal - technicalPassed, 0);
         int inputFailed = 0;
         int gateFailed = 0;
@@ -1843,7 +1848,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
     }
 
     private List<OfficialRunFailureCause> operatorFailureCauses(OperatorSnapshot snapshot) {
-        if (snapshot == null || !snapshot.available() || snapshot.findings().isEmpty()) {
+        if (snapshot == null || !snapshot.available()) {
             return List.of();
         }
         Map<String, OperatorMetricSnapshot> metricsByCode = snapshot.metrics().stream()
@@ -1853,7 +1858,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                         metric -> metric,
                         (left, right) -> left,
                         LinkedHashMap::new));
-        return snapshot.findings().stream()
+        List<OfficialRunFailureCause> findingFailures = snapshot.findings().stream()
                 .filter(Objects::nonNull)
                 .map(finding -> {
                     OperatorMetricSnapshot metric = metricsByCode.get(normalize(finding.metricCode()));
@@ -1878,8 +1883,58 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                             null);
                 })
                 .toList();
+        Set<String> findingMetricCodes = findingFailures.stream()
+                .map(cause -> normalize(cause.metricCode()))
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<OfficialRunFailureCause> snapshotFailures = snapshot.metrics().stream()
+                .filter(Objects::nonNull)
+                .filter(metric -> failedState(metric.state()))
+                .filter(metric -> !findingMetricCodes.contains(normalize(metric.metricCode())))
+                .map(this::operatorMetricFailureCause)
+                .toList();
+        if (findingFailures.isEmpty()) {
+            return snapshotFailures;
+        }
+        if (snapshotFailures.isEmpty()) {
+            return findingFailures;
+        }
+        List<OfficialRunFailureCause> merged = new ArrayList<>(findingFailures.size() + snapshotFailures.size());
+        merged.addAll(findingFailures);
+        merged.addAll(snapshotFailures);
+        return List.copyOf(merged);
     }
 
+    private OfficialRunFailureCause operatorMetricFailureCause(OperatorMetricSnapshot metric) {
+        String state = normalize(metric.state());
+        String stateLabel = stateLabel(metric.state());
+        String reason = firstNonBlank(
+                metric.primaryFailureReason(),
+                metric.operatorSummary(),
+                "공식검사 저장 결과가 통과 상태가 아닙니다.");
+        String action = firstNonBlank(
+                metric.nextAction(),
+                "해당 지표의 판정 기준과 저장된 증거를 확인한 뒤 같은 증거 흐름으로 재검증하십시오.");
+        String reverify = firstNonBlank(
+                metric.reverifyCriterion(),
+                "후속 조치 후 같은 요청 흐름으로 공식검사를 다시 실행해야 합니다.");
+        return new OfficialRunFailureCause(
+                normalize(metric.metricCode()),
+                firstNonBlank(metric.metricName(), metric.metricCode()),
+                metric.officialRunId(),
+                normalize(metric.metricCode()) + "-" + state.toLowerCase(Locale.ROOT),
+                firstNonBlank(metric.operatorTitle(), metric.metricName(), metric.metricCode()),
+                "공식검사 지표가 통과 상태여야 합니다.",
+                stateLabel + " (" + state + ")",
+                "official_verification_metric_snapshot.state",
+                firstNonBlank(metric.remediationOwner(), "PQA_RUNTIME"),
+                firstNonBlank(metric.operatorSummary(), metric.operatorTitle(), metric.metricName(), "공식검사 지표 확인 필요"),
+                reason,
+                firstNonBlank(metric.remediationOwner(), metric.metricGroup(), "PQA_RUNTIME"),
+                reason,
+                action,
+                reverify);
+    }
     private List<OfficialRunRemediationGroup> operatorRemediationGroups(OperatorSnapshot snapshot) {
         if (snapshot == null || !snapshot.available() || snapshot.remediationGroups().isEmpty()) {
             return List.of();
@@ -2456,7 +2511,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             case "IMPLEMENTATION_ALIGNMENT" -> message("enterprise.pqa.runtimeVerification.metric.group.implementationAlignment", "Implementation alignment");
             case "RAG_AND_BASELINE" -> message("enterprise.pqa.runtimeVerification.metric.group.ragAndBaseline", "Learning and baseline");
             case "BEHAVIORAL_CONTEXT" -> message("enterprise.pqa.runtimeVerification.metric.group.behavioralContext", "Behavior context");
-            case "LLM_DECISION" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision", "Decision reliability");
+            case "LLM_DECISION", "LLM_DECISION_GATE" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision", "Decision verification");
             case "RESOURCE_ELIGIBILITY" -> message("enterprise.pqa.runtimeVerification.metric.group.resourceEligibility", "Operational promotion eligibility");
             default -> message("enterprise.pqa.runtimeVerification.metric.group.other", "Other");
         };
@@ -2745,3 +2800,4 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         return resolved;
     }
 }
+

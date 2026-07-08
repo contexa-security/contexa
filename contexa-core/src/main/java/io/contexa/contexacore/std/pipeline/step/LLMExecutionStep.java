@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -167,7 +168,7 @@ public class LLMExecutionStep implements PipelineStep {
                         context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
                         context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
                         context.addMetadata("securityDecisionRawExecutionFailureClass", error.getClass().getName());
-                        context.addMetadata("securityDecisionRawExecutionFailureMessage", error.getMessage());
+                        context.addMetadata("securityDecisionRawExecutionFailureMessage", SensitiveValueSanitizer.sanitizeText(error.getMessage()));
                         context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, "");
                         return Mono.just("");
                     });

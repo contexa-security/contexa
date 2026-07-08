@@ -30,7 +30,7 @@
                    data-pqa-nav-family="execution"
                    th:href="${promptQualityRouteRoot + '/verification/readiness'}">
                     <strong th:text="#{enterprise.pqa.verification.subnav.group.execution}">Integrated official inspection</strong>
-                    <small th:text="#{enterprise.pqa.verification.subnav.group.execution.detail}">Evidence check - integrated result - 12+6 run</small>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.execution.detail}">Evidence check - integrated result - official inspection run</small>
                 </a>
                 <a class="pqa-verification-mainnav-link"
                    data-pqa-verification-subroute="comparison"
@@ -40,11 +40,12 @@
                     <small th:text="#{enterprise.pqa.verification.subnav.group.prompt.detail}">Actual prompt comparison - 12 metrics</small>
                 </a>
                 <a class="pqa-verification-mainnav-link"
+                   th:if="${promptQualityUiMode == 'enterprise'}"
                    data-pqa-verification-subroute="llm-metrics"
                    data-pqa-nav-family="llm"
                    th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}">
                     <strong th:text="#{enterprise.pqa.verification.subnav.group.llm}">LLM decision official inspection</strong>
-                    <small th:text="#{enterprise.pqa.verification.subnav.group.llm.detail}">LLM decision 6 metrics</small>
+                    <small th:text="#{enterprise.pqa.verification.subnav.group.llm.detail}">LLM decision verification</small>
                 </a>
                 <a class="pqa-verification-mainnav-link"
                    data-pqa-verification-subroute="failures"
@@ -74,7 +75,7 @@
                    th:href="${promptQualityRouteRoot + '/verification/run'}">
                     <i class="fa-solid fa-play" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.run}">Run integrated inspection</span>
                 </a>
-                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.executionNote}">The integrated official inspection runs the prompt 12 metrics and LLM decision 6 metrics against the same sealed evidence.</span>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.executionNote}">The integrated official inspection runs the prompt 12 metrics and LLM decision verification against the same sealed evidence.</span>
             </div>
             <div class="pqa-verification-subnav-row" hidden
                  aria-label="Prompt official inspection screens"
@@ -92,15 +93,16 @@
                 </a>
             </div>
             <div class="pqa-verification-subnav-row" hidden
+                 th:if="${promptQualityUiMode == 'enterprise'}"
                  aria-label="LLM decision official inspection screens"
                  th:aria-label="#{enterprise.pqa.verification.subnav.detailAria}">
                 <span class="pqa-verification-subnav-label" th:text="#{enterprise.pqa.verification.subnav.detailLabel}">Screens in this area</span>
                 <a class="pqa-verification-subnav-link"
                    data-pqa-verification-subroute="llm-metrics"
                    th:href="${promptQualityRouteRoot + '/verification/llm-metrics'}">
-                    <i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM decision 6 metrics</span>
+                    <i class="fa-solid fa-brain" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.subnav.llmMetrics}">LLM decision verification</span>
                 </a>
-                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.llmNote}">The LLM 6 metrics are inspected by the integrated official run, not by a separate run button.</span>
+                <span class="pqa-verification-subnav-note" th:text="#{enterprise.pqa.verification.subnav.llmNote}">The LLM decision official inspection is executed by the integrated official run, not by a separate run button.</span>
             </div>
             <div class="pqa-verification-subnav-row" hidden
                  aria-label="Shared evidence and diagnosis screens"
@@ -128,9 +130,9 @@
             <div class="pqa-panel-head">
                 <div>
                     <h2><i class="fa-solid fa-link" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.title}">Evidence selection handoff</span></h2>
-                    <p th:text="#{enterprise.pqa.verification.readiness.description}">선택한 요청 증거를 공식검사에 사용할 수 있는지 확인합니다.</p>
+                    <p th:text="#{enterprise.pqa.verification.readiness.description}">?좏깮???붿껌 利앷굅瑜?怨듭떇寃?ъ뿉 ?ъ슜?????덈뒗吏 ?뺤씤?⑸땲??</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-route" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.pill}">증거 확인</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-route" aria-hidden="true"></i><span th:text="#{enterprise.pqa.verification.readiness.pill}">利앷굅 ?뺤씤</span></span>
             </div>
             <div data-pqa-readiness-selected class="pqa-verification-selected"></div>
         </section>
@@ -139,12 +141,12 @@
             <div class="pqa-panel-head">
                 <div>
                     <h2><i class="fa-solid fa-fingerprint" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.title}">Evidence and prompt consistency</span></h2>
-                    <p th:text="#{enterprise.pqa.promptConsistency.description}">봉인 증거와 LLM 사용자 프롬프트가 같은 요청에서 만들어졌는지 확인합니다.</p>
+                    <p th:text="#{enterprise.pqa.promptConsistency.description}">遊됱씤 利앷굅? LLM ?ъ슜???꾨＼?꾪듃媛 媛숈? ?붿껌?먯꽌 留뚮뱾?댁죱?붿? ?뺤씤?⑸땲??</p>
                 </div>
-                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">검사 전 확인</span></span>
+                <span class="pqa-section-pill"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span th:text="#{enterprise.pqa.promptConsistency.metricGroup}">寃?????뺤씤</span></span>
             </div>
             <div data-pqa-prompt-consistency-content class="pqa-runtime-detail-empty">
-                <p th:text="#{enterprise.pqa.promptConsistency.empty}">요청 증거를 선택하면 LLM 사용자 프롬프트와 연결됐는지 확인합니다.</p>
+                <p th:text="#{enterprise.pqa.promptConsistency.empty}">?붿껌 利앷굅瑜??좏깮?섎㈃ LLM ?ъ슜???꾨＼?꾪듃? ?곌껐?먮뒗吏 ?뺤씤?⑸땲??</p>
             </div>
             <div class="pqa-action-row" data-pqa-readiness-actions></div>
         </section>
@@ -152,6 +154,8 @@
 </main>
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
-<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260601-evidence-role-labels')}"></script>
+<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260707-llm-official-ui-cleanup')}"></script>
 </body>
 </html>
+
+

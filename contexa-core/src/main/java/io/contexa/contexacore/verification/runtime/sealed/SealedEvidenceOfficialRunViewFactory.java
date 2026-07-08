@@ -30,17 +30,17 @@ class SealedEvidenceOfficialRunViewFactory {
         if (result == null) {
             checks.add(new SealedEvidenceOfficialRunView.SealedEvidenceCheckView(
                     "OFFICIAL_METRIC_RESULT_PRESENT",
-                    "공식 지표 실행 결과 생성 필요",
-                    "기준: 12개 공식 지표는 각각 실행 결과와 체크 목록을 생성해야 합니다.",
+                    "공식 지표 실행 결과 필요",
+                    "기준: 각 공식검사 지표는 실행 결과와 체크 목록을 생성해야 합니다.",
                     "확인 결과: 이 지표의 실행 결과가 생성되지 않았습니다.",
                     false,
                     "internalGate.officialSealedEvidenceRuntime",
                     "BLOCKING",
                     "MISSING_METRIC_RESULT",
-                    "공식검사 런타임",
-                    "문제: 공식 지표 실행 결과가 저장 단계까지 전달되지 않았습니다. 원인: 지표 엔진 또는 저장 매핑이 해당 지표 결과를 만들지 못했습니다. 대상: 공식검사 런타임. 결과: 이 상태에서는 12개 지표가 완결된 검사로 인정될 수 없습니다.",
-                    "조치: 같은 봉인 증거로 공식검사를 다시 실행하고, 지표 엔진과 원장 저장 매핑에서 누락된 지표 결과 생성 여부를 확인하십시오.",
-                    "재검증 기준: 새 공식검사 실행에서 해당 지표의 체크 목록과 실행 결과가 생성되어야 합니다."));
+                    "PQA_RUNTIME",
+                    "문제: 공식검사 지표 실행 결과가 저장 계층까지 전달되지 않았습니다. 원인: 지표 엔진 또는 저장 매핑에서 해당 지표 결과를 만들지 못했습니다.",
+                    "조치: 같은 봉인 증거로 공식검사를 다시 실행하고, 지표 엔진과 저장 매핑에서 누락된 지표 결과 생성 여부를 확인하십시오.",
+                    "평가 기준: 공식검사 실행에서 해당 지표의 체크 목록과 실행 결과가 생성되어야 합니다."));
         }
         else {
             safeChecks(result.checks()).forEach(check -> checks.add(new SealedEvidenceOfficialRunView.SealedEvidenceCheckView(
@@ -213,14 +213,13 @@ class SealedEvidenceOfficialRunViewFactory {
             return "공식검사 지표가 기준을 충족했습니다.";
         }
         if ("not_applicable".equalsIgnoreCase(state)) {
-            return "이 요청 증거에는 해당 지표가 적용되지 않습니다.";
+            return "이 요청 증거에는 해당 지표를 적용하지 않습니다.";
         }
         if ("insufficient".equalsIgnoreCase(state)) {
-            return "공식검사 지표를 확정하기에는 증거가 부족합니다.";
+            return "공식검사 지표를 판정하기에는 증거가 부족합니다.";
         }
-        return "공식검사 지표가 보증서 발급 기준을 충족하지 못했습니다.";
+        return "공식검사 지표가 기준을 충족하지 못했습니다.";
     }
-
     private String firstNonBlank(String... values) {
         if (values == null) {
             return null;

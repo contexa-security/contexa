@@ -1,12 +1,27 @@
-import { escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
+import { appPath, escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
 import { getJson, publicError } from './prompt-quality-api.js';
 import { setStatus, badge } from './prompt-quality-page.js';
 import { ensureBundle, t } from './prompt-quality-i18n.js';
 
-const DASHBOARD_API = '/contexa/admin/api/prompt-quality/dashboard/summary';
-const RESOURCES_API = '/contexa/admin/api/prompt-quality/resources/summary';
-const RUNTIME_EVIDENCE_API = '/contexa/admin/api/prompt-quality/runtime-evidence/search?size=100';
-const RESOURCE_STATE_SEARCH_API = '/contexa/admin/api/prompt-quality/resources/state-search';
+function promptQualityApiRoot(root = document.querySelector('[data-pqa-page="dashboard"]')) {
+    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+}
+
+function promptQualityApiPath(root, path) {
+    const base = promptQualityApiRoot(root).replace(/\/+$/, '');
+    const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    return `${base}${suffix}`;
+}
+
+function promptQualityRouteRoot(root = document.querySelector('[data-pqa-page="dashboard"]')) {
+    return rawText(root?.dataset?.pqaRouteRoot) || '/contexa/admin/prompt-quality';
+}
+
+function promptQualityRoutePath(root, path) {
+    const base = promptQualityRouteRoot(root).replace(/\/+$/, '');
+    const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    return appPath(`${base}${suffix}`);
+}
 
 const charts = { stages: null, evidence: null, issue: null };
 const TONE_COLORS = {
@@ -32,9 +47,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function reload(root) {
     setStatus(root, 'loading', t('enterprise.pqa.common.status.loading'), t('enterprise.pqa.common.status.loadingDetail.page'));
     const loaded = await Promise.all([
-        loadData('dashboard', DASHBOARD_API, {}),
-        loadData('resources', RESOURCES_API, { resources: [] }),
-        loadData('runtimeEvidence', RUNTIME_EVIDENCE_API, [])
+        loadData('dashboard', promptQualityApiPath(root, '/dashboard/summary'), {}),
+        loadData('resources', promptQualityApiPath(root, '/resources/summary'), { resources: [] }),
+        loadData('runtimeEvidence', promptQualityApiPath(root, '/runtime-evidence/search?size=100'), [])
     ]);
     const byName = Object.fromEntries(loaded.map(item => [item.name, item.data]));
     const payload = {
@@ -86,7 +101,7 @@ function installResourceStateSearch(root) {
         if (httpMethod) params.set('httpMethod', httpMethod);
         result.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.search.queryingStatus'))}</div>`;
         try {
-            renderResourceStateSearchResult(result, await getJson(`${RESOURCE_STATE_SEARCH_API}?${params.toString()}`));
+            renderResourceStateSearchResult(result, await getJson(`${promptQualityApiPath(root, '/resources/state-search')}?${params.toString()}`));
         }
         catch (error) {
             result.innerHTML = `<div class="empty-state pqa-search-error">${escapeHtml(publicError(error))}</div>`;
@@ -134,7 +149,7 @@ function resourceDetailHref(resource) {
     setRouteParam(params, 'resourceUrl', resource.resourceUrl);
     setRouteParam(params, 'resourceId', resource.resourceId);
     setRouteParam(params, 'httpMethod', resource.httpMethod || 'GET');
-    return `/contexa/admin/prompt-quality/resources/detail?${params.toString()}`;
+    return promptQualityRoutePath(undefined, `/resources/detail?${params.toString()}`);
 }
 
 function setRouteParam(params, name, value) {
@@ -201,11 +216,11 @@ function buildStages(p) {
     const evidenceReady = p.runtimeEvidence.filter(isRuntimeEvidenceReady).length;
     const stages = [
         stage('resources', t('enterprise.pqa.dashboard.pipeline.stage.resources'), totalResources,
-                '/contexa/admin/prompt-quality/resources', 'info', 'fa-solid fa-shield-halved'),
+                promptQualityRoutePath(root, '/resources'), 'info', 'fa-solid fa-shield-halved'),
         stage('runtimeEvidence', t('enterprise.pqa.dashboard.pipeline.stage.runtimeEvidence'), evidenceCount,
-                '/contexa/admin/prompt-quality/runtime-evidence', evidenceCount ? 'info' : 'neutral', 'fa-solid fa-cube'),
+                promptQualityRoutePath(root, '/runtime-evidence'), evidenceCount ? 'info' : 'neutral', 'fa-solid fa-cube'),
         stage('verify', t('enterprise.pqa.dashboard.pipeline.stage.verify'), evidenceReady,
-                '/contexa/admin/prompt-quality/verification', evidenceReady ? 'info' : 'neutral', 'fa-solid fa-clipboard-check')
+                promptQualityRoutePath(root, '/verification'), evidenceReady ? 'info' : 'neutral', 'fa-solid fa-clipboard-check')
     ];
     const max = Math.max(1, ...stages.map(item => item.value));
     return stages.map(item => ({ ...item, score: Math.max(8, Math.round(item.value / max * 100)) }));
@@ -232,9 +247,9 @@ function renderHero(root, p) {
             : t('enterprise.pqa.dashboard.hero.verdict.summary',
                     String(enabled), String(totalResources), String(p.runtimeEvidence.length), String(risk));
     const kpis = [
-        { label: t('enterprise.pqa.dashboard.hero.kpi.totalResources'), value: totalResources, tone: 'neutral', href: '/contexa/admin/prompt-quality/resources', icon: 'fa-solid fa-shield-halved' },
-        { label: t('enterprise.pqa.dashboard.hero.kpi.runtimeEvidence'), value: p.runtimeEvidence.length, tone: 'info', href: '/contexa/admin/prompt-quality/runtime-evidence', icon: 'fa-solid fa-cube' },
-        { label: t('enterprise.pqa.dashboard.hero.kpi.readyEvidence'), value: evidenceReady, tone: 'ready', href: '/contexa/admin/prompt-quality/verification', icon: 'fa-solid fa-clipboard-check' }
+        { label: t('enterprise.pqa.dashboard.hero.kpi.totalResources'), value: totalResources, tone: 'neutral', href: promptQualityRoutePath(root, '/resources'), icon: 'fa-solid fa-shield-halved' },
+        { label: t('enterprise.pqa.dashboard.hero.kpi.runtimeEvidence'), value: p.runtimeEvidence.length, tone: 'info', href: promptQualityRoutePath(root, '/runtime-evidence'), icon: 'fa-solid fa-cube' },
+        { label: t('enterprise.pqa.dashboard.hero.kpi.readyEvidence'), value: evidenceReady, tone: 'ready', href: promptQualityRoutePath(root, '/verification'), icon: 'fa-solid fa-clipboard-check' }
     ];
     const kpiHtml = kpis.map(k => `
         <a class="pqa-dash-hero-kpi pqa-dash-hero-kpi-${k.tone}" href="${k.href}">
@@ -444,7 +459,7 @@ function renderTools(root, p) {
                 t('enterprise.pqa.dashboard.tools.metric.runtimeEvidence'),
                 p.bundles.length,
                 t('enterprise.pqa.dashboard.tools.metric.bundle'),
-                '/contexa/admin/prompt-quality/runtime-evidence',
+                promptQualityRoutePath(root, '/runtime-evidence'),
                 'fa-solid fa-flask-vial',
                 'info'),
         tool(
@@ -454,7 +469,7 @@ function renderTools(root, p) {
                 t('enterprise.pqa.dashboard.tools.metric.bundle'),
                 readyBundles,
                 t('enterprise.pqa.dashboard.tools.metric.ready'),
-                '/contexa/admin/prompt-quality/runtime-evidence',
+                promptQualityRoutePath(root, '/runtime-evidence'),
                 'fa-solid fa-box-archive',
                 readyBundles ? 'ready' : 'neutral'),
         tool(
@@ -464,7 +479,7 @@ function renderTools(root, p) {
                 t('enterprise.pqa.dashboard.tools.metric.recipe'),
                 p.runtimeEvidence.length,
                 t('enterprise.pqa.dashboard.tools.metric.runtimeEvidence'),
-                '/contexa/admin/prompt-quality/verification',
+                promptQualityRoutePath(root, '/verification'),
                 'fa-solid fa-scroll',
                 'ready'),
         tool(
@@ -474,7 +489,7 @@ function renderTools(root, p) {
                 t('enterprise.pqa.dashboard.tools.metric.promptSource'),
                 p.apiErrors.length,
                 t('enterprise.pqa.dashboard.tools.metric.alert'),
-                '/contexa/admin/prompt-quality/verification/prompt-comparison',
+                promptQualityRoutePath(root, '/verification/prompt-comparison'),
                 'fa-solid fa-diagram-project',
                 p.apiErrors.length ? 'warn' : 'info'),
         tool(
@@ -484,7 +499,7 @@ function renderTools(root, p) {
                 t('enterprise.pqa.dashboard.tools.metric.blocked'),
                 number(p.dash.reverifyRequiredCount),
                 t('enterprise.pqa.dashboard.tools.metric.reverify'),
-                '/contexa/admin/prompt-quality/verification/metrics',
+                promptQualityRoutePath(root, '/verification/metrics'),
                 'fa-solid fa-sliders',
                 number(p.dash.blockedCount) ? 'warn' : 'neutral')
     ];
@@ -518,12 +533,12 @@ function renderTodo(root, p) {
     const reverify = number(d.reverifyRequiredCount);
     const issues = ensureArray(d.recurringIssues).length;
     const evidenceWarnings = runtimeEvidenceWarningCount(p.runtimeEvidence);
-    if (p.apiErrors.length) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.api.title', String(p.apiErrors.length)), body: t('enterprise.pqa.dashboard.todo.api.body'), href: '/contexa/admin/prompt-quality/dashboard', cta: t('enterprise.pqa.dashboard.todo.api.cta') });
-    if (p.runtimeEvidence.length === 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.title'), body: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.body'), href: '/contexa/admin/prompt-quality/runtime-evidence', cta: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.cta') });
-    if (evidenceWarnings > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.evidenceWarning.title', String(evidenceWarnings)), body: t('enterprise.pqa.dashboard.todo.evidenceWarning.body'), href: '/contexa/admin/prompt-quality/runtime-evidence', cta: t('enterprise.pqa.dashboard.todo.evidenceWarning.cta') });
-    if (blocked > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.blocked.title', String(blocked)), body: t('enterprise.pqa.dashboard.todo.blocked.body'), href: '/contexa/admin/prompt-quality/verification/metrics', cta: t('enterprise.pqa.dashboard.todo.blocked.cta') });
-    if (reverify > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.reverify.title', String(reverify)), body: t('enterprise.pqa.dashboard.todo.reverify.body'), href: '/contexa/admin/prompt-quality/verification/run', cta: t('enterprise.pqa.dashboard.todo.reverify.cta') });
-    if (issues > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.issues.title', String(issues)), body: t('enterprise.pqa.dashboard.todo.issues.body'), href: '/contexa/admin/prompt-quality/verification/metrics', cta: t('enterprise.pqa.dashboard.todo.issues.cta') });
+    if (p.apiErrors.length) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.api.title', String(p.apiErrors.length)), body: t('enterprise.pqa.dashboard.todo.api.body'), href: promptQualityRoutePath(root, '/dashboard'), cta: t('enterprise.pqa.dashboard.todo.api.cta') });
+    if (p.runtimeEvidence.length === 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.title'), body: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.body'), href: promptQualityRoutePath(root, '/runtime-evidence'), cta: t('enterprise.pqa.dashboard.todo.noRuntimeEvidence.cta') });
+    if (evidenceWarnings > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.evidenceWarning.title', String(evidenceWarnings)), body: t('enterprise.pqa.dashboard.todo.evidenceWarning.body'), href: promptQualityRoutePath(root, '/runtime-evidence'), cta: t('enterprise.pqa.dashboard.todo.evidenceWarning.cta') });
+    if (blocked > 0) items.push({ priority: 'high', title: t('enterprise.pqa.dashboard.todo.blocked.title', String(blocked)), body: t('enterprise.pqa.dashboard.todo.blocked.body'), href: promptQualityRoutePath(root, '/verification/metrics'), cta: t('enterprise.pqa.dashboard.todo.blocked.cta') });
+    if (reverify > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.reverify.title', String(reverify)), body: t('enterprise.pqa.dashboard.todo.reverify.body'), href: promptQualityRoutePath(root, '/verification/run'), cta: t('enterprise.pqa.dashboard.todo.reverify.cta') });
+    if (issues > 0) items.push({ priority: 'medium', title: t('enterprise.pqa.dashboard.todo.issues.title', String(issues)), body: t('enterprise.pqa.dashboard.todo.issues.body'), href: promptQualityRoutePath(root, '/verification/metrics'), cta: t('enterprise.pqa.dashboard.todo.issues.cta') });
     if (!items.length) {
         target.innerHTML = `<div class="empty-state">${escapeHtml(t('enterprise.pqa.dashboard.todo.empty'))}</div>`;
         return;

@@ -49,7 +49,7 @@ function requireJsonResponse(value) {
             || trimmed.startsWith('<html')
             || trimmed.includes('<title>');
     const message = looksLikeHtml
-            ? 'API가 JSON 대신 HTML 화면을 반환했습니다. 로그인 상태와 API 경로를 확인하십시오.'
+            ? 'API가 JSON 데이터가 아니라 HTML 화면을 반환했습니다. 로그인 상태와 API 라우팅을 확인하십시오.'
             : 'API가 JSON이 아닌 응답을 반환했습니다.';
     const error = new Error(message);
     error.body = { message };

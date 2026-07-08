@@ -9,7 +9,10 @@
 <div th:replace="~{contexa/fragments/header :: header}"></div>
 <div th:replace="~{contexa/fragments/admin-menu :: menu}"></div>
 
-<main class="page-body pqa-shell" data-pqa-page="dashboard" data-pqa-stage="QUALITY_PROCESS_HOME">
+<main class="page-body pqa-shell"
+      data-pqa-page="dashboard"
+      data-pqa-stage="QUALITY_PROCESS_HOME"
+      th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
    <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.dashboard.title}, #{enterprise.pqa.dashboard.subtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>

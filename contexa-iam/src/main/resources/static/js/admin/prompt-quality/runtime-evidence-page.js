@@ -5,6 +5,25 @@ import { ensureBundle, t } from './prompt-quality-i18n.js';
 import { showActionTooltip } from './prompt-quality-ui.js';
 
 const root = document.querySelector('[data-pqa-page="runtime-evidence"]');
+function promptQualityApiRoot() {
+    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+}
+
+function promptQualityApiPath(path) {
+    const base = promptQualityApiRoot().replace(/\/+$/, '');
+    const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    return `${base}${suffix}`;
+}
+
+function promptQualityRouteRoot() {
+    return rawText(root?.dataset?.pqaRouteRoot) || '/contexa/admin/prompt-quality';
+}
+
+function promptQualityRoutePath(path) {
+    const base = promptQualityRouteRoot().replace(/\/+$/, '');
+    const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
+    return appPath(`${base}${suffix}`);
+}
 const locationParams = new URLSearchParams(window.location.search || '');
 const lockedResourceContext = scopedResourceContext(locationParams);
 
@@ -118,8 +137,8 @@ async function searchEvidence(pageRoot) {
     try {
         const query = params.toString();
         const endpoint = query
-                ? `/contexa/admin/api/prompt-quality/runtime-evidence/search?${query}`
-                : '/contexa/admin/api/prompt-quality/runtime-evidence/search';
+                ? promptQualityApiPath(`/runtime-evidence/search?${query}`)
+                : promptQualityApiPath('/runtime-evidence/search');
         const results = ensureArray(await getJson(endpoint));
         renderResults(pageRoot, results, hasFilters);
         renderSummary(pageRoot, results);
@@ -405,7 +424,7 @@ function officialInspectionUrl(source = {}) {
     setRouteParam(params, 'actualResourceId', item.actualResourceId || item.runtimeResourceId || lockedResourceContext.actualResourceId);
     setRouteParam(params, 'httpMethod', item.httpMethod || lockedResourceContext.httpMethod);
     const query = params.toString();
-    return appPath(`/contexa/admin/prompt-quality/verification/readiness${query ? `?${query}` : ''}`);
+    return promptQualityRoutePath(`/verification/readiness${query ? `?${query}` : ''}`);
 }
 
 async function loadDetail(pageRoot, item) {
@@ -414,7 +433,7 @@ async function loadDetail(pageRoot, item) {
     }
     setStatus(pageRoot, 'loading', t('enterprise.pqa.runtimeEvidence.detailLoading.title'), t('enterprise.pqa.runtimeEvidence.detailLoading.detail'));
     try {
-        const detail = await getJson(`/contexa/admin/api/prompt-quality/runtime-evidence/${encodeURIComponent(item.packageId)}`);
+        const detail = await getJson(promptQualityApiPath(`/runtime-evidence/${encodeURIComponent(item.packageId)}`));
         renderDetail(pageRoot, detail);
         openDetailModal(pageRoot);
         setStatus(pageRoot, 'success', t('enterprise.pqa.runtimeEvidence.detailSuccess.title'), t('enterprise.pqa.runtimeEvidence.detailSuccess.detail'));

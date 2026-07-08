@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -280,7 +281,7 @@ public final class PromptRuntimeTelemetrySupport {
         for (String key : RUNTIME_TELEMETRY_KEYS) {
             Object value = metadata.get(key);
             if (value != null) {
-                telemetry.put(key, value);
+                telemetry.put(key, SensitiveValueSanitizer.sanitizeValueForKey(key, value));
             }
         }
         return telemetry;

@@ -4,7 +4,7 @@ import java.util.List;
 
 public class OfficialVerificationMetricCatalog {
 
-    private final List<OfficialVerificationMetricDefinition> metrics = List.of(
+    private final List<OfficialVerificationMetricDefinition> promptMetrics = List.of(
             metric("EIR", "Event Integrity Rate", "IMPLEMENTATION_ALIGNMENT", "Validate that request-originated events preserve the expected field contract.", true, 95.0d),
             metric("CCR", "Context Completeness Rate", "IMPLEMENTATION_ALIGNMENT", "Validate that required session, behavior, retrieval, and prompt metadata fields are populated.", true, 95.0d),
             metric("CCSR", "Context Consistency Rate", "IMPLEMENTATION_ALIGNMENT", "Validate that the same facts stay consistent across event, context, prompt, and evidence views.", true, 95.0d),
@@ -16,36 +16,37 @@ public class OfficialVerificationMetricCatalog {
             metric("BMA", "Baseline Maturity Accuracy", "RAG_AND_BASELINE", "Validate that baseline maturity states reflect real observation depth without overclaiming.", true, 95.0d),
             metric("USNS", "User-Specific Novelty Sensitivity", "BEHAVIORAL_CONTEXT", "Validate that user-specific novelty is detected even when coarse device and network signals look normal.", true, 95.0d),
             metric("BSR", "Behavioral Surprise Resolution", "BEHAVIORAL_CONTEXT", "Validate that sequence jumps, oscillation, and friction deviations are surfaced and explained.", true, 95.0d),
-            metric("CDC", "Context-to-Decision Calibration", "LLM_DECISION", "Validate that decision confidence, risk, and action stay calibrated to context quality.", true, 95.0d),
-            metric("ERA", "Evidence-Reason Alignment", "LLM_DECISION", "Validate that reasoning claims are fully grounded in collected evidence.", true, 95.0d),
-            metric("SUHR", "Safe-Uncertainty Handling Rate", "LLM_DECISION", "Validate that ambiguous cases resolve to safe challenge or escalation behavior instead of permissive allowance.", true, 95.0d),
             metric("PRE", "Protectable Resource Eligibility", "RESOURCE_ELIGIBILITY", "Validate that the target URL is backed by @Protectable resource metadata, certificate evidence, and Zero Trust enablement gates.", true, 100.0d)
     );
 
     public List<OfficialVerificationMetricDefinition> allMetrics() {
-        return metrics;
+        return promptMetrics;
     }
 
     public List<OfficialVerificationMetricDefinition> promptQualityMetrics() {
-        return metrics.stream()
-                .filter(metric -> metric.contextMetric() || metric.resourceEligibilityMetric())
-                .toList();
+        return promptMetrics;
     }
 
     public List<OfficialVerificationMetricDefinition> contextMetrics() {
-        return metrics.stream()
+        return promptMetrics.stream()
                 .filter(OfficialVerificationMetricDefinition::contextMetric)
                 .toList();
     }
 
+    public List<OfficialVerificationMetricDefinition> decisionGateMetrics() {
+        return List.of();
+    }
+
     public List<OfficialVerificationMetricDefinition> decisionMetrics() {
-        return metrics.stream()
-                .filter(OfficialVerificationMetricDefinition::decisionMetric)
-                .toList();
+        return List.of();
+    }
+
+    public List<OfficialVerificationMetricDefinition> allDecisionMetrics() {
+        return List.of();
     }
 
     public OfficialVerificationMetricDefinition findRequiredMetric(String metricCode) {
-        return metrics.stream()
+        return allMetrics().stream()
                 .filter(metric -> metric.code().equalsIgnoreCase(metricCode))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown official verification metric: " + metricCode));

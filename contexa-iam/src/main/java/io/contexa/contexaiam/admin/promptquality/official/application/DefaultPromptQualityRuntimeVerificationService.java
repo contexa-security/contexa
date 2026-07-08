@@ -519,9 +519,9 @@ public class DefaultPromptQualityRuntimeVerificationService
                     "Prompt quality certificate was issued. Continue operational promotion from the promotion screen."))
                     : List.of();
         }
-        int officialPromptFailed = actualPromptProblemMetricCount(actualPromptProblems);
-        int officialPromptPassed = officialPassedMetricCount(metrics);
-        recordVerificationProcess(processScope, certificate, pkg, runId, officialPromptFailed, officialNextActions);
+        int officialMetricPassed = officialPassedMetricCount(metrics);
+        int officialMetricFailed = officialFailedMetricCount(metrics);
+        recordVerificationProcess(processScope, certificate, pkg, runId, officialMetricFailed, officialNextActions);
         recordOfficialAuditSnapshot(
                 processScope,
                 certificate,
@@ -529,7 +529,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                 pkg,
                 runId,
                 metrics,
-                officialPromptFailed,
+                officialMetricFailed,
                 officialFindings,
                 officialNextActions,
                 requestId,
@@ -550,8 +550,8 @@ public class DefaultPromptQualityRuntimeVerificationService
                 certificate.summary(),
                 certificate.summary(),
                 metrics.size(),
-                officialPromptPassed,
-                officialPromptFailed,
+                officialMetricPassed,
+                officialMetricFailed,
                 pkg.getTenantId(),
                 pkg.getUserId(),
                 requestPath,
@@ -1087,6 +1087,7 @@ public class DefaultPromptQualityRuntimeVerificationService
 
     private List<String> expectedMetricCodes() {
         return metricCatalog.promptQualityMetrics().stream()
+                .filter(metric -> !"LLM_DECISION".equalsIgnoreCase(metric.category()))
                 .map(OfficialVerificationMetricDefinition::code)
                 .filter(StringUtils::hasText)
                 .map(code -> code.trim().toUpperCase(Locale.ROOT))
@@ -1657,7 +1658,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                 && (source.startsWith("finalUserPrompt") || source.startsWith("finalSystemPrompt"))) {
             return source;
         }
-        throw new IllegalStateException(message("enterprise.pqa.diagnostic.finalPromptFailed", "공식검사 지표 실패 항목이 final userPrompt 위치를 제공하지 않았습니다. ")
+        throw new IllegalStateException(message("enterprise.pqa.diagnostic.finalPromptFailed", "Official metric failure did not provide a final prompt field location. ")
                 + "metricCode=" + safe(metricCode)
                 + ", checkCode=" + safe(check == null ? null : check.checkCode())
                 + ", source=" + source);
@@ -1697,19 +1698,20 @@ public class DefaultPromptQualityRuntimeVerificationService
         String normalized = text.toLowerCase(Locale.ROOT);
         return normalized.contains("missing:")
                 || normalized.contains("missing inputs")
-                || normalized.contains("누락:");
+                || normalized.contains("값 없음")
+                || normalized.contains("누락");
     }
 
     private String remediationOwnerForMetric(String metricCode) {
         return switch (normalizedCode(metricCode)) {
-            case "BMA", "USNS" -> message("enterprise.pqa.diagnostic.learningBaselineProducer", "학습 Baseline 생산자");
-            case "BSR" -> message("enterprise.pqa.diagnostic.behavioralContextProducer", "행동 Context 생산자");
-            case "COR", "RAP" -> message("enterprise.pqa.diagnostic.ragPermissionFilter", "RAG 권한 필터");
-            case "PFR", "MTR" -> message("enterprise.pqa.diagnostic.promptCapturer", "Prompt 캡처기");
-            case "PRE" -> message("enterprise.pqa.diagnostic.protectedResourceRegistrar", "보호 리소스 등록기");
-            case "RPI" -> message("enterprise.pqa.diagnostic.reverificationProcess", "재검증 프로세스");
-            case "EIR", "CCR", "CCSR" -> message("enterprise.pqa.diagnostic.contextAssembler", "Context 조립기");
-            default -> message("enterprise.pqa.diagnostic.officialVerification", "PQA 공식 검사");
+            case "BMA", "USNS" -> message("enterprise.pqa.diagnostic.learningBaselineProducer", "Learning baseline producer");
+            case "BSR" -> message("enterprise.pqa.diagnostic.behavioralContextProducer", "Behavior context producer");
+            case "COR", "RAP" -> message("enterprise.pqa.diagnostic.ragPermissionFilter", "RAG permission filter");
+            case "PFR", "MTR" -> message("enterprise.pqa.diagnostic.promptCapturer", "Prompt capture");
+            case "PRE" -> message("enterprise.pqa.diagnostic.protectedResourceRegistrar", "Protected resource registry");
+            case "RPI" -> message("enterprise.pqa.diagnostic.reverificationProcess", "Reverification process");
+            case "EIR", "CCR", "CCSR" -> message("enterprise.pqa.diagnostic.contextAssembler", "Context assembler");
+            default -> message("enterprise.pqa.diagnostic.officialVerification", "PQA official verification");
         };
     }
 
@@ -2083,13 +2085,21 @@ public class DefaultPromptQualityRuntimeVerificationService
                         run -> run,
                         (left, right) -> left,
                         LinkedHashMap::new));
+        Map<String, OfficialVerificationMetricDefinition> metricDefinitionsByCode = metricCatalog.promptQualityMetrics().stream()
+                .filter(metric -> metric != null && StringUtils.hasText(metric.code()))
+                .collect(Collectors.toMap(
+                        metric -> normalizedCode(metric.code()),
+                        metric -> metric,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
         List<RuntimeEvidenceMetricResult> results = new ArrayList<>();
-        for (OfficialVerificationMetricDefinition metric : metricCatalog.promptQualityMetrics()) {
-            if (metric == null || !StringUtils.hasText(metric.code())) {
+        for (Map.Entry<String, OfficialVerificationRunView> entry : runsByMetric.entrySet()) {
+            String metricCode = normalizedCode(entry.getKey());
+            if (!StringUtils.hasText(metricCode)) {
                 continue;
             }
-            String metricCode = normalizedCode(metric.code());
-            OfficialVerificationRunView run = runsByMetric.get(metricCode);
+            OfficialVerificationRunView run = entry.getValue();
+            OfficialVerificationMetricDefinition metric = metricDefinitionsByCode.get(metricCode);
             List<RuntimeEvidenceCheckResult> checks = new ArrayList<>();
             if (run != null) {
                 for (OfficialVerificationCheckResultView check : run.checks() == null
@@ -2131,7 +2141,7 @@ public class DefaultPromptQualityRuntimeVerificationService
                             metricCode,
                     run == null ? null : run.runId(),
                     narrativeCatalog.metricName(metricCode),
-                    groupName(metric.category()),
+                    groupName(metric == null ? null : metric.category()),
                     score,
                     state,
                     metricNotApplicable
@@ -2161,10 +2171,12 @@ public class DefaultPromptQualityRuntimeVerificationService
             return false;
         }
         String source = check.source().trim();
+        String readinessScope = check.readinessScope() == null ? "" : check.readinessScope().trim();
         return source.startsWith("finalUserPrompt.")
                 || source.startsWith("finalSystemPrompt.")
                 || source.startsWith("internalGate.")
-                || "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope());
+                || readinessScope.equalsIgnoreCase("LLM_DECISION_QUALITY")
+                || readinessScope.toUpperCase(Locale.ROOT).startsWith("LLM_DECISION_");
     }
 
     private boolean internalGateMetric(String metricCode) {
@@ -2668,7 +2680,7 @@ public class DefaultPromptQualityRuntimeVerificationService
         return customerVisibleRuntimeSentences(problems.stream()
                 .filter(problem -> problem != null && "BLOCKING".equalsIgnoreCase(firstNonBlank(problem.severity(), "")))
                 .map(problem -> {
-                    String title = firstNonBlank(problem.promptLabel(), message("enterprise.pqa.diagnostic.promptProblemFound", "Prompt 문제가 발견되었습니다."));
+                    String title = firstNonBlank(problem.promptLabel(), message("enterprise.pqa.diagnostic.promptProblemFound", "A prompt issue was found."));
                     String reason = firstNonBlank(problem.whyItMatters(), problem.actualState(), problem.problemType());
                     return StringUtils.hasText(reason) ? title + ". " + reason : title;
                 })
@@ -2710,6 +2722,14 @@ public class DefaultPromptQualityRuntimeVerificationService
                 .count();
     }
 
+    private int officialFailedMetricCount(List<RuntimeEvidenceMetricResult> metrics) {
+        if (metrics == null || metrics.isEmpty()) {
+            return 0;
+        }
+        return (int) metrics.stream()
+                .filter(metric -> metric != null && !metricPassed(metric))
+                .count();
+    }
     private String customerVisibleRuntimeSentence(String value, boolean blockingFinding) {
         String candidate = value == null ? "" : value.trim();
         if (PromptQualityCustomerSentencePolicy.isCustomerSentence(candidate)) {
@@ -2717,8 +2737,8 @@ public class DefaultPromptQualityRuntimeVerificationService
         }
         String metricName = customerMetricName(candidate);
         String sanitized = blockingFinding
-                ? message("enterprise.pqa.diagnostic.metricFailureDetail", metricName + "에서 공식 기준을 충족하지 못한 항목이 발견되었습니다. 문제 해결 화면에서 실패 기준, 확인값, 담당 공정을 확인하십시오.", metricName)
-                : message("enterprise.pqa.diagnostic.metricFailureGuide", metricName + "의 실패 기준을 확인하고 담당 데이터 생산자 또는 Prompt 조립 경로를 보강한 뒤 같은 증거 흐름으로 다시 검사하십시오.", metricName);
+                ? message("enterprise.pqa.diagnostic.metricFailureDetail", metricName + " did not satisfy the official inspection criteria. Review the failed criterion, observed value, and owning process on the issue screen.", metricName)
+                : message("enterprise.pqa.diagnostic.metricFailureGuide", metricName + " needs follow-up. Review the failed criterion and strengthen the responsible data producer or prompt assembly path, then re-run the same evidence flow.", metricName);
         return PromptQualityCustomerSentencePolicy.requireCustomerSentence(
                 blockingFinding ? "runtime.blockingFinding" : "runtime.nextAction",
                 sanitized);
@@ -2734,12 +2754,12 @@ public class DefaultPromptQualityRuntimeVerificationService
             }
         }
         if (value.toLowerCase(Locale.ROOT).contains("prompt")) {
-            return message("enterprise.pqa.diagnostic.evidenceConsistency", "증거와 Prompt 일치성");
+            return message("enterprise.pqa.diagnostic.evidenceConsistency", "Evidence-prompt consistency");
         }
         if (value.contains("@Protectable") || value.toLowerCase(Locale.ROOT).contains("protectable")) {
-            return message("enterprise.pqa.diagnostic.protectedResourceEligibility", "보호 리소스 적격성");
+            return message("enterprise.pqa.diagnostic.protectedResourceEligibility", "Protected resource eligibility");
         }
-        return message("enterprise.pqa.diagnostic.officialMetricVerification", "공식 검사 지표");
+        return message("enterprise.pqa.diagnostic.officialMetricVerification", "Official metric verification");
     }
 
     private boolean containsMetricCode(String value, String metricCode) {
@@ -2756,7 +2776,7 @@ public class DefaultPromptQualityRuntimeVerificationService
             case "IMPLEMENTATION_ALIGNMENT" -> message("enterprise.pqa.runtimeVerification.metric.group.implementationAlignment", "Implementation alignment");
             case "RAG_AND_BASELINE" -> message("enterprise.pqa.runtimeVerification.metric.group.ragAndBaseline", "Learning and baseline");
             case "BEHAVIORAL_CONTEXT" -> message("enterprise.pqa.runtimeVerification.metric.group.behavioralContext", "Behavior context");
-            case "LLM_DECISION" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision", "Decision reliability");
+            case "LLM_DECISION", "LLM_DECISION_GATE" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision", "Decision verification");
             case "RESOURCE_ELIGIBILITY" -> message("enterprise.pqa.runtimeVerification.metric.group.resourceEligibility", "Operational promotion eligibility");
             default -> message("enterprise.pqa.runtimeVerification.metric.group.other", "Other");
         };
@@ -2888,3 +2908,4 @@ public class DefaultPromptQualityRuntimeVerificationService
         return LocalDateTime.now(KOREA_ZONE).format(FORMATTER);
     }
 }
+
