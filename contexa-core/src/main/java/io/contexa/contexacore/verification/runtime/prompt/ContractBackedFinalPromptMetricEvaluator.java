@@ -91,10 +91,34 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (checkContract == null || !displayVisibleCheck(checkContract)) {
             return true;
         }
+        if (optionalFieldValuesConsistentCheck(checkContract)) {
+            return true;
+        }
         String runtimeFacts = contractRuntimeFacts(checkContract, true, context);
         return customerRuntimeFactsUsable(checkContract, true, context, runtimeFacts);
     }
 
+    private boolean optionalFieldValuesConsistentCheck(FinalPromptMetricCheckContract checkContract) {
+        FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
+        String operator = normalizeCheckName(rule == null ? "" : rule.operator());
+        return "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator);
+    }
+
+    private String optionalFieldValuesConsistentRuntimeFacts(FinalPromptMetricCheckContract checkContract) {
+        FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
+        List<String> labels = rule == null ? List.of() : rule.labels();
+        String labelText = labels == null || labels.isEmpty()
+                ? "선택 비교 항목"
+                : labels.stream()
+                        .filter(StringUtils::hasText)
+                        .map(String::trim)
+                        .distinct()
+                        .collect(Collectors.joining(", "));
+        if (!StringUtils.hasText(labelText)) {
+            labelText = "선택 비교 항목";
+        }
+        return labelText + " 값은 제공된 실제 값이 없어 비교 충돌로 판단하지 않습니다.";
+    }
     private boolean customerRuntimeFactsContainHardMissing(String runtimeFacts) {
         if (!StringUtils.hasText(runtimeFacts)) {
             return true;
@@ -955,7 +979,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             if (StringUtils.hasText(details)) {
                 return details;
             }
-            return readableFact(checkContract, "TruncatedFactCount", String.valueOf(truncatedFactCount(prompt)));
+            String emptyValue = firstNonBlank(binding.get("emptyValue"), "");
+            if (StringUtils.hasText(emptyValue)) {
+                return emptyValue;
+            }
+            return "감지된 잘림 표식과 자리표시자는 0개입니다.";
         }
         if ("RAG_RUNTIME_STATE".equals(source)) {
             return ragRuntimeStateEvidence(checkContract, binding, prompt, context);
@@ -1636,6 +1664,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             List<FinalPromptField> fields = prompt.fieldsByLabel(label);
             for (FinalPromptField field : fields) {
                 String value = stripLineSuffix(field.value());
+                if (placeholderConsistencyValue(value)) {
+                    continue;
+                }
                 String comparable = "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
                         ? normalizeBooleanComparable(value)
                         : normalizeComparableValue(value);
@@ -1687,6 +1718,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             boolean duplicateLabel = fields.size() > 1;
             for (FinalPromptField field : fields) {
                 String value = stripLineSuffix(field.value());
+                if (placeholderConsistencyValue(value)) {
+                    continue;
+                }
                 String comparable = "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
                         ? normalizeBooleanComparable(value)
                         : normalizeComparableValue(value);
@@ -2415,6 +2449,12 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     : contractRuntimeFactsFromEvidence(checkContract, List.of());
         }
         if (displayVisibleCheck(checkContract)) {
+            if (passed && optionalFieldValuesConsistentCheck(checkContract)) {
+                String optionalFacts = optionalFieldValuesConsistentRuntimeFacts(checkContract);
+                if (customerRuntimeFactsUsable(checkContract, passed, context, optionalFacts)) {
+                    return optionalFacts;
+                }
+            }
             String purposeFacts = purposeSpecificDisplayRuntimeFacts(checkContract, Map.of(), prompt, context);
             if (customerRuntimeFactsUsable(checkContract, passed, context, purposeFacts)) {
                 return purposeFacts;
@@ -2489,6 +2529,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (customerRuntimeFactsUsable(checkContract, passed, context, runtimeFacts)) {
             return runtimeFacts;
         }
+        String safeAbsenceFailureFacts = safeAbsenceFailureRuntimeFacts(checkContract, passed, prompt);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, safeAbsenceFailureFacts)) {
+            return safeAbsenceFailureFacts;
+        }
         if (displayVisibleCheck(checkContract)) {
             return "";
         }
@@ -2513,12 +2557,44 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return true;
         }
         String text = runtimeFacts.trim();
+        boolean repeatedDisplayText = contractRuntimeFactsRepeatDisplayText(checkContract, passed, context, text);
         return !customerVisibleEvidenceUnsafe(text)
                 && (!passed || !customerRuntimeFactsContainHardMissing(text))
                 && !customerRuntimeFactsContainUndeclaredLegacyAggregate(checkContract, text)
-                && !contractRuntimeFactsRepeatDisplayText(checkContract, passed, context, text);
+                && (!repeatedDisplayText || absenceMeasurementRuntimeFactAllowed(checkContract, text));
     }
 
+    private boolean absenceMeasurementRuntimeFactAllowed(
+            FinalPromptMetricCheckContract checkContract,
+            String runtimeFacts) {
+        if (!StringUtils.hasText(runtimeFacts)) {
+            return false;
+        }
+        FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
+        String operator = normalizeCheckName(rule == null ? "" : rule.operator());
+        if (!"TRUNCATED_VALUES_ABSENT".equals(operator) && !"COMPACT_MARKERS_ABSENT".equals(operator)) {
+            return false;
+        }
+        return Pattern.compile("\\d+").matcher(runtimeFacts).find();
+    }
+
+    private String safeAbsenceFailureRuntimeFacts(
+            FinalPromptMetricCheckContract checkContract,
+            boolean passed,
+            FinalPromptSnapshot prompt) {
+        if (passed || prompt == null) {
+            return "";
+        }
+        FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
+        String operator = normalizeCheckName(rule == null ? "" : rule.operator());
+        if ("TRUNCATED_VALUES_ABSENT".equals(operator)) {
+            int count = truncatedFactCount(prompt);
+            return count > 0
+                    ? "잘림 표식 또는 자리표시자가 포함된 프롬프트 항목 " + count + "개가 발견되었습니다."
+                    : "";
+        }
+        return "";
+    }
     private boolean customerRuntimeFactsContainUndeclaredLegacyAggregate(
             FinalPromptMetricCheckContract checkContract,
             String runtimeFacts) {
@@ -4224,16 +4300,19 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 continue;
             }
             for (FinalPromptField field : fields) {
-                if (!StringUtils.hasText(field.value())) {
+                if (!StringUtils.hasText(field.value()) || placeholderConsistencyValue(field.value())) {
                     missingLabels.add(label);
                     continue;
                 }
-                presentLabels.add(label);
                 String comparable = "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
                         ? normalizeBooleanComparable(field.value())
                         : normalizeComparableValue(field.value());
                 if (StringUtils.hasText(comparable)) {
+                    presentLabels.add(label);
                     distinctValues.add(comparable);
+                }
+                else {
+                    missingLabels.add(label);
                 }
             }
         }
@@ -4613,6 +4692,27 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         return remaining > 0
                 ? String.join(", ", clipped) + ", \uc678 " + remaining + "\uac1c"
                 : String.join(", ", clipped);
+    }
+
+    private boolean placeholderConsistencyValue(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return !StringUtils.hasText(normalized)
+                || normalized.equals("unknown")
+                || normalized.equals("n/a")
+                || normalized.equals("na")
+                || normalized.equals("null")
+                || normalized.equals("none")
+                || normalized.equals("-")
+                || normalized.equals("missing")
+                || normalized.contains("missing")
+                || normalized.contains("not available")
+                || normalized.contains("unavailable")
+                || normalized.equals("\uB204\uB77D\uB428")
+                || normalized.contains("\uB204\uB77D")
+                || normalized.equals("\uAC12 \uC5C6\uC74C")
+                || normalized.equals("\uC5C6\uC74C")
+                || normalized.contains("placeholder")
+                || normalized.contains("to be populated");
     }
 
     private String normalizeComparableValue(String value) {

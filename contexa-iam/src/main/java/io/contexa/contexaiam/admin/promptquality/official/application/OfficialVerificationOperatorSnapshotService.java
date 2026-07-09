@@ -7027,7 +7027,8 @@ public class OfficialVerificationOperatorSnapshotService {
         }
         String contractMessage = "";
         if (StringUtils.hasText(check.purposeVersion()) && StringUtils.hasText(check.checkCode())) {
-            contractMessage = finalPromptMetricCheckContract(check.metricCode(), check).notApplicableMessage();
+            FinalPromptMetricCheckContract contract = finalPromptMetricCheckContractOrNull(check.metricCode(), check);
+            contractMessage = contract == null ? "" : contract.notApplicableMessage();
         }
         String message = firstNonBlank(contractMessage, check.operatorReason(), check.actualValue());
         if (StringUtils.hasText(message)) {
@@ -7044,7 +7045,8 @@ public class OfficialVerificationOperatorSnapshotService {
         }
         String contractCriterion = "";
         if (StringUtils.hasText(check.purposeVersion()) && StringUtils.hasText(check.checkCode())) {
-            contractCriterion = finalPromptMetricCheckContract(check.metricCode(), check).reverifyCriterion();
+            FinalPromptMetricCheckContract contract = finalPromptMetricCheckContractOrNull(check.metricCode(), check);
+            contractCriterion = contract == null ? "" : contract.reverifyCriterion();
         }
         String criterion = firstNonBlank(contractCriterion, check.reverifyCriterion(), notApplicableCheckMessage(check));
         if (StringUtils.hasText(criterion)) {
