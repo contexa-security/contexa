@@ -288,6 +288,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         Map<String, Object> metadata = prepareMetadata(event);
 
         CanonicalSecurityContext.Session session = resolveSession(event, metadata);
+        Map<String, Object> attributes = new LinkedHashMap<>(metadata);
+        applyCanonicalAliasDiagnostics(event, metadata, attributes);
+
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(resolveActor(event, metadata))
                 .session(session)
@@ -297,7 +300,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .resource(resolveResource(event, metadata))
                 .authorization(resolveAuthorization(metadata))
                 .bridge(resolveBridge(metadata))
-                .attributes(new LinkedHashMap<>(metadata))
+                .attributes(attributes)
                 .build();
 
         context.setDelegation(resolveDelegation(metadata, context));
@@ -327,6 +330,160 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         enrichProtectableWorkProfileMetadata(event, metadata);
         enrichRoleScopeMetadata(event, metadata);
         return metadata;
+    }
+
+    private void applyCanonicalAliasDiagnostics(
+            SecurityEvent event,
+            Map<String, Object> metadata,
+            Map<String, Object> attributes) {
+        Map<String, Object> aliases = new LinkedHashMap<>();
+        List<Map<String, Object>> conflicts = new ArrayList<>();
+
+        addAliasDiagnostics(aliases, conflicts, "actor.userId",
+                firstText(event.getUserId(), metadata.get("userId")),
+                aliasSources(
+                        "event.userId", event.getUserId(),
+                        "metadata.userId", metadata.get("userId")));
+        addAliasDiagnostics(aliases, conflicts, "actor.organizationId",
+                firstText(metadata.get("organizationId"), metadata.get("orgId")),
+                aliasSources(
+                        "metadata.organizationId", metadata.get("organizationId"),
+                        "metadata.orgId", metadata.get("orgId")));
+        addAliasDiagnostics(aliases, conflicts, "actor.tenantId",
+                firstText(metadata.get("tenantId"), metadata.get("tenant_id")),
+                aliasSources(
+                        "metadata.tenantId", metadata.get("tenantId"),
+                        "metadata.tenant_id", metadata.get("tenant_id")));
+        addAliasDiagnostics(aliases, conflicts, "session.sessionId",
+                firstText(event.getSessionId(), metadata.get("sessionId")),
+                aliasSources(
+                        "event.sessionId", event.getSessionId(),
+                        "metadata.sessionId", metadata.get("sessionId")));
+        addAliasDiagnostics(aliases, conflicts, "session.clientIp",
+                firstText(event.getSourceIp(), metadata.get("clientIp")),
+                aliasSources(
+                        "event.sourceIp", event.getSourceIp(),
+                        "metadata.clientIp", metadata.get("clientIp")));
+        addAliasDiagnostics(aliases, conflicts, "session.userAgent",
+                firstText(event.getUserAgent(), metadata.get("userAgent")),
+                aliasSources(
+                        "event.userAgent", event.getUserAgent(),
+                        "metadata.userAgent", metadata.get("userAgent")));
+        addAliasDiagnostics(aliases, conflicts, "session.mfaVerified",
+                firstText(metadata.get("mfaVerified"), metadata.get("mfa_verified")),
+                aliasSources(
+                        "metadata.mfaVerified", metadata.get("mfaVerified"),
+                        "metadata.mfa_verified", metadata.get("mfa_verified")));
+        addAliasDiagnostics(aliases, conflicts, "resource.resourceId",
+                firstText(metadata.get("resourceId"), metadata.get("requestPath"), metadata.get("httpUri"), event.getDescription()),
+                aliasSources(
+                        "metadata.resourceId", metadata.get("resourceId"),
+                        "metadata.managedResourceId", metadata.get("managedResourceId"),
+                        "metadata.endpointKey", metadata.get("endpointKey")));
+        addAliasDiagnostics(aliases, conflicts, "resource.requestPath",
+                firstText(metadata.get("httpUri"), metadata.get("requestPath")),
+                aliasSources(
+                        "metadata.httpUri", metadata.get("httpUri"),
+                        "metadata.requestPath", metadata.get("requestPath"),
+                        "metadata.resourceUrl", metadata.get("resourceUrl")));
+        addAliasDiagnostics(aliases, conflicts, "resource.httpMethod",
+                firstText(metadata.get("httpMethod"), metadata.get("method")),
+                aliasSources(
+                        "metadata.httpMethod", metadata.get("httpMethod"),
+                        "metadata.method", metadata.get("method")));
+        addAliasDiagnostics(aliases, conflicts, "resource.sensitivity",
+                firstText(metadata.get("resourceSensitivity"), metadata.get("sensitivity")),
+                aliasSources(
+                        "metadata.resourceSensitivity", metadata.get("resourceSensitivity"),
+                        "metadata.sensitivity", metadata.get("sensitivity")));
+        addAliasDiagnostics(aliases, conflicts, "authorization.authorizationEffect",
+                firstText(metadata.get("authorizationEffect"), metadata.get("authorization_effect"), metadata.get("effect")),
+                aliasSources(
+                        "metadata.authorizationEffect", metadata.get("authorizationEffect"),
+                        "metadata.authorization_effect", metadata.get("authorization_effect"),
+                        "metadata.effect", metadata.get("effect")));
+        addAliasDiagnostics(aliases, conflicts, "authorization.policyId",
+                firstText(metadata.get("policyId"), metadata.get("policy_id")),
+                aliasSources(
+                        "metadata.policyId", metadata.get("policyId"),
+                        "metadata.policy_id", metadata.get("policy_id")));
+        addAliasDiagnostics(aliases, conflicts, "authorization.policyVersion",
+                firstText(metadata.get("policyVersion"), metadata.get("policy_version")),
+                aliasSources(
+                        "metadata.policyVersion", metadata.get("policyVersion"),
+                        "metadata.policy_version", metadata.get("policy_version")));
+
+        if (!aliases.isEmpty()) {
+            attributes.put("canonicalAliases", aliases);
+        }
+        if (!conflicts.isEmpty()) {
+            attributes.put("canonicalConflicts", conflicts);
+        }
+    }
+
+    private Map<String, Object> aliasSources(Object... pairs) {
+        Map<String, Object> sources = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            Object key = pairs[i];
+            if (key != null) {
+                sources.put(String.valueOf(key), pairs[i + 1]);
+            }
+        }
+        return sources;
+    }
+
+    private void addAliasDiagnostics(
+            Map<String, Object> aliases,
+            List<Map<String, Object>> conflicts,
+            String field,
+            String selected,
+            Map<String, Object> sources) {
+        Map<String, String> presentSources = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : sources.entrySet()) {
+            String value = diagnosticText(entry.getValue());
+            if (StringUtils.hasText(value)) {
+                presentSources.put(entry.getKey(), value);
+            }
+        }
+        if (presentSources.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> alias = new LinkedHashMap<>();
+        alias.put("selected", selected);
+        alias.put("sources", presentSources);
+        aliases.put(field, alias);
+
+        Map<String, String> distinctValues = new LinkedHashMap<>();
+        for (String value : presentSources.values()) {
+            String normalized = normalizeDiagnosticValue(value);
+            if (StringUtils.hasText(normalized)) {
+                distinctValues.putIfAbsent(normalized, value);
+            }
+        }
+        if (distinctValues.size() > 1) {
+            Map<String, Object> conflict = new LinkedHashMap<>();
+            conflict.put("field", field);
+            conflict.put("selected", selected);
+            conflict.put("sources", presentSources);
+            conflict.put("distinctValues", new ArrayList<>(distinctValues.values()));
+            conflicts.add(conflict);
+        }
+    }
+
+    private String diagnosticText(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return StringUtils.hasText(text) ? text : null;
+    }
+
+    private String normalizeDiagnosticValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     private void enrichSessionNarrativeMetadata(SecurityEvent event, Map<String, Object> metadata) {

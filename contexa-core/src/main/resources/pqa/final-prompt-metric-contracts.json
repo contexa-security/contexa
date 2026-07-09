@@ -2500,7 +2500,7 @@
         "customerVisible": true,
         "readinessScope": "CUSTOMER_PROMPT_QUALITY",
         "rule": {
-          "operator": "FIELD_VALUES_CONSISTENT",
+          "operator": "OPTIONAL_FIELD_VALUES_CONSISTENT",
           "labels": [
             "Organization",
             "OrganizationId"
@@ -4137,7 +4137,7 @@
         "customerVisible": true,
         "readinessScope": "CUSTOMER_PROMPT_QUALITY",
         "rule": {
-          "operator": "FIELD_VALUES_CONSISTENT",
+          "operator": "OPTIONAL_FIELD_VALUES_CONSISTENT",
           "labels": [
             "DeviceBrowser",
             "CurrentBrowser"

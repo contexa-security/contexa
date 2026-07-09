@@ -27,6 +27,7 @@ final class FinalPromptMetricRuleEngine {
             case "ANY_FIELD_DECIDABLE" -> rule.labels().stream().anyMatch(label -> fieldDecidable(context.prompt(), label));
             case "MIN_FIELDS_DECIDABLE" -> countPurposeFields(context.prompt(), rule.labels()) >= safeMin(rule.minCount());
             case "FIELD_VALUES_CONSISTENT" -> fieldValuesConsistent(context.prompt(), rule.labels());
+            case "OPTIONAL_FIELD_VALUES_CONSISTENT" -> optionalFieldValuesConsistent(context.prompt(), rule.labels());
             case "BOOLEAN_FIELDS_CONSISTENT" -> booleanFieldsConsistent(context.prompt(), rule.labels());
             case "TERMS_PRESENT" -> rule.terms().stream().allMatch(term -> promptContains(context.prompt(), term));
             case "TERM_GROUPS_PRESENT" -> termGroupsPresent(userPrompt(context), rule.labelGroups());
@@ -473,6 +474,25 @@ final class FinalPromptMetricRuleEngine {
             }
         }
         return hasComparableValue && values.size() <= 1;
+    }
+
+    private static boolean optionalFieldValuesConsistent(FinalPromptSnapshot prompt, List<String> labels) {
+        if (prompt == null || labels == null || labels.isEmpty()) {
+            return true;
+        }
+        Set<String> values = new HashSet<>();
+        for (String label : labels) {
+            for (String value : valuesByLabel(prompt, label)) {
+                if (!StringUtils.hasText(value) || looksPlaceholder(value)) {
+                    continue;
+                }
+                if (!valuePurposeDecidable(prompt, label, value)) {
+                    return false;
+                }
+                values.add(normalizeComparableValue(value));
+            }
+        }
+        return values.size() <= 1;
     }
 
     private static boolean booleanFieldsConsistent(FinalPromptSnapshot prompt, List<String> labels) {

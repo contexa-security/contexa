@@ -1131,7 +1131,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
         FinalPromptSnapshot prompt = context == null ? null : context.prompt();
         String operator = normalizeCheckName(rule == null ? "" : rule.operator());
-        if ("FIELD_VALUES_CONSISTENT".equals(operator) || "BOOLEAN_FIELDS_CONSISTENT".equals(operator)) {
+        if ("FIELD_VALUES_CONSISTENT".equals(operator) || "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator) || "BOOLEAN_FIELDS_CONSISTENT".equals(operator)) {
             return consistencyPurposeEvidence(checkContract, prompt, rule == null ? List.of() : rule.labels(), operator, passed);
         }
         if ("SENSITIVE_FLAG_CONSISTENT".equals(operator)) {
@@ -2720,6 +2720,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
         String operator = normalizeCheckName(rule == null ? "" : rule.operator());
         if ("FIELD_VALUES_CONSISTENT".equals(operator)
+                || "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator)
                 || "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
                 || "SENSITIVE_FLAG_CONSISTENT".equals(operator)
                 || "IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT".equals(operator)
@@ -4139,6 +4140,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             collector.add(labelEvidence(prompt, "Path"));
         }
         boolean labelGroupRepresentsPromptFields = "FIELD_VALUES_CONSISTENT".equals(operator)
+                || "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator)
                 || "BOOLEAN_FIELDS_CONSISTENT".equals(operator);
         if (labelGroupRepresentsPromptFields) {
             collector.add(fieldConsistencyOutcomeEvidence(prompt, rule.labels(), operator));

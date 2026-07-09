@@ -791,4 +791,66 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getReasoningMemoryProfile()).isNotNull();
         assertThat(context.getReasoningMemoryProfile().getRetentionTier()).isEqualTo("WARM");
     }
+    @Test
+    @SuppressWarnings("unchecked")
+    void resolveShouldRecordCanonicalAliasDiagnosticsWithoutChangingSelectedValues() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-alias-conflict")
+                .userId("admin")
+                .sessionId("session-primary")
+                .sourceIp("10.0.0.10")
+                .userAgent("Browser-A")
+                .description("fallback-resource")
+                .build();
+        event.addMetadata("userId", "forged-admin");
+        event.addMetadata("tenantId", "tenant-a");
+        event.addMetadata("tenant_id", "tenant-b");
+        event.addMetadata("organizationId", "org-a");
+        event.addMetadata("orgId", "org-b");
+        event.addMetadata("sessionId", "session-metadata");
+        event.addMetadata("clientIp", "10.0.0.99");
+        event.addMetadata("userAgent", "Browser-B");
+        event.addMetadata("resourceId", "resource-a");
+        event.addMetadata("managedResourceId", "resource-b");
+        event.addMetadata("endpointKey", "resource-c");
+        event.addMetadata("requestPath", "/api/a");
+        event.addMetadata("resourceUrl", "/api/b");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("method", "POST");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("authorization_effect", "DENY");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getActor().getUserId()).isEqualTo("admin");
+        assertThat(context.getActor().getTenantId()).isEqualTo("tenant-a");
+        assertThat(context.getSession().getSessionId()).isEqualTo("session-primary");
+        assertThat(context.getSession().getClientIp()).isEqualTo("10.0.0.10");
+        assertThat(context.getResource().getResourceId()).isEqualTo("resource-a");
+        assertThat(context.getResource().getRequestPath()).isEqualTo("/api/a");
+        assertThat(context.getResource().getHttpMethod()).isEqualTo("GET");
+        assertThat(context.getAuthorization().getAuthorizationEffect()).isEqualTo("ALLOW");
+
+        Map<String, Object> aliases = (Map<String, Object>) context.getAttributes().get("canonicalAliases");
+        assertThat(aliases).containsKeys(
+                "actor.userId",
+                "actor.tenantId",
+                "session.sessionId",
+                "resource.resourceId",
+                "resource.requestPath",
+                "resource.httpMethod",
+                "authorization.authorizationEffect");
+        Map<String, Object> tenantAlias = (Map<String, Object>) aliases.get("actor.tenantId");
+        assertThat(tenantAlias).containsEntry("selected", "tenant-a");
+
+        List<Map<String, Object>> conflicts = (List<Map<String, Object>>) context.getAttributes().get("canonicalConflicts");
+        assertThat(conflicts).isNotEmpty();
+        assertThat(conflicts).anySatisfy(conflict -> assertThat(conflict).containsEntry("field", "actor.userId"));
+        assertThat(conflicts).anySatisfy(conflict -> assertThat(conflict).containsEntry("field", "actor.tenantId"));
+        assertThat(conflicts).anySatisfy(conflict -> assertThat(conflict).containsEntry("field", "resource.httpMethod"));
+        assertThat(conflicts).anySatisfy(conflict -> assertThat(conflict).containsEntry("field", "authorization.authorizationEffect"));
+    }
 }

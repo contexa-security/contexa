@@ -36,6 +36,7 @@ record FinalPromptMetricInputReadiness(
             case "ANY_FIELD_DECIDABLE" -> requireAnyLabel(prompt, rule.labels());
             case "MIN_FIELDS_DECIDABLE" -> requireMinLabels(prompt, rule.labels(), safeMin(rule.minCount()));
             case "FIELD_VALUES_CONSISTENT", "BOOLEAN_FIELDS_CONSISTENT" -> requireAnyLabel(prompt, rule.labels());
+            case "OPTIONAL_FIELD_VALUES_CONSISTENT" -> allReady();
             case "IF_FIELD_EQUALS_THEN_FORBIDDEN_TERMS_ABSENT" -> requireAnyLabel(prompt, List.of(rule.field()));
             case "IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT" -> requireThenInputsWhenTriggered(prompt, rule);
             default -> allReady();
