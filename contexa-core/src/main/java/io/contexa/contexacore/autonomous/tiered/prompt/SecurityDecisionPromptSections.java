@@ -286,14 +286,18 @@ public class SecurityDecisionPromptSections {
                 ? budgetProfile
                 : resolveBudgetProfile(event, behaviorAnalysis);
         long createContextStartedNanos = System.nanoTime();
-        SecurityPromptBuildContext buildContext = createBuildContext(
-                event,
-                sessionContext,
-                behaviorAnalysis,
-                relatedDocuments,
-                effectiveBudgetProfile,
-                structuredOutputMode
-        );
+        SecurityPromptBuildContext buildContext;
+        try (PromptTemplateUtils.TruncationScope ignored =
+                     PromptTemplateUtils.disableTruncationForCurrentThread(isLosslessPromptProfile(effectiveBudgetProfile))) {
+            buildContext = createBuildContext(
+                    event,
+                    sessionContext,
+                    behaviorAnalysis,
+                    relatedDocuments,
+                    effectiveBudgetProfile,
+                    structuredOutputMode
+            );
+        }
         long createBuildContextMs = elapsedMillis(createContextStartedNanos);
         long runtimeGovernanceStartedNanos = System.nanoTime();
         PromptGovernanceResolutionContext runtimeResolutionContext = promptGovernanceResolutionContext(buildContext);
@@ -2247,9 +2251,7 @@ public class SecurityDecisionPromptSections {
 
                 String docMeta = buildDocumentMetadata(doc, addedDocs + 1);
                 int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getRagDocument();
-                String truncatedContent = content.length() > maxLength
-                        ? content.substring(0, maxLength) + "..."
-                        : content;
+                String truncatedContent = PromptTemplateUtils.truncate(content, maxLength);
 
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
                 rawDocCount++;
@@ -2388,7 +2390,7 @@ public class SecurityDecisionPromptSections {
         }
         int maxPayload = tieredStrategyProperties.getTruncation().getLayer1().getPayload();
         if (payload.length() > maxPayload) {
-            return Optional.of(payload.substring(0, maxPayload) + "... (truncated)");
+            return Optional.of(PromptTemplateUtils.truncate(payload, maxPayload));
         }
         return Optional.of(payload);
     }
@@ -2968,9 +2970,7 @@ public class SecurityDecisionPromptSections {
         if (text.isBlank()) {
             return;
         }
-        if (text.length() > maxLength) {
-            text = text.substring(0, maxLength) + "...";
-        }
+        text = PromptTemplateUtils.truncate(text, maxLength);
         meta.append("|").append(label).append("=").append(text);
     }
 
@@ -2979,9 +2979,7 @@ public class SecurityDecisionPromptSections {
             return;
         }
         String text = value.trim();
-        if (text.length() > maxLength) {
-            text = text.substring(0, maxLength) + "...";
-        }
+        text = PromptTemplateUtils.truncate(text, maxLength);
         meta.append("|").append(label).append("=").append(text);
     }
 

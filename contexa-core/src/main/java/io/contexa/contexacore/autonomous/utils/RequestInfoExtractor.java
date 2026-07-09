@@ -26,6 +26,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
@@ -334,6 +335,9 @@ public final class RequestInfoExtractor {
         String explicit = extractHeader(request, "X-Contexa-Prompt-Budget-Profile");
         if (explicit != null && !explicit.isBlank()) {
             return explicit;
+        }
+        if (isOfficialVerificationRequest(request)) {
+            return PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.name();
         }
         return null;
     }

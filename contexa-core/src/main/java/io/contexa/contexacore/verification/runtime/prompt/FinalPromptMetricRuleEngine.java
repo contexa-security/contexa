@@ -511,23 +511,36 @@ final class FinalPromptMetricRuleEngine {
         for (String label : labels) {
             List<String> rawValues = valuesByLabel(prompt, label);
             if (rawValues.isEmpty()) {
+                if (absenceExplained(prompt, label)) {
+                    continue;
+                }
                 return false;
             }
             Set<String> values = new HashSet<>();
             for (String value : rawValues) {
-                if (!StringUtils.hasText(value) || !valuePurposeDecidable(prompt, label, value)) {
-                    return false;
-                }
                 String bool = normalizeBoolean(value);
-                if (bool == null) {
+                if (bool != null) {
+                    if (!valuePurposeDecidable(prompt, label, value)) {
+                        return false;
+                    }
+                    values.add(bool);
+                    continue;
+                }
+                if (looksUncertain(value) && uncertaintyExplained(prompt, label, value)) {
+                    continue;
+                }
+                if (!StringUtils.hasText(value) || looksPlaceholder(value) || absenceExplained(prompt, label)) {
+                    continue;
+                }
+                if (!valuePurposeDecidable(prompt, label, value)) {
                     return false;
                 }
-                values.add(bool);
-            }
-            if (values.isEmpty() || values.size() > 1) {
                 return false;
             }
-            hasBooleanEvidence = true;
+            if (values.size() > 1) {
+                return false;
+            }
+            hasBooleanEvidence = hasBooleanEvidence || !values.isEmpty();
         }
         return hasBooleanEvidence;
     }

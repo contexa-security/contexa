@@ -100,9 +100,9 @@ public class PromptContextComposer {
     public String composeCoverageSection(CanonicalSecurityContext context, boolean compact) {
         return composeSection(context, section -> {
             if (compact) {
-                appendCompactCoverageSection(section, context.getCoverage());
+                appendCompactCoverageSection(section, context, context.getCoverage());
             } else {
-                appendCoverageSection(section, context.getCoverage());
+                appendCoverageSection(section, context, context.getCoverage());
             }
         });
     }
@@ -251,10 +251,14 @@ public class PromptContextComposer {
                 .toList();
     }
 
-    private void appendCoverageSection(StringBuilder section, ContextCoverageReport coverage) {
+    private void appendCoverageSection(
+            StringBuilder section,
+            CanonicalSecurityContext context,
+            ContextCoverageReport coverage) {
         if (coverage == null) {
             return;
         }
+        List<String> missingCriticalFacts = sanitizeMissingCriticalFacts(context, coverage.missingCriticalFacts());
         section.append("\n=== CONTEXT COVERAGE ===\n");
         section.append("CoverageLevel: ").append(coverage.level()).append("\n");
         section.append("CoverageSummary: ").append(coverage.summary()).append("\n");
@@ -264,9 +268,9 @@ public class PromptContextComposer {
                 section.append("- ").append(fact).append("\n");
             }
         }
-        if (!coverage.missingCriticalFacts().isEmpty()) {
+        if (!missingCriticalFacts.isEmpty()) {
             section.append("MissingCriticalFacts:\n");
-            for (String fact : coverage.missingCriticalFacts()) {
+            for (String fact : missingCriticalFacts) {
                 section.append("- ").append(fact).append("\n");
             }
         }
@@ -284,19 +288,41 @@ public class PromptContextComposer {
         }
     }
 
-    private void appendCompactCoverageSection(StringBuilder section, ContextCoverageReport coverage) {
+    private void appendCompactCoverageSection(
+            StringBuilder section,
+            CanonicalSecurityContext context,
+            ContextCoverageReport coverage) {
         if (coverage == null) {
             return;
         }
+        List<String> missingCriticalFacts = sanitizeMissingCriticalFacts(context, coverage.missingCriticalFacts());
         section.append("\n=== CONTEXT COVERAGE ===\n");
         appendLine(section, "CoverageLevel", coverage.level());
         appendLine(section, "CoverageSummary", coverage.summary());
         appendLine(section, "AvailableFactCount", coverage.availableFacts().size());
-        appendLine(section, "MissingCriticalFactCount", coverage.missingCriticalFacts().size());
+        appendLine(section, "MissingCriticalFactCount", missingCriticalFacts.size());
         appendLine(section, "RemediationHintCount", coverage.remediationHints().size());
         appendLine(section, "ConfidenceWarningCount", coverage.confidenceWarnings().size());
         appendListLimited(section, "AvailableFactsSample", coverage.availableFacts(), 3);
-        appendListLimited(section, "MissingCriticalFacts", coverage.missingCriticalFacts(), 4);
+        appendListLimited(section, "MissingCriticalFacts", missingCriticalFacts, 4);
+    }
+
+    private List<String> sanitizeMissingCriticalFacts(
+            CanonicalSecurityContext context,
+            List<String> missingCriticalFacts) {
+        if (missingCriticalFacts == null || missingCriticalFacts.isEmpty()) {
+            return List.of();
+        }
+        boolean hasResolvedAuthorizationEffect = context != null
+                && context.getAuthorization() != null
+                && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
+        if (!hasResolvedAuthorizationEffect) {
+            return missingCriticalFacts;
+        }
+        return missingCriticalFacts.stream()
+                .filter(StringUtils::hasText)
+                .filter(fact -> !"Bridge missing context: AUTHORIZATION_EFFECT.".equals(fact))
+                .toList();
     }
 
     private void appendIdentitySection(StringBuilder section, CanonicalSecurityContext context) {
