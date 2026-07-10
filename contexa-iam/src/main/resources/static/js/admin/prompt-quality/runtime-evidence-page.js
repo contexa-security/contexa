@@ -293,7 +293,7 @@ function renderResults(pageRoot, items, hasFilters = false) {
 function scopedResourceContext(params) {
     const context = {};
     [
-        'resourceUrl', 'resourceId', 'resourceTemplateId', 'actualResourceId', 'httpMethod',
+        'packageId', 'resourceUrl', 'resourceId', 'resourceTemplateId', 'actualResourceId', 'httpMethod',
         'aggregateRunId', 'officialRunId', 'reverifyRunId', 'certificateId', 'caseId'
     ].forEach(name => {
         const value = rawText(params.get(name));

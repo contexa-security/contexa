@@ -2,6 +2,15 @@ import { escapeHtml, ensureArray, rawText, text } from '../verification-ui-commo
 import { bootDetailPage } from './prompt-quality-page.js';
 import { t } from './prompt-quality-i18n.js';
 
+const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
+const IS_ENTERPRISE_PROMPT_QUALITY = window.location.pathname.includes('/contexa/admin/enterprise/prompt-quality');
+const API_BASE = IS_ENTERPRISE_PROMPT_QUALITY
+        ? '/contexa/admin/api/enterprise/prompt-quality'
+        : '/contexa/admin/api/prompt-quality';
+const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
+        ? '/contexa/admin/enterprise/prompt-quality'
+        : '/contexa/admin/prompt-quality';
+
 const root = document.querySelector('[data-pqa-page="resource-detail"]');
 const resourceId = root?.dataset.resourceId || '';
 const httpMethod = root?.dataset.httpMethod || 'GET';
@@ -34,7 +43,7 @@ const CRITICALITY_CLASS = {
     LOW: 'neutral'
 };
 
-bootDetailPage(`/contexa/admin/api/prompt-quality/resources/detail?${resourceIdentityQuery({
+bootDetailPage(`${API_BASE}/resources/detail?${resourceIdentityQuery({
     resourceUrl,
     resourceId,
     httpMethod
@@ -115,7 +124,7 @@ function renderStrip(root, resource) {
             : t('enterprise.pqa.resource.signature.unchanged');
     const signatureCls = resource.signatureChanged ? 'warning' : 'success';
 
-    const method = (text(resource.httpMethod) || 'GET').toUpperCase();
+    const method = normalizeHttpMethod(resource.httpMethod) || 'GET';
     const methodTone = METHOD_TONE[method] || 'neutral';
     const url = text(resource.resourceUrl) || '-';
     const idValue = text(resource.resourceId) || '-';
@@ -151,7 +160,7 @@ function renderNextAction(root, resource) {
         return;
     }
     const name = friendlyName(resource);
-    const method = (text(resource.httpMethod) || 'GET').toUpperCase();
+    const method = normalizeHttpMethod(resource.httpMethod) || 'GET';
     const url = text(resource.resourceUrl);
     const verifyHref = runtimeEvidenceHref(resource);
     target.innerHTML = `
@@ -181,9 +190,9 @@ function renderOwnership(root, resource) {
     const owner = text(resource.ownerField) || t('enterprise.pqa.resourceDetail.info.ownerField.unknown');
     const overlayParams = new URLSearchParams();
     setRouteParam(overlayParams, 'resourceUrl', resource.resourceUrl);
-    setRouteParam(overlayParams, 'httpMethod', (text(resource.httpMethod) || 'GET').toUpperCase());
+    setRouteParam(overlayParams, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
     setRouteParam(overlayParams, 'tenantId', resource.tenantId);
-    const overlayHref = `/contexa/admin/prompt-quality/resources/${encodeURIComponent(text(resource.resourceId))}/overlay/edit?${overlayParams.toString()}`;
+    const overlayHref = `${PAGE_BASE}/resources/${encodeURIComponent(text(resource.resourceId))}/overlay/edit?${overlayParams.toString()}`;
     target.innerHTML = `
         <dl class="detail-list">
             <div>
@@ -250,7 +259,7 @@ function renderLineage(root, payload) {
     }
     const caseId = realIdentifier(assuranceCase?.caseId);
     const caseCell = caseId
-            ? `<a class="pqa-inline-link" href="${scopedDetailHref(`/contexa/admin/prompt-quality/cases/${encodeURIComponent(caseId)}`, routeScope)}"><code class="pqa-hash">${escapeHtml(caseId)}</code></a>`
+            ? `<a class="pqa-inline-link" href="${scopedDetailHref(`${PAGE_BASE}/cases/${encodeURIComponent(caseId)}`, routeScope)}"><code class="pqa-hash">${escapeHtml(caseId)}</code></a>`
             : '-';
     const artifactHtml = artifacts.length
             ? `<div class="action-button-row pqa-resource-lineage-artifacts">
@@ -329,16 +338,34 @@ function renderArtifactReference(item) {
 
 function resourceIdentityQuery(resource, options = {}) {
     const params = new URLSearchParams();
-    if (options.allowTemplateResourceUrl || !isTemplateResourceUrl(resource.resourceUrl)) {
+    if (options.allowTemplateResourceUrl || (!options.evidenceSearch && !isTemplateResourceUrl(resource.resourceUrl))) {
         setRouteParam(params, 'resourceUrl', resource.resourceUrl);
     }
-    setRouteParam(params, 'resourceId', resource.resourceId);
-    setRouteParam(params, 'httpMethod', resource.httpMethod || 'GET');
+    if (options.evidenceSearch) {
+        setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.resourceUrl));
+    }
+    setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, options));
+    const method = options.evidenceSearch ? normalizeHttpMethod(resource.httpMethod) : rawText(resource.httpMethod);
+    setRouteParam(params, 'httpMethod', method);
     return params.toString();
 }
 
 function runtimeEvidenceHref(resource) {
-    return scopedDetailHref('/contexa/admin/prompt-quality/runtime-evidence', resource);
+    const params = new URLSearchParams();
+    const packageId = rawText(resource.latestRuntimeEvidencePackageId || resource.runtimeEvidencePackageId || resource.packageId);
+    if (packageId) {
+        setRouteParam(params, 'packageId', packageId);
+        setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.latestRuntimeEvidenceResourceUrl || resource.resourceUrl));
+        setRouteParam(params, 'resourceId', resource.latestRuntimeEvidenceResourceId || searchableResourceId(resource.resourceId, { evidenceSearch: true, allowInternalResourceId: true }));
+        setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.latestRuntimeEvidenceHttpMethod || resource.httpMethod));
+    }
+    else {
+        setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.resourceUrl));
+        setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, { evidenceSearch: true, allowInternalResourceId: true }));
+        setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
+    }
+    const query = params.toString();
+    return `${PAGE_BASE}/runtime-evidence${query ? `?${query}` : ''}`;
 }
 
 function scopedTargetHref(baseRoute, resource) {
@@ -346,8 +373,8 @@ function scopedTargetHref(baseRoute, resource) {
     if (!isTemplateResourceUrl(resource.resourceUrl)) {
         setRouteParam(params, 'resourceUrl', resource.resourceUrl);
     }
-    setRouteParam(params, 'resourceId', resource.resourceId);
-    setRouteParam(params, 'httpMethod', resource.httpMethod || 'GET');
+    setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId));
+    setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
     setRouteParam(params, 'targetRef', !isTemplateResourceUrl(resource.resourceUrl)
             ? rawText(resource.resourceUrl)
             : rawText(resource.resourceId));
@@ -355,9 +382,38 @@ function scopedTargetHref(baseRoute, resource) {
     return `${baseRoute}${query ? `?${query}` : ''}`;
 }
 
-function scopedDetailHref(baseRoute, resource) {
-    const query = resourceIdentityQuery(resource);
+function scopedDetailHref(baseRoute, resource, options = {}) {
+    const query = resourceIdentityQuery(resource, options);
     return `${baseRoute}${query ? `?${query}` : ''}`;
+}
+
+function searchableResourceUrl(value) {
+    const url = rawText(value);
+    if (!url || isInternalResourceIdentifier(url)) {
+        return '';
+    }
+    return url;
+}
+function normalizeHttpMethod(value) {
+    const method = String(rawText(value) || '').toUpperCase();
+    return HTTP_METHODS.has(method) ? method : '';
+}
+
+function searchableResourceId(value, options = {}) {
+    const identifier = rawText(value);
+    if (!identifier) {
+        return '';
+    }
+    if (options.evidenceSearch && !options.allowInternalResourceId && isInternalResourceIdentifier(identifier)) {
+        return '';
+    }
+    return identifier;
+}
+
+function isInternalResourceIdentifier(value) {
+    const identifier = rawText(value);
+    return !identifier.startsWith('/')
+            && (identifier.includes('$$') || identifier.includes('#') || identifier.includes('SpringCGLIB'));
 }
 
 function setRouteParam(params, name, value) {
@@ -484,7 +540,7 @@ function isTemplateResourceUrl(value) {
 
 function realIdentifier(value) {
     const normalized = rawText(value);
-    if (!normalized || normalized === '-' || normalized === '—') {
+    if (!normalized || normalized === '-' || normalized === '\u2014') {
         return '';
     }
     return normalized;

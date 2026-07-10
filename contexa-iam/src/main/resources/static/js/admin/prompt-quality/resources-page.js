@@ -21,11 +21,20 @@ const METHOD_COLORS = {
     OPTIONS: { bg: 'linear-gradient(135deg,#94a3b8,#475569)', text: '#0f172a' }
 };
 
+const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
+const IS_ENTERPRISE_PROMPT_QUALITY = window.location.pathname.includes('/contexa/admin/enterprise/prompt-quality');
+const API_BASE = IS_ENTERPRISE_PROMPT_QUALITY
+        ? '/contexa/admin/api/enterprise/prompt-quality'
+        : '/contexa/admin/api/prompt-quality';
+const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
+        ? '/contexa/admin/enterprise/prompt-quality'
+        : '/contexa/admin/prompt-quality';
+
 let latestResources = [];
 let latestStateCatalog = [];
 let activeTargetRef = '';
 
-bootSummaryPage('/contexa/admin/api/prompt-quality/resources/summary', (root, payload) => {
+bootSummaryPage(`${API_BASE}/resources/summary`, (root, payload) => {
     latestResources = ensureArray(payload.resources);
     latestStateCatalog = ensureArray(payload.stateCatalog?.states);
     activeTargetRef = targetRefToken();
@@ -147,7 +156,7 @@ function renderStream(root, resources) {
 
 function renderTicket(resource) {
     const resourceId = text(resource.resourceId);
-    const httpMethod = (text(resource.httpMethod) || 'GET').toUpperCase();
+    const httpMethod = normalizeHttpMethod(resource.httpMethod) || 'GET';
     const resourceUrl = text(resource.resourceUrl);
     const detailHref = resourceDetailHref(resource);
     const evidenceHref = runtimeEvidenceHref(resource);
@@ -225,19 +234,71 @@ function wireResourceCards(stream) {
 }
 
 function resourceDetailHref(resource) {
-    const params = new URLSearchParams();
-    setRouteParam(params, 'resourceUrl', resource.resourceUrl);
-    setRouteParam(params, 'resourceId', resource.resourceId);
-    setRouteParam(params, 'httpMethod', text(resource.httpMethod) || 'GET');
-    return `/contexa/admin/prompt-quality/resources/detail?${params.toString()}`;
+    return pageHref('/resources/detail', resourceIdentityParams(resource, { allowInternalResourceId: true }));
 }
 
 function runtimeEvidenceHref(resource) {
+    return pageHref('/runtime-evidence', resourceEvidenceParams(resource));
+}
+
+function pageHref(path, params) {
+    const query = params.toString();
+    return `${PAGE_BASE}${path}${query ? `?${query}` : ''}`;
+}
+
+function resourceIdentityParams(resource, options = {}) {
     const params = new URLSearchParams();
     setRouteParam(params, 'resourceUrl', resource.resourceUrl);
-    setRouteParam(params, 'resourceId', resource.resourceId);
-    setRouteParam(params, 'httpMethod', text(resource.httpMethod) || 'GET');
-    return `/contexa/admin/prompt-quality/runtime-evidence?${params.toString()}`;
+    setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, options));
+    const method = options.evidenceSearch ? normalizeHttpMethod(resource.httpMethod) : rawText(resource.httpMethod);
+    setRouteParam(params, 'httpMethod', method);
+    return params;
+}
+
+function resourceEvidenceParams(resource) {
+    const params = new URLSearchParams();
+    const packageId = rawText(resource.latestRuntimeEvidencePackageId || resource.runtimeEvidencePackageId || resource.packageId);
+    if (packageId) {
+        setRouteParam(params, 'packageId', packageId);
+        setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.latestRuntimeEvidenceResourceUrl || resource.resourceUrl));
+        setRouteParam(params, 'resourceId', resource.latestRuntimeEvidenceResourceId || searchableResourceId(resource.resourceId, { allowInternalResourceId: true }));
+        setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.latestRuntimeEvidenceHttpMethod || resource.httpMethod));
+        return params;
+    }
+    setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.resourceUrl));
+    setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, { allowInternalResourceId: true }));
+    setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
+    return params;
+}
+
+function searchableResourceUrl(value) {
+    const url = rawText(value);
+    if (!url || isInternalResourceIdentifier(url)) {
+        return '';
+    }
+    return url;
+}
+
+function normalizeHttpMethod(value) {
+    const method = String(rawText(value) || '').toUpperCase();
+    return HTTP_METHODS.has(method) ? method : '';
+}
+
+function searchableResourceId(value, options = {}) {
+    const identifier = rawText(value);
+    if (!identifier) {
+        return '';
+    }
+    if (!options.allowInternalResourceId && isInternalResourceIdentifier(identifier)) {
+        return '';
+    }
+    return identifier;
+}
+
+function isInternalResourceIdentifier(value) {
+    const identifier = rawText(value);
+    return !identifier.startsWith('/')
+            && (identifier.includes('$$') || identifier.includes('#') || identifier.includes('SpringCGLIB'));
 }
 
 function setRouteParam(params, name, value) {

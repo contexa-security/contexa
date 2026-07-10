@@ -44,8 +44,8 @@ public class DefaultPromptQualityMessageResolver implements PromptQualityMessage
         }
         Locale effective = locale != null ? locale : currentLocale();
         Map<String, String> collected = new LinkedHashMap<>();
-        collectBundleByPrefix(collected, ENTERPRISE_BUNDLE_BASE_NAME, effective, prefix);
         collectBundleByPrefix(collected, CORE_BUNDLE_BASE_NAME, effective, prefix);
+        collectBundleByPrefix(collected, ENTERPRISE_BUNDLE_BASE_NAME, effective, prefix);
         return collected;
     }
 

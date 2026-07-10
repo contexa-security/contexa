@@ -2,7 +2,7 @@ import { appPath, fetchJson } from '../verification-ui-common.js';
 import { has, t } from './prompt-quality-i18n.js';
 
 const JSON_HEADERS = Object.freeze({ 'Accept': 'application/json', 'Content-Type': 'application/json' });
-const FALLBACK_ERROR_MESSAGE = 'The request could not be processed. Please check the input and server status.';
+const FALLBACK_ERROR_MESSAGE = '요청을 처리할 수 없습니다. 입력값과 서버 상태를 확인하십시오.';
 
 export async function getJson(path) {
     return requireJsonResponse(await fetchJson(appPath(path)));
@@ -76,7 +76,7 @@ export function publicErrorGuidance(error) {
         parts.push(error.body.nextAction);
     }
     if (error?.body?.traceId) {
-        parts.push(`Trace ID ${error.body.traceId}`);
+        parts.push(has('enterprise.pqa.api.traceId') ? t('enterprise.pqa.api.traceId', error.body.traceId) : `Trace ID ${error.body.traceId}`);
     }
     return parts.join(' | ');
 }

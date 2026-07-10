@@ -209,7 +209,7 @@ function runtimeEvidenceWarningCount(items) {
     return ensureArray(items).filter(item => !isRuntimeEvidenceReady(item)).length;
 }
 
-function buildStages(p) {
+function buildStages(root, p) {
     const d = p.dash;
     const totalResources = number(d.totalResourceCount) || p.resources.length;
     const evidenceCount = p.runtimeEvidence.length;
@@ -282,7 +282,7 @@ function renderHero(root, p) {
 function renderPipeline(root, p) {
     const target = root.querySelector('[data-pqa-dash-pipeline]');
     if (!target) return;
-    const stages = buildStages(p);
+    const stages = buildStages(root, p);
     target.innerHTML = stages.map((s, idx) => `
         <a class="pqa-dash-pipe-stage pqa-dash-pipe-${s.tone}" href="${s.href}" style="--pqa-stage-score:${s.score}%">
             <span class="pqa-dash-pipe-idx">${idx + 1}</span>
@@ -298,7 +298,7 @@ function renderChartStages(root, p) {
     const canvas = root.querySelector('[data-pqa-dash-chart-stages]');
     if (!canvas || typeof window.Chart === 'undefined') return;
     destroyChart('stages');
-    const stages = buildStages(p);
+    const stages = buildStages(root, p);
     charts.stages = new window.Chart(canvas, {
         type: 'bar',
         data: {

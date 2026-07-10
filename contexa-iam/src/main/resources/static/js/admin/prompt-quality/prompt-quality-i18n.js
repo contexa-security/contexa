@@ -1,6 +1,7 @@
 import { getJson } from './prompt-quality-api.js';
 
-const BUNDLE_ENDPOINT = '/contexa/admin/api/prompt-quality/i18n';
+const CORE_BUNDLE_ENDPOINT = '/contexa/admin/api/prompt-quality/i18n';
+const ENTERPRISE_BUNDLE_ENDPOINT = '/contexa/admin/api/enterprise/prompt-quality/i18n';
 const DEFAULT_MISSING_LABEL = '-';
 const MISSING_LABEL_KEY = 'enterprise.pqa.common.missingLabel';
 const I18N_DEBUG_ACTIVE = typeof window !== 'undefined' && window.location
@@ -12,7 +13,7 @@ let bundleCache = {};
 
 export async function ensureBundle() {
     if (!bundlePromise) {
-        bundlePromise = getJson(cacheBust(BUNDLE_ENDPOINT))
+        bundlePromise = getJson(cacheBust(bundleEndpoint()))
                 .then(payload => {
                     bundleCache = payload && payload.messages ? payload.messages : {};
                     return bundleCache;
@@ -23,6 +24,17 @@ export async function ensureBundle() {
                 });
     }
     return bundlePromise;
+}
+
+
+function bundleEndpoint() {
+    if (typeof window !== 'undefined' && window.location) {
+        const path = window.location.pathname || '';
+        if (path.includes('/contexa/admin/enterprise/prompt-quality')) {
+            return ENTERPRISE_BUNDLE_ENDPOINT;
+        }
+    }
+    return CORE_BUNDLE_ENDPOINT;
 }
 
 function cacheBust(endpoint) {

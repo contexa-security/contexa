@@ -74,7 +74,7 @@ async function prepareBundle(root) {
         const title = t('enterprise.pqa.common.status.bundleError');
         setStatus(root, 'error',
                 title === 'enterprise.pqa.common.status.bundleError'
-                        ? 'Failed to load localization resources.'
+                        ? '다국어 리소스를 불러오지 못했습니다.'
                         : title,
                 publicError(error));
     }

@@ -3338,7 +3338,7 @@ function renderComparisonItem(item) {
                 <strong>${escapeHtml(text(item.fieldLabel))}</strong>
                 <small>${escapeHtml(metrics)}</small>
                 ${linked ? `<small>${escapeHtml(linked)}</small>` : ''}
-                <small>${escapeHtml(t('enterprise.pqa.verification.ledger.value.location'))}: ${escapeHtml(text(item.promptLocation))} 쨌 ${escapeHtml(t('enterprise.pqa.verification.ledger.value.source'))}: ${escapeHtml(text(item.evidenceSource))}</small>
+                <small>${escapeHtml(t('enterprise.pqa.verification.ledger.value.location'))}: ${escapeHtml(text(item.promptLocation))} · ${escapeHtml(t('enterprise.pqa.verification.ledger.value.source'))}: ${escapeHtml(text(item.evidenceSource))}</small>
                 <p>${escapeHtml(text(item.meaning))}</p>
             </div>
             <div class="pqa-official-compare-item-actions">
