@@ -159,11 +159,11 @@ function renderTicket(resource) {
     const httpMethod = normalizeHttpMethod(resource.httpMethod) || 'GET';
     const resourceUrl = text(resource.resourceUrl);
     const detailHref = resourceDetailHref(resource);
-    const evidenceHref = runtimeEvidenceHref(resource);
     const operationalDescriptor = resource.operationalStateDescriptor
             || descriptor('RESOURCE_OPERATIONAL', resource.operationalState);
     const runtimeDescriptor = resource.runtimeRequestStateDescriptor
             || descriptor('RESOURCE_REQUEST_OBSERVATION', null);
+    const evidenceAction = runtimeEvidenceActionHtml(resource, runtimeDescriptor);
     const criticalityCode = String(resource.criticality || '').toUpperCase();
     const criticalityTone = CRITICALITY_TONE[criticalityCode] || 'neutral';
     const criticalityLabel = criticalityCode
@@ -204,11 +204,20 @@ function renderTicket(resource) {
                 <span style="color:#cbd5e1;font-size:0.82rem;font-weight:600;">${escapeHtml(resource.signatureChanged ? t('enterprise.pqa.resource.signature.changed') : t('enterprise.pqa.resource.signature.unchanged'))}</span>
             </span>
             <span style="display:inline-flex;align-items:center;gap:0.45rem;flex-shrink:0;white-space:nowrap;">
-                <a href="${evidenceHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(52,211,153,0.14);border:1px solid rgba(52,211,153,0.35);color:#6ee7b7;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;cursor:pointer;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}">${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}</a>
+                ${evidenceAction}
                 <a href="${detailHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);color:#cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.detail'))}">${escapeHtml(t('enterprise.pqa.resource.table.action.detail'))}</a>
             </span>
         </article>
     `;
+}
+
+function runtimeEvidenceActionHtml(resource, runtimeDescriptor) {
+    if (runtimeEvidenceAvailable(resource)) {
+        const evidenceHref = runtimeEvidenceHref(resource);
+        return `<a href="${evidenceHref}" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(52,211,153,0.14);border:1px solid rgba(52,211,153,0.35);color:#6ee7b7;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;cursor:pointer;text-decoration:none;" aria-label="${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}">${escapeHtml(t('enterprise.pqa.resource.table.action.verify'))}</a>`;
+    }
+    const label = runtimeDescriptor?.label || '-';
+    return `<span aria-disabled="true" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.18);color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;text-decoration:none;cursor:not-allowed;">${escapeHtml(label)}</span>`;
 }
 
 function wireResourceCards(stream) {
@@ -241,6 +250,11 @@ function runtimeEvidenceHref(resource) {
     return pageHref('/runtime-evidence', resourceEvidenceParams(resource));
 }
 
+function runtimeEvidenceAvailable(resource) {
+    const params = resourceEvidenceParams(resource);
+    return params.has('packageId') || params.has('resourceUrl');
+}
+
 function pageHref(path, params) {
     const query = params.toString();
     return `${PAGE_BASE}${path}${query ? `?${query}` : ''}`;
@@ -261,13 +275,16 @@ function resourceEvidenceParams(resource) {
     if (packageId) {
         setRouteParam(params, 'packageId', packageId);
         setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.latestRuntimeEvidenceResourceUrl || resource.resourceUrl));
-        setRouteParam(params, 'resourceId', resource.latestRuntimeEvidenceResourceId || searchableResourceId(resource.resourceId, { allowInternalResourceId: true }));
+        setRouteParam(params, 'resourceId', searchableResourceId(resource.latestRuntimeEvidenceResourceId));
         setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.latestRuntimeEvidenceHttpMethod || resource.httpMethod));
         return params;
     }
-    setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.resourceUrl));
-    setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, { allowInternalResourceId: true }));
-    setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
+    const resourceUrl = searchableResourceUrl(resource.resourceUrl);
+    if (resourceUrl) {
+        setRouteParam(params, 'resourceUrl', resourceUrl);
+        setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId));
+        setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
+    }
     return params;
 }
 

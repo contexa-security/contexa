@@ -162,7 +162,7 @@ function renderNextAction(root, resource) {
     const name = friendlyName(resource);
     const method = normalizeHttpMethod(resource.httpMethod) || 'GET';
     const url = text(resource.resourceUrl);
-    const verifyHref = runtimeEvidenceHref(resource);
+    const verifyAction = runtimeEvidenceDetailActionHtml(resource);
     target.innerHTML = `
         <dl class="detail-list">
             <div>
@@ -175,11 +175,18 @@ function renderNextAction(root, resource) {
             </div>
         </dl>
         <div class="action-button-row pqa-resource-detail-actions">
-            <a class="button primary pqa-resource-detail-button-primary" href="${verifyHref}" data-pqa-click-href="${escapeHtml(verifyHref)}">
-                ${escapeHtml(t('enterprise.pqa.resourceDetail.action.verify'))}
-            </a>
+            ${verifyAction}
         </div>
     `;
+}
+
+function runtimeEvidenceDetailActionHtml(resource) {
+    if (runtimeEvidenceAvailable(resource)) {
+        const verifyHref = runtimeEvidenceHref(resource);
+        return `<a class="button primary pqa-resource-detail-button-primary" href="${verifyHref}" data-pqa-click-href="${escapeHtml(verifyHref)}">${escapeHtml(t('enterprise.pqa.resourceDetail.action.verify'))}</a>`;
+    }
+    const label = resource.runtimeRequestStateDescriptor?.label || '-';
+    return `<span class="button pqa-resource-detail-button-primary" aria-disabled="true" style="opacity:0.65;cursor:not-allowed;">${escapeHtml(label)}</span>`;
 }
 
 function renderOwnership(root, resource) {
@@ -350,22 +357,34 @@ function resourceIdentityQuery(resource, options = {}) {
     return params.toString();
 }
 
-function runtimeEvidenceHref(resource) {
+function runtimeEvidenceParams(resource) {
     const params = new URLSearchParams();
     const packageId = rawText(resource.latestRuntimeEvidencePackageId || resource.runtimeEvidencePackageId || resource.packageId);
     if (packageId) {
         setRouteParam(params, 'packageId', packageId);
         setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.latestRuntimeEvidenceResourceUrl || resource.resourceUrl));
-        setRouteParam(params, 'resourceId', resource.latestRuntimeEvidenceResourceId || searchableResourceId(resource.resourceId, { evidenceSearch: true, allowInternalResourceId: true }));
+        setRouteParam(params, 'resourceId', searchableResourceId(resource.latestRuntimeEvidenceResourceId));
         setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.latestRuntimeEvidenceHttpMethod || resource.httpMethod));
+        return params;
     }
-    else {
-        setRouteParam(params, 'resourceUrl', searchableResourceUrl(resource.resourceUrl));
-        setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, { evidenceSearch: true, allowInternalResourceId: true }));
+    const resourceUrl = searchableResourceUrl(resource.resourceUrl);
+    if (resourceUrl) {
+        setRouteParam(params, 'resourceUrl', resourceUrl);
+        setRouteParam(params, 'resourceId', searchableResourceId(resource.resourceId, { evidenceSearch: true }));
         setRouteParam(params, 'httpMethod', normalizeHttpMethod(resource.httpMethod));
     }
+    return params;
+}
+
+function runtimeEvidenceHref(resource) {
+    const params = runtimeEvidenceParams(resource);
     const query = params.toString();
     return `${PAGE_BASE}/runtime-evidence${query ? `?${query}` : ''}`;
+}
+
+function runtimeEvidenceAvailable(resource) {
+    const params = runtimeEvidenceParams(resource);
+    return params.has('packageId') || params.has('resourceUrl');
 }
 
 function scopedTargetHref(baseRoute, resource) {
