@@ -115,8 +115,9 @@ public class PromptQualityAssurancePageController {
     }
 
     @GetMapping("/verification/llm-metrics")
-    public String verificationLlmMetrics() {
-        return "redirect:" + ROUTE_ROOT + "/verification/metrics";
+    public String verificationLlmMetrics(Model model) {
+        model.addAttribute("verificationStage", "llm-metrics");
+        return page(model, "verification-llm-metrics", message("enterprise.pqa.nav.llmMetrics", "LLM 판정 6지표"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/failures")
@@ -177,7 +178,11 @@ public class PromptQualityAssurancePageController {
                                         "verification-run".equals(activeKey)),
                                 item(message("enterprise.pqa.nav.promptMetrics", "Prompt 12 metrics"), "/contexa/admin/prompt-quality/verification/metrics",
                                         message("enterprise.pqa.nav.promptMetrics.desc", "Review 12 prompt and context quality metrics."),
-                                        "verification-metrics".equals(activeKey)),item(message("enterprise.pqa.nav.failures", "Failure causes"), "/contexa/admin/prompt-quality/verification/failures",
+                                        "verification-metrics".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.llmMetrics", "LLM decision metrics"), "/contexa/admin/prompt-quality/verification/llm-metrics",
+                                        message("enterprise.pqa.nav.llmMetrics.desc", "Review LLM decision quality metrics."),
+                                        "verification-llm-metrics".equals(activeKey)),
+                                item(message("enterprise.pqa.nav.failures", "Failure causes"), "/contexa/admin/prompt-quality/verification/failures",
                                         message("enterprise.pqa.nav.failures.desc", "Review official inspection failure causes and remediation targets."),
                                         "verification-failures".equals(activeKey)),
                                 item(message("enterprise.pqa.nav.evidencePackage", "Evidence package"), "/contexa/admin/prompt-quality/verification/evidence-package",

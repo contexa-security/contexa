@@ -189,7 +189,10 @@ public class PromptRuntimeGovernanceRuleApplier {
                 || normalized.contains(" NOT SUPPLIED")
                 || normalized.contains(" NO RELIABLE")
                 || normalized.contains(" DO NOT ASSUME")
-                || "?????놁쓬".equals(value.trim());
+                || "없음".equals(value.trim())
+                || "정보 없음".equals(value.trim())
+                || "데이터 없음".equals(value.trim())
+                || "해당 없음".equals(value.trim());
     }
 
     private List<String> equivalentPromptLabels(String label) {

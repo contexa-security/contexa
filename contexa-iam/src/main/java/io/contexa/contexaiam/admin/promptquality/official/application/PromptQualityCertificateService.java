@@ -63,7 +63,7 @@ public class PromptQualityCertificateService implements PromptQualityRuntimeCert
         List<MetricExecutionFailure> safeFailures = failures == null ? List.of() : failures;
         int total = safeEvidence.size();
         int verified = (int) safeEvidence.stream().filter(item -> runPassed(item.run())).count();
-        int failed = safeFailures.size() + (int) safeEvidence.stream().filter(item -> !runPassed(item.run())).count();
+        int failed = safeFailures.size() + (int) safeEvidence.stream().filter(item -> runFailedForCertificate(item.run())).count();
         int missing = Math.max(0, 12 - total);
         boolean protectablePresent = descriptor != null;
         boolean verificationRequired = descriptor == null || descriptor.verificationRequired();
@@ -83,19 +83,19 @@ public class PromptQualityCertificateService implements PromptQualityRuntimeCert
             blockingFindings.add("공식검사 지표 결과가 부족합니다.");
         }
         List<String> recommendedActions = blockingFindings.isEmpty()
-                ? List.of("공식검사 결과를 기준으로 운영 승격 단계를 진행하십시오.")
+                ? List.of("공식검사 결과를 기준으로 운영 적용 검토를 진행하십시오.")
                 : List.copyOf(blockingFindings);
         String packageId = packageId(safeEvidence);
         PromptQualityCertificate certificate = new PromptQualityCertificate(
                 "pqc-" + UUID.randomUUID(),
                 scope,
                 state,
-                issued ? "품질 보증서 발급" : "품질 보증서 발급 차단",
+                issued ? "품질 보증 발급" : "품질 보증 발급 차단",
                 issued,
                 issued ? "CERTIFIED" : "BLOCKED",
-                issued ? "보증 완료" : "제로트러스트 차단",
+                issued ? "보증 완료" : "공식검사 차단",
                 issued ? "CERTIFIED" : "BLOCKED",
-                issued ? "보증 완료" : "제로트러스트 차단",
+                issued ? "보증 완료" : "공식검사 차단",
                 issued ? valueOrDefault(generatedAt, LocalDateTime.now(KOREA_ZONE).toString()) : null,
                 null,
                 null,
@@ -125,7 +125,14 @@ public class PromptQualityCertificateService implements PromptQualityRuntimeCert
                 missing,
                 List.copyOf(blockingFindings),
                 issued ? "공식검사 기준을 충족했습니다." : "공식검사 기준을 충족하지 못했습니다.",
-                new SixWReport(valueOrDefault(generatedAt, ""), valueOrDefault(scope == null ? null : scope.resourceUrl(), ""), valueOrDefault(userId, ""), "PQA official verification", "official inspection", "prompt quality assurance", state),
+                new SixWReport(
+                        valueOrDefault(generatedAt, ""),
+                        valueOrDefault(scope == null ? null : scope.resourceUrl(), ""),
+                        valueOrDefault(userId, ""),
+                        "PQA official verification",
+                        "official inspection",
+                        "prompt quality assurance",
+                        state),
                 null,
                 null,
                 null,
@@ -166,6 +173,16 @@ public class PromptQualityCertificateService implements PromptQualityRuntimeCert
                 || normalized.contains("THRESHOLD PASSED");
     }
 
+    private boolean runFailedForCertificate(OfficialVerificationRunView run) {
+        if (run == null || !StringUtils.hasText(run.state())) {
+            return true;
+        }
+        String normalized = run.state().trim().toUpperCase(Locale.ROOT);
+        if ("NOT_APPLICABLE".equals(normalized) || "NOT APPLICABLE".equals(normalized)) {
+            return false;
+        }
+        return !runPassed(run);
+    }
     private String packageId(List<MetricRunEvidence> evidence) {
         for (MetricRunEvidence item : evidence) {
             OfficialVerificationRunView run = item == null ? null : item.run();

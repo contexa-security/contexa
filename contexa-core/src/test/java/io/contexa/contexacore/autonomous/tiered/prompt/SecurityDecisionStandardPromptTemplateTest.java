@@ -86,9 +86,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("Return only one minified JSON object.");
         assertThat(systemPrompt).contains("Required key order:");
-        assertThat(systemPrompt).contains("action, riskScore, confidence, mitre, reasoning");
+        assertThat(systemPrompt).contains("action, riskScore, confidence, mitre, reasoning, evidenceRefs");
         assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
-        assertThat(systemPrompt).contains("reasoning must be one short sentence, maximum 12 words.");
+        assertThat(systemPrompt).contains("reasoning must be one concise evidence-based sentence.");
         assertThat(systemPrompt).contains("Authoritative labels:");
         assertThat(systemPrompt).contains("Decision process:");
         assertThat(systemPrompt).contains("Explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied evidence.");
@@ -99,7 +99,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Preserve explicit labels literally.");
         assertThat(systemPrompt).contains("controls, not proof of legitimacy.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
-        assertThat(systemPrompt).doesNotContain("Reasoning must be exactly one concise sentence, maximum 40 words.");
+        assertThat(systemPrompt).contains("fresh verification is required before allowing access");
         assertThat(systemPrompt).contains("Schema:");
         assertThat(systemPrompt).contains("Actions:");
         assertThat(systemPrompt).contains("{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\"");

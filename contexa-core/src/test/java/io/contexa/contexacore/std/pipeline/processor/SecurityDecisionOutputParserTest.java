@@ -37,7 +37,8 @@ class SecurityDecisionOutputParserTest {
                   "confidence": 0.82,
                   "riskScore": 0.18,
                   "reasoning": "Known session context supports the read request.",
-                  "mitre": "UNKNOWN"
+                  "mitre": "UNKNOWN",
+                  "evidenceRefs": ["session"]
                 }
                 """, context);
 
@@ -134,5 +135,29 @@ class SecurityDecisionOutputParserTest {
         assertThat(result.getAction()).isEqualTo("CHALLENGE");
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("MODEL_UNAVAILABLE");
         assertThat(context.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("CHALLENGE");
+    }
+    @Test
+    void parseShouldPreserveDetailedOfficialEvidenceRefs() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-detailed-refs");
+
+        SecurityDecisionResponseLite result = parser.parse("""
+                {
+                  "action": "CHALLENGE",
+                  "confidence": 0.64,
+                  "riskScore": 0.62,
+                  "reasoning": "fresh verification is required before allowing access; challenge is safer than allow with limited baseline",
+                  "mitre": "UNKNOWN",
+                  "evidenceRefs": ["verification.required", "mfa.freshness.stale", "authorization.policy.allow_after_verification", "baseline.status.insufficient", "baseline.confidence.low"]
+                }
+                """, context);
+
+        assertThat(result.getEvidenceRefs()).contains(
+                "verification.required",
+                "mfa.freshness.stale",
+                "authorization.policy.allow_after_verification",
+                "baseline.status.insufficient",
+                "baseline.confidence.low",
+                "baseline");
+        assertThat(context.getMetadata("securityDecisionEvidenceRefsPresent", Boolean.class)).isTrue();
     }
 }

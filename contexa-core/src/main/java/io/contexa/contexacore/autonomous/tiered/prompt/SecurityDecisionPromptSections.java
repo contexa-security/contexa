@@ -1429,6 +1429,7 @@ public class SecurityDecisionPromptSections {
 
     private void appendCurrentVsObservedUnavailable(StringBuilder section, String reason) {
         String value = "UNKNOWN - " + reason;
+        section.append("BaselineObservations: UNKNOWN - personal baseline observation count is unavailable; do not assume sufficient history\n");
         section.append("WorkProfileEvidenceState: PROVISIONAL\n");
         section.append("ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE\n");
         section.append("CurrentAccessHourPresentInObservedHours: ").append(value).append("\n");
@@ -1444,6 +1445,15 @@ public class SecurityDecisionPromptSections {
                 .append(reason)
                 .append("\n");
         section.append("CurrentRequestCombinationEvidenceScope: NO_DIRECT_PERSONAL_COMPARABLE\n");
+        section.append("CurrentRequestCombinationSeenCount: UNKNOWN - no direct personal comparable combination count; ")
+                .append(reason)
+                .append("\n");
+        section.append("CurrentRequestCombinationComparedDimensions: UNKNOWN - no direct personal comparable dimensions; ")
+                .append(reason)
+                .append("\n");
+        section.append("StrongestCurrentRequestCombinationDelta: insufficient combination evidence - ")
+                .append(reason)
+                .append("\n");
         section.append("CurrentRequestCombinationSummary: no direct personal comparable combination evidence; ")
                 .append(reason)
                 .append("\n");
@@ -2155,10 +2165,11 @@ public class SecurityDecisionPromptSections {
 
         StringBuilder section = new StringBuilder();
         section.append("\n=== BASELINE ===\n");
-        section.append("STATUS: ").append(baselineStatus.getStatusLabel()).append("\n");
-        section.append("IMPACT: ").append(baselineStatus.getImpactDescription()).append("\n");
+        section.append("=== PERSONAL WORK PROFILE ===\n");
+        section.append("- Baseline gap status: ").append(baselineStatus.getStatusLabel()).append("\n");
+        section.append("- Baseline gap impact: ").append(baselineStatus.getImpactDescription()).append("\n");
 
-        section.append("\nBASELINE EVIDENCE CONSTRAINTS:\n");
+        section.append("\n- Baseline evidence constraints:\n");
         if (baselineStatus == BaselineStatus.NEW_USER) {
             section.append("- This user is flagged as new and does not yet have personal behavioral history.\n");
             section.append("- Personal historical comparison is not available for this request.\n");
@@ -2171,6 +2182,11 @@ public class SecurityDecisionPromptSections {
             section.append("- Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.\n");
         }
 
+        section.append("\n- Current-vs-observed comparison limits:\n");
+        String unavailableReason = baselineStatus == BaselineStatus.NEW_USER
+                ? "new user baseline is not established; do not assume current behavior is normal"
+                : "personal history is sparse; do not treat missing comparison evidence as normal behavior";
+        appendCurrentVsObservedUnavailable(section, unavailableReason);
         return section.toString();
     }
 
@@ -2200,13 +2216,18 @@ public class SecurityDecisionPromptSections {
 
                 riskScore and confidence must be JSON numbers between 0.0 and 1.0.
                 mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.
-                reasoning must be one short sentence, maximum 12 words.
+                reasoning must be one concise evidence-based sentence.
                 reasoning must cite concrete evidence tokens, not abstract labels.
                 If baseline evidence is unknown, provisional, thin, sparse, partial, or not established, reasoning must contain the exact phrase "limited baseline".
+                If MFA is not verified, stale, or fresh verification is required, reasoning must explain that fresh verification is required before allowing access and that challenge is safer than allow.
+                If resource sensitivity increased from the previous flow or a higher sensitivity resource is reached, reasoning must explain that resource sensitivity is higher than the previous flow and that challenge is appropriate for the sensitivity change.
+                If baseline confidence is weak, sparse, insufficient, or low, reasoning must explain that baseline confidence is not enough for allow and that challenge preserves safety.
+                If policy allows access only after additional verification, reasoning must explain that additional verification can resolve the risk and that challenge is proportionate.
                 Do not use unsupported generic phrases such as "provisional context", "provisional signals", "risk context", or "security context".
                 Do not claim "missing authorization effect" when AuthorizationEffect is present; express uncertainty as "limited baseline" instead.
-                evidenceRefs must be a non-empty JSON array of lower-case canonical evidence categories used by reasoning.
+                evidenceRefs must be a non-empty JSON array of lower-case canonical evidence references used by reasoning.
                 Use only these canonical evidenceRefs when supported: baseline, sensitivity, authorization, resource, session, device, location, rag, threat, approval, delegation.
+                Use precise evidenceRefs when the prompt evidence supports them: verification.required, mfa.freshness.stale, resource.sensitivity.protected, resource.sensitivity.high, authorization.policy.allow, authorization.policy.allow_after_verification, baseline.status.insufficient, baseline.confidence.low.
                 If any baseline/work-profile section, baseline status, learned pattern, history, or normal behavior facts are present and relevant, include baseline.
                 For high-sensitivity access with unverified MFA, cite sensitivity plus baseline/work-profile uncertainty when available.
                 If baseline/work-profile evidence is partial, thin, provisional, unknown, or limited, reasoning must include the exact phrase "limited baseline" even when the main risk is MFA or sensitivity.

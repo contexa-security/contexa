@@ -788,12 +788,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
                 return limitedAuthorizedPromptContext.documents();
             }
-            // 1. ??れ삀?????좊즵獒???濡ろ떟?????????袁ⓓ?????덈틖
+            // 1. Search behavior documents scoped to the current user.
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
                             buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
 
-            // 2. ?嶺뚮Ĳ????濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??
+            // 2. Search broader related context when it differs from the personal query.
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
             final double broadThreshold = Math.min(similarityThreshold, 0.35d);
             boolean runBroad = StringUtils.hasText(broadQuery) && !broadQuery.equals(query);
@@ -803,7 +803,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 3. Baseline ?濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??
+            // 3. Search the user baseline context when it adds another signal.
             String userBaselineQuery = buildUserBaselineContextQuery(event);
             boolean runBaseline = StringUtils.hasText(userBaselineQuery)
                     && !userBaselineQuery.equals(query)
@@ -814,7 +814,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                     buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 4. Supporting Documents ?濡ろ떟?????????袁ⓓ?濚욌꼬裕뼘??(Baseline 雅?퍔瑗띰㎖??븍툖?????怨뚮옖筌?????얜Ŧ類?
+            // 4. Search supporting organization documents when the personal baseline is not established.
             boolean personalBaselineEstablished = false;
             if (baselineLearningService != null) {
                 var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
@@ -839,7 +839,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         }, RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
-            // 5. 癲ル슢?꾤땟?????????袁ⓓ??濡ろ떟????怨뚮옖筌??????덈틖 ???釉뚰???
+            // 5. Wait for the parallel RAG searches and merge the results.
             CompletableFuture.allOf(personalFuture, broadFuture, baselineFuture, supportingFuture).join();
 
             List<Document> personalDocuments = personalFuture.get();
@@ -855,7 +855,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 mergedDocuments.addAll(userBaselineDocuments);
             }
 
-            // ???쒓낮???怨쀫뮛??????源낅눞 癲ル슪?ｇ몭?? Baseline????嚥▲볥렊??筌????⑤슢猷????뽮덫????? ??딅텑??釉뚰?轅대눀??supporting????筌?鍮???ㅼ굣筌뤿뱶????ш끽維????濡ろ뜑???
+            // Add supporting evidence only when personal evidence is sparse or the baseline is immature.
             boolean needSupportingEvidence = personalDocuments.size() < 3 || !personalBaselineEstablished;
             if (needSupportingEvidence) {
                 if (!runSupporting && isLayer1SupportingRagSearchEnabled() && StringUtils.hasText(organizationId)) {

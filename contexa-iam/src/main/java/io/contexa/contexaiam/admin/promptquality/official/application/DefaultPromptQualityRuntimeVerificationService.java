@@ -329,6 +329,9 @@ public class DefaultPromptQualityRuntimeVerificationService
             descriptor = resourceLookup
                     .findBestMatch(requestPath, resourceId, method)
                     .orElse(null);
+            descriptor = descriptor == null
+                    ? sealedEvidenceDescriptor(pkg, requestFacts, promptMetadata, requestPath, resourceId, method)
+                    : descriptor;
             executionRecord = executionLockService.start(executionRequest(
                     request,
                     pkg,
@@ -514,9 +517,7 @@ public class DefaultPromptQualityRuntimeVerificationService
         List<String> officialNextActions = actualPromptProblemNextActions(actualPromptProblems);
         if (officialNextActions.isEmpty()) {
             officialNextActions = certificate.usableForLlmZeroTrust()
-                    ? List.of(message(
-                    "enterprise.pqa.runtimeVerification.next.certificateIssued",
-                    "Prompt quality certificate was issued. Continue operational promotion from the promotion screen."))
+                    ? List.of("Prompt quality certificate was issued. Continue operational promotion from the promotion screen.")
                     : List.of();
         }
         int officialMetricPassed = officialPassedMetricCount(metrics);
@@ -1017,6 +1018,56 @@ public class DefaultPromptQualityRuntimeVerificationService
                 resourceId);
     }
 
+    private ProtectableResourceDescriptor sealedEvidenceDescriptor(
+            SealedEvidencePackage pkg,
+            Map<String, Object> requestFacts,
+            Map<String, Object> promptMetadata,
+            String requestPath,
+            String resourceId,
+            String method) {
+        String resolvedResourceUrl = firstNonBlank(
+                text(requestFacts, "protectableResourceUrl"),
+                text(promptMetadata, "protectableResourceUrl"),
+                text(requestFacts, "resourceUrl"),
+                text(promptMetadata, "resourceUrl"),
+                requestPath);
+        String resolvedResourceId = firstNonBlank(
+                text(requestFacts, "protectableResourceId"),
+                text(promptMetadata, "protectableResourceId"),
+                text(requestFacts, "resourceId"),
+                text(promptMetadata, "resourceId"),
+                resourceId,
+                lastPathSegment(requestPath));
+        String resolvedMethod = firstNonBlank(method, text(requestFacts, "httpMethod"), text(promptMetadata, "httpMethod"));
+        if (!StringUtils.hasText(resolvedResourceUrl) && !StringUtils.hasText(resolvedResourceId)) {
+            return null;
+        }
+        String criticality = firstNonBlank(
+                text(requestFacts, "resourceSensitivity"),
+                text(promptMetadata, "resourceSensitivity"),
+                text(requestFacts, "sensitivity"),
+                text(promptMetadata, "sensitivity"),
+                "SEALED_EVIDENCE");
+        String verificationRequiredValue = firstNonBlank(
+                text(requestFacts, "verificationRequired"),
+                text(promptMetadata, "verificationRequired"));
+        boolean verificationRequired = !StringUtils.hasText(verificationRequiredValue)
+                || !"false".equalsIgnoreCase(verificationRequiredValue.trim());
+        String methodIdentifier = "sealed-runtime-evidence:"
+                + safe(resolvedMethod)
+                + ":"
+                + safe(firstNonBlank(resolvedResourceUrl, resolvedResourceId));
+        return new ProtectableResourceDescriptor(
+                "sealedEvidencePackage",
+                methodIdentifier,
+                resolvedResourceId,
+                resolvedResourceUrl,
+                resolvedMethod,
+                criticality,
+                verificationRequired,
+                true,
+                firstNonBlank(pkg == null ? null : pkg.getUserId(), "sealed-runtime-evidence"));
+    }
     private String actualResourceId(
             Map<String, Object> requestFacts,
             Map<String, Object> promptMetadata,
@@ -2727,39 +2778,40 @@ public class DefaultPromptQualityRuntimeVerificationService
             return 0;
         }
         return (int) metrics.stream()
-                .filter(metric -> metric != null && !metricPassed(metric))
+                .filter(metric -> metric != null && !metricPassed(metric) && !metricNotApplicable(metric))
                 .count();
     }
     private String customerVisibleRuntimeSentence(String value, boolean blockingFinding) {
         String candidate = value == null ? "" : value.trim();
-        if (PromptQualityCustomerSentencePolicy.isCustomerSentence(candidate)) {
-            return candidate;
-        }
         String metricName = customerMetricName(candidate);
+        if (!PromptQualityCustomerSentencePolicy.isCustomerSentence(metricName)) {
+            metricName = "Official metric verification";
+        }
         String sanitized = blockingFinding
-                ? message("enterprise.pqa.diagnostic.metricFailureDetail", metricName + " did not satisfy the official inspection criteria. Review the failed criterion, observed value, and owning process on the issue screen.", metricName)
-                : message("enterprise.pqa.diagnostic.metricFailureGuide", metricName + " needs follow-up. Review the failed criterion and strengthen the responsible data producer or prompt assembly path, then re-run the same evidence flow.", metricName);
+                ? MessageFormat.format("{0} did not satisfy the official inspection criteria. Review the failed criterion, observed value, and owning process on the issue screen.", metricName)
+                : MessageFormat.format("{0} needs follow-up. Review the failed criterion and strengthen the responsible data producer or prompt assembly path, then re-run the same evidence flow.", metricName);
         return PromptQualityCustomerSentencePolicy.requireCustomerSentence(
                 blockingFinding ? "runtime.blockingFinding" : "runtime.nextAction",
                 sanitized);
     }
 
     private String customerMetricName(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "official inspection metric";
-        }
-        for (OfficialVerificationMetricDefinition metric : metricCatalog.promptQualityMetrics()) {
-            if (containsMetricCode(value, metric.code())) {
-                return narrativeCatalog.metricName(metric.code());
+        if (StringUtils.hasText(value)) {
+            for (OfficialVerificationMetricDefinition metric : metricCatalog.promptQualityMetrics()) {
+                if (containsMetricCode(value, metric.code())) {
+                    String code = metric.code() == null ? "" : metric.code().trim().toUpperCase(Locale.ROOT);
+                    return StringUtils.hasText(code) ? code + " official verification metric" : "Official verification metric";
+                }
+            }
+            String normalized = value.toLowerCase(Locale.ROOT);
+            if (normalized.contains("prompt")) {
+                return "Evidence and prompt alignment";
+            }
+            if (value.contains("@Protectable") || normalized.contains("protectable")) {
+                return "Protected resource eligibility";
             }
         }
-        if (value.toLowerCase(Locale.ROOT).contains("prompt")) {
-            return message("enterprise.pqa.diagnostic.evidenceConsistency", "Evidence-prompt consistency");
-        }
-        if (value.contains("@Protectable") || value.toLowerCase(Locale.ROOT).contains("protectable")) {
-            return message("enterprise.pqa.diagnostic.protectedResourceEligibility", "Protected resource eligibility");
-        }
-        return message("enterprise.pqa.diagnostic.officialMetricVerification", "Official metric verification");
+        return "Official metric verification";
     }
 
     private boolean containsMetricCode(String value, String metricCode) {
@@ -2849,6 +2901,13 @@ public class DefaultPromptQualityRuntimeVerificationService
         return PASS_STATES.contains(normalized) || normalized.contains("THRESHOLD PASSED");
     }
 
+    private boolean metricNotApplicable(RuntimeEvidenceMetricResult metric) {
+        if (metric == null) {
+            return false;
+        }
+        String normalized = metric.state() == null ? "" : metric.state().trim().toUpperCase(Locale.ROOT);
+        return "NOT_APPLICABLE".equals(normalized) || "NOT APPLICABLE".equals(normalized);
+    }
     private boolean customerBlockingMetric(RuntimeEvidenceMetricResult metric) {
         if (metric == null || internalGateMetric(metric.metricCode())) {
             return false;

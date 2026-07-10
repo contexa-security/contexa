@@ -273,7 +273,16 @@ public class SecurityDecisionOutputParser {
     }
 
     private String canonicalEvidenceRef(String ref) {
-        String normalized = ref.trim().toLowerCase(Locale.ROOT)
+        String raw = ref.trim().toLowerCase(Locale.ROOT);
+        if (raw.contains(".") || raw.contains("_")) {
+            String detailed = raw
+                    .replace(' ', '.')
+                    .replace('-', '.');
+            if (detailed.matches("[a-z0-9]+([._][a-z0-9]+)+")) {
+                return detailed;
+            }
+        }
+        String normalized = raw
                 .replace('_', '-')
                 .replace(' ', '-');
         return switch (normalized) {
