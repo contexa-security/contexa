@@ -30,9 +30,12 @@ const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
         ? '/contexa/admin/enterprise/prompt-quality'
         : '/contexa/admin/prompt-quality';
 
+const RESOURCE_PAGE_SIZE = 10;
+
 let latestResources = [];
 let latestStateCatalog = [];
 let activeTargetRef = '';
+let resourcePage = 0;
 
 bootSummaryPage(`${API_BASE}/resources/summary`, (root, payload) => {
     latestResources = ensureArray(payload.resources);
@@ -49,14 +52,14 @@ function renderSummary(root, resources) {
     if (!summary) {
         return;
     }
-    const ready = resources.filter(resource => aggregate(resource.operationalStateDescriptor) === 'READY').length;
-    const blocked = resources.filter(resource => aggregate(resource.operationalStateDescriptor) === 'BLOCKED').length;
-    const pending = Math.max(0, resources.length - ready - blocked);
+    const evidenceObserved = resources.filter(runtimeEvidenceAvailable).length;
+    const officialCompleted = resources.filter(officialInspectionAvailable).length;
+    const officialBlocked = resources.filter(officialInspectionBlocked).length;
     const pills = [
         { label: t('enterprise.pqa.resource.summary.total'), value: resources.length, color: '#60a5fa', glow: 'rgba(96,165,250,0.55)' },
-        { label: t('enterprise.pqa.resource.summary.ready'), value: ready, color: '#34d399', glow: 'rgba(52,211,153,0.55)' },
-        { label: t('enterprise.pqa.resource.summary.pending'), value: pending, color: '#fbbf24', glow: 'rgba(251,191,36,0.55)' },
-        { label: t('enterprise.pqa.resource.summary.blocked'), value: blocked, color: '#f87171', glow: 'rgba(248,113,113,0.55)' }
+        { label: t('enterprise.pqa.resource.summary.evidenceObserved'), value: evidenceObserved, color: '#34d399', glow: 'rgba(52,211,153,0.55)' },
+        { label: t('enterprise.pqa.resource.summary.officialCompleted'), value: officialCompleted, color: '#fbbf24', glow: 'rgba(251,191,36,0.55)' },
+        { label: t('enterprise.pqa.resource.summary.officialBlocked'), value: officialBlocked, color: '#f87171', glow: 'rgba(248,113,113,0.55)' }
     ];
     summary.innerHTML = pills.map(pill => `
         <div style="display:flex;align-items:center;gap:1rem;padding:0.85rem 1.25rem;border-radius:999px;background:rgba(15,23,42,0.55);border:1px solid ${pill.color}55;box-shadow:0 10px 24px rgba(0,0,0,0.3), inset 0 0 0 1px ${pill.color}22;">
@@ -73,7 +76,10 @@ function wireFilters(root) {
     const search = $(root, '[data-pqa-resource-search]');
     const state = $(root, '[data-pqa-resource-state]');
     populateStateFilter(state);
-    const update = () => renderStream(root, filtered(root));
+    const update = () => {
+        resourcePage = 0;
+        renderStream(root, filtered(root));
+    };
     search?.addEventListener('input', update);
     state?.addEventListener('change', update);
 }
@@ -140,18 +146,50 @@ function friendlyName(resource) {
 function renderStream(root, resources) {
     const stream = root.querySelector('[data-pqa-resource-stream]');
     const countBadge = root.querySelector('[data-pqa-resource-count]');
+    const safeResources = ensureArray(resources);
+    const total = safeResources.length;
+    const totalPages = Math.max(1, Math.ceil(total / RESOURCE_PAGE_SIZE));
+    resourcePage = Math.min(Math.max(0, resourcePage), totalPages - 1);
+    const start = resourcePage * RESOURCE_PAGE_SIZE;
+    const pageItems = safeResources.slice(start, start + RESOURCE_PAGE_SIZE);
+    const end = start + pageItems.length;
     if (countBadge) {
-        countBadge.textContent = t('enterprise.pqa.resource.summary.filteredCount', resources.length);
+        countBadge.textContent = total
+                ? `${start + 1}-${end} / ${total}`
+                : t('enterprise.pqa.resource.summary.filteredCount', 0);
     }
     if (!stream) {
         return;
     }
-    if (!resources.length) {
+    if (!total) {
         stream.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.resource.table.empty'))}</p></div>`;
         return;
     }
-    stream.innerHTML = resources.map(renderTicket).join('');
+    stream.innerHTML = pageItems.map(renderTicket).join('') + resourcePaginationHtml(resourcePage, totalPages, total);
     wireResourceCards(stream);
+    wireResourcePagination(stream, root, safeResources);
+}
+
+function resourcePaginationHtml(page, totalPages, total) {
+    if (total <= RESOURCE_PAGE_SIZE) {
+        return '';
+    }
+    return `
+        <nav class="pqa-pagination" data-pqa-resource-pagination style="display:flex;align-items:center;justify-content:flex-end;gap:0.6rem;margin-top:0.2rem;">
+            <button type="button" class="pqa-action-button" data-pqa-resource-page="prev" ${page <= 0 ? 'disabled' : ''}>${escapeHtml(t('enterprise.pqa.common.pagination.prev'))}</button>
+            <span style="color:#cbd5e1;font-size:0.9rem;font-weight:700;">${escapeHtml(t('enterprise.pqa.common.pagination.page'))} ${page + 1} / ${totalPages}</span>
+            <button type="button" class="pqa-action-button" data-pqa-resource-page="next" ${page >= totalPages - 1 ? 'disabled' : ''}>${escapeHtml(t('enterprise.pqa.common.pagination.next'))}</button>
+        </nav>`;
+}
+
+function wireResourcePagination(stream, root, resources) {
+    stream.querySelectorAll('[data-pqa-resource-page]').forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.pqaResourcePage;
+            resourcePage += action === 'next' ? 1 : -1;
+            renderStream(root, resources);
+        });
+    });
 }
 
 function renderTicket(resource) {
@@ -164,6 +202,7 @@ function renderTicket(resource) {
     const runtimeDescriptor = resource.runtimeRequestStateDescriptor
             || descriptor('RESOURCE_REQUEST_OBSERVATION', null);
     const evidenceAction = runtimeEvidenceActionHtml(resource, runtimeDescriptor);
+    const officialBadge = officialInspectionBadgeHtml(resource);
     const criticalityCode = String(resource.criticality || '').toUpperCase();
     const criticalityTone = CRITICALITY_TONE[criticalityCode] || 'neutral';
     const criticalityLabel = criticalityCode
@@ -198,6 +237,7 @@ function renderTicket(resource) {
             <span style="display:flex;flex-direction:column;gap:0.25rem;flex-shrink:0;white-space:nowrap;">
                 ${badge(operationalDescriptor?.label || resource.operationalStateLabel, { tone: badgeTone(operationalDescriptor) })}
                 ${runtimeDescriptor?.label ? badge(runtimeDescriptor.label, { tone: badgeTone(runtimeDescriptor) }) : ''}
+                ${officialBadge}
             </span>
             <span style="display:inline-flex;align-items:center;gap:0.45rem;padding:0.35rem 0.75rem;border-radius:999px;background:rgba(2,6,23,0.55);border:1px solid rgba(148,163,184,0.25);white-space:nowrap;flex-shrink:0;">
                 ${signatureDot}
@@ -218,6 +258,23 @@ function runtimeEvidenceActionHtml(resource, runtimeDescriptor) {
     }
     const label = runtimeDescriptor?.label || '-';
     return `<span aria-disabled="true" style="padding:0.35rem 0.8rem;border-radius:0.4rem;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.18);color:#94a3b8;display:inline-flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;text-decoration:none;cursor:not-allowed;">${escapeHtml(label)}</span>`;
+}
+
+function officialInspectionBadgeHtml(resource) {
+    if (!officialInspectionAvailable(resource)) {
+        return badge(t('enterprise.pqa.resource.official.none'), { tone: 'neutral' });
+    }
+    const blocked = officialInspectionBlocked(resource);
+    const label = blocked
+            ? t('enterprise.pqa.resource.official.blocked')
+            : t('enterprise.pqa.resource.official.completed');
+    const tone = blocked ? 'blocked' : 'ready';
+    const passed = Number(resource.latestOfficialPassedMetricCount);
+    const expected = Number(resource.latestOfficialExpectedMetricCount);
+    const suffix = Number.isFinite(passed) && Number.isFinite(expected) && expected > 0
+            ? ` ${passed}/${expected}`
+            : '';
+    return badge(`${label}${suffix}`, { tone });
 }
 
 function wireResourceCards(stream) {
@@ -253,6 +310,18 @@ function runtimeEvidenceHref(resource) {
 function runtimeEvidenceAvailable(resource) {
     const params = resourceEvidenceParams(resource);
     return params.has('packageId') || params.has('resourceUrl');
+}
+
+function officialInspectionAvailable(resource) {
+    return Boolean(rawText(resource.latestOfficialAggregateRunId));
+}
+
+function officialInspectionBlocked(resource) {
+    const decision = String(resource.latestOfficialDecision || '').toUpperCase();
+    return resource.latestOfficialBlocked === true
+            || decision === 'BLOCKED'
+            || decision === 'BLOCK'
+            || decision === 'OFFICIAL_BLOCKED';
 }
 
 function pageHref(path, params) {

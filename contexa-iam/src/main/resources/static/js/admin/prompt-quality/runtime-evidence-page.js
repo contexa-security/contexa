@@ -26,6 +26,10 @@ function promptQualityRoutePath(path) {
 }
 const locationParams = new URLSearchParams(window.location.search || '');
 const lockedResourceContext = scopedResourceContext(locationParams);
+const RUNTIME_PAGE_SIZE = 20;
+
+let runtimePage = 0;
+let runtimeHasNext = false;
 
 if (root) {
     initialize(root).catch(error => {
@@ -109,12 +113,14 @@ function bindSearch(pageRoot) {
     keepSearchControlsEnabled(pageRoot);
     form?.addEventListener('submit', event => {
         event.preventDefault();
+        runtimePage = 0;
         keepSearchControlsEnabled(pageRoot);
         searchEvidence(pageRoot);
     });
     $(pageRoot, '[data-pqa-runtime-reset]')?.addEventListener('click', () => {
         form?.reset();
         applyLockedResourceContext(form);
+        runtimePage = 0;
         resetDetail(pageRoot);
         keepSearchControlsEnabled(pageRoot);
         searchEvidence(pageRoot);
@@ -133,13 +139,17 @@ async function searchEvidence(pageRoot) {
     });
     applyLockedResourceContextToParams(params);
     const hasFilters = Array.from(params.keys()).length > 0;
+    params.set('page', String(Math.max(0, runtimePage)));
+    params.set('size', String(RUNTIME_PAGE_SIZE));
     setStatus(pageRoot, 'loading', t('enterprise.pqa.runtimeEvidence.search.loading.title'), t('enterprise.pqa.runtimeEvidence.search.loading.detail'));
     try {
         const query = params.toString();
         const endpoint = query
                 ? promptQualityApiPath(`/runtime-evidence/search?${query}`)
                 : promptQualityApiPath('/runtime-evidence/search');
-        const results = ensureArray(await getJson(endpoint));
+        const fetched = ensureArray(await getJson(endpoint));
+        runtimeHasNext = fetched.length === RUNTIME_PAGE_SIZE;
+        const results = fetched;
         renderResults(pageRoot, results, hasFilters);
         renderSummary(pageRoot, results);
         if (results.length === 0) {
@@ -154,14 +164,9 @@ async function searchEvidence(pageRoot) {
             setStatus(pageRoot,
                     'success',
                     hasFilters ? t('enterprise.pqa.runtimeEvidence.searched.complete') : t('enterprise.pqa.runtimeEvidence.recent.complete'),
-                    t('enterprise.pqa.runtimeEvidence.searched.countTpl', results.length));
-        }
-        const packageId = rawText(params.get('packageId'));
-        const matched = packageId
-                ? results.find(item => rawText(item.packageId) === packageId)
-                : null;
-        if (matched) {
-            await loadDetail(pageRoot, matched);
+                    runtimeHasNext
+                            ? t('enterprise.pqa.runtimeEvidence.searched.countNextTpl', results.length)
+                            : t('enterprise.pqa.runtimeEvidence.searched.countTpl', results.length));
         }
     }
     catch (error) {
@@ -245,12 +250,14 @@ function renderResults(pageRoot, items, hasFilters = false) {
         </tr>
     `;
     });
-    target.innerHTML = rows.length
+    target.innerHTML = (rows.length
             ? `<table class="pqa-table">
                     <thead><tr><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.evidence'))}</th><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.user'))}</th><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.request'))}</th><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.state'))}</th><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.decision'))}</th><th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.action'))}</th></tr></thead>
                     <tbody>${rows.join('')}</tbody>
                </table>`
-            : `<div class="pqa-empty"><p>${emptyEvidenceMessage(hasFilters)}</p></div>`;
+            : `<div class="pqa-empty"><p>${emptyEvidenceMessage(hasFilters)}</p></div>`)
+            + runtimePaginationHtml();
+
     pageRoot.__runtimeEvidenceItems = ensureArray(items);
     target.querySelectorAll('[data-pqa-runtime-package-id]').forEach(button => {
         button.addEventListener('click', () => {
@@ -287,7 +294,33 @@ function renderResults(pageRoot, items, hasFilters = false) {
             setStatus(pageRoot, 'error', t('enterprise.pqa.common.action.blocked.title'), message);
         });
     });
+    wireRuntimePagination(pageRoot, target);
     keepSearchControlsEnabled(pageRoot);
+}
+
+
+function runtimePaginationHtml() {
+    if (runtimePage <= 0 && !runtimeHasNext) {
+        return '';
+    }
+    return `
+        <nav class="pqa-pagination" data-pqa-runtime-pagination style="display:flex;align-items:center;justify-content:flex-end;gap:0.6rem;margin-top:0.75rem;">
+            <button type="button" class="pqa-filter-btn" data-pqa-runtime-page="prev" ${runtimePage <= 0 ? 'disabled' : ''}>${escapeHtml(t('enterprise.pqa.common.pagination.prev'))}</button>
+            <span class="pqa-cell-meta">${escapeHtml(t('enterprise.pqa.common.pagination.page'))} ${runtimePage + 1}</span>
+            <button type="button" class="pqa-filter-btn" data-pqa-runtime-page="next" ${runtimeHasNext ? '' : 'disabled'}>${escapeHtml(t('enterprise.pqa.common.pagination.next'))}</button>
+        </nav>
+    `;
+}
+
+function wireRuntimePagination(pageRoot, target) {
+    target.querySelectorAll('[data-pqa-runtime-page]').forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.pqaRuntimePage;
+            runtimePage += action === 'next' ? 1 : -1;
+            runtimePage = Math.max(0, runtimePage);
+            searchEvidence(pageRoot);
+        });
+    });
 }
 
 function scopedResourceContext(params) {
