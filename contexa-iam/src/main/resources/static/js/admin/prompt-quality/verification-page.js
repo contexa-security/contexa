@@ -99,6 +99,41 @@ const LLM_DECISION_METRIC_PURPOSES = {
     G03: '기본 확인 항목입니다. packageId, requestId, promptHash, contextHash, decision 연결이 같은 요청 흐름인지 확인합니다.',
     G04: '기본 확인 항목입니다. timeout, parser failure, model unavailable, persistence failure 같은 실행 실패가 없는지 확인합니다.'
 };
+const LLM_DECISION_METRIC_TITLES = {
+    M01: '기대 판정 일치',
+    M02: '위험 수준과 판정 강도',
+    M03: '권한과 정책 반영',
+    M04: '불확실성 안전 처리',
+    M05: '추가 인증 판단',
+    M06: '컨텍스트 변화 반응',
+    M07: 'MFA 상태 해석',
+    M08: '리소스 민감도 반영',
+    M09: '세션 연속성 해석',
+    M10: '행동 이탈 판단',
+    M11: '기준선 부족 안전 처리',
+    M12: '사용자별 신규 신호',
+    M13: 'RAG 권한 범위',
+    M14: '증거 신선도 구분',
+    M15: '증거 누락과 충돌 처리',
+    M16: '증거와 판정 방향',
+    M17: '판정 이유 일관성',
+    M18: '불확실성 안전 판정',
+    M19: '근거 없는 사실 차단',
+    M20: '프롬프트 공격 저항',
+    M21: '클라이언트 위조 신호 거부',
+    M22: '테넌트/사용자 증거 격리',
+    M23: '반복 판정 안정성',
+    M24: '버전 변화 설명성',
+    G01: '판정 action 계약',
+    G02: '판정 payload 해석',
+    G03: '요청 흐름 연결성',
+    G04: '실행 실패 분리'
+};
+const LLM_DECISION_CASE_LABELS = {
+    C02_MFA_REQUIRED: 'MFA 재확인이 필요한 요청은 추가 인증으로 판정해야 합니다.',
+    C07_BASELINE_INSUFFICIENT: '기준선이 부족하면 허용하지 않고 추가 인증으로 판정해야 합니다.',
+    C23_STEP_UP_APPROPRIATE: '추가 인증으로 해결 가능한 위험은 CHALLENGE가 적절합니다.'
+};
 const PROMPT_CONSISTENCY_LABEL_KEYS = {
     'LLM system/user prompt captured': 'enterprise.pqa.promptConsistency.label.llmPromptCaptured',
     'promptHash recalculates from LLM prompt': 'enterprise.pqa.promptConsistency.label.promptHashRecalculated',
@@ -4447,7 +4482,7 @@ function splitListValue(value) {
         return [];
     }
     return textValue
-            .split(',')
+            .split(/[,|]/)
             .map(item => {
                 const itemText = rawText(item);
                 return itemText.trim();
@@ -4600,6 +4635,9 @@ function renderOfficialMetricRunCards(sourceRuns, detail = {}) {
         const failureText = truncateForOperator(
                 metricRunSummaryText(run, checkCounts, displayedFailures, gateSummary) || fallbackPurpose,
                 120);
+        if (metricIsLlmDecisionRun(run)) {
+            return renderLlmDecisionMetricRunCard(run, checkCounts, officialRunId, disabledReason, failureText);
+        }
         return `
         <article class="pqa-metric-run-card ${escapeHtml(metricDisplayStateTone(run, checkCounts))}">
             <header>
@@ -4629,6 +4667,47 @@ function renderOfficialMetricRunCards(sourceRuns, detail = {}) {
     });
 }
 
+function renderLlmDecisionMetricRunCard(run, checkCounts, officialRunId, disabledReason, fallbackText) {
+    const code = upperText(run?.metricCode);
+    const failed = metricFailedOfficialCheckCount(checkCounts);
+    const total = Number(checkCounts.technicalTotal || 0);
+    const passed = Number(checkCounts.technicalPassed || 0);
+    const title = llmDecisionMetricTitle(code, run);
+    const purpose = llmDecisionMetricPurpose(code, run);
+    const guidance = failed
+            ? llmDecisionMetricFailureSummary(code, failed)
+            : '저장된 운영 케이스에서 기대 판정과 실제 판정이 일치했습니다.';
+    return `
+        <article class="pqa-metric-run-card pqa-llm-decision-metric-card ${escapeHtml(metricDisplayStateTone(run, checkCounts))}">
+            <header>
+                <div>
+                    <code>${escapeHtml(text(run.metricCode))}</code>
+                    <strong>${escapeHtml(title)}</strong>
+                    <span>${escapeHtml('LLM 판정 공식검사')}</span>
+                </div>
+                ${badge(metricDisplayStateLabel(run, checkCounts), { tone: metricDisplayStateTone(run, checkCounts) })}
+            </header>
+            <p class="pqa-metric-run-purpose">${escapeHtml(purpose || fallbackText || 'LLM 판정이 운영 기준을 만족하는지 확인합니다.')}</p>
+            <div class="pqa-llm-metric-card-stats">
+                <span><small>판정 케이스</small><strong>${escapeHtml(`${passed} / ${total}`)}</strong></span>
+                <span><small>실패 케이스</small><strong>${escapeHtml(String(failed))}</strong></span>
+            </div>
+            <p class="pqa-metric-run-cause">${escapeHtml(guidance)}</p>
+            <footer>
+                <span>${escapeHtml(failed ? '상세에서 실패 케이스와 해결 방향 확인' : '운영 케이스 통과')}</span>
+                <button type="button"
+                        class="pqa-action-button compact ${officialRunId ? '' : 'is-disabled'}"
+                        data-pqa-official-run-id="${escapeHtml(officialRunId)}"
+                        aria-disabled="${officialRunId ? 'false' : 'true'}"
+                        ${officialRunId
+                                ? `data-pqa-action-message="${escapeHtml(t('enterprise.pqa.common.action.tooltip.ready', t('enterprise.pqa.verification.btn.detail')))}"`
+                                : `data-pqa-disabled-reason="${escapeHtml(disabledReason)}"`}>
+                    ${escapeHtml(t('enterprise.pqa.verification.btn.detail'))}
+                </button>
+            </footer>
+        </article>
+    `;
+}
 function renderOfficialReverifySummary(target, detail) {
     if (!target) {
         return;
@@ -5469,6 +5548,9 @@ function renderOfficialRunDetail(run) {
 }
 
 function renderMetricModalHero(run, counts) {
+    if (metricIsLlmDecisionRun(run)) {
+        return renderLlmDecisionMetricModalHero(run, counts);
+    }
     const actualBlocked = counts.actualProblemCount > 0;
     const internalBlocked = !actualBlocked && counts.technicalFailed > 0;
     const inputBlocked = !actualBlocked && !internalBlocked && counts.inputReview;
@@ -5535,6 +5617,9 @@ function renderMetricDetailSummary(run, counts) {
         promptComparisons: run?.comparisons || [],
         actualPromptProblems: run?.actualPromptProblems || []
     });
+    if (metricIsLlmDecisionRun(run) && !metricNotApplicable(run)) {
+        return renderLlmDecisionMetricDetailSummary(run, summary);
+    }
     if (metricNotApplicable(run)) {
         const reason = firstCleanText(run?.operatorSummary, run?.primaryFailureReason, run?.nextAction, run?.reverifyCriterion);
         return `
@@ -5612,6 +5697,9 @@ function metricPurposeDisplay(run) {
 }
 
 function renderMetricFailureCards(run) {
+    if (metricIsLlmDecisionRun(run)) {
+        return renderLlmDecisionMetricInterpretation(run);
+    }
     const groups = groupMetricFailureCauses(run);
     if (!groups.length) {
         const counts = metricCheckCounts(run, [], {
@@ -5672,13 +5760,13 @@ function renderMetricCheckTable(run) {
     });
     const promptProblemMode = counts.actualProblemCount > 0 && !decisionMetricMode;
     const guide = decisionMetricMode
-            ? 'LLM이 같은 프롬프트와 증거를 어떻게 이해하고 판정했는지 기준별로 확인합니다.'
+            ? '실패한 운영 케이스를 먼저 보여줍니다. 각 케이스는 기대 판정, 실제 판정, 근거 연결, 판단 이유 확인 상태로 해석됩니다.'
             : promptProblemMode
                     ? t('enterprise.pqa.verification.unmetCriteriaGuide')
                     : t('enterprise.pqa.verification.criteriaResultAndEvidenceGuide');
-    const failedTitle = decisionMetricMode ? '확인 필요한 LLM 판정 기준' : metricReviewSectionLabel(run, failedChecks);
+    const failedTitle = decisionMetricMode ? '실패한 운영 판정 케이스' : metricReviewSectionLabel(run, failedChecks);
     const failedHint = decisionMetricMode
-            ? '맥락 이해, 추론, 판정 안정성, 공격 저항성 기준에서 실제 값과 기대 기준을 비교하십시오.'
+            ? '왜 실패인지 확인하고 프롬프트, 증거 패키지, LLM 판정 출력 중 어느 부분을 보강할지 결정하십시오.'
             : metricReviewActionText(run, failedChecks);
     return `
         <section class="pqa-official-run-subsection pqa-metric-ledger-section">
@@ -5715,6 +5803,9 @@ function renderMetricCriteriaList(checks, passedOnly = false, run = null) {
         <div class="pqa-metric-criteria-list ${passedOnly ? 'passed' : 'failed'}">
             ${ensureArray(checks).map(check => {
                 const evidence = metricPurposeEvidenceForCheck(run, check);
+                if (metricIsLlmDecisionRun(run)) {
+                    return renderLlmDecisionCriteriaCard(run, check, evidence);
+                }
                 const label = metricCriteriaCardLabel(run, check);
                 const cardClass = check.pass ? 'is-ready' : label.tone === 'warning' ? 'is-review' : 'is-blocked';
                 const primary = customerVisiblePurposeEvidence(evidence)
@@ -5784,6 +5875,262 @@ function metricCriteriaFallbackEvidence(check, evidence = [], passedOnly = false
                 check?.customerVisiblePromptItems)
     ]);
     return { signalKey, evidenceValue, runtimeFacts, contextItems };
+}
+function renderLlmDecisionMetricModalHero(run, counts) {
+    const code = upperText(run?.metricCode);
+    const failed = metricFailedOfficialCheckCount(counts);
+    const title = llmDecisionMetricTitle(code, run);
+    const purpose = llmDecisionMetricPurpose(code, run);
+    const stateLabel = metricDisplayStateLabel(run, counts);
+    return `
+        <section class="pqa-metric-modal-hero pqa-llm-decision-modal-hero">
+            <div class="pqa-metric-modal-hero-copy">
+                <span>${escapeHtml(`${text(run.metricCode)} · LLM 판정 공식검사`)}</span>
+                <h3>${escapeHtml(title)}</h3>
+                <p>${escapeHtml(purpose || 'LLM 판정이 운영 기준을 만족하는지 확인합니다.')}</p>
+                <div class="pqa-metric-purpose-line">
+                    <span>${escapeHtml('운영 해석')}</span>
+                    <strong>${escapeHtml(failed ? llmDecisionMetricFailureSummary(code, failed) : '이 지표의 운영 케이스를 모두 통과했습니다.')}</strong>
+                </div>
+            </div>
+            <div class="pqa-metric-modal-verdict">
+                ${badge(stateLabel, { tone: metricDisplayStateTone(run, counts) })}
+            </div>
+        </section>
+    `;
+}
+
+function renderLlmDecisionMetricDetailSummary(run, summary) {
+    const total = Number(summary?.technicalTotal || 0);
+    const passed = Number(summary?.technicalPassed || 0);
+    const failed = metricFailedOfficialCheckCount(summary);
+    const tone = failed ? 'blocked' : 'ready';
+    return `
+        <section class="pqa-metric-modal-kpis pqa-llm-decision-kpis" aria-label="LLM 판정 검사 요약">
+            <article class="${escapeHtml(tone)}">
+                <span>판정 케이스</span>
+                <strong>${escapeHtml(`${passed} / ${total}`)}</strong>
+                <small>이 지표가 검증한 운영 케이스 통과 수입니다.</small>
+            </article>
+            <article class="${escapeHtml(failed ? 'blocked' : 'ready')}">
+                <span>실패 케이스</span>
+                <strong>${escapeHtml(String(failed))}</strong>
+                <small>${escapeHtml(failed ? '기대 판정, 근거 연결, 판단 이유 중 보강이 필요한 케이스입니다.' : '실패한 운영 케이스가 없습니다.')}</small>
+            </article>
+            <article class="${escapeHtml(failed ? 'pending' : 'ready')}">
+                <span>다음 조치</span>
+                <strong>${escapeHtml(failed ? '보강 후 재검사' : '통과')}</strong>
+                <small>${escapeHtml(failed ? '아래 실패 케이스의 원인과 해결 방향을 확인하십시오.' : '같은 증거 기준에서 판정 검사를 통과했습니다.')}</small>
+            </article>
+        </section>
+    `;
+}
+
+function renderLlmDecisionMetricInterpretation(run) {
+    const failedChecks = metricEvaluatedChecks(run).filter(check => !check?.pass);
+    if (!failedChecks.length) {
+        return '';
+    }
+    const code = upperText(run?.metricCode);
+    return `
+        <section class="pqa-official-run-subsection pqa-llm-decision-interpretation">
+            <div class="pqa-metric-section-title">
+                <div>
+                    <h4>${escapeHtml('운영 해석과 해결 방향')}</h4>
+                    <p>${escapeHtml('이 지표가 실패한 이유를 운영자가 바로 판단할 수 있도록 원인과 조치 기준으로 요약합니다.')}</p>
+                </div>
+                <span>${escapeHtml(`${failedChecks.length}개 실패`)}</span>
+            </div>
+            <div class="pqa-llm-decision-explain-grid">
+                <article>
+                    <span>무엇을 검사하나</span>
+                    <p>${escapeHtml(llmDecisionMetricPurpose(code, run) || 'LLM 판정이 보안 맥락을 올바르게 해석했는지 확인합니다.')}</p>
+                </article>
+                <article>
+                    <span>왜 문제가 되나</span>
+                    <p>${escapeHtml(llmDecisionMetricFailureSummary(code, failedChecks.length))}</p>
+                </article>
+                <article>
+                    <span>어떻게 해결하나</span>
+                    <p>${escapeHtml(llmDecisionMetricResolution(code))}</p>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
+function renderLlmDecisionCriteriaCard(run, check, evidence = []) {
+    const expected = parseLlmDecisionKv(firstCleanText(check?.expectedValue, check?.expected, check?.criteria));
+    const actual = parseLlmDecisionKv(firstCleanText(check?.actualValue, check?.actual, check?.operatorReason, check?.evidenceValue));
+    const caseId = llmDecisionCaseId(check, evidence);
+    const title = llmDecisionCaseTitle(check, caseId);
+    const passed = Boolean(check?.pass);
+    const issue = passed
+            ? '기대 판정, 근거 연결, 판단 이유 조건을 충족했습니다.'
+            : llmDecisionCriteriaIssue(actual, expected);
+    const requiredEvidence = splitListValue(expected.requiredEvidenceRefs || expected.requiredEvidence || '');
+    const requiredReasoning = splitListValue(expected.requiredReasoning || expected.reasoning || '');
+    return `
+        <article class="pqa-metric-criteria-card pqa-llm-decision-criteria-card ${passed ? 'is-ready' : 'is-blocked'}">
+            <header class="pqa-metric-criteria-card-head">
+                <div class="pqa-metric-criteria-title">
+                    <span class="pqa-metric-criteria-kicker">운영 판정 케이스</span>
+                    <strong>${escapeHtml(title)}</strong>
+                </div>
+                ${badge(passed ? '통과' : '실패', { tone: passed ? 'ready' : 'blocked' })}
+            </header>
+            <div class="pqa-metric-criteria-body pqa-llm-decision-criteria-body">
+                <section class="pqa-metric-criteria-cell">
+                    <span>검사 결론</span>
+                    <p>${escapeHtml(issue)}</p>
+                </section>
+            </div>
+            <dl class="pqa-llm-decision-fact-grid">
+                ${llmDecisionFact('기대 판정', expected.expectedAction || expected.acceptableActions || expected.action)}
+                ${llmDecisionFact('실제 판정', actual.actualAction || actual.action)}
+                ${llmDecisionFact('근거 연결', llmEvidenceStatusLabel(actual.evidence))}
+                ${llmDecisionFact('판단 이유', llmReasoningStatusLabel(actual.reasoning))}
+            </dl>
+            ${requiredEvidence.length ? `<div class="pqa-llm-decision-chip-block"><span>필수 근거</span>${renderLlmDecisionChips(requiredEvidence)}</div>` : ''}
+            ${requiredReasoning.length ? `<div class="pqa-llm-decision-chip-block"><span>필요한 판단 이유</span>${renderLlmDecisionChips(requiredReasoning)}</div>` : ''}
+            ${caseId ? `<footer class="pqa-llm-decision-case-id"><span>검사 케이스</span><code>${escapeHtml(caseId)}</code></footer>` : ''}
+        </article>
+    `;
+}
+
+function llmDecisionMetricTitle(code, run = {}) {
+    return LLM_DECISION_METRIC_TITLES[upperText(code)] || firstCleanText(run?.operatorTitle, run?.metricName, run?.metricCode);
+}
+
+function llmDecisionMetricPurpose(code, run = {}) {
+    return LLM_DECISION_METRIC_PURPOSES[upperText(code)] || firstCleanText(run?.metricQualityQuestion, run?.metricPurpose, run?.operatorSummary);
+}
+
+function llmDecisionMetricFailureSummary(code, failedCount) {
+    const metric = upperText(code);
+    if (metric === 'M18') {
+        return `안전한 판정이 필요한 ${failedCount}개 케이스에서 CHALLENGE/BLOCK 선택 이유나 필수 근거 연결이 충분히 입증되지 않았습니다.`;
+    }
+    return `LLM 판정 운영 케이스 ${failedCount}개가 기대 판정, 근거 연결, 판단 이유 기준을 충족하지 못했습니다.`;
+}
+
+function llmDecisionMetricResolution(code) {
+    const metric = upperText(code);
+    if (metric === 'M18') {
+        return 'LLM 출력에 왜 허용이 아니라 CHALLENGE/BLOCK이 안전한지, 어떤 evidenceRef를 근거로 삼았는지 남기도록 프롬프트와 판정 payload 저장을 보강한 뒤 재검사하십시오.';
+    }
+    return '해당 케이스의 기대 판정, 필수 근거, LLM 출력의 action/reasoning/evidenceRefs를 함께 확인하고 보강 후 같은 증거로 재검사하십시오.';
+}
+
+function parseLlmDecisionKv(value) {
+    const result = {};
+    rawText(value).split(';').forEach(part => {
+        const idx = part.indexOf('=');
+        if (idx < 0) {
+            return;
+        }
+        const key = part.slice(0, idx).trim();
+        const val = part.slice(idx + 1).trim();
+        if (key) {
+            result[key] = val;
+        }
+    });
+    return result;
+}
+
+function llmDecisionFact(label, value) {
+    const clean = rawText(value) || '확인 불가';
+    return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(clean)}</dd></div>`;
+}
+
+function llmEvidenceStatusLabel(value) {
+    const status = upperText(value);
+    if (status === 'MATCHED') {
+        return '필수 근거 확인됨';
+    }
+    if (status === 'REQUIRED_EVIDENCE_MISSING') {
+        return '필수 근거 누락';
+    }
+    return rawText(value) || '확인 불가';
+}
+
+function llmReasoningStatusLabel(value) {
+    const status = upperText(value);
+    if (status === 'REQUIRED_REASONING_UNCONFIRMED') {
+        return '필요한 판단 이유 미확인';
+    }
+    if (status === 'MATCHED' || status === 'CONFIRMED') {
+        return '판단 이유 확인됨';
+    }
+    return rawText(value) || '확인 불가';
+}
+
+function llmDecisionCriteriaIssue(actual = {}, expected = {}) {
+    const expectedAction = upperText(expected.expectedAction || expected.acceptableActions || expected.action);
+    const actualAction = upperText(actual.actualAction || actual.action);
+    const evidence = upperText(actual.evidence);
+    const reasoning = upperText(actual.reasoning);
+    if (expectedAction && actualAction && expectedAction.includes(actualAction)) {
+        if (evidence === 'REQUIRED_EVIDENCE_MISSING' && reasoning === 'REQUIRED_REASONING_UNCONFIRMED') {
+            return '판정 action은 맞지만, 필수 근거 연결과 판단 이유가 확인되지 않았습니다.';
+        }
+        if (evidence === 'REQUIRED_EVIDENCE_MISSING') {
+            return '판정 action은 맞지만, 필요한 evidenceRef가 LLM 판정 근거로 확인되지 않았습니다.';
+        }
+        if (reasoning === 'REQUIRED_REASONING_UNCONFIRMED') {
+            return '판정 action은 맞지만, 왜 그 판정을 선택했는지 필요한 판단 이유가 확인되지 않았습니다.';
+        }
+    }
+    if (expectedAction && actualAction && !expectedAction.includes(actualAction)) {
+        return `기대 판정은 ${expectedAction}인데 실제 LLM 판정은 ${actualAction}입니다.`;
+    }
+    return '기대 판정, 근거 연결, 판단 이유 중 하나 이상이 공식 기준을 충족하지 못했습니다.';
+}
+
+function llmDecisionCaseId(check, evidence = []) {
+    const candidates = [
+        check?.sourceFieldPath,
+        check?.source,
+        check?.evidenceLocation,
+        ...ensureArray(evidence).map(item => item?.evidenceLocation || item?.sourceFieldPath || item?.source)
+    ].map(rawText).filter(Boolean);
+    for (const candidate of candidates) {
+        const match = candidate.match(/officialLlmDecisionCase\.([A-Z0-9_]+)/i);
+        if (match && match[1]) {
+            return match[1].toUpperCase();
+        }
+    }
+    return '';
+}
+
+function llmDecisionCaseTitle(check, caseId) {
+    if (caseId && LLM_DECISION_CASE_LABELS[caseId]) {
+        return LLM_DECISION_CASE_LABELS[caseId];
+    }
+    return translateLlmDecisionCaseLabel(firstCleanText(check?.checkLabel, check?.label, check?.checkCode));
+}
+
+function translateLlmDecisionCaseLabel(value) {
+    let label = rawText(value)
+            .replace(/^LLM 판정 운영 케이스\s*-\s*/i, '')
+            .replace(/^LLM decision operational case\s*-\s*/i, '')
+            .trim();
+    const replacements = [
+        [/MFA-required request is challenged/gi, 'MFA 재확인이 필요한 요청은 추가 인증으로 판정해야 합니다.'],
+        [/Insufficient baseline is challenged/gi, '기준선이 부족하면 추가 인증으로 판정해야 합니다.'],
+        [/Step-up challenge is appropriate/gi, '추가 인증으로 해결 가능한 요청은 CHALLENGE가 적절합니다.'],
+        [/is challenged/gi, '추가 인증으로 판정해야 합니다.'],
+        [/is blocked/gi, '차단으로 판정해야 합니다.'],
+        [/is allowed/gi, '허용으로 판정해야 합니다.']
+    ];
+    replacements.forEach(([pattern, replacement]) => {
+        label = label.replace(pattern, replacement);
+    });
+    return label || 'LLM 판정 운영 케이스';
+}
+
+function renderLlmDecisionChips(items = []) {
+    return `<ul class="pqa-llm-decision-chip-list">${customerVisibleItemList(items).map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
 }
 function renderMetricEvidenceItems(items = [], type = 'fact') {
     const values = customerVisibleItemList(items);

@@ -5844,3 +5844,159 @@
 [data-pqa-page="verification"] .pqa-verification-stage-rules {
     display: none !important;
 }
+[data-pqa-page="verification"] .pqa-official-run-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr));
+    gap: 0.95rem;
+    align-items: stretch;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-metric-card {
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    min-height: 17rem;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-metric-card header strong {
+    font-size: 1.05rem;
+    line-height: 1.35;
+}
+
+[data-pqa-page="verification"] .pqa-metric-run-purpose {
+    margin: 0.75rem 0 0;
+    color: #cbd5e1;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+
+[data-pqa-page="verification"] .pqa-llm-metric-card-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.85rem;
+}
+
+[data-pqa-page="verification"] .pqa-llm-metric-card-stats span {
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 0.6rem;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+[data-pqa-page="verification"] .pqa-llm-metric-card-stats small,
+[data-pqa-page="verification"] .pqa-llm-decision-chip-block > span,
+[data-pqa-page="verification"] .pqa-llm-decision-fact-grid dt,
+[data-pqa-page="verification"] .pqa-llm-decision-case-id span {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #94a3b8;
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+[data-pqa-page="verification"] .pqa-llm-metric-card-stats strong {
+    display: block;
+    color: #f8fafc;
+    font-size: 1.2rem;
+    line-height: 1.15;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-interpretation {
+    border-color: rgba(56, 189, 248, 0.2);
+    background: rgba(8, 47, 73, 0.18);
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-explain-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-explain-grid article {
+    min-width: 0;
+    padding: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.52);
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-explain-grid span {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: #7dd3fc;
+    font-size: 0.78rem;
+    font-weight: 850;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-explain-grid p {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-fact-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin: 0.85rem 0 0;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-fact-grid div {
+    min-width: 0;
+    padding: 0.72rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 0.65rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-fact-grid dd {
+    margin: 0;
+    color: #f8fafc;
+    font-size: 0.92rem;
+    font-weight: 760;
+    overflow-wrap: anywhere;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-chip-block {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.13);
+    border-radius: 0.7rem;
+    background: rgba(30, 41, 59, 0.3);
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-chip-list li {
+    padding: 0.32rem 0.5rem;
+    border: 1px solid rgba(56, 189, 248, 0.24);
+    border-radius: 999px;
+    background: rgba(8, 47, 73, 0.35);
+    color: #bae6fd;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+[data-pqa-page="verification"] .pqa-llm-decision-case-id {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.8rem;
+    color: #94a3b8;
+}
+
+@media (max-width: 980px) {
+    [data-pqa-page="verification"] .pqa-llm-decision-explain-grid,
+    [data-pqa-page="verification"] .pqa-llm-decision-fact-grid {
+        grid-template-columns: 1fr;
+    }
+}
