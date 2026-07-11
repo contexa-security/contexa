@@ -461,26 +461,119 @@ function renderReadinessNeedsEvidence(pageRoot, packageId = '') {
     if (!target) {
         return;
     }
-    const evidenceHref = packageId
-            ? runtimeEvidenceHref(withRouteIdentity(pageRoot, { packageId }))
-            : promptQualityRoutePath('/runtime-evidence');
+    const evidenceHref = promptQualityRoutePath('/runtime-evidence');
     target.innerHTML = `
-        <div class="pqa-verification-selected-card pqa-verification-selected-empty"
-             data-pqa-click-href="${escapeHtml(evidenceHref)}"
-             data-pqa-click-label="${escapeHtml(t('enterprise.pqa.verification.readiness.needEvidence.goEvidence'))}">
+        <div class="pqa-verification-selected-card pqa-verification-selected-empty">
             <div>
-                <strong>${escapeHtml(t('enterprise.pqa.verification.readiness.needEvidence.selectedTitle'))}</strong>
+                <strong>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.title', '검사할 실제 요청 증거를 선택하십시오'))}</strong>
                 <p>${escapeHtml(packageId
                         ? t('enterprise.pqa.verification.readiness.needEvidence.invalidDetail', packageId)
-                        : t('enterprise.pqa.verification.readiness.needEvidence.selectedDetail'))}</p>
+                        : t('enterprise.pqa.verification.readiness.evidenceOptions.detail', '공식검사는 여기서 선택한 봉인된 실제 요청 증거로 시작합니다. 실제 요청 증거 메뉴와는 다른 공식검사 시작 화면입니다.'))}</p>
             </div>
-            <a class="pqa-link-button" href="${escapeHtml(evidenceHref)}">
-                <i class="fa-solid fa-box-archive" aria-hidden="true"></i>${escapeHtml(t('enterprise.pqa.verification.readiness.needEvidence.goEvidence'))}
+            <a class="pqa-action-button" href="${escapeHtml(evidenceHref)}">
+                <i class="fa-solid fa-list" aria-hidden="true"></i>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.openEvidenceList', '전체 실제 요청 증거 보기'))}
             </a>
         </div>
+        <div class="pqa-verification-evidence-options" data-pqa-readiness-evidence-options>
+            <div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.loading', '최근 요청 증거를 불러오는 중입니다.'))}</p></div>
+        </div>
     `;
+    loadReadinessEvidenceOptions(pageRoot).catch(error => {
+        const list = $(pageRoot, '[data-pqa-readiness-evidence-options]');
+        if (list) {
+            list.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(publicError(error))}</p></div>`;
+        }
+        setStatus(pageRoot,
+                'error',
+                t('enterprise.pqa.verification.readiness.evidenceOptions.failedTitle', '검사할 증거를 불러오지 못했습니다.'),
+                publicError(error));
+    });
 }
 
+async function loadReadinessEvidenceOptions(pageRoot) {
+    const target = $(pageRoot, '[data-pqa-readiness-evidence-options]');
+    if (!target) {
+        return;
+    }
+    const params = readinessEvidenceSearchParams();
+    const endpoint = promptQualityApiPath(`/runtime-evidence/search?${params.toString()}`);
+    const items = ensureArray(await getJson(endpoint)).slice(0, 10);
+    renderReadinessEvidenceOptions(pageRoot, items);
+    setStatus(pageRoot,
+            items.length ? 'success' : 'loading',
+            items.length
+                    ? t('enterprise.pqa.verification.readiness.evidenceOptions.readyTitle', '공식검사를 시작할 증거를 선택하십시오.')
+                    : t('enterprise.pqa.verification.readiness.needEvidence.title'),
+            items.length
+                    ? t('enterprise.pqa.verification.readiness.evidenceOptions.readyDetail', '아래 목록에서 하나를 선택하면 공식검사 증거 확인 단계로 이동합니다.')
+                    : t('enterprise.pqa.verification.readiness.evidenceOptions.empty', '최근 실제 요청 증거가 없습니다. 먼저 보호 리소스를 실제로 호출해 증거를 생성하십시오.'));
+}
+
+function readinessEvidenceSearchParams() {
+    const locationParams = new URLSearchParams(window.location.search || '');
+    const params = new URLSearchParams();
+    ['tenantId', 'userId', 'resourceUrl', 'resourceId', 'resourceTemplateId', 'actualResourceId', 'httpMethod', 'from', 'to']
+            .forEach(name => setParam(params, name, locationParams.get(name)));
+    params.set('page', '0');
+    params.set('size', '10');
+    return params;
+}
+
+function renderReadinessEvidenceOptions(pageRoot, items) {
+    const target = $(pageRoot, '[data-pqa-readiness-evidence-options]');
+    if (!target) {
+        return;
+    }
+    const rows = ensureArray(items).map(item => {
+        const packageId = rawText(item.packageId);
+        const href = packageId ? verificationStageHref('readiness', item) : '#';
+        return `
+            <tr>
+                <td>
+                    <span class="pqa-cell-primary">${escapeHtml(formatEvidenceName(item))}</span>
+                    <span class="pqa-cell-meta"><code>${escapeHtml(shortPackageId(packageId))}</code> · ${escapeHtml(formatCapturedAt(item.capturedAt))}</span>
+                </td>
+                <td>
+                    <span class="pqa-cell-primary">${escapeHtml(displayValue(item.userId))}</span>
+                    <span class="pqa-cell-meta">${escapeHtml(displayValue(item.tenantId))}</span>
+                </td>
+                <td>
+                    <span class="pqa-badge-row">
+                        ${badge(item.integrityValid ? t('enterprise.pqa.runtimeEvidence.badge.integrityOk') : t('enterprise.pqa.runtimeEvidence.badge.integrityError'), { tone: item.integrityValid ? 'ready' : 'blocked' })}
+                        ${badge(item.sealed ? t('enterprise.pqa.runtimeEvidence.badge.sealed') : t('enterprise.pqa.runtimeEvidence.badge.unsealed'), { tone: item.sealed ? 'ready' : 'blocked' })}
+                        ${badge(rawText(item.decisionAction) || t('enterprise.pqa.verification.value.notAvailable'), { tone: rawText(item.decisionAction) ? 'ready' : 'neutral' })}
+                    </span>
+                </td>
+                <td>
+                    ${packageId
+                            ? `<a class="pqa-link-button" href="${escapeHtml(href)}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.select', '공식검사 시작'))}</a>`
+                            : `<span class="pqa-section-pill">${escapeHtml(t('enterprise.pqa.runtimeEvidence.action.packageIdRequired'))}</span>`}
+                </td>
+            </tr>
+        `;
+    });
+    target.innerHTML = rows.length
+            ? `<section class="pqa-panel" style="margin-top: 1rem;">
+                    <div class="pqa-panel-head">
+                        <div>
+                            <h3>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.recentTitle', '최근 검사 가능 증거'))}</h3>
+                            <p>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.recentDetail', '공식검사 메뉴 안에서 바로 선택할 수 있는 최근 실제 요청 증거입니다.'))}</p>
+                        </div>
+                    </div>
+                    <table class="pqa-table">
+                        <thead>
+                            <tr>
+                                <th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.evidence'))}</th>
+                                <th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.user'))}</th>
+                                <th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.state'))}</th>
+                                <th>${escapeHtml(t('enterprise.pqa.runtimeEvidence.col.action'))}</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows.join('')}</tbody>
+                    </table>
+               </section>`
+            : `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.readiness.evidenceOptions.empty', '최근 실제 요청 증거가 없습니다. 먼저 보호 리소스를 실제로 호출해 증거를 생성하십시오.'))}</p></div>`;
+}
 function renderReadinessActions(pageRoot, item, consistency) {
     const target = $(pageRoot, '[data-pqa-readiness-actions]');
     if (!target) {

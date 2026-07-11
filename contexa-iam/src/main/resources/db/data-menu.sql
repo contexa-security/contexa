@@ -56,6 +56,14 @@ DELETE FROM admin_menu_role r
 
 DELETE FROM admin_menu
  WHERE data_page = 'ai-monitor-operations';
+DELETE FROM admin_menu_role r
+ USING admin_menu m
+ WHERE r.menu_id = m.id
+   AND m.data_page IN ('prompt-quality-official', 'prompt-quality-enterprise-official');
+
+DELETE FROM admin_menu
+ WHERE data_page IN ('prompt-quality-official', 'prompt-quality-enterprise-official');
+
 UPDATE admin_menu
    SET name = 'menu.nav.aiMonitor'
  WHERE data_page = 'ai-monitor'
@@ -123,8 +131,7 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.aiMonitor.failures',      '/contexa/admin/ai-monitor/failures',    '',                'ai-monitor', 5,  TRUE, 'CORE',       'ai-monitor-failures'),
     ('menu.aiMonitor.readiness',     '/contexa/admin/ai-monitor/readiness',   '',                'ai-monitor', 6,  TRUE, 'CORE',       'ai-monitor-readiness'),
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
-    ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
-    ('menu.pqa.official',            '/contexa/admin/prompt-quality/verification/readiness', '',  'prompt-quality', 3, TRUE, 'CORE',       'prompt-quality-official')
+    ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence')
 ),
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page

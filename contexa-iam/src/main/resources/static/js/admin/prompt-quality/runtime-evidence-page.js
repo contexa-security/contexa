@@ -26,7 +26,7 @@ function promptQualityRoutePath(path) {
 }
 const locationParams = new URLSearchParams(window.location.search || '');
 const lockedResourceContext = scopedResourceContext(locationParams);
-const RUNTIME_PAGE_SIZE = 20;
+const RUNTIME_PAGE_SIZE = 10;
 
 let runtimePage = 0;
 let runtimeHasNext = false;
@@ -304,10 +304,10 @@ function runtimePaginationHtml() {
         return '';
     }
     return `
-        <nav class="pqa-pagination" data-pqa-runtime-pagination style="display:flex;align-items:center;justify-content:flex-end;gap:0.6rem;margin-top:0.75rem;">
-            <button type="button" class="pqa-filter-btn" data-pqa-runtime-page="prev" ${runtimePage <= 0 ? 'disabled' : ''}>${escapeHtml(t('enterprise.pqa.common.pagination.prev'))}</button>
-            <span class="pqa-cell-meta">${escapeHtml(t('enterprise.pqa.common.pagination.page'))} ${runtimePage + 1}</span>
-            <button type="button" class="pqa-filter-btn" data-pqa-runtime-page="next" ${runtimeHasNext ? '' : 'disabled'}>${escapeHtml(t('enterprise.pqa.common.pagination.next'))}</button>
+        <nav class="pqa-pagination" data-pqa-runtime-pagination style="display:flex;align-items:center;justify-content:flex-end;gap:0.6rem;margin-top:0.2rem;">
+            <button type="button" class="pqa-action-button" data-pqa-runtime-page="prev" ${runtimePage <= 0 ? 'disabled' : ''}>${escapeHtml(t('enterprise.pqa.common.pagination.prev'))}</button>
+            <span style="color:#cbd5e1;font-size:0.9rem;font-weight:700;">${escapeHtml(t('enterprise.pqa.common.pagination.page'))} ${runtimePage + 1}</span>
+            <button type="button" class="pqa-action-button" data-pqa-runtime-page="next" ${runtimeHasNext ? '' : 'disabled'}>${escapeHtml(t('enterprise.pqa.common.pagination.next'))}</button>
         </nav>
     `;
 }
