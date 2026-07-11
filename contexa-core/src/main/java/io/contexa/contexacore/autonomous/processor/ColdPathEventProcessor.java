@@ -134,6 +134,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         String userId = event.getUserId();
         String requestPath = extractRequestPath(event);
         ThreatAssessment layer1Assessment = null;
+        EscalationProtectionSample escalationProtectionSample = null;
 
         try {
             if (contextualStrategy != null) {
@@ -147,6 +148,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 Map<String, Object> pipelineMetadata = buildPipelineMetadata(event, requestPath);
                 publishSessionContextLoaded(userId, pipelineMetadata);
                 publishBehaviorAnalysisComplete(userId, pipelineMetadata);
+                escalationProtectionSample = recordEscalationProtectionSample(
+                        event,
+                        requestPath,
+                        layer1Assessment.isShouldEscalate());
 
                 if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
@@ -203,7 +208,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
             }
 
             if (layer1Assessment != null && layer1Assessment.isShouldEscalate()) {
-                EscalationProtectionSample sample = recordEscalationProtectionSample(event, requestPath);
+                EscalationProtectionSample sample = escalationProtectionSample;
                 int escalates = sample.escalates();
                 int total = sample.total();
                 double escalateRate = sample.escalateRate();
@@ -330,12 +335,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
     }
 
-    private EscalationProtectionSample recordEscalationProtectionSample(SecurityEvent event, String requestPath) {
+    private EscalationProtectionSample recordEscalationProtectionSample(
+            SecurityEvent event,
+            String requestPath,
+            boolean escalated) {
         String key = resolveEscalationProtectionKey(event, requestPath);
         EscalationProtectionWindow window = escalationProtectionWindows.computeIfAbsent(
                 key,
                 ignored -> new EscalationProtectionWindow());
-        return window.record();
+        return window.record(escalated);
     }
 
     private String resolveEscalationProtectionKey(SecurityEvent event, String requestPath) {
@@ -373,14 +381,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private final AtomicInteger escalateCount = new AtomicInteger(0);
         private final AtomicInteger totalAnalysisCount = new AtomicInteger(0);
 
-        synchronized EscalationProtectionSample record() {
-            int total = totalAnalysisCount.incrementAndGet();
-            if (total >= ESCALATE_SAMPLE_WINDOW) {
-                totalAnalysisCount.set(1);
+        synchronized EscalationProtectionSample record(boolean escalated) {
+            if (totalAnalysisCount.get() >= ESCALATE_SAMPLE_WINDOW) {
+                totalAnalysisCount.set(0);
                 escalateCount.set(0);
-                total = 1;
             }
-            int escalates = escalateCount.incrementAndGet();
+            int total = totalAnalysisCount.incrementAndGet();
+            int escalates = escalated ? escalateCount.incrementAndGet() : escalateCount.get();
             return new EscalationProtectionSample(escalates, total);
         }
     }

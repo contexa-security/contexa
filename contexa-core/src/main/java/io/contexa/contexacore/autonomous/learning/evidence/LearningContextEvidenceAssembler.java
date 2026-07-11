@@ -457,6 +457,7 @@ public class LearningContextEvidenceAssembler {
                 : LearningEvidenceScope.SUPPORTING;
         String documentPath = firstText(
                 metadata.get("requestPath"),
+                metadata.get("requestedResourceId"),
                 metadata.get("resourceId"),
                 metadata.get("fullPath"));
         return new RetrievedBehaviorEvidence(

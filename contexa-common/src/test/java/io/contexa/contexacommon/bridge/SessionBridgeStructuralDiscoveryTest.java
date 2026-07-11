@@ -32,6 +32,8 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
@@ -133,12 +135,9 @@ class SessionBridgeStructuralDiscoveryTest {
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),
+                List.of(new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(
+                        List.of(new SessionAuthBridge(properties.getAuthentication().getSession()))))),
                 List.of(
-                        new SecurityContextAuthenticationStampResolver(),
-                        new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(List.of(new SessionAuthBridge(properties.getAuthentication().getSession()))))
-                ),
-                List.of(
-                        new SecurityContextAuthorizationStampResolver(),
                         new SessionAuthorizationStampResolver(),
                         new HeaderAuthorizationStampResolver()
                 ),
@@ -163,6 +162,9 @@ class SessionBridgeStructuralDiscoveryTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/customers/export");
         request.setSession(session);
 
+        Authentication hostAuthentication =
+                UsernamePasswordAuthenticationToken.authenticated("host-user", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(hostAuthentication);
         filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
         BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
@@ -172,8 +174,7 @@ class SessionBridgeStructuralDiscoveryTest {
         assertThat(result.authorizationStamp()).isNotNull();
         assertThat(result.authorizationStamp().effectiveAuthorities()).contains("CUSTOMER_EXPORT");
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("alice");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 
     static class StructuralSessionContext {

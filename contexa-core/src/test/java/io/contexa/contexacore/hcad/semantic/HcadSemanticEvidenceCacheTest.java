@@ -282,7 +282,7 @@ class HcadSemanticEvidenceCacheTest {
                 (List<Map<String, Object>>) projection.snapshot().get("semanticEvidenceEntries");
         assertThat(entries).singleElement().satisfies(snapshot -> {
             assertThat(snapshot).containsEntry("status", "STALE_HIT");
-            assertThat(snapshot).containsEntry("sourceTable", "source-v1");
+            assertThat(snapshot).containsEntry("sourceVersion", "source-v1");
             assertThat(snapshot).containsEntry("sampleCount", null);
         });
     }

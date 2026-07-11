@@ -19,6 +19,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -47,6 +48,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -172,12 +174,54 @@ class SynchronousProtectableDecisionServiceTest {
         verify(securityPlaneAgent).processSecurityEvent(any(SecurityEvent.class));
     }
 
+    @Test
+    @DisplayName("sync decision should use final action when proposed action is absent")
+    void analyze_processingResultWithoutProposedAction_shouldUseFinalAction() {
+        MockHttpServletRequest request = request("/admin/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .build();
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult", processingResult));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        SynchronousProtectableDecisionService.SyncDecisionResult result =
+                service.analyze(methodInvocation, authentication);
+
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("sync decision should enforce constrained final action instead of proposed action")
+    void analyze_constrainedProcessingResult_shouldUseFinalAction() {
+        MockHttpServletRequest request = request("/admin/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .proposedAction(ZeroTrustAction.ALLOW.name())
+                .autonomyConstraintApplied(true)
+                .build();
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult", processingResult));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        SynchronousProtectableDecisionService.SyncDecisionResult result =
+                service.analyze(methodInvocation, authentication);
+
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
     private void stubEvent(ZeroTrustSpringEvent event) {
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null))
                 .thenReturn(event);
         when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
         when(eventListener.shouldPublishAuthorizationEvent(event)).thenReturn(true);
-        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        lenient().when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
         when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
     }
 

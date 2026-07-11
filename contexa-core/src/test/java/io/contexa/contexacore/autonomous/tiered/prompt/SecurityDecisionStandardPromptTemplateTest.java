@@ -278,7 +278,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         String userPrompt = template.generateUserPrompt(request, "");
 
         assertThat(userPrompt).contains("BaselineGapSupport:");
-        assertThat(userPrompt).contains("STATUS: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
         assertThat(userPrompt).contains("Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.");
         assertThat(userPrompt).doesNotContain("This could be a first-time attacker");
         assertThat(userPrompt).doesNotContain("Never Trust, Always Verify");

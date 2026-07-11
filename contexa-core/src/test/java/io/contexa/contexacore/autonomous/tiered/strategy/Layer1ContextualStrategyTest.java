@@ -344,7 +344,7 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
-    @DisplayName("Runtime RAG timeout should use short hot-path wait and cancel slow lookup")
+    @DisplayName("Runtime RAG timeout should return after the hot-path wait and continue cache warmup")
     void analyzeWithContext_runtimeRagTimeout_shouldCancelSlowLookup() throws InterruptedException {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
@@ -408,13 +408,13 @@ class Layer1ContextualStrategyTest {
             assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
             assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 50L);
             assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 500L);
-            assertThat(event.getMetadata()).containsEntry("ragRuntimeBudgetPolicy", "INTERACTIVE_WAIT_CANCEL_ON_TIMEOUT");
-            assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
+            assertThat(event.getMetadata()).containsEntry("ragRuntimeBudgetPolicy", "INTERACTIVE_WAIT_WITH_BACKGROUND_WARMUP");
+            assertThat(event.getMetadata()).containsEntry("ragBackgroundWarmup", true);
             assertThat(event.getMetadata()).containsEntry("relatedDocumentsCount", 0);
             assertThat(event.getMetadata()).containsKey("ragFailureType");
             assertThat(event.getMetadata()).containsKey("ragFailureMessage");
             Thread.sleep(25L);
-            assertThat(interrupted.get()).isTrue();
+            assertThat(interrupted.get()).isFalse();
             verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
         } finally {
             ragExecutor.shutdownNow();

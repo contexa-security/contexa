@@ -803,7 +803,7 @@ public class SecurityDecisionPromptSections {
                 promptGovernanceDescriptor.promptVersion(),
                 effectiveProfile.profileKey(),
                 outputMode.name(),
-                shouldUseRuntimeCompactPrompt(buildContext) ? "RUNTIME_COMPACT" : "OFFICIAL_FULL");
+                shouldUseRuntimeCompactPrompt(buildContext) ? "RUNTIME_COMPACT" : "PROFILE_FULL");
     }
 
     private int countPromptSlotLines(String userText) {
@@ -1055,24 +1055,10 @@ public class SecurityDecisionPromptSections {
     }
 
     boolean shouldUseRuntimeCompactPrompt(SecurityPromptBuildContext context) {
-        return context == null || !hasOfficialVerificationMarker(context.getEvent());
+        PromptBudgetProfile budgetProfile = context != null ? context.getPromptBudgetProfile() : null;
+        return budgetProfile != null && budgetProfile.viewProfile() == PromptViewProfile.COMPACT;
     }
 
-    private boolean hasOfficialVerificationMarker(SecurityEvent event) {
-        if (event == null || event.getMetadata() == null || event.getMetadata().isEmpty()) {
-            return false;
-        }
-        for (String key : event.getMetadata().keySet()) {
-            if (!StringUtils.hasText(key)) {
-                continue;
-            }
-            String normalizedKey = key.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
-            if (normalizedKey.contains("officialverification")) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     String buildSystemInstruction() {
         return """

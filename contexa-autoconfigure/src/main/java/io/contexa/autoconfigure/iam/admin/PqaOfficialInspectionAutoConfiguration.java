@@ -63,7 +63,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.util.List;
@@ -163,7 +162,7 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnMissingBean(SealedEvidencePackageQueryService.class)
     public SealedEvidencePackageQueryService pqaSealedEvidencePackageQueryService(
             SealedEvidencePackageLookupService evidenceLookupService,
-            JdbcTemplate jdbcTemplate) {
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
         return new DefaultSealedEvidencePackageQueryService(evidenceLookupService, jdbcTemplate);
     }
 

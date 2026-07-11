@@ -61,13 +61,14 @@ public class PendingAnomalyEventTriggerService {
         }
 
         HcadPreTriggerMode mode = hcadProperties.getPreTrigger().effectiveMode();
+        String resolvedDecisionBoundaryMode = resolveDecisionBoundaryMode(mode, decisionBoundaryMode);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("triggerStage", "PRE_PROTECTABLE");
         payload.put("triggerSource", "HCAD_PRE_TRIGGER");
         payload.put("action", ZeroTrustAction.PENDING_ANALYSIS.name());
         payload.put("hcadMode", mode.metadataValue());
-        if (decisionBoundaryMode != null && !decisionBoundaryMode.isBlank()) {
-            payload.put("decisionBoundaryMode", decisionBoundaryMode);
+        if (resolvedDecisionBoundaryMode != null) {
+            payload.put("decisionBoundaryMode", resolvedDecisionBoundaryMode);
         }
         if (evaluationId != null && !evaluationId.isBlank()) {
             payload.put("hcadEvaluationId", evaluationId);
@@ -102,10 +103,10 @@ public class PendingAnomalyEventTriggerService {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
             }
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_MODE, mode.metadataValue());
-            if (decisionBoundaryMode != null && !decisionBoundaryMode.isBlank()) {
+            if (resolvedDecisionBoundaryMode != null) {
                 request.setAttribute(
                         PendingAnomalyTriggerAttributes.PRE_TRIGGER_DECISION_BOUNDARY_MODE,
-                        decisionBoundaryMode);
+                        resolvedDecisionBoundaryMode);
             }
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EARLY_ANALYSIS_SCORE, report.escalationScore());
             request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_BAND, report.escalationBand());
@@ -116,5 +117,12 @@ public class PendingAnomalyEventTriggerService {
                 request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_RISK_SIGNATURE, report.riskSignature());
             }
         }
+    }
+
+    private String resolveDecisionBoundaryMode(HcadPreTriggerMode mode, String decisionBoundaryMode) {
+        if (decisionBoundaryMode != null && !decisionBoundaryMode.isBlank()) {
+            return decisionBoundaryMode.trim();
+        }
+        return mode == null ? null : mode.metadataValue();
     }
 }

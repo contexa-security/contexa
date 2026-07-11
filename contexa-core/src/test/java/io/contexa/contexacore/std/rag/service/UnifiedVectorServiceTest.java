@@ -121,7 +121,7 @@ class UnifiedVectorServiceTest {
         unifiedVectorService.storeDocument(document);
 
         verify(vectorStore, times(2)).add(any());
-        verify(cacheLayer).invalidateAll();
+        verify(cacheLayer).invalidateAfterWrite();
     }
 
     @Test

@@ -19,8 +19,6 @@ import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.CompositeAuthBridge;
 import io.contexa.contexacommon.security.bridge.RequestAttributeAuthBridge;
-import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
-import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.resolver.AuthBridgeAuthenticationStampResolver;
@@ -34,6 +32,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
@@ -49,7 +49,7 @@ class RequestAttributeBridgeResolutionFilterTest {
     }
 
     @Test
-    void shouldResolveBridgeContextFromRequestAttributesWithoutContainerPrincipal() throws Exception {
+    void shouldResolveRequestAttributesAfterHostAuthenticationWithoutReplacingIt() throws Exception {
         BridgeProperties properties = new BridgeProperties();
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
@@ -62,6 +62,9 @@ class RequestAttributeBridgeResolutionFilterTest {
                 new BridgeCoverageEvaluator()
         );
 
+        Authentication hostAuthentication =
+                UsernamePasswordAuthenticationToken.authenticated("host-user", "n/a", List.of());
+        SecurityContextHolder.getContext().setAuthentication(hostAuthentication);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/finance/reports/quarterly/approve");
         request.setAttribute("ctxa.auth.principalId", "carol");
         request.setAttribute("ctxa.auth.displayName", "Carol Reviewer");
@@ -107,15 +110,7 @@ class RequestAttributeBridgeResolutionFilterTest {
         assertThat(result.delegationStamp().privilegedExportAllowed()).isFalse();
         assertThat(result.delegationStamp().expiresAt()).isEqualTo(Instant.parse("2026-03-24T00:00:00Z"));
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isInstanceOf(BridgeAuthenticationToken.class);
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("carol");
-        BridgeAuthenticationDetails details = (BridgeAuthenticationDetails) SecurityContextHolder.getContext().getAuthentication().getDetails();
-        assertThat(details.bridgeAuthenticationSource()).isEqualTo("REQUEST_ATTRIBUTE");
-        assertThat(details.bridgeAuthorizationSource()).isEqualTo("REQUEST_ATTRIBUTE");
-        assertThat(details.bridgeDelegationSource()).isEqualTo("REQUEST_ATTRIBUTE");
-        assertThat(details.policyVersion()).isEqualTo("2026.03");
-        assertThat(details.objectiveFamily()).isEqualTo("REPORT_APPROVAL");
-        assertThat(details.privilegedExportAllowed()).isFalse();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 }
 

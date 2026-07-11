@@ -187,7 +187,7 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Should exclude Spring Boot default security auto-configurations when @EnableAISecurity did not activate the platform")
+        @DisplayName("Dependency-only policy should suppress Boot-generated security while leaving user beans outside the filter")
         void shouldExcludeDefaultSecurityAutoConfigurationsWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = createFilter("standalone");
             String[] classes = {

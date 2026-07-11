@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -36,11 +35,16 @@ class ZeroTrustActionTest {
     @DisplayName("fromString parsing")
     class FromStringTest {
 
+        @Test
+        @DisplayName("Should keep a missing decision pending")
+        void shouldKeepMissingDecisionPending() {
+            assertThat(ZeroTrustAction.fromString(null)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        }
+
         @ParameterizedTest
-        @NullAndEmptySource
-        @ValueSource(strings = {"   ", "\t"})
-        @DisplayName("Should return ESCALATE for null, empty, or blank input")
-        void shouldReturnEscalateForNullOrBlank(String input) {
+        @ValueSource(strings = {"", "   ", "\t"})
+        @DisplayName("Should return ESCALATE for empty or blank input")
+        void shouldReturnEscalateForBlank(String input) {
             assertThat(ZeroTrustAction.fromString(input)).isEqualTo(ZeroTrustAction.ESCALATE);
         }
 

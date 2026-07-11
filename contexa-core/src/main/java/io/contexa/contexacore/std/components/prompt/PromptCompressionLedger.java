@@ -49,6 +49,7 @@ public record PromptCompressionLedger(
             if (record.action() == PromptCompressionAction.DEDUPLICATED
                     || record.action() == PromptCompressionAction.SUMMARIZED
                     || record.action() == PromptCompressionAction.FUSED
+                    || record.action() == PromptCompressionAction.TRIMMED
                     || record.action() == PromptCompressionAction.OMITTED) {
                 return true;
             }

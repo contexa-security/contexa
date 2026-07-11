@@ -58,6 +58,9 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                 } else if (isContexaAutoConfiguration(autoConfigurationClass)) {
                     result[i] = false;
                 } else if (isDefaultSecurityAutoConfiguration(autoConfigurationClass)) {
+                    // Dependency-only policy: suppress Boot-generated login/user security.
+                    // Host-defined SecurityFilterChain beans are not auto-configuration
+                    // imports and therefore remain untouched by this filter.
                     result[i] = false;
                 } else if ("org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||
                            "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration".equals(autoConfigurationClass) ||

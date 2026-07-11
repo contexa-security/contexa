@@ -155,11 +155,16 @@ public class SynchronousProtectableDecisionService {
         if (processingResult == null) {
             return null;
         }
-        ZeroTrustAction proposedAction = ZeroTrustAction.fromString(processingResult.getProposedAction());
-        if (proposedAction != null) {
-            return proposedAction;
+        // The final action includes autonomy constraints and technical fallbacks and is
+        // therefore the action that synchronous enforcement must apply. proposedAction
+        // is retained for audit purposes only.
+        if (StringUtils.hasText(processingResult.getAction())) {
+            return ZeroTrustAction.fromString(processingResult.getAction());
         }
-        return ZeroTrustAction.fromString(processingResult.getAction());
+        if (StringUtils.hasText(processingResult.getProposedAction())) {
+            return ZeroTrustAction.fromString(processingResult.getProposedAction());
+        }
+        return null;
     }
 
     private boolean isEventShadowBoundary(ZeroTrustSpringEvent event) {

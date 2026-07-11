@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 class HcadEvaluationWriterTest {
 
     @Test
-    @DisplayName("recordCandidate should persist HCAD evaluation row fields")
+    @DisplayName("recordCandidate without a transaction manager should persist once without recursive re-entry")
     void recordCandidate_shouldPersistEvaluationFields() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
         when(repository.save(any(HcadDetectionEvaluation.class))).thenAnswer(invocation -> invocation.getArgument(0));

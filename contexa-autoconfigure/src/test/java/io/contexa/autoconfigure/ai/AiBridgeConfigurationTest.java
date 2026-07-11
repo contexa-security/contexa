@@ -24,6 +24,7 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -33,9 +34,10 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Optional;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,6 +92,8 @@ class AiBridgeConfigurationTest {
 
         contextRunner.withBean(BridgeRuntimeSupport.class, () -> runtimeSupport)
                 .run(context -> {
+                    SecurityContextHolder.getContext().setAuthentication(
+                            UsernamePasswordAuthenticationToken.authenticated("host-user", "n/a", List.of()));
                     BridgeResolutionFilter filter = context.getBean(BridgeResolutionFilter.class);
                     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
                     request.addHeader("X-Contexa-Principal-Id", "alice");
@@ -98,7 +102,7 @@ class AiBridgeConfigurationTest {
 
                     filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
 
-                    assertThat(runtimeSupport.deriveAuthorizationCalls()).isEqualTo(1);
+                    assertThat(runtimeSupport.synchronizeUserCalls()).isEqualTo(1);
                 });
     }
 
@@ -118,23 +122,23 @@ class AiBridgeConfigurationTest {
     }
 
     private static class CountingBridgeRuntimeSupport extends BridgeRuntimeSupport {
-        private final AtomicInteger deriveAuthorizationCalls = new AtomicInteger();
+        private final AtomicInteger synchronizeUserCalls = new AtomicInteger();
 
         CountingBridgeRuntimeSupport() {
             super(new BridgeProperties(), null);
         }
 
         @Override
-        public Optional<AuthorizationStamp> deriveAuthorizationStamp(
+        public BridgeUserMirrorSyncResult synchronizeUser(
                 AuthenticationStamp authenticationStamp,
-                String resourceId,
-                String action) {
-            deriveAuthorizationCalls.incrementAndGet();
-            return super.deriveAuthorizationStamp(authenticationStamp, resourceId, action);
+                AuthorizationStamp authorizationStamp,
+                RequestContextSnapshot requestContext) {
+            synchronizeUserCalls.incrementAndGet();
+            return super.synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
         }
 
-        int deriveAuthorizationCalls() {
-            return deriveAuthorizationCalls.get();
+        int synchronizeUserCalls() {
+            return synchronizeUserCalls.get();
         }
     }
 }

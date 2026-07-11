@@ -688,15 +688,17 @@ class AbstractTieredStrategyTest {
                 List.of(9, 10), List.of(1, 2), List.of("WINDOWS"), Map.of(), Map.of(), Map.of(),
                 LocalDate.of(2026, 4, 8), LocalDateTime.of(2026, 4, 8, 12, 0));
         SaasBaselineSeedService baselineSeedService = Mockito.mock(SaasBaselineSeedService.class);
-        when(baselineLearningService.getBaseline("user-123")).thenReturn(null);
-        when(baselineLearningService.describeBaselineMaturity("user-123", null))
-                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
-                        true,
-                        true,
-                        true,
-                        true,
-                        true,
-                        List.of("ACCESS_HOURS", "OPERATING_SYSTEMS")));
+        BaselineLearningService.BaselineMaturitySnapshot maturity =
+                new BaselineLearningService.BaselineMaturitySnapshot(
+                true,
+                true,
+                true,
+                true,
+                true,
+                List.of("ACCESS_HOURS", "OPERATING_SYSTEMS"));
+        when(baselineLearningService.buildPromptBaselineEvidenceSnapshot("user-123", event))
+                .thenReturn(new BaselineLearningService.PromptBaselineEvidence(
+                        maturity, null, null, null, null));
         when(baselineSeedService.resolvePromptSeed(true, true))
                 .thenReturn(new CohortSeedRuntimeWeightDecision(
                         seedSnapshot,

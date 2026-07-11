@@ -231,6 +231,58 @@ class ColdPathEventProcessorTest {
     }
 
     @Test
+    @DisplayName("escalate rate denominator should include every Layer1 analysis")
+    void escalateProtection_shouldUseAllLayer1AnalysesAsDenominator() {
+        ThreatAssessment nonEscalatingAssessment = ThreatAssessment.builder()
+                .riskScore(0.1)
+                .confidence(0.9)
+                .action(ZeroTrustAction.ALLOW.name())
+                .reasoning("Normal traffic")
+                .shouldEscalate(false)
+                .build();
+        ThreatAssessment escalatingAssessment = ThreatAssessment.builder()
+                .riskScore(0.6)
+                .confidence(0.4)
+                .action(ZeroTrustAction.ESCALATE.name())
+                .reasoning("Escalate")
+                .shouldEscalate(true)
+                .build();
+        ThreatAssessment layer2Assessment = ThreatAssessment.builder()
+                .riskScore(0.8)
+                .confidence(0.9)
+                .action(ZeroTrustAction.BLOCK.name())
+                .reasoning("Confirmed threat")
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(nonEscalatingAssessment);
+        for (int index = 0; index < 20; index++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("ratio-user")
+                    .sourceIp("10.0.4.1")
+                    .build();
+            event.addMetadata("requestPath", "/api/ratio");
+            processor.processEvent(event, 0.1);
+        }
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(escalatingAssessment);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
+        ProcessingResult result = null;
+        for (int index = 0; index < 11; index++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("ratio-user")
+                    .sourceIp("10.0.4.1")
+                    .build();
+            event.addMetadata("requestPath", "/api/ratio");
+            result = processor.processEvent(event, 0.6);
+        }
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+        verify(expertStrategy, times(11)).evaluate(any(SecurityEvent.class));
+    }
+
+    @Test
     @DisplayName("escalate overload protection should be isolated by tenant and scenario")
     void escalateProtection_shouldBeIsolatedByTenantAndScenario() {
         ThreatAssessment layer1Assessment = ThreatAssessment.builder()

@@ -96,7 +96,8 @@ class SessionFingerprintUtilTest {
     void testContextBindingHashCaching() {
         when(request.getRequestedSessionId()).thenReturn("session-xyz");
         when(request.getRemoteAddr()).thenReturn("192.168.1.10");
-        when(request.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+        when(request.getHeader(anyString())).thenAnswer(invocation ->
+                "User-Agent".equals(invocation.getArgument(0)) ? "Mozilla/5.0" : null);
         when(request.getAttribute("contexa.contextBindingHash")).thenReturn(null);
 
         String hash = SessionFingerprintUtil.generateContextBindingHash(request);

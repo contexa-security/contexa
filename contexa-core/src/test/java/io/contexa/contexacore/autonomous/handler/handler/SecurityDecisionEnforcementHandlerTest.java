@@ -552,7 +552,7 @@ class SecurityDecisionEnforcementHandlerTest {
                 eq(null),
                 eq(17L),
                 eq(null),
-                eq(true),
+                eq(false),
                 eq(true),
                 eq(null),
                 eq(null),

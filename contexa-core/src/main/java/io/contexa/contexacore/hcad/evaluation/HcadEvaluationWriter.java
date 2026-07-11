@@ -90,11 +90,27 @@ public class HcadEvaluationWriter {
         if (!isWriteTransactionActive()) {
             return inWriteTransaction(() -> recordCandidate(mode, report));
         }
-        if (report == null || !report.shouldTrigger()) {
+        if (report == null) {
             return null;
         }
         String evaluationId = UUID.randomUUID().toString();
         String evaluationEventId = "hcad-" + evaluationId;
+        HcadDetectionEvaluation evaluation = buildEvaluation(
+                mode,
+                report,
+                evaluationId,
+                evaluationEventId,
+                null);
+        save(evaluation);
+        return evaluationId;
+    }
+
+    private HcadDetectionEvaluation buildEvaluation(
+            HcadPreTriggerMode mode,
+            PendingAnomalyEvidenceReport report,
+            String evaluationId,
+            String evaluationEventId,
+            String triggerDecisionReasonOverride) {
         Map<String, Object> rawSnapshot = report.rawSignalSnapshot() == null
                 ? new LinkedHashMap<>()
                 : new LinkedHashMap<>(report.rawSignalSnapshot());
@@ -110,7 +126,9 @@ public class HcadEvaluationWriter {
         HcadBaselineComparison baselineComparison = baselineComparison(rawSnapshot);
         List<String> evidenceGaps = evidenceGapCodes(report, baselineComparison);
         String nonTriggerReason = report.shouldTrigger() ? null : nonTriggerReason(report, baselineComparison, evidenceGaps);
-        String triggerDecisionReason = report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason;
+        String triggerDecisionReason = triggerDecisionReasonOverride != null
+                ? triggerDecisionReasonOverride
+                : report.shouldTrigger() ? "TRIGGER_CANDIDATE" : nonTriggerReason;
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId(evaluationId)
                 .eventId(evaluationEventId)
@@ -173,8 +191,7 @@ public class HcadEvaluationWriter {
                 .outcomeClass("UNKNOWN")
                 .createdAt(LocalDateTime.now())
                 .build();
-        save(evaluation);
-        return evaluationId;
+        return evaluation;
     }
 
     public void updateWindowObservation(String actorSessionKey, String windowId, HcadObservationWindowLease windowLease) {
@@ -617,7 +634,91 @@ public class HcadEvaluationWriter {
             String llmFallbackCategory,
             String llmFallbackReason,
             String outcomeClass) {
-        return null;
+        if (!isWriteTransactionActive()) {
+            return inWriteTransaction(() -> recordObservedDecision(
+                    event,
+                    llmAction,
+                    llmProposedAction,
+                    llmRiskScore,
+                    llmConfidence,
+                    llmLatencyMs,
+                    llmReasoning,
+                    llmParserFailure,
+                    llmTechnicalFallback,
+                    llmFallbackCategory,
+                    llmFallbackReason,
+                    outcomeClass));
+        }
+        PendingAnomalyEvidenceReport report = observedReport(event);
+        if (report == null) {
+            return null;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        HcadPreTriggerMode mode;
+        try {
+            mode = HcadPreTriggerMode.from(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_MODE));
+        } catch (RuntimeException ignored) {
+            mode = HcadPreTriggerMode.SHADOW;
+        }
+        String evaluationId = UUID.randomUUID().toString();
+        HcadDetectionEvaluation evaluation = buildEvaluation(
+                mode,
+                report,
+                evaluationId,
+                firstNonBlank(event.getEventId(), "hcad-" + evaluationId),
+                "OBSERVED_WITH_LLM_DECISION");
+        evaluation.setLlmAction(llmAction);
+        evaluation.setLlmProposedAction(llmProposedAction);
+        evaluation.setLlmRiskScore(llmRiskScore);
+        evaluation.setLlmConfidence(llmConfidence);
+        evaluation.setLlmLatencyMs(llmLatencyMs);
+        evaluation.setLlmReasoningSummary(summarize(llmReasoning, 1024));
+        evaluation.setLlmReasoningHash(sha256(llmReasoning));
+        evaluation.setLlmParserFailure(llmParserFailure);
+        evaluation.setLlmTechnicalFallback(llmTechnicalFallback);
+        evaluation.setLlmFallbackCategory(truncate(llmFallbackCategory, 128));
+        evaluation.setLlmFallbackReason(summarize(llmFallbackReason, 1024));
+        evaluation.setOutcomeClass(blankToDefault(outcomeClass, "UNKNOWN"));
+        evaluation.setDecidedAt(LocalDateTime.now());
+        save(evaluation);
+        return evaluationId;
+    }
+
+    private PendingAnomalyEvidenceReport observedReport(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null
+                || !isHcadPreTriggerEvaluationPresent(event.getMetadata())) {
+            return null;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        Map<String, Object> rawSnapshot = rawSnapshotMap(
+                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS));
+        rawSnapshot.put("protectableObserved", true);
+        Object score = metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE);
+        if (score == null) {
+            score = metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SCORE);
+        }
+        return PendingAnomalyEvidenceReport.noTrigger(
+                event.getUserId(),
+                firstText(metadata, "contextBindingHash"),
+                firstText(metadata, "triggerStateKey"),
+                firstNonBlank(firstText(metadata, "requestId", "correlationId"), event.getEventId()),
+                event.getSessionId(),
+                firstText(metadata, "requestPath", "resourceUrl", "resourceId"),
+                firstText(metadata, "httpMethod", "method"),
+                event.getSourceIp(),
+                integerDefault(score, 0),
+                blankToDefault(firstText(
+                        metadata,
+                        HcadPreProtectablePromotionAttributes.METADATA_BAND), "LOW"),
+                boolDefault(bool(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE)), false),
+                blankToDefault(firstText(
+                        metadata,
+                        HcadPreProtectablePromotionAttributes.METADATA_VERSION), "hcad-promotion-v1"),
+                stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS)),
+                stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS)),
+                stringList(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES)),
+                firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_SUMMARY),
+                rawSnapshot);
     }
     private Map<String, Object> scoreBreakdown(
             PendingAnomalyEvidenceReport report,
@@ -1531,7 +1632,12 @@ public class HcadEvaluationWriter {
         }
         TransactionOperations transactionOperations = transactionOperations();
         if (transactionOperations == null) {
-            return action.get();
+            writeTransactionActive.set(true);
+            try {
+                return action.get();
+            } finally {
+                writeTransactionActive.remove();
+            }
         }
         return transactionOperations.execute(status -> {
             writeTransactionActive.set(true);

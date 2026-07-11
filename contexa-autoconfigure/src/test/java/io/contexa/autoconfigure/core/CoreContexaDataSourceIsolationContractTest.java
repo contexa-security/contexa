@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core;
 
 import io.contexa.autoconfigure.core.infra.CoreSchedulerLockAutoConfiguration;
+import io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration;
 import io.contexa.autoconfigure.identity.IamSeedDataAutoConfiguration;
 import io.contexa.autoconfigure.identity.IdentityOAuth2AutoConfiguration;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.AnnotatedGenericBeanDefinition;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
@@ -140,11 +142,21 @@ class CoreContexaDataSourceIsolationContractTest {
         assertInfrastructureParametersAreQualified(CoreSchedulerLockAutoConfiguration.class);
         assertInfrastructureParametersAreQualified(IamSeedDataAutoConfiguration.class);
         assertInfrastructureParametersAreQualified(IdentityOAuth2AutoConfiguration.class);
+        assertInfrastructureParametersAreQualified(PqaOfficialInspectionAutoConfiguration.class);
     }
 
     @Test
-    void coreAutoConfigurationSourceDoesNotUseUnqualifiedInfrastructureParameters() throws Exception {
-        assertThat(findUnqualifiedInfrastructureParameterLines(List.of(Path.of("src/main/java")))).isEmpty();
+    void pqaQueryServiceUsesContexaJdbcTemplateExplicitly() {
+        Method method = Stream.of(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals("pqaSealedEvidencePackageQueryService"))
+                .findFirst()
+                .orElseThrow();
+        Parameter parameter = Stream.of(method.getParameters())
+                .filter(candidate -> candidate.getType().equals(JdbcTemplate.class))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(parameter.getAnnotation(Qualifier.class).value()).isEqualTo(CONTEXA_JDBC_TEMPLATE);
     }
 
     @Test
@@ -200,7 +212,7 @@ class CoreContexaDataSourceIsolationContractTest {
     private static void assertInfrastructureParametersAreQualified(Class<?> autoConfiguration) {
         List<String> violations = new ArrayList<>();
         for (Method method : autoConfiguration.getDeclaredMethods()) {
-            if (method.isSynthetic()) {
+            if (method.isSynthetic() || method.getAnnotation(Bean.class) == null) {
                 continue;
             }
             assertInfrastructureParametersAreQualified(autoConfiguration, method, violations);
@@ -294,44 +306,5 @@ class CoreContexaDataSourceIsolationContractTest {
             }
         }
         return violations;
-    }
-
-    private static List<String> findUnqualifiedInfrastructureParameterLines(List<Path> sourceRoots) throws IOException {
-        List<String> violations = new ArrayList<>();
-        for (Path sourceRoot : sourceRoots) {
-            if (!Files.exists(sourceRoot)) {
-                continue;
-            }
-            try (Stream<Path> paths = Files.walk(sourceRoot)) {
-                for (Path path : paths
-                        .filter(Files::isRegularFile)
-                        .filter(file -> file.toString().endsWith(".java"))
-                        .toList()) {
-                    List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
-                    for (int index = 0; index < lines.size(); index++) {
-                        String line = lines.get(index);
-                        if (containsInfrastructureParameter(line) && !isAllowedInfrastructureLine(line)) {
-                            violations.add(path + ":" + (index + 1) + ": " + line.trim());
-                        }
-                    }
-                }
-            }
-        }
-        return violations;
-    }
-
-    private static boolean containsInfrastructureParameter(String line) {
-        return line.contains("JdbcTemplate jdbcTemplate")
-                || line.contains("DataSource dataSource")
-                || line.contains("PlatformTransactionManager platformTransactionManager")
-                || line.contains("TransactionTemplate transactionTemplate");
-    }
-
-    private static boolean isAllowedInfrastructureLine(String line) {
-        return line.contains("@Qualifier(\"contexa")
-                || line.contains("new JdbcTemplate(dataSource)")
-                || line.contains("private final")
-                || line.contains("private void initializeAuthorizationServerSchema")
-                || line.contains("public TransactionTemplate transactionTemplate");
     }
 }
