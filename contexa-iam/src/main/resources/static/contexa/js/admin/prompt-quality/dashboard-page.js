@@ -10,7 +10,7 @@ function promptQualityApiRoot(root = document.querySelector('[data-pqa-page="das
 function promptQualityApiPath(root, path) {
     const base = promptQualityApiRoot(root).replace(/\/+$/, '');
     const suffix = String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`;
-    return `${base}${suffix}`;
+    return appPath(`${base}${suffix}`);
 }
 
 function promptQualityRouteRoot(root = document.querySelector('[data-pqa-page="dashboard"]')) {

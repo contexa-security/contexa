@@ -63,7 +63,8 @@ export const ensureObject = (value) => value && typeof value === 'object' && !Ar
 
 export const ensureArray = (value) => Array.isArray(value) ? value : [];
 
-const ADMIN_ASSET_PATH = '/contexa/js/admin/';
+const ADMIN_ASSET_PATH = '/js/admin/';
+const CONTEXA_PATH = '/contexa';
 const CORE_PQA_ROUTE_ROOT = '/contexa/admin/prompt-quality';
 const CORE_PQA_API_ROOT = '/contexa/admin/api/prompt-quality';
 const ADMIN_ROUTE_PREFIX = '/contexa/admin/';
@@ -71,9 +72,13 @@ const ADMIN_API_PREFIX = '/contexa/admin/api/';
 const PROMPT_QUALITY_ROUTE_SUFFIX = '/prompt-quality';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 
-function appContextPath() {
+export function contextPathFromModuleUrl(moduleUrlValue) {
     try {
-        const modulePath = new URL(import.meta.url).pathname;
+        const moduleUrl = new URL(moduleUrlValue);
+        if (moduleUrl.protocol !== 'http:' && moduleUrl.protocol !== 'https:') {
+            return '';
+        }
+        const modulePath = moduleUrl.pathname;
         const assetIndex = modulePath.indexOf(ADMIN_ASSET_PATH);
         return assetIndex > 0 ? modulePath.slice(0, assetIndex) : '';
     } catch {
@@ -81,14 +86,23 @@ function appContextPath() {
     }
 }
 
-export function appPath(path) {
+export function appPathForModuleUrl(path, moduleUrlValue) {
     const normalized = rewritePromptQualityPath(
             String(path || '').startsWith('/') ? String(path || '') : `/${path || ''}`);
-    const contextPath = appContextPath();
+    const contextPath = contextPathFromModuleUrl(moduleUrlValue);
     if (!contextPath || normalized === contextPath || normalized.startsWith(`${contextPath}/`)) {
         return normalized;
     }
+    if (contextPath.endsWith(CONTEXA_PATH)
+            && (normalized === CONTEXA_PATH || normalized.startsWith(`${CONTEXA_PATH}/`))) {
+        const deploymentContext = contextPath.slice(0, -CONTEXA_PATH.length);
+        return deploymentContext ? `${deploymentContext}${normalized}` : normalized;
+    }
     return `${contextPath}${normalized}`;
+}
+
+export function appPath(path) {
+    return appPathForModuleUrl(path, import.meta.url);
 }
 
 function rewritePromptQualityPath(path) {

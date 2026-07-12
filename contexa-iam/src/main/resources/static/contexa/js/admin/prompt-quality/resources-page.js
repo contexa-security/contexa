@@ -1,4 +1,4 @@
-import { $, escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
+import { $, appPath, escapeHtml, ensureArray, rawText, text } from '../verification-ui-common.js';
 import { badge, bootSummaryPage } from './prompt-quality-page.js';
 import { t } from './prompt-quality-i18n.js';
 import { focusHighlightedRow, targetRefMatches, targetRefToken } from './prompt-quality-target-ref.js';
@@ -22,13 +22,8 @@ const METHOD_COLORS = {
 };
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']);
-const IS_ENTERPRISE_PROMPT_QUALITY = window.location.pathname.includes('/contexa/admin/enterprise/prompt-quality');
-const API_BASE = IS_ENTERPRISE_PROMPT_QUALITY
-        ? '/contexa/admin/api/enterprise/prompt-quality'
-        : '/admin/api/enterprise/prompt-quality';
-const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
-        ? '/contexa/admin/enterprise/prompt-quality'
-        : '/admin/enterprise/prompt-quality';
+const API_BASE = appPath('/admin/api/enterprise/prompt-quality');
+const PAGE_BASE = appPath('/admin/enterprise/prompt-quality');
 
 const RESOURCE_PAGE_SIZE = 10;
 
