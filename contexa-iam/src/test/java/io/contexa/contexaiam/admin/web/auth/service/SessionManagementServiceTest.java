@@ -128,69 +128,49 @@ class SessionManagementServiceTest {
     class TrackSession {
 
         @Test
-        @DisplayName("should create new session when session id is not present")
+        @DisplayName("should upsert a new session without a read-before-write")
         void createNew() {
-            when(activeSessionRepository.findById("new-sess")).thenReturn(Optional.empty());
-
             service.trackSession("new-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
-            verify(activeSessionRepository).save(argThat(session ->
-                    session.getSessionId().equals("new-sess") &&
-                    session.getUserId().equals("user-1") &&
-                    session.getUsername().equals("user1") &&
-                    session.getClientIp().equals("127.0.0.1") &&
-                    session.getUserAgent().equals("Chrome") &&
-                    !session.isExpired()
-            ));
+            verify(activeSessionRepository).upsertSession(
+                    eq("new-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    any(LocalDateTime.class), any(LocalDateTime.class));
+            verify(activeSessionRepository, never()).findById("new-sess");
         }
 
         @Test
         @DisplayName("should truncate userAgent when it exceeds 512 characters")
         void userAgentTruncation() {
             String longAgent = "A".repeat(600);
-            when(activeSessionRepository.findById("new-sess")).thenReturn(Optional.empty());
 
             service.trackSession("new-sess", "user-1", "user1", "127.0.0.1", longAgent);
 
-            verify(activeSessionRepository).save(argThat(session ->
-                    session.getUserAgent().length() == 512 &&
-                    session.getUserAgent().equals("A".repeat(512))
-            ));
+            verify(activeSessionRepository).upsertSession(
+                    eq("new-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("A".repeat(512)),
+                    any(LocalDateTime.class), any(LocalDateTime.class));
         }
 
         @Test
-        @DisplayName("should update lastAccessedAt when existing session exceeds threshold")
-        void updateExisting() {
-            LocalDateTime oldTime = LocalDateTime.now().minusSeconds(70);
-            ActiveSession existing = ActiveSession.builder()
-                    .sessionId("old-sess")
-                    .expired(false)
-                    .lastAccessedAt(oldTime)
-                    .build();
-
-            when(activeSessionRepository.findById("old-sess")).thenReturn(Optional.of(existing));
-
+        @DisplayName("should pass a sixty-second update threshold to the atomic upsert")
+        void updateThreshold() {
             service.trackSession("old-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
-            verify(activeSessionRepository).save(existing);
-            assertThat(existing.getLastAccessedAt()).isAfter(oldTime);
+            verify(activeSessionRepository).upsertSession(
+                    eq("old-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    any(LocalDateTime.class),
+                    argThat(threshold -> threshold.isBefore(LocalDateTime.now().minusSeconds(59))
+                            && threshold.isAfter(LocalDateTime.now().minusSeconds(65))));
         }
 
         @Test
-        @DisplayName("should not update lastAccessedAt when existing session is within threshold")
-        void doNotUpdateWithinThreshold() {
-            LocalDateTime recentTime = LocalDateTime.now().minusSeconds(10);
-            ActiveSession existing = ActiveSession.builder()
-                    .sessionId("old-sess")
-                    .expired(false)
-                    .lastAccessedAt(recentTime)
-                    .build();
-
-            when(activeSessionRepository.findById("old-sess")).thenReturn(Optional.of(existing));
-
+        @DisplayName("should delegate recency handling to the database upsert")
+        void recencyIsHandledAtomically() {
             service.trackSession("old-sess", "user-1", "user1", "127.0.0.1", "Chrome");
 
-            verify(activeSessionRepository, never()).save(any(ActiveSession.class));
+            verify(activeSessionRepository).upsertSession(
+                    eq("old-sess"), eq("user-1"), eq("user1"), eq("127.0.0.1"), eq("Chrome"),
+                    any(LocalDateTime.class), any(LocalDateTime.class));
+            verify(activeSessionRepository, never()).findById("old-sess");
         }
     }
 

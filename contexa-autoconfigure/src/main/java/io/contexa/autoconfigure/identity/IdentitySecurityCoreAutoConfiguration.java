@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
@@ -265,6 +266,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             PlatformConfig platformConfig,
             AdapterRegistry registry,
             DslValidator dslValidator,
+            BridgeProperties bridgeProperties,
             ObjectProvider<SecurityConfigurer> securityConfigurerProvider) {
         securityConfigurerProvider.orderedStream().forEach(configurer -> {
             if (log.isDebugEnabled()) {
@@ -272,7 +274,7 @@ public class IdentitySecurityCoreAutoConfiguration {
                         configurer.getClass().getSimpleName());
             }
         });
-        return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidator);
+        return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidator, bridgeProperties);
     }
 
     @Bean

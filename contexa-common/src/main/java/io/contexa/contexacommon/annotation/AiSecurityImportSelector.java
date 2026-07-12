@@ -1,80 +1,89 @@
-/*
- * Copyright 2026 The Contexa Project
- *
- * The Contexa Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+/* Copyright 2026 The Contexa Project */
 package io.contexa.contexacommon.annotation;
 
 import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
-import java.util.Map;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringBootVersion;
+import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.ImportSelector;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.type.AnnotationMetadata;
-
-/**
- * Import selector that loads {@code AiSecurityConfiguration} by class name.
- * <p>
- * This selector exists in contexa-common because {@code @EnableAISecurity} resides here,
- * but the actual configuration class is in contexa-autoconfigure module.
- * Using string-based class name avoids a compile-time dependency on contexa-autoconfigure.
- * </p>
- */
-public class AiSecurityImportSelector implements ImportSelector {
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/** Loads the Contexa configuration and publishes annotation values into this context's Environment. */
+public class AiSecurityImportSelector implements ImportSelector, EnvironmentAware {
 
     public static final String PROP_MODE = "contexa.ai.security.mode";
     public static final String PROP_AUTH_OBJECT_LOCATION = "contexa.ai.security.auth-object.location";
     public static final String PROP_AUTH_OBJECT_ATTRIBUTE = "contexa.ai.security.auth-object.attribute";
     public static final String PROP_AUTH_OBJECT_TYPE = "contexa.ai.security.auth-object.type";
+    public static final String PROP_BRIDGE_OWNERSHIP = "contexa.bridge.ownership";
+    public static final String PROP_CONTEXA_OWNED_APPLICATION =
+            "contexa.datasource.isolation.contexa-owned-application";
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
+    private ConfigurableEnvironment environment;
 
     @Override
     public String[] selectImports(AnnotationMetadata importingClassMetadata) {
         String version = SpringBootVersion.getVersion();
         if (version.startsWith("4.")) {
             LoggerFactory.getLogger(AiSecurityImportSelector.class)
-                .error("Contexa does not support Spring Boot 4.x. Current version: {}. Please downgrade to Spring Boot 3.x.", version);
+                    .error("Contexa does not support Spring Boot 4.x. Current version: {}. Please downgrade to Spring Boot 3.x.", version);
             throw new IllegalStateException("Spring Boot 4.x is not supported by Contexa. Current version: " + version);
         }
 
-        Map<String, Object> attributes = importingClassMetadata.getAnnotationAttributes(EnableAISecurity.class.getName(), false);
+        Map<String, Object> attributes = importingClassMetadata
+                .getAnnotationAttributes(EnableAISecurity.class.getName(), false);
         SecurityMode mode = SecurityMode.SANDBOX;
-        AuthObjectLocation authObjectLocation = AuthObjectLocation.AUTO;
-        String authObjectAttribute = "";
-        String authObjectType = Object.class.getName();
+        AuthObjectLocation location = AuthObjectLocation.AUTO;
+        String attribute = "";
+        String type = Object.class.getName();
         if (attributes != null) {
-            Object declaredMode = attributes.get("mode");
-            if (declaredMode instanceof SecurityMode securityMode) {
-                mode = securityMode;
+            if (attributes.get("mode") instanceof SecurityMode declaredMode) {
+                mode = declaredMode;
             }
-            Object declaredLocation = attributes.get("authObjectLocation");
-            if (declaredLocation instanceof AuthObjectLocation objectLocation) {
-                authObjectLocation = objectLocation;
+            if (attributes.get("authObjectLocation") instanceof AuthObjectLocation declaredLocation) {
+                location = declaredLocation;
             }
-            Object declaredAttribute = attributes.get("authObjectAttribute");
-            if (declaredAttribute instanceof String attributeName) {
-                authObjectAttribute = attributeName;
+            if (attributes.get("authObjectAttribute") instanceof String declaredAttribute) {
+                attribute = declaredAttribute;
             }
-            Object declaredType = attributes.get("authObjectType");
-            if (declaredType instanceof Class<?> objectType) {
-                authObjectType = objectType.getName();
+            if (attributes.get("authObjectType") instanceof Class<?> declaredType) {
+                type = declaredType.getName();
             }
         }
-        System.setProperty(PROP_MODE, mode.name());
-        System.setProperty(PROP_AUTH_OBJECT_LOCATION, authObjectLocation.name());
-        System.setProperty(PROP_AUTH_OBJECT_ATTRIBUTE, authObjectAttribute != null ? authObjectAttribute : "");
-        System.setProperty(PROP_AUTH_OBJECT_TYPE, authObjectType != null ? authObjectType : Object.class.getName());
-        return new String[]{ AI_SECURITY_CONFIGURATION };
+
+        Map<String, Object> activation = new LinkedHashMap<>();
+        activation.put(PROP_MODE, mode.name());
+        activation.put(PROP_AUTH_OBJECT_LOCATION, location.name());
+        activation.put(PROP_AUTH_OBJECT_ATTRIBUTE, attribute != null ? attribute : "");
+        activation.put(PROP_AUTH_OBJECT_TYPE, type != null ? type : Object.class.getName());
+        if (environment == null || !environment.containsProperty(PROP_BRIDGE_OWNERSHIP)) {
+            activation.put(PROP_BRIDGE_OWNERSHIP,
+                    mode == SecurityMode.FULL
+                            ? SecurityOwnershipMode.CONTEXA_OWNED.name()
+                            : SecurityOwnershipMode.HOST_OWNED.name());
+        }
+        if (environment == null || !environment.containsProperty(PROP_CONTEXA_OWNED_APPLICATION)) {
+            activation.put(PROP_CONTEXA_OWNED_APPLICATION, mode == SecurityMode.FULL);
+        }
+        if (environment != null) {
+            environment.getPropertySources().addFirst(
+                    new MapPropertySource("contexaAiSecurityAnnotation", activation));
+        }
+        return new String[]{AI_SECURITY_CONFIGURATION};
+    }
+
+    @Override
+    public void setEnvironment(Environment environment) {
+        if (environment instanceof ConfigurableEnvironment configurableEnvironment) {
+            this.environment = configurableEnvironment;
+        }
     }
 }

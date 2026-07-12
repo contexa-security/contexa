@@ -181,14 +181,15 @@ class StandaloneMfaStateMachineServiceImplTest {
         };
 
         assertThatThrownBy(() -> customService.initializeStateMachine(context, request))
-                .isInstanceOf(AbstractMfaStateMachineService.MfaStateMachineException.class)
-                .hasMessageContaining("Failed to acquire lock for State Machine initialization");
+                .isInstanceOf(AbstractMfaStateMachineService.MfaStateMachineBusyException.class)
+                .hasMessageContaining("MFA session is busy");
     }
 
     @Test
     @DisplayName("sendEvent successfully transitions state and synchronizes context")
     void sendEventSuccessfully() throws Exception {
         FactorContext context = new FactorContext("session-1", authentication, MfaState.NONE, "test-flow");
+        context.setVersion(2);
         when(stateMachine.getState()).thenReturn(mockState);
         when(mockState.getId()).thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
 

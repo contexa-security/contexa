@@ -109,6 +109,7 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService,
                                                                     PasswordEncoder passwordEncoder,
                                                                     LoginPolicyHandler loginPolicyHandler) {

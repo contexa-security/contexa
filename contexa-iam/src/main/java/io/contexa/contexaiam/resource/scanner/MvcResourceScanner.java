@@ -116,6 +116,10 @@ public class MvcResourceScanner implements ResourceScanner {
             return false;
         }
         String packageName = beanType.getPackageName();
-        return basePackages.stream().anyMatch(packageName::startsWith);
+        return basePackages.stream().anyMatch(prefix -> {
+            String basePackage = prefix.endsWith(".")
+                    ? prefix.substring(0, prefix.length() - 1) : prefix;
+            return packageName.equals(basePackage) || packageName.startsWith(prefix);
+        });
     }
 }

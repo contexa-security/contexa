@@ -63,10 +63,4 @@ public class StandaloneMfaStateMachineServiceImpl extends AbstractMfaStateMachin
         locks.remove(sessionId);
         inMemoryStateMachinePersist.delete(sessionId);
     }
-
-    @Override
-    public void releaseStateMachine(String sessionId) {
-        locks.remove(sessionId);
-        inMemoryStateMachinePersist.delete(sessionId);
-    }
 }

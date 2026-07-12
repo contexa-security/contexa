@@ -94,7 +94,7 @@ class CustomDynamicAuthorizationManagerTest {
     void setUp() {
         authorizationManager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                contextHandler, metricsCollector, centralAuditFacade,
                 new PolicyCombiningEvaluator());
         authorizationManager.setCombiningAlgorithm(CombiningAlgorithm.FIRST_APPLICABLE);
     }
@@ -310,7 +310,7 @@ class CustomDynamicAuthorizationManagerTest {
             AuthorizationDecision decision = authorizationManager.check(() -> authentication, rac);
 
             assertThat(decision.isGranted()).isTrue();
-            verify(centralAuditFacade, never()).recordAsync(any());
+            verify(centralAuditFacade).recordAsync(any());
         }
     }
 

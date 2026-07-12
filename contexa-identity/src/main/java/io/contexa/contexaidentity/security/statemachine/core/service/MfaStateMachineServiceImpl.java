@@ -70,7 +70,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
         String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
         long deletedCount = redissonClient.getKeys().delete(redisKey);
         if (deletedCount == 0) {
-            log.error("[MFA SM Service] [{}] StateMachine not found in Redis, skipping release.", sessionId);
+            log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, skipping release.", sessionId);
         }
     }
 
@@ -79,7 +79,7 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
         String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
         long keyExists = redissonClient.getKeys().countExists(redisKey);
         if (keyExists == 0) {
-            log.error("[MFA SM Service] [{}] StateMachine not found in Redis, proceeding with initialization", sessionId);
+            log.debug("[MFA SM Service] [{}] StateMachine not found in Redis, proceeding with initialization", sessionId);
         }
     }
 
@@ -90,13 +90,13 @@ public class MfaStateMachineServiceImpl extends AbstractMfaStateMachineService {
             try {
                 stateMachinePersister.restore(testMachine, sessionId);
                 FactorContext afterPersist = StateContextHelper.getFactorContext(testMachine);
-                log.error("[MFA SM Service] After persist verification [{}] - FactorContext: {}",
+                log.debug("[MFA SM Service] After persist verification [{}] - FactorContext: {}",
                         sessionId, afterPersist != null ? "exists (version " + afterPersist.getVersion() + ")" : "NULL");
             } finally {
                 releaseStateMachineInstance(testMachine, sessionId);
             }
         } catch (Exception e) {
-            log.error("[MFA SM Service] Restore verification failed after persist [{}]", sessionId, e);
+            log.warn("[MFA SM Service] Restore verification failed after persist [{}]", sessionId, e);
         }
     }
 }

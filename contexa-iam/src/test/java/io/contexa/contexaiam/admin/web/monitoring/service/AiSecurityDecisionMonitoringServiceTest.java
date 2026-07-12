@@ -204,6 +204,13 @@ class AiSecurityDecisionMonitoringServiceTest {
                 )
                 """);
         jdbcTemplate.execute("""
+                create table ai_security_llm_trigger_suppression (
+                    suppression_id varchar(64),
+                    created_at timestamp,
+                    request_path varchar(256)
+                )
+                """);
+        jdbcTemplate.execute("""
                 create table ai_security_monitoring_session_summary (
                     session_id varchar(64), started_at timestamp, ended_at timestamp, period varchar(32),
                     reset_by varchar(128), reset_reason varchar(512), hcad_mode varchar(32), llm_mode varchar(32),
@@ -311,6 +318,7 @@ class AiSecurityDecisionMonitoringServiceTest {
         jdbcTemplate.execute("alter table ai_security_decision_observation add column openai_call_ms bigint");
         jdbcTemplate.execute("alter table ai_security_decision_observation add column parse_ms bigint");
         jdbcTemplate.execute("alter table ai_security_decision_observation add column persist_ms bigint");
+        jdbcTemplate.execute("alter table ai_security_decision_observation add column provider_throttle_wait_ms bigint");
         jdbcTemplate.execute("alter table ai_security_decision_observation add column total_analysis_ms bigint");
     }
 

@@ -17,6 +17,7 @@ package io.contexa.contexacommon.bridge;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthHandoff;
@@ -65,7 +66,7 @@ class DefaultContexaAuthBridgeHandlerTest {
     }
 
     @Test
-    void shouldPopulateBridgeAuthenticationWhenCustomerAuthenticationIsAbsent() {
+    void shouldNotPopulateBridgeAuthenticationInHostOwnedMode() {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/legacy/login");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -75,12 +76,29 @@ class DefaultContexaAuthBridgeHandlerTest {
         assertThat(result).isNotNull();
         assertThat(result.authenticationStamp()).isNotNull();
         assertThat(result.authenticationStamp().principalId()).isEqualTo("legacy-user");
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isInstanceOf(BridgeAuthenticationToken.class);
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("legacy-user");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void shouldPopulateBridgeAuthenticationOnlyInContexaOwnedMode() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/login");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        BridgeProperties properties = new BridgeProperties();
+        properties.setOwnership(SecurityOwnershipMode.CONTEXA_OWNED);
+
+        handler(properties).handoff(request, response, handoff("contexa-user"));
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication())
+                .isInstanceOf(BridgeAuthenticationToken.class);
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getName())
+                .isEqualTo("contexa-user");
     }
 
     private DefaultContexaAuthBridgeHandler handler() {
-        BridgeProperties properties = new BridgeProperties();
+        return handler(new BridgeProperties());
+    }
+
+    private DefaultContexaAuthBridgeHandler handler(BridgeProperties properties) {
         return new DefaultContexaAuthBridgeHandler(
                 properties,
                 new RequestContextCollector(),

@@ -1,17 +1,8 @@
 /*
  * Copyright 2026 The Contexa Project
  *
- * The Contexa Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
  */
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
@@ -20,11 +11,10 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
@@ -40,18 +30,18 @@ import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-@Slf4j
 public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurityExpressionHandler {
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ContextHandler contextHandler;
     private final AuditLogRepository auditLogRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
-    private final NoPolicyDecision missingMethodPolicyDecision;
+    private final PolicyCombiningProperties policyCombiningProperties;
 
     public CustomMethodSecurityExpressionHandler(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -61,14 +51,9 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository) {
-        this(securityZeroTrustProperties,
-                compositePermissionEvaluator,
-                roleHierarchy,
-                policyRetrievalPoint,
-                contextHandler,
-                auditLogRepository,
-                actionRedisRepository,
-                NoPolicyDecision.PERMIT);
+        this(securityZeroTrustProperties, compositePermissionEvaluator, roleHierarchy,
+                policyRetrievalPoint, contextHandler, auditLogRepository, actionRedisRepository,
+                new PolicyCombiningProperties());
     }
 
     public CustomMethodSecurityExpressionHandler(
@@ -79,33 +64,28 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository,
-            NoPolicyDecision missingMethodPolicyDecision) {
-
+            PolicyCombiningProperties policyCombiningProperties) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
-
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;
         this.auditLogRepository = auditLogRepository;
         this.actionRedisRepository = actionRedisRepository;
-        this.missingMethodPolicyDecision = missingMethodPolicyDecision != null
-                ? missingMethodPolicyDecision
-                : NoPolicyDecision.PERMIT;
+        this.policyCombiningProperties = policyCombiningProperties != null
+                ? policyCombiningProperties : new PolicyCombiningProperties();
         super.setPermissionEvaluator(compositePermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
-
     }
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, MethodInvocation mi) {
-
         Method method = resolveSpecificMethod(mi);
         String ownerField = extractOwnerFieldFromMethod(method);
-
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
 
-        CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, actionRedisRepository);
+        CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(
+                auth, authorizationContext, auditLogRepository, actionRedisRepository);
         root.setOwnerField(ownerField);
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(getTrustResolver());
@@ -113,10 +93,10 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         root.setDefaultRolePrefix(getDefaultRolePrefix());
         root.setThis(mi.getThis());
 
-        MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, method, mi.getArguments(), getParameterNameDiscoverer());
+        MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(
+                root, method, mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
         ctx.setVariable("ai", root);
-
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);
         }
@@ -124,13 +104,11 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
-        String methodIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
+        String methodIdentifier = String.format("%s.%s(%s)",
+                method.getDeclaringClass().getName(), method.getName(), params);
 
-        List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier);
-        String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
-        Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
-        ctx.setVariable("protectableRule", protectableRule);
-
+        List<Policy> policies = policyRetrievalPoint.findMethodPolicies(methodIdentifier);
+        ctx.setVariable("methodPolicyPlan", buildPolicyPlan(policies));
         return ctx;
     }
 
@@ -140,45 +118,65 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         if (target == null) {
             return method;
         }
-
         Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
-        if (targetClass == null) {
-            return method;
-        }
-
-        return AopUtils.getMostSpecificMethod(method, targetClass);
+        return targetClass == null ? method : AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
     private String extractOwnerFieldFromMethod(Method method) {
         Protectable protectable = method.getAnnotation(Protectable.class);
-        if (protectable != null && StringUtils.hasText(protectable.ownerField())) {
-            return protectable.ownerField();
-        }
-        return null;
+        return protectable != null && StringUtils.hasText(protectable.ownerField())
+                ? protectable.ownerField() : null;
     }
 
-    private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
-        if (CollectionUtils.isEmpty(policies)) {
-            return missingMethodPolicyDecision.isGranted() ? "permitAll" : "denyAll";
-        }
-        return buildExpressionFromPolicies(policies);
+    private MethodPolicyPlan buildPolicyPlan(List<Policy> policies) {
+        List<Policy> executablePolicies = CollectionUtils.isEmpty(policies)
+                ? List.of()
+                : policies.stream()
+                .filter(this::isExecutable)
+.sorted(Comparator.comparingInt(this::targetOrder)
+                        .thenComparingInt(Policy::getPriority)
+                        .thenComparing(Policy::getId, Comparator.nullsLast(Long::compareTo)))
+                .toList();
+        List<Expression> expressions = executablePolicies.stream()
+                .map(this::buildPolicyExpression)
+.map(getExpressionParser()::parseExpression)
+.toList();
+        List<MethodPolicyMetadata> metadata = executablePolicies.stream()
+                .map(policy -> new MethodPolicyMetadata(
+                        policy.getId(), policy.getEffect(), policy.getPriority()))
+                .toList();
+        return new MethodPolicyPlan(
+                expressions,
+                policyCombiningProperties.getCombiningAlgorithm(),
+                policyCombiningProperties.getMissingMethodPolicyDecision(),
+                metadata);
     }
 
-    private String buildExpressionFromPolicies(List<Policy> policies) {
+    private boolean isExecutable(Policy policy) {
+        if (policy == null || !policy.getIsActive()) {
+            return false;
+        }
+        return policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED
+                || policy.getApprovalStatus() == Policy.ApprovalStatus.NOT_REQUIRED;
+    }
 
-        Policy policy = policies.get(0);
+    private int targetOrder(Policy policy) {
+        return policy.getTargets().stream()
+                .filter(target -> "METHOD".equals(target.getTargetType()))
+                .mapToInt(target -> target.getTargetOrder())
+                .min()
+                .orElse(Integer.MAX_VALUE);
+    }
 
+    private String buildPolicyExpression(Policy policy) {
         String conditionExpression = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
                 .map(condition -> "(" + condition.getExpression() + ")")
                 .collect(Collectors.joining(" and "));
-
         if (conditionExpression.isEmpty()) {
-            return (policy.getEffect() == Policy.Effect.ALLOW) ? "true" : "false";
+            return policy.getEffect() == Policy.Effect.ALLOW ? "true" : "false";
         }
-        if (policy.getEffect() == Policy.Effect.DENY) {
-            return "!(" + conditionExpression + ")";
-        }
-        return conditionExpression;
+        return policy.getEffect() == Policy.Effect.DENY
+                ? "!(" + conditionExpression + ")" : conditionExpression;
     }
 }

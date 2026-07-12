@@ -1,17 +1,6 @@
 /*
  * Copyright 2026 The Contexa Project
- *
- * The Contexa Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * Licensed under the Apache License, Version 2.0.
  */
 package io.contexa.contexaiam.resource.scanner;
 
@@ -19,11 +8,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.entity.ManagedResource;
-import lombok.RequiredArgsConstructor;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,79 +25,91 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor
 public class MethodResourceScanner implements ResourceScanner {
 
     private final ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
+    @Nullable
+    private final SystemRuntimeSettingsService runtimeSettingsService;
+
+    public MethodResourceScanner(ApplicationContext applicationContext, ObjectMapper objectMapper) {
+        this(applicationContext, objectMapper, null);
+    }
+
+    public MethodResourceScanner(ApplicationContext applicationContext, ObjectMapper objectMapper,
+            @Nullable SystemRuntimeSettingsService runtimeSettingsService) {
+        this.applicationContext = applicationContext;
+        this.objectMapper = objectMapper;
+        this.runtimeSettingsService = runtimeSettingsService;
+    }
 
     @Override
     public List<ManagedResource> scan() {
         List<ManagedResource> resources = new ArrayList<>();
-        String[] beanNames = applicationContext.getBeanDefinitionNames();
-
-        for (String beanName : beanNames) {
+        List<String> basePackages = scannerBasePackages();
+        for (String beanName : applicationContext.getBeanDefinitionNames()) {
             Object bean;
             try {
                 bean = applicationContext.getBean(beanName);
-            } catch (Exception e) {
+            } catch (Exception ignored) {
                 continue;
             }
 
             Class<?> targetClass = AopUtils.getTargetClass(bean);
-
-            if (!targetClass.getPackageName().startsWith("io.contexa.contexaiam")) {
+            if (targetClass == null
+                    || basePackages.stream().noneMatch(prefix -> matchesPackage(targetClass.getPackageName(), prefix))) {
                 continue;
             }
-
-            if (AnnotationUtils.findAnnotation(targetClass, Controller.class) != null ||
-                    AnnotationUtils.findAnnotation(targetClass, RestController.class) != null) {
+            if (AnnotationUtils.findAnnotation(targetClass, Controller.class) != null
+                    || AnnotationUtils.findAnnotation(targetClass, RestController.class) != null) {
                 continue;
             }
 
             try {
                 for (Method method : targetClass.getDeclaredMethods()) {
-
-                    if (!Modifier.isPublic(method.getModifiers())) {
+                    if (!Modifier.isPublic(method.getModifiers())
+                            || AnnotationUtils.findAnnotation(method, Protectable.class) == null) {
                         continue;
                     }
-
-                    Protectable protectableAnnotation = AnnotationUtils.findAnnotation(method, Protectable.class);
-                    if (protectableAnnotation == null) {
-                        continue;
-                    }
-
                     String parameterTypesJson = "[]";
                     try {
-                        List<String> paramTypeNames = Arrays.stream(method.getParameterTypes())
-                                .map(Class::getName)
-                                .toList();
-                        if (!paramTypeNames.isEmpty()) {
-                            parameterTypesJson = objectMapper.writeValueAsString(paramTypeNames);
+                        List<String> names = Arrays.stream(method.getParameterTypes())
+                                .map(Class::getName).toList();
+                        if (!names.isEmpty()) {
+                            parameterTypesJson = objectMapper.writeValueAsString(names);
                         }
-                    } catch (JsonProcessingException e) {
-                        log.error("Failed to convert method parameter types to JSON.", e);
+                    } catch (JsonProcessingException ex) {
+                        log.error("Failed to convert method parameter types to JSON.", ex);
                     }
-
-                    String params = Arrays.stream(method.getParameterTypes()).map(Class::getSimpleName).collect(Collectors.joining(","));
-                    String identifier = String.format("%s.%s(%s)", targetClass.getName(), method.getName(), params);
-                    String sourceCodeLocation = String.format("%s.java", targetClass.getName().replace('.', '/'));
-
+                    String params = Arrays.stream(method.getParameterTypes())
+                            .map(Class::getSimpleName).collect(Collectors.joining(","));
                     resources.add(ManagedResource.builder()
-                            .resourceIdentifier(identifier)
+                            .resourceIdentifier(String.format("%s.%s(%s)",
+                                    targetClass.getName(), method.getName(), params))
                             .resourceType(ManagedResource.ResourceType.METHOD)
                             .serviceOwner(targetClass.getSimpleName())
                             .parameterTypes(parameterTypesJson)
                             .returnType(method.getReturnType().getName())
-                            .sourceCodeLocation(sourceCodeLocation)
+                            .sourceCodeLocation(targetClass.getName().replace('.', '/') + ".java")
                             .status(ManagedResource.Status.NEEDS_DEFINITION)
                             .build());
                 }
-            } catch (Exception e) {
-                log.warn("Error occurred while scanning methods of bean '{}': {}", beanName, e.getMessage());
+            } catch (Exception ex) {
+                log.warn("Error occurred while scanning methods of bean '{}': {}", beanName, ex.getMessage());
             }
         }
         return resources;
     }
 
+    private List<String> scannerBasePackages() {
+        return runtimeSettingsService == null
+                ? SystemRuntimeSettingsService.normalizePackagePrefixes(null)
+                : runtimeSettingsService.getResourceScannerBasePackages();
+    }
+
+    private boolean matchesPackage(String packageName, String prefix) {
+        String basePackage = prefix.endsWith(".")
+                ? prefix.substring(0, prefix.length() - 1) : prefix;
+        return packageName.equals(basePackage) || packageName.startsWith(prefix);
+    }
 }

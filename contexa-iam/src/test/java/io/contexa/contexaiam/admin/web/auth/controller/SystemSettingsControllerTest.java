@@ -23,6 +23,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import org.junit.jupiter.api.BeforeEach;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class SystemSettingsControllerTest {
 
     @Mock
     private MessageSource messageSource;
+    @Mock
+    private PolicyCombiningProperties policyCombiningProperties;
+
 
     @Mock
     private CustomDynamicAuthorizationManager authorizationManager;
@@ -69,7 +73,8 @@ class SystemSettingsControllerTest {
         when(messageSource.getMessage(anyString(), any(), any(Locale.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        controller = new SystemSettingsController(systemSettingsService, messageSource, authorizationManager, runtimeApplier);
+        controller = new SystemSettingsController(systemSettingsService, policyCombiningProperties,
+                messageSource, authorizationManager, runtimeApplier);
     }
 
     @Nested

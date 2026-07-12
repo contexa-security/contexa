@@ -41,6 +41,10 @@ class HcadMonitoringServiceTest {
     @DisplayName("summary should calculate precision and enforce recommendation from qualification settings")
     void summarize_shouldCalculatePrecisionAndRecommendation() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        when(repository.summarizeMonitorableBaseBetween(any(), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        120L, 240L, 100L, 7L, 100L, 20L, 3L, 9L,
+                        95L, 5L, 1L, 2L, 17L, 42.5d}));
         when(repository.countMonitorableByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(120L);
         when(repository.sumMonitorableRequestCountBetween(any(), any())).thenReturn(240L);
         when(repository.countMonitorableByTriggeredLlmTrueAndCreatedAtBetween(any(), any())).thenReturn(100L);
@@ -113,6 +117,10 @@ class HcadMonitoringServiceTest {
     @DisplayName("explainEvaluation should return persisted explanation JSON sections without recalculating them")
     void explainEvaluation_shouldReturnPersistedExplanationSections() {
         HcadDetectionEvaluationRepository repository = mock(HcadDetectionEvaluationRepository.class);
+        when(repository.summarizeMonitorableBaseBetween(any(), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        120L, 240L, 100L, 7L, 100L, 20L, 3L, 9L,
+                        95L, 5L, 1L, 2L, 17L, 42.5d}));
         HcadDetectionEvaluation evaluation = HcadDetectionEvaluation.builder()
                 .evaluationId("eval-explain-1")
                 .requestId("req-1")

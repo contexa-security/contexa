@@ -65,6 +65,11 @@ public class SystemRuntimeSettingsService {
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public List<String> getMvcResourceScannerBasePackages() {
+        return getResourceScannerBasePackages();
+    }
+
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public List<String> getResourceScannerBasePackages() {
         return normalizePackagePrefixes(getSettings().getMvcResourceScannerBasePackages());
     }
 

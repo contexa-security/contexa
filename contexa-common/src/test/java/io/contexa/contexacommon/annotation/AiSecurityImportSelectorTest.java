@@ -1,68 +1,102 @@
-/*
- * Copyright 2026 The Contexa Project
- *
- * The Contexa Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+/* Copyright 2026 The Contexa Project */
 package io.contexa.contexacommon.annotation;
 
 import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
+import io.contexa.contexacommon.security.bridge.SecurityOwnershipMode;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.StandardEnvironment;
+
+import java.util.Map;
 import org.springframework.core.type.AnnotationMetadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AiSecurityImportSelectorTest {
 
-    private final AiSecurityImportSelector selector = new AiSecurityImportSelector();
-
-    @AfterEach
-    void clearModeProperty() {
-        System.clearProperty(AiSecurityImportSelector.PROP_MODE);
-        System.clearProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION);
-        System.clearProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE);
-        System.clearProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE);
-    }
-
     @Test
-    void shouldDefaultToSandboxMode() {
-        selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
-
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_MODE))
+    void shouldDefaultToSandboxModeInContextEnvironment() {
+        StandardEnvironment environment = select(DefaultSandboxApplication.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE))
                 .isEqualTo(SecurityMode.SANDBOX.name());
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION))
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION))
                 .isEqualTo(AuthObjectLocation.AUTO.name());
+        assertThat(System.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
     }
 
     @Test
     void shouldPropagateFullModeWhenDeclared() {
-        selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class));
-
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_MODE))
+        StandardEnvironment environment = select(FullModeApplication.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE))
                 .isEqualTo(SecurityMode.FULL.name());
     }
 
     @Test
-    void shouldPropagateAuthObjectHintsWhenDeclared() {
-        selector.selectImports(AnnotationMetadata.introspect(SessionHintApplication.class));
+    void shouldDefaultSandboxToHostOwned() {
+        StandardEnvironment environment = select(DefaultSandboxApplication.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
+                .isEqualTo(SecurityOwnershipMode.HOST_OWNED.name());
+        assertThat(environment.getProperty(
+                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
+                .isFalse();
+    }
 
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION))
+    @Test
+    void shouldDefaultFullModeToContexaOwned() {
+        StandardEnvironment environment = select(FullModeApplication.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
+                .isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED.name());
+        assertThat(environment.getProperty(
+                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
+                .isTrue();
+    }
+
+    @Test
+    void shouldPreserveExplicitOwnershipOverrides() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitOwnership",
+                Map.of(
+                        AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP,
+                        SecurityOwnershipMode.HOST_OWNED.name(),
+                        AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION,
+                        false)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+        selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
+                .isEqualTo(SecurityOwnershipMode.HOST_OWNED.name());
+        assertThat(environment.getProperty(
+                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
+                .isFalse();
+    }
+
+    @Test
+    void shouldPropagateAuthObjectHintsWhenDeclared() {
+        StandardEnvironment environment = select(SessionHintApplication.class);
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION))
                 .isEqualTo(AuthObjectLocation.SESSION.name());
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE))
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE))
                 .isEqualTo("legacyUser");
-        assertThat(System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE))
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE))
                 .isEqualTo(LegacyUser.class.getName());
+    }
+
+    @Test
+    void shouldNotLeakActivationAcrossContexts() {
+        StandardEnvironment full = select(FullModeApplication.class);
+        StandardEnvironment untouched = new StandardEnvironment();
+        assertThat(full.getProperty(AiSecurityImportSelector.PROP_MODE)).isEqualTo("FULL");
+        assertThat(untouched.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
+    }
+
+    private StandardEnvironment select(Class<?> applicationClass) {
+        StandardEnvironment environment = new StandardEnvironment();
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+        selector.selectImports(AnnotationMetadata.introspect(applicationClass));
+        return environment;
     }
 
     @EnableAISecurity
@@ -73,11 +107,8 @@ class AiSecurityImportSelectorTest {
     static class FullModeApplication {
     }
 
-    @EnableAISecurity(
-            authObjectLocation = AuthObjectLocation.SESSION,
-            authObjectAttribute = "legacyUser",
-            authObjectType = LegacyUser.class
-    )
+    @EnableAISecurity(authObjectLocation = AuthObjectLocation.SESSION,
+            authObjectAttribute = "legacyUser", authObjectType = LegacyUser.class)
     static class SessionHintApplication {
     }
 

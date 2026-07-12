@@ -34,7 +34,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -60,19 +63,10 @@ public class SecurityFilterChainRegistrar {
         BeanDefinitionRegistry registry = (BeanDefinitionRegistry) cac.getBeanFactory();
         AtomicInteger idx = new AtomicInteger(0);
 
-        Set<String> configuredFactorTypes = new HashSet<>();
-
         for (FlowContext fc : flows) {
             Objects.requireNonNull(fc, "FlowContext in list cannot be null.");
             AuthenticationFlowConfig flowConfig = Objects.requireNonNull(fc.flow(), "AuthenticationFlowConfig in FlowContext cannot be null.");
             String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null.");
-
-            if (MfaFlowTypeUtils.isMfaFlow(flowTypeName)) {
-                flowConfig.getStepConfigs().stream()
-                        .map(step -> step.getType().toLowerCase())
-                        .filter(type -> !type.equals("primary"))
-                        .forEach(configuredFactorTypes::add);
-            }
 
             String beanName = flowTypeName + "SecurityFilterChain" + idx.incrementAndGet();
             OrderedSecurityFilterChain chain = buildAndRegisterFilters(fc, context);
@@ -88,9 +82,7 @@ public class SecurityFilterChainRegistrar {
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {
         try {
             AuthenticationFlowConfig flowConfig = fc.flow();
-
             DefaultSecurityFilterChain builtChain = fc.http().build();
-
             securityFilterChainCustomizer.customize(builtChain, flowConfig, appContext);
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
@@ -127,9 +119,7 @@ public class SecurityFilterChainRegistrar {
                 }
 
                 Filter actualFilterInstance = foundFilterOptional.get();
-
                 FactorIdentifier registrationKey = FactorIdentifier.of(flowConfig.getTypeName(), stepId);
-
                 configuredFactorFilterProvider.registerFilter(registrationKey, actualFilterInstance);
             }
 
@@ -143,6 +133,4 @@ public class SecurityFilterChainRegistrar {
             throw new RuntimeException("Failed to build SecurityFilterChain for flow " + fc.flow().getTypeName(), e);
         }
     }
-
 }
-

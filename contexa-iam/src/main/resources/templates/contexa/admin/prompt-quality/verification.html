@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
     <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
-    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-verification.css(v='20260705-main-sub-nav-v1')}">
+    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-verification.css(v='20260705-main-sub-nav-v1')}">
 </head>
 <body class="page-shell">
 <div th:replace="~{contexa/fragments/header :: header}"></div>
@@ -446,8 +446,8 @@
 </main>
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
-<script th:src="@{/js/vendor/chart.umd.min.js}"></script>
-<script type="module" th:src="@{/js/admin/prompt-quality/verification-page.js(v='20260708-llm-official-ui-final')}"></script>
+<script th:src="@{/contexa/js/vendor/chart.umd.min.js}"></script>
+<script type="module" th:src="@{/contexa/js/admin/prompt-quality/verification-page.js(v='20260708-llm-official-ui-final')}"></script>
 </body>
 </html>
 

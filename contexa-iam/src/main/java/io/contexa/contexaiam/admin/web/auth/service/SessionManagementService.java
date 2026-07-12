@@ -118,13 +118,6 @@ public class SessionManagementService {
         return activeSessionRepository.findByExpiredFalseOrderByLastAccessedAtDesc();
     }
 
-    private boolean shouldUpdateLastAccess(LocalDateTime lastAccessedAt) {
-        if (lastAccessedAt == null) {
-            return true;
-        }
-        return lastAccessedAt.plusSeconds(UPDATE_THRESHOLD_SECONDS).isBefore(LocalDateTime.now());
-    }
-
     private String truncate(String value, int maxLength) {
         if (value == null) {
             return null;

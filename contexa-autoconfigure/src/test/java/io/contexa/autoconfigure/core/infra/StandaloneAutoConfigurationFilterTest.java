@@ -187,7 +187,7 @@ class StandaloneAutoConfigurationFilterTest {
         }
 
         @Test
-        @DisplayName("Dependency-only policy should suppress Boot-generated security while leaving user beans outside the filter")
+        @DisplayName("Dependency-only policy should preserve Boot-generated host security")
         void shouldExcludeDefaultSecurityAutoConfigurationsWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = createFilter("standalone");
             String[] classes = {
@@ -199,7 +199,7 @@ class StandaloneAutoConfigurationFilterTest {
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result).containsExactly(false, false, false, true);
+            assertThat(result).containsExactly(true, true, true, true);
         }
 
         @Test

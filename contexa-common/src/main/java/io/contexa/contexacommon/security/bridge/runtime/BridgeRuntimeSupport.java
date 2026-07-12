@@ -190,6 +190,9 @@ public class BridgeRuntimeSupport {
             @Nullable SecurityContextRepository securityContextRepository,
             @Nullable HttpServletRequest request,
             @Nullable HttpServletResponse response) {
+        if (!properties.isContexaOwned()) {
+            return;
+        }
         if (securityContextRepository == null || request == null || response == null) {
             return;
         }
@@ -207,7 +210,7 @@ public class BridgeRuntimeSupport {
             BridgeResolutionResult result,
             @Nullable BridgeUserMirrorSyncResult userSyncResult,
             boolean allowOverride) {
-        if (!properties.isPopulateSecurityContext()) {
+        if (!properties.isContexaOwned() || !properties.isPopulateSecurityContext()) {
             return null;
         }
         if (authenticationStamp == null || !authenticationStamp.authenticated()) {

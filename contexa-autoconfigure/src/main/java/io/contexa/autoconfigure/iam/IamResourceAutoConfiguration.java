@@ -88,7 +88,9 @@ public class IamResourceAutoConfiguration {
     @ConditionalOnMissingBean
     public MethodResourceScanner methodResourceScanner(
             ApplicationContext applicationContext,
-            ObjectMapper objectMapper) {
-        return new MethodResourceScanner(applicationContext, objectMapper);
+            ObjectMapper objectMapper,
+            ObjectProvider<SystemRuntimeSettingsService> runtimeSettingsServiceProvider) {
+        return new MethodResourceScanner(applicationContext, objectMapper,
+                runtimeSettingsServiceProvider.getIfAvailable());
     }
 }

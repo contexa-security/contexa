@@ -66,7 +66,7 @@ class CustomDynamicAuthorizationManagerPriorityTest {
     void setUp() {
         manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                contextHandler, metricsCollector, centralAuditFacade,
                 new PolicyCombiningEvaluator());
         manager.setCombiningAlgorithm(CombiningAlgorithm.FIRST_APPLICABLE);
 

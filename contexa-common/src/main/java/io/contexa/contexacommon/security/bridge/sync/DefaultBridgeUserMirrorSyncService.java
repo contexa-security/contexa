@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.lang.Nullable;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -49,6 +50,8 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncService {
+
+    private static final BCryptPasswordEncoder SHADOW_PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private static final String USERS_WITH_AUTHORITIES_CACHE = "usersWithAuthorities";
     private static final ZoneId DEFAULT_ZONE = ZoneId.systemDefault();
@@ -252,7 +255,7 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
             changed = true;
         }
         if (user.getPassword() == null || user.getPassword().isBlank()) {
-            user.setPassword("{noop}BRIDGE_EXTERNAL_ONLY::" + UUID.randomUUID());
+            user.setPassword("{bcrypt}" + SHADOW_PASSWORD_ENCODER.encode(UUID.randomUUID().toString()));
             changed = true;
         }
 

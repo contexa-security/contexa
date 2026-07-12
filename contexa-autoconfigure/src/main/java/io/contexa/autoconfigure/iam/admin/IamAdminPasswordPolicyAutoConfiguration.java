@@ -32,6 +32,7 @@ import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -102,12 +103,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SystemSettingsController systemSettingsController(
+            PolicyCombiningProperties policyCombiningProperties,
             SystemSettingsService systemSettingsService,
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider,
             ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
-        return new SystemSettingsController(systemSettingsService, messageSource,
-                authManagerProvider.getIfAvailable(), runtimeApplierProvider.getIfAvailable());
+        return new SystemSettingsController(systemSettingsService, policyCombiningProperties,
+                messageSource, authManagerProvider.getIfAvailable(), runtimeApplierProvider.getIfAvailable());
     }
 
     @Bean

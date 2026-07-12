@@ -107,14 +107,9 @@
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 
-<script th:src="@{/js/token-holder.js}"></script>
-<script th:src="@{/js/init-auth.js}"></script>
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', () => {
-        if (typeof initAuth === 'function') {
-            initAuth();
-        }
         const message = /*[[${message}]]*/ null;
         if (message) {
             showToast(message, 'success');

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.core;
 
+import io.contexa.contexacommon.security.LocalAccountStatusChecker;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -40,32 +41,17 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-        // Pre-authentication checks: replicate DaoAuthenticationProvider's AccountStatusUserDetailsChecker
-        // because this provider implements AuthenticationProvider directly. Without these explicit checks,
-        // a locked / disabled account would still authenticate when the password matches.
-        if (!userDetails.isEnabled()) {
-            throw new DisabledException("Account is disabled");
-        }
-        if (!userDetails.isAccountNonLocked()) {
-            throw new LockedException("Account is locked");
-        }
-        if (!userDetails.isAccountNonExpired()) {
-            throw new AccountExpiredException("Account has expired");
-        }
+        LocalAccountStatusChecker.checkBeforeCredentials(userDetails);
 
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             throw new BadCredentialsException("Invalid password");
         }
 
-        // Post-authentication credential check (kept after password match to preserve previous behavior).
-        if (!userDetails.isCredentialsNonExpired() || loginPolicyService.isCredentialsExpired(loginId)) {
-            throw new CredentialsExpiredException("Password has expired");
-        }
+        LocalAccountStatusChecker.checkAfterCredentials(
+                userDetails,
+                loginPolicyService.isCredentialsExpired(loginId));
 
         UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
-        if (customUserDetails.getAccount().isExternalAuthOnly()) {
-            throw new BadCredentialsException("External authentication only account");
-        }
         return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());
     }
 

@@ -38,7 +38,7 @@ import org.springframework.statemachine.listener.StateMachineListenerAdapter;
 import org.springframework.statemachine.state.State;
 import org.springframework.statemachine.StateMachine;
 import org.springframework.statemachine.transition.TransitionConflictPolicy;
-
+
 @Slf4j
 @Configuration
 @EnableStateMachineFactory
@@ -353,7 +353,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 MfaEvent mfaEvent = event.getPayload();
                 Object sessionId = event.getHeaders().get("sessionId");
 
-                log.error("[MFA SM] [{}] Event rejected: {} (headers: {})",
+                log.warn("[MFA SM] [{}] Event rejected: {} (headers: {})",
                         sessionId, mfaEvent, event.getHeaders());
             }
 

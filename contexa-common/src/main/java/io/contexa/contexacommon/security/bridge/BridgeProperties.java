@@ -27,6 +27,8 @@ public class BridgeProperties {
 
     private boolean enabled = true;
 
+    private SecurityOwnershipMode ownership = SecurityOwnershipMode.HOST_OWNED;
+
     private boolean populateSecurityContext = true;
 
     @NestedConfigurationProperty
@@ -46,6 +48,10 @@ public class BridgeProperties {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isContexaOwned() {
+        return ownership == SecurityOwnershipMode.CONTEXA_OWNED;
     }
 
     @Data

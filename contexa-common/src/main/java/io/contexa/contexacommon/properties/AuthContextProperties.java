@@ -26,6 +26,8 @@ public class AuthContextProperties {
 
     private StateType stateType = StateType.OAUTH2;
 
+    private OAuth2ServerMode oauth2ServerMode = OAuth2ServerMode.COMBINED;
+
     private TokenTransportType tokenTransportType = TokenTransportType.HEADER;
 
     private TokenIssuer tokenIssuer = TokenIssuer.INTERNAL;

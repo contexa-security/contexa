@@ -36,7 +36,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-
+
+
 @Slf4j
 public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
@@ -70,7 +71,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                                 flow.getTypeName().toLowerCase(), flow));
 
                 if (cachedMfaFlowConfigs.isEmpty()) {
-                    log.error("No MFA flow configuration found during initialization");
+                    log.debug("No MFA flow configured; form-only authentication remains valid");
                 }
             }
         } catch (Exception e) {

@@ -164,9 +164,15 @@ class ZeroTrustChallengeFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
-        verify(response).sendError(
+
+        verify(response).setHeader("Retry-After", "3");
+        verify(responseWriter).writeErrorResponse(
+                eq(response),
                 eq(HttpServletResponse.SC_SERVICE_UNAVAILABLE),
-                eq("MFA service temporarily unavailable")
+                eq("MFA_BUSY_RETRY"),
+                eq("MFA challenge is already being initialized. Retry shortly."),
+                eq("/dashboard"),
+                any()
         );
         verify(filterChain, never()).doFilter(any(), any());
     }

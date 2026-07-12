@@ -3,7 +3,7 @@
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='Access Center')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <link rel="stylesheet" th:href="@{/css/access-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/access-center.css}" />
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -322,6 +322,6 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}"></div>
-<script th:src="@{/js/access-center.js}"></script>
+<script th:src="@{/contexa/js/access-center.js}"></script>
 </body>
 </html>

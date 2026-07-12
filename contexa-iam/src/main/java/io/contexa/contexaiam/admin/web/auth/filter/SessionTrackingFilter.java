@@ -89,9 +89,9 @@ public class SessionTrackingFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return uri.startsWith("/css/")
-                || uri.startsWith("/js/")
-                || uri.startsWith("/img/")
+        return uri.startsWith("/contexa/css/")
+                || uri.startsWith("/contexa/js/")
+                || uri.startsWith("/contexa/img/")
                 || uri.startsWith("/favicon")
                 || uri.startsWith("/webjars/")
                 || uri.startsWith("/actuator/")

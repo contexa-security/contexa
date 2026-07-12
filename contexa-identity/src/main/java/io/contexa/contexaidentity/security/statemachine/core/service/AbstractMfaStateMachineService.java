@@ -46,7 +46,7 @@ import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachineEventResult;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
 import reactor.core.publisher.Mono;
-
+
 /**
  * Abstract base for MFA StateMachine service implementations.
  * Contains all business logic; subclasses provide lock mechanism only.
@@ -205,7 +205,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
             eventProcessingResult = sendEventInternal(stateMachine, message, context);
 
             if (!eventProcessingResult.eventAccepted()) {
-                log.error("[MFA SM Service] [{}] Event ({}) not accepted in current SM state ({}).",
+                log.warn("[MFA SM Service] [{}] Event ({}) not accepted in current SM state ({}).",
                         sessionId, event, eventProcessingResult.smCurrentStateAfterEvent());
             }
 
@@ -261,7 +261,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         try {
             lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for FactorContext save.", sessionId);
+                log.warn("[MFA SM Service] [{}] Failed to acquire lock for FactorContext save.", sessionId);
                 throw new MfaStateMachineException("Failed to acquire lock for saving FactorContext: " + sessionId);
             }
 
@@ -326,7 +326,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         try {
             lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for state-only update.", sessionId);
+                log.warn("[MFA SM Service] [{}] Failed to acquire lock for state-only update.", sessionId);
                 return false;
             }
 
@@ -368,7 +368,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         try {
             lockAcquired = tryAcquireLock(sessionId, lockWaitTimeSeconds(), TimeUnit.SECONDS);
             if (!lockAcquired) {
-                log.error("[MFA SM Service] [{}] Failed to acquire lock for SM release. Timeout.", sessionId);
+                log.warn("[MFA SM Service] [{}] Failed to acquire lock for SM release. Timeout.", sessionId);
                 return;
             }
             onReleaseStateMachine(sessionId);

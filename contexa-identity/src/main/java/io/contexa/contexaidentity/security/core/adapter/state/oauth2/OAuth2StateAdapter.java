@@ -6,16 +6,13 @@
  * with the License. You may obtain a copy of the License at:
  *
  *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.OAuth2ServerMode;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
@@ -23,14 +20,12 @@ import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
-import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -38,7 +33,6 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
-import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 import java.util.Objects;
@@ -55,74 +49,77 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     @Override
     public void apply(HttpSecurity http, PlatformContext platformCtx) throws Exception {
-
         Objects.requireNonNull(http, "HttpSecurity cannot be null for OAuth2StateAdapter.apply");
         Objects.requireNonNull(platformCtx, "PlatformContext cannot be null for OAuth2StateAdapter.apply");
+        ApplicationContext appContext = Objects.requireNonNull(
+                platformCtx.applicationContext(), "ApplicationContext from PlatformContext cannot be null");
 
-        ApplicationContext appContext = Objects.requireNonNull(platformCtx.applicationContext(), "ApplicationContext from PlatformContext cannot be null");
+        configureSharedInfrastructure(http, appContext);
+        OAuth2ServerMode mode = resolveMode(appContext);
+        if (mode.includesResourceServer()) {
+            configureResourceServer(http, appContext);
+        }
+        if (mode.includesAuthorizationServer()) {
+            configureAuthorizationServer(http, appContext);
+            configureLogout(http, appContext);
+        }
+        configureOptionalTokenService(http, appContext);
+        http.with(new OAuth2StateConfigurer(mode), Customizer.withDefaults());
+    }
 
-        ObjectMapper objectMapper;
-        JsonAuthResponseWriter jsonAuthResponseWriter;
+    private void configureSharedInfrastructure(HttpSecurity http, ApplicationContext appContext) {
         try {
-            objectMapper = appContext.getBean(ObjectMapper.class);
-            jsonAuthResponseWriter = appContext.getBean(JsonAuthResponseWriter.class);
-
+            ObjectMapper objectMapper = appContext.getBean(ObjectMapper.class);
+            JsonAuthResponseWriter responseWriter = appContext.getBean(JsonAuthResponseWriter.class);
             http.setSharedObject(ObjectMapper.class, objectMapper);
-            http.setSharedObject(JsonAuthResponseWriter.class, jsonAuthResponseWriter);
-
+            http.setSharedObject(JsonAuthResponseWriter.class, responseWriter);
         } catch (NoSuchBeanDefinitionException e) {
-            log.error("OAuth2StateAdapter [{}]: Required bean ({}) not found in ApplicationContext.",
-                    getId(), e.getMessage(), e);
-            throw new IllegalStateException("Required bean for OAuth2 state configuration not found: " + e.getMessage(), e);
+            throw new IllegalStateException(
+                    "Required bean for OAuth2 state configuration not found: " + e.getMessage(), e);
         }
-        configureResourceServer(http, appContext);
-        configureAuthorizationServer(http, appContext);
+    }
+
+    private OAuth2ServerMode resolveMode(ApplicationContext appContext) {
         try {
-            OAuth2TokenService tokenService = appContext.getBean(OAuth2TokenService.class);
-            http.setSharedObject(TokenService.class, tokenService);
-        } catch (NoSuchBeanDefinitionException e) {
-            log.error("OAuth2StateAdapter [{}]: OAuth2TokenService bean not found. " +
-                    "Token operations may not be available.", getId());
+            AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
+            return properties != null && properties.getOauth2ServerMode() != null
+                    ? properties.getOauth2ServerMode()
+                    : OAuth2ServerMode.COMBINED;
+        } catch (NoSuchBeanDefinitionException ignored) {
+            return OAuth2ServerMode.COMBINED;
         }
-
-        configureLogout(http, appContext);
-
-        OAuth2StateConfigurer oauth2StateConfigurer = new OAuth2StateConfigurer();
-        http.with(oauth2StateConfigurer, Customizer.withDefaults());
-
     }
 
     private void configureResourceServer(HttpSecurity http, ApplicationContext appContext) {
         try {
-            JwtDecoder jwtDecoder = appContext.getBean(JwtDecoder.class);
-            http.setSharedObject(JwtDecoder.class, jwtDecoder);
+            http.setSharedObject(JwtDecoder.class, appContext.getBean(JwtDecoder.class));
         } catch (NoSuchBeanDefinitionException e) {
-            log.error("OAuth2StateAdapter: JwtDecoder bean not found for Resource Server mode. " +
-                    "Ensure JwtDecoder is configured in OAuth2AutoConfiguration.", e);
             throw new IllegalStateException("JwtDecoder is required for Resource Server mode", e);
         }
     }
 
     private void configureAuthorizationServer(HttpSecurity http, ApplicationContext appContext) {
         try {
-            JwtEncoder jwtEncoder = appContext.getBean(JwtEncoder.class);
-            OAuth2AuthorizationService authorizationService = appContext.getBean(OAuth2AuthorizationService.class);
-            RegisteredClientRepository registeredClientRepository = appContext.getBean(RegisteredClientRepository.class);
-            AuthorizationServerSettings authorizationServerSettings = appContext.getBean(AuthorizationServerSettings.class);
-            OAuth2TokenGenerator<?> tokenGenerator = appContext.getBean(OAuth2TokenGenerator.class);
-            UserRepository userRepository = appContext.getBean(UserRepository.class);
-
-            http.setSharedObject(JwtEncoder.class, jwtEncoder);
-            http.setSharedObject(OAuth2AuthorizationService.class, authorizationService);
-            http.setSharedObject(RegisteredClientRepository.class, registeredClientRepository);
-            http.setSharedObject(AuthorizationServerSettings.class, authorizationServerSettings);
-            http.setSharedObject(OAuth2TokenGenerator.class, tokenGenerator);
-            http.setSharedObject(UserRepository.class, userRepository);
-
+            http.setSharedObject(JwtEncoder.class, appContext.getBean(JwtEncoder.class));
+            http.setSharedObject(OAuth2AuthorizationService.class,
+                    appContext.getBean(OAuth2AuthorizationService.class));
+            http.setSharedObject(RegisteredClientRepository.class,
+                    appContext.getBean(RegisteredClientRepository.class));
+            http.setSharedObject(AuthorizationServerSettings.class,
+                    appContext.getBean(AuthorizationServerSettings.class));
+            http.setSharedObject(OAuth2TokenGenerator.class,
+                    appContext.getBean(OAuth2TokenGenerator.class));
+            http.setSharedObject(UserRepository.class, appContext.getBean(UserRepository.class));
         } catch (NoSuchBeanDefinitionException e) {
-            log.error("OAuth2StateAdapter: Required bean for Authorization Server mode not found: {}. " +
-                    "Ensure all beans are configured in OAuth2AutoConfiguration.", e.getMessage(), e);
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);
+        }
+    }
+
+    private void configureOptionalTokenService(HttpSecurity http, ApplicationContext appContext) {
+        try {
+            http.setSharedObject(TokenService.class, appContext.getBean(OAuth2TokenService.class));
+        } catch (NoSuchBeanDefinitionException e) {
+            log.debug("OAuth2TokenService is not available for OAuth2 state");
         }
     }
 
@@ -130,19 +127,15 @@ public final class OAuth2StateAdapter implements StateAdapter {
         try {
             LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
             AuthResponseWriter responseWriter = appContext.getBean(AuthResponseWriter.class);
-
             http.setSharedObject(LogoutHandler.class, logoutHandler);
-
             http.logout(logout -> logout
                     .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/logout"))
                     .addLogoutHandler(logoutHandler)
                     .logoutSuccessHandler(new OAuth2LogoutSuccessHandler(responseWriter))
                     .invalidateHttpSession(false)
-                    .clearAuthentication(true)
-            );
-
+                    .clearAuthentication(true));
         } catch (NoSuchBeanDefinitionException e) {
-            log.error("OAuth2StateAdapter: Logout handlers not found. Using default logout configuration.");
+            log.debug("OAuth2 logout handlers are not available; using the default configuration");
         }
     }
 }

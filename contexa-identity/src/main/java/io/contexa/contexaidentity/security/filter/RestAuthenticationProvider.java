@@ -15,8 +15,8 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexacommon.security.LocalAccountStatusChecker;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
-import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.*;
@@ -46,21 +46,15 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-        if (!userDetails.isEnabled()) {
-            throw new DisabledException("Account is disabled");
-        }
-
-        if (!userDetails.isAccountNonLocked()) {
-            throw new LockedException("Account is locked");
-        }
+        LocalAccountStatusChecker.checkBeforeCredentials(userDetails);
 
         if (!passwordEncoder.matches(password, userDetails.getPassword())) {
             throw new BadCredentialsException("Invalid password");
         }
 
-        if (loginPolicyHandler != null && loginPolicyHandler.isCredentialsExpired(loginId)) {
-            throw new CredentialsExpiredException("Password has expired");
-        }
+        boolean policyCredentialsExpired = loginPolicyHandler != null
+                && loginPolicyHandler.isCredentialsExpired(loginId);
+        LocalAccountStatusChecker.checkAfterCredentials(userDetails, policyCredentialsExpired);
 
         return RestAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
     }

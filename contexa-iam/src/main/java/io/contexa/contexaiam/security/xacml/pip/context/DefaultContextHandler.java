@@ -16,6 +16,8 @@
 package io.contexa.contexaiam.security.xacml.pip.context;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
@@ -27,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.security.core.Authentication;
 
 import java.lang.reflect.Method;
@@ -47,7 +51,7 @@ public class DefaultContextHandler implements ContextHandler {
     @Override
     public AuthorizationContext create(Authentication authentication, HttpServletRequest request) {
         
-        Users subjectEntity = getSubjectEntity(authentication);
+        Users subjectEntity = getSubjectEntity(authentication, request);
 
         ResourceDetails resourceDetails = new ResourceDetails("URL", request.getRequestURI());
 
@@ -68,7 +72,7 @@ public class DefaultContextHandler implements ContextHandler {
     @Override
     public AuthorizationContext create(Authentication authentication, MethodInvocation invocation) {
         
-        Users subjectEntity = getSubjectEntity(authentication);
+        Users subjectEntity = getSubjectEntity(authentication, currentRequest());
 
         Method method = resolveSpecificMethod(invocation);
         String params = Arrays.stream(method.getParameterTypes())
@@ -106,7 +110,11 @@ public class DefaultContextHandler implements ContextHandler {
         return AopUtils.getMostSpecificMethod(method, targetClass);
     }
 
-    private Users getSubjectEntity(Authentication authentication) {
+    private Users getSubjectEntity(Authentication authentication, HttpServletRequest request) {
+        Users bridgeSubject = getBridgeSubjectEntity(request);
+        if (bridgeSubject != null) {
+            return bridgeSubject;
+        }
         if (authentication == null) {
             return null;
         }
@@ -135,6 +143,29 @@ public class DefaultContextHandler implements ContextHandler {
             return null;
         }
 
+        return null;
+    }
+
+    private Users getBridgeSubjectEntity(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object value = request.getAttribute(BridgeRequestAttributes.USER_SYNC_RESULT);
+        if (!(value instanceof BridgeUserMirrorSyncResult syncResult)
+                || syncResult.internalUserId() == null) {
+            return null;
+        }
+        Long userId = syncResult.internalUserId();
+        String cacheKey = "user_details:" + userId;
+        return cacheService.get(cacheKey,
+                () -> userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null),
+                USERS_TYPE, CACHE_DOMAIN);
+    }
+
+    private HttpServletRequest currentRequest() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return attributes.getRequest();
+        }
         return null;
     }
 

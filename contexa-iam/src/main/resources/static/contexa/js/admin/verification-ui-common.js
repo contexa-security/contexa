@@ -63,7 +63,7 @@ export const ensureObject = (value) => value && typeof value === 'object' && !Ar
 
 export const ensureArray = (value) => Array.isArray(value) ? value : [];
 
-const ADMIN_ASSET_PATH = '/js/admin/';
+const ADMIN_ASSET_PATH = '/contexa/js/admin/';
 const CORE_PQA_ROUTE_ROOT = '/contexa/admin/prompt-quality';
 const CORE_PQA_API_ROOT = '/contexa/admin/api/prompt-quality';
 const ADMIN_ROUTE_PREFIX = '/contexa/admin/';

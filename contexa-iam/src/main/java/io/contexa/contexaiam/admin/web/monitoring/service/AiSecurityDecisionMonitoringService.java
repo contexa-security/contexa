@@ -87,9 +87,9 @@ public class AiSecurityDecisionMonitoringService {
                     '/contexa/mfa/login'
                 )
                 or lower(coalesce(@PATH@, '')) like '/assets/%'
-                or lower(coalesce(@PATH@, '')) like '/css/%'
+                or lower(coalesce(@PATH@, '')) like '/contexa/css/%'
                 or lower(coalesce(@PATH@, '')) like '/fonts/%'
-                or lower(coalesce(@PATH@, '')) like '/img/%'
+                or lower(coalesce(@PATH@, '')) like '/contexa/img/%'
                 or lower(coalesce(@PATH@, '')) like '/images/%'
                 or lower(coalesce(@PATH@, '')) like '/static/%'
                 or lower(coalesce(@PATH@, '')) like '/webjars/%'
@@ -132,7 +132,7 @@ public class AiSecurityDecisionMonitoringService {
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.hcadProperties = hcadProperties;
         this.zeroTrustProperties = zeroTrustProperties;
-        this.semanticEvidenceCacheSupplier = semanticEvidenceCacheSupplier == null ? () -> null : semanticEvidenceCacheSupplier;
+        this.semanticEvidenceCacheSupplier = semanticEvidenceCacheSupplier == null ? () -> null : semanticEvidenceCacheSupplier;
         this.hcadDataStoreSupplier = hcadDataStoreSupplier == null ? () -> null : hcadDataStoreSupplier;
     }
 

@@ -3,7 +3,7 @@
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle='Policy Center')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -1309,9 +1309,9 @@
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
 
-<script th:src="@{/js/toast.js}"></script>
-<script th:src="@{/js/contexa-llm.bundle.js}"></script>
-<script th:src="@{/js/policy-center.js}"></script>
+<script th:src="@{/contexa/js/toast.js}"></script>
+<script th:src="@{/contexa/js/contexa-llm.bundle.js}"></script>
+<script th:src="@{/contexa/js/policy-center.js}"></script>
 <script th:inline="javascript">
     document.addEventListener('DOMContentLoaded', () => {
         const message = /*[[${message}]]*/ null;

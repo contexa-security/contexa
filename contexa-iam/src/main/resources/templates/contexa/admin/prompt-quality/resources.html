@@ -2,7 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
     <th:block th:replace="~{contexa/admin/prompt-quality/fragments :: head(${pageTitle})}"></th:block>
-    <link rel="stylesheet" th:href="@{/css/admin/prompt-quality/prompt-quality-resource.css}">
+    <link rel="stylesheet" th:href="@{/contexa/css/admin/prompt-quality/prompt-quality-resource.css}">
 </head>
 <body class="page-shell">
 <div th:replace="~{contexa/fragments/header :: header}"></div>
@@ -56,7 +56,7 @@
 </main>
 
 <div th:replace="~{contexa/fragments/footer :: footer}"></div>
-<script th:src="@{/js/vendor/chart.umd.min.js}"></script>
-<script type="module" th:src="@{/js/admin/prompt-quality/resources-page.js}"></script>
+<script th:src="@{/contexa/js/vendor/chart.umd.min.js}"></script>
+<script type="module" th:src="@{/contexa/js/admin/prompt-quality/resources-page.js}"></script>
 </body>
 </html>

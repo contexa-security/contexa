@@ -22,6 +22,7 @@ import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
@@ -44,6 +45,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class SystemSettingsController {
 
     private final SystemSettingsService systemSettingsService;
+    private final PolicyCombiningProperties policyCombiningProperties;
     private final MessageSource messageSource;
     @Nullable
     private final CustomDynamicAuthorizationManager authorizationManager;
@@ -80,6 +82,7 @@ public class SystemSettingsController {
             if (authorizationManager != null) {
                 try {
                     CombiningAlgorithm algorithm = CombiningAlgorithm.valueOf(form.getPolicyCombiningAlgorithm());
+                    policyCombiningProperties.setCombiningAlgorithm(algorithm);
                     authorizationManager.setCombiningAlgorithm(algorithm);
                     authorizationManager.reload();
                 } catch (IllegalArgumentException e) {

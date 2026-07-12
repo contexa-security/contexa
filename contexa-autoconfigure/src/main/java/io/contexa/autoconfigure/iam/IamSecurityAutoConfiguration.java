@@ -71,7 +71,7 @@ public class IamSecurityAutoConfiguration {
                 contextHandler,
                 auditLogRepository,
                 actionRedisRepository,
-                policyCombiningProperties.getMissingMethodPolicyDecision());
+                policyCombiningProperties);
     }
 }
 

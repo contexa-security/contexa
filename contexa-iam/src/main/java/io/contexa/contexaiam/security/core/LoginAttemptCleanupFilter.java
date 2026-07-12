@@ -42,10 +42,10 @@ import java.io.IOException;
 public class LoginAttemptCleanupFilter extends OncePerRequestFilter {
 
     private static final String[] STATIC_PREFIXES = {
-            "/css/",
-            "/js/",
+            "/contexa/css/",
+            "/contexa/js/",
             "/images/",
-            "/img/",
+            "/contexa/img/",
             "/fonts/",
             "/webjars/",
             "/static/",

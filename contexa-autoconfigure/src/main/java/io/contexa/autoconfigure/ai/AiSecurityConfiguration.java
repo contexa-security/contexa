@@ -32,6 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.Customizer;
@@ -57,6 +58,13 @@ import java.util.UUID;
 @ConditionalOnClass(SecurityFilterChain.class)
 public class AiSecurityConfiguration {
 
+    private final Environment environment;
+
+    public AiSecurityConfiguration(Environment environment) {
+        this.environment = environment;
+    }
+
+
     /**
      * Creates a default {@link PlatformConfig} with MFA flow (formLogin + OTT) and session state.
      * <p>
@@ -79,7 +87,7 @@ public class AiSecurityConfiguration {
             hcadFilterProvider.ifAvailable(hcadFilter -> http.addFilterBefore(hcadFilter, AuthorizationFilter.class));
             http
                     .authorizeHttpRequests(authReq -> authReq
-                            .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                            .requestMatchers("/contexa/css/**", "/contexa/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
             ;
@@ -138,7 +146,7 @@ public class AiSecurityConfiguration {
     }
 
     private SecurityMode resolveSecurityMode() {
-        String configuredMode = System.getProperty(AiSecurityImportSelector.PROP_MODE);
+        String configuredMode = environment.getProperty(AiSecurityImportSelector.PROP_MODE);
         if (configuredMode == null || configuredMode.isBlank()) {
             return SecurityMode.SANDBOX;
         }

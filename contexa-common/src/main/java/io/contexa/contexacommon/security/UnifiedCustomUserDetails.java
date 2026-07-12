@@ -83,11 +83,11 @@ public class UnifiedCustomUserDetails implements UserDetails {
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return !user.isCredentialsExpired();
+        return !user.isExternalAuthOnly() && !user.isCredentialsExpired();
     }
 
     @Override
     public boolean isEnabled() {
-        return user.isEnabled();
+        return !user.isExternalAuthOnly() && user.isEnabled();
     }
 }

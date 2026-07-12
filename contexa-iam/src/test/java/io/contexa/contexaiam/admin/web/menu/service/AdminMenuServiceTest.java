@@ -51,15 +51,22 @@ class AdminMenuServiceTest {
     private AdminMenuQueryCache menuQueryCache;
 
     @Test
-    @DisplayName("initializeDefaultMenusIfEmpty should do nothing when menus exist")
+    @DisplayName("initializeDefaultMenusIfEmpty should backfill missing menus when menus exist")
     void initializeDefaultMenusIfEmptyWhenNotEmpty() {
         AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
         when(menuRepository.count()).thenReturn(5L);
+        when(menuRepository.findDuplicatedDataPages()).thenReturn(Collections.emptyList());
+        when(menuRepository.findAllByDataPageOrderByIdAsc(anyString())).thenReturn(Collections.emptyList());
+        when(menuRepository.save(any(AdminMenu.class))).thenAnswer(inv -> {
+            AdminMenu menu = inv.getArgument(0);
+            menu.setId(1L);
+            return menu;
+        });
 
         service.initializeDefaultMenusIfEmpty();
 
-        verify(menuRepository, never()).save(any());
-        verify(menuRepository).findDuplicatedDataPages();
+        verify(menuRepository, atLeastOnce()).save(any(AdminMenu.class));
+        verify(menuRepository, atLeastOnce()).findDuplicatedDataPages();
     }
 
     @Test
@@ -91,7 +98,16 @@ class AdminMenuServiceTest {
         void success() {
             AdminMenuService service = new AdminMenuService(menuRepository, menuQueryCache, false, false);
             when(menuRepository.count()).thenReturn(5L);
-            when(menuRepository.findDuplicatedDataPages()).thenReturn(List.of("dup-page"));
+            when(menuRepository.findDuplicatedDataPages())
+                    .thenReturn(List.of("dup-page"), Collections.emptyList());
+            when(menuRepository.findAllByDataPageOrderByIdAsc(anyString())).thenReturn(Collections.emptyList());
+            when(menuRepository.save(any(AdminMenu.class))).thenAnswer(inv -> {
+                AdminMenu menu = inv.getArgument(0);
+                if (menu.getId() == null) {
+                    menu.setId(100L);
+                }
+                return menu;
+            });
 
             AdminMenu menu1 = AdminMenu.builder().id(10L).dataPage("dup-page").build();
             menu1.addRole("ROLE_USER");

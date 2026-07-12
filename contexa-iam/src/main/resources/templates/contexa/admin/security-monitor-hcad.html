@@ -3,7 +3,7 @@
 <head>
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+    <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
     <style>
         .hcad-layout { display: grid; gap: 1rem; }
         .ai-monitor-tabs { display: flex; gap: .5rem; flex-wrap: wrap; border-bottom: 1px solid rgba(71,85,105,.45); padding-bottom: .75rem; }
@@ -405,6 +405,6 @@
 </div>
 
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<script th:src="@{/js/admin/hcad-monitor.js?v=20260622f}"></script>
+<script th:src="@{/contexa/js/admin/hcad-monitor.js?v=20260622f}"></script>
 </body>
 </html>

@@ -62,7 +62,7 @@ class CustomDynamicAuthorizationManagerCombiningTest {
     private CustomDynamicAuthorizationManager createManager(CombiningAlgorithm algorithm) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                contextHandler, metricsCollector, centralAuditFacade,
                 new PolicyCombiningEvaluator());
         manager.setCombiningAlgorithm(algorithm);
         return manager;

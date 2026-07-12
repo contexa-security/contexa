@@ -69,6 +69,6 @@ public class IpAccessFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
         // Skip static resources
-        return uri.startsWith("/css/") || uri.startsWith("/js/") || uri.startsWith("/img/") || uri.startsWith("/favicon");
+        return uri.startsWith("/contexa/css/") || uri.startsWith("/contexa/js/") || uri.startsWith("/contexa/img/") || uri.startsWith("/favicon");
     }
 }

@@ -68,14 +68,13 @@ public class IamXacmlPepAutoConfiguration {
             ExpressionAuthorizationManagerResolver managerResolver,
             ObjectMapper objectMapper,
             ContextHandler contextHandler,
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
             @Autowired(required = false) AuthorizationMetrics metricsCollector,
             CentralAuditFacade centralAuditFacade,
             PolicyCombiningEvaluator policyCombiningEvaluator,
             PolicyCombiningProperties policyCombiningProperties) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
-                objectMapper, contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade,
+                objectMapper, contextHandler, metricsCollector, centralAuditFacade,
                 policyCombiningEvaluator);
         manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
         manager.setNoMatchingUrlPolicyDecision(policyCombiningProperties.getNoMatchingUrlPolicyDecision());
@@ -85,8 +84,9 @@ public class IamXacmlPepAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
-            @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler) {
-        return new ProtectableMethodAuthorizationManager(expressionHandler);
+            @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
+            PolicyCombiningEvaluator policyCombiningEvaluator) {
+        return new ProtectableMethodAuthorizationManager(expressionHandler, policyCombiningEvaluator);
     }
 }
 

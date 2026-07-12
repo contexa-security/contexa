@@ -76,6 +76,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ClassPathResource;
@@ -116,11 +117,12 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
-
+
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter({IdentitySecurityCoreAutoConfiguration.class, CoreDataAutoConfiguration.class})
 @ConditionalOnBean(value = PlatformConfig.class, name = {"contexaJdbcTemplate", "contexaTransactionTemplate"})
+@ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
