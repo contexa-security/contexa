@@ -4,7 +4,7 @@ import { setStatus, badge } from './prompt-quality-page.js';
 import { ensureBundle, t } from './prompt-quality-i18n.js';
 
 function promptQualityApiRoot(root = document.querySelector('[data-pqa-page="dashboard"]')) {
-    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+    return rawText(root?.dataset?.pqaApiRoot) || '/admin/api/enterprise/prompt-quality';
 }
 
 function promptQualityApiPath(root, path) {
@@ -14,7 +14,7 @@ function promptQualityApiPath(root, path) {
 }
 
 function promptQualityRouteRoot(root = document.querySelector('[data-pqa-page="dashboard"]')) {
-    return rawText(root?.dataset?.pqaRouteRoot) || '/contexa/admin/prompt-quality';
+    return rawText(root?.dataset?.pqaRouteRoot) || '/admin/enterprise/prompt-quality';
 }
 
 function promptQualityRoutePath(root, path) {

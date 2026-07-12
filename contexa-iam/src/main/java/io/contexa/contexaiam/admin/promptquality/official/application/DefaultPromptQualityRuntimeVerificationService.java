@@ -1849,9 +1849,88 @@ public class DefaultPromptQualityRuntimeVerificationService
                         "PROMPT_FIELD_STATE_LEDGER"));
             }
         }
+        appendPromptExecutionMetadataComparisons(resultByComparisonKey, pkg);
         return List.copyOf(resultByComparisonKey.values());
     }
 
+    private void appendPromptExecutionMetadataComparisons(
+            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
+            SealedEvidencePackage pkg) {
+        Map<String, Object> metadata = parseJson(pkg == null ? null : pkg.getPromptExecutionMetadataJson());
+        appendFinalUserFieldProblems(resultByComparisonKey, metadata.get("promptFinalUserFieldLedger"));
+        appendUserFieldDiffProblems(resultByComparisonKey, metadata.get("promptUserFieldDiffLedger"));
+    }
+
+    private void appendFinalUserFieldProblems(
+            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
+            Object ledger) {
+        if (!(ledger instanceof List<?> rows)) {
+            return;
+        }
+        for (Object row : rows) {
+            if (!(row instanceof Map<?, ?> map)) {
+                continue;
+            }
+            String fieldKey = stringValue(map.get("fieldKey"));
+            String state = promptProblemStateFromFieldState(map);
+            if (!StringUtils.hasText(fieldKey) || !actualPromptProblemState(state)) {
+                continue;
+            }
+            String value = stringValue(map.get("valuePreview"));
+            putPromptComparison(resultByComparisonKey, new OfficialVerificationPromptComparison(
+                    fieldKey,
+                    fieldLabel(fieldKey, firstNonBlank(stringValue(map.get("label")), fieldKey)),
+                    value,
+                    value,
+                    value,
+                    state,
+                    comparisonStateLabel(state),
+                    firstNonBlank(stringValue(map.get("absenceReasonText")), comparisonMeaning(state)),
+                    metricCodesForFieldState(map),
+                    List.of(), List.of(), List.of(), List.of(),
+                    firstNonBlank(stringValue(map.get("sectionTitle")), stringValue(map.get("promptSection"))),
+                    stringValue(map.get("sourceFieldPath")),
+                    firstNonBlank(stringValue(map.get("remediationOwner")), "PROMPT_ASSEMBLER"),
+                    "PROMPT_FINAL_USER_FIELD_LEDGER"));
+        }
+    }
+
+    private void appendUserFieldDiffProblems(
+            Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
+            Object ledger) {
+        if (!(ledger instanceof List<?> rows)) {
+            return;
+        }
+        for (Object row : rows) {
+            if (!(row instanceof Map<?, ?> map)
+                    || !Boolean.TRUE.equals(map.get("officialBlockingCandidate"))) {
+                continue;
+            }
+            String fieldKey = stringValue(map.get("fieldKey"));
+            String diffType = safe(stringValue(map.get("diffType"))).toUpperCase(Locale.ROOT);
+            String state = firstNonBlank(stringValue(map.get("problemType")),
+                    "VALUE_CHANGED".equals(diffType) ? "CONTRACT_MISMATCH" : "PROMPT_MISSING");
+            if (!StringUtils.hasText(fieldKey) || !actualPromptProblemState(state)) {
+                continue;
+            }
+            String normalizedState = state.toUpperCase(Locale.ROOT);
+            putPromptComparison(resultByComparisonKey, new OfficialVerificationPromptComparison(
+                    fieldKey,
+                    fieldLabel(fieldKey, firstNonBlank(stringValue(map.get("label")), fieldKey)),
+                    stringValue(map.get("rawValuePreview")),
+                    stringValue(map.get("finalValuePreview")),
+                    stringValue(map.get("finalValuePreview")),
+                    normalizedState,
+                    comparisonStateLabel(normalizedState),
+                    firstNonBlank(stringValue(map.get("reason")), comparisonMeaning(normalizedState)),
+                    metricCodesForFieldState(map),
+                    List.of(), List.of(), List.of(), List.of(),
+                    firstNonBlank(stringValue(map.get("sectionTitle")), "PROMPT METADATA"),
+                    stringValue(map.get("sourceFieldPath")),
+                    firstNonBlank(stringValue(map.get("remediationOwner")), "PROMPT_ASSEMBLER"),
+                    "PROMPT_USER_FIELD_DIFF_LEDGER"));
+        }
+    }
     private void putPromptComparison(
             Map<String, OfficialVerificationPromptComparison> resultByComparisonKey,
             OfficialVerificationPromptComparison candidate) {
@@ -2143,13 +2222,15 @@ public class DefaultPromptQualityRuntimeVerificationService
                         metric -> metric,
                         (left, right) -> left,
                         LinkedHashMap::new));
+        Set<String> resultMetricCodes = new LinkedHashSet<>(runsByMetric.keySet());
+        resultMetricCodes.addAll(promptComparisonsByMetric.keySet());
         List<RuntimeEvidenceMetricResult> results = new ArrayList<>();
-        for (Map.Entry<String, OfficialVerificationRunView> entry : runsByMetric.entrySet()) {
-            String metricCode = normalizedCode(entry.getKey());
+        for (String candidateMetricCode : resultMetricCodes) {
+            String metricCode = normalizedCode(candidateMetricCode);
             if (!StringUtils.hasText(metricCode)) {
                 continue;
             }
-            OfficialVerificationRunView run = entry.getValue();
+            OfficialVerificationRunView run = runsByMetric.get(metricCode);
             OfficialVerificationMetricDefinition metric = metricDefinitionsByCode.get(metricCode);
             List<RuntimeEvidenceCheckResult> checks = new ArrayList<>();
             if (run != null) {

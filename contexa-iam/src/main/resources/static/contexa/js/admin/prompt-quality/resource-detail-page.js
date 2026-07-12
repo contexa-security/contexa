@@ -6,10 +6,10 @@ const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'
 const IS_ENTERPRISE_PROMPT_QUALITY = window.location.pathname.includes('/contexa/admin/enterprise/prompt-quality');
 const API_BASE = IS_ENTERPRISE_PROMPT_QUALITY
         ? '/contexa/admin/api/enterprise/prompt-quality'
-        : '/contexa/admin/api/prompt-quality';
+        : '/admin/api/enterprise/prompt-quality';
 const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
         ? '/contexa/admin/enterprise/prompt-quality'
-        : '/contexa/admin/prompt-quality';
+        : '/admin/enterprise/prompt-quality';
 
 const root = document.querySelector('[data-pqa-page="resource-detail"]');
 const resourceId = root?.dataset.resourceId || '';
@@ -186,7 +186,7 @@ function runtimeEvidenceDetailActionHtml(resource) {
         return `<a class="button primary pqa-resource-detail-button-primary" href="${verifyHref}" data-pqa-click-href="${escapeHtml(verifyHref)}">${escapeHtml(t('enterprise.pqa.resourceDetail.action.verify'))}</a>`;
     }
     const label = resource.runtimeRequestStateDescriptor?.label || '-';
-    return `<span class="button pqa-resource-detail-button-primary" aria-disabled="true" style="opacity:0.65;cursor:not-allowed;">${escapeHtml(label)}</span>`;
+    return `<span class="button pqa-resource-detail-button-primary is-disabled" aria-disabled="true" data-pqa-disabled-reason="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
 }
 
 function renderOwnership(root, resource) {

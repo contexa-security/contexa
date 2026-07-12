@@ -6,7 +6,7 @@ import { showActionTooltip } from './prompt-quality-ui.js';
 
 const root = document.querySelector('[data-pqa-page="runtime-evidence"]');
 function promptQualityApiRoot() {
-    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+    return rawText(root?.dataset?.pqaApiRoot) || '/admin/api/enterprise/prompt-quality';
 }
 
 function promptQualityApiPath(path) {
@@ -16,7 +16,7 @@ function promptQualityApiPath(path) {
 }
 
 function promptQualityRouteRoot() {
-    return rawText(root?.dataset?.pqaRouteRoot) || '/contexa/admin/prompt-quality';
+    return rawText(root?.dataset?.pqaRouteRoot) || '/admin/enterprise/prompt-quality';
 }
 
 function promptQualityRoutePath(path) {

@@ -25,10 +25,10 @@ const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'
 const IS_ENTERPRISE_PROMPT_QUALITY = window.location.pathname.includes('/contexa/admin/enterprise/prompt-quality');
 const API_BASE = IS_ENTERPRISE_PROMPT_QUALITY
         ? '/contexa/admin/api/enterprise/prompt-quality'
-        : '/contexa/admin/api/prompt-quality';
+        : '/admin/api/enterprise/prompt-quality';
 const PAGE_BASE = IS_ENTERPRISE_PROMPT_QUALITY
         ? '/contexa/admin/enterprise/prompt-quality'
-        : '/contexa/admin/prompt-quality';
+        : '/admin/enterprise/prompt-quality';
 
 const RESOURCE_PAGE_SIZE = 10;
 

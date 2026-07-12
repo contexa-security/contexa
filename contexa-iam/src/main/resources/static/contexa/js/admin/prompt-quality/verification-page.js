@@ -33,7 +33,7 @@ const PROMPT_OFFICIAL_METRICS = new Set([
     'EIR', 'CCR', 'CCSR', 'PFR', 'MTR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'PRE'
 ]);
 function promptQualityApiRoot() {
-    return rawText(root?.dataset?.pqaApiRoot) || '/contexa/admin/api/prompt-quality';
+    return rawText(root?.dataset?.pqaApiRoot) || '/admin/api/enterprise/prompt-quality';
 }
 
 function promptQualityApiPath(path) {
@@ -43,7 +43,7 @@ function promptQualityApiPath(path) {
 }
 
 function promptQualityRouteRoot() {
-    return rawText(root?.dataset?.pqaRouteRoot) || '/contexa/admin/prompt-quality';
+    return rawText(root?.dataset?.pqaRouteRoot) || '/admin/enterprise/prompt-quality';
 }
 
 function promptQualityRoutePath(path) {
@@ -53,7 +53,7 @@ function promptQualityRoutePath(path) {
 }
 
 function isEnterprisePromptQualityMode(pageRoot = root) {
-    return rawText(pageRoot?.dataset?.pqaUiMode).toLowerCase() === 'enterprise';
+    return (rawText(pageRoot?.dataset?.pqaUiMode) || '').toLowerCase() === 'enterprise';
 }
 const OFFICIAL_METRIC_FAMILY_LABELS = {
     prompt: '프롬프트 공식검사',
@@ -2232,11 +2232,11 @@ function reverifyLink(run) {
     setParam(params, 'actualResourceId', identity.actualResourceId);
     setParam(params, 'httpMethod', identity.httpMethod);
     const query = params.toString();
-    return promptQualityRoutePath(`/verification/run${query ? `?${query}` : ''}`);
+    return promptQualityRoutePath(`/evaluations${query ? `?${query}` : ''}`);
 }
 
 function issueListLink(run) {
-    return issueLinkForPath('/verification/metrics', run);
+    return issueLinkForPath('/issues', run);
 }
 
 function issueLinkForPath(path, run) {
@@ -2254,8 +2254,13 @@ function issueLinkForPath(path, run) {
 }
 
 function updateHandoffLinks(pageRoot, source) {
-    // OSS official inspection stops at result diagnosis. Enterprise handoff links
-    // are intentionally not rendered from the migrated core UI.
+    pageRoot?.querySelectorAll?.('[data-pqa-handoff-issues-link]').forEach(anchor => {
+        const href = issueListLink(source);
+        anchor.href = href;
+        anchor.setAttribute('href', href);
+        anchor.removeAttribute('aria-disabled');
+        anchor.classList?.remove('is-disabled');
+    });
 }
 
 function remediationGroupIdOf(group) {
@@ -2277,7 +2282,8 @@ function storedVerificationResultRoutes() {
         'metrics',
         'failures',
         'evidence-package',
-        'reverify'
+        'reverify',
+        'handoff'
     ];
     if (isEnterprisePromptQualityMode()) {
         routes.push('llm-metrics');
@@ -2324,7 +2330,8 @@ function verificationStageHref(route, source = {}) {
         'llm-metrics': '/verification/llm-metrics',
         failures: '/verification/failures',
         'evidence-package': '/verification/evidence-package',
-        reverify: '/verification/reverify'
+        reverify: '/verification/reverify',
+        handoff: '/verification/handoff'
     };
     const params = new URLSearchParams();
     setParam(params, 'packageId', packageId);
@@ -2868,12 +2875,12 @@ function renderTopBlockingCause(item) {
                 ${badge(rawText(item.metricName) || rawText(item.metricCode) || '공식 지표', { tone: 'blocked' })}
             </header>
             <dl>
-                <div><dt>${escapeHtml(t('enterprise.pqa.governance.handoff.col.issue'))}</dt><dd>${escapeHtml(problem)}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.governance.handoff.col.cause'))}</dt><dd>${escapeHtml(cause)}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.verification.responsibleProcess'))}</dt><dd>${escapeHtml(target)}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.verification.impact'))}</dt><dd>${escapeHtml(impact)}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.verification.followupAction'))}</dt><dd>${escapeHtml(operatorFullText(item.remediationHint))}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.recipeDetail.diff.item.reverify'))}</dt><dd>${escapeHtml(operatorFullText(item.reverifyCriterion))}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.governance.handoff.col.issue') ? t('enterprise.pqa.governance.handoff.col.issue') : '\uBB38\uC81C'))}</dt><dd>${escapeHtml(problem)}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.governance.handoff.col.cause') ? t('enterprise.pqa.governance.handoff.col.cause') : '\uC6D0\uC778'))}</dt><dd>${escapeHtml(cause)}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.verification.responsibleProcess') ? t('enterprise.pqa.verification.responsibleProcess') : '\uD574\uB2F9 \uACF5\uC815'))}</dt><dd>${escapeHtml(target)}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.verification.impact') ? t('enterprise.pqa.verification.impact') : '\uC601\uD5A5'))}</dt><dd>${escapeHtml(impact)}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.verification.followupAction') ? t('enterprise.pqa.verification.followupAction') : '\uBB38\uC81C \uD574\uACB0'))}</dt><dd>${escapeHtml(operatorFullText(item.remediationHint))}</dd></div>
+                <div><dt>${escapeHtml((has('enterprise.pqa.recipeDetail.diff.item.reverify') ? t('enterprise.pqa.recipeDetail.diff.item.reverify') : '\uC7AC\uAC80\uC99D'))}</dt><dd>${escapeHtml(operatorFullText(item.reverifyCriterion))}</dd></div>
             </dl>
             <details class="pqa-official-technical-evidence">
                 <summary>${escapeHtml(t('enterprise.pqa.verification.criteriaAndActual'))}</summary>
@@ -2905,7 +2912,7 @@ function renderSummaryActionGroups(groups) {
                         <dl>
                             <div><dt>${escapeHtml(t('enterprise.pqa.verification.ledger.value.owner'))}</dt><dd>${escapeHtml(text(group.remediationOwner))}</dd></div>
                             <div><dt>${escapeHtml(t('enterprise.pqa.verification.problemCount'))}</dt><dd>${Number(group.findingCount || 0)}건</dd></div>
-                            <div><dt>${escapeHtml(t('enterprise.pqa.recipeDetail.diff.item.reverify'))}</dt><dd>${escapeHtml(operatorFullText(group.reverifyCriterion))}</dd></div>
+                            <div><dt>${escapeHtml((has('enterprise.pqa.recipeDetail.diff.item.reverify') ? t('enterprise.pqa.recipeDetail.diff.item.reverify') : '\uC7AC\uAC80\uC99D'))}</dt><dd>${escapeHtml(operatorFullText(group.reverifyCriterion))}</dd></div>
                         </dl>
                     </article>
                 `).join('')}
@@ -4354,9 +4361,9 @@ function renderOfficialFailureFamilySection(family, items = [], detail = {}) {
 function renderPqaProcessRail() {
     const steps = [
         ['1', t('enterprise.pqa.nav.verification'), '공식검사에서 차단된 원인을 확인합니다.'],
-        ['2', t('enterprise.pqa.verification.followupAction'), '프롬프트 계약, 봉인 증거, LLM 판정 출력을 함께 검토합니다.'],
+        ['2', (has('enterprise.pqa.verification.followupAction') ? t('enterprise.pqa.verification.followupAction') : '\uBB38\uC81C \uD574\uACB0'), '프롬프트 계약, 봉인 증거, LLM 판정 출력을 함께 검토합니다.'],
         ['3', '적용 범위 확인', '보강 결과가 같은 증거 흐름에 반영되는지 확인합니다.'],
-        ['4', t('enterprise.pqa.recipeDetail.diff.item.reverify'), '같은 증거 기준으로 재검증합니다.']
+        ['4', (has('enterprise.pqa.recipeDetail.diff.item.reverify') ? t('enterprise.pqa.recipeDetail.diff.item.reverify') : '\uC7AC\uAC80\uC99D'), '같은 증거 기준으로 재검증합니다.']
     ];
     return `
         <ol class="pqa-official-process-rail" aria-label="공식검사 실패 후속 처리 흐름">
@@ -4423,7 +4430,11 @@ function renderFailureItem(item, detail) {
     `;
 }
 function failureHandoffLink(item, detail) {
-    return issueListLink(failureScopedSource(item, detail));
+    const source = failureScopedSource(item, detail);
+    const matchedIssueId = rawText(source?.issues?.[0]?.issueId) || rawText(item?.issueId);
+    return matchedIssueId
+            ? issueLinkForPath(`/issues/${encodeURIComponent(matchedIssueId)}`, source)
+            : issueListLink(source);
 }
 
 function failureScopedSource(item, detail) {
@@ -4993,7 +5004,7 @@ function renderLlmDecisionMetricCheckTotals(runs, totals) {
         </section>
     `;
 }function officialMetricTotalsFamily(runs, family = '') {
-    const requested = rawText(family).toLowerCase();
+    const requested = (rawText(family) || '').toLowerCase();
     if (requested === 'decision' || requested === 'prompt' || requested === 'all') {
         return requested;
     }
@@ -6949,7 +6960,7 @@ function conciseProblemTitle(item) {
 }
 function conciseCause(item) {
     return operatorFullText(
-            segmentAfterLabel(item?.rootCause, t('enterprise.pqa.governance.handoff.col.cause'))
+            segmentAfterLabel(item?.rootCause, (has('enterprise.pqa.governance.handoff.col.cause') ? t('enterprise.pqa.governance.handoff.col.cause') : '\uC6D0\uC778'))
             || rawText(item?.rootCause)
             || rawText(item?.operatorReason)
             || '저장된 진단 원인을 확인해야 합니다.');

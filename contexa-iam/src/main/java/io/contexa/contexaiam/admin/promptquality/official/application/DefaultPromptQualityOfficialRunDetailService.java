@@ -873,16 +873,20 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
         OfficialVerificationMetricDefinition metric = metric(run.endpointKey());
         OperatorMetricSnapshot storedMetric = operatorMetric(operatorSnapshot, run.endpointKey());
         List<OfficialMetricPurposeEvidence> purposeEvidence = purposeEvidenceForMetric(operatorSnapshot, run.endpointKey());
-        List<OfficialRunCheckDetail> checks = mergePurposeEvidenceChecks(
+        List<OfficialRunCheckDetail> checks = customerVisibleChecks(
                 run.endpointKey(),
-                checks(run),
+                mergePurposeEvidenceChecks(run.endpointKey(), checks(run), purposeEvidence),
                 purposeEvidence);
         int totalChecks = detailTotalChecks(
                 checks,
-                storedMetric == null ? run.totalChecks() : storedMetric.totalChecks());
+                run.checks() != null && !run.checks().isEmpty()
+                        ? checks.size()
+                        : storedMetric == null ? run.totalChecks() : storedMetric.totalChecks());
         int passedChecks = detailPassedChecks(
                 checks,
-                storedMetric == null ? run.passedChecks() : storedMetric.passedChecks());
+                run.checks() != null && !run.checks().isEmpty()
+                        ? (int) checks.stream().filter(OfficialRunCheckDetail::pass).count()
+                        : storedMetric == null ? run.passedChecks() : storedMetric.passedChecks());
         List<OfficialRunFailureCause> operatorFailures = operatorFailureCauses(operatorSnapshot).stream()
                 .filter(cause -> same(cause.metricCode(), run.endpointKey()))
                 .toList();
@@ -1452,6 +1456,12 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             if (check == null) {
                 continue;
             }
+            if (!check.customerVisible()
+                    || "INTERNAL_REFERENCE".equals(normalize(check.readinessScope()))
+                    || "NOT_APPLICABLE".equals(normalize(check.readinessScope()))
+                    || "NOT_APPLICABLE".equals(normalize(check.purposeResult()))) {
+                continue;
+            }
             String evidenceSource = StringUtils.hasText(check.source()) ? check.source().trim() : "MISSING_SOURCE";
             FinalPromptMetricCheckContract contract = metricCheckContract(run.endpointKey(), check.checkCode());
             String label = firstNonBlank(contract == null ? null : contract.qualityQuestion(), check.label());
@@ -1504,8 +1514,10 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                         return true;
                     }
                     return matchedEvidence.stream().anyMatch(OfficialMetricPurposeEvidence::customerVisible)
-                            && matchedEvidence.stream()
-                            .noneMatch(evidence -> "INTERNAL_REFERENCE".equals(normalize(evidence.readinessScope())));
+                            && matchedEvidence.stream().noneMatch(evidence ->
+                            "INTERNAL_REFERENCE".equals(normalize(evidence.readinessScope()))
+                                    || "NOT_APPLICABLE".equals(normalize(evidence.readinessScope()))
+                                    || "NOT_APPLICABLE".equals(normalize(evidence.purposeResult())));
                 })
                 .toList();
     }
@@ -2389,7 +2401,9 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
                 .mapToInt(this::storedCheckRowCount)
                 .sum();
         int declaredCheckCount = safeRuns.stream()
-                .mapToInt(run -> Math.max(run.totalChecks(), storedCheckRowCount(run)))
+                .mapToInt(run -> run.checks() != null && !run.checks().isEmpty()
+                        ? storedCheckRowCount(run)
+                        : Math.max(run.totalChecks(), storedCheckRowCount(run)))
                 .sum();
         int totalCheckCount = storedCheckRowCount;
         int missingSourceCheckCount = (int) safeRuns.stream()
@@ -2469,7 +2483,7 @@ public class DefaultPromptQualityOfficialRunDetailService implements PromptQuali
             return 0;
         }
         if (run.checks() != null && !run.checks().isEmpty()) {
-            return run.checks().size();
+            return evaluatedChecks(run).size();
         }
         if (run.totalChecks() <= 0 || run.purposeEvidence() == null || run.purposeEvidence().isEmpty()) {
             return 0;
