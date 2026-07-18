@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.runtime.prompt;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -14,38 +15,49 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class FinalPromptPreflightService {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
+    private final OfficialVerificationMessageResolver messageResolver;
 
     public FinalPromptPreflightService(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+        this(objectMapper, OfficialVerificationMessageResolver.classpath(Locale.KOREAN));
+    }
+
+    public FinalPromptPreflightService(
+            ObjectMapper objectMapper,
+            OfficialVerificationMessageResolver messageResolver) {
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.messageResolver = Objects.requireNonNull(messageResolver, "messageResolver");
     }
 
     public FinalPromptPreflightResult verify(SealedEvidencePackage evidencePackage) {
         List<String> violations = new ArrayList<>();
         if (evidencePackage == null) {
-            return new FinalPromptPreflightResult(false, null, List.of("봉인 증거 패키지가 없습니다."));
+            return new FinalPromptPreflightResult(false, null, List.of(message(
+                    "enterprise.pqa.runtimeVerification.preflight.evidencePackageMissing")));
         }
         String userPrompt = evidencePackage.getUserPromptText();
         String computedUserPromptHash = sha256Prefixed(userPrompt);
-        requireText(userPrompt, "final userPrompt 원문이 없습니다.", violations);
-        requireText(evidencePackage.getSystemPromptText(), "final systemPrompt 원문이 없습니다.", violations);
-        requireText(evidencePackage.getRawUserPrompt(), "raw userPrompt 원문이 없습니다.", violations);
-        requireText(evidencePackage.getRawSystemPrompt(), "raw systemPrompt 원문이 없습니다.", violations);
+        requireText(userPrompt, "final userPrompt", violations);
+        requireText(evidencePackage.getSystemPromptText(), "final systemPrompt", violations);
+        requireText(evidencePackage.getRawUserPrompt(), "raw userPrompt", violations);
+        requireText(evidencePackage.getRawSystemPrompt(), "raw systemPrompt", violations);
         compareHash("userPromptHash", evidencePackage.getUserPromptHash(), computedUserPromptHash, violations);
         compareHash("systemPromptHash", evidencePackage.getSystemPromptHash(), sha256Prefixed(evidencePackage.getSystemPromptText()), violations);
         compareHash("rawUserPromptHash", evidencePackage.getRawUserPromptHash(), sha256Prefixed(evidencePackage.getRawUserPrompt()), violations);
         compareHash("rawSystemPromptHash", evidencePackage.getRawSystemPromptHash(), sha256Prefixed(evidencePackage.getRawSystemPrompt()), violations);
 
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> promptMetadata = parseJson(
+                evidencePackage.getPromptExecutionMetadataJson(), violations);
         compareOptionalMetadataHash(promptMetadata, computedUserPromptHash, violations,
                 "userPromptHash", "llmUserPromptHash", "finalUserPromptHash");
         if (!StringUtils.hasText(evidencePackage.getPromptEvidenceManifestJson())) {
-            violations.add("실제 프롬프트 증거 manifest가 없습니다.");
+            violations.add(message("enterprise.pqa.runtimeVerification.preflight.manifestMissing"));
         }
         return new FinalPromptPreflightResult(violations.isEmpty(), computedUserPromptHash, violations);
     }
@@ -53,14 +65,16 @@ public class FinalPromptPreflightService {
     public void assertReady(SealedEvidencePackage evidencePackage) {
         FinalPromptPreflightResult result = verify(evidencePackage);
         if (!result.ready()) {
-            throw new IllegalStateException("공식검사 실행 전제 조건 실패: PREFLIGHT_FINAL_PROMPT_CONTRACT failed: "
-                    + String.join(" ", result.violations()));
+            throw new FinalPromptPreflightException(result, message(
+                    "enterprise.pqa.runtimeVerification.preflight.failed",
+                    String.join(" ", result.violations())));
         }
     }
 
-    private void requireText(String value, String message, List<String> violations) {
+    private void requireText(String value, String fieldName, List<String> violations) {
         if (!StringUtils.hasText(value)) {
-            violations.add(message);
+            violations.add(message(
+                    "enterprise.pqa.runtimeVerification.preflight.promptTextMissing", fieldName));
         }
     }
 
@@ -69,11 +83,13 @@ public class FinalPromptPreflightService {
             return;
         }
         if (!StringUtils.hasText(storedHash)) {
-            violations.add(label + "가 없습니다.");
+            violations.add(message(
+                    "enterprise.pqa.runtimeVerification.preflight.hashMissing", label));
             return;
         }
         if (!normalizeHash(storedHash).equals(normalizeHash(computedHash))) {
-            violations.add(label + "가 실제 프롬프트 원문 hash와 일치하지 않습니다.");
+            violations.add(message(
+                    "enterprise.pqa.runtimeVerification.preflight.hashMismatch", label));
         }
     }
 
@@ -91,13 +107,14 @@ public class FinalPromptPreflightService {
                 continue;
             }
             if (!normalizeHash(String.valueOf(raw)).equals(normalizeHash(computedHash))) {
-                violations.add("promptExecutionMetadata." + key + "가 final userPrompt hash와 일치하지 않습니다.");
+                violations.add(message(
+                        "enterprise.pqa.runtimeVerification.preflight.metadataHashMismatch", key));
             }
         }
     }
 
-    private Map<String, Object> parseJson(String json) {
-        if (!StringUtils.hasText(json) || objectMapper == null) {
+    private Map<String, Object> parseJson(String json, List<String> violations) {
+        if (!StringUtils.hasText(json)) {
             return Map.of();
         }
         try {
@@ -105,7 +122,9 @@ public class FinalPromptPreflightService {
             return parsed == null ? Map.of() : new LinkedHashMap<>(parsed);
         }
         catch (Exception exception) {
-            throw new IllegalStateException("promptExecutionMetadata JSON을 파싱할 수 없습니다.", exception);
+            violations.add(message(
+                    "enterprise.pqa.runtimeVerification.preflight.metadataJsonInvalid"));
+            return Map.of();
         }
     }
 
@@ -127,6 +146,24 @@ public class FinalPromptPreflightService {
         }
         catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is not available.", exception);
+        }
+    }
+
+    private String message(String key, Object... args) {
+        return messageResolver.resolve(key, args);
+    }
+
+    public static final class FinalPromptPreflightException extends IllegalStateException {
+
+        private final FinalPromptPreflightResult result;
+
+        private FinalPromptPreflightException(FinalPromptPreflightResult result, String message) {
+            super(message);
+            this.result = Objects.requireNonNull(result, "result");
+        }
+
+        public FinalPromptPreflightResult result() {
+            return result;
         }
     }
 }

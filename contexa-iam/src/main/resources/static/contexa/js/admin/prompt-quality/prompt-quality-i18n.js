@@ -1,7 +1,6 @@
-import { getJson } from './prompt-quality-api.js';
+import { getJson, promptQualityApiPath } from './prompt-quality-api.js';
 
-const CORE_BUNDLE_ENDPOINT = '/contexa/admin/api/prompt-quality/i18n';
-const ENTERPRISE_BUNDLE_ENDPOINT = '/contexa/admin/api/enterprise/prompt-quality/i18n';
+const BUNDLE_ENDPOINT = promptQualityApiPath('/i18n');
 const DEFAULT_MISSING_LABEL = '-';
 const MISSING_LABEL_KEY = 'enterprise.pqa.common.missingLabel';
 const I18N_DEBUG_ACTIVE = typeof window !== 'undefined' && window.location
@@ -28,13 +27,7 @@ export async function ensureBundle() {
 
 
 function bundleEndpoint() {
-    if (typeof window !== 'undefined' && window.location) {
-        const path = window.location.pathname || '';
-        if (path.includes('/contexa/admin/enterprise/prompt-quality')) {
-            return ENTERPRISE_BUNDLE_ENDPOINT;
-        }
-    }
-    return CORE_BUNDLE_ENDPOINT;
+    return BUNDLE_ENDPOINT;
 }
 
 function cacheBust(endpoint) {

@@ -25,6 +25,11 @@ public final class OfficialVerificationRuntimePollingSupport {
         REQUIRE_TERMINAL
     }
 
+    @FunctionalInterface
+    public interface ArtifactCompletionProbe {
+        boolean isComplete(String requestId);
+    }
+
     private OfficialVerificationRuntimePollingSupport() {
     }
 
@@ -41,7 +46,27 @@ public final class OfficialVerificationRuntimePollingSupport {
                 analysisEventStore,
                 decisionOutboxRepository,
                 promptAuditOutboxRepository,
-                ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL
+                ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL,
+                null
+        );
+    }
+
+    public static ArtifactSnapshot awaitArtifacts(
+            String requestId,
+            Duration timeout,
+            OfficialVerificationAnalysisEventStore analysisEventStore,
+            SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
+            PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
+            ArtifactCompletionProbe completionProbe
+    ) {
+        return awaitArtifacts(
+                requestId,
+                timeout,
+                analysisEventStore,
+                decisionOutboxRepository,
+                promptAuditOutboxRepository,
+                ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL,
+                completionProbe
         );
     }
 
@@ -52,6 +77,26 @@ public final class OfficialVerificationRuntimePollingSupport {
             SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
             PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
             ArtifactWaitMode artifactWaitMode
+    ) {
+        return awaitArtifacts(
+                requestId,
+                timeout,
+                analysisEventStore,
+                decisionOutboxRepository,
+                promptAuditOutboxRepository,
+                artifactWaitMode,
+                null
+        );
+    }
+
+    public static ArtifactSnapshot awaitArtifacts(
+            String requestId,
+            Duration timeout,
+            OfficialVerificationAnalysisEventStore analysisEventStore,
+            SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
+            PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
+            ArtifactWaitMode artifactWaitMode,
+            ArtifactCompletionProbe completionProbe
     ) {
         Instant deadline = Instant.now().plus(timeout);
         List<OfficialVerificationAnalysisEventStore.AnalysisEvent> events = List.of();
@@ -72,8 +117,8 @@ public final class OfficialVerificationRuntimePollingSupport {
             Long currentDecisionOutboxId = decisionOutbox != null ? decisionOutbox.getId() : null;
             Long currentPromptOutboxId = promptOutbox != null ? promptOutbox.getId() : null;
             boolean artifactStateUnchanged = currentEventCount == lastEventCount
-                && Objects.equals(currentDecisionOutboxId, lastDecisionOutboxId)
-                && Objects.equals(currentPromptOutboxId, lastPromptOutboxId);
+                    && Objects.equals(currentDecisionOutboxId, lastDecisionOutboxId)
+                    && Objects.equals(currentPromptOutboxId, lastPromptOutboxId);
             if (artifactStateUnchanged) {
                 stableIterationsAfterArtifacts++;
             }
@@ -86,6 +131,8 @@ public final class OfficialVerificationRuntimePollingSupport {
 
             boolean terminal = hasTerminalEvent(events);
             boolean errorTerminal = hasErrorEvent(events);
+            boolean completedAnalysis = hasCompletedAnalysisEvent(events);
+            boolean externalCompletion = completionProbe != null && completionProbe.isComplete(requestId);
             if (terminal) {
                 if (artifactStateUnchanged) {
                     stableIterationsAfterTerminal++;
@@ -113,6 +160,16 @@ public final class OfficialVerificationRuntimePollingSupport {
             else if (artifactWaitMode == ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL
                     && (decisionOutbox != null || promptOutbox != null)
                     && stableIterationsAfterArtifacts >= PARTIAL_ARTIFACT_STABLE_ITERATIONS) {
+                break;
+            }
+            else if (artifactWaitMode == ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL
+                    && completedAnalysis
+                    && stableIterationsAfterArtifacts >= PARTIAL_ARTIFACT_STABLE_ITERATIONS) {
+                break;
+            }
+            else if (artifactWaitMode == ArtifactWaitMode.ALLOW_PARTIAL_NON_TERMINAL
+                    && externalCompletion
+                    && stableIterationsAfterArtifacts >= COMPLETE_ARTIFACT_STABLE_ITERATIONS) {
                 break;
             }
 
@@ -191,8 +248,8 @@ public final class OfficialVerificationRuntimePollingSupport {
             Duration timeout,
             ZeroTrustActionRepository zeroTrustActionRepository
     ) {
-        if (zeroTrustActionRepository == null
-                || !StringUtils.hasText(subjectId)
+        Objects.requireNonNull(zeroTrustActionRepository, "zeroTrustActionRepository");
+        if (!StringUtils.hasText(subjectId)
                 || !StringUtils.hasText(requestId)) {
             return false;
         }
@@ -219,6 +276,14 @@ public final class OfficialVerificationRuntimePollingSupport {
 
     private static boolean hasErrorEvent(List<OfficialVerificationAnalysisEventStore.AnalysisEvent> events) {
         return events.stream().anyMatch(event -> "ERROR".equalsIgnoreCase(event.type()));
+    }
+
+    private static boolean hasCompletedAnalysisEvent(List<OfficialVerificationAnalysisEventStore.AnalysisEvent> events) {
+        return events.stream().anyMatch(event ->
+                "COMPLETED".equalsIgnoreCase(event.status())
+                        && ("LAYER1_COMPLETE".equalsIgnoreCase(event.type())
+                        || "LAYER2_COMPLETE".equalsIgnoreCase(event.type())
+                        || "LLM_EXECUTION_COMPLETE".equalsIgnoreCase(event.type())));
     }
 
     private static void sleep(long millis) {

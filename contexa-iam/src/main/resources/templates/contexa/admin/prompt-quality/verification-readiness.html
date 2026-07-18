@@ -12,7 +12,7 @@
       data-pqa-page="verification"
       data-pqa-stage="OFFICIAL_VERIFICATION"
       data-pqa-verification-stage="readiness"
-      th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
+      th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityUiMode == 'enterprise' ? pqaEnterpriseApiRoot : pqaOfficialApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
    <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(${verificationPageHeaderTitle}, ${verificationPageHeaderSubtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>

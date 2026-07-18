@@ -62,27 +62,7 @@ public class PolicyBuilderController {
     @GetMapping
     public String policyBuilder(Model model) {
 
-        List<RoleDto> roleDtos = roleService.getRolesWithoutExpression().stream()
-                .map(role -> RoleDto.builder()
-                        .id(role.getId())
-                        .roleName(role.getRoleName())
-                        .roleDesc(role.getRoleDesc())
-                        .build())
-                .collect(Collectors.toList());
-
-        List<PermissionDto> permissionDtos = permissionCatalogService.getAvailablePermissions().stream()
-                .map(permission -> PermissionDto.builder()
-                        .id(permission.getId())
-                        .name(permission.getName())
-                        .friendlyName(permission.getFriendlyName())
-                        .description(permission.getDescription())
-                        .targetType(permission.getTargetType())
-                        .actionType(permission.getActionType())
-                        .build())
-                .collect(Collectors.toList());
-
-        model.addAttribute("allRoles", roleDtos);
-        model.addAttribute("allPermissions", permissionDtos);
+        addRoleAndPermissionCatalog(model);
 
         if (!model.containsAttribute("resourceContext")) {
             model.addAttribute("resourceContext", PolicyBuilderResourceContext.defaultContext());
@@ -215,56 +195,68 @@ public class PolicyBuilderController {
         List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
         List<ConditionTemplate> compatibleConditions = conditionCompatibilityService.getCompatibleConditions(resource, allConditions);
 
-        List<ConditionTemplateDto> conditionDtos = compatibleConditions.stream()
-                .map(cond -> {
-                    Set<String> requiredVars = extractVariablesFromSpel(cond.getSpelTemplate());
-                    String enhancedDescription = enhanceConditionDescriptionV2(cond);
-                    
-                    return new ConditionTemplateDto(
-                            cond.getId(),
-                            cond.getName(),
-                            enhancedDescription,
-                            requiredVars,
-                            true, 
-                            cond.getSpelTemplate()
-                    );
-                })
-                .sorted((a, b) -> {
-                    
-                    ConditionTemplate condA = findConditionById(compatibleConditions, a.id());
-                    ConditionTemplate condB = findConditionById(compatibleConditions, b.id());
-                    
-                    int classificationOrder1 = getClassificationOrder(condA.getClassification());
-                    int classificationOrder2 = getClassificationOrder(condB.getClassification());
-                    if (classificationOrder1 != classificationOrder2) {
-                        return Integer.compare(classificationOrder1, classificationOrder2);
-                    }
-                    return a.name().compareTo(b.name());
-                })
-                .toList();
+        List<ConditionTemplateDto> conditionDtos = buildCompatibleConditionDtos(compatibleConditions);
 
         model.addAttribute("allConditions", conditionDtos);
         model.addAttribute("conditionStatistics", PolicyBuilderConditionStatistics.from(compatibleConditions));
 
+        addResourceContext(model, resource);
+
+        addPreselectedPermission(model, permissionId);
+
+        addRoleAndPermissionCatalog(model);
+        model.addAttribute("activePage", "policy-builder");
+        
+        return "contexa/admin/policy-builder";
+    }
+
+
+    private List<ConditionTemplateDto> buildCompatibleConditionDtos(List<ConditionTemplate> conditions) {
+        return conditions.stream()
+                .map(condition -> new ConditionTemplateDto(
+                        condition.getId(),
+                        condition.getName(),
+                        enhanceConditionDescriptionV2(condition),
+                        extractVariablesFromSpel(condition.getSpelTemplate()),
+                        true,
+                        condition.getSpelTemplate()
+                ))
+                .sorted((first, second) -> {
+                    ConditionTemplate firstCondition = findConditionById(conditions, first.id());
+                    ConditionTemplate secondCondition = findConditionById(conditions, second.id());
+                    int firstOrder = getClassificationOrder(firstCondition.getClassification());
+                    int secondOrder = getClassificationOrder(secondCondition.getClassification());
+                    return firstOrder != secondOrder
+                            ? Integer.compare(firstOrder, secondOrder)
+                            : first.name().compareTo(second.name());
+                })
+                .toList();
+    }
+
+    private void addResourceContext(Model model, ManagedResource resource) {
         Object parameterTypes;
         try {
             parameterTypes = objectMapper.readValue(resource.getParameterTypes(), Object.class);
-        } catch (Exception e) {
+        }
+        catch (Exception ignored) {
             parameterTypes = Collections.emptyList();
         }
         model.addAttribute("resourceContext", PolicyBuilderResourceContext.fromResource(resource, parameterTypes));
+    }
 
-        permissionService.getPermission(permissionId)
-                .ifPresent(permission -> {
-                    PermissionDto permissionDto = PermissionDto.builder()
-                            .id(permission.getId())
-                            .name(permission.getName())
-                            .friendlyName(permission.getFriendlyName())
-                            .description(permission.getDescription())
-                            .build();
-                    model.addAttribute("preselectedPermission", permissionDto);
-                });
+    private void addPreselectedPermission(Model model, Long permissionId) {
+        permissionService.getPermission(permissionId).ifPresent(permission -> {
+            PermissionDto permissionDto = PermissionDto.builder()
+                    .id(permission.getId())
+                    .name(permission.getName())
+                    .friendlyName(permission.getFriendlyName())
+                    .description(permission.getDescription())
+                    .build();
+            model.addAttribute("preselectedPermission", permissionDto);
+        });
+    }
 
+    private void addRoleAndPermissionCatalog(Model model) {
         List<RoleDto> roleDtos = roleService.getRolesWithoutExpression().stream()
                 .map(role -> RoleDto.builder()
                         .id(role.getId())
@@ -272,7 +264,6 @@ public class PolicyBuilderController {
                         .roleDesc(role.getRoleDesc())
                         .build())
                 .collect(Collectors.toList());
-
         List<PermissionDto> permissionDtos = permissionCatalogService.getAvailablePermissions().stream()
                 .map(permission -> PermissionDto.builder()
                         .id(permission.getId())
@@ -283,12 +274,7 @@ public class PolicyBuilderController {
                         .actionType(permission.getActionType())
                         .build())
                 .collect(Collectors.toList());
-
         model.addAttribute("allRoles", roleDtos);
         model.addAttribute("allPermissions", permissionDtos);
-        model.addAttribute("activePage", "policy-builder");
-        
-        return "contexa/admin/policy-builder";
     }
-
 }

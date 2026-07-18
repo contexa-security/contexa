@@ -2,12 +2,17 @@ package io.contexa.contexacore.verification.evidence;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
 import java.util.Optional;
 
-public interface SealedEvidencePackageRepository extends JpaRepository<SealedEvidencePackage, Long> {
+/**
+ * Storage port for sealed evidence packages.
+ * Persistence technology and transaction ownership belong to downstream adapters.
+ */
+public interface SealedEvidencePackageRepository {
+
+    SealedEvidencePackage save(SealedEvidencePackage evidencePackage);
 
     Optional<SealedEvidencePackage> findByPackageId(String packageId);
 

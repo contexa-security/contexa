@@ -8,6 +8,9 @@ import java.util.Locale;
 public final class OfficialVerificationReplayPathSupport {
 
     private static final List<String> MANUAL_PATH_PREFIXES = List.of(
+            "/contexa/admin/api/security-test/",
+            "/contexa/api/security-test/",
+            "/contexa/admin/api/enterprise/verification/runtime/probe/",
             "/admin/api/security-test/",
             "/api/security-test/",
             "/admin/api/enterprise/verification/runtime/probe/",
@@ -84,13 +87,13 @@ public final class OfficialVerificationReplayPathSupport {
                 .filter(normalizedRequestPath::startsWith)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Official verification accepts replay paths only under /admin/api/security-test/**, /api/security-test/**, /admin/api/enterprise/verification/runtime/probe/**, or /internal/api/demo-verification/probe/**"
+                        "Official verification accepts replay paths only under /contexa/admin/api/security-test/**, /contexa/api/security-test/**, /contexa/admin/api/enterprise/verification/runtime/probe/**, /admin/api/security-test/**, /api/security-test/**, /admin/api/enterprise/verification/runtime/probe/**, or /internal/api/demo-verification/probe/**"
                 ));
         String remainder = normalizedRequestPath.substring(matchedPrefix.length());
         String[] segments = remainder.split("/", 2);
         if (segments.length != 2 || !StringUtils.hasText(segments[1])) {
             throw new IllegalArgumentException(
-                    "Replay path must follow /admin/api/security-test/{endpointKey}/{resourceId}, /admin/api/enterprise/verification/runtime/probe/{endpointKey}/{resourceId}, or /internal/api/demo-verification/probe/{endpointKey}/{resourceId}"
+                    "Replay path must follow /contexa/admin/api/security-test/{endpointKey}/{resourceId}, /contexa/admin/api/enterprise/verification/runtime/probe/{endpointKey}/{resourceId}, /admin/api/security-test/{endpointKey}/{resourceId}, /admin/api/enterprise/verification/runtime/probe/{endpointKey}/{resourceId}, or /internal/api/demo-verification/probe/{endpointKey}/{resourceId}"
             );
         }
         String parsedEndpointKey = StringUtils.hasText(segments[0]) ? segments[0].trim().toLowerCase(Locale.ROOT) : null;

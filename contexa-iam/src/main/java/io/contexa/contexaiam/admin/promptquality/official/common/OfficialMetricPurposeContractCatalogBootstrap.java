@@ -4,9 +4,9 @@ import org.springframework.beans.factory.InitializingBean;
 
 public class OfficialMetricPurposeContractCatalogBootstrap implements InitializingBean {
 
-    private final OfficialMetricPurposeContractCatalogWriter writer;
+    private final OfficialMetricPurposeContractWriter writer;
 
-    public OfficialMetricPurposeContractCatalogBootstrap(OfficialMetricPurposeContractCatalogWriter writer) {
+    public OfficialMetricPurposeContractCatalogBootstrap(OfficialMetricPurposeContractWriter writer) {
         this.writer = writer;
     }
 

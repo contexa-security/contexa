@@ -25,7 +25,63 @@ public record RuntimeEvidenceCheckResult(
         String detectedSignalsJson,
         String interpretationLinksJson,
         String decisionUtility,
-        String whyItMatters) {
+        String whyItMatters,
+        OfficialVerificationGateCode gateCode) {
+
+    public RuntimeEvidenceCheckResult {
+        gateCode = gateCode == null ? OfficialVerificationGateCode.UNCLASSIFIED : gateCode;
+    }
+
+    public RuntimeEvidenceCheckResult(
+            String metricCode,
+            String checkCode,
+            String label,
+            String expectedValue,
+            String actualValue,
+            boolean pass,
+            String source,
+            String severity,
+            String failureType,
+            String remediationOwner,
+            String operatorReason,
+            String nextAction,
+            String reverifyCriterion,
+            String issueKey,
+            boolean customerVisible,
+            String readinessScope,
+            String purposeVersion,
+            String inputReadinessState,
+            String purposeResult,
+            String detectedSignalsJson,
+            String interpretationLinksJson,
+            String decisionUtility,
+            String whyItMatters) {
+        this(
+                metricCode,
+                checkCode,
+                label,
+                expectedValue,
+                actualValue,
+                pass,
+                source,
+                severity,
+                failureType,
+                remediationOwner,
+                operatorReason,
+                nextAction,
+                reverifyCriterion,
+                issueKey,
+                customerVisible,
+                readinessScope,
+                purposeVersion,
+                inputReadinessState,
+                purposeResult,
+                detectedSignalsJson,
+                interpretationLinksJson,
+                decisionUtility,
+                whyItMatters,
+                OfficialVerificationGateCode.UNCLASSIFIED);
+    }
 
     public RuntimeEvidenceCheckResult(
             String metricCode,
@@ -64,7 +120,8 @@ public record RuntimeEvidenceCheckResult(
                 "[]",
                 "[]",
                 "",
-                "");
+                "",
+                OfficialVerificationGateCode.UNCLASSIFIED);
     }
 
     public RuntimeEvidenceCheckResult(
@@ -107,7 +164,8 @@ public record RuntimeEvidenceCheckResult(
                 "[]",
                 "[]",
                 "",
-                "");
+                "",
+                OfficialVerificationGateCode.UNCLASSIFIED);
     }
 
     public RuntimeEvidenceCheckResult(
@@ -175,7 +233,36 @@ public record RuntimeEvidenceCheckResult(
                 "[]",
                 "[]",
                 "",
-                "");
+                "",
+                OfficialVerificationGateCode.UNCLASSIFIED);
+    }
+
+    public RuntimeEvidenceCheckResult withGateCode(OfficialVerificationGateCode gateCode) {
+        return new RuntimeEvidenceCheckResult(
+                metricCode,
+                checkCode,
+                label,
+                expectedValue,
+                actualValue,
+                pass,
+                source,
+                severity,
+                failureType,
+                remediationOwner,
+                operatorReason,
+                nextAction,
+                reverifyCriterion,
+                issueKey,
+                customerVisible,
+                readinessScope,
+                purposeVersion,
+                inputReadinessState,
+                purposeResult,
+                detectedSignalsJson,
+                interpretationLinksJson,
+                decisionUtility,
+                whyItMatters,
+                gateCode);
     }
 
     private static boolean defaultCustomerVisible(String source) {

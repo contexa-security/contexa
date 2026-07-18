@@ -554,7 +554,7 @@ function isTemplateResourceUrl(value) {
 
 function realIdentifier(value) {
     const normalized = rawText(value);
-    if (!normalized || normalized === '-' || normalized === '\u2014') {
+    if (!normalized || normalized === '-' || normalized === '—') {
         return '';
     }
     return normalized;

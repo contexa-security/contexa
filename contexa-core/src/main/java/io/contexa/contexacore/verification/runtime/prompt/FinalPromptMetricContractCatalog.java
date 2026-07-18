@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class FinalPromptMetricContractCatalog {
@@ -167,7 +168,7 @@ public final class FinalPromptMetricContractCatalog {
     }
 
     public static FinalPromptMetricContractCatalog load(ObjectMapper objectMapper) {
-        ObjectMapper mapper = objectMapper == null ? new ObjectMapper() : objectMapper;
+        ObjectMapper mapper = Objects.requireNonNull(objectMapper, "objectMapper");
         try (InputStream stream = FinalPromptMetricContractCatalog.class.getResourceAsStream(RESOURCE)) {
             if (stream == null) {
                 throw new IllegalStateException("Final prompt metric contract resource is missing: " + RESOURCE);

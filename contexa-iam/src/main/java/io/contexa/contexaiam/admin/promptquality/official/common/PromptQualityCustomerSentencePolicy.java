@@ -36,7 +36,7 @@ public final class PromptQualityCustomerSentencePolicy {
     public static String requireCustomerSentence(String fieldName, String value) {
         List<String> violations = violations(fieldName, value);
         if (!violations.isEmpty()) {
-            throw new IllegalArgumentException("고객 노출 문장 품질 계약 위반: " + String.join("; ", violations));
+            throw new IllegalArgumentException("Customer-facing sentence quality contract violation: " + String.join("; ", violations));
         }
         return value.trim();
     }
@@ -64,24 +64,24 @@ public final class PromptQualityCustomerSentencePolicy {
         String field = StringUtils.hasText(fieldName) ? fieldName.trim() : "customerSentence";
         List<String> violations = new ArrayList<>();
         if (!StringUtils.hasText(value)) {
-            violations.add(field + " 값이 비어 있습니다.");
+            violations.add(field + " is blank.");
             return violations;
         }
         String text = value.trim();
         if (text.length() > MAX_CUSTOMER_SENTENCE_LENGTH) {
-            violations.add(field + " 길이가 " + MAX_CUSTOMER_SENTENCE_LENGTH + "자를 초과했습니다.");
+            violations.add(field + " exceeds " + MAX_CUSTOMER_SENTENCE_LENGTH + " characters.");
         }
         if (OfficialPromptQualityNarrativeCatalog.containsBrokenText(text)) {
-            violations.add(field + " 문장에 깨진 문자 또는 잘못 디코딩된 문자가 포함되어 있습니다.");
+            violations.add(field + " contains broken or incorrectly decoded text.");
         }
         if (containsForbiddenInternalText(text)) {
-            violations.add(field + " 문장에 내부 상태 코드 또는 생성 식별자가 노출되었습니다.");
+            violations.add(field + " exposes an internal state code or generated identifier.");
         }
         if (containsRawJson(text)) {
-            violations.add(field + " 문장에 원시 JSON이 노출되었습니다.");
+            violations.add(field + " exposes raw JSON.");
         }
         if (containsKeyValueDump(text)) {
-            violations.add(field + " 문장이 키-값 나열 형태로 저장되었습니다.");
+            violations.add(field + " is stored as a key-value dump.");
         }
         return List.copyOf(violations);
     }

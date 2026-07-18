@@ -93,9 +93,9 @@
                     <h2 id="pqa-runtime-modal-title"><span th:text="#{enterprise.pqa.runtimeEvidence.detail.title}">증거 상세</span></h2>
                     <p th:text="#{enterprise.pqa.runtimeEvidence.detail.description}">봉인된 프롬프트와 공식 검사 전 컨텍스트 신호를 확인합니다.</p>
                 </div>
-                <button type="button" class="pqa-action-button" data-pqa-runtime-modal-close aria-label="닫기">
+                <button type="button" class="pqa-action-button" data-pqa-runtime-modal-close th:attr="aria-label=#{common.close}">
                     <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                    <span>닫기</span>
+                    <span th:text="#{common.close}">Close</span>
                 </button>
             </div>
             <div class="pqa-runtime-modal-body">

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.verification.metric;
 
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,18 @@ public final class OfficialContextHashStateResolver {
             Map<String, Object> requestFacts,
             Map<String, Object> promptMetadata,
             String canonicalContextJson) {
+        return resolve(
+                requestFacts,
+                promptMetadata,
+                canonicalContextJson,
+                OfficialVerificationMessageResolver.classpath(Locale.KOREAN));
+    }
+
+    public static Resolution resolve(
+            Map<String, Object> requestFacts,
+            Map<String, Object> promptMetadata,
+            String canonicalContextJson,
+            OfficialVerificationMessageResolver messageResolver) {
         String metadataHash = firstNonBlank(
                 text(promptMetadata, "contextHash"),
                 text(promptMetadata, "canonicalContextHash"));
@@ -38,29 +51,35 @@ public final class OfficialContextHashStateResolver {
 
         if (isMismatchState(declaredState)) {
             return new Resolution(firstNonBlank(metadataHash, requestHash, computedHash), METADATA_MISMATCH,
-                    "컨텍스트 해시 메타데이터가 불일치 상태로 저장되었습니다.");
+                    messageResolver.resolve(
+                            "enterprise.pqa.runtimeVerification.contextHash.declaredMismatch"));
         }
         if (StringUtils.hasText(metadataHash) && StringUtils.hasText(requestHash)
                 && !metadataHash.trim().equals(requestHash.trim())) {
             return new Resolution(firstNonBlank(metadataHash, requestHash), METADATA_MISMATCH,
-                    "프롬프트 메타데이터와 요청 사실의 컨텍스트 해시가 서로 다릅니다.");
+                    messageResolver.resolve(
+                            "enterprise.pqa.runtimeVerification.contextHash.sourceMismatch"));
         }
         String explicitHash = firstNonBlank(metadataHash, requestHash);
         if (StringUtils.hasText(explicitHash) && StringUtils.hasText(computedHash)
                 && !normalizeHash(explicitHash).equals(normalizeHash(computedHash))) {
             return new Resolution(explicitHash, METADATA_MISMATCH,
-                    "저장된 컨텍스트 해시가 canonicalContextJson으로 재계산한 값과 다릅니다.");
+                    messageResolver.resolve(
+                            "enterprise.pqa.runtimeVerification.contextHash.recalculationMismatch"));
         }
         if (StringUtils.hasText(explicitHash)) {
             return new Resolution(explicitHash, PRESENT,
-                    "공식 검사 입력에 컨텍스트 해시가 명시적으로 저장되었습니다.");
+                    messageResolver.resolve(
+                            "enterprise.pqa.runtimeVerification.contextHash.explicit"));
         }
         if (StringUtils.hasText(computedHash)) {
             return new Resolution(computedHash, COMPUTED_FROM_CANONICAL_CONTEXT,
-                    "명시적 해시는 없지만 canonicalContextJson으로 해시를 재계산했습니다.");
+                    messageResolver.resolve(
+                            "enterprise.pqa.runtimeVerification.contextHash.computed"));
         }
         return new Resolution("", MISSING_CANONICAL_CONTEXT,
-                "컨텍스트 해시와 canonicalContextJson이 모두 없어 재계산할 수 없습니다.");
+                messageResolver.resolve(
+                        "enterprise.pqa.runtimeVerification.contextHash.missing"));
     }
 
     public static boolean isAcceptableForOfficialInspection(String state) {

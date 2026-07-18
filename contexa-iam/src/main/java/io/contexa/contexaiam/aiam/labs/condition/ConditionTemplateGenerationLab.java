@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.aiam.labs.condition;
 
+import java.util.Objects;
+
 import io.contexa.contexacommon.domain.LabSpecialization;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -25,7 +27,6 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
-import java.util.Objects;
 
 @Slf4j
 public class ConditionTemplateGenerationLab

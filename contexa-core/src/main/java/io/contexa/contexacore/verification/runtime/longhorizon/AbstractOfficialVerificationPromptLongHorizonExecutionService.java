@@ -7,8 +7,7 @@ import io.contexa.contexacore.verification.runtime.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.reactive.function.client.WebClient;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationExecutionRequest;
 
 import java.util.List;
 import java.util.function.Function;
@@ -31,7 +30,7 @@ public abstract class AbstractOfficialVerificationPromptLongHorizonExecutionServ
             SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
             PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
             OfficialVerificationAnalysisEventStore analysisEventStore,
-            WebClient.Builder webClientBuilder,
+            OfficialVerificationProbeClient probeClient,
             ObjectMapper objectMapper,
             Function<R, String> runIdExtractor,
             Function<R, String> startedAtExtractor
@@ -41,7 +40,7 @@ public abstract class AbstractOfficialVerificationPromptLongHorizonExecutionServ
                 decisionOutboxRepository,
                 promptAuditOutboxRepository,
                 analysisEventStore,
-                webClientBuilder,
+                probeClient,
                 objectMapper,
                 runIdExtractor,
                 startedAtExtractor
@@ -54,7 +53,7 @@ public abstract class AbstractOfficialVerificationPromptLongHorizonExecutionServ
             boolean rerun,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request,
+            OfficialVerificationExecutionRequest request,
             String runId,
             int runOrdinal
     ) {

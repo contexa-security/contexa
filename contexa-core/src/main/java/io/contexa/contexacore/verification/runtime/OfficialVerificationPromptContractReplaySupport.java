@@ -102,7 +102,7 @@ public final class OfficialVerificationPromptContractReplaySupport {
 
     public static EndpointDefinition resolveContractEndpoint(String requestPath, List<String> allowedEndpointKeys) {
         OfficialVerificationReplayPathSupport.ReplayTarget replayTarget =
-                OfficialVerificationReplayPathSupport.parseProbeTarget(requestPath, allowedEndpointKeys);
+                OfficialVerificationReplayPathSupport.parseProbeTarget(normalizeContractRuntimePath(requestPath), allowedEndpointKeys);
         return new EndpointDefinition(
                 replayTarget.endpointKey(),
                 switch (replayTarget.endpointKey()) {
@@ -113,6 +113,18 @@ public final class OfficialVerificationPromptContractReplaySupport {
                 replayTarget.requestPath(),
                 replayTarget.resourceId()
         );
+    }
+
+    private static String normalizeContractRuntimePath(String requestPath) {
+        String normalized = OfficialVerificationReplayPathSupport.normalizeReplayPath(requestPath);
+        if (!StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        String enterpriseProbePrefix = "/admin/api/enterprise/verification/runtime/probe/";
+        if (normalized.startsWith(enterpriseProbePrefix)) {
+            return "/contexa" + normalized;
+        }
+        return normalized;
     }
 
     public record EndpointDefinition(String key, String label, String path, String resourceId) {

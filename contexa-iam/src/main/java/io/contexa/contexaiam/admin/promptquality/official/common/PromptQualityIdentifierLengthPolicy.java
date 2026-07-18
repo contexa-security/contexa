@@ -17,7 +17,7 @@ public final class PromptQualityIdentifierLengthPolicy {
     public static String packageId(String value) {
         String normalized = optionalText("packageId", value, IDENTIFIER_MAX);
         if (!StringUtils.hasText(normalized)) {
-            throw new IllegalArgumentException("요청 증거 번호(packageId)가 필요합니다.");
+            throw new PolicyViolationException("enterprise.pqa.validation.packageId.required");
         }
         return normalized;
     }
@@ -49,7 +49,7 @@ public final class PromptQualityIdentifierLengthPolicy {
     public static String requireText(String field, String value, int maxLength) {
         String normalized = optionalText(field, value, maxLength);
         if (!StringUtils.hasText(normalized)) {
-            throw new IllegalArgumentException(field + " 값이 필요합니다.");
+            throw new PolicyViolationException("enterprise.pqa.validation.text.requiredTpl", field);
         }
         return normalized;
     }
@@ -60,8 +60,34 @@ public final class PromptQualityIdentifierLengthPolicy {
         }
         String normalized = value.trim();
         if (normalized.length() > maxLength) {
-            throw new IllegalArgumentException(field + " 값은 최대 " + maxLength + "자까지 저장할 수 있습니다. 현재 길이: " + normalized.length());
+            throw new PolicyViolationException(
+                    "enterprise.pqa.validation.text.maxLengthTpl",
+                    field,
+                    maxLength,
+                    normalized.length());
         }
         return normalized;
+    }
+
+    public static String validationMessageKey(IllegalArgumentException exception) {
+        return exception instanceof PolicyViolationException violation ? violation.messageKey : null;
+    }
+
+    public static Object[] validationMessageArguments(IllegalArgumentException exception) {
+        return exception instanceof PolicyViolationException violation
+                ? violation.messageArguments.clone()
+                : new Object[0];
+    }
+
+    private static final class PolicyViolationException extends IllegalArgumentException {
+
+        private final String messageKey;
+        private final Object[] messageArguments;
+
+        private PolicyViolationException(String messageKey, Object... messageArguments) {
+            super(messageKey);
+            this.messageKey = messageKey;
+            this.messageArguments = messageArguments == null ? new Object[0] : messageArguments.clone();
+        }
     }
 }

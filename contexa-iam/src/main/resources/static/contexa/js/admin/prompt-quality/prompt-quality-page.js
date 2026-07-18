@@ -73,9 +73,7 @@ async function prepareBundle(root) {
         logClientFailure(root, 'bundle', error);
         const title = t('enterprise.pqa.common.status.bundleError');
         setStatus(root, 'error',
-                title === 'enterprise.pqa.common.status.bundleError'
-                        ? '다국어 리소스를 불러오지 못했습니다.'
-                        : title,
+                title,
                 publicError(error));
     }
 }
@@ -155,17 +153,16 @@ export function renderJsonBlock(label, value) {
     `;
 }
 
-// Korean status keyword list. Stored as unicode escapes so the raw source
-// remains ASCII-only while runtime matching against server payloads still works.
+// Korean status keywords preserve compatibility with localized server payloads.
 const TONE_KEYWORDS = {
     ready: ['ready', 'issued', 'enabled', 'approved', 'pass', 'passed', 'success', 'allow', 'active',
-            '\uD1B5\uACFC', '\uC2B9\uC778', '\uC815\uC0C1', '\uD5C8\uC6A9', '\uD65C\uC131', '\uBC1C\uAE09'],
+            '통과', '승인', '정상', '허용', '활성', '발급'],
     blocked: ['blocked', 'denied', 'fail', 'failed', 'error', 'critical', 'expired', 'reject',
-            '\uCC28\uB2E8', '\uC2E4\uD328', '\uC704\uD5D8', '\uAC70\uBD80', '\uB9CC\uB8CC', '\uC624\uB958'],
+            '차단', '실패', '위험', '거부', '만료', '오류'],
     reverify: ['reverify', 'expiring', 'review', 'warning',
-            '\uC7AC\uAC80\uC99D', '\uB9CC\uB8CC\uC608\uC815', '\uAC80\uD1A0', '\uACBD\uACE0'],
+            '재검증', '만료예정', '검토', '경고'],
     pending: ['pending', 'waiting', 'queued', 'discovered', 'draft',
-            '\uB300\uAE30', '\uC900\uBE44', '\uAC80\uC0AC\uC911', '\uCD08\uC548']
+            '대기', '준비', '검사중', '초안']
 };
 
 function resolveTone(raw, explicit) {

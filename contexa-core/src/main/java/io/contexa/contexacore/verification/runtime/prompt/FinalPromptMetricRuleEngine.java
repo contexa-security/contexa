@@ -144,14 +144,12 @@ final class FinalPromptMetricRuleEngine {
                 || normalized.contains("missing")
                 || normalized.contains("not available")
                 || normalized.contains("unavailable")
-                || normalized.equals("\uB204\uB77D\uB428")
-                || normalized.contains("\uB204\uB77D")
-                || normalized.equals("\uAC12 \uC5C6\uC74C")
-                || normalized.equals("\uC5C6\uC74C")
-                || normalized.equals("확인 불가")
+                // Korean absence markers preserve compatibility with persisted prompt evidence.
+                || normalized.equals("누락됨")
+                || normalized.contains("누락")
                 || normalized.equals("값 없음")
                 || normalized.equals("없음")
-                || normalized.contains("placeholder")
+                || normalized.equals("확인 불가")                || normalized.contains("placeholder")
                 || normalized.contains("to be populated");
     }
 

@@ -1,0 +1,28 @@
+{
+  "properties": [
+    {
+      "name": "contexa.pqa.routes.official-api-root",
+      "type": "java.lang.String",
+      "defaultValue": "/contexa/admin/api/prompt-quality",
+      "description": "Canonical root for the OSS prompt-quality administration API."
+    },
+    {
+      "name": "contexa.pqa.routes.enterprise-api-root",
+      "type": "java.lang.String",
+      "defaultValue": "/contexa/admin/api/enterprise/prompt-quality",
+      "description": "Canonical root for the Enterprise prompt-quality administration API."
+    },
+    {
+      "name": "contexa.pqa.routes.enterprise-verification-runtime-runs-path",
+      "type": "java.lang.String",
+      "defaultValue": "/verification/runtime-runs",
+      "description": "Path below the Enterprise API root for official verification runtime runs."
+    },
+    {
+      "name": "contexa.pqa.official-verification.stale-execution-timeout",
+      "type": "java.time.Duration",
+      "defaultValue": "15m",
+      "description": "Elapsed time without execution progress after which an interrupted official verification can be recovered by the next request."
+    }
+  ]
+}

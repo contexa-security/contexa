@@ -1,10 +1,13 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import java.util.NoSuchElementException;
+import java.util.Objects;
+
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.domain.PromptQualityAssuranceScope;
-import io.contexa.contexaiam.admin.promptquality.official.process.NoopPromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessCodes;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessScope;
@@ -14,7 +17,6 @@ import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceP
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePromptConsistencyResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceSearchCriteria;
 import io.contexa.contexaiam.admin.promptquality.official.application.support.AbstractPromptQualityRuntimeEvidenceSupport;
-import io.contexa.contexaiam.admin.promptquality.official.state.NoopPromptQualityStateCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateDescriptor;
 import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateDimension;
@@ -40,37 +42,13 @@ public class DefaultPromptQualityRuntimeEvidenceService
     private final PromptQualityStateCatalog stateCatalog;
     private final PromptQualityProcessRunService processRunService;
 
-    public DefaultPromptQualityRuntimeEvidenceService(
-            SealedEvidencePackageQueryService lookupService,
-            ObjectMapper objectMapper) {
-        this(lookupService, objectMapper, null, null);
-    }
 
-    public DefaultPromptQualityRuntimeEvidenceService(
-            SealedEvidencePackageQueryService lookupService,
-            ObjectMapper objectMapper,
-            PromptQualityMessageResolver messageResolver) {
-        this(lookupService, objectMapper, messageResolver, null);
-    }
 
-    public DefaultPromptQualityRuntimeEvidenceService(
-            SealedEvidencePackageQueryService lookupService,
-            ObjectMapper objectMapper,
-            PromptQualityMessageResolver messageResolver,
-            RuntimeEvidencePromptConsistencyGate promptConsistencyGate) {
-        this(lookupService, objectMapper, messageResolver, promptConsistencyGate,
-                new NoopPromptQualityStateCatalog(), new NoopPromptQualityProcessRunService());
-    }
 
-    public DefaultPromptQualityRuntimeEvidenceService(
-            SealedEvidencePackageQueryService lookupService,
-            ObjectMapper objectMapper,
-            PromptQualityMessageResolver messageResolver,
-            RuntimeEvidencePromptConsistencyGate promptConsistencyGate,
-            PromptQualityStateCatalog stateCatalog) {
-        this(lookupService, objectMapper, messageResolver, promptConsistencyGate, stateCatalog,
-                new NoopPromptQualityProcessRunService());
-    }
+
+
+
+
 
     public DefaultPromptQualityRuntimeEvidenceService(
             SealedEvidencePackageQueryService lookupService,
@@ -80,12 +58,10 @@ public class DefaultPromptQualityRuntimeEvidenceService
             PromptQualityStateCatalog stateCatalog,
             PromptQualityProcessRunService processRunService) {
         super(objectMapper, messageResolver);
-        this.lookupService = lookupService;
-        this.promptConsistencyGate = promptConsistencyGate == null
-                ? new DefaultRuntimeEvidencePromptConsistencyGate(objectMapper, null, messageResolver)
-                : promptConsistencyGate;
-        this.stateCatalog = stateCatalog == null ? new NoopPromptQualityStateCatalog() : stateCatalog;
-        this.processRunService = processRunService == null ? new NoopPromptQualityProcessRunService() : processRunService;
+        this.lookupService = Objects.requireNonNull(lookupService, "lookupService");
+        this.promptConsistencyGate = Objects.requireNonNull(promptConsistencyGate, "promptConsistencyGate");
+        this.stateCatalog = Objects.requireNonNull(stateCatalog, "stateCatalog");
+        this.processRunService = Objects.requireNonNull(processRunService, "processRunService");
     }
 
     @Override
@@ -124,10 +100,10 @@ public class DefaultPromptQualityRuntimeEvidenceService
     @Override
     public RuntimeEvidencePackageDetail findDetail(String packageId) {
         SealedEvidencePackage pkg = lookupService.findLightweightByPackageId(packageId)
-                .orElseThrow(() -> new IllegalArgumentException(message(
+                .orElseThrow(() -> new NoSuchElementException(message(
                         "enterprise.pqa.runtimeVerification.error.packageId.notFound",
-                        "Request evidence packageId was not found: {0}",
                         packageId)));
+
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
         Map<String, Object> authState = parseJson(pkg.getAuthStateJson());
         Map<String, Object> promptMetadata = Map.of();
@@ -165,6 +141,7 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private boolean matches(SealedEvidencePackage pkg, RuntimeEvidenceSearchCriteria criteria) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
+
         Map<String, Object> promptMetadata = Map.of();
         String actualPath = requestPath(pkg, requestFacts);
         boolean pathMatched = matchesPath(criteria.resourceUrl(), actualPath);
@@ -269,10 +246,12 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg) {
         return toSummary(pkg, lookupService.verifyIntegrity(pkg));
+
     }
 
     private RuntimeEvidencePackageSummary toSummary(SealedEvidencePackage pkg, boolean integrityValid) {
         Map<String, Object> requestFacts = parseJson(pkg.getRequestFactsJson());
+
         Map<String, Object> promptMetadata = Map.of();
         Map<String, Object> decision = parseJson(pkg.getDecisionJson());
         PromptQualityStateDescriptor state = stateCatalog.runtimeEvidence(
@@ -305,10 +284,11 @@ public class DefaultPromptQualityRuntimeEvidenceService
 
     private List<String> qualityWarnings(SealedEvidencePackage pkg, boolean integrityValid) {
         return Stream.of(
-                        hasText(pkg.getSystemPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmSystemPromptMissing", "System prompt sent to the LLM is missing."),
-                        hasText(pkg.getUserPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmUserPromptMissing", "User prompt sent to the LLM is missing."),
-                        integrityValid ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch", "Evidence hash does not match."))
+                        hasText(pkg.getSystemPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmSystemPromptMissing"),
+                        hasText(pkg.getUserPromptText()) ? null : message("enterprise.pqa.runtimeEvidence.warning.llmUserPromptMissing"),
+                        integrityValid ? null : message("enterprise.pqa.runtimeEvidence.warning.integrityMismatch"))
                 .filter(StringUtils::hasText)
                 .toList();
+
     }
 }

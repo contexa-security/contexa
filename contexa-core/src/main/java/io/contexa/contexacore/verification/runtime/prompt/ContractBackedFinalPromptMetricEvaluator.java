@@ -1,5 +1,6 @@
 package io.contexa.contexacore.verification.runtime.prompt;
 
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
@@ -17,32 +19,25 @@ import java.util.regex.Pattern;
 final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetricEvaluator {
 
     private static final Pattern TEMPLATE_PLACEHOLDER = Pattern.compile("\\{\\{([^}]+)}}");
-    private static final Pattern STRUCTURED_EVIDENCE_VALUE =
-            Pattern.compile("\"evidenceValue\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
-    private static final Pattern STRUCTURED_RUNTIME_FACTS =
-            Pattern.compile("\"runtimeFacts\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
     private static final Pattern CUSTOMER_EVIDENCE_KEY_VALUE =
             Pattern.compile("[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*");
     private final FinalPromptMetricContract metricContract;
     private final FinalPromptMetricRuleEngine ruleEngine;
     private final FinalPromptMetricContractCatalog contractCatalog;
-
-    ContractBackedFinalPromptMetricEvaluator(
-            FinalPromptMetricContract metricContract,
-            FinalPromptMetricRuleEngine ruleEngine) {
-        this(metricContract, ruleEngine, null);
-    }
+    private final OfficialVerificationMessageResolver messageResolver;
 
     ContractBackedFinalPromptMetricEvaluator(
             FinalPromptMetricContract metricContract,
             FinalPromptMetricRuleEngine ruleEngine,
-            FinalPromptMetricContractCatalog contractCatalog) {
+            FinalPromptMetricContractCatalog contractCatalog,
+            OfficialVerificationMessageResolver messageResolver) {
         if (metricContract == null || !StringUtils.hasText(metricContract.metricCode())) {
             throw new IllegalArgumentException("final prompt metric contract is required.");
         }
         this.metricContract = metricContract;
-        this.ruleEngine = ruleEngine == null ? new FinalPromptMetricRuleEngine() : ruleEngine;
-        this.contractCatalog = contractCatalog;
+        this.ruleEngine = Objects.requireNonNull(ruleEngine, "ruleEngine");
+        this.contractCatalog = Objects.requireNonNull(contractCatalog, "contractCatalog");
+        this.messageResolver = Objects.requireNonNull(messageResolver, "messageResolver");
     }
 
     @Override
@@ -60,7 +55,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             }
             if (checkContract.rule() == null || !StringUtils.hasText(checkContract.rule().operator())) {
                 throw new IllegalStateException("Final prompt metric check has no executable rule. metricCode="
-                        + metricCode() + ", checkName=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                        + metricCode() + ", checkName=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
             }
             FinalPromptMetricInputReadiness inputReadiness = inputReadiness(checkContract, context);
             if (!inputReadiness.ready()) {
@@ -82,7 +77,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             }
             checks.add(check(checkContract, passed, context));
         }
-        return result(checks);
+        return FinalPromptMetricResultAssembler.result(metricCode(), checks);
     }
 
     private boolean customerPassedEvidenceSufficient(
@@ -108,16 +103,16 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
         List<String> labels = rule == null ? List.of() : rule.labels();
         String labelText = labels == null || labels.isEmpty()
-                ? "선택 비교 항목"
+                ? message("verification.finalPrompt.comparison.selectableLabel")
                 : labels.stream()
                         .filter(StringUtils::hasText)
                         .map(String::trim)
                         .distinct()
                         .collect(Collectors.joining(", "));
         if (!StringUtils.hasText(labelText)) {
-            labelText = "선택 비교 항목";
+            labelText = message("verification.finalPrompt.comparison.selectableLabel");
         }
-        return labelText + " 값은 제공된 실제 값이 없어 비교 충돌로 판단하지 않습니다.";
+        return message("verification.finalPrompt.comparison.noActualValue", labelText);
     }
     private boolean customerRuntimeFactsContainHardMissing(String runtimeFacts) {
         if (!StringUtils.hasText(runtimeFacts)) {
@@ -125,7 +120,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         String normalized = runtimeFacts
                 .toLowerCase(Locale.ROOT)
-                .replace('\u00a0', ' ')
+                .replace(' ', ' ')
                 .replaceAll("\\s+", " ");
         return normalized.contains(" n/a")
                 || normalized.contains("값은 n/a")
@@ -137,62 +132,6 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 || normalized.contains("=missing")
                 || normalized.contains("missing(line")
                 || normalized.contains("no input values");
-    }
-
-    private FinalPromptMetricResult result(List<FinalPromptMetricCheck> checks) {
-        List<FinalPromptMetricCheck> safeChecks = copyChecks(checks);
-        List<FinalPromptMetricCheck> evaluatedChecks = safeChecks.stream()
-                .filter(check -> !"INTERNAL_REFERENCE".equalsIgnoreCase(readinessScope(check)))
-                .filter(check -> !"NOT_APPLICABLE".equalsIgnoreCase(firstNonBlank(check.purposeResult(), "")))
-                .toList();
-        int total = evaluatedChecks.size();
-        int passed = (int) evaluatedChecks.stream().filter(FinalPromptMetricCheck::passed).count();
-        double score = total == 0 ? 100.0d : (passed * 100.0d) / total;
-        String state = resultState(safeChecks, evaluatedChecks, passed, total);
-        return new FinalPromptMetricResult(metricCode(), score, passed, total, state, safeChecks);
-    }
-
-    private String resultState(
-            List<FinalPromptMetricCheck> allChecks,
-            List<FinalPromptMetricCheck> checks,
-            int passed,
-            int total) {
-        boolean inputNotReady = allChecks.stream()
-                .anyMatch(check -> !check.passed()
-                        && ("INPUT_NOT_READY".equalsIgnoreCase(check.inputReadinessState())
-                        || "INPUT_NOT_READY".equalsIgnoreCase(check.purposeResult())));
-        if (inputNotReady) {
-            return "input_not_ready";
-        }
-        if (total == 0) {
-            return "not_applicable";
-        }
-        if (passed == total) {
-            return "success";
-        }
-        boolean customerPromptPurposeFailed = checks.stream()
-                .anyMatch(check -> !check.passed()
-                        && check.customerVisible()
-                        && "CUSTOMER_PROMPT_QUALITY".equalsIgnoreCase(readinessScope(check))
-                        && !"INPUT_NOT_READY".equalsIgnoreCase(check.inputReadinessState())
-                        && !"INPUT_NOT_READY".equalsIgnoreCase(check.purposeResult()));
-        if (customerPromptPurposeFailed) {
-            return "threshold_failed";
-        }
-        return "gate_failed";
-    }
-
-    private List<FinalPromptMetricCheck> copyChecks(List<FinalPromptMetricCheck> checks) {
-        if (checks == null) {
-            return List.of();
-        }
-        for (int index = 0; index < checks.size(); index++) {
-            if (checks.get(index) == null) {
-                throw new IllegalStateException("Final prompt metric evaluator produced a null check. metricCode="
-                        + metricCode() + ", checkIndex=" + index);
-            }
-        }
-        return List.copyOf(checks);
     }
 
     private FinalPromptMetricCheck check(
@@ -235,7 +174,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 "READY",
                 passed ? "PURPOSE_PASSED" : "PURPOSE_FAILED",
                 detectedSignals,
-                interpretationLinksJson(checkContract, passed, evidence),
+                FinalPromptMetricInterpretationCodec.interpretationLinksJson(
+                        metricContract, metricCode(), checkContract, passed, evidence),
                 requiredContractText(checkContract, checkContract.qualityQuestion(), "qualityQuestion"),
                 requiredContractText(checkContract, checkContract.whyItMatters(), "whyItMatters"));
     }
@@ -269,8 +209,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         String fallbackCandidate = "";
         for (String evidenceValue : evidenceValues) {
-            String text = interpretationEvidenceText(evidenceValue);
-            String runtimeFacts = interpretationRuntimeFactsText(evidenceValue);
+            String text = FinalPromptMetricInterpretationCodec.interpretationEvidenceText(evidenceValue);
+            String runtimeFacts = FinalPromptMetricInterpretationCodec.interpretationRuntimeFactsText(evidenceValue);
             if (!StringUtils.hasText(text)) {
                 text = runtimeFacts;
             }
@@ -304,7 +244,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private boolean conditionalRagMetricNotApplicable(FinalPromptMetricEvaluationContext context) {
-        if (!"CONDITIONAL_RAG".equalsIgnoreCase(firstNonBlank(metricContract.metricRole(), ""))) {
+        if (!"CONDITIONAL_RAG".equalsIgnoreCase(FinalPromptDisplayValues.firstNonBlank(metricContract.metricRole(), ""))) {
             return false;
         }
         return metricContract.checks().stream()
@@ -367,7 +307,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                         "NOT_APPLICABLE",
                         displayEvidenceValues,
                         displayVisibleCheck(checkContract)),
-                interpretationLinksJson(checkContract, "NOT_APPLICABLE", evidence),
+                FinalPromptMetricInterpretationCodec.interpretationLinksJson(
+                        metricContract, metricCode(), checkContract, "NOT_APPLICABLE", evidence),
                 requiredContractText(checkContract, checkContract.qualityQuestion(), "qualityQuestion"),
                 requiredContractText(checkContract, checkContract.whyItMatters(), "whyItMatters"));
     }
@@ -383,7 +324,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(detail)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Not-applicable customer-visible evidence requires contract text. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         return List.of(customerPurposeEvidence(checkContract, title, detail, evidenceValues));
     }
@@ -426,22 +367,19 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 "INPUT_NOT_READY",
                 "INPUT_NOT_READY",
                 purposeDetectedSignalsJson(checkContract, "INPUT_NOT_READY", readinessSignals, false),
-                readinessInterpretationJson(checkContract, readiness),
+                FinalPromptMetricInterpretationCodec.readinessInterpretationJson(
+                        metricContract, metricCode(), checkContract,
+                        previewList(readiness.missingInputs()), previewList(readiness.presentInputs())),
                 requiredContractText(checkContract, checkContract.qualityQuestion(), "qualityQuestion"),
                 requiredContractText(checkContract, checkContract.whyItMatters(), "whyItMatters"));
     }
 
     private String internalInputSource(String checkCode) {
-        return "internalGate.metricInput." + metricCode() + "." + firstNonBlank(checkCode, "CHECK");
+        return "internalGate.metricInput." + metricCode() + "." + FinalPromptDisplayValues.firstNonBlank(checkCode, "CHECK");
     }
 
     private String internalApplicabilitySource(String checkCode) {
-        return "internalGate.metricApplicability." + metricCode() + "." + firstNonBlank(checkCode, "CHECK");
-    }
-
-    private String readinessScope(FinalPromptMetricCheck check) {
-        String scope = check == null ? "" : check.readinessScope();
-        return StringUtils.hasText(scope) ? scope.trim() : "INTERNAL_EXECUTION_GATE";
+        return "internalGate.metricApplicability." + metricCode() + "." + FinalPromptDisplayValues.firstNonBlank(checkCode, "CHECK");
     }
 
     private String readinessScope(FinalPromptMetricCheckContract checkContract) {
@@ -463,7 +401,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Final prompt metric check contract is missing " + fieldName
                 + ". metricCode=" + metricCode()
-                + ", checkName=" + firstNonBlank(checkContract == null ? "" : checkContract.checkName(), "UNKNOWN_CHECK"));
+                + ", checkName=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? "" : checkContract.checkName(), "UNKNOWN_CHECK"));
     }
 
     private String ruleEvidenceSummary(
@@ -485,7 +423,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         EvidenceCollector collector = new EvidenceCollector();
         collectEvidence(rule, context, collector);
-        return jsonArray(collector.values());
+        return FinalPromptMetricInterpretationCodec.jsonArray(collector.values());
     }
 
     private String purposeDetectedSignalsJson(
@@ -505,7 +443,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             List<String> evidenceValues,
             boolean requireStructuredCustomerEvidence) {
         if (requireStructuredCustomerEvidence) {
-            return jsonArray(requireCustomerDisplayEvidence(checkContract, evidenceValues));
+            return FinalPromptMetricInterpretationCodec.jsonArray(requireCustomerDisplayEvidence(checkContract, evidenceValues));
         }
         List<String> structured = new ArrayList<>();
         if (evidenceValues != null) {
@@ -523,7 +461,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             }
         }
         if (!structured.isEmpty()) {
-            return jsonArray(structured);
+            return FinalPromptMetricInterpretationCodec.jsonArray(structured);
         }
         String title = purposeResultTitle(checkContract, purposeResult);
         String detail = purposeResultDetail(checkContract, purposeResult, title);
@@ -531,7 +469,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 || normalizeCustomerPurposeText(title).equals(normalizeCustomerPurposeText(detail))) {
             return "[]";
         }
-        return jsonArray(List.of(customerPurposeEvidence(title, detail)));
+        return FinalPromptMetricInterpretationCodec.jsonArray(List.of(customerPurposeEvidence(title, detail)));
     }
 
     private String purposeResultTitle(
@@ -542,15 +480,15 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         String normalized = purposeResult == null ? "" : purposeResult.trim().toUpperCase(Locale.ROOT);
         if ("NOT_APPLICABLE".equals(normalized)) {
-            return firstNonBlank(checkContract.notApplicableMessage(), checkContract.passMessage(), checkContract.expectedMessage());
+            return FinalPromptDisplayValues.firstNonBlank(checkContract.notApplicableMessage(), checkContract.passMessage(), checkContract.expectedMessage());
         }
         if ("INPUT_NOT_READY".equals(normalized)) {
-            return firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage(), checkContract.expectedMessage());
+            return FinalPromptDisplayValues.firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage(), checkContract.expectedMessage());
         }
         if ("PURPOSE_FAILED".equals(normalized) || "FAILED".equals(normalized)) {
-            return firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage(), checkContract.expectedMessage());
+            return FinalPromptDisplayValues.firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage(), checkContract.expectedMessage());
         }
-        return firstNonBlank(checkContract.passMessage(), checkContract.expectedMessage(), checkContract.qualityQuestion());
+        return FinalPromptDisplayValues.firstNonBlank(checkContract.passMessage(), checkContract.expectedMessage(), checkContract.qualityQuestion());
     }
 
     private String purposeResultDetail(
@@ -587,7 +525,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (evidenceValues == null || evidenceValues.isEmpty()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible purpose evidence is missing. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         List<String> structured = new ArrayList<>();
         for (String evidenceValue : evidenceValues) {
@@ -600,14 +538,14 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     || !trimmed.contains("\"evidenceValue\"")) {
                 throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible purpose evidence must be structured. metric="
                         + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                        + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
             }
             structured.add(trimmed);
         }
         if (structured.isEmpty()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible purpose evidence did not produce display payload. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         return structured;
     }
@@ -644,7 +582,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (displayVisibleCheck(checkContract)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible purpose evidence is not contract-backed. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         return evidenceValues(checkContract.rule(), context);
     }
@@ -659,12 +597,12 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     ? requiredContractText(checkContract, checkContract.passMessage(), "passMessage")
                     : requiredContractText(
                             checkContract,
-                            firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
+                            FinalPromptDisplayValues.firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
                             "problemTitle");
             if (!StringUtils.hasText(contractEvidence)) {
                 throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible evidence template is required. metric="
                         + metricCode()
-                        + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                        + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
             }
             return List.of(customerPurposeEvidence(checkContract, title, contractEvidence, passed, context));
         }
@@ -673,7 +611,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     ? requiredContractText(checkContract, checkContract.passMessage(), "passMessage")
                     : requiredContractText(
                             checkContract,
-                            firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
+                            FinalPromptDisplayValues.firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
                             "problemTitle");
             return List.of(customerPurposeEvidence(title, contractEvidence));
         }
@@ -700,7 +638,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (prompt == null) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence template requires final prompt snapshot. "
                     + "metric=" + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         String displayTemplate = displayVisibleCheck(checkContract)
                 ? customerVisibleConclusionTemplate(checkContract, passed, template)
@@ -710,7 +648,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (rendered.contains("{{") || rendered.contains("}}")) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence template contains unresolved placeholder. "
                     + "metric=" + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         String text = customerPurposeText(rendered);
         if (checkContract != null && displayVisibleCheck(checkContract) && customerVisibleEvidenceUnsafe(text)) {
@@ -718,14 +656,14 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     ? requiredContractText(checkContract, checkContract.passMessage(), "passMessage")
                     : requiredContractText(
                             checkContract,
-                            firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
+                            FinalPromptDisplayValues.firstNonBlank(checkContract.problemTitle(), checkContract.failureMessage()),
                             "problemTitle");
             text = contractPurposeDetail(checkContract, passed, headline);
         }
         if (checkContract != null && displayVisibleCheck(checkContract) && customerVisibleEvidenceUnsafe(text)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible evidence template renders raw technical text. "
                     + "metric=" + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         return text;
     }
@@ -739,11 +677,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return conclusion;
         }
         String fallback = passed
-                ? firstNonBlank(
+                ? FinalPromptDisplayValues.firstNonBlank(
                 checkContract == null ? null : checkContract.passMessage(),
                 checkContract == null ? null : checkContract.interpretationLink(),
                 checkContract == null ? null : checkContract.meaning())
-                : firstNonBlank(
+                : FinalPromptDisplayValues.firstNonBlank(
                 checkContract == null ? null : checkContract.failureMessage(),
                 checkContract == null ? null : checkContract.problemTitle(),
                 checkContract == null ? null : checkContract.interpretationLink());
@@ -774,6 +712,21 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricEvaluationContext context,
             FinalPromptSnapshot prompt,
             String template) {
+        Map<String, String> values = baseContractEvidencePlaceholders(checkContract);
+        List<Map<String, String>> bindings = checkContract == null ? null : checkContract.evidenceBindings();
+        if (bindings == null) {
+            return values;
+        }
+        for (Map<String, String> binding : bindings) {
+            if (binding != null) {
+                addContractEvidenceBinding(values, checkContract, binding, passed, context, prompt, template);
+            }
+        }
+        return values;
+    }
+
+    private Map<String, String> baseContractEvidencePlaceholders(
+            FinalPromptMetricCheckContract checkContract) {
         Map<String, String> values = new LinkedHashMap<>();
         addContractTemplateValue(values, "purposeSignal", checkContract == null ? "" : checkContract.purposeSignal());
         addContractTemplateValue(values, "meaning", checkContract == null ? "" : checkContract.meaning());
@@ -787,53 +740,52 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         addContractTemplateValue(values, "whyItMatters", checkContract == null ? "" : checkContract.whyItMatters());
         addContractTemplateValue(values, "nextAction", checkContract == null ? "" : checkContract.nextAction());
         addContractTemplateValue(values, "reverifyCriterion", checkContract == null ? "" : checkContract.reverifyCriterion());
-        List<Map<String, String>> bindings = checkContract == null ? null : checkContract.evidenceBindings();
-        if (bindings == null) {
-            return values;
-        }
-        for (Map<String, String> binding : bindings) {
-            if (binding == null) {
-                continue;
-            }
-            String id = binding.get("id");
-            String label = binding.get("label");
-            if (!StringUtils.hasText(id)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence binding id is required. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
-            }
-            if (!templateUsesBinding(template, id)) {
-                continue;
-            }
-            String renderedSpecial = renderContractSpecialBinding(checkContract, binding, passed, prompt, context);
-            if (renderedSpecial != null) {
-                values.put(id.trim(), renderedSpecial);
-                continue;
-            }
-            if (!StringUtils.hasText(label)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence binding label is required. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + id);
-            }
-            String rawValue = prompt.firstValue(label);
-            if (!StringUtils.hasText(rawValue)) {
-                if (!contractBindingRequired(binding)) {
-                    values.put(id.trim(), "");
-                    continue;
-                }
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence template binding has no prompt value. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + id
-                        + ", label=" + label);
-            }
-            String renderedValue = renderContractBindingValue(checkContract, binding, rawValue);
-            values.put(id.trim(), renderedValue);
-        }
         return values;
     }
 
+    private void addContractEvidenceBinding(
+            Map<String, String> values,
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            boolean passed,
+            FinalPromptMetricEvaluationContext context,
+            FinalPromptSnapshot prompt,
+            String template) {
+        String id = binding.get("id");
+        String label = binding.get("label");
+        if (!StringUtils.hasText(id)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence binding id is required. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+        }
+        if (!templateUsesBinding(template, id)) {
+            return;
+        }
+        String renderedSpecial = renderContractSpecialBinding(checkContract, binding, passed, prompt, context);
+        if (renderedSpecial != null) {
+            values.put(id.trim(), renderedSpecial);
+            return;
+        }
+        if (!StringUtils.hasText(label)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence binding label is required. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + id);
+        }
+        String rawValue = prompt.firstValue(label);
+        if (!StringUtils.hasText(rawValue)) {
+            if (!contractBindingRequired(binding)) {
+                values.put(id.trim(), "");
+                return;
+            }
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Evidence template binding has no prompt value. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + id
+                    + ", label=" + label);
+        }
+        values.put(id.trim(), renderContractBindingValue(checkContract, binding, rawValue));
+    }
     private void addContractTemplateValue(Map<String, String> values, String key, String value) {
         if (values != null && StringUtils.hasText(key) && StringUtils.hasText(value)) {
             values.put(key.trim(), customerPurposeText(value));
@@ -854,7 +806,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             boolean passed,
             FinalPromptSnapshot prompt,
             FinalPromptMetricEvaluationContext context) {
-        String source = firstNonBlank(binding.get("source"), binding.get("type")).trim().toUpperCase(Locale.ROOT);
+        String source = FinalPromptDisplayValues.firstNonBlank(binding.get("source"), binding.get("type")).trim().toUpperCase(Locale.ROOT);
         if (!StringUtils.hasText(source)) {
             return null;
         }
@@ -862,128 +814,19 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return rulePurposeEvidence(checkContract, passed, context);
         }
         if ("SECTION_LIST".equals(source)) {
-            List<String> sections = splitContractList(binding.get("sections"));
-            if (sections.isEmpty()) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: SECTION_LIST binding requires sections. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            List<String> present = sections.stream()
-                    .filter(prompt::hasSection)
-                    .toList();
-            if (present.size() != sections.size() && contractBindingRequired(binding)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: SECTION_LIST binding has missing section. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            if (present.isEmpty() && !contractBindingRequired(binding)) {
-                return firstNonBlank(binding.get("emptyValue"), "");
-            }
-            return String.join(", ", present);
+            return renderSectionListBinding(checkContract, binding, prompt);
         }
         if ("TERM_LIST_PRESENT".equals(source)) {
-            List<String> terms = splitContractList(binding.get("terms"));
-            if (terms.isEmpty()) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TERM_LIST_PRESENT binding requires terms. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            List<String> present = terms.stream()
-                    .filter(prompt::contains)
-                    .map(term -> contractMappedValue(checkContract, term))
-                    .filter(StringUtils::hasText)
-                    .distinct()
-                    .toList();
-            if (present.isEmpty() && contractBindingRequired(binding)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TERM_LIST_PRESENT binding has no present term. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            if (present.isEmpty() && !contractBindingRequired(binding)) {
-                return firstNonBlank(binding.get("emptyValue"), "");
-            }
-            return String.join(", ", present);
+            return renderTermListBinding(checkContract, binding, prompt);
         }
         if ("FIRST_FIELD_VALUE".equals(source)) {
-            List<String> labels = splitContractList(binding.get("labels"));
-            if (labels.isEmpty()) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIRST_FIELD_VALUE binding requires labels. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            for (String label : labels) {
-                String value = prompt.firstValue(label);
-                if (usableRuntimeDisplayValue(value)) {
-                    return renderContractBindingValue(checkContract, binding, value);
-                }
-            }
-            if (contractBindingRequired(binding)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIRST_FIELD_VALUE binding has no prompt value. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            return firstNonBlank(binding.get("emptyValue"), "");
+            return renderFirstFieldBinding(checkContract, binding, prompt);
         }
         if ("FIELD_GROUP".equals(source)) {
-            List<String> labels = splitContractList(binding.get("labels"));
-            if (labels.isEmpty()) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIELD_GROUP binding requires labels. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            List<String> values = labels.stream()
-                    .map(label -> {
-                        String value = prompt.firstValue(label);
-                        return StringUtils.hasText(value)
-                                ? runtimeBindingFact(checkContract, binding, label, value)
-                                : "";
-                    })
-                    .filter(StringUtils::hasText)
-                    .distinct()
-                    .toList();
-            if (values.isEmpty() && StringUtils.hasText(binding.get("fallbackTerms"))) {
-                List<String> fallbackTerms = splitContractList(binding.get("fallbackTerms"));
-                values = fallbackTerms.stream()
-                        .filter(prompt::contains)
-                        .map(term -> contractMappedValue(checkContract, term))
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .toList();
-            }
-            if (values.isEmpty() && contractBindingRequired(binding)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIELD_GROUP binding has no prompt value. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            if (values.isEmpty() && !contractBindingRequired(binding)) {
-                return firstNonBlank(binding.get("emptyValue"), "");
-            }
-            return joinCustomerSentences(values);
+            return renderFieldGroupBinding(checkContract, binding, prompt);
         }
         if ("TRUNCATED_FACT_DETAILS".equals(source)) {
-            String details = truncatedFactDetails(checkContract, prompt);
-            if (!StringUtils.hasText(details) && contractBindingRequired(binding)) {
-                throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TRUNCATED_FACT_DETAILS binding has no prompt value. "
-                        + "metric=" + metricCode()
-                        + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
-                        + ", binding=" + binding.get("id"));
-            }
-            if (StringUtils.hasText(details)) {
-                return details;
-            }
-            String emptyValue = firstNonBlank(binding.get("emptyValue"), "");
-            if (StringUtils.hasText(emptyValue)) {
-                return emptyValue;
-            }
-            return "감지된 잘림 표식과 자리표시자는 0개입니다.";
+            return renderTruncatedFactBinding(checkContract, binding, prompt);
         }
         if ("RAG_RUNTIME_STATE".equals(source)) {
             return ragRuntimeStateEvidence(checkContract, binding, prompt, context);
@@ -998,6 +841,136 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         return null;
     }
 
+    private String renderSectionListBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            FinalPromptSnapshot prompt) {
+        List<String> sections = splitContractList(binding.get("sections"));
+        if (sections.isEmpty()) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: SECTION_LIST binding requires sections. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        List<String> present = sections.stream().filter(prompt::hasSection).toList();
+        if (present.size() != sections.size() && contractBindingRequired(binding)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: SECTION_LIST binding has missing section. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        return present.isEmpty() && !contractBindingRequired(binding)
+                ? FinalPromptDisplayValues.firstNonBlank(binding.get("emptyValue"), "")
+                : String.join(", ", present);
+    }
+
+    private String renderTermListBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            FinalPromptSnapshot prompt) {
+        List<String> terms = splitContractList(binding.get("terms"));
+        if (terms.isEmpty()) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TERM_LIST_PRESENT binding requires terms. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        List<String> present = terms.stream()
+                .filter(prompt::contains)
+                .map(term -> contractMappedValue(checkContract, term))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (present.isEmpty() && contractBindingRequired(binding)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TERM_LIST_PRESENT binding has no present term. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        return present.isEmpty()
+                ? FinalPromptDisplayValues.firstNonBlank(binding.get("emptyValue"), "")
+                : String.join(", ", present);
+    }
+
+    private String renderFirstFieldBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            FinalPromptSnapshot prompt) {
+        List<String> labels = splitContractList(binding.get("labels"));
+        if (labels.isEmpty()) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIRST_FIELD_VALUE binding requires labels. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        for (String label : labels) {
+            String value = prompt.firstValue(label);
+            if (usableRuntimeDisplayValue(value)) {
+                return renderContractBindingValue(checkContract, binding, value);
+            }
+        }
+        if (contractBindingRequired(binding)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIRST_FIELD_VALUE binding has no prompt value. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        return FinalPromptDisplayValues.firstNonBlank(binding.get("emptyValue"), "");
+    }
+
+    private String renderFieldGroupBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            FinalPromptSnapshot prompt) {
+        List<String> labels = splitContractList(binding.get("labels"));
+        if (labels.isEmpty()) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIELD_GROUP binding requires labels. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        List<String> values = labels.stream()
+                .map(label -> {
+                    String value = prompt.firstValue(label);
+                    return StringUtils.hasText(value) ? runtimeBindingFact(checkContract, binding, label, value) : "";
+                })
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (values.isEmpty() && StringUtils.hasText(binding.get("fallbackTerms"))) {
+            values = splitContractList(binding.get("fallbackTerms")).stream()
+                    .filter(prompt::contains)
+                    .map(term -> contractMappedValue(checkContract, term))
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+        }
+        if (values.isEmpty() && contractBindingRequired(binding)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIELD_GROUP binding has no prompt value. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        return values.isEmpty() ? FinalPromptDisplayValues.firstNonBlank(binding.get("emptyValue"), "") : joinCustomerSentences(values);
+    }
+
+    private String renderTruncatedFactBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            FinalPromptSnapshot prompt) {
+        String details = truncatedFactDetails(checkContract, prompt);
+        if (!StringUtils.hasText(details) && contractBindingRequired(binding)) {
+            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TRUNCATED_FACT_DETAILS binding has no prompt value. "
+                    + "metric=" + metricCode()
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", binding=" + binding.get("id"));
+        }
+        if (StringUtils.hasText(details)) {
+            return details;
+        }
+        return FinalPromptDisplayValues.firstNonBlank(binding.get("emptyValue"),
+                message("verification.finalPrompt.truncation.none"));
+    }
     private String promptTraceRuntimeEvidence(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
@@ -1040,11 +1013,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             case "systemprompthash" -> evidence.systemPromptHash();
             case "rawprompthash", "rawuserprompthash" -> evidence.rawUserPromptHash();
             case "rawsystemprompthash" -> evidence.rawSystemPromptHash();
-            case "systempromptartifact" -> presentText(firstNonBlank(evidence.systemPrompt(), evidence.systemPromptHash()));
-            case "userpromptartifact" -> presentText(firstNonBlank(evidence.rawUserPrompt(), evidence.userPromptHash()));
-            case "promptmanifest" -> presentText(evidence.promptEvidenceManifestJson());
+            case "systempromptartifact" -> FinalPromptDisplayValues.presentText(FinalPromptDisplayValues.firstNonBlank(evidence.systemPrompt(), evidence.systemPromptHash()), messageResolver);
+            case "userpromptartifact" -> FinalPromptDisplayValues.presentText(FinalPromptDisplayValues.firstNonBlank(evidence.rawUserPrompt(), evidence.userPromptHash()), messageResolver);
+            case "promptmanifest" -> FinalPromptDisplayValues.presentText(evidence.promptEvidenceManifestJson(), messageResolver);
             case "promptlineage" -> StringUtils.hasText(evidence.rawUserPromptHash())
-                    && StringUtils.hasText(evidence.userPromptHash()) ? "있음" : "없음";
+                    && StringUtils.hasText(evidence.userPromptHash()) ? message("verification.finalPrompt.value.present") : message("verification.finalPrompt.value.absent");
             default -> "";
         };
     }
@@ -1058,7 +1031,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         String template = passed
                 ? binding.get("template")
-                : firstNonBlank(binding.get("failureTemplate"), binding.get("template"));
+                : FinalPromptDisplayValues.firstNonBlank(binding.get("failureTemplate"), binding.get("template"));
         if (!StringUtils.hasText(template)) {
             return "";
         }
@@ -1066,10 +1039,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         FinalPromptUnmappedFact first = unmappedFacts.isEmpty() ? null : unmappedFacts.get(0);
         Map<String, String> values = new LinkedHashMap<>();
         values.put("count", String.valueOf(unmappedFacts.size()));
-        values.put("firstSection", first == null ? "" : firstNonBlank(first.section(), ""));
-        values.put("firstLabel", first == null ? "" : firstNonBlank(first.label(), ""));
+        values.put("firstSection", first == null ? "" : FinalPromptDisplayValues.firstNonBlank(first.section(), ""));
+        values.put("firstLabel", first == null ? "" : FinalPromptDisplayValues.firstNonBlank(first.label(), ""));
         values.put("firstLine", first == null ? "" : String.valueOf(first.lineNumber()));
-        values.put("firstErrorCode", first == null ? "" : firstNonBlank(first.errorCode(), ""));
+        values.put("firstErrorCode", first == null ? "" : FinalPromptDisplayValues.firstNonBlank(first.errorCode(), ""));
         String rendered = renderTemplate(template, values);
         return rendered.contains("{{") || rendered.contains("}}") ? "" : customerPurposeText(rendered);
     }
@@ -1093,7 +1066,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         for (String label : labels) {
             String rawValue = prompt == null ? "" : prompt.firstValue(label);
             if (!StringUtils.hasText(rawValue)) {
-                rawValue = String.valueOf(firstPresent(rag, lowerFirst(label), label));
+                rawValue = String.valueOf(FinalPromptDisplayValues.firstPresent(rag, FinalPromptDisplayValues.lowerFirst(label), label));
             }
             if ("RagApplicability".equalsIgnoreCase(label) && !StringUtils.hasText(rawValue)) {
                 rawValue = valueAfter(ragApplicabilityEvidence(context, checkContract == null ? null : checkContract.rule()),
@@ -1113,14 +1086,6 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList());
-    }
-
-    private String lowerFirst(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        String trimmed = value.trim();
-        return trimmed.substring(0, 1).toLowerCase(Locale.ROOT) + trimmed.substring(1);
     }
 
     private String joinCustomerSentences(List<String> values) {
@@ -1159,44 +1124,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         FinalPromptMetricRule rule = checkContract == null ? null : checkContract.rule();
         FinalPromptSnapshot prompt = context == null ? null : context.prompt();
         String operator = normalizeCheckName(rule == null ? "" : rule.operator());
-        if ("FIELD_VALUES_CONSISTENT".equals(operator) || "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator) || "BOOLEAN_FIELDS_CONSISTENT".equals(operator)) {
-            return consistencyPurposeEvidence(checkContract, prompt, rule == null ? List.of() : rule.labels(), operator, passed);
+        if (isCorePurposeOperator(operator)) {
+            return coreRulePurposeEvidence(checkContract, rule, prompt, operator, passed, context);
         }
-        if ("SENSITIVE_FLAG_CONSISTENT".equals(operator)) {
-            return sensitivePurposeEvidence(checkContract, prompt, rule == null ? List.of() : rule.labels(), passed);
-        }
-        if ("IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT".equals(operator)) {
-            return termSupportPurposeEvidence(checkContract, rule, prompt, passed);
-        }
-        if ("IF_ANY_TERM_PRESENT_THEN_FORBIDDEN_TERMS_ABSENT".equals(operator)) {
-            return forbiddenTermPurposeEvidence(checkContract, rule, prompt, passed);
-        }
-        if ("FORBIDDEN_TERMS_ABSENT".equals(operator)) {
-            return plainForbiddenTermsPurposeEvidence(checkContract, rule, prompt);
-        }
-        if ("SYSTEM_TERM_GROUPS_PRESENT".equals(operator)) {
-            return systemTermGroupPurposeEvidence(checkContract, rule, context, passed);
-        }
-        if ("RAG_NOT_FAILED_WHEN_USED".equals(operator)) {
-            return ragStateSummary(checkContract, prompt, context == null ? null : context.evidence(),
-                    "RagSearchExecuted", "RagRetrievalState", "RagAbsenceReason");
-        }
-        if ("RAG_DOCUMENT_SURFACE_PRESENT".equals(operator)) {
-            return ragStateSummary(checkContract, prompt, context == null ? null : context.evidence(),
-                    "RagProjectionState", "RagProjectedToFinalPrompt", "RelatedDocumentCount");
-        }
-        if ("RAG_NO_SCOPE_MISMATCH_DOCUMENT".equals(operator)) {
-            return ragContaminationScopeSummary(checkContract, prompt, context == null ? null : context.evidence());
-        }
-        if ("RAG_BLOCKED_DOCUMENT_EXCLUDED".equals(operator)) {
-            return ragStateSummary(checkContract, prompt, context == null ? null : context.evidence(),
-                    "RagDeniedDocumentCount", "RagAuthorizedDocumentCount", "RagPermissionFiltered", "RagProjectionState");
-        }
-        if ("RAG_TEXT_TERM_GROUPS_PRESENT_WHEN_RAG_PRESENT".equals(operator)) {
-            return ragTermGroupsPurposeEvidence(checkContract, rule, context);
-        }
-        if ("RAG_TEXT_FORBIDDEN_TERMS_ABSENT".equals(operator)) {
-            return ragForbiddenTermsPurposeEvidence(checkContract, rule, context);
+        if (isRagPurposeOperator(operator)) {
+            return ragRulePurposeEvidence(checkContract, rule, prompt, operator, context);
         }
         if ("ALL".equals(operator)) {
             String compositeEvidence = compositeRulePurposeEvidence(checkContract, rule, prompt, passed);
@@ -1204,11 +1136,89 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 return compositeEvidence;
             }
         }
+        return fallbackRulePurposeEvidence(checkContract, rule, passed, context);
+    }
+
+    private boolean isCorePurposeOperator(String operator) {
+        return Set.of(
+                "FIELD_VALUES_CONSISTENT",
+                "OPTIONAL_FIELD_VALUES_CONSISTENT",
+                "BOOLEAN_FIELDS_CONSISTENT",
+                "SENSITIVE_FLAG_CONSISTENT",
+                "IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT",
+                "IF_ANY_TERM_PRESENT_THEN_FORBIDDEN_TERMS_ABSENT",
+                "FORBIDDEN_TERMS_ABSENT",
+                "SYSTEM_TERM_GROUPS_PRESENT").contains(operator);
+    }
+
+    private String coreRulePurposeEvidence(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            FinalPromptSnapshot prompt,
+            String operator,
+            boolean passed,
+            FinalPromptMetricEvaluationContext context) {
+        return switch (operator) {
+            case "FIELD_VALUES_CONSISTENT", "OPTIONAL_FIELD_VALUES_CONSISTENT", "BOOLEAN_FIELDS_CONSISTENT" ->
+                    consistencyPurposeEvidence(checkContract, prompt, rule == null ? List.of() : rule.labels(), operator, passed);
+            case "SENSITIVE_FLAG_CONSISTENT" ->
+                    sensitivePurposeEvidence(checkContract, prompt, rule == null ? List.of() : rule.labels(), passed);
+            case "IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT" ->
+                    termSupportPurposeEvidence(checkContract, rule, prompt, passed);
+            case "IF_ANY_TERM_PRESENT_THEN_FORBIDDEN_TERMS_ABSENT" ->
+                    forbiddenTermPurposeEvidence(checkContract, rule, prompt, passed);
+            case "FORBIDDEN_TERMS_ABSENT" -> plainForbiddenTermsPurposeEvidence(checkContract, rule, prompt);
+            case "SYSTEM_TERM_GROUPS_PRESENT" -> systemTermGroupPurposeEvidence(checkContract, rule, context, passed);
+            default -> "";
+        };
+    }
+
+    private boolean isRagPurposeOperator(String operator) {
+        return Set.of(
+                "RAG_NOT_FAILED_WHEN_USED",
+                "RAG_DOCUMENT_SURFACE_PRESENT",
+                "RAG_NO_SCOPE_MISMATCH_DOCUMENT",
+                "RAG_BLOCKED_DOCUMENT_EXCLUDED",
+                "RAG_TEXT_TERM_GROUPS_PRESENT_WHEN_RAG_PRESENT",
+                "RAG_TEXT_FORBIDDEN_TERMS_ABSENT").contains(operator);
+    }
+
+    private String ragRulePurposeEvidence(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            FinalPromptSnapshot prompt,
+            String operator,
+            FinalPromptMetricEvaluationContext context) {
+        FinalPromptEvidenceContext evidence = context == null ? null : context.evidence();
+        return switch (operator) {
+            case "RAG_NOT_FAILED_WHEN_USED" -> ragStateSummary(
+                    checkContract, prompt, evidence,
+                    "RagSearchExecuted", "RagRetrievalState", "RagAbsenceReason");
+            case "RAG_DOCUMENT_SURFACE_PRESENT" -> ragStateSummary(
+                    checkContract, prompt, evidence,
+                    "RagProjectionState", "RagProjectedToFinalPrompt", "RelatedDocumentCount");
+            case "RAG_NO_SCOPE_MISMATCH_DOCUMENT" ->
+                    ragContaminationScopeSummary(checkContract, prompt, evidence);
+            case "RAG_BLOCKED_DOCUMENT_EXCLUDED" -> ragStateSummary(
+                    checkContract, prompt, evidence,
+                    "RagDeniedDocumentCount", "RagAuthorizedDocumentCount", "RagPermissionFiltered", "RagProjectionState");
+            case "RAG_TEXT_TERM_GROUPS_PRESENT_WHEN_RAG_PRESENT" ->
+                    ragTermGroupsPurposeEvidence(checkContract, rule, context);
+            case "RAG_TEXT_FORBIDDEN_TERMS_ABSENT" ->
+                    ragForbiddenTermsPurposeEvidence(checkContract, rule, context);
+            default -> "";
+        };
+    }
+
+    private String fallbackRulePurposeEvidence(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            boolean passed,
+            FinalPromptMetricEvaluationContext context) {
         String headline = passed
                 ? requiredContractText(checkContract, checkContract.passMessage(), "passMessage")
                 : requiredContractText(checkContract, checkContract.failureMessage(), "failureMessage");
-        List<String> rawEvidence = evidenceValues(rule, context);
-        String readable = readableEvidenceFacts(checkContract, rawEvidence);
+        String readable = readableEvidenceFacts(checkContract, evidenceValues(rule, context));
         if (StringUtils.hasText(readable)) {
             if (checkContract != null && checkContract.customerVisible() && customerVisibleEvidenceUnsafe(readable)) {
                 return "";
@@ -1218,11 +1228,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (checkContract != null && checkContract.customerVisible()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible runtime evidence must be derived from prompt facts. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         return contractPurposeDetail(checkContract, passed, headline);
     }
-
     private String compositeRulePurposeEvidence(
             FinalPromptMetricCheckContract checkContract,
             FinalPromptMetricRule rule,
@@ -1282,13 +1291,13 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             parts.add(termGroupLabel + ": " + String.join(", ", presentTerms));
         }
         if (!displayVisibleCheck(checkContract) && presentTerms.isEmpty() && !absentTerms.isEmpty()) {
-            parts.add("\uD2B8\uB9AC\uAC70 \uD45C\uD604 \uBBF8\uAC10\uC9C0: " + clippedCustomerList(absentTerms, 5));
+            parts.add(message("verification.finalPrompt.trigger.missing", FinalPromptDisplayValues.clippedCustomerList(absentTerms, 5, messageResolver)));
         }
         if (!support.isEmpty()) {
             parts.add(supportGroupLabel + ": " + String.join(", ", support));
         }
         if (!displayVisibleCheck(checkContract) && support.isEmpty() && !missingSupportTerms.isEmpty()) {
-            parts.add("\uC9C0\uC6D0 \uD45C\uD604 \uBBF8\uAC10\uC9C0: " + clippedCustomerList(missingSupportTerms, 5));
+            parts.add(message("verification.finalPrompt.support.missing", FinalPromptDisplayValues.clippedCustomerList(missingSupportTerms, 5, messageResolver)));
         }
         if (parts.isEmpty()) {
             String fallback = runtimeFallbackEvidence(checkContract, passed, headline);
@@ -1355,11 +1364,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 facts.add(readableFact(checkContract, "ForbiddenTermMatchCount", String.valueOf(present.size())));
             }
             else {
-                facts.add("RAG 금지 표현 발견: " + String.join(", ", present));
+                facts.add(message("verification.finalPrompt.rag.forbiddenFound", String.join(", ", present)));
             }
         }
         if (!displayVisibleCheck(checkContract) && !absent.isEmpty()) {
-            facts.add("\uBC1C\uACAC\uB418\uC9C0 \uC54A\uC740 \uAE08\uC9C0 \uD45C\uD604: " + String.join(", ", absent));
+            facts.add(message("verification.finalPrompt.rag.forbiddenAbsent", String.join(", ", absent)));
         }
         return joinCustomerSentences(facts);
     }
@@ -1372,69 +1381,89 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(ragText)) {
             return "";
         }
-        List<String> facts = new ArrayList<>();
-        List<String> evidenceLines = ragEvidenceLines(ragText);
-        if (!displayVisibleCheck(checkContract) && !evidenceLines.isEmpty()) {
-            facts.add("RAG \uBB38\uC11C \uB0B4\uC6A9: " + clippedCustomerList(evidenceLines, 3));
-        }
         if (displayVisibleCheck(checkContract)) {
-            int matchedGroups = 0;
-            int missingGroups = 0;
-            if (rule != null && rule.labelGroups() != null) {
-                for (List<String> group : rule.labelGroups()) {
-                    List<String> groupTerms = group == null ? List.of() : group.stream()
-                            .filter(StringUtils::hasText)
-                            .map(String::trim)
-                            .toList();
-                    if (groupTerms.isEmpty()) {
-                        continue;
-                    }
-                    boolean groupMatched = groupTerms.stream().anyMatch(term -> containsIgnoreCase(ragText, term));
-                    if (groupMatched) {
-                        matchedGroups++;
-                    }
-                    else {
-                        missingGroups++;
-                    }
-                }
-            }
-            facts.add(readableFact(checkContract, "RagEvidenceRequirementMetCount", String.valueOf(matchedGroups)));
-            facts.add(readableFact(checkContract, "RagEvidenceRequirementMissingCount", String.valueOf(missingGroups)));
-            return joinCustomerSentences(facts.stream().filter(StringUtils::hasText).distinct().toList());
+            return visibleRagTermGroupPurposeEvidence(checkContract, rule, ragText);
         }
+        return detailedRagTermGroupPurposeEvidence(checkContract, rule, ragText);
+    }
+
+    private String visibleRagTermGroupPurposeEvidence(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            String ragText) {
+        int matchedGroups = 0;
+        int missingGroups = 0;
         if (rule != null && rule.labelGroups() != null) {
             for (List<String> group : rule.labelGroups()) {
-                List<String> groupTerms = group == null ? List.of() : group.stream()
-                        .filter(StringUtils::hasText)
-                        .map(String::trim)
-                        .toList();
+                List<String> groupTerms = ragGroupTerms(group);
                 if (groupTerms.isEmpty()) {
                     continue;
                 }
-                List<String> present = groupTerms.stream()
-                        .filter(term -> containsIgnoreCase(ragText, term))
-                        .map(term -> contractMappedValue(checkContract, term))
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .toList();
-                if (!present.isEmpty()) {
-                    facts.add("ragEvidenceRequirementPresent=" + String.join(",", present));
+                if (groupTerms.stream().anyMatch(term -> containsIgnoreCase(ragText, term))) {
+                    matchedGroups++;
                 }
                 else {
-                    List<String> missing = groupTerms.stream()
-                            .map(term -> contractMappedValue(checkContract, term))
-                            .filter(StringUtils::hasText)
-                            .distinct()
-                            .toList();
-                    if (!missing.isEmpty()) {
-                        facts.add("ragEvidenceRequirementMissing=" + String.join(",", missing));
-                    }
+                    missingGroups++;
                 }
+            }
+        }
+        List<String> facts = new ArrayList<>();
+        facts.add(readableFact(checkContract, "RagEvidenceRequirementMetCount", String.valueOf(matchedGroups)));
+        facts.add(readableFact(checkContract, "RagEvidenceRequirementMissingCount", String.valueOf(missingGroups)));
+        return joinCustomerSentences(facts.stream().filter(StringUtils::hasText).distinct().toList());
+    }
+
+    private String detailedRagTermGroupPurposeEvidence(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            String ragText) {
+        List<String> facts = new ArrayList<>();
+        List<String> evidenceLines = ragEvidenceLines(ragText);
+        if (!evidenceLines.isEmpty()) {
+            facts.add(message("verification.finalPrompt.rag.documentContent", FinalPromptDisplayValues.clippedCustomerList(evidenceLines, 3, messageResolver)));
+        }
+        if (rule != null && rule.labelGroups() != null) {
+            for (List<String> group : rule.labelGroups()) {
+                addDetailedRagTermGroupFact(facts, checkContract, ragGroupTerms(group), ragText);
             }
         }
         return joinCustomerSentences(facts.stream().filter(StringUtils::hasText).distinct().toList());
     }
 
+    private void addDetailedRagTermGroupFact(
+            List<String> facts,
+            FinalPromptMetricCheckContract checkContract,
+            List<String> groupTerms,
+            String ragText) {
+        if (groupTerms.isEmpty()) {
+            return;
+        }
+        List<String> present = groupTerms.stream()
+                .filter(term -> containsIgnoreCase(ragText, term))
+                .map(term -> contractMappedValue(checkContract, term))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (!present.isEmpty()) {
+            facts.add("ragEvidenceRequirementPresent=" + String.join(",", present));
+            return;
+        }
+        List<String> missing = groupTerms.stream()
+                .map(term -> contractMappedValue(checkContract, term))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (!missing.isEmpty()) {
+            facts.add("ragEvidenceRequirementMissing=" + String.join(",", missing));
+        }
+    }
+
+    private List<String> ragGroupTerms(List<String> group) {
+        return group == null ? List.of() : group.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+    }
     private String ragForbiddenTermsPurposeEvidence(
             FinalPromptMetricCheckContract checkContract,
             FinalPromptMetricRule rule,
@@ -1457,7 +1486,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         List<String> evidenceLines = ragEvidenceLines(ragText);
         if (!displayVisibleCheck(checkContract) && !evidenceLines.isEmpty()) {
-            facts.add("RAG \uBB38\uC11C \uB0B4\uC6A9: " + clippedCustomerList(evidenceLines, 3));
+            facts.add(message("verification.finalPrompt.rag.documentContent", FinalPromptDisplayValues.clippedCustomerList(evidenceLines, 3, messageResolver)));
         }
         List<String> present = terms.stream()
                 .filter(term -> containsIgnoreCase(ragText, term))
@@ -1480,7 +1509,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             facts.add("ragForbiddenTermPresent=" + String.join(",", present));
         }
         else if (!absent.isEmpty()) {
-            facts.add("ragForbiddenTermAbsent=" + clippedCustomerList(absent, 5));
+            facts.add("ragForbiddenTermAbsent=" + FinalPromptDisplayValues.clippedCustomerList(absent, 5, messageResolver));
         }
         return joinCustomerSentences(facts.stream().filter(StringUtils::hasText).distinct().toList());
     }
@@ -1546,10 +1575,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         List<String> parts = new ArrayList<>();
         if (!confirmed.isEmpty()) {
-            parts.add("시스템 지시문에서 확인된 응답 형식 항목: " + String.join(", ", confirmed));
+            parts.add(message("verification.finalPrompt.format.confirmed", String.join(", ", confirmed)));
         }
         if (!missing.isEmpty()) {
-            parts.add("시스템 지시문에서 확인되지 않은 응답 형식 항목: " + String.join(", ", missing));
+            parts.add(message("verification.finalPrompt.format.missing", String.join(", ", missing)));
         }
         return joinCustomerSentences(parts);
     }
@@ -1643,7 +1672,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (mappings == null) {
             return fallback;
         }
-        return firstNonBlank(mappings.get(key), fallback);
+        return FinalPromptDisplayValues.firstNonBlank(mappings.get(key), fallback);
     }
 
     private String consistencyPurposeEvidence(
@@ -1664,7 +1693,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             List<FinalPromptField> fields = prompt.fieldsByLabel(label);
             for (FinalPromptField field : fields) {
                 String value = stripLineSuffix(field.value());
-                if (placeholderConsistencyValue(value)) {
+                if (passed && placeholderConsistencyValue(value)) {
                     continue;
                 }
                 String comparable = "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
@@ -1718,7 +1747,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             boolean duplicateLabel = fields.size() > 1;
             for (FinalPromptField field : fields) {
                 String value = stripLineSuffix(field.value());
-                if (placeholderConsistencyValue(value)) {
+                if (passed && placeholderConsistencyValue(value)) {
                     continue;
                 }
                 String comparable = "BOOLEAN_FIELDS_CONSISTENT".equals(operator)
@@ -1754,7 +1783,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(template) && checkContract.customerVisible()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible consistency outcome template is required. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
                     + ", template=" + templateKey);
         }
         if (!StringUtils.hasText(template)) {
@@ -1769,7 +1798,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
 
     private String customerFieldList(List<String> labels) {
         if (labels == null || labels.isEmpty()) {
-            return "검사 항목";
+            return message("verification.finalPrompt.inspection.genericItem");
         }
         return labels.stream()
                 .filter(StringUtils::hasText)
@@ -1830,9 +1859,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (checkContract != null && checkContract.customerVisible()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible purpose evidence requires distinct contract text. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
         }
-        return firstNonBlank(headline, "");
+        return FinalPromptDisplayValues.firstNonBlank(headline, "");
     }
 
     private String firstDistinctContractText(String headline, String... candidates) {
@@ -1917,14 +1946,14 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             String label,
             int lineNumber,
             String value) {
-        String sectionText = firstNonBlank(section, "section unknown");
-        String labelText = firstNonBlank(label, "field unknown");
+        String sectionText = FinalPromptDisplayValues.firstNonBlank(section, "section unknown");
+        String labelText = FinalPromptDisplayValues.firstNonBlank(label, "field unknown");
         String lineText = lineNumber > 0 ? String.valueOf(lineNumber) : "unknown";
         String template = contractSpecialMapping(checkContract, "__truncatedFactTemplate", "");
         if (!StringUtils.hasText(template) && checkContract != null && checkContract.customerVisible()) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible truncated fact template is required. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK"));
         }
         if (!StringUtils.hasText(template)) {
             return sectionText + "." + labelText + "(line " + lineText + ")";
@@ -1948,7 +1977,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private boolean contractBindingRequired(Map<String, String> binding) {
-        String required = binding == null ? "" : firstNonBlank(binding.get("required"), binding.get("optional"));
+        String required = binding == null ? "" : FinalPromptDisplayValues.firstNonBlank(binding.get("required"), binding.get("optional"));
         if (!StringUtils.hasText(required)) {
             return true;
         }
@@ -1973,7 +2002,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
             String rawValue) {
-        String format = firstNonBlank(binding.get("format"), "VALUE").trim().toUpperCase(Locale.ROOT);
+        String format = FinalPromptDisplayValues.firstNonBlank(binding.get("format"), "VALUE").trim().toUpperCase(Locale.ROOT);
         String normalized = stripLineSuffix(rawValue);
         String value = switch (format) {
             case "LIST", "DELTA_LIST" -> splitReadableList(normalized).stream()
@@ -2004,7 +2033,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "";
         }
         String text = value.trim();
-        return text.endsWith("일") ? text : text + "일";
+        String normalized = text.endsWith("일") ? text.substring(0, text.length() - 1) : text;
+        return message("verification.finalPrompt.duration.days", normalized);
     }
 
     private String contractMappedListItem(FinalPromptMetricCheckContract checkContract, String value) {
@@ -2023,7 +2053,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             String mappedKey = contractMappedValue(checkContract, key);
             String mappedValue = contractMappedValue(checkContract, rawValue);
             if (StringUtils.hasText(mappedKey) && StringUtils.hasText(mappedValue)) {
-                return mappedKey + " 값은 " + mappedValue;
+                return message("verification.finalPrompt.value.named", mappedKey, mappedValue);
             }
         }
         return exact;
@@ -2095,7 +2125,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 }
                 if (part.startsWith("section ") && part.contains("=present")) {
                     String section = part.substring("section ".length(), part.indexOf("=present")).trim();
-                    values.add(readableFact(checkContract, "section", section, "프롬프트 섹션"));
+                    values.add(readableFact(checkContract, "section", section, message("verification.finalPrompt.prompt.section")));
                     continue;
                 }
                 int equalsIndex = part.indexOf('=');
@@ -2121,14 +2151,14 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             }
         }
         if (!presentTerms.isEmpty() && !displayVisibleCheck(checkContract)) {
-            values.add("\uC2E4\uC81C \uD504\uB86C\uD504\uD2B8\uC5D0\uC11C \uBC1C\uACAC\uB41C \uD45C\uD604\uC740 "
-                    + presentTerms.stream().filter(StringUtils::hasText).distinct().collect(Collectors.joining(", "))
-                    + "\uC785\uB2C8\uB2E4.");
+            values.add(message(
+                    "verification.finalPrompt.prompt.presentTerms",
+                    presentTerms.stream().filter(StringUtils::hasText).distinct().collect(Collectors.joining(", "))));
         }
         if (!absentTerms.isEmpty() && !displayVisibleCheck(checkContract)) {
-            values.add("\uC2E4\uC81C \uD504\uB86C\uD504\uD2B8\uC5D0\uC11C \uBC1C\uACAC\uB418\uC9C0 \uC54A\uC740 \uD45C\uD604\uC740 "
-                    + absentTerms.stream().filter(StringUtils::hasText).distinct().collect(Collectors.joining(", "))
-                    + "\uC785\uB2C8\uB2E4.");
+            values.add(message(
+                    "verification.finalPrompt.prompt.absentTerms",
+                    absentTerms.stream().filter(StringUtils::hasText).distinct().collect(Collectors.joining(", "))));
         }
         return joinCustomerSentences(values.stream().filter(StringUtils::hasText).distinct().toList());
     }
@@ -2180,11 +2210,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             if (checkContract != null && checkContract.customerVisible()) {
                 throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible fact template is required. metric="
                         + metricCode()
-                        + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
+                        + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
                         + ", fact=" + name);
             }
             if (displayVisibleCheck(checkContract)) {
-                return label + " \uAC12\uC740 " + mappedValue;
+                return message("verification.finalPrompt.value.named", label, mappedValue);
             }
             return label + "=" + mappedValue;
         }
@@ -2199,8 +2229,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "";
         }
         return value.trim()
-                .replace("...", " \uC0DD\uB7B5\uB428")
-                .replace("=", " \uAC12\uC740 ")
+                .replace("...", " " + message("verification.finalPrompt.fragment.omitted"))
+                .replace("=", " " + message("verification.finalPrompt.fragment.valueConnector") + " ")
                 .replace("|", ", ")
                 .replaceAll("\\s+", " ")
                 .replaceAll("\\s+,\\s*", ", ")
@@ -2217,14 +2247,14 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 || text.contains("...")
                 || text.contains("Evidence:")
                 || text.contains("evidence:")
-                || text.contains("\uac80\uc0ac \ub300\uc0c1 \ud56d\ubaa9")
-                || text.contains("\uac80\uc0ac \ub300\uc0c1 \ucee8\ud14d\uc2a4\ud2b8")
-                || text.contains("\ud504\ub86c\ud504\ud2b8 \uc139\uc158")
-                || text.contains("\uc2e4\uc81c \ud504\ub86c\ud504\ud2b8\uc5d0\uc11c \ubc1c\uacac\ub41c \ud45c\ud604")
-                || text.contains("\uc2e4\uc81c \ud504\ub86c\ud504\ud2b8\uc5d0\uc11c \ubc1c\uacac\ub418\uc9c0 \uc54a\uc740 \ud45c\ud604")
-                || text.contains("\uac80\uc0ac\ud55c \ud45c\ud604")
-                || text.contains("\uc2e4\ud589 \uadfc\uac70:")
-                || text.contains("\ud655\uc778 \uacb0\uacfc:")
+                || text.contains("검사 대상 항목")
+                || text.contains("검사 대상 컨텍스트")
+                || text.contains("프롬프트 섹션")
+                || text.contains("실제 프롬프트에서 발견된 표현")
+                || text.contains("실제 프롬프트에서 발견되지 않은 표현")
+                || text.contains("검사한 표현")
+                || text.contains("실행 근거:")
+                || text.contains("확인 결과:")
                 || text.matches(".*\\sline\\s*$")
                 || customerVisiblePromptLocationToken(text)
                 || CUSTOMER_EVIDENCE_KEY_VALUE.matcher(text).find();
@@ -2243,7 +2273,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private String customerPurposeEvidence(String title, String detail) {
-        return jsonObject(
+        return FinalPromptMetricInterpretationCodec.jsonObject(
                 "signalKey", requiredText(customerPurposeText(title), "customer purpose evidence title"),
                 "evidenceValue", requiredText(customerPurposeText(detail), "customer purpose evidence detail"));
     }
@@ -2301,9 +2331,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(displayRuntimeFacts)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Missing customer purpose runtime facts. metric="
                     + metricCode()
-                    + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
         }
-        return jsonObject(
+        return FinalPromptMetricInterpretationCodec.jsonObject(
                 "signalKey", requiredText(customerPurposeText(title), "customer purpose evidence title"),
                 "evidenceValue", requiredText(displayDetail, "customer purpose evidence detail"),
                 "purposeSignal", requiredContractText(checkContract, checkContract.purposeSignal(), "purposeSignal"),
@@ -2448,17 +2478,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     ? ""
                     : contractRuntimeFactsFromEvidence(checkContract, List.of());
         }
-        if (displayVisibleCheck(checkContract)) {
-            if (passed && optionalFieldValuesConsistentCheck(checkContract)) {
-                String optionalFacts = optionalFieldValuesConsistentRuntimeFacts(checkContract);
-                if (customerRuntimeFactsUsable(checkContract, passed, context, optionalFacts)) {
-                    return optionalFacts;
-                }
-            }
-            String purposeFacts = purposeSpecificDisplayRuntimeFacts(checkContract, Map.of(), prompt, context);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, purposeFacts)) {
-                return purposeFacts;
-            }
+        String displayFacts = displaySpecificRuntimeFacts(checkContract, passed, prompt, context);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, displayFacts)) {
+            return displayFacts;
         }
         String templateFacts = displayVisibleCheck(checkContract)
                 ? ""
@@ -2466,68 +2488,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (customerRuntimeFactsUsable(checkContract, passed, context, templateFacts)) {
             return templateFacts;
         }
-        List<String> facts = new ArrayList<>();
-        for (Map<String, String> binding : safeEvidenceBindings(checkContract)) {
-            if (binding == null) {
-                continue;
-            }
-            List<String> bindingFacts = new ArrayList<>();
-            String renderedSpecial = renderContractRuntimeBinding(checkContract, binding, passed, prompt, context);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, renderedSpecial)) {
-                bindingFacts.add(renderedSpecial.trim());
-                facts.addAll(bindingFacts);
-                continue;
-            }
-            if (StringUtils.hasText(binding.get("runtimeFactItems"))
-                    || StringUtils.hasText(binding.get("customerVisibleRuntimeItems"))) {
-                continue;
-            }
-            List<String> labels = contractBindingLabels(binding);
-            for (String label : labels) {
-                String rawValue = prompt.firstValue(label);
-                if (StringUtils.hasText(rawValue)) {
-                    String fact = runtimeBindingFact(checkContract, binding, label, rawValue);
-                    if (customerRuntimeFactsUsable(checkContract, passed, context, fact)) {
-                        bindingFacts.add(fact);
-                    }
-                }
-                else if (displayVisibleCheck(checkContract) && !passed) {
-                    String fact = runtimeBindingFact(checkContract, binding, label, "MISSING");
-                    if (customerRuntimeFactsUsable(checkContract, passed, context, fact)) {
-                        bindingFacts.add(fact);
-                    }
-                }
-            }
-            if (labels.isEmpty() && StringUtils.hasText(binding.get("label"))) {
-                String label = binding.get("label").trim();
-                String rawValue = prompt.firstValue(label);
-                if (StringUtils.hasText(rawValue)) {
-                    String fact = runtimeBindingFact(checkContract, binding, label, rawValue);
-                    if (customerRuntimeFactsUsable(checkContract, passed, context, fact)) {
-                        bindingFacts.add(fact);
-                    }
-                }
-                else if (displayVisibleCheck(checkContract) && !passed) {
-                    String fact = runtimeBindingFact(checkContract, binding, label, "MISSING");
-                    if (customerRuntimeFactsUsable(checkContract, passed, context, fact)) {
-                        bindingFacts.add(fact);
-                    }
-                }
-            }
-            bindingFacts = bindingFacts.stream()
-                    .filter(StringUtils::hasText)
-                    .map(String::trim)
-                    .distinct()
-                    .toList();
-            facts.addAll(bindingFacts);
-        }
-        String runtimeFacts = joinCustomerSentences(facts.stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .distinct()
-                .toList());
-        if (customerRuntimeFactsUsable(checkContract, passed, context, runtimeFacts)) {
-            return runtimeFacts;
+        String bindingFacts = contractBindingRuntimeFacts(checkContract, passed, prompt, context);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, bindingFacts)) {
+            return bindingFacts;
         }
         String safeAbsenceFailureFacts = safeAbsenceFailureRuntimeFacts(checkContract, passed, prompt);
         if (customerRuntimeFactsUsable(checkContract, passed, context, safeAbsenceFailureFacts)) {
@@ -2542,9 +2505,95 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (customerRuntimeFactsUsable(checkContract, passed, context, evidenceFacts)) {
             return evidenceFacts;
         }
-        return displayVisibleCheck(checkContract) ? "" : runtimeFactFallback(checkContract);
+        return runtimeFactFallback(checkContract);
     }
 
+    private String displaySpecificRuntimeFacts(
+            FinalPromptMetricCheckContract checkContract,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        if (!displayVisibleCheck(checkContract)) {
+            return "";
+        }
+        if (passed && optionalFieldValuesConsistentCheck(checkContract)) {
+            String optionalFacts = optionalFieldValuesConsistentRuntimeFacts(checkContract);
+            if (customerRuntimeFactsUsable(checkContract, passed, context, optionalFacts)) {
+                return optionalFacts;
+            }
+        }
+        String purposeFacts = purposeSpecificDisplayRuntimeFacts(checkContract, Map.of(), prompt, context);
+        return customerRuntimeFactsUsable(checkContract, passed, context, purposeFacts) ? purposeFacts : "";
+    }
+
+    private String contractBindingRuntimeFacts(
+            FinalPromptMetricCheckContract checkContract,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        List<String> facts = new ArrayList<>();
+        for (Map<String, String> binding : safeEvidenceBindings(checkContract)) {
+            if (binding != null) {
+                facts.addAll(runtimeFactsForBinding(checkContract, binding, passed, prompt, context));
+            }
+        }
+        return joinCustomerSentences(facts.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList());
+    }
+
+    private List<String> runtimeFactsForBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        String renderedSpecial = renderContractRuntimeBinding(checkContract, binding, passed, prompt, context);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, renderedSpecial)) {
+            return List.of(renderedSpecial.trim());
+        }
+        if (StringUtils.hasText(binding.get("runtimeFactItems"))
+                || StringUtils.hasText(binding.get("customerVisibleRuntimeItems"))) {
+            return List.of();
+        }
+        List<String> bindingFacts = new ArrayList<>();
+        List<String> labels = contractBindingLabels(binding);
+        for (String label : labels) {
+            addRuntimeBindingFact(bindingFacts, checkContract, binding, label, passed, prompt, context);
+        }
+        if (labels.isEmpty() && StringUtils.hasText(binding.get("label"))) {
+            addRuntimeBindingFact(
+                    bindingFacts, checkContract, binding, binding.get("label").trim(), passed, prompt, context);
+        }
+        return bindingFacts.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private void addRuntimeBindingFact(
+            List<String> bindingFacts,
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            String label,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        String rawValue = prompt.firstValue(label);
+        String value = StringUtils.hasText(rawValue)
+                ? rawValue
+                : displayVisibleCheck(checkContract) && !passed ? "MISSING" : "";
+        if (!StringUtils.hasText(value)) {
+            return;
+        }
+        String fact = runtimeBindingFact(checkContract, binding, label, value);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, fact)) {
+            bindingFacts.add(fact);
+        }
+    }
     private boolean customerRuntimeFactsUsable(
             FinalPromptMetricCheckContract checkContract,
             boolean passed,
@@ -2590,7 +2639,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if ("TRUNCATED_VALUES_ABSENT".equals(operator)) {
             int count = truncatedFactCount(prompt);
             return count > 0
-                    ? "잘림 표식 또는 자리표시자가 포함된 프롬프트 항목 " + count + "개가 발견되었습니다."
+                    ? message("verification.finalPrompt.truncation.foundCount", count)
                     : "";
         }
         return "";
@@ -2637,67 +2686,12 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             boolean passed,
             FinalPromptSnapshot prompt,
             FinalPromptMetricEvaluationContext context) {
-        String source = firstNonBlank(binding.get("source"), binding.get("type")).trim().toUpperCase(Locale.ROOT);
+        String source = FinalPromptDisplayValues.firstNonBlank(binding.get("source"), binding.get("type")).trim().toUpperCase(Locale.ROOT);
         if ("RULE_PURPOSE_EVIDENCE".equals(source)) {
-            boolean contractDeclaresRuntimeFacts = StringUtils.hasText(binding.get("runtimeFactItems"))
-                    || StringUtils.hasText(binding.get("customerVisibleRuntimeItems"));
-            if (contractDeclaresRuntimeFacts) {
-                if (displayVisibleCheck(checkContract)) {
-                    String purposeFacts = purposeSpecificDisplayRuntimeFacts(checkContract, binding, prompt, context);
-                    if (customerRuntimeFactsUsable(checkContract, passed, context, purposeFacts)) {
-                        return purposeFacts;
-                    }
-                }
-                String promptFacts = runtimeFactsFromBindingContextItems(
-                        checkContract,
-                        binding,
-                        prompt,
-                        context,
-                        displayVisibleCheck(checkContract),
-                        displayVisibleCheck(checkContract) && !passed);
-                if (customerRuntimeFactsUsable(checkContract, passed, context, promptFacts)) {
-                    return promptFacts;
-                }
-                return "";
-            }
-            String ruleDerivedFacts = ruleDerivedRuntimeFacts(checkContract, passed, prompt, context);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, ruleDerivedFacts)) {
-                return ruleDerivedFacts;
-            }
-            String promptFacts = runtimeFactsFromBindingContextItems(
-                    checkContract,
-                    binding,
-                    prompt,
-                    context,
-                    displayVisibleCheck(checkContract),
-                    displayVisibleCheck(checkContract) && !passed);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, promptFacts)) {
-                return promptFacts;
-            }
-            if (!displayVisibleCheck(checkContract)) {
-                String contractTemplateFacts = renderContractRuntimeEvidenceTemplate(checkContract, passed, context);
-                if (customerRuntimeFactsUsable(checkContract, passed, context, contractTemplateFacts)) {
-                    return contractTemplateFacts;
-                }
-            }
-            String evidenceFacts = renderContractSpecialBinding(checkContract, binding, passed, prompt, context);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, evidenceFacts)) {
-                return evidenceFacts;
-            }
-            return "";
+            return rulePurposeRuntimeBinding(checkContract, binding, passed, prompt, context);
         }
         if ("TERM_LIST_PRESENT".equals(source)) {
-            String promptFacts = runtimeFactsFromBindingContextItems(
-                    checkContract,
-                    binding,
-                    prompt,
-                    context,
-                    displayVisibleCheck(checkContract),
-                    displayVisibleCheck(checkContract) && !passed);
-            if (customerRuntimeFactsUsable(checkContract, passed, context, promptFacts)) {
-                return promptFacts;
-            }
-            String termFacts = runtimeFactsFromTermList(checkContract, binding, prompt);
+            String termFacts = termListRuntimeBinding(checkContract, binding, passed, prompt, context);
             if (customerRuntimeFactsUsable(checkContract, passed, context, termFacts)) {
                 return termFacts;
             }
@@ -2706,16 +2700,68 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(rendered)) {
             return rendered;
         }
-        if ("FIELD_GROUP".equals(source)
-                || "SECTION_LIST".equals(source)
-                || "TERM_LIST_PRESENT".equals(source)
-                || "RAG_RUNTIME_STATE".equals(source)
-                || "TRUNCATED_FACT_DETAILS".equals(source)) {
+        if (Set.of(
+                "FIELD_GROUP", "SECTION_LIST", "TERM_LIST_PRESENT",
+                "RAG_RUNTIME_STATE", "TRUNCATED_FACT_DETAILS").contains(source)) {
             return rendered.trim();
         }
         return rendered;
     }
 
+    private String rulePurposeRuntimeBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        boolean declaresRuntimeFacts = StringUtils.hasText(binding.get("runtimeFactItems"))
+                || StringUtils.hasText(binding.get("customerVisibleRuntimeItems"));
+        if (declaresRuntimeFacts) {
+            if (displayVisibleCheck(checkContract)) {
+                String purposeFacts = purposeSpecificDisplayRuntimeFacts(checkContract, binding, prompt, context);
+                if (customerRuntimeFactsUsable(checkContract, passed, context, purposeFacts)) {
+                    return purposeFacts;
+                }
+            }
+            String promptFacts = runtimeFactsFromBindingContextItems(
+                    checkContract, binding, prompt, context,
+                    displayVisibleCheck(checkContract), displayVisibleCheck(checkContract) && !passed);
+            return customerRuntimeFactsUsable(checkContract, passed, context, promptFacts) ? promptFacts : "";
+        }
+        String ruleDerivedFacts = ruleDerivedRuntimeFacts(checkContract, passed, prompt, context);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, ruleDerivedFacts)) {
+            return ruleDerivedFacts;
+        }
+        String promptFacts = runtimeFactsFromBindingContextItems(
+                checkContract, binding, prompt, context,
+                displayVisibleCheck(checkContract), displayVisibleCheck(checkContract) && !passed);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, promptFacts)) {
+            return promptFacts;
+        }
+        if (!displayVisibleCheck(checkContract)) {
+            String templateFacts = renderContractRuntimeEvidenceTemplate(checkContract, passed, context);
+            if (customerRuntimeFactsUsable(checkContract, passed, context, templateFacts)) {
+                return templateFacts;
+            }
+        }
+        String evidenceFacts = renderContractSpecialBinding(checkContract, binding, passed, prompt, context);
+        return customerRuntimeFactsUsable(checkContract, passed, context, evidenceFacts) ? evidenceFacts : "";
+    }
+
+    private String termListRuntimeBinding(
+            FinalPromptMetricCheckContract checkContract,
+            Map<String, String> binding,
+            boolean passed,
+            FinalPromptSnapshot prompt,
+            FinalPromptMetricEvaluationContext context) {
+        String promptFacts = runtimeFactsFromBindingContextItems(
+                checkContract, binding, prompt, context,
+                displayVisibleCheck(checkContract), displayVisibleCheck(checkContract) && !passed);
+        if (customerRuntimeFactsUsable(checkContract, passed, context, promptFacts)) {
+            return promptFacts;
+        }
+        return runtimeFactsFromTermList(checkContract, binding, prompt);
+    }
     private String purposeSpecificDisplayRuntimeFacts(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
@@ -2724,7 +2770,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!displayVisibleCheck(checkContract)) {
             return "";
         }
-        String summaryItem = firstNonBlank(
+        String summaryItem = FinalPromptDisplayValues.firstNonBlank(
                 checkPurposeRuntimeSummaryItem(checkContract),
                 declaredPurposeRuntimeSummaryItem(binding));
         if (!StringUtils.hasText(summaryItem)) {
@@ -2931,11 +2977,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 continue;
             }
             if (prompt.hasSection(item)) {
-                facts.add(readableFact(checkContract, "section", item, "\uD504\uB86C\uD504\uD2B8 \uC139\uC158"));
+                facts.add(readableFact(checkContract, "section", item, message("verification.finalPrompt.prompt.section")));
                 continue;
             }
             if (prompt.contains(item)) {
-                facts.add(readableFact(checkContract, item, "\uBC1C\uACAC\uB428", "\uD504\uB86C\uD504\uD2B8 \uD45C\uD604"));
+                facts.add(readableFact(checkContract, item, message("verification.finalPrompt.prompt.found"), message("verification.finalPrompt.prompt.expression")));
             }
         }
         List<String> normalizedFacts = facts.stream()
@@ -3143,7 +3189,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         facts.add(readableFact(checkContract, "DecisionContextPresentItemCount", String.valueOf(presentItems.size())));
         facts.add(readableFact(checkContract, "DecisionContextRequiredItemCount", String.valueOf(distinctItems.size())));
         if (!presentItems.isEmpty()) {
-            facts.add(readableFact(checkContract, "DecisionContextItemSample", clippedCustomerList(presentItems, 5)));
+            facts.add(readableFact(checkContract, "DecisionContextItemSample", FinalPromptDisplayValues.clippedCustomerList(presentItems, 5, messageResolver)));
         }
         return joinCustomerSentences(facts.stream()
                 .filter(StringUtils::hasText)
@@ -3155,19 +3201,19 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricCheckContract checkContract,
             FinalPromptSnapshot prompt,
             FinalPromptEvidenceContext evidence) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             return "";
         }
-        String requestUser = firstPromptValue(prompt, "UserId", "User");
+        String requestUser = FinalPromptRagDocumentReader.firstPromptValue(prompt, "UserId", "User");
         int userMismatchCount = 0;
         int authorizationMissingCount = 0;
         for (Object document : documents) {
             if (StringUtils.hasText(requestUser)
-                    && !sameRuntimeValue(ragDocumentFieldValue(document, "userId"), requestUser)) {
+                    && !FinalPromptRagDocumentReader.sameValue(FinalPromptRagDocumentReader.fieldValue(document, "userId"), requestUser)) {
                 userMismatchCount++;
             }
-            if (!ragDocumentAuthorizationPresent(document)) {
+            if (!FinalPromptRagDocumentReader.authorizationPresent(document)) {
                 authorizationMissingCount++;
             }
         }
@@ -3191,7 +3237,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricCheckContract checkContract,
             FinalPromptSnapshot prompt,
             FinalPromptEvidenceContext evidence) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             return "";
         }
@@ -3211,11 +3257,11 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricCheckContract checkContract,
             FinalPromptSnapshot prompt,
             FinalPromptEvidenceContext evidence) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             List<String> facts = new ArrayList<>();
             facts.add(readableFact(checkContract, "RagOutOfScopeDocumentCount", "0"));
-            facts.add(readableFact(checkContract, "RelatedDocumentCount", firstNonBlank(
+            facts.add(readableFact(checkContract, "RelatedDocumentCount", FinalPromptDisplayValues.firstNonBlank(
                     runtimeEvidenceValue(checkContract, "RelatedDocumentCount", evidence),
                     runtimeSnapshotValueForDeclaredItem(checkContract, "RelatedDocumentCount", prompt),
                     "0")));
@@ -3240,24 +3286,24 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private RagScopeCounts ragScopeCounts(FinalPromptSnapshot prompt, List<Object> documents) {
-        String requestTenant = firstPromptValue(prompt, "TenantId", "Tenant");
-        String requestResourceId = firstPromptValue(prompt, "ResourceId", "Resource ID");
-        String requestPath = firstPromptValue(prompt, "RequestPath", "Path");
-        String requestResourceFamily = firstPromptValue(prompt, "CurrentResourceFamily", "ResourceFamily");
-        String requestPathFamily = firstPromptValue(prompt, "CurrentPathFamily", "PathFamily");
+        String requestTenant = FinalPromptRagDocumentReader.firstPromptValue(prompt, "TenantId", "Tenant");
+        String requestResourceId = FinalPromptRagDocumentReader.firstPromptValue(prompt, "ResourceId", "Resource ID");
+        String requestPath = FinalPromptRagDocumentReader.firstPromptValue(prompt, "RequestPath", "Path");
+        String requestResourceFamily = FinalPromptRagDocumentReader.firstPromptValue(prompt, "CurrentResourceFamily", "ResourceFamily");
+        String requestPathFamily = FinalPromptRagDocumentReader.firstPromptValue(prompt, "CurrentPathFamily", "PathFamily");
         int tenantMismatchCount = 0;
         int resourceMismatchCount = 0;
         int purposeMissingCount = 0;
         for (Object document : documents) {
-            if (!sameRuntimeValue(ragDocumentFieldValue(document, "tenantId"), requestTenant)) {
+            if (!FinalPromptRagDocumentReader.sameValue(FinalPromptRagDocumentReader.fieldValue(document, "tenantId"), requestTenant)) {
                 tenantMismatchCount++;
             }
-            if (!documentResourceMatchesRequest(document, requestResourceId, requestPath, requestResourceFamily, requestPathFamily)) {
+            if (!FinalPromptRagDocumentReader.resourceMatchesRequest(document, requestResourceId, requestPath, requestResourceFamily, requestPathFamily)) {
                 resourceMismatchCount++;
             }
-            if (!StringUtils.hasText(firstNonBlank(
-                    ragDocumentFieldValue(document, "retrievalPurpose"),
-                    ragDocumentFieldValue(document, "purpose")))) {
+            if (!StringUtils.hasText(FinalPromptDisplayValues.firstNonBlank(
+                    FinalPromptRagDocumentReader.fieldValue(document, "retrievalPurpose"),
+                    FinalPromptRagDocumentReader.fieldValue(document, "purpose")))) {
                 purposeMissingCount++;
             }
         }
@@ -3305,7 +3351,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 .filter(prompt::contains)
                 .distinct()
                 .count();
-        return readableFact(checkContract, firstNonBlank(countLabel, "TermMatchCount"), String.valueOf(matched));
+        return readableFact(checkContract, FinalPromptDisplayValues.firstNonBlank(countLabel, "TermMatchCount"), String.valueOf(matched));
     }
 
     private String ragDocumentAlignmentSummary(
@@ -3314,69 +3360,111 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptEvidenceContext evidence,
             boolean requireUser,
             boolean requireAuthorization) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             return "";
         }
-        String requestTenant = firstPromptValue(prompt, "TenantId", "Tenant");
-        String requestUser = firstPromptValue(prompt, "UserId", "User");
-        String requestResourceId = firstPromptValue(prompt, "ResourceId", "Resource ID");
-        String requestPath = firstPromptValue(prompt, "RequestPath", "Path");
-        String requestResourceFamily = firstPromptValue(prompt, "CurrentResourceFamily", "ResourceFamily");
-        String requestPathFamily = firstPromptValue(prompt, "CurrentPathFamily", "PathFamily");
-        List<String> facts = new ArrayList<>();
-        facts.add(readableFact(checkContract, "RagDocumentCount", String.valueOf(documents.size())));
-        if (StringUtils.hasText(requestTenant)) {
-            facts.add(readableFact(checkContract, "RequestTenantId", requestTenant));
-        }
-        if (requireUser && StringUtils.hasText(requestUser)) {
-            facts.add(readableFact(checkContract, "RequestUserId", requestUser));
-        }
-        if (StringUtils.hasText(requestResourceId)) {
-            facts.add(readableFact(checkContract, "RequestResourceId", requestResourceId));
-        }
-        if (StringUtils.hasText(requestPath)) {
-            facts.add(readableFact(checkContract, "RequestPath", requestPath));
-        }
-        int tenantMismatchCount = 0;
-        int userMismatchCount = 0;
-        int resourceMismatchCount = 0;
-        int purposeMissingCount = 0;
-        int authorizationMissingCount = 0;
-        for (Object document : documents) {
-            if (!sameRuntimeValue(ragDocumentFieldValue(document, "tenantId"), requestTenant)) {
-                tenantMismatchCount++;
-            }
-            if (requireUser && !sameRuntimeValue(ragDocumentFieldValue(document, "userId"), requestUser)) {
-                userMismatchCount++;
-            }
-            if (!documentResourceMatchesRequest(document, requestResourceId, requestPath, requestResourceFamily, requestPathFamily)) {
-                resourceMismatchCount++;
-            }
-            if (!StringUtils.hasText(firstNonBlank(
-                    ragDocumentFieldValue(document, "retrievalPurpose"),
-                    ragDocumentFieldValue(document, "purpose")))) {
-                purposeMissingCount++;
-            }
-            if (requireAuthorization && !ragDocumentAuthorizationPresent(document)) {
-                authorizationMissingCount++;
-            }
-        }
-        facts.add(readableFact(checkContract, "RagTenantMismatchCount", String.valueOf(tenantMismatchCount)));
-        if (requireUser) {
-            facts.add(readableFact(checkContract, "RagUserMismatchCount", String.valueOf(userMismatchCount)));
-        }
-        facts.add(readableFact(checkContract, "RagResourceMismatchCount", String.valueOf(resourceMismatchCount)));
-        facts.add(readableFact(checkContract, "RagPurposeMissingCount", String.valueOf(purposeMissingCount)));
-        if (requireAuthorization) {
-            facts.add(readableFact(checkContract, "RagAuthorizationMissingCount", String.valueOf(authorizationMissingCount)));
-        }
+        RagAlignmentRequest request = ragAlignmentRequest(prompt);
+        List<String> facts = ragAlignmentRequestFacts(checkContract, documents.size(), request, requireUser);
+        RagAlignmentCounts counts = ragAlignmentCounts(documents, request, requireUser, requireAuthorization);
+        addRagAlignmentCountFacts(facts, checkContract, counts, requireUser, requireAuthorization);
         return joinCustomerSentences(facts.stream()
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList());
     }
 
+    private RagAlignmentRequest ragAlignmentRequest(FinalPromptSnapshot prompt) {
+        return new RagAlignmentRequest(
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "TenantId", "Tenant"),
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "UserId", "User"),
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "ResourceId", "Resource ID"),
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "RequestPath", "Path"),
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "CurrentResourceFamily", "ResourceFamily"),
+                FinalPromptRagDocumentReader.firstPromptValue(prompt, "CurrentPathFamily", "PathFamily"));
+    }
+
+    private List<String> ragAlignmentRequestFacts(
+            FinalPromptMetricCheckContract checkContract,
+            int documentCount,
+            RagAlignmentRequest request,
+            boolean requireUser) {
+        List<String> facts = new ArrayList<>();
+        facts.add(readableFact(checkContract, "RagDocumentCount", String.valueOf(documentCount)));
+        if (StringUtils.hasText(request.tenant())) {
+            facts.add(readableFact(checkContract, "RequestTenantId", request.tenant()));
+        }
+        if (requireUser && StringUtils.hasText(request.user())) {
+            facts.add(readableFact(checkContract, "RequestUserId", request.user()));
+        }
+        if (StringUtils.hasText(request.resourceId())) {
+            facts.add(readableFact(checkContract, "RequestResourceId", request.resourceId()));
+        }
+        if (StringUtils.hasText(request.path())) {
+            facts.add(readableFact(checkContract, "RequestPath", request.path()));
+        }
+        return facts;
+    }
+
+    private RagAlignmentCounts ragAlignmentCounts(
+            List<Object> documents,
+            RagAlignmentRequest request,
+            boolean requireUser,
+            boolean requireAuthorization) {
+        int tenantMismatch = 0;
+        int userMismatch = 0;
+        int resourceMismatch = 0;
+        int purposeMissing = 0;
+        int authorizationMissing = 0;
+        for (Object document : documents) {
+            tenantMismatch += FinalPromptRagDocumentReader.sameValue(FinalPromptRagDocumentReader.fieldValue(document, "tenantId"), request.tenant()) ? 0 : 1;
+            userMismatch += requireUser
+                    && !FinalPromptRagDocumentReader.sameValue(FinalPromptRagDocumentReader.fieldValue(document, "userId"), request.user()) ? 1 : 0;
+            resourceMismatch += FinalPromptRagDocumentReader.resourceMatchesRequest(
+                    document, request.resourceId(), request.path(), request.resourceFamily(), request.pathFamily()) ? 0 : 1;
+            purposeMissing += StringUtils.hasText(FinalPromptDisplayValues.firstNonBlank(
+                    FinalPromptRagDocumentReader.fieldValue(document, "retrievalPurpose"),
+                    FinalPromptRagDocumentReader.fieldValue(document, "purpose"))) ? 0 : 1;
+            authorizationMissing += requireAuthorization && !FinalPromptRagDocumentReader.authorizationPresent(document) ? 1 : 0;
+        }
+        return new RagAlignmentCounts(
+                tenantMismatch, userMismatch, resourceMismatch, purposeMissing, authorizationMissing);
+    }
+
+    private void addRagAlignmentCountFacts(
+            List<String> facts,
+            FinalPromptMetricCheckContract checkContract,
+            RagAlignmentCounts counts,
+            boolean requireUser,
+            boolean requireAuthorization) {
+        facts.add(readableFact(checkContract, "RagTenantMismatchCount", String.valueOf(counts.tenantMismatch())));
+        if (requireUser) {
+            facts.add(readableFact(checkContract, "RagUserMismatchCount", String.valueOf(counts.userMismatch())));
+        }
+        facts.add(readableFact(checkContract, "RagResourceMismatchCount", String.valueOf(counts.resourceMismatch())));
+        facts.add(readableFact(checkContract, "RagPurposeMissingCount", String.valueOf(counts.purposeMissing())));
+        if (requireAuthorization) {
+            facts.add(readableFact(
+                    checkContract, "RagAuthorizationMissingCount", String.valueOf(counts.authorizationMissing())));
+        }
+    }
+
+    private record RagAlignmentRequest(
+            String tenant,
+            String user,
+            String resourceId,
+            String path,
+            String resourceFamily,
+            String pathFamily) {
+    }
+
+    private record RagAlignmentCounts(
+            int tenantMismatch,
+            int userMismatch,
+            int resourceMismatch,
+            int purposeMissing,
+            int authorizationMissing) {
+    }
     private String ragStateSummary(
             FinalPromptMetricCheckContract checkContract,
             FinalPromptSnapshot prompt,
@@ -3413,86 +3501,92 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "";
         }
         String ragText = ragText(prompt, rule);
-        List<String> facts = new ArrayList<>();
-        boolean customerDisplay = displayVisibleCheck(checkContract);
         if (forbiddenTerms) {
-            List<String> terms = new ArrayList<>();
-            addContractItems(terms, rule.terms() == null ? "" : String.join(",", rule.terms()));
-            addContractItems(terms, rule.forbiddenTerms() == null ? "" : String.join(",", rule.forbiddenTerms()));
-            addContractItems(terms, rule.thenTerms() == null ? "" : String.join(",", rule.thenTerms()));
-            if (!StringUtils.hasText(ragText)) {
-                if (customerDisplay) {
-                    facts.add(readableFact(checkContract, "RagForbiddenTermCheckedCount", String.valueOf(terms.size())));
-                    facts.add(readableFact(checkContract, "RagForbiddenTermMatchCount", "0"));
-                    return joinCustomerSentences(facts.stream()
-                            .filter(StringUtils::hasText)
-                            .distinct()
-                            .toList());
-                }
-                List<String> expected = terms.stream()
-                        .map(term -> contractMappedValue(checkContract, term))
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .toList();
-                if (!expected.isEmpty()) {
-                    facts.add("ragForbiddenTermCheckedCount=" + expected.size());
-                    facts.add("ragForbiddenTermMatchCount=0");
-                }
-                return joinCustomerSentences(facts);
-            }
-            List<String> present = terms.stream()
-                    .filter(term -> containsIgnoreCase(ragText, term))
-                    .map(term -> contractMappedValue(checkContract, term))
-                    .filter(StringUtils::hasText)
-                    .distinct()
-                    .toList();
-            List<String> absent = terms.stream()
-                    .filter(term -> !containsIgnoreCase(ragText, term))
-                    .map(term -> contractMappedValue(checkContract, term))
-                    .filter(StringUtils::hasText)
-                    .distinct()
-                    .toList();
+            return forbiddenRagTermSummary(
+                    checkContract, rule, ragText, displayVisibleCheck(checkContract));
+        }
+        return requiredRagTermSummary(
+                checkContract, rule, ragText, displayVisibleCheck(checkContract));
+    }
+
+    private String forbiddenRagTermSummary(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            String ragText,
+            boolean customerDisplay) {
+        List<String> terms = ragForbiddenTerms(rule);
+        List<String> facts = new ArrayList<>();
+        if (!StringUtils.hasText(ragText)) {
             if (customerDisplay) {
                 facts.add(readableFact(checkContract, "RagForbiddenTermCheckedCount", String.valueOf(terms.size())));
-                facts.add(readableFact(checkContract, "RagForbiddenTermMatchCount", String.valueOf(present.size())));
+                facts.add(readableFact(checkContract, "RagForbiddenTermMatchCount", "0"));
                 return joinCustomerSentences(facts.stream()
                         .filter(StringUtils::hasText)
                         .distinct()
                         .toList());
             }
-            facts.add("ragForbiddenTermCheckedCount=" + terms.size());
-            facts.add("ragForbiddenTermMatchCount=" + present.size());
+            List<String> expected = terms.stream()
+                    .map(term -> contractMappedValue(checkContract, term))
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+            if (!expected.isEmpty()) {
+                facts.add("ragForbiddenTermCheckedCount=" + expected.size());
+                facts.add("ragForbiddenTermMatchCount=0");
+            }
             return joinCustomerSentences(facts);
         }
+        long matchCount = terms.stream()
+                .filter(term -> containsIgnoreCase(ragText, term))
+                .map(term -> contractMappedValue(checkContract, term))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .count();
         if (customerDisplay) {
-            return "";
+            facts.add(readableFact(checkContract, "RagForbiddenTermCheckedCount", String.valueOf(terms.size())));
+            facts.add(readableFact(checkContract, "RagForbiddenTermMatchCount", String.valueOf(matchCount)));
+            return joinCustomerSentences(facts.stream()
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList());
         }
-        if (rule.labelGroups() == null || rule.labelGroups().isEmpty()) {
+        facts.add("ragForbiddenTermCheckedCount=" + terms.size());
+        facts.add("ragForbiddenTermMatchCount=" + matchCount);
+        return joinCustomerSentences(facts);
+    }
+
+    private List<String> ragForbiddenTerms(FinalPromptMetricRule rule) {
+        List<String> terms = new ArrayList<>();
+        addContractItems(terms, rule.terms() == null ? "" : String.join(",", rule.terms()));
+        addContractItems(terms, rule.forbiddenTerms() == null ? "" : String.join(",", rule.forbiddenTerms()));
+        addContractItems(terms, rule.thenTerms() == null ? "" : String.join(",", rule.thenTerms()));
+        return terms;
+    }
+
+    private String requiredRagTermSummary(
+            FinalPromptMetricCheckContract checkContract,
+            FinalPromptMetricRule rule,
+            String ragText,
+            boolean customerDisplay) {
+        if (customerDisplay || rule.labelGroups() == null || rule.labelGroups().isEmpty()) {
             return "";
         }
         if (!StringUtils.hasText(ragText)) {
             List<String> expected = new ArrayList<>();
             for (List<String> group : rule.labelGroups()) {
-                if (group == null) {
-                    continue;
-                }
-                group.stream()
-                        .filter(StringUtils::hasText)
+                ragGroupTerms(group).stream()
                         .map(term -> contractMappedValue(checkContract, term))
                         .filter(StringUtils::hasText)
                         .forEach(expected::add);
             }
-            if (!expected.isEmpty()) {
-                return "ragEvidenceRequirementMetCount=0, ragEvidenceRequirementMissingCount=" + expected.stream().distinct().count();
-            }
-            return "";
+            return expected.isEmpty() ? ""
+                    : "ragEvidenceRequirementMetCount=0, ragEvidenceRequirementMissingCount="
+                    + expected.stream().distinct().count();
         }
+        List<String> facts = new ArrayList<>();
         int groupIndex = 1;
         for (List<String> group : rule.labelGroups()) {
-            List<String> groupTerms = group == null ? List.of() : group.stream()
-                    .filter(StringUtils::hasText)
-                    .map(String::trim)
-                    .toList();
+            List<String> groupTerms = ragGroupTerms(group);
             if (groupTerms.isEmpty()) {
                 continue;
             }
@@ -3502,22 +3596,21 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     .filter(StringUtils::hasText)
                     .distinct()
                     .toList();
-            List<String> expected = groupTerms.stream()
+            long expectedCount = groupTerms.stream()
                     .map(term -> contractMappedValue(checkContract, term))
                     .filter(StringUtils::hasText)
                     .distinct()
-                    .toList();
+                    .count();
             if (!present.isEmpty()) {
                 facts.add("ragEvidenceGroup" + groupIndex + "PresentCount=" + present.size());
             }
-            else if (!expected.isEmpty()) {
-                facts.add("ragEvidenceGroup" + groupIndex + "MissingCount=" + expected.size());
+            else if (expectedCount > 0) {
+                facts.add("ragEvidenceGroup" + groupIndex + "MissingCount=" + expectedCount);
             }
             groupIndex++;
         }
         return joinCustomerSentences(facts);
     }
-
     private boolean isRagRuntimeItem(String item) {
         if (!StringUtils.hasText(item)) {
             return false;
@@ -3539,7 +3632,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptSnapshot prompt,
             FinalPromptEvidenceContext evidence,
             String... keys) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             return "";
         }
@@ -3548,13 +3641,13 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (keys != null) {
             for (String key : keys) {
                 List<String> values = documents.stream()
-                        .map(document -> ragDocumentFieldValue(document, key))
+                        .map(document -> FinalPromptRagDocumentReader.fieldValue(document, key))
                         .filter(StringUtils::hasText)
-                        .map(this::customerRuntimeValue)
+                        .map(FinalPromptDisplayValues::customerRuntimeValue)
                         .distinct()
                         .toList();
                 if (!values.isEmpty()) {
-                    facts.add(readableFact(checkContract, key, clippedCustomerList(values, 3)));
+                    facts.add(readableFact(checkContract, key, FinalPromptDisplayValues.clippedCustomerList(values, 3, messageResolver)));
                 }
             }
         }
@@ -3565,208 +3658,13 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             FinalPromptMetricCheckContract checkContract,
             FinalPromptSnapshot prompt,
             FinalPromptEvidenceContext evidence) {
-        List<Object> documents = ragDocumentObjects(prompt, evidence);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(prompt, evidence);
         if (documents.isEmpty()) {
             return "";
         }
         List<String> facts = new ArrayList<>();
         facts.add(readableFact(checkContract, "RagDocumentCount", String.valueOf(documents.size())));
         return joinCustomerSentences(facts);
-    }
-
-    private List<Object> ragDocumentObjects(FinalPromptSnapshot prompt, FinalPromptEvidenceContext evidence) {
-        List<Object> documents = new ArrayList<>();
-        if (prompt != null) {
-            prompt.fields().stream()
-                    .filter(field -> field != null && StringUtils.hasText(field.label()))
-                    .filter(field -> field.label().trim().toLowerCase(Locale.ROOT).startsWith("ragdocument"))
-                    .map(FinalPromptField::value)
-                    .filter(StringUtils::hasText)
-                    .forEach(documents::add);
-        }
-        if (documents.isEmpty() && evidence != null && evidence.ragResults() != null && !evidence.ragResults().isEmpty()) {
-            documents.addAll(ragDocumentObjects(firstPresent(evidence.ragResults(),
-                    "ragDocument", "ragDocuments", "documents", "relatedDocuments", "retrievedDocuments", "authorizedDocuments")));
-        }
-        return documents;
-    }
-
-    private List<Object> ragDocumentObjects(Object value) {
-        if (value == null) {
-            return List.of();
-        }
-        if (value instanceof Iterable<?> iterable) {
-            List<Object> documents = new ArrayList<>();
-            for (Object item : iterable) {
-                if (item != null) {
-                    documents.add(item);
-                }
-            }
-            return documents;
-        }
-        return List.of(value);
-    }
-
-    private String ragDocumentFieldValue(Object document, String key) {
-        if (document == null || !StringUtils.hasText(key)) {
-            return "";
-        }
-        if (document instanceof Map<?, ?> map) {
-            Object value = firstPresentFromObjectMap(map, ragDocumentKeyAliases(key));
-            return customerRuntimeValue(value);
-        }
-        String text = customerRuntimeValue(document);
-        if (!StringUtils.hasText(text)) {
-            return "";
-        }
-        return ragDocumentTextValue(text, key);
-    }
-
-    private String[] ragDocumentKeyAliases(String key) {
-        String normalized = key == null ? "" : key.trim();
-        return switch (normalized.toLowerCase(Locale.ROOT)) {
-            case "userid" -> new String[] { "userId", "user", "subjectId", "userScope" };
-            case "tenantid" -> new String[] { "tenantId", "tenant" };
-            case "organizationid" -> new String[] { "organizationId", "organization", "orgId", "org" };
-            case "resourceid" -> new String[] { "resourceId", "resourceScope" };
-            case "resource" -> new String[] { "resource" };
-            case "resourcefamily" -> new String[] { "resourceFamily", "currentResourceFamily", "resourceType", "resourceCategory", "resource" };
-            case "requestpath" -> new String[] { "requestPath", "path" };
-            case "pathfamily" -> new String[] { "pathFamily", "requestPathFamily" };
-            case "retrievalpurpose" -> new String[] { "retrievalPurpose", "purpose" };
-            case "accessscope" -> new String[] { "accessScope", "scope", "permissionScope" };
-            case "authorization" -> new String[] { "authorization", "authorizationDecision", "authorized", "allowed", "auth" };
-            default -> new String[] { normalized, lowerFirst(normalized) };
-        };
-    }
-
-    private Object firstPresentFromObjectMap(Map<?, ?> values, String... keys) {
-        if (values == null || keys == null) {
-            return "";
-        }
-        for (String key : keys) {
-            if (!StringUtils.hasText(key)) {
-                continue;
-            }
-            Object value = values.get(key);
-            if (value == null) {
-                for (Map.Entry<?, ?> entry : values.entrySet()) {
-                    if (entry.getKey() != null && key.equalsIgnoreCase(String.valueOf(entry.getKey()))) {
-                        value = entry.getValue();
-                        break;
-                    }
-                }
-            }
-            if (value != null && StringUtils.hasText(String.valueOf(value))) {
-                return value;
-            }
-        }
-        return "";
-    }
-
-    private String ragDocumentTextValue(String text, String key) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) {
-            return "";
-        }
-        String normalizedKey = key.trim();
-        for (String alias : ragDocumentKeyAliases(normalizedKey)) {
-            String value = namedTokenValue(text, alias);
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return "";
-    }
-
-    private String namedTokenValue(String text, String key) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) {
-            return "";
-        }
-        String pattern = "(?i)(?:^|[\\[\\],|\\s])" + Pattern.quote(key.trim())
-                + "\\s*(?:=|:|value\\s+is|값은)\\s*([^,|\\]\\n\\r]+)";
-        Matcher matcher = Pattern.compile(pattern).matcher(text);
-        return matcher.find() ? matcher.group(1).trim() : "";
-    }
-
-    private String firstPromptValue(FinalPromptSnapshot prompt, String... labels) {
-        if (prompt == null || labels == null) {
-            return "";
-        }
-        for (String label : labels) {
-            String value = prompt.firstValue(label);
-            if (StringUtils.hasText(value) && !"N/A".equalsIgnoreCase(value.trim())) {
-                return value.trim();
-            }
-        }
-        return "";
-    }
-
-    private boolean documentResourceMatchesRequest(
-            Object document,
-            String requestResourceId,
-            String requestPath,
-            String requestResourceFamily,
-            String requestPathFamily) {
-        String documentExactResource = firstNonBlank(
-                ragDocumentFieldValue(document, "resourceId"),
-                ragDocumentFieldValue(document, "requestPath"));
-        if (sameRuntimeValue(documentExactResource, requestResourceId) || sameRuntimeValue(documentExactResource, requestPath)) {
-            return true;
-        }
-        String documentResourceFamily = firstNonBlank(
-                ragDocumentFieldValue(document, "resourceFamily"),
-                ragDocumentFieldValue(document, "resource"));
-        if (sameRuntimeValue(documentResourceFamily, requestResourceFamily)) {
-            return true;
-        }
-        String documentPathFamily = ragDocumentFieldValue(document, "pathFamily");
-        return sameRuntimeValue(documentPathFamily, requestPathFamily)
-                || pathFamilyCoversPath(documentPathFamily, requestPath)
-                || pathFamilyCoversPath(requestPathFamily, documentExactResource);
-    }
-
-    private boolean pathFamilyCoversPath(String family, String path) {
-        String normalizedFamily = normalizeRuntimeScopeValue(family);
-        String normalizedPath = normalizeRuntimeScopeValue(path);
-        if (!StringUtils.hasText(normalizedFamily) || !StringUtils.hasText(normalizedPath)) {
-            return false;
-        }
-        if (!normalizedFamily.endsWith("/*")) {
-            return normalizedFamily.equals(normalizedPath);
-        }
-        String prefix = normalizedFamily.substring(0, normalizedFamily.length() - 1);
-        return normalizedPath.startsWith(prefix);
-    }
-
-    private boolean sameRuntimeValue(String left, String right) {
-        String normalizedLeft = normalizeRuntimeScopeValue(left);
-        String normalizedRight = normalizeRuntimeScopeValue(right);
-        return StringUtils.hasText(normalizedLeft) && normalizedLeft.equals(normalizedRight);
-    }
-
-    private String normalizeRuntimeScopeValue(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.trim()
-                .replaceAll("^/+", "")
-                .replaceAll("/+$", "")
-                .toLowerCase(Locale.ROOT);
-    }
-
-    private boolean ragDocumentAuthorizationPresent(Object document) {
-        String authorization = firstNonBlank(
-                ragDocumentFieldValue(document, "authorization"),
-                ragDocumentFieldValue(document, "authorized"),
-                ragDocumentFieldValue(document, "allowed"));
-        if (!StringUtils.hasText(authorization)) {
-            return false;
-        }
-        String normalized = authorization.toLowerCase(Locale.ROOT);
-        return (normalized.contains("allow") || normalized.contains("authorized") || normalized.contains("true"))
-                && !normalized.contains("deny")
-                && !normalized.contains("blocked")
-                && !normalized.contains("unauthorized");
     }
 
     private String runtimeSnapshotValueForDeclaredItem(
@@ -3790,7 +3688,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             case "compactmarkers", "compactmarker", "finaluserprompt.compactmarkers" ->
                     prompt.compactMarkers().isEmpty()
                             ? "0"
-                            : clippedCustomerList(prompt.compactMarkers(), 3);
+                            : FinalPromptDisplayValues.clippedCustomerList(prompt.compactMarkers(), 3, messageResolver);
             case "ragdocument" -> runtimePromptRagDocumentValue(null, prompt);
             case "unmappedpromptfacts", "promptfactmapping", "finaluserprompt.unmappedfacts" ->
                     String.valueOf(prompt.unmappedFacts().size());
@@ -3819,31 +3717,31 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "";
         }
         Object value = switch (item.trim().toLowerCase(Locale.ROOT)) {
-            case "ragsearchexecuted" -> firstPresent(rag, "ragSearchExecuted", "searchExecuted", "retrievalExecuted");
-            case "ragretrievalstate" -> firstPresent(rag, "ragRetrievalState", "retrievalStatus", "status");
-            case "relateddocumentcount" -> firstPresent(rag,
+            case "ragsearchexecuted" -> FinalPromptDisplayValues.firstPresent(rag, "ragSearchExecuted", "searchExecuted", "retrievalExecuted");
+            case "ragretrievalstate" -> FinalPromptDisplayValues.firstPresent(rag, "ragRetrievalState", "retrievalStatus", "status");
+            case "relateddocumentcount" -> FinalPromptDisplayValues.firstPresent(rag,
                     "relatedDocumentCount", "documentCount", "authorizedRelatedDocumentCount", "authorizedDocumentCount");
-            case "ragcandidatedocumentcount" -> firstPresent(rag,
+            case "ragcandidatedocumentcount" -> FinalPromptDisplayValues.firstPresent(rag,
                     "ragCandidateDocumentCount", "candidateDocumentCount", "candidateCount");
-            case "ragauthorizeddocumentcount" -> firstPresent(rag,
+            case "ragauthorizeddocumentcount" -> FinalPromptDisplayValues.firstPresent(rag,
                     "ragAuthorizedDocumentCount", "authorizedRelatedDocumentCount", "authorizedDocumentCount",
                     "allowedDocumentCount", "allowedCount");
-            case "ragdenieddocumentcount" -> firstPresent(rag,
+            case "ragdenieddocumentcount" -> FinalPromptDisplayValues.firstPresent(rag,
                     "ragDeniedDocumentCount", "deniedDocumentCount", "excludedDocumentCount");
-            case "ragpermissionfiltered" -> firstPresent(rag, "ragPermissionFiltered", "permissionFiltered");
-            case "ragprojectionstate" -> firstPresent(rag, "ragProjectionState", "projectionState");
-            case "ragprojectedtofinalprompt" -> firstPresent(rag, "ragProjectedToFinalPrompt", "projectedToFinalPrompt");
-            case "ragabsencereason" -> firstPresent(rag, "ragAbsenceReason", "absenceReason", "retrievalState");
-            case "ragapplicability" -> firstPresent(rag, "ragApplicability", "applicability");
+            case "ragpermissionfiltered" -> FinalPromptDisplayValues.firstPresent(rag, "ragPermissionFiltered", "permissionFiltered");
+            case "ragprojectionstate" -> FinalPromptDisplayValues.firstPresent(rag, "ragProjectionState", "projectionState");
+            case "ragprojectedtofinalprompt" -> FinalPromptDisplayValues.firstPresent(rag, "ragProjectedToFinalPrompt", "projectedToFinalPrompt");
+            case "ragabsencereason" -> FinalPromptDisplayValues.firstPresent(rag, "ragAbsenceReason", "absenceReason", "retrievalState");
+            case "ragapplicability" -> FinalPromptDisplayValues.firstPresent(rag, "ragApplicability", "applicability");
             case "ragdocument" -> ragDocumentRuntimeValue(checkContract,
-                    firstPresent(rag, "ragDocument", "ragDocuments", "documents", "relatedDocuments"));
-            default -> firstPresent(rag, lowerFirst(item.trim()), item.trim());
+                    FinalPromptDisplayValues.firstPresent(rag, "ragDocument", "ragDocuments", "documents", "relatedDocuments"));
+            default -> FinalPromptDisplayValues.firstPresent(rag, FinalPromptDisplayValues.lowerFirst(item.trim()), item.trim());
         };
-        return customerRuntimeValue(value);
+        return FinalPromptDisplayValues.customerRuntimeValue(value, messageResolver);
     }
 
     private String ragDocumentRuntimeValue(FinalPromptMetricCheckContract checkContract, Object value) {
-        List<Object> documents = ragDocumentObjects(value);
+        List<Object> documents = FinalPromptRagDocumentReader.documents(value);
         if (documents.isEmpty()) {
             return "";
         }
@@ -3851,12 +3749,12 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         summaries.add(readableFact(checkContract, "RagDocumentCount", String.valueOf(documents.size())));
         for (String key : List.of("userId", "tenantId", "organizationId", "resourceId", "requestPath", "retrievalPurpose", "accessScope")) {
             List<String> values = documents.stream()
-                    .map(document -> ragDocumentFieldValue(document, key))
+                    .map(document -> FinalPromptRagDocumentReader.fieldValue(document, key))
                     .filter(StringUtils::hasText)
                     .distinct()
                     .toList();
             if (!values.isEmpty()) {
-                summaries.add(readableFact(checkContract, key, clippedCustomerList(values, 3)));
+                summaries.add(readableFact(checkContract, key, FinalPromptDisplayValues.clippedCustomerList(values, 3, messageResolver)));
             }
         }
         return joinCustomerSentences(summaries);
@@ -3879,7 +3777,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             }
             return "ragDocument" + index + "[" + String.join(", ", facts) + "]";
         }
-        String text = customerRuntimeValue(document);
+        String text = FinalPromptDisplayValues.customerRuntimeValue(document, messageResolver);
         if (!StringUtils.hasText(text)) {
             return "";
         }
@@ -3924,50 +3822,16 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             if ("id".equalsIgnoreCase(displayKey) || displayKey.toLowerCase(Locale.ROOT).startsWith("doc")) {
                 continue;
             }
-            facts.add(displayKey + " 값은 " + customerPurposeText(value));
+            facts.add(message("verification.finalPrompt.value.named", displayKey, customerPurposeText(value)));
         }
         return facts.stream().filter(StringUtils::hasText).distinct().toList();
     }
 
     private void addRagDocumentFact(List<String> facts, String key, Object value) {
-        String text = customerRuntimeValue(value);
+        String text = FinalPromptDisplayValues.customerRuntimeValue(value, messageResolver);
         if (facts != null && StringUtils.hasText(key) && StringUtils.hasText(text)) {
-            facts.add(key + " 값은 " + text);
+            facts.add(message("verification.finalPrompt.value.named", key, text));
         }
-    }
-
-    private String customerRuntimeValue(Object value) {
-        if (value == null) {
-            return "";
-        }
-        if (value instanceof Iterable<?> iterable) {
-            List<String> values = new ArrayList<>();
-            for (Object item : iterable) {
-                String text = customerRuntimeValue(item);
-                if (StringUtils.hasText(text)) {
-                    values.add(text);
-                }
-            }
-            return clippedCustomerList(values, 3);
-        }
-        if (value instanceof Map<?, ?> map) {
-            List<String> values = new ArrayList<>();
-            for (Map.Entry<?, ?> entry : map.entrySet()) {
-                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey());
-                String text = customerRuntimeValue(entry.getValue());
-                if (StringUtils.hasText(key) && StringUtils.hasText(text)) {
-                    values.add(key + " " + text);
-                }
-            }
-            return clippedCustomerList(values, 5);
-        }
-        String text = String.valueOf(value).trim();
-        if ("null".equalsIgnoreCase(text)) {
-            return "";
-        }
-        return text.replaceAll("\\s*\\R+\\s*", ", ")
-                .replaceAll("\\s{2,}", " ")
-                .trim();
     }
 
     private String contractRuntimeFactsFromEvidence(
@@ -4039,7 +3903,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible context item binding is missing. metric="
                 + metricCode()
-                + ", check=" + firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
+                + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK"));
     }
 
     private void assertCustomerVisibleContextItem(
@@ -4052,7 +3916,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             String metric = normalizeMetric(metricCode());
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible context item is not a prompt field. metric="
                     + metric
-                    + ", check=" + firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
+                    + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract.checkName(), "UNKNOWN_CHECK")
                     + ", contextItem=" + item);
         }
     }
@@ -4145,6 +4009,22 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
         String operator = normalizeCheckName(rule.operator());
         FinalPromptSnapshot prompt = context == null ? null : context.prompt();
+        collectDirectEvidence(rule, prompt, collector);
+        collectStructuralEvidence(rule, operator, prompt, collector);
+        boolean ragTextOperator = operator.startsWith("RAG_TEXT")
+                || "RAG_BLOCKED_DOCUMENT_EXCLUDED".equals(operator);
+        boolean systemTextOperator = "SYSTEM_TERM_GROUPS_PRESENT".equals(operator);
+        collectTermOperatorEvidence(rule, context, operator, prompt, collector, ragTextOperator, systemTextOperator);
+        collectContextEvidence(rule, context, operator, collector);
+        collectConsistencyEvidence(
+                rule, context, operator, prompt, collector, ragTextOperator, systemTextOperator);
+        collectChildEvidence(rule, context, collector);
+    }
+
+    private void collectDirectEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptSnapshot prompt,
+            EvidenceCollector collector) {
         for (String section : rule.sections()) {
             collector.add(sectionEvidence(prompt, section));
         }
@@ -4157,6 +4037,13 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         for (String label : rule.thenLabels()) {
             collector.add(labelEvidence(prompt, label));
         }
+    }
+
+    private void collectStructuralEvidence(
+            FinalPromptMetricRule rule,
+            String operator,
+            FinalPromptSnapshot prompt,
+            EvidenceCollector collector) {
         if ("RAG_DOCUMENT_SURFACE_PRESENT".equals(operator)) {
             collector.add("ragText=" + (StringUtils.hasText(ragText(prompt, rule)) ? "present" : "empty"));
         }
@@ -4164,38 +4051,50 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             collector.add(compactMarkerEvidence(prompt));
         }
         if (operator.contains("TRUNCATED")) {
-            for (String evidence : truncatedEvidence(prompt)) {
-                collector.add(evidence);
-            }
+            truncatedEvidence(prompt).forEach(collector::add);
         }
         if ("UNMAPPED_PROMPT_FACTS_ABSENT".equals(operator)) {
-            for (String evidence : unmappedPromptFactEvidence(prompt)) {
-                collector.add(evidence);
-            }
+            unmappedPromptFactEvidence(prompt).forEach(collector::add);
         }
-        boolean ragTextOperator = operator.startsWith("RAG_TEXT")
-                || "RAG_BLOCKED_DOCUMENT_EXCLUDED".equals(operator);
-        boolean systemTextOperator = "SYSTEM_TERM_GROUPS_PRESENT".equals(operator);
+    }
+
+    private void collectTermOperatorEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptMetricEvaluationContext context,
+            String operator,
+            FinalPromptSnapshot prompt,
+            EvidenceCollector collector,
+            boolean ragTextOperator,
+            boolean systemTextOperator) {
         if (ragTextOperator) {
             collectRagTextEvidence(rule, context, operator, collector);
+            return;
         }
-        else if (operator.contains("FORBIDDEN") || operator.contains("TERM")) {
-            for (String term : rule.terms()) {
-                collector.add(systemTextOperator
-                        ? termEvidence(systemPrompt(context), term, term)
-                        : termEvidence(prompt, term, term));
-            }
-            for (String term : rule.thenTerms()) {
-                collector.add(systemTextOperator
-                        ? termEvidence(systemPrompt(context), term, term)
-                        : termEvidence(prompt, term, term));
-            }
-            for (String term : rule.forbiddenTerms()) {
-                collector.add(systemTextOperator
-                        ? termEvidence(systemPrompt(context), term, term)
-                        : termEvidence(prompt, term, term));
-            }
+        if (!operator.contains("FORBIDDEN") && !operator.contains("TERM")) {
+            return;
         }
+        for (String term : rule.terms()) {
+            collector.add(systemTextOperator
+                    ? termEvidence(systemPrompt(context), term, term)
+                    : termEvidence(prompt, term, term));
+        }
+        for (String term : rule.thenTerms()) {
+            collector.add(systemTextOperator
+                    ? termEvidence(systemPrompt(context), term, term)
+                    : termEvidence(prompt, term, term));
+        }
+        for (String term : rule.forbiddenTerms()) {
+            collector.add(systemTextOperator
+                    ? termEvidence(systemPrompt(context), term, term)
+                    : termEvidence(prompt, term, term));
+        }
+    }
+
+    private void collectContextEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptMetricEvaluationContext context,
+            String operator,
+            EvidenceCollector collector) {
         if (operator.startsWith("RAG_") || operator.contains("RAG")) {
             collector.add(ragEvidence(context == null ? null : context.evidence()));
             collector.add(ragApplicabilityEvidence(context, rule));
@@ -4204,6 +4103,16 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 || operator.contains("LINEAGE") || operator.contains("MANIFEST")) {
             collector.add(preflightEvidence(context == null ? null : context.evidence()));
         }
+    }
+
+    private void collectConsistencyEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptMetricEvaluationContext context,
+            String operator,
+            FinalPromptSnapshot prompt,
+            EvidenceCollector collector,
+            boolean ragTextOperator,
+            boolean systemTextOperator) {
         if ("SENSITIVE_FLAG_CONSISTENT".equals(operator)) {
             collector.add(sensitiveConsistencyOutcomeEvidence(prompt, rule.labels()));
             for (String label : rule.labels()) {
@@ -4215,25 +4124,43 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             collector.add(labelEvidence(prompt, "RequestPath"));
             collector.add(labelEvidence(prompt, "Path"));
         }
-        boolean labelGroupRepresentsPromptFields = "FIELD_VALUES_CONSISTENT".equals(operator)
+        boolean promptFields = "FIELD_VALUES_CONSISTENT".equals(operator)
                 || "OPTIONAL_FIELD_VALUES_CONSISTENT".equals(operator)
                 || "BOOLEAN_FIELDS_CONSISTENT".equals(operator);
-        if (labelGroupRepresentsPromptFields) {
+        if (promptFields) {
             collector.add(fieldConsistencyOutcomeEvidence(prompt, rule.labels(), operator));
         }
         if ("IF_ANY_TERM_PRESENT_THEN_ANY_FIELD_OR_TERM_PRESENT".equals(operator)
                 && authorizationStageNoteRule(rule)) {
             collector.add(stageNoteRelationEvidence(prompt, rule));
         }
+        collectLabelGroupEvidence(
+                rule, context, prompt, collector, ragTextOperator, systemTextOperator, promptFields);
+    }
+
+    private void collectLabelGroupEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptMetricEvaluationContext context,
+            FinalPromptSnapshot prompt,
+            EvidenceCollector collector,
+            boolean ragTextOperator,
+            boolean systemTextOperator,
+            boolean promptFields) {
         for (List<String> group : rule.labelGroups()) {
             for (String term : group) {
-                collector.add(labelGroupRepresentsPromptFields
+                collector.add(promptFields
                         ? labelEvidence(prompt, term)
                         : (ragTextOperator ? "" : (systemTextOperator
                         ? termEvidence(systemPrompt(context), term, term)
                         : termEvidence(prompt, term, term))));
             }
         }
+    }
+
+    private void collectChildEvidence(
+            FinalPromptMetricRule rule,
+            FinalPromptMetricEvaluationContext context,
+            EvidenceCollector collector) {
         for (FinalPromptMetricRule child : rule.all()) {
             collectEvidence(child, context, collector);
         }
@@ -4241,7 +4168,6 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             collectEvidence(child, context, collector);
         }
     }
-
     private String sectionEvidence(FinalPromptSnapshot prompt, String section) {
         if (!StringUtils.hasText(section)) {
             return "";
@@ -4330,9 +4256,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             outcome = "CONFLICT_DIFFERENT_VALUES";
         }
         return "consistencyOutcome=" + outcome
-                + ", comparedLabels=" + preview(String.join("|", presentLabels))
-                + ", missingLabels=" + preview(String.join("|", missingLabels))
-                + ", distinctValues=" + preview(String.join("|", distinctValues));
+                + ", comparedLabels=" + FinalPromptDisplayValues.preview(String.join("|", presentLabels))
+                + ", missingLabels=" + FinalPromptDisplayValues.preview(String.join("|", missingLabels))
+                + ", distinctValues=" + FinalPromptDisplayValues.preview(String.join("|", distinctValues));
     }
 
     private String sensitiveConsistencyOutcomeEvidence(FinalPromptSnapshot prompt, List<String> labels) {
@@ -4350,9 +4276,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 ? "CONFLICT_HIGH_SENSITIVITY_MARKED_NOT_SENSITIVE"
                 : "NO_CONFLICT_SENSITIVITY_FLAG";
         return "consistencyOutcome=" + outcome
-                + ", comparedLabels=" + preview(String.join("|", labels))
-                + ", distinctValues=" + sensitivityLabel + ":" + preview(sensitivity)
-                + "|" + sensitiveResourceLabel + ":" + preview(sensitiveResource);
+                + ", comparedLabels=" + FinalPromptDisplayValues.preview(String.join("|", labels))
+                + ", distinctValues=" + sensitivityLabel + ":" + FinalPromptDisplayValues.preview(sensitivity)
+                + "|" + sensitiveResourceLabel + ":" + FinalPromptDisplayValues.preview(sensitiveResource);
     }
 
     private String stageNoteRelationEvidence(FinalPromptSnapshot prompt, FinalPromptMetricRule rule) {
@@ -4386,7 +4312,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (prompt == null || prompt.compactMarkers().isEmpty()) {
             return "compactMarker=absent";
         }
-        return "compactMarker=" + preview(String.join(" | ", prompt.compactMarkers()));
+        return "compactMarker=" + FinalPromptDisplayValues.preview(String.join(" | ", prompt.compactMarkers()));
     }
 
     private String termEvidence(FinalPromptSnapshot prompt, String term, String label) {
@@ -4398,7 +4324,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "";
         }
         boolean present = containsIgnoreCase(text, term);
-        return firstNonBlank(label, term) + "=" + (present ? "present" : "absent");
+        return FinalPromptDisplayValues.firstNonBlank(label, term) + "=" + (present ? "present" : "absent");
     }
 
     private List<String> truncatedEvidence(FinalPromptSnapshot prompt) {
@@ -4439,8 +4365,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private String promptFactLocation(String section, String label, int lineNumber) {
-        return firstNonBlank(section, "UNKNOWN SECTION")
-                + "." + firstNonBlank(label, "UNKNOWN")
+        return FinalPromptDisplayValues.firstNonBlank(section, "UNKNOWN SECTION")
+                + "." + FinalPromptDisplayValues.firstNonBlank(label, "UNKNOWN")
                 + "(line " + lineNumber + ")";
     }
 
@@ -4504,10 +4430,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "ragResults=empty";
         }
         Map<String, Object> rag = evidence.ragResults();
-        return "ragSearchExecuted=" + preview(String.valueOf(rag.get("ragSearchExecuted")))
-                + ", ragRetrievalState=" + preview(String.valueOf(firstPresent(rag,
+        return "ragSearchExecuted=" + FinalPromptDisplayValues.preview(String.valueOf(rag.get("ragSearchExecuted")))
+                + ", ragRetrievalState=" + FinalPromptDisplayValues.preview(String.valueOf(FinalPromptDisplayValues.firstPresent(rag,
                 "ragRetrievalState", "retrievalStatus", "status")))
-                + ", relatedDocumentCount=" + preview(String.valueOf(firstPresent(rag,
+                + ", relatedDocumentCount=" + FinalPromptDisplayValues.preview(String.valueOf(FinalPromptDisplayValues.firstPresent(rag,
                 "relatedDocumentCount", "documentCount", "authorizedDocumentCount")));
     }
 
@@ -4558,9 +4484,9 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return "ragApplicability=NO_RAG_CONTEXT";
         }
         int count = retrievedDocumentCount(rag);
-        String state = String.valueOf(firstPresent(rag, "ragRetrievalState", "retrievalStatus", "status"));
+        String state = String.valueOf(FinalPromptDisplayValues.firstPresent(rag, "ragRetrievalState", "retrievalStatus", "status"));
         if (containsIgnoreCase(state, "timeout") || containsIgnoreCase(state, "error")
-                || asBoolean(firstPresent(rag, "ragTimedOut", "searchTimedOut", "providerError", "vectorError"))) {
+                || asBoolean(FinalPromptDisplayValues.firstPresent(rag, "ragTimedOut", "searchTimedOut", "providerError", "vectorError"))) {
             return "ragApplicability=RETRIEVAL_FAILED";
         }
         if (count <= 0) {
@@ -4573,7 +4499,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (!StringUtils.hasText(term)) {
             return "";
         }
-        return firstNonBlank(label, term) + "=" + (containsIgnoreCase(ragText, term) ? "present" : "absent");
+        return FinalPromptDisplayValues.firstNonBlank(label, term) + "=" + (containsIgnoreCase(ragText, term) ? "present" : "absent");
     }
 
     private String ragText(FinalPromptSnapshot prompt, FinalPromptMetricRule rule) {
@@ -4599,7 +4525,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     }
 
     private int retrievedDocumentCount(Map<String, Object> rag) {
-        Object value = firstPresent(rag,
+        Object value = FinalPromptDisplayValues.firstPresent(rag,
                 "retrievedDocumentCount",
                 "authorizedDocumentCount",
                 "allowedDocumentCount",
@@ -4645,53 +4571,8 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         String violations = preflight == null ? "unknown" : String.valueOf(preflight.violations().size());
         return "preflightReady=" + ready
                 + ", violations=" + violations
-                + ", promptHash=" + presentText(evidence.promptHash())
-                + ", userPromptHash=" + presentText(evidence.userPromptHash());
-    }
-
-    private Object firstPresent(Map<String, Object> values, String... keys) {
-        if (values == null || keys == null) {
-            return "";
-        }
-        for (String key : keys) {
-            Object value = values.get(key);
-            if (value != null && StringUtils.hasText(String.valueOf(value))) {
-                return value;
-            }
-        }
-        return "";
-    }
-
-    private String presentText(String value) {
-        return StringUtils.hasText(value) ? "있음" : "없음";
-    }
-
-    private String preview(String value) {
-        if (!StringUtils.hasText(value) || "null".equalsIgnoreCase(value)) {
-            return "missing";
-        }
-        String normalized = value.trim().replace("|", ", ").replace("...", " omitted ").replaceAll("\\s+", " ");
-        return normalized.length() <= 80 ? normalized : normalized.substring(0, 77).trim() + " omitted";
-    }
-
-    private String clippedCustomerList(List<String> values, int limit) {
-        if (values == null || values.isEmpty()) {
-            return "";
-        }
-        List<String> clipped = values.stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .distinct()
-                .limit(Math.max(1, limit))
-                .toList();
-        int remaining = (int) values.stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .distinct()
-                .count() - clipped.size();
-        return remaining > 0
-                ? String.join(", ", clipped) + ", \uc678 " + remaining + "\uac1c"
-                : String.join(", ", clipped);
+                + ", promptHash=" + FinalPromptDisplayValues.presentText(evidence.promptHash(), messageResolver)
+                + ", userPromptHash=" + FinalPromptDisplayValues.presentText(evidence.userPromptHash(), messageResolver);
     }
 
     private boolean placeholderConsistencyValue(String value) {
@@ -4707,10 +4588,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 || normalized.contains("missing")
                 || normalized.contains("not available")
                 || normalized.contains("unavailable")
-                || normalized.equals("\uB204\uB77D\uB428")
-                || normalized.contains("\uB204\uB77D")
-                || normalized.equals("\uAC12 \uC5C6\uC74C")
-                || normalized.equals("\uC5C6\uC74C")
+                || normalized.equals("누락됨")
+                || normalized.contains("누락")
+                || normalized.equals("값 없음")
+                || normalized.equals("없음")
                 || normalized.contains("placeholder")
                 || normalized.contains("to be populated");
     }
@@ -4738,7 +4619,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         List<String> clipped = values.stream()
                 .filter(StringUtils::hasText)
                 .limit(8)
-                .map(this::preview)
+                .map(FinalPromptDisplayValues::preview)
                 .toList();
         int remaining = values.size() - clipped.size();
         return remaining > 0
@@ -4769,127 +4650,6 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         }
     }
 
-    private String interpretationLinksJson(
-            FinalPromptMetricCheckContract checkContract,
-            boolean passed,
-            String evidence) {
-        return interpretationLinksJson(checkContract, passed ? "PURPOSE_PASSED" : "PURPOSE_FAILED", evidence);
-    }
-
-    private String interpretationLinksJson(
-            FinalPromptMetricCheckContract checkContract,
-            String purposeResult,
-            String evidence) {
-        return jsonArray(List.of(jsonObject(
-                "metricCode", metricCode(),
-                "purpose", firstNonBlank(metricContract.purpose(), ""),
-                "checkName", firstNonBlank(checkContract.checkName(), ""),
-                "source", firstNonBlank(checkContract.source(), ""),
-                "issueKey", firstNonBlank(checkContract.issueKey(), ""),
-                "purposeResult", firstNonBlank(purposeResult, ""),
-                "purposeSignal", firstNonBlank(checkContract.purposeSignal(), ""),
-                "meaning", firstNonBlank(checkContract.meaning(), ""),
-                "securityRelevance", firstNonBlank(checkContract.securityRelevance(), ""),
-                "interpretationLink", firstNonBlank(checkContract.interpretationLink(), ""),
-                "evidence", firstNonBlank(interpretationEvidenceText(evidence), ""))));
-    }
-
-    private String interpretationEvidenceText(String evidence) {
-        if (!StringUtils.hasText(evidence)) {
-            return "";
-        }
-        String text = evidence.trim();
-        Matcher matcher = STRUCTURED_EVIDENCE_VALUE.matcher(text);
-        if (matcher.find()) {
-            return unescapeJsonText(matcher.group(1));
-        }
-        return text.startsWith("{") && text.endsWith("}") ? "" : text;
-    }
-
-    private String interpretationRuntimeFactsText(String evidence) {
-        if (!StringUtils.hasText(evidence)) {
-            return "";
-        }
-        Matcher matcher = STRUCTURED_RUNTIME_FACTS.matcher(evidence.trim());
-        if (matcher.find()) {
-            return unescapeJsonText(matcher.group(1));
-        }
-        return "";
-    }
-
-    private String unescapeJsonText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.replace("\\\"", "\"")
-                .replace("\\\\", "\\")
-                .replace("\\n", " ")
-                .replace("\\r", " ")
-                .replace("\\t", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private String readinessSignalsJson(FinalPromptMetricInputReadiness readiness) {
-        if (readiness == null) {
-            return "[]";
-        }
-        List<String> values = new ArrayList<>();
-        for (String present : readiness.presentInputs()) {
-            values.add("present:" + present);
-        }
-        for (String missing : readiness.missingInputs()) {
-            values.add("missing:" + missing);
-        }
-        return jsonArray(values);
-    }
-
-    private String readinessInterpretationJson(
-            FinalPromptMetricCheckContract checkContract,
-            FinalPromptMetricInputReadiness readiness) {
-        String missing = readiness == null ? "" : previewList(readiness.missingInputs());
-        String present = readiness == null ? "" : previewList(readiness.presentInputs());
-        return jsonArray(List.of(jsonObject(
-                "metricCode", metricCode(),
-                "purpose", firstNonBlank(metricContract.purpose(), ""),
-                "checkName", firstNonBlank(checkContract.checkName(), ""),
-                "source", firstNonBlank(checkContract.source(), ""),
-                "purposeResult", "INPUT_NOT_READY",
-                "missingInputs", missing,
-                "presentInputs", present)));
-    }
-
-    private String jsonArray(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return "[]";
-        }
-        return "[" + values.stream()
-                .filter(StringUtils::hasText)
-                .map(value -> value.startsWith("{") && value.endsWith("}") ? value : quoteJson(value))
-                .collect(Collectors.joining(",")) + "]";
-    }
-
-    private String jsonObject(String... keysAndValues) {
-        if (keysAndValues == null || keysAndValues.length == 0) {
-            return "{}";
-        }
-        List<String> pairs = new ArrayList<>();
-        for (int index = 0; index + 1 < keysAndValues.length; index += 2) {
-            pairs.add(quoteJson(keysAndValues[index]) + ":" + quoteJson(keysAndValues[index + 1]));
-        }
-        return "{" + String.join(",", pairs) + "}";
-    }
-
-    private String quoteJson(String value) {
-        String safe = value == null ? "" : value;
-        return "\"" + safe
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t") + "\"";
-    }
-
     private String stableCheckCode(String checkName) {
         String suffix = checkName == null ? "CHECK" : checkName.trim()
                 .replaceAll("[^A-Za-z0-9]+", "_")
@@ -4906,15 +4666,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
-        }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return "";
+    private String message(String key, Object... args) {
+        return messageResolver.resolve(key, args);
     }
 }

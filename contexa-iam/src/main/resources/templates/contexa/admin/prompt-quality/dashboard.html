@@ -12,33 +12,33 @@
 <main class="page-body pqa-shell"
       data-pqa-page="dashboard"
       data-pqa-stage="QUALITY_PROCESS_HOME"
-      th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
+      th:attr="data-pqa-route-root=${promptQualityRouteRoot},data-pqa-api-root=${promptQualityUiMode == 'enterprise' ? pqaEnterpriseApiRoot : pqaOfficialApiRoot},data-pqa-ui-mode=${promptQualityUiMode}">
    <section class="pqa-workspace">
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: pageHeader(#{enterprise.pqa.dashboard.title}, #{enterprise.pqa.dashboard.subtitle})}"></div>
         <div th:replace="~{contexa/admin/prompt-quality/fragments :: apiStatus}"></div>
 
         <section class="section-card pqa-resource-state-search" data-pqa-resource-state-search-panel>
             <div class="section-header-inline">
-                <h2 class="section-title">리소스 검사 상태 검색</h2>
+                <h2 class="section-title" th:text="#{enterprise.pqa.dashboard.resourceSearch.title}">Resource verification status</h2>
             </div>
             <form class="pqa-resource-state-search-form" data-pqa-resource-state-search-form>
-                <label class="input-label" for="pqa-resource-state-search-input">리소스 ID</label>
+                <label class="input-label" for="pqa-resource-state-search-input" th:text="#{enterprise.pqa.dashboard.resourceSearch.resourceId}">Resource ID</label>
                 <input id="pqa-resource-state-search-input"
                        class="input-field"
                        type="search"
                        data-pqa-resource-state-search
                        placeholder="orders.read">
-                <label class="input-label" for="pqa-resource-state-search-url">리소스 URL</label>
+                <label class="input-label" for="pqa-resource-state-search-url" th:text="#{enterprise.pqa.dashboard.resourceSearch.resourceUrl}">Resource URL</label>
                 <input id="pqa-resource-state-search-url"
                        class="input-field"
                        type="search"
                        data-pqa-resource-state-url
                        placeholder="/contexa/admin/api/orders/{orderId}">
-                <label class="input-label" for="pqa-resource-state-search-method">메서드</label>
+                <label class="input-label" for="pqa-resource-state-search-method" th:text="#{enterprise.pqa.dashboard.resourceSearch.httpMethod}">HTTP method</label>
                 <select id="pqa-resource-state-search-method"
                         class="input-field"
                         data-pqa-resource-state-method>
-                    <option value="">자동</option>
+                    <option value="" th:text="#{enterprise.pqa.dashboard.resourceSearch.auto}">Auto</option>
                     <option value="GET">GET</option>
                     <option value="POST">POST</option>
                     <option value="PUT">PUT</option>
@@ -47,16 +47,16 @@
                 </select>
                 <button type="submit" class="button primary">
                     <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                    검색
+                    <span th:text="#{enterprise.pqa.dashboard.resourceSearch.submit}">Search</span>
                 </button>
             </form>
             <div class="pqa-resource-state-search-result" data-pqa-resource-state-search-result></div>
         </section>
 
-        <!-- Hero 메가 패널 : 게이지 + 핵심 KPI 6 + 행동 -->
+        <!-- Dashboard hero -->
         <section class="pqa-dash-hero-mega" data-pqa-dash-hero></section>
 
-        <!-- 표준공정 전광판 : 실제 요청 증거 기반 8 단계 -->
+        <!-- Evidence-driven quality process -->
         <section class="section-card pqa-dash-pipeline-card" style="margin-top:1.8rem;">
             <div class="section-header-inline">
                 <h2 class="section-title" th:text="#{enterprise.pqa.dashboard.pipeline.title}"></h2>
@@ -65,7 +65,7 @@
             <div class="pqa-dash-pipeline" data-pqa-dash-pipeline></div>
         </section>
 
-        <!-- 공정 핵심 차트 -->
+        <!-- Quality process charts -->
         <section class="pqa-dash-chart-grid" style="margin-top:1.8rem;">
             <article class="section-card">
                 <h3 class="section-title" th:text="#{enterprise.pqa.dashboard.chart.stages.title}"></h3>
@@ -79,13 +79,13 @@
             </article>
         </section>
 
-        <!-- 3 컬럼 실시간 경보 스트림 -->
+
         
 
-        <!-- 보조 관리 도구 -->
+
         
 
-        <!-- Top 5 우선순위 할 일 -->
+
         
     </section>
 </main>

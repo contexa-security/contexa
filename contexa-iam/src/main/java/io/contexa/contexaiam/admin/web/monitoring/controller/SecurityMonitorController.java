@@ -67,17 +67,23 @@ public class SecurityMonitorController {
         model.addAttribute("activePage", "security-monitor");
 
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
+        Page<AuditLog> logPage = loadLogPage(category, filter, keyword, page, since, model);
+
+        prepareMonitorModel(model, logPage, hours, category, filter, keyword, since);
+
+        return "contexa/admin/security-monitor";
+    }
+
+    private Page<AuditLog> loadLogPage(
+            String category, String filter, String keyword, int page,
+            LocalDateTime since, Model model) {
         int pageSize = 20;
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-
         boolean hasKeyword = keyword != null && !keyword.isBlank();
         String likePattern = hasKeyword ? "%" + keyword.trim().toLowerCase() + "%" : null;
-
-        // DB-level paginated query based on filter type
-        Page<AuditLog> logPage;
         if (filter != null && !filter.isBlank()) {
             model.addAttribute("filterType", filter);
-            logPage = switch (filter) {
+            Page<AuditLog> logPage = switch (filter) {
                 case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, PageRequest.of(page, pageSize));
                 case "DISTINCT_IP" -> auditLogRepository.findByTimestampAfterAndClientIpNotNull(since, pageable);
                 case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
@@ -89,54 +95,49 @@ public class SecurityMonitorController {
                 case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
                 default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
-
-            // IP grouping for DISTINCT_IP filter (paginated, max 20 IPs per page)
             if ("DISTINCT_IP".equals(filter)) {
-                int ipPage = page;
-                int ipSize = 20;
-                List<Object[]> ipRows = auditLogRepository.findIpGroupsSince(since, ipSize, ipPage * ipSize);
-                long totalIpGroups = auditLogRepository.countDistinctIpGroupsSince(since);
-
+                List<Object[]> rows = auditLogRepository.findIpGroupsSince(since, pageSize, page * pageSize);
                 List<IpGroupView> ipGroups = new ArrayList<>();
-                for (Object[] row : ipRows) {
+                for (Object[] row : rows) {
                     ipGroups.add(IpGroupView.fromRow(row));
                 }
                 model.addAttribute("ipGroups", ipGroups);
-                model.addAttribute("totalIpGroups", totalIpGroups);
+                model.addAttribute("totalIpGroups", auditLogRepository.countDistinctIpGroupsSince(since));
             }
-        } else if (hasKeyword && category != null && !category.isBlank()) {
-            logPage = auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(since, category, likePattern, pageable);
-        } else if (hasKeyword) {
-            logPage = auditLogRepository.findByTimestampAfterAndPrincipalNameLike(since, likePattern, pageable);
-        } else if (category != null && !category.isBlank()) {
-            logPage = auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
-        } else {
-            logPage = auditLogRepository.findByTimestampAfter(since, pageable);
+            return logPage;
         }
+        if (hasKeyword && category != null && !category.isBlank()) {
+            return auditLogRepository.findByTimestampAfterAndCategoryAndPrincipalNameLike(
+                    since, category, likePattern, pageable);
+        }
+        if (hasKeyword) {
+            return auditLogRepository.findByTimestampAfterAndPrincipalNameLike(since, likePattern, pageable);
+        }
+        if (category != null && !category.isBlank()) {
+            return auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
+        }
+        return auditLogRepository.findByTimestampAfter(since, pageable);
+    }
 
-        // Summary counts (DB-level aggregate, eventCategory-based)
-        long totalCount = auditLogRepository.countByTimestampAfter(since);
-        long authSuccess = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_SUCCESS", since);
-        long authFailure = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_FAILURE", since);
-        long securityDecision = auditLogRepository.countZeroTrustTotalSince(since);
-        long userBlocked = auditLogRepository.countByEventCategoryAndTimestampAfter("USER_BLOCKED", since);
-        long mfaVerified = auditLogRepository.countByEventCategoryAndTimestampAfter("MFA_VERIFICATION_SUCCESS", since);
-        long adminOverride = auditLogRepository.countAdminOverridesSince(since);
-
+    private void prepareMonitorModel(
+            Model model, Page<AuditLog> logPage, int hours,
+            String category, String filter, String keyword, LocalDateTime since) {
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
         model.addAttribute("filter", filter);
         model.addAttribute("keyword", keyword);
-        model.addAttribute("totalCount", totalCount);
-        model.addAttribute("authSuccess", authSuccess);
-        model.addAttribute("authFailure", authFailure);
-        model.addAttribute("securityDecision", securityDecision);
-        model.addAttribute("userBlocked", userBlocked);
-        model.addAttribute("mfaVerified", mfaVerified);
-        model.addAttribute("adminOverride", adminOverride);
-
-        return "contexa/admin/security-monitor";
+        model.addAttribute("totalCount", auditLogRepository.countByTimestampAfter(since));
+        model.addAttribute("authSuccess", auditLogRepository.countByEventCategoryAndTimestampAfter(
+                "AUTHENTICATION_SUCCESS", since));
+        model.addAttribute("authFailure", auditLogRepository.countByEventCategoryAndTimestampAfter(
+                "AUTHENTICATION_FAILURE", since));
+        model.addAttribute("securityDecision", auditLogRepository.countZeroTrustTotalSince(since));
+        model.addAttribute("userBlocked", auditLogRepository.countByEventCategoryAndTimestampAfter(
+                "USER_BLOCKED", since));
+        model.addAttribute("mfaVerified", auditLogRepository.countByEventCategoryAndTimestampAfter(
+                "MFA_VERIFICATION_SUCCESS", since));
+        model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesSince(since));
     }
 
     @GetMapping("/{id}")

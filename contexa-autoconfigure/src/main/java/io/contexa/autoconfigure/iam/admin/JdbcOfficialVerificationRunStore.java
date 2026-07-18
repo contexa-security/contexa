@@ -2,12 +2,15 @@ package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationEventItemView;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunRecord;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceOfficialRunView;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -42,6 +45,48 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
     }
 
     @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
+    public void save(String userId, OfficialVerificationRunRecord record) {
+        if (record == null) {
+            throw new IllegalArgumentException("record is required");
+        }
+        jdbcOperations.update("""
+                        insert into verification_run_ledger (
+                            run_id, user_id, metric_code, execution_path, state, requested_by,
+                            request_id, package_id, message, evidence_references_json,
+                            requested_at, started_at, completed_at, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+                        on conflict (run_id) do update set
+                            user_id = excluded.user_id,
+                            metric_code = excluded.metric_code,
+                            execution_path = excluded.execution_path,
+                            state = excluded.state,
+                            requested_by = excluded.requested_by,
+                            request_id = excluded.request_id,
+                            package_id = excluded.package_id,
+                            message = excluded.message,
+                            evidence_references_json = excluded.evidence_references_json,
+                            requested_at = excluded.requested_at,
+                            started_at = excluded.started_at,
+                            completed_at = excluded.completed_at
+                        """,
+                record.runId(),
+                userId,
+                record.metricCode(),
+                record.executionPath(),
+                record.state(),
+                record.requestedBy(),
+                evidence(record, "requestId"),
+                evidence(record, "packageId"),
+                record.message(),
+                write(record.evidenceReferences()),
+                timestamp(record.requestedAt()),
+                timestamp(record.startedAt()),
+                timestamp(record.completedAt()));
+        super.save(userId, record);
+    }
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager")
     public void saveDetailed(String userId, OfficialVerificationRunRecord record, OfficialVerificationRunView detailedView) {
         if (record == null || detailedView == null) {
             super.saveDetailed(userId, record, detailedView);
@@ -115,9 +160,162 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 timestamp(record.requestedAt()),
                 timestamp(record.startedAt()),
                 timestamp(record.completedAt()));
+        replaceNormalizedChildren(record, detailedView);
         super.saveDetailed(userId, record, detailedView);
     }
 
+    private void replaceNormalizedChildren(
+            OfficialVerificationRunRecord record,
+            OfficialVerificationRunView detailedView) {
+        String runId = record.runId();
+        int round = detailedView.round() > 0 ? detailedView.round() : 1;
+        jdbcOperations.update("delete from verification_raw_evidence_artifact_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from verification_run_event_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from verification_run_fact_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from verification_run_check_ledger where run_id = ?", runId);
+        jdbcOperations.update("delete from verification_run_round_ledger where run_id = ?", runId);
+
+        jdbcOperations.update("""
+                        insert into verification_run_round_ledger (
+                            run_id, round_no, endpoint_key, endpoint_label, score,
+                            passed_checks, total_checks, processing_time_ms, state, state_tone,
+                            message, started_at, completed_at, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+                        """,
+                runId,
+                round,
+                fit(detailedView.endpointKey(), 80),
+                fit(detailedView.endpointLabel(), 255),
+                detailedView.score(),
+                detailedView.passedChecks(),
+                detailedView.totalChecks(),
+                detailedView.processingTimeMs(),
+                fit(detailedView.state(), 80),
+                fit(detailedView.stateTone(), 80),
+                detailedView.message(),
+                timestamp(record.startedAt()),
+                timestamp(record.completedAt()));
+        persistChecks(runId, round, detailedView.checks());
+        persistFacts(runId, round, "REQUEST", detailedView.requestFacts());
+        persistFacts(runId, round, "EVENT", detailedView.eventFacts());
+        persistFacts(runId, round, "PROMPT", detailedView.promptFacts());
+        persistFacts(runId, round, "ANALYSIS", detailedView.analysisFacts());
+        persistEvents(runId, round, detailedView.events());
+        persistRawEvidence(runId, detailedView.rawEvidence());
+    }
+
+    private void persistChecks(
+            String runId,
+            int round,
+            List<? extends OfficialVerificationCheckResultView> checks) {
+        if (checks == null || checks.isEmpty()) {
+            return;
+        }
+        for (int index = 0; index < checks.size(); index++) {
+            OfficialVerificationCheckResultView check = checks.get(index);
+            if (check == null) {
+                continue;
+            }
+            jdbcOperations.update("""
+                            insert into verification_run_check_ledger (
+                                run_id, round_no, sequence_no, label, expected_value, actual_value,
+                                pass, source, check_code, severity, failure_type, remediation_owner,
+                                operator_reason, next_action, reverify_criterion,
+                                customer_visible_severity, related_process_step, created_at
+                            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+                            """,
+                    runId,
+                    round,
+                    index + 1,
+                    fit(required(check.label(), "CHECK"), 255),
+                    check.expectedValue(),
+                    check.actualValue(),
+                    check.pass(),
+                    fit(check.source(), 255),
+                    fit(check.checkCode(), 128),
+                    fit(check.severity(), 32),
+                    fit(check.failureType(), 80),
+                    fit(check.remediationOwner(), 128),
+                    check.operatorReason(),
+                    check.nextAction(),
+                    check.reverifyCriterion(),
+                    fit(check.pass() ? "PASS" : required(check.severity(), "BLOCKING"), 64),
+                    "OFFICIAL_VERIFICATION");
+        }
+    }
+
+    private void persistFacts(String runId, int round, String factType, Map<String, String> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return;
+        }
+        facts.forEach((key, value) -> {
+            if (!StringUtils.hasText(key) || value == null) {
+                return;
+            }
+            jdbcOperations.update("""
+                            insert into verification_run_fact_ledger (
+                                run_id, round_no, fact_type, fact_key, fact_value, created_at
+                            ) values (?, ?, ?, ?, ?, current_timestamp)
+                            """,
+                    runId,
+                    round,
+                    factType,
+                    fit(key.trim(), 255),
+                    value);
+        });
+    }
+
+    private void persistEvents(
+            String runId,
+            int round,
+            List<? extends OfficialVerificationEventItemView> events) {
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+        for (int index = 0; index < events.size(); index++) {
+            OfficialVerificationEventItemView event = events.get(index);
+            if (event == null) {
+                continue;
+            }
+            jdbcOperations.update("""
+                            insert into verification_run_event_ledger (
+                                run_id, round_no, sequence_no, event_type, layer,
+                                event_status, request_path, created_at
+                            ) values (?, ?, ?, ?, ?, ?, ?, current_timestamp)
+                            """,
+                    runId,
+                    round,
+                    index + 1,
+                    fit(event.type(), 255),
+                    fit(event.layer(), 120),
+                    fit(event.status(), 120),
+                    event.requestPath());
+        }
+    }
+
+    private void persistRawEvidence(String runId, Map<String, Object> rawEvidence) {
+        Map<String, Object> stored = storedObjectMap(rawEvidence);
+        String body = write(stored);
+        jdbcOperations.update("""
+                        insert into verification_raw_evidence_artifact_ledger (
+                            run_id, artifact_type, content_type, artifact_body, sha256, created_at
+                        ) values (?, 'RAW_EVIDENCE_JSON', 'application/json', ?, ?, current_timestamp)
+                        """,
+                runId,
+                body,
+                sha256Text(body));
+    }
+
+    private String fit(String value, int limit) {
+        if (value == null || value.length() <= limit) {
+            return value;
+        }
+        return value.substring(0, limit);
+    }
+
+    private String required(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
     @Override
     public List<OfficialVerificationRunRecord> list(String userId) {
         if (!StringUtils.hasText(userId)) {

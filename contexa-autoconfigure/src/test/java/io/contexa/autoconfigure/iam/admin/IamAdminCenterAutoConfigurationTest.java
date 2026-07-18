@@ -19,6 +19,7 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterController;
+import io.contexa.contexaiam.admin.web.center.PolicyCenterOperationsController;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterPageService;
@@ -86,6 +87,7 @@ class IamAdminCenterAutoConfigurationTest {
                 assertThat(context).hasSingleBean(PolicyCenterCommandService.class);
                 assertThat(context).hasSingleBean(PolicyCenterAnalysisService.class);
                 assertThat(context).hasSingleBean(PolicyCenterController.class);
+                assertThat(context).hasSingleBean(PolicyCenterOperationsController.class);
             });
         }
     }

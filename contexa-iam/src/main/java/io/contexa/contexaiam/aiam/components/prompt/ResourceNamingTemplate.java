@@ -145,38 +145,38 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
                   "suggestions": [
                     {
                       "identifier": "/contexa/admin/users",
-                      "friendlyName": "\uC0AC\uC6A9\uC790 \uAD00\uB9AC",
-                      "description": "\uC0AC\uC6A9\uC790 \uACC4\uC815\uC744 \uC870\uD68C\uD558\uACE0 \uAD00\uB9AC\uD558\uB294 \uD654\uBA74\uC785\uB2C8\uB2E4.",
+                      "friendlyName": "사용자 관리",
+                      "description": "사용자 계정을 조회하고 관리하는 화면입니다.",
                       "confidence": 0.95
                     },
                     {
                       "identifier": "/api/groups",
-                      "friendlyName": "\uADF8\uB8F9 API",
-                      "description": "\uADF8\uB8F9 \uC815\uBCF4\uB97C \uAD00\uB9AC\uD558\uB294 API\uC785\uB2C8\uB2E4.",
+                      "friendlyName": "그룹 API",
+                      "description": "그룹 정보를 관리하는 API입니다.",
                       "confidence": 0.92
                     },
                     {
                       "identifier": "/api/users/{id}",
-                      "friendlyName": "\uC0AC\uC6A9\uC790 \uC0C1\uC138",
-                      "description": "\uC0AC\uC6A9\uC790 ID\uB85C \uB2E8\uC77C \uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uC870\uD68C\uD558\uAC70\uB098 \uBCC0\uACBD\uD569\uB2C8\uB2E4.",
+                      "friendlyName": "사용자 상세",
+                      "description": "사용자 ID로 단일 사용자 정보를 조회하거나 변경합니다.",
                       "confidence": 0.9
                     },
                     {
                       "identifier": "/api/orders:POST",
-                      "friendlyName": "\uC8FC\uBB38 \uC0DD\uC131",
-                      "description": "\uC0C8 \uC8FC\uBB38 \uC694\uCCAD\uC744 \uB4F1\uB85D\uD569\uB2C8\uB2E4.",
+                      "friendlyName": "주문 생성",
+                      "description": "새 주문 요청을 등록합니다.",
                       "confidence": 0.88
                     },
                     {
                       "identifier": "/api/permissions:PATCH",
-                      "friendlyName": "\uAD8C\uD55C \uC218\uC815",
-                      "description": "\uAD8C\uD55C \uC815\uBCF4\uB97C \uBD80\uBD84 \uC218\uC815\uD569\uB2C8\uB2E4.",
+                      "friendlyName": "권한 수정",
+                      "description": "권한 정보를 부분 수정합니다.",
                       "confidence": 0.87
                     },
                     {
                       "identifier": "io.contexa.example.UserService.updateUser(Long,UserForm)",
-                      "friendlyName": "\uC0AC\uC6A9\uC790 \uC815\uBCF4 \uC218\uC815",
-                      "description": "\uC0AC\uC6A9\uC790 \uC815\uBCF4\uB97C \uAC31\uC2E0\uD558\uB294 \uC11C\uBE44\uC2A4 \uBA54\uC11C\uB4DC\uC785\uB2C8\uB2E4.",
+                      "friendlyName": "사용자 정보 수정",
+                      "description": "사용자 정보를 갱신하는 서비스 메서드입니다.",
                       "confidence": 0.86
                     }
                   ]

@@ -2,8 +2,24 @@ import { appPath, fetchJson } from '../verification-ui-common.js';
 import { has, t } from './prompt-quality-i18n.js';
 
 const JSON_HEADERS = Object.freeze({ 'Accept': 'application/json', 'Content-Type': 'application/json' });
-const FALLBACK_ERROR_MESSAGE = '요청을 처리할 수 없습니다. 입력값과 서버 상태를 확인하십시오.';
 
+export function promptQualityApiRoot(scope = document) {
+    const scopedElement = scope?.dataset?.pqaApiRoot ? scope : scope?.querySelector?.('[data-pqa-api-root]');
+    const metaElement = document.querySelector('meta[name="contexa-pqa-api-root"]');
+    const value = String(scopedElement?.dataset?.pqaApiRoot || metaElement?.content || '').trim();
+    if (!value || !value.startsWith('/')) {
+        throw new Error('Prompt-quality API root page contract is required.');
+    }
+    return value.replace(/\/+$/, '');
+}
+
+export function promptQualityApiPath(relativePath = '', scope = document) {
+    const suffix = String(relativePath || '').trim();
+    if (!suffix) {
+        return promptQualityApiRoot(scope);
+    }
+    return `${promptQualityApiRoot(scope)}${suffix.startsWith('/') ? suffix : `/${suffix}`}`;
+}
 export async function getJson(path) {
     return requireJsonResponse(await fetchJson(appPath(path)));
 }
@@ -49,8 +65,8 @@ function requireJsonResponse(value) {
             || trimmed.startsWith('<html')
             || trimmed.includes('<title>');
     const message = looksLikeHtml
-            ? 'API가 JSON 데이터가 아니라 HTML 화면을 반환했습니다. 로그인 상태와 API 라우팅을 확인하십시오.'
-            : 'API가 JSON이 아닌 응답을 반환했습니다.';
+            ? t('enterprise.pqa.api.response.htmlInsteadOfJson')
+            : t('enterprise.pqa.api.response.nonJson');
     const error = new Error(message);
     error.body = { message };
     throw error;
@@ -65,9 +81,7 @@ export function publicError(error) {
     if (error?.message) {
         return error.message;
     }
-    return has('enterprise.pqa.common.error.fallback')
-            ? t('enterprise.pqa.common.error.fallback')
-            : FALLBACK_ERROR_MESSAGE;
+    return t('enterprise.pqa.common.error.fallback');
 }
 
 export function publicErrorGuidance(error) {

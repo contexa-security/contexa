@@ -1,13 +1,13 @@
 package io.contexa.contexacore.verification.runtime;
 
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public final class OfficialVerificationMetricRuntimeProfileSupport {
 
@@ -83,25 +83,29 @@ public final class OfficialVerificationMetricRuntimeProfileSupport {
         );
     }
 
-    public static void recordRequestAttributes(HttpServletRequest request, RuntimeSelection selection) {
+    public static OfficialVerificationExecutionRequest recordRequestAttributes(
+            OfficialVerificationExecutionRequest request,
+            RuntimeSelection selection
+    ) {
         if (request == null || selection == null) {
-            return;
+            return request;
         }
-        request.setAttribute(ATTR_RUNTIME_PROFILE_CODE, selection.profileCode());
-        request.setAttribute(ATTR_RUNTIME_MODEL_ID, selection.modelId());
-        request.setAttribute(ATTR_RUNTIME_TEMPERATURE, selection.temperature());
-        request.setAttribute(ATTR_RUNTIME_TOP_P, selection.topP());
-        request.setAttribute(ATTR_RUNTIME_SEED, selection.seed());
-        request.setAttribute(ATTR_RUNTIME_MAX_TOKENS, selection.maxTokens());
-        request.setAttribute(ATTR_RUNTIME_DISABLE_RETRIES, selection.disableRetries());
-        request.setAttribute(ATTR_RUNTIME_DISABLE_OLLAMA_THINKING, selection.disableOllamaThinking());
-        request.setAttribute(
-                ATTR_RUNTIME_COMPARISON_MODELS,
-                selection.comparisonModelIds().isEmpty() ? null : String.join(", ", selection.comparisonModelIds())
-        );
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put(ATTR_RUNTIME_PROFILE_CODE, selection.profileCode());
+        attributes.put(ATTR_RUNTIME_MODEL_ID, selection.modelId());
+        attributes.put(ATTR_RUNTIME_TEMPERATURE, selection.temperature());
+        attributes.put(ATTR_RUNTIME_TOP_P, selection.topP());
+        attributes.put(ATTR_RUNTIME_SEED, selection.seed());
+        attributes.put(ATTR_RUNTIME_MAX_TOKENS, selection.maxTokens());
+        attributes.put(ATTR_RUNTIME_DISABLE_RETRIES, selection.disableRetries());
+        attributes.put(ATTR_RUNTIME_DISABLE_OLLAMA_THINKING, selection.disableOllamaThinking());
+        if (!selection.comparisonModelIds().isEmpty()) {
+            attributes.put(ATTR_RUNTIME_COMPARISON_MODELS, String.join(", ", selection.comparisonModelIds()));
+        }
+        return request.withAttributes(attributes);
     }
 
-    public static void applyHeaders(HttpHeaders headers, HttpServletRequest request) {
+    public static void applyHeaders(OfficialVerificationProbeHeaders headers, OfficialVerificationExecutionRequest request) {
         if (headers == null || request == null) {
             return;
         }
@@ -158,7 +162,7 @@ public final class OfficialVerificationMetricRuntimeProfileSupport {
         return ordered.isEmpty() ? List.of() : List.copyOf(new ArrayList<>(ordered));
     }
 
-    private static void setHeader(HttpHeaders headers, String name, Object value) {
+    private static void setHeader(OfficialVerificationProbeHeaders headers, String name, Object value) {
         if (headers == null || !StringUtils.hasText(name) || value == null) {
             return;
         }

@@ -12,7 +12,7 @@ public class LazyDelegatingMap implements Map<String, Object> {
     private volatile Map<String, Object> resolvedMap;
 
     public LazyDelegatingMap(CompletableFuture<Map<String, Object>> future) {
-        // 예외가 발생하더라도 CompletionException으로 전체 호출부가 깨지는 것을 방지
+        // Prevent one failed value from breaking the entire caller through CompletionException.
         this.future = future.exceptionally(ex -> {
             Map<String, Object> errMap = new HashMap<>();
             errMap.put("error", "Failed to resolve metadata asynchronously");

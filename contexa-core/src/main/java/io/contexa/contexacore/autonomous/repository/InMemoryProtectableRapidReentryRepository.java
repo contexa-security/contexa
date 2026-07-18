@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryProtectableRapidReentryRepository implements ProtectableRapidReentryRepository {
 
+    private static final String KEY_PART_SEPARATOR = Character.toString(0);
+
     private final ConcurrentHashMap<String, Instant> reentryWindows = new ConcurrentHashMap<>();
 
     @Override
@@ -56,7 +58,7 @@ public class InMemoryProtectableRapidReentryRepository implements ProtectableRap
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {
-        return userId + "\u0000" + contextBindingHash + "\u0000" + resourceKey;
+        return userId + KEY_PART_SEPARATOR + contextBindingHash + KEY_PART_SEPARATOR + resourceKey;
     }
 
     private boolean isInvalid(String value) {

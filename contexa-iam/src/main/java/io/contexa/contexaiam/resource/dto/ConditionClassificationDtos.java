@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.resource.dto;
 
+import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -23,12 +25,23 @@ import io.contexa.contexaiam.resource.service.CompatibilityResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
 public final class ConditionClassificationDtos {
 
     private ConditionClassificationDtos() {
+    }
+
+    public static class ClassificationUpdateRequest {
+        public ConditionTemplate.ConditionClassification classification;
+        public Boolean approvalRequired;
+        public Boolean contextDependent;
+        public Integer complexityScore;
+    }
+
+    public static class CompatibilityCheckRequest {
+        public Long conditionId;
+        public Long resourceId;
     }
 
     public record ClassifiedConditionsResponse(

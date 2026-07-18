@@ -18,7 +18,9 @@ package io.contexa.contexaiam.resource.controller;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.ClassificationUpdateRequest;
 import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.ClassificationUpdateResponse;
+import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.CompatibilityCheckRequest;
 import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.ClassifiedConditionsResponse;
 import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.CompatibleConditionsResponse;
 import io.contexa.contexaiam.resource.dto.ConditionClassificationDtos.ConditionTemplateGenerationErrorResponse;
@@ -179,15 +181,4 @@ public class ConditionClassificationController {
         }
     }
 
-    public static class ClassificationUpdateRequest {
-        public ConditionTemplate.ConditionClassification classification;
-        public Boolean approvalRequired;
-        public Boolean contextDependent;
-        public Integer complexityScore;
-    }
-
-    public static class CompatibilityCheckRequest {
-        public Long conditionId;
-        public Long resourceId;
-    }
 }

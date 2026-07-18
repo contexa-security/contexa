@@ -181,6 +181,7 @@ class PolicyCenterControllerTest {
     private CentralAuditFacade centralAuditFacade;
 
     private PolicyCenterController controller;
+    private PolicyCenterOperationsController operationsController;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -241,7 +242,13 @@ class PolicyCenterControllerTest {
                 policyCenterCommandService,
                 policyCenterAnalysisService
         );
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+        operationsController = new PolicyCenterOperationsController(
+                messageSource,
+                policyCenterQueryService,
+                policyCenterCommandService,
+                policyCenterAnalysisService
+        );
+        mockMvc = MockMvcBuilders.standaloneSetup(controller, operationsController)
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();
     }
@@ -265,13 +272,16 @@ class PolicyCenterControllerTest {
                     "io.contexa.contexaiam.security.xacml.pap.dto.PolicyMatrixReport"
             );
 
-            for (Method method : PolicyCenterController.class.getDeclaredMethods()) {
-                if (!Modifier.isPublic(method.getModifiers())) {
-                    continue;
-                }
-                assertNoForbiddenType(method.getGenericReturnType(), forbiddenTypeNames, method.toGenericString());
-                for (Type parameterType : method.getGenericParameterTypes()) {
-                    assertNoForbiddenType(parameterType, forbiddenTypeNames, method.toGenericString());
+            for (Class<?> controllerType : List.of(
+                    PolicyCenterController.class, PolicyCenterOperationsController.class)) {
+                for (Method method : controllerType.getDeclaredMethods()) {
+                    if (!Modifier.isPublic(method.getModifiers())) {
+                        continue;
+                    }
+                    assertNoForbiddenType(method.getGenericReturnType(), forbiddenTypeNames, method.toGenericString());
+                    for (Type parameterType : method.getGenericParameterTypes()) {
+                        assertNoForbiddenType(parameterType, forbiddenTypeNames, method.toGenericString());
+                    }
                 }
             }
         }
@@ -723,7 +733,7 @@ class PolicyCenterControllerTest {
         @Test
         @DisplayName("resetPolicyStatus rejects empty request with typed action response")
         void resetPolicyStatusEmpty() {
-            ResponseEntity<PolicyActionResponse> response = controller.resetPolicyStatus(List.of());
+            ResponseEntity<PolicyActionResponse> response = operationsController.resetPolicyStatus(List.of());
 
             assertThat(response.getStatusCode().value()).isEqualTo(400);
             assertThat(response.getBody()).isEqualTo(new PolicyActionResponse(
@@ -752,7 +762,7 @@ class PolicyCenterControllerTest {
             when(managedResourceRepository.findById(2L)).thenReturn(Optional.of(unchanged));
             when(managedResourceRepository.findById(3L)).thenReturn(Optional.empty());
 
-            ResponseEntity<PolicyActionResponse> response = controller.resetPolicyStatus(List.of(1L, 2L, 3L));
+            ResponseEntity<PolicyActionResponse> response = operationsController.resetPolicyStatus(List.of(1L, 2L, 3L));
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyActionResponse(true, null, 1));
@@ -767,7 +777,7 @@ class PolicyCenterControllerTest {
         void batchCreatePoliciesEmptyItems() {
             BatchCreateRequest request = new BatchCreateRequest();
 
-            ResponseEntity<PolicyBatchCreateResponse> response = controller.batchCreatePolicies(request);
+            ResponseEntity<PolicyBatchCreateResponse> response = operationsController.batchCreatePolicies(request);
 
             assertThat(response.getStatusCode().value()).isEqualTo(400);
             assertThat(response.getBody()).isEqualTo(new PolicyBatchCreateResponse(
@@ -784,7 +794,7 @@ class PolicyCenterControllerTest {
         void migratePolicyExpressionsToCrud() {
             when(policyRepository.findAllWithDetails()).thenReturn(List.of());
 
-            ResponseEntity<PolicyMigrationResponse> response = controller.migratePolicyExpressionsToCrud();
+            ResponseEntity<PolicyMigrationResponse> response = operationsController.migratePolicyExpressionsToCrud();
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyMigrationResponse(
@@ -811,7 +821,7 @@ class PolicyCenterControllerTest {
             policy.addRule(rule);
             when(policyRepository.findAllWithDetails()).thenReturn(List.of(policy));
 
-            ResponseEntity<PolicyMigrationResponse> response = controller.migratePolicyExpressionsToCrud();
+            ResponseEntity<PolicyMigrationResponse> response = operationsController.migratePolicyExpressionsToCrud();
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyMigrationResponse(true, 0, null));
@@ -823,7 +833,7 @@ class PolicyCenterControllerTest {
         void cleanupOldAutoCreatedPermissions() {
             when(permissionRepository.findAll()).thenReturn(List.of());
 
-            ResponseEntity<PolicyCleanupResponse> response = controller.cleanupOldAutoCreatedPermissions();
+            ResponseEntity<PolicyCleanupResponse> response = operationsController.cleanupOldAutoCreatedPermissions();
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyCleanupResponse(
@@ -852,7 +862,7 @@ class PolicyCenterControllerTest {
                     .build();
             when(policyService.getVersions(1L)).thenReturn(List.of(version));
 
-            ResponseEntity<List<PolicyVersionSummaryResponse>> response = controller.getVersions(1L);
+            ResponseEntity<List<PolicyVersionSummaryResponse>> response = operationsController.getVersions(1L);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).containsExactly(new PolicyVersionSummaryResponse(
@@ -879,7 +889,7 @@ class PolicyCenterControllerTest {
                     .build();
             when(policyVersionService.getVersion(1L, 2)).thenReturn(Optional.of(version));
 
-            ResponseEntity<PolicyVersionSnapshotResponse> response = controller.getVersionSnapshot(1L, 2);
+            ResponseEntity<PolicyVersionSnapshotResponse> response = operationsController.getVersionSnapshot(1L, 2);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyVersionSnapshotResponse(
@@ -898,7 +908,7 @@ class PolicyCenterControllerTest {
         void rollbackPolicy() {
             PolicyRollbackRequest request = new PolicyRollbackRequest("because");
 
-            ResponseEntity<PolicyActionResponse> response = controller.rollbackPolicy(1L, 2, request);
+            ResponseEntity<PolicyActionResponse> response = operationsController.rollbackPolicy(1L, 2, request);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isEqualTo(new PolicyActionResponse(
@@ -918,7 +928,7 @@ class PolicyCenterControllerTest {
                     "after", "New"
             )));
 
-            ResponseEntity<List<PolicyVersionDiffResponse>> response = controller.compareVersions(1L, 1, 2);
+            ResponseEntity<List<PolicyVersionDiffResponse>> response = operationsController.compareVersions(1L, 1, 2);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).containsExactly(new PolicyVersionDiffResponse(
@@ -933,7 +943,7 @@ class PolicyCenterControllerTest {
         void analyzeImpactError() {
             when(policyService.analyzeImpact(any())).thenThrow(new RuntimeException("boom"));
 
-            ResponseEntity<PolicyApiResponse> response = controller.analyzeImpact(new PolicyCenterPolicyRequest());
+            ResponseEntity<PolicyApiResponse> response = operationsController.analyzeImpact(new PolicyCenterPolicyRequest());
 
             assertThat(response.getStatusCode().value()).isEqualTo(500);
             assertThat(response.getBody()).isEqualTo(new PolicyErrorResponse(

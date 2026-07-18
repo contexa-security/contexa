@@ -125,11 +125,11 @@ class IamSeedDataAutoConfigurationTest {
     @DisplayName("IAM schema initialization should strip UTF-8 BOM before executing SQL")
     void iamSchemaInitializationStripsUtf8Bom() {
         String sanitized = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
-                "\uFEFFcreate extension if not exists vector;");
+                String.valueOf((char) 0xFEFF) + "create extension if not exists vector;");
 
         assertThat(sanitized)
                 .startsWith("create extension")
-                .doesNotContain("\uFEFF");
+                .doesNotContain(String.valueOf((char) 0xFEFF));
     }
 
     @Test

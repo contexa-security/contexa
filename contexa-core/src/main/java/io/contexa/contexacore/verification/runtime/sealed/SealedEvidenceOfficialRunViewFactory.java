@@ -5,14 +5,28 @@ import io.contexa.contexacore.verification.metric.OfficialMetricCheckObservation
 import io.contexa.contexacore.verification.metric.OfficialMetricEvaluationResult;
 import io.contexa.contexacore.verification.metric.OfficialPromptQualityMetricContractGate;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationRunPresentation;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 class SealedEvidenceOfficialRunViewFactory {
+
+    private final OfficialVerificationMessageResolver messageResolver;
+
+    SealedEvidenceOfficialRunViewFactory() {
+        this(OfficialVerificationMessageResolver.classpath(Locale.KOREAN));
+    }
+
+    SealedEvidenceOfficialRunViewFactory(OfficialVerificationMessageResolver messageResolver) {
+        this.messageResolver = Objects.requireNonNull(messageResolver, "messageResolver");
+    }
 
     SealedEvidenceOfficialRunView create(
             String aggregateRunId,
@@ -30,17 +44,17 @@ class SealedEvidenceOfficialRunViewFactory {
         if (result == null) {
             checks.add(new SealedEvidenceOfficialRunView.SealedEvidenceCheckView(
                     "OFFICIAL_METRIC_RESULT_PRESENT",
-                    "공식 지표 실행 결과 필요",
-                    "기준: 각 공식검사 지표는 실행 결과와 체크 목록을 생성해야 합니다.",
-                    "확인 결과: 이 지표의 실행 결과가 생성되지 않았습니다.",
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.label"),
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.expected"),
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.actual"),
                     false,
                     "internalGate.officialSealedEvidenceRuntime",
                     "BLOCKING",
                     "MISSING_METRIC_RESULT",
                     "PQA_RUNTIME",
-                    "문제: 공식검사 지표 실행 결과가 저장 계층까지 전달되지 않았습니다. 원인: 지표 엔진 또는 저장 매핑에서 해당 지표 결과를 만들지 못했습니다.",
-                    "조치: 같은 봉인 증거로 공식검사를 다시 실행하고, 지표 엔진과 저장 매핑에서 누락된 지표 결과 생성 여부를 확인하십시오.",
-                    "평가 기준: 공식검사 실행에서 해당 지표의 체크 목록과 실행 결과가 생성되어야 합니다."));
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.reason"),
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.nextAction"),
+                    message("enterprise.pqa.runtimeVerification.runView.missingResult.reverify")));
         }
         else {
             safeChecks(result.checks()).forEach(check -> checks.add(new SealedEvidenceOfficialRunView.SealedEvidenceCheckView(
@@ -73,9 +87,9 @@ class SealedEvidenceOfficialRunViewFactory {
         int passed = result == null ? 0 : result.passedChecks();
         double score = result == null ? 0.0d : result.score();
         String state = safeText(result == null ? null : result.state(), "missing");
-        boolean success = "success".equalsIgnoreCase(state);
-        boolean notApplicable = "not_applicable".equalsIgnoreCase(state);
-        boolean insufficient = "insufficient".equalsIgnoreCase(state);
+        OfficialVerificationRunPresentation presentation = OfficialVerificationRunPresentation.fromState(state);
+
+
         String metricCode = safeText(metric == null ? null : metric.code(),
                 result == null ? null : result.metricCode(),
                 "UNKNOWN_METRIC");
@@ -139,8 +153,8 @@ class SealedEvidenceOfficialRunViewFactory {
                 total,
                 processingTime == null ? null : processingTime.toMillis(),
                 state,
-                success ? "success" : (notApplicable || insufficient ? "warning" : "danger"),
-                messageForState(state),
+                presentation.tone(),
+                messageForState(state, presentation),
                 startedAt,
                 completedAt,
                 List.copyOf(checks),
@@ -151,7 +165,7 @@ class SealedEvidenceOfficialRunViewFactory {
                 List.of(new SealedEvidenceOfficialRunView.SealedEvidenceEventView(
                         "SEALED_EVIDENCE_REPLAY",
                         "CORE_OFFICIAL_RUNTIME",
-                        success ? "PASS" : (notApplicable ? "NOT_APPLICABLE" : "BLOCKED"),
+                        presentation.eventStatus(),
                         requestPath)),
                 safeObjectMap(rawEvidence));
     }
@@ -208,17 +222,23 @@ class SealedEvidenceOfficialRunViewFactory {
         }
     }
 
-    private String messageForState(String state) {
-        if ("success".equalsIgnoreCase(state)) {
-            return "공식검사 지표가 기준을 충족했습니다.";
+    private String messageForState(
+            String state,
+            OfficialVerificationRunPresentation presentation) {
+        if (presentation.successful()) {
+            return message("enterprise.pqa.runtimeVerification.runView.state.passed");
         }
-        if ("not_applicable".equalsIgnoreCase(state)) {
-            return "이 요청 증거에는 해당 지표를 적용하지 않습니다.";
+        if (presentation.notApplicable()) {
+            return message("enterprise.pqa.runtimeVerification.runView.state.notApplicable");
         }
-        if ("insufficient".equalsIgnoreCase(state)) {
-            return "공식검사 지표를 판정하기에는 증거가 부족합니다.";
+        if (OfficialVerificationRunPresentation.insufficient(state)) {
+            return message("enterprise.pqa.runtimeVerification.runView.state.insufficient");
         }
-        return "공식검사 지표가 기준을 충족하지 못했습니다.";
+        return message("enterprise.pqa.runtimeVerification.runView.state.failed");
+    }
+
+    private String message(String key, Object... args) {
+        return messageResolver.resolve(key, args);
     }
     private String firstNonBlank(String... values) {
         if (values == null) {

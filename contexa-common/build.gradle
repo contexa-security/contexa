@@ -25,7 +25,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'com.h2database:h2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

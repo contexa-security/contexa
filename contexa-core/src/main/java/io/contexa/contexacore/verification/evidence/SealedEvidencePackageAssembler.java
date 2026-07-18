@@ -125,14 +125,14 @@ public class SealedEvidencePackageAssembler {
         if (!evidenceContract.sealable()) {
             sealFailureReason = "Official verification input contract is not satisfied: "
                     + summarizeContractViolations(evidenceContract.violations());
-            log.warn("[SealedEvidence] User prompt evidence contract failed; package will still be sealed for audit: correlationId={}, reason={}",
+            log.error("[SealedEvidence] User prompt evidence contract failed; package will still be sealed for audit: correlationId={}, reason={}",
                     correlationId,
                     sealFailureReason);
         }
         if (!captureWarnings.isEmpty()) {
             String captureWarning = "Prompt raw capture incomplete: " + String.join(" ", captureWarnings);
             sealFailureReason = hasText(sealFailureReason) ? sealFailureReason + " " + captureWarning : captureWarning;
-            log.warn("[SealedEvidence] Prompt raw capture incomplete; package will still be sealed for audit without raw prompt backfill: correlationId={}, reason={}",
+            log.error("[SealedEvidence] Prompt raw capture incomplete; package will still be sealed for audit without raw prompt backfill: correlationId={}, reason={}",
                     correlationId,
                     captureWarning);
         }
@@ -175,7 +175,7 @@ public class SealedEvidencePackageAssembler {
                 .rawUserPromptHash(sha256Prefixed(rawUserPrompt))
                 .promptExecutionMetadataJson(promptExecutionMetadataJson)
                 .promptEvidenceManifestJson(evidenceContract.manifestJson())
-                .sealState("SEALED")
+                .sealState(SealedEvidencePackage.SEAL_STATE_SEALED)
                 .sealFailureReason(sealFailureReason)
 
                 // Section 7: Decision -- from ProcessingResult (set by ProcessingExecutionHandler)
@@ -537,7 +537,7 @@ public class SealedEvidencePackageAssembler {
                 || prompt.contains("related documents")
                 || prompt.contains("retrieved document")
                 || prompt.contains("document evidence")
-                || prompt.contains("\uAC80\uC0C9 \uBB38\uC11C")) {
+                || prompt.contains("검색 문서")) {
             return true;
         }
         for (Map<String, Object> document : documents) {

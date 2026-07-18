@@ -74,12 +74,14 @@ public class IamAdminMonitoringAutoConfiguration {
             HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
             HcadProperties hcadProperties,
             ObjectMapper objectMapper,
-            SecurityZeroTrustProperties zeroTrustProperties) {
+            SecurityZeroTrustProperties zeroTrustProperties,
+            MessageSource messageSource) {
         return new HcadMonitoringService(
                 hcadDetectionEvaluationRepository,
                 hcadProperties,
                 objectMapper,
-                zeroTrustProperties);
+                zeroTrustProperties,
+                messageSource);
     }
 
     @Bean
@@ -90,14 +92,16 @@ public class IamAdminMonitoringAutoConfiguration {
             HcadProperties hcadProperties,
             SecurityZeroTrustProperties zeroTrustProperties,
             ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider,
-            ObjectProvider<HCADDataStore> hcadDataStoreProvider) {
+            ObjectProvider<HCADDataStore> hcadDataStoreProvider,
+            MessageSource messageSource) {
         return new AiSecurityDecisionMonitoringService(
                 hcadMonitoringService,
                 jdbcOperationsProvider::getIfAvailable,
                 hcadProperties,
                 zeroTrustProperties,
                 semanticEvidenceCacheProvider::getIfAvailable,
-                hcadDataStoreProvider::getIfAvailable);
+                hcadDataStoreProvider::getIfAvailable,
+                messageSource);
     }
 
     @Bean

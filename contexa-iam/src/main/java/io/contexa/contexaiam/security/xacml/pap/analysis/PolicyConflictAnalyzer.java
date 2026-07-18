@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import java.util.Objects;
+
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
@@ -27,7 +29,6 @@ import org.springframework.util.AntPathMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 

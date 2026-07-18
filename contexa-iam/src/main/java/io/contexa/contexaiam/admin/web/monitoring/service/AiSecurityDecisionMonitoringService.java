@@ -45,6 +45,7 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSum
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.StandardMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
+import org.springframework.context.MessageSource;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,6 +121,7 @@ public class AiSecurityDecisionMonitoringService {
     private final SecurityZeroTrustProperties zeroTrustProperties;
     private final Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier;
     private final Supplier<HCADDataStore> hcadDataStoreSupplier;
+    private final MessageSource messageSource;
 
     public AiSecurityDecisionMonitoringService(
             HcadMonitoringService hcadMonitoringService,
@@ -128,12 +130,31 @@ public class AiSecurityDecisionMonitoringService {
             SecurityZeroTrustProperties zeroTrustProperties,
             Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier,
             Supplier<HCADDataStore> hcadDataStoreSupplier) {
+        this(
+                hcadMonitoringService,
+                jdbcOperationsSupplier,
+                hcadProperties,
+                zeroTrustProperties,
+                semanticEvidenceCacheSupplier,
+                hcadDataStoreSupplier,
+                HcadMonitoringService.defaultMessageSource());
+    }
+
+    public AiSecurityDecisionMonitoringService(
+            HcadMonitoringService hcadMonitoringService,
+            Supplier<JdbcOperations> jdbcOperationsSupplier,
+            HcadProperties hcadProperties,
+            SecurityZeroTrustProperties zeroTrustProperties,
+            Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier,
+            Supplier<HCADDataStore> hcadDataStoreSupplier,
+            MessageSource messageSource) {
         this.hcadMonitoringService = hcadMonitoringService;
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.hcadProperties = hcadProperties;
         this.zeroTrustProperties = zeroTrustProperties;
         this.semanticEvidenceCacheSupplier = semanticEvidenceCacheSupplier == null ? () -> null : semanticEvidenceCacheSupplier;
         this.hcadDataStoreSupplier = hcadDataStoreSupplier == null ? () -> null : hcadDataStoreSupplier;
+        this.messageSource = messageSource == null ? HcadMonitoringService.defaultMessageSource() : messageSource;
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -231,75 +252,70 @@ public class AiSecurityDecisionMonitoringService {
         String normalizedType = type == null || type.isBlank()
                 ? "overview"
                 : type.trim().toLowerCase(Locale.ROOT);
-        boolean korean = locale != null && "ko".equalsIgnoreCase(locale.getLanguage());
         return switch (normalizedType) {
             case "llm" -> {
                 LlmDecisionSummary summary = llm(period);
                 yield csv(List.of(
-                        row(label(korean, "\uD56D\uBAA9", "Metric"), label(korean, "\uAC12", "Value")),
-                        row(label(korean, "\uC804\uCCB4 LLM \uD310\uC815", "Total LLM decisions"),
+                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
+                        row(message(locale, "monitoring.csv.totalLlmDecisions"),
                                 summary.totalDecisionCount()),
-                        row(label(korean, "HCAD \uC120\uD589 \uD2B8\uB9AC\uAC70 \uD310\uC815",
-                                "HCAD pre-trigger decisions"), summary.hcadPreTriggerDecisionCount()),
-                        row(label(korean, "Protectable \uD310\uC815", "Protectable decisions"),
+                        row(message(locale, "monitoring.csv.hcadPreTriggerDecisions"), summary.hcadPreTriggerDecisionCount()),
+                        row(message(locale, "monitoring.csv.protectableDecisions"),
                                 summary.protectableDecisionCount())));
             }
             case "correlation" -> {
                 CorrelationSummary summary = correlation(period);
                 yield csv(List.of(
-                        row(label(korean, "\uD56D\uBAA9", "Metric"), label(korean, "\uAC12", "Value")),
-                        row(label(korean, "\uC815\uD0D0(TP)", "True positive (TP)"),
+                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
+                        row(message(locale, "monitoring.csv.truePositiveTp"),
                                 summary.truePositiveCount()),
-                        row(label(korean, "\uC624\uD0D0(FP)", "False positive (FP)"),
+                        row(message(locale, "monitoring.csv.falsePositiveFp"),
                                 summary.falsePositiveCount()),
-                        row(label(korean, "\uAD00\uCE21 \uAC00\uB2A5 \uBBF8\uD0D0(FN)",
-                                "Observable false negative (FN)"), summary.observableFalseNegativeCount()),
-                        row(label(korean, "\uC815\uC0C1 \uD310\uC815(TN)", "True negative (TN)"),
+                        row(message(locale, "monitoring.csv.observableFalseNegativeFn"), summary.observableFalseNegativeCount()),
+                        row(message(locale, "monitoring.csv.trueNegativeTn"),
                                 summary.trueNegativeCount()),
-                        row(label(korean, "\uBD88\uBA85\uD655", "Unknown"), summary.unknownCount())));
+                        row(message(locale, "monitoring.csv.unknown"), summary.unknownCount())));
             }
             case "failures" -> {
                 FailureSummary summary = failures(period);
                 yield csv(List.of(
-                        row(label(korean, "\uD56D\uBAA9", "Metric"), label(korean, "\uAC12", "Value")),
-                        row(label(korean, "\uD30C\uC11C \uC2E4\uD328", "Parser failures"),
+                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
+                        row(message(locale, "monitoring.csv.parserFailures"),
                                 summary.operations().parserFailureCount()),
-                        row(label(korean, "\uAE30\uC220 \uB300\uCCB4 \uCC98\uB9AC", "Technical fallbacks"),
+                        row(message(locale, "monitoring.csv.technicalFallbacks"),
                                 summary.operations().technicalFallbackCount()),
-                        row(label(korean, "\uC2DC\uAC04 \uCD08\uACFC", "Timeouts"),
+                        row(message(locale, "monitoring.csv.timeouts"),
                                 summary.operations().timeoutCount()),
-                        row(label(korean, "\uBAA8\uB378 \uC0AC\uC6A9 \uBD88\uAC00", "Model unavailable"),
+                        row(message(locale, "monitoring.csv.modelUnavailable"),
                                 summary.operations().modelUnavailableCount())));
             }
             case "readiness" -> {
                 ReadinessSummary summary = readiness(period);
                 yield csv(List.of(
-                        row(label(korean, "\uD56D\uBAA9", "Metric"), label(korean, "\uAC12", "Value")),
-                        row(label(korean, "\uC804\uD658 \uAD8C\uC7A5 \uC0C1\uD0DC",
-                                "Readiness recommendation"), summary.recommendation()),
-                        row(label(korean, "\uCD5C\uC18C \uD45C\uBCF8 \uC218", "Minimum sample size"),
+                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
+                        row(message(locale, "monitoring.csv.readinessRecommendation"), summary.recommendation()),
+                        row(message(locale, "monitoring.csv.minimumSampleSize"),
                                 summary.minimumSampleSize()),
-                        row(label(korean, "HCAD \uC815\uBC00\uB3C4", "HCAD precision"),
+                        row(message(locale, "monitoring.csv.hcadPrecision"),
                                 summary.hcadPrecision()),
-                        row(label(korean, "\uBD88\uBA85\uD655 \uBE44\uC728", "Unknown rate"),
+                        row(message(locale, "monitoring.csv.unknownRate"),
                                 summary.unknownRate()),
-                        row(label(korean, "\uC2E4\uD328 \uBE44\uC728", "Failure rate"),
+                        row(message(locale, "monitoring.csv.failureRate"),
                                 summary.failureRate())));
             }
             default -> {
                 OverviewSummary summary = overview(period);
                 yield csv(List.of(
-                        row(label(korean, "\uD56D\uBAA9", "Metric"), label(korean, "\uAC12", "Value")),
-                        row(label(korean, "HCAD \uD3C9\uAC00", "HCAD candidates"),
+                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
+                        row(message(locale, "monitoring.csv.hcadCandidates"),
                                 summary.hcad().candidateCount()),
-                        row(label(korean, "LLM \uD310\uC815", "LLM decisions"),
+                        row(message(locale, "monitoring.csv.llmDecisions"),
                                 summary.llm().totalDecisionCount()),
-                        row(label(korean, "\uBD88\uBA85\uD655", "Unknown"),
+                        row(message(locale, "monitoring.csv.unknown"),
                                 summary.correlation().unknownCount()),
-                        row(label(korean, "\uC2DC\uAC04 \uCD08\uACFC", "Timeouts"),
+                        row(message(locale, "monitoring.csv.timeouts"),
                                 summary.operations().timeoutCount()),
-                        row(label(korean, "\uC804\uD658 \uAD8C\uC7A5 \uC0C1\uD0DC",
-                                "Readiness recommendation"), summary.readinessRecommendation())));
+                        row(message(locale, "monitoring.csv.readinessRecommendation"), summary.readinessRecommendation())));
             }
         };
     }
@@ -2075,8 +2091,9 @@ public class AiSecurityDecisionMonitoringService {
         return denominator <= 0 ? 0.0d : (double) numerator / denominator;
     }
 
-    private String label(boolean korean, String ko, String en) {
-        return korean ? ko : en;
+    private String message(Locale locale, String key) {
+        Locale resolvedLocale = locale == null ? Locale.ENGLISH : locale;
+        return messageSource.getMessage(key, null, resolvedLocale);
     }
 
     private List<String> row(Object... values) {

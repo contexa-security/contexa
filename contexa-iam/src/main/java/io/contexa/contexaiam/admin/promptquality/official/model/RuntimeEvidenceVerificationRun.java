@@ -12,11 +12,6 @@ public record RuntimeEvidenceVerificationRun(
         String packageId,
         String generatedAt,
         String caseId,
-        String certificateId,
-        String certificateState,
-        String certificateStateLabel,
-        boolean certificateIssued,
-        String certificateSummary,
         String plainSummary,
         int totalMetricCount,
         int passedMetricCount,
@@ -38,18 +33,14 @@ public record RuntimeEvidenceVerificationRun(
         List<OfficialActualPromptProblem> actualPromptProblems,
         RuntimeEvidencePromptConsistencyResult promptConsistency,
         String executionState,
-        Integer progressPercent) {
+        Integer progressPercent,
+        OfficialVerificationVerdict verdict) {
 
     public RuntimeEvidenceVerificationRun(
             String runId,
             String packageId,
             String generatedAt,
             String caseId,
-            String certificateId,
-            String certificateState,
-            String certificateStateLabel,
-            boolean certificateIssued,
-            String certificateSummary,
             String plainSummary,
             int totalMetricCount,
             int passedMetricCount,
@@ -75,11 +66,6 @@ public record RuntimeEvidenceVerificationRun(
                 packageId,
                 generatedAt,
                 caseId,
-                certificateId,
-                certificateState,
-                certificateStateLabel,
-                certificateIssued,
-                certificateSummary,
                 plainSummary,
                 totalMetricCount,
                 passedMetricCount,
@@ -100,7 +86,8 @@ public record RuntimeEvidenceVerificationRun(
                 promptComparisons,
                 actualPromptProblems,
                 promptConsistency,
-                certificateState,
+                null,
+                null,
                 null);
     }
 
@@ -109,11 +96,6 @@ public record RuntimeEvidenceVerificationRun(
             String packageId,
             String generatedAt,
             String caseId,
-            String certificateId,
-            String certificateState,
-            String certificateStateLabel,
-            boolean certificateIssued,
-            String certificateSummary,
             String plainSummary,
             int totalMetricCount,
             int passedMetricCount,
@@ -140,11 +122,6 @@ public record RuntimeEvidenceVerificationRun(
                 packageId,
                 generatedAt,
                 caseId,
-                certificateId,
-                certificateState,
-                certificateStateLabel,
-                certificateIssued,
-                certificateSummary,
                 plainSummary,
                 totalMetricCount,
                 passedMetricCount,
@@ -166,7 +143,8 @@ public record RuntimeEvidenceVerificationRun(
                 List.of(),
                 promptConsistency,
                 executionState,
-                progressPercent);
+                progressPercent,
+                null);
     }
 
     public RuntimeEvidenceVerificationRun(
@@ -174,11 +152,6 @@ public record RuntimeEvidenceVerificationRun(
             String packageId,
             String generatedAt,
             String caseId,
-            String certificateId,
-            String certificateState,
-            String certificateStateLabel,
-            boolean certificateIssued,
-            String certificateSummary,
             String plainSummary,
             int totalMetricCount,
             int passedMetricCount,
@@ -203,11 +176,6 @@ public record RuntimeEvidenceVerificationRun(
                 packageId,
                 generatedAt,
                 caseId,
-                certificateId,
-                certificateState,
-                certificateStateLabel,
-                certificateIssued,
-                certificateSummary,
                 plainSummary,
                 totalMetricCount,
                 passedMetricCount,
@@ -228,7 +196,8 @@ public record RuntimeEvidenceVerificationRun(
                 promptComparisons,
                 List.of(),
                 promptConsistency,
-                certificateState,
+                null,
+                null,
                 null);
     }
 
@@ -237,11 +206,6 @@ public record RuntimeEvidenceVerificationRun(
             String packageId,
             String generatedAt,
             String caseId,
-            String certificateId,
-            String certificateState,
-            String certificateStateLabel,
-            boolean certificateIssued,
-            String certificateSummary,
             String plainSummary,
             int totalMetricCount,
             int passedMetricCount,
@@ -265,11 +229,6 @@ public record RuntimeEvidenceVerificationRun(
                 packageId,
                 generatedAt,
                 caseId,
-                certificateId,
-                certificateState,
-                certificateStateLabel,
-                certificateIssued,
-                certificateSummary,
                 plainSummary,
                 totalMetricCount,
                 passedMetricCount,
@@ -288,7 +247,6 @@ public record RuntimeEvidenceVerificationRun(
                 contextHash,
                 failureCauses,
                 promptComparisons,
-                List.of(),
                 RuntimeEvidencePromptConsistencyResult.empty());
     }
 
@@ -315,21 +273,25 @@ public record RuntimeEvidenceVerificationRun(
 
     @JsonProperty("state")
     public String state() {
-        return officialVerificationPassed() ? "CERTIFIABLE" : certificateState;
+        return verdict == null
+                ? (officialVerificationPassed() ? "ELIGIBLE" : "INELIGIBLE")
+                : verdict.status().name();
     }
 
     @JsonProperty("stateLabel")
     public String stateLabel() {
-        return officialVerificationPassed() ? "공식검사 통과" : certificateStateLabel;
+        return officialVerificationPassed() ? "Eligible" : "Ineligible";
     }
 
     @JsonProperty("officialFinalDecision")
     public String officialFinalDecision() {
-        return officialVerificationPassed() ? "CERTIFIABLE" : "BLOCKED";
+        return officialVerificationPassed() ? "ELIGIBLE" : "INELIGIBLE";
     }
 
     @JsonProperty("officialVerificationPassed")
     public boolean officialVerificationPassed() {
-        return totalMetricCount >= 12 && passedMetricCount >= totalMetricCount && failedMetricCount == 0;
+        return verdict != null
+                ? verdict.eligible()
+                : totalMetricCount >= 12 && passedMetricCount >= totalMetricCount && failedMetricCount == 0;
     }
 }

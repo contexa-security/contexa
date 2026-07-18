@@ -1,7 +1,5 @@
 package io.contexa.contexacore.verification.evidence;
 
-import org.springframework.transaction.annotation.Transactional;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,8 +11,7 @@ import java.util.Optional;
  * Provides query methods for sealed evidence packages with integrity verification.
  */
 @RequiredArgsConstructor
-@Transactional(transactionManager = "contexaTransactionManager")
-public class SealedEvidencePackageLookupService {
+public class SealedEvidencePackageLookupService implements SealedEvidencePackageLookupPort {
 
     private final SealedEvidencePackageRepository repository;
     private final SealedEvidencePackageIntegrity integrity;

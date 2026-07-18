@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,6 +112,10 @@ class HcadMonitoringServiceTest {
         assertThat(summary.userSessionBreakdown()).hasSize(1);
         assertThat(summary.unknownEvaluations()).isEmpty();
         assertThat(service.exportCsv("week")).contains("currentMode").contains("DEFAULT_ENFORCE_CANDIDATE");
+        assertThat(service.exportCsv("week", Locale.KOREAN))
+                .contains("현재 모드")
+                .contains("조기탐지 발생률")
+                .contains("DEFAULT_ENFORCE_CANDIDATE");
     }
 
     @Test

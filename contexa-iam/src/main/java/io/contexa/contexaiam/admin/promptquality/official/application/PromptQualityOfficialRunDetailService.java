@@ -22,9 +22,7 @@ public interface PromptQualityOfficialRunDetailService {
         return findPackageDetail(packageId);
     }
 
-    default OfficialRunPackageSummary findPackageSummary(String packageId, String aggregateRunId) {
-        return OfficialRunPackageSummary.fromDetail(findPackageDetail(packageId, aggregateRunId));
-    }
+    OfficialRunPackageSummary findPackageSummary(String packageId, String aggregateRunId);
 
     default List<OfficialRunFailureCause> findFailureDetails(String packageId, String aggregateRunId) {
         OfficialRunPackageSummary summary = findPackageSummary(packageId, aggregateRunId);
@@ -38,6 +36,8 @@ public interface PromptQualityOfficialRunDetailService {
     default List<OfficialActualPromptProblem> findActualPromptProblems(String packageId, String aggregateRunId) {
         return findPackageDetail(packageId, aggregateRunId).actualPromptProblems();
     }
+
+    String findPackageIdByRunId(String runId);
 
     OfficialVerificationMetricTrace findRunDetail(String runId);
 }

@@ -47,13 +47,15 @@ public interface OfficialVerificationExecutionLockService {
 
     Optional<RuntimeEvidenceVerificationRun> completedResult(ExecutionRecord record);
 
-    Optional<ExecutionRecord> findLatestByPackageId(String packageId);
+    Optional<ExecutionRecord> findLatestByPackageId(String tenantId, String packageId);
 
-    default void deleteFinishedExecutionsForPackages(List<String> packageIds) {
+    Optional<ExecutionRecord> findByAggregateRunId(String tenantId, String packageId, String aggregateRunId);
+
+    default void deleteFinishedExecutionsForPackages(String tenantId, List<String> packageIds) {
     }
 
-    default OfficialVerificationExecutionStatus status(String packageId) {
-        return findLatestByPackageId(packageId)
+    default OfficialVerificationExecutionStatus status(String tenantId, String packageId) {
+        return findLatestByPackageId(tenantId, packageId)
                 .map(record -> new OfficialVerificationExecutionStatus(
                         record.packageId(),
                         record.aggregateRunId(),
@@ -79,6 +81,7 @@ public interface OfficialVerificationExecutionLockService {
             String idempotencyKey,
             String baseIdempotencyKey,
             String packageId,
+            String tenantId,
             String requestedBy,
             boolean forceReverification,
             String reverificationReason,
@@ -90,6 +93,7 @@ public interface OfficialVerificationExecutionLockService {
             String idempotencyKey,
             String baseIdempotencyKey,
             String packageId,
+            String tenantId,
             String aggregateRunId,
             int revisionNo,
             int attemptNo,

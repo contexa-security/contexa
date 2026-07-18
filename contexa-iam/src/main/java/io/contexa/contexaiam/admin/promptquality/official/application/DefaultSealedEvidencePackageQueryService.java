@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public class DefaultSealedEvidencePackageQueryService implements SealedEvidencePackageQueryService {
@@ -26,18 +27,14 @@ public class DefaultSealedEvidencePackageQueryService implements SealedEvidenceP
             + "decision_json, package_hash, schema_version, sealed, expires_at, created_at "
             + "from sealed_evidence_package";
 
-    private final SealedEvidencePackageLookupService lookupService;
+    private final SealedEvidencePackageLookupPort lookupService;
     private final JdbcTemplate jdbcTemplate;
 
-    public DefaultSealedEvidencePackageQueryService(SealedEvidencePackageLookupService lookupService) {
-        this(lookupService, null);
-    }
-
     public DefaultSealedEvidencePackageQueryService(
-            SealedEvidencePackageLookupService lookupService,
+            SealedEvidencePackageLookupPort lookupService,
             JdbcTemplate jdbcTemplate) {
-        this.lookupService = lookupService;
-        this.jdbcTemplate = jdbcTemplate;
+        this.lookupService = Objects.requireNonNull(lookupService, "lookupService");
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
     }
 
     @Override
@@ -47,8 +44,8 @@ public class DefaultSealedEvidencePackageQueryService implements SealedEvidenceP
 
     @Override
     public Optional<SealedEvidencePackage> findLightweightByPackageId(String packageId) {
-        if (jdbcTemplate == null || !StringUtils.hasText(packageId)) {
-            return SealedEvidencePackageQueryService.super.findLightweightByPackageId(packageId);
+        if (!StringUtils.hasText(packageId)) {
+            return Optional.empty();
         }
         List<SealedEvidencePackage> rows = jdbcTemplate.query(
                 LIGHTWEIGHT_SELECT + " where package_id = ?",
@@ -59,24 +56,21 @@ public class DefaultSealedEvidencePackageQueryService implements SealedEvidenceP
 
     @Override
     public Page<SealedEvidencePackage> searchRecent(Instant from, Instant to, Pageable pageable) {
-        if (jdbcTemplate == null) {
-            return lookupService.searchRecent(from, to, pageable);
-        }
         return searchLightweight(null, null, from, to, pageable);
     }
 
     @Override
     public Page<SealedEvidencePackage> searchByTenantId(String tenantId, Instant from, Instant to, Pageable pageable) {
-        if (jdbcTemplate == null || !StringUtils.hasText(tenantId)) {
-            return lookupService.searchByTenantId(tenantId, from, to, pageable);
+        if (!StringUtils.hasText(tenantId)) {
+            return Page.empty(pageable == null ? Pageable.ofSize(20) : pageable);
         }
         return searchLightweight("tenant_id", tenantId.trim(), from, to, pageable);
     }
 
     @Override
     public Page<SealedEvidencePackage> searchByUserId(String userId, Instant from, Instant to, Pageable pageable) {
-        if (jdbcTemplate == null || !StringUtils.hasText(userId)) {
-            return lookupService.searchByUserId(userId, from, to, pageable);
+        if (!StringUtils.hasText(userId)) {
+            return Page.empty(pageable == null ? Pageable.ofSize(20) : pageable);
         }
         return searchLightweight("user_id", userId.trim(), from, to, pageable);
     }

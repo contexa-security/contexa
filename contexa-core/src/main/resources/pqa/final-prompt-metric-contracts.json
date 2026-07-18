@@ -1702,6 +1702,8 @@
             "no observation",
             "absence",
             "do not assume",
+            "do not infer",
+            "do not treat",
             "not proof",
             "insufficient",
             "fallback",
@@ -1728,7 +1730,7 @@
           {
             "id": "unknownBoundaryTerms",
             "source": "TERM_LIST_PRESENT",
-            "terms": "UNKNOWN|no observation|absence|do not assume|not proof|insufficient|fallback|thin|Limitation|Warning",
+            "terms": "UNKNOWN|no observation|absence|do not assume|do not infer|do not treat|not proof|insufficient|fallback|thin|Limitation|Warning",
             "required": "false",
             "emptyValue": "알 수 없음 값이 없어 주의할 내용 위반이 없습니다.",
             "customerVisibleContextItems": "UnknownValue, UnknownReason, UnknownDecisionLimit, ContextTrustLimitation"
@@ -1870,6 +1872,8 @@
           "no observation": "관찰 없음 사유",
           "absence": "부재 사유",
           "do not assume": "추정 금지 문구",
+          "do not infer": "추론 금지 문구",
+          "do not treat": "근거로 간주 금지 문구",
           "not proof": "증거 아님 표시",
           "insufficient": "근거 부족 표시",
           "fallback": "fallback 근거 표시",

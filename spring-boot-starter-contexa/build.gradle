@@ -30,7 +30,6 @@ dependencies {
 
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
-    testImplementation 'com.h2database:h2'
     testImplementation 'org.awaitility:awaitility:4.2.0'
 }
 

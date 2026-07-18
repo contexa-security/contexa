@@ -222,7 +222,7 @@ class StandaloneAutoConfigurationFilterTest {
         void shouldAllowContexaOwnedDataSourceWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
             MockEnvironment env = new MockEnvironment()
-                    .withProperty("contexa.datasource.url", "jdbc:h2:mem:customer")
+                    .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/customer")
                     .withProperty("contexa.datasource.isolation.contexa-owned-application", "true");
             filter.setEnvironment(env);
             String[] classes = {
@@ -240,7 +240,7 @@ class StandaloneAutoConfigurationFilterTest {
         void shouldAllowBootDataSourceAndJpaForContexaOwnedApplication() {
             StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
             MockEnvironment env = new MockEnvironment()
-                    .withProperty("contexa.datasource.url", "jdbc:h2:mem:customer")
+                    .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/customer")
                     .withProperty("contexa.datasource.isolation.contexa-owned-application", "true");
             filter.setEnvironment(env);
             String[] classes = {

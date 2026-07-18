@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import static io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidencePromptValueMatcher.containsValue;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -28,13 +30,8 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
     private static final String SOURCE_SEALED_PACKAGE = "sealedEvidencePackage";
     private static final String SOURCE_PROMPT_METADATA = "promptExecutionMetadata";
 
-    public DefaultRuntimeEvidencePromptConsistencyGate(ObjectMapper objectMapper) {
-        this(objectMapper, null, null);
-    }
-
     public DefaultRuntimeEvidencePromptConsistencyGate(
             ObjectMapper objectMapper,
-            PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier,
             PromptQualityMessageResolver messageResolver) {
         super(objectMapper, messageResolver);
     }
@@ -207,25 +204,22 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         checks.add(new RuntimeEvidenceCheckResult(ISSUE_METRIC_CODE, label, expected, actual, pass, source));
         if (!pass) {
             findings.add(message("enterprise.pqa.consistency.gate.dynamic.issue",
-                    "증거·프롬프트 일치성 문제: " + gateLabel(label) + " 항목이 기준을 충족하지 못했습니다. 확인 결과는 " + operatorValue(actual) + "입니다. 대상: " + gateTarget(label, source) + ".",
                     gateLabel(label), operatorValue(actual), gateTarget(label, source)));
-            nextActions.add(message(
-                    "enterprise.pqa.consistency.gate.dynamic.hint",
-                    "증거 캡처 또는 프롬프트 조립 경로를 수정한 뒤 보호 리소스를 다시 호출하고 새 증거 번호로 재검증하십시오."));
+            nextActions.add(message("enterprise.pqa.consistency.gate.dynamic.hint"));
         }
     }
 
     private String gateLabel(String label) {
         String normalized = label == null ? "" : label.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("prompt hash")) return message("enterprise.pqa.consistency.gate.dynamic.label.promptHash", "Prompt Hash 추적");
-        if (normalized.contains("system prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.systemPrompt", "시스템 Prompt 캡처");
-        if (normalized.contains("user prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.userPrompt", "사용자 Prompt 캡처");
-        if (normalized.contains("resource")) return message("enterprise.pqa.consistency.gate.dynamic.label.resource", "보호 리소스 매핑");
-        if (normalized.contains("request")) return message("enterprise.pqa.consistency.gate.dynamic.label.request", "요청 사실 추적");
-        if (normalized.contains("tenant")) return message("enterprise.pqa.consistency.gate.dynamic.label.tenant", "테넌트 식별자");
-        if (normalized.contains("user")) return message("enterprise.pqa.consistency.gate.dynamic.label.user", "사용자 식별자");
-        if (normalized.contains("governance")) return message("enterprise.pqa.consistency.gate.dynamic.label.governance", "Prompt 통합관리 설명");
-        return message("enterprise.pqa.consistency.gate.dynamic.label.default", "증거와 Prompt 일치성");
+        if (normalized.contains("prompt hash")) return message("enterprise.pqa.consistency.gate.dynamic.label.promptHash");
+        if (normalized.contains("system prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.systemPrompt");
+        if (normalized.contains("user prompt")) return message("enterprise.pqa.consistency.gate.dynamic.label.userPrompt");
+        if (normalized.contains("resource")) return message("enterprise.pqa.consistency.gate.dynamic.label.resource");
+        if (normalized.contains("request")) return message("enterprise.pqa.consistency.gate.dynamic.label.request");
+        if (normalized.contains("tenant")) return message("enterprise.pqa.consistency.gate.dynamic.label.tenant");
+        if (normalized.contains("user")) return message("enterprise.pqa.consistency.gate.dynamic.label.user");
+        if (normalized.contains("governance")) return message("enterprise.pqa.consistency.gate.dynamic.label.governance");
+        return message("enterprise.pqa.consistency.gate.dynamic.label.default");
     }
 
     private String gateTarget(String label, String source) {
@@ -236,17 +230,17 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         }
         if (normalized.contains("governance")) return "promptGovernance.governanceDescriptor";
         if (StringUtils.hasText(source)) return source.trim();
-        return message("enterprise.pqa.consistency.gate.dynamic.target.evidencePrompt", "봉인 증거와 최종 Prompt");
+        return message("enterprise.pqa.consistency.gate.dynamic.target.evidencePrompt");
     }
 
     private String operatorValue(String value) {
         if (!StringUtils.hasText(value)) {
-            return message("enterprise.pqa.consistency.gate.notEvaluated", "확인 불가");
+            return message("enterprise.pqa.consistency.gate.notEvaluated");
         }
         return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "present", "matched", "pass" -> message("enterprise.pqa.consistency.gate.state.present", "기준 충족");
-            case "missing" -> message("enterprise.pqa.consistency.gate.state.missing", "값 없음");
-            case "mismatched" -> message("enterprise.pqa.consistency.gate.hashMismatch", "불일치");
+            case "present", "matched", "pass" -> message("enterprise.pqa.consistency.gate.state.present");
+            case "missing" -> message("enterprise.pqa.consistency.gate.state.missing");
+            case "mismatched" -> message("enterprise.pqa.consistency.gate.hashMismatch");
             default -> value.trim();
         };
     }
@@ -375,42 +369,6 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
         return new EvidenceFact(key, null, source);
     }
 
-    private boolean containsValue(String prompt, String value) {
-        if (!StringUtils.hasText(prompt) || !StringUtils.hasText(value)) {
-            return false;
-        }
-        String normalizedPrompt = prompt.toLowerCase(Locale.ROOT);
-        String normalizedValue = value.trim().toLowerCase(Locale.ROOT);
-        if (normalizedPrompt.contains(normalizedValue)) {
-            return true;
-        }
-        List<String> tokens = comparableTokens(value);
-        return tokens.size() > 1 && tokens.stream()
-                .allMatch(token -> normalizedPrompt.contains(token.toLowerCase(Locale.ROOT)));
-    }
-
-    private List<String> comparableTokens(String value) {
-        if (!StringUtils.hasText(value)) {
-            return List.of();
-        }
-        String normalized = value.trim();
-        if (normalized.startsWith("[") && normalized.endsWith("]") && normalized.length() > 1) {
-            normalized = normalized.substring(1, normalized.length() - 1);
-        }
-        String[] parts = normalized.split(",");
-        List<String> tokens = new ArrayList<>();
-        for (String part : parts) {
-            String token = part
-                    .replace("\"", "")
-                    .replace("'", "")
-                    .trim();
-            if (StringUtils.hasText(token)) {
-                tokens.add(token);
-            }
-        }
-        return tokens;
-    }
-
     private String captured(String systemPrompt, String userPrompt) {
         return "system=" + (hasText(systemPrompt) ? "captured" : "missing")
                 + ", user=" + (hasText(userPrompt) ? "captured" : "missing");
@@ -436,9 +394,9 @@ public class DefaultRuntimeEvidencePromptConsistencyGate
 
     private String stateLabel(String state) {
         return switch (state) {
-            case "PASS" -> message("enterprise.pqa.promptConsistency.state.pass", "Pass");
-            case "BLOCKED" -> message("enterprise.pqa.promptConsistency.state.blocked", "Blocked");
-            default -> message("enterprise.pqa.promptConsistency.state.reviewRequired", "Review required");
+            case "PASS" -> message("enterprise.pqa.promptConsistency.state.pass");
+            case "BLOCKED" -> message("enterprise.pqa.promptConsistency.state.blocked");
+            default -> message("enterprise.pqa.promptConsistency.state.reviewRequired");
         };
     }
 

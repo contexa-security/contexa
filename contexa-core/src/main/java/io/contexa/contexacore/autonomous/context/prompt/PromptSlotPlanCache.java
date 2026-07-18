@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class PromptSlotPlanCache implements PromptSlotPlanProvider {
 
+    private static final String CACHE_KEY_SEPARATOR = Character.toString(0x1F);
+
     private final Map<String, PromptSlotPlan> plans = new ConcurrentHashMap<>();
     private final PromptSlotPlanProvider delegate;
 
@@ -44,7 +46,7 @@ public class PromptSlotPlanCache implements PromptSlotPlanProvider {
         String providerScope = StringUtils.hasText(delegate.cacheScopeKey())
                 ? delegate.cacheScopeKey().trim()
                 : "UNSCOPED";
-        String cacheKey = providerScope + "\u001F" + normalizedSection + "\u001F" + normalizedLabel;
+        String cacheKey = providerScope + CACHE_KEY_SEPARATOR + normalizedSection + CACHE_KEY_SEPARATOR + normalizedLabel;
         return plans.computeIfAbsent(cacheKey, ignored -> delegate.planFor(normalizedSection, normalizedLabel));
     }
 

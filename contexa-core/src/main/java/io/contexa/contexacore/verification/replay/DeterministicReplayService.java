@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
 import io.contexa.contexacore.verification.prompt.VerificationPromptReplayBuilder;
 import io.contexa.contexacore.verification.prompt.VerificationPromptReplayContext;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DeterministicReplayService {
 
-    private final SealedEvidencePackageLookupService lookupService;
+    private final SealedEvidencePackageLookupPort lookupService;
     private final CanonicalSecurityContextSerializer contextSerializer;
     private final PromptContextComposer promptContextComposer;
     private final SealedEvidencePackageIntegrity integrity;

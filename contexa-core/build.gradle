@@ -1,6 +1,12 @@
 bootJar.enabled = false
 jar.enabled = true
 
+apply plugin: 'java-test-fixtures'
+
+configurations {
+    testFixturesImplementation.extendsFrom implementation
+}
+
 tasks.named('resolveMainClassName') {
     enabled = false
 }
@@ -44,9 +50,10 @@ dependencies {
     api 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testFixturesImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testFixturesImplementation 'org.assertj:assertj-core'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.awaitility:awaitility:4.2.0'
-    testImplementation 'com.h2database:h2'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'org.testcontainers:testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'

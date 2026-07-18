@@ -29,7 +29,7 @@ class ContexaDataSourceIsolationTest {
     void missingContexaDatasourceUrlFailsFast() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:customer");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/customer");
 
         assertThatThrownBy(() -> ContexaDataSourceIsolation.validate(properties, environment))
                 .isInstanceOf(IllegalStateException.class)
@@ -40,9 +40,9 @@ class ContexaDataSourceIsolationTest {
     @DisplayName("Dedicated Contexa datasource should be accepted")
     void dedicatedContexaDatasourceIsAccepted() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
-        properties.setUrl("jdbc:h2:mem:contexa");
+        properties.setUrl("jdbc:postgresql://localhost:5432/contexa");
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:customer");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/customer");
 
         assertThatCode(() -> ContexaDataSourceIsolation.validate(properties, environment))
                 .doesNotThrowAnyException();
@@ -52,9 +52,9 @@ class ContexaDataSourceIsolationTest {
     @DisplayName("Shared datasource should require explicit POC approval")
     void sharedDatasourceRequiresExplicitApproval() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
-        properties.setUrl("jdbc:h2:mem:shared");
+        properties.setUrl("jdbc:postgresql://localhost:5432/shared");
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:shared");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/shared");
 
         assertThatThrownBy(() -> ContexaDataSourceIsolation.validate(properties, environment))
                 .isInstanceOf(IllegalStateException.class)
@@ -65,11 +65,11 @@ class ContexaDataSourceIsolationTest {
     @DisplayName("Shared datasource should be accepted only for an approved non-production POC")
     void sharedDatasourceIsAcceptedForApprovedNonProductionPoc() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
-        properties.setUrl("jdbc:h2:mem:shared");
+        properties.setUrl("jdbc:postgresql://localhost:5432/shared");
         properties.getIsolation().setAllowSharedApplicationDatasource(true);
         properties.getIsolation().setSharedApplicationDatasourceRiskAccepted(true);
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:shared");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/shared");
 
         assertThatCode(() -> ContexaDataSourceIsolation.validate(properties, environment))
                 .doesNotThrowAnyException();
@@ -79,11 +79,11 @@ class ContexaDataSourceIsolationTest {
     @DisplayName("Shared datasource should be rejected in production even with POC flags")
     void sharedDatasourceIsRejectedInProduction() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
-        properties.setUrl("jdbc:h2:mem:shared");
+        properties.setUrl("jdbc:postgresql://localhost:5432/shared");
         properties.getIsolation().setAllowSharedApplicationDatasource(true);
         properties.getIsolation().setSharedApplicationDatasourceRiskAccepted(true);
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:shared");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/shared");
         environment.setActiveProfiles("prod");
 
         assertThatThrownBy(() -> ContexaDataSourceIsolation.validate(properties, environment))
@@ -95,10 +95,10 @@ class ContexaDataSourceIsolationTest {
     @DisplayName("Shared datasource should be accepted for an explicitly marked Contexa-owned application")
     void sharedDatasourceIsAcceptedForContexaOwnedApplication() {
         ContexaDataSourceProperties properties = new ContexaDataSourceProperties();
-        properties.setUrl("jdbc:h2:mem:contexa");
+        properties.setUrl("jdbc:postgresql://localhost:5432/contexa");
         properties.getIsolation().setContexaOwnedApplication(true);
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.url", "jdbc:h2:mem:contexa");
+                .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/contexa");
         environment.setActiveProfiles("prod");
 
         assertThatCode(() -> ContexaDataSourceIsolation.validate(properties, environment))

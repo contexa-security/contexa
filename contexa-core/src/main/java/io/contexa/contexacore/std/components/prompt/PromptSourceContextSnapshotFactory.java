@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.components.prompt;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.verification.capture.VerificationCaptureContext;
 import org.springframework.ai.document.Document;
 
 import java.lang.reflect.Array;
@@ -41,14 +42,36 @@ public final class PromptSourceContextSnapshotFactory {
         if (context == null) {
             return new PromptSourceContextSnapshot(List.of(), 0, 0, 0);
         }
+        return capture(
+                context.getSecurityEvent(),
+                context.getSessionContext(),
+                context.getBehaviorAnalysis(),
+                context.getRelatedDocuments());
+    }
+
+    public static PromptSourceContextSnapshot capture(VerificationCaptureContext context) {
+        if (context == null) {
+            return new PromptSourceContextSnapshot(List.of(), 0, 0, 0);
+        }
+        return capture(
+                context.securityEvent(),
+                context.session(),
+                context.behavior(),
+                context.relatedDocuments());
+    }
+
+    private static PromptSourceContextSnapshot capture(
+            SecurityEvent event,
+            Object sessionContext,
+            Object behaviorAnalysis,
+            List<Document> relatedDocuments) {
         CaptureState state = new CaptureState();
-        SecurityEvent event = context.getSecurityEvent();
         if (event != null) {
             captureAny(state, "securityEvent", event, 0);
         }
-        captureAny(state, "sessionContext", context.getSessionContext(), 0);
-        captureAny(state, "behaviorAnalysis", context.getBehaviorAnalysis(), 0);
-        captureDocuments(state, "relatedDocuments", context.getRelatedDocuments());
+        captureAny(state, "sessionContext", sessionContext, 0);
+        captureAny(state, "behaviorAnalysis", behaviorAnalysis, 0);
+        captureDocuments(state, "relatedDocuments", relatedDocuments);
         int failureCount = state.depthLimitCount.get() + state.cycleCount.get() + state.errorCount.get();
         return new PromptSourceContextSnapshot(
                 List.copyOf(state.fields),

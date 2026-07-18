@@ -56,6 +56,8 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "contexa.iam.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IamSeedDataAutoConfiguration {
 
+    private static final char BYTE_ORDER_MARK = (char) 0xFEFF;
+
     private static final String CANONICAL_SCHEMA_LOCATION = "db/schema.sql";
     static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
     static final String CONTEXA_ENTITY_MANAGER_FACTORY_BEAN = "contexaEntityManagerFactory";
@@ -437,7 +439,7 @@ public class IamSeedDataAutoConfiguration {
         if (sql == null || sql.isBlank()) {
             return "";
         }
-        String normalized = sql.startsWith("\uFEFF") ? sql.substring(1) : sql;
+        String normalized = !sql.isEmpty() && sql.charAt(0) == BYTE_ORDER_MARK ? sql.substring(1) : sql;
         return normalized
                 .replaceAll("(?is)\\balter\\s+(table|sequence|view|materialized\\s+view|index)\\s+[^;]+?\\s+owner\\s+to\\s+[^;]+;\\s*", "")
                 .replaceAll("(?im)^\\s*create\\s+table\\s+(?!if\\s+not\\s+exists\\b)", "create table if not exists ")

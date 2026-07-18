@@ -170,28 +170,6 @@ public record OfficialRunPackageDetail(
         return !"CERTIFIABLE".equals(finalDecision());
     }
 
-    @JsonProperty("blockReasonSummary")
-    public String blockReasonSummary() {
-        if (!blocked()) {
-            return "";
-        }
-        if (certificateSummary != null && !certificateSummary.isBlank()) {
-            return certificateSummary;
-        }
-        if (totalRunCount < 12) {
-            return "공식검사 지표 결과가 부족합니다.";
-        }
-        return "공식검사 기준을 충족하지 못했습니다.";
-    }
-
-    @JsonProperty("officialStateLabel")
-    public String officialStateLabel() {
-        return switch (finalDecision()) {
-            case "CERTIFIABLE" -> "공식검사 통과";
-            case "BLOCKED" -> "공식검사 차단";
-            default -> "검토 필요";
-        };
-    }
 
     @JsonProperty("officialVerificationPassed")
     public boolean officialVerificationPassed() {

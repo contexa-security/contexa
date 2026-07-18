@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.service.ott;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.ott.GenerateOneTimeTokenRequest;
@@ -56,7 +55,7 @@ import static org.mockito.Mockito.when;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class EmailOneTimeTokenServiceTest {
 
-    private EmbeddedDatabase db;
+    private PostgresTestDatabase database;
     private JdbcTemplate jdbcTemplate;
     private TransactionTemplate transactionTemplate;
 
@@ -71,12 +70,9 @@ class EmailOneTimeTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        db = new EmbeddedDatabaseBuilder()
-                .setType(EmbeddedDatabaseType.H2)
-                .setName("ott_test_db_" + System.currentTimeMillis())
-                .build();
-        jdbcTemplate = new JdbcTemplate(db);
-        PlatformTransactionManager txManager = new JdbcTransactionManager(db);
+        database = PostgresTestDatabase.empty();
+        jdbcTemplate = database.jdbcTemplate();
+        PlatformTransactionManager txManager = new JdbcTransactionManager(database.dataSource());
         transactionTemplate = new TransactionTemplate(txManager);
 
         jdbcTemplate.execute("CREATE TABLE one_time_tokens (" +
@@ -96,13 +92,13 @@ class EmailOneTimeTokenServiceTest {
 
     @AfterEach
     void tearDown() {
-        if (db != null) {
-            db.shutdown();
+        if (database != null) {
+            database.close();
         }
     }
 
     @Test
-    @DisplayName("generate should create a token, store it in H2, and send HTML email successfully")
+    @DisplayName("generate should create a token, store it in PostgreSQL, and send HTML email successfully")
     void generateTokenSuccess() {
         when(emailService.isMailSenderConfigured()).thenReturn(true);
         jdbcTemplate.update("INSERT INTO users(username, email) VALUES(?, ?)", "testuser", "user@contexa.io");
@@ -118,7 +114,7 @@ class EmailOneTimeTokenServiceTest {
         assertThat(token.getUsername()).isEqualTo("testuser");
         assertThat(token.getTokenValue()).isNotEmpty();
 
-        // Verify it exists in H2 database
+        // Verify it exists in PostgreSQL database
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
         );
@@ -221,7 +217,7 @@ class EmailOneTimeTokenServiceTest {
         OneTimeToken token = service.generate(request);
 
         assertThat(token).isNotNull();
-        // Should still be stored in H2 database
+        // Should still be stored in PostgreSQL database
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, token.getTokenValue()
         );
@@ -264,7 +260,7 @@ class EmailOneTimeTokenServiceTest {
     }
 
     @Test
-    @DisplayName("consume should return token and delete it from H2 database (one-time usage constraint)")
+    @DisplayName("consume should return token and delete it from PostgreSQL database (one-time usage constraint)")
     void consumeTokenDeletesFromStore() {
         // Insert a token manually
         jdbcTemplate.update(
@@ -283,7 +279,7 @@ class EmailOneTimeTokenServiceTest {
         assertThat(consumed.getTokenValue()).isEqualTo("token-123");
         assertThat(consumed.getUsername()).isEqualTo("testuser");
 
-        // Verify it was deleted from H2 database (one-time usage check)
+        // Verify it was deleted from PostgreSQL database (one-time usage check)
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM one_time_tokens WHERE token_value = ?", Integer.class, "token-123"
         );

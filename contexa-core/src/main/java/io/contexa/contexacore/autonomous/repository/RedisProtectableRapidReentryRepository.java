@@ -28,6 +28,7 @@ import java.time.Duration;
 public class RedisProtectableRapidReentryRepository implements ProtectableRapidReentryRepository {
 
     private static final String KEY_PREFIX = "security:protectable:rapid-reentry:";
+    private static final String KEY_PART_SEPARATOR = Character.toString(0);
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -48,7 +49,7 @@ public class RedisProtectableRapidReentryRepository implements ProtectableRapidR
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {
-        String raw = userId + "\u0000" + contextBindingHash + "\u0000" + resourceKey;
+        String raw = userId + KEY_PART_SEPARATOR + contextBindingHash + KEY_PART_SEPARATOR + resourceKey;
         String digest = DigestUtils.md5DigestAsHex(raw.getBytes(StandardCharsets.UTF_8));
         return KEY_PREFIX + digest;
     }

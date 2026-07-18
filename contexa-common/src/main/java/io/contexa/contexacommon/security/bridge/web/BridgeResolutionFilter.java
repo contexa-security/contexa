@@ -16,6 +16,8 @@
 package io.contexa.contexacommon.security.bridge.web;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.authentication.HostPrincipalSnapshotAdapter;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.resolver.AuthenticationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.AuthorizationStampResolver;
@@ -133,6 +135,9 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             return;
         }
 
+        request.setAttribute(
+                BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
+                HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
         RequestContextSnapshot requestContext = requestContextCollector.collect(request);
         AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
         AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext)

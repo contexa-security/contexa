@@ -15,12 +15,13 @@
  */
 package io.contexa.contexaiam.domain.entity;
 
+import java.util.Objects;
+
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.Objects;
 
 @Entity
 @Table(name = "CONDITION_TEMPLATE")

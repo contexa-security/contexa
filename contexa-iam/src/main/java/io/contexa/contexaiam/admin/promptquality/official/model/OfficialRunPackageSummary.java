@@ -1,5 +1,8 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
+import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
+import org.springframework.util.StringUtils;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -44,7 +47,9 @@ public record OfficialRunPackageSummary(
         attempts = attempts == null ? List.of() : List.copyOf(attempts);
     }
 
-    public static OfficialRunPackageSummary fromDetail(OfficialRunPackageDetail detail) {
+    public static OfficialRunPackageSummary fromDetail(
+            OfficialRunPackageDetail detail,
+            PromptQualityMessageResolver messageResolver) {
         if (detail == null) {
             return null;
         }
@@ -88,7 +93,7 @@ public record OfficialRunPackageSummary(
                 detail.aggregateRunId(),
                 detail.finalDecision(),
                 detail.blocked(),
-                detail.blockReasonSummary(),
+                blockReasonSummary(detail, messageResolver),
                 detail.totalRunCount(),
                 detail.totalRunCount(),
                 detail.passedRunCount(),
@@ -96,7 +101,7 @@ public record OfficialRunPackageSummary(
                 detail.certificateId(),
                 detail.caseId(),
                 detail.certificateState(),
-                detail.officialStateLabel(),
+                officialStateLabel(detail.finalDecision(), messageResolver),
                 detail.certificateIssued(),
                 detail.certificateSummary(),
                 evidenceSummary == null ? null : evidenceSummary.promptHash(),
@@ -114,5 +119,34 @@ public record OfficialRunPackageSummary(
                 detail.nextActionHref(),
                 detail.remediationGroups(),
                 detail.attempts());
+    }
+
+    private static String blockReasonSummary(
+            OfficialRunPackageDetail detail,
+            PromptQualityMessageResolver messageResolver) {
+        if (!detail.blocked()) {
+            return "";
+        }
+        if (StringUtils.hasText(detail.certificateSummary())) {
+            return detail.certificateSummary().trim();
+        }
+        return detail.totalRunCount() < 12
+                ? messageResolver.resolveRequired(
+                        "enterprise.pqa.runtimeVerification.runDetail.blockReason.metricsMissing")
+                : messageResolver.resolveRequired(
+                        "enterprise.pqa.runtimeVerification.runDetail.blockReason.criteriaFailed");
+    }
+
+    private static String officialStateLabel(
+            String finalDecision,
+            PromptQualityMessageResolver messageResolver) {
+        return switch (finalDecision) {
+            case "CERTIFIABLE" -> messageResolver.resolveRequired(
+                    "enterprise.pqa.runtimeVerification.runDetail.state.certifiable");
+            case "BLOCKED" -> messageResolver.resolveRequired(
+                    "enterprise.pqa.runtimeVerification.runDetail.state.blocked");
+            default -> messageResolver.resolveRequired(
+                    "enterprise.pqa.runtimeVerification.runDetail.state.review");
+        };
     }
 }

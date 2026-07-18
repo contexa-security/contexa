@@ -1,5 +1,5 @@
 import { $, $$, escapeHtml, rawText, text } from '../verification-ui-common.js';
-import { deleteJson, getJson, postJson, publicError } from './prompt-quality-api.js';
+import { deleteJson, getJson, postJson, publicError, promptQualityApiPath } from './prompt-quality-api.js';
 import { bootSummaryPage, setStatus } from './prompt-quality-page.js';
 import { openConfirmModal } from './prompt-quality-ui.js';
 import { t } from './prompt-quality-i18n.js';
@@ -83,7 +83,7 @@ async function loadResourceMeta(root, tenantId, resourceId, sourceResourceUrl, h
         setRouteParam(query, 'resourceId', resourceId);
         setRouteParam(query, 'httpMethod', httpMethod);
         const payload = await getJson(
-                `/contexa/admin/api/prompt-quality/resources/detail?${query.toString()}`);
+                promptQualityApiPath(`/resources/detail?${query.toString()}`));
         const resource = payload && payload.resource ? payload.resource : {};
         const method = (text(resource.httpMethod) || 'GET').toUpperCase();
         const methodTone = METHOD_TONE[method] || 'neutral';
@@ -111,7 +111,7 @@ async function loadOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMe
         const query = new URLSearchParams({ httpMethod, tenantId });
         setRouteParam(query, 'resourceUrl', sourceResourceUrl);
         const payload = await getJson(
-                `/contexa/admin/api/prompt-quality/resources/${encodeURIComponent(resourceId)}/overlay`
+                promptQualityApiPath(`/resources/${encodeURIComponent(resourceId)}/overlay`)
                 + `?${query.toString()}`);
         if (payload && payload.present && payload.overlay) {
             applyOverlayToForm(root, payload.overlay);
@@ -202,7 +202,7 @@ async function saveOverlay(root, tenantId, resourceId, sourceResourceUrl, httpMe
             t('enterprise.pqa.resourceOverlayEdit.status.saving.detail'));
     try {
         await postJson(
-                `/contexa/admin/api/prompt-quality/resources/${encodeURIComponent(resourceId)}/overlay`,
+                promptQualityApiPath(`/resources/${encodeURIComponent(resourceId)}/overlay`),
                 { ...body, tenantId, sourceResourceUrl, httpMethod });
         setStatus(root, 'success',
                 t('enterprise.pqa.resourceOverlayEdit.status.saved.title'),
@@ -236,7 +236,7 @@ async function deleteOverlay(root, tenantId, resourceId, sourceResourceUrl, http
         const query = new URLSearchParams({ httpMethod, reason, tenantId });
         setRouteParam(query, 'resourceUrl', sourceResourceUrl);
         await deleteJson(
-                `/contexa/admin/api/prompt-quality/resources/${encodeURIComponent(resourceId)}/overlay?${query.toString()}`);
+                promptQualityApiPath(`/resources/${encodeURIComponent(resourceId)}/overlay?${query.toString()}`));
         setStatus(root, 'success',
                 t('enterprise.pqa.resourceOverlayEdit.status.deleted.title'),
                 t('enterprise.pqa.resourceOverlayEdit.status.deleted.detail'));

@@ -16,15 +16,27 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.promptquality.official.api.PromptQualityOfficialConsoleApiController;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLockService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationCurrentResultCoordinator;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationLedgerWriters;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCleanupRepository;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCommandWriters;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotQueryService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationVerdictQueryService;
 import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogBootstrap;
-import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogWriter;
+import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractWriter;
+import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,11 +47,46 @@ import java.util.Arrays;
 class PqaOfficialInspectionAutoConfigurationTest {
 
     @Test
+    void requiredAssuranceRepositoryOwnerEnablesOssAdminBeanDefinitions() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PqaOfficialInspectionAutoConfiguration.class))
+                .withBean(PromptQualityAssuranceCaseService.class,
+                        () -> mock(PromptQualityAssuranceCaseService.class))
+                .withBean("contexaJdbcTemplate", JdbcTemplate.class,
+                        () -> mock(JdbcTemplate.class))
+                .withInitializer(context -> context.addBeanFactoryPostProcessor(beanFactory -> {
+                    for (String beanName : beanFactory.getBeanDefinitionNames()) {
+                        beanFactory.getBeanDefinition(beanName).setLazyInit(true);
+                    }
+                }))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.containsBeanDefinition("pqaPromptQualityOfficialConsoleApiController"))
+                            .isTrue();
+                    assertThat(context.containsBeanDefinition("promptQualityRouteModelAdvice"))
+                            .isTrue();
+                    assertThat(context.containsBeanDefinition("pqaOfficialVerificationExecutionLockService"))
+                            .isTrue();
+                });
+    }
+
+    @Test
+    void requiredAssuranceRepositoryOwnerMissingKeepsPqaBeansDisabled() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PqaOfficialInspectionAutoConfiguration.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(PromptQualityOfficialConsoleApiController.class);
+                    assertThat(context).doesNotHaveBean(OfficialVerificationExecutionLockService.class);
+                });
+    }
+
+    @Test
     @DisplayName("OSS PQA contract catalog bootstrap should run after IAM seed initialization")
     void pqaOfficialContractBootstrapDependsOnIamSeedDataInitializer() throws NoSuchMethodException {
         Method method = PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethod(
                 "pqaOfficialMetricPurposeContractCatalogBootstrap",
-                OfficialMetricPurposeContractCatalogWriter.class);
+                OfficialMetricPurposeContractWriter.class);
 
         assertThat(method.getReturnType()).isEqualTo(OfficialMetricPurposeContractCatalogBootstrap.class);
         assertThat(method.getAnnotation(DependsOn.class).value()).containsExactly("iamSeedDataInitializer");
@@ -55,10 +102,29 @@ class PqaOfficialInspectionAutoConfigurationTest {
     void pqaOperatorSnapshotServiceAcceptsContractCatalogWriterProvider() throws NoSuchMethodException {
         Method method = PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethod(
                 "pqaOfficialVerificationOperatorSnapshotService",
-                JdbcTemplate.class,
                 ObjectMapper.class,
-                ObjectProvider.class);
+                OfficialMetricPurposeContractWriter.class,
+                OfficialVerificationSnapshotCleanupRepository.class,
+                OfficialVerificationSnapshotQueryService.class,
+                OfficialVerificationSnapshotCommandWriters.class,
+                OfficialVerificationLedgerWriters.class,
+                OfficialVerificationCurrentResultCoordinator.class,
+                PromptQualityMessageResolver.class);
 
         assertThat(method.getReturnType()).isEqualTo(OfficialVerificationOperatorSnapshotService.class);
     }
+
+    @Test
+    @DisplayName("OSS PQA should expose persisted verdict lookup without an in-memory certificate bean")
+    void pqaVerdictQueryReplacesInMemoryCertificateBean() throws NoSuchMethodException {
+        Method method = PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethod(
+                "pqaOfficialVerificationVerdictQueryService",
+                OfficialVerificationExecutionLockService.class);
+
+        assertThat(method.getReturnType()).isEqualTo(OfficialVerificationVerdictQueryService.class);
+        assertThat(Arrays.stream(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
+                .map(Method::getName))
+                .doesNotContain("pqaPromptQualityCertificateService");
+    }
+
 }

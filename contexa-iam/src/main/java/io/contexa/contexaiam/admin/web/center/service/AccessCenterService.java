@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.admin.web.center.service;
 
+import java.util.Objects;
+
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.GroupRolePermission;
@@ -55,7 +57,6 @@ import io.contexa.contexaiam.admin.web.center.dto.AccessCenterDtos.UpdateUserGro
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;

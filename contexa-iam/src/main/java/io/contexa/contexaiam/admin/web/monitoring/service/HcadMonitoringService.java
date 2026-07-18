@@ -36,6 +36,9 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreExpla
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ResourceBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.ScoreBandBreakdown;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.UserSessionBreakdown;
+import org.springframework.context.MessageSource;
+import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -58,6 +61,7 @@ public class HcadMonitoringService {
     private final HcadProperties hcadProperties;
     private final SecurityZeroTrustProperties zeroTrustProperties;
     private final ObjectMapper objectMapper;
+    private final MessageSource messageSource;
 
     public HcadMonitoringService(
             HcadDetectionEvaluationRepository repository,
@@ -77,10 +81,29 @@ public class HcadMonitoringService {
             HcadProperties hcadProperties,
             ObjectMapper objectMapper,
             SecurityZeroTrustProperties zeroTrustProperties) {
+        this(repository, hcadProperties, objectMapper, zeroTrustProperties, defaultMessageSource());
+    }
+
+    public HcadMonitoringService(
+            HcadDetectionEvaluationRepository repository,
+            HcadProperties hcadProperties,
+            ObjectMapper objectMapper,
+            SecurityZeroTrustProperties zeroTrustProperties,
+            MessageSource messageSource) {
         this.repository = repository;
         this.hcadProperties = hcadProperties;
         this.zeroTrustProperties = zeroTrustProperties;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
+        this.messageSource = messageSource == null ? defaultMessageSource() : messageSource;
+    }
+
+    static MessageSource defaultMessageSource() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("i18n/messages");
+        source.setDefaultEncoding("UTF-8");
+        source.setFallbackToSystemLocale(false);
+        source.setUseCodeAsDefaultMessage(true);
+        return source;
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -279,30 +302,29 @@ public class HcadMonitoringService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public String exportCsv(String period, Locale locale) {
         HcadSummary summary = summarize(period);
-        boolean korean = locale != null && "ko".equalsIgnoreCase(locale.getLanguage());
         StringBuilder csv = new StringBuilder();
         csv.append(String.join(",",
-                csv(label(korean, "\uAE30\uAC04", "period")),
-                csv(label(korean, "\uC2DC\uC791", "from")),
-                csv(label(korean, "\uC885\uB8CC", "to")),
-                csv(label(korean, "\uD604\uC7AC \uBAA8\uB4DC", "currentMode")),
-                csv(label(korean, "HCAD \uC708\uB3C4\uC6B0", "hcadWindows")),
-                csv(label(korean, "\uAD00\uCE21 \uC694\uCCAD", "observedRequests")),
-                csv(label(korean, "LLM \uD638\uCD9C", "llmCalls")),
-                csv(label(korean, "HCAD \uD3C9\uAC00 \uB300\uC0C1", "hcadEligible")),
-                csv(label(korean, "HCAD \uD3C9\uAC00 \uC81C\uC678", "hcadNotEligible")),
-                csv(label(korean, "\uC870\uAE30\uD0D0\uC9C0 \uBC1C\uC0DD\uB960", "triggerRate")),
-                csv(label(korean, "\uC815\uBC00\uB3C4", "precision")),
-                csv(label(korean, "\uC624\uD0D0", "falsePositive")),
-                csv(label(korean, "\uAD00\uCE21 \uAC00\uB2A5 \uBBF8\uD0D0", "observableFalseNegative")),
-                csv(label(korean, "\uBD88\uBA85\uD655", "unknown")),
-                csv(label(korean, "\uC911\uBCF5 \uC5B5\uC81C", "duplicates")),
-                csv(label(korean, "Negative cache \uC801\uC911", "negativeCacheHit")),
-                csv(label(korean, "\uC2B9\uACA9", "escalation")),
-                csv(label(korean, "\uD3C9\uADE0 \uC9C0\uC5F0(ms)", "averageLatencyMs")),
-                csv(label(korean, "\uB0AD\uBE44 \uBE44\uC6A9", "wasteCostUsd")),
-                csv(label(korean, "\uC808\uAC10 \uBE44\uC6A9", "savedCostUsd")),
-                csv(label(korean, "\uAD8C\uC7A5 \uC0C1\uD0DC", "recommendation")))).append('\n');
+                csv(message(locale, "monitoring.csv.period")),
+                csv(message(locale, "monitoring.csv.from")),
+                csv(message(locale, "monitoring.csv.to")),
+                csv(message(locale, "monitoring.csv.currentMode")),
+                csv(message(locale, "monitoring.csv.hcadWindows")),
+                csv(message(locale, "monitoring.csv.observedRequests")),
+                csv(message(locale, "monitoring.csv.llmCalls")),
+                csv(message(locale, "monitoring.csv.hcadEligible")),
+                csv(message(locale, "monitoring.csv.hcadNotEligible")),
+                csv(message(locale, "monitoring.csv.triggerRate")),
+                csv(message(locale, "monitoring.csv.precision")),
+                csv(message(locale, "monitoring.csv.falsePositive")),
+                csv(message(locale, "monitoring.csv.observableFalseNegative")),
+                csv(message(locale, "monitoring.csv.unknownField")),
+                csv(message(locale, "monitoring.csv.duplicates")),
+                csv(message(locale, "monitoring.csv.negativeCacheHit")),
+                csv(message(locale, "monitoring.csv.escalation")),
+                csv(message(locale, "monitoring.csv.averageLatencyMs")),
+                csv(message(locale, "monitoring.csv.wasteCostUsd")),
+                csv(message(locale, "monitoring.csv.savedCostUsd")),
+                csv(message(locale, "monitoring.csv.recommendation")))).append('\n');
         csv.append(csv(summary.period())).append(',')
                 .append(csv(summary.from())).append(',')
                 .append(csv(summary.to())).append(',')
@@ -326,21 +348,21 @@ public class HcadMonitoringService {
                 .append(csv(summary.recommendation())).append('\n');
         csv.append('\n');
         csv.append(String.join(",",
-                csv(label(korean, "\uC0DD\uC131 \uC2DC\uAC01", "createdAt")),
-                csv(label(korean, "\uC0AC\uC6A9\uC790", "userId")),
-                csv(label(korean, "\uBA54\uC11C\uB4DC", "method")),
-                csv(label(korean, "\uACBD\uB85C", "path")),
-                csv(label(korean, "\uC810\uC218", "score")),
-                csv("band"),
-                csv(label(korean, "LLM \uD638\uCD9C", "triggeredLlm")),
-                csv(label(korean, "\uC911\uBCF5 \uC5B5\uC81C", "duplicateSuppressed")),
-                csv(label(korean, "LLM \uC561\uC158", "llmAction")),
-                csv(label(korean, "LLM \uC704\uD5D8 \uC810\uC218", "llmRiskScore")),
-                csv(label(korean, "LLM \uC2E0\uB8B0\uB3C4", "llmConfidence")),
-                csv(label(korean, "\uD30C\uC11C \uC2E4\uD328", "parserFailure")),
-                csv(label(korean, "\uAE30\uC220\uC801 \uB300\uCCB4 \uCC98\uB9AC", "technicalFallback")),
-                csv(label(korean, "\uB300\uCCB4 \uCC98\uB9AC \uBD84\uB958", "fallbackCategory")),
-                csv(label(korean, "\uACB0\uACFC", "outcome")))).append('\n');
+                csv(message(locale, "monitoring.csv.createdAt")),
+                csv(message(locale, "monitoring.csv.userId")),
+                csv(message(locale, "monitoring.csv.method")),
+                csv(message(locale, "monitoring.csv.path")),
+                csv(message(locale, "monitoring.csv.score")),
+                csv(message(locale, "monitoring.csv.band")),
+                csv(message(locale, "monitoring.csv.triggeredLlm")),
+                csv(message(locale, "monitoring.csv.duplicateSuppressed")),
+                csv(message(locale, "monitoring.csv.llmAction")),
+                csv(message(locale, "monitoring.csv.llmRiskScore")),
+                csv(message(locale, "monitoring.csv.llmConfidence")),
+                csv(message(locale, "monitoring.csv.parserFailure")),
+                csv(message(locale, "monitoring.csv.technicalFallback")),
+                csv(message(locale, "monitoring.csv.fallbackCategory")),
+                csv(message(locale, "monitoring.csv.outcome")))).append('\n');
         for (RecentEvaluation evaluation : summary.recentEvaluations()) {
             csv.append(csv(evaluation.createdAt())).append(',')
                     .append(csv(evaluation.userId())).append(',')
@@ -621,37 +643,21 @@ public class HcadMonitoringService {
         Object missingDimensions = baseline.get("missingDimensions");
         if (!Boolean.TRUE.equals(available) && !"true".equalsIgnoreCase(String.valueOf(available))) {
             if (missingDimensions != null && missingDimensions.toString().contains("personalBaselineInsufficientSamples")) {
-                return "\uAC1C\uC778 \uAE30\uC900\uC120 \uD45C\uBCF8\uC774 \uC544\uC9C1 \uBD80\uC871\uD568";
+                return message("monitoring.hcad.baseline.insufficientSamples");
             }
-            return "\uAC1C\uC778 \uAE30\uC900\uC120 \uC5C6\uC74C";
+            return message("monitoring.hcad.baseline.unavailable");
         }
         boolean mismatch = Boolean.TRUE.equals(baseline.get("materialMismatch"));
         String ratioText = baseline.get("matchRatio") == null ? "-" : baseline.get("matchRatio").toString();
         String countText = baseline.get("mismatchCount") == null ? "0" : baseline.get("mismatchCount").toString();
         if (!mismatch) {
-            return "\uD3C9\uC18C \uD328\uD134\uACFC \uD070 \uCC28\uC774 \uC5C6\uC74C";
+            return message("monitoring.hcad.baseline.noMaterialDifference");
         }
-        return "\uD3C9\uC18C \uD328\uD134\uACFC \uB2E4\uB978 \uD56D\uBAA9 " + countText + "\uAC74, \uC77C\uCE58\uC728 " + ratioText
-                + ", \uD56D\uBAA9 " + baseline.get("mismatchedDimensions");
-    }
-    private String baselineComparisonSummary(String json) {
-        MapSnapshot snapshot = readSnapshot(json);
-        Object raw = snapshot.values().get("baselineComparison");
-        if (!(raw instanceof Map<?, ?> baseline)) {
-            return null;
-        }
-        Object materialMismatch = baseline.get("materialMismatch");
-        Object mismatchCount = baseline.get("mismatchCount");
-        Object matchRatio = baseline.get("matchRatio");
-        Object mismatchedDimensions = baseline.get("mismatchedDimensions");
-        boolean mismatch = Boolean.TRUE.equals(materialMismatch);
-        String ratioText = matchRatio == null ? "-" : matchRatio.toString();
-        String countText = mismatchCount == null ? "0" : mismatchCount.toString();
-        if (!mismatch) {
-            return "\uD3C9\uC18C \uD328\uD134\uACFC \uD070 \uCC28\uC774 \uC5C6\uC74C";
-        }
-        return "\uD3C9\uC18C \uD328\uD134\uACFC \uB2E4\uB978 \uD56D\uBAA9 " + countText + "\uAC74, \uC77C\uCE58\uC728 " + ratioText
-                + ", \uD56D\uBAA9 " + mismatchedDimensions;
+        return message(
+                "monitoring.hcad.baseline.mismatch",
+                countText,
+                ratioText,
+                baseline.get("mismatchedDimensions"));
     }
     private MapSnapshot readSnapshot(String json) {
         if (json == null || json.isBlank() || "null".equalsIgnoreCase(json.trim())) {
@@ -783,8 +789,12 @@ public class HcadMonitoringService {
         return text;
     }
 
-    private String label(boolean korean, String ko, String en) {
-        return korean ? ko : en;
+    private String message(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
+    private String message(Locale locale, String key) {
+        Locale resolvedLocale = locale == null ? Locale.ENGLISH : locale;
+        return messageSource.getMessage(key, null, resolvedLocale);
     }
 
     private record MapSnapshot(Map<String, Object> values) {

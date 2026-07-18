@@ -17,6 +17,7 @@ package io.contexa.contexacommon.bridge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.bridge.*;
+import io.contexa.contexacommon.security.bridge.authentication.HostPrincipalSnapshot;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
@@ -138,6 +139,11 @@ class BridgeResolutionFilterTest {
 
         BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
         assertThat(result).isNotNull();
+        var hostSnapshot = (HostPrincipalSnapshot)
+                request.getAttribute(BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT);
+        assertThat(hostSnapshot.principalId()).isEqualTo("alice");
+        assertThat(hostSnapshot.authorities()).containsExactlyInAnyOrder("ROLE_USER", "REPORT_EXPORT");
+        assertThat(hostSnapshot.trustedAttributes()).containsEntry("authenticated", true);
         assertThat(result.authenticationStamp()).isNotNull();
         assertThat(result.authenticationStamp().principalId()).isEqualTo("alice");
         assertThat(result.authenticationStamp().authenticationType()).isEqualTo("UsernamePasswordAuthenticationToken");

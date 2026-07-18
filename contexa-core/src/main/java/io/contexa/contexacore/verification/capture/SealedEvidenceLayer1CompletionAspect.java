@@ -1,7 +1,8 @@
 package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
-import lombok.RequiredArgsConstructor;
+import java.util.Objects;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
@@ -17,10 +18,17 @@ import org.aspectj.lang.annotation.Aspect;
  */
 @Aspect
 @Slf4j
-@RequiredArgsConstructor
 public class SealedEvidenceLayer1CompletionAspect {
 
-    private final SealedEvidencePromptTraceStore traceStore;
+    private final Consumer<SecurityEvent> traceCompleter;
+
+    public SealedEvidenceLayer1CompletionAspect(SealedEvidencePromptTraceStore traceStore) {
+        this(Objects.requireNonNull(traceStore, "traceStore must not be null")::complete);
+    }
+
+    public SealedEvidenceLayer1CompletionAspect(Consumer<SecurityEvent> traceCompleter) {
+        this.traceCompleter = Objects.requireNonNull(traceCompleter, "traceCompleter must not be null");
+    }
 
     @AfterReturning(
             pointcut = "execution(* io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy.evaluate(..)) && args(event)")
@@ -29,7 +37,7 @@ public class SealedEvidenceLayer1CompletionAspect {
             return;
         }
         try {
-            traceStore.complete(event);
+            traceCompleter.accept(event);
         } catch (Exception e) {
             log.error("[SealedEvidence] Failed to complete prompt trace after Layer1: eventId={}",
                     event.getEventId(), e);

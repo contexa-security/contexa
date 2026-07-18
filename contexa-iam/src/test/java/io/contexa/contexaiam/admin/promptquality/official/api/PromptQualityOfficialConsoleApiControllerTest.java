@@ -5,17 +5,21 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupS
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialRunDetailService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeVerificationService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityRuntimeEvidenceService;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageSummary;
 import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeEvidencePromptConsistencyGate;
+import io.contexa.contexaiam.admin.promptquality.official.common.DefaultPromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailureCause;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyResult;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcOperations;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,31 +31,67 @@ import static org.mockito.Mockito.when;
 
 class PromptQualityOfficialConsoleApiControllerTest {
 
-    private final PromptQualityRuntimeVerificationService verificationService = mock(PromptQualityRuntimeVerificationService.class);
-    private final PromptQualityOfficialRunDetailService runDetailService = mock(PromptQualityOfficialRunDetailService.class);
-    private final PromptQualityOfficialConsoleApiController controller = new PromptQualityOfficialConsoleApiController(
-            mock(SealedEvidencePackageLookupService.class),
-            verificationService,
-            runDetailService,
-            mock(OfficialVerificationRunStore.class),
-            new ObjectMapper(),
-            mock(JdbcOperations.class),
-            mock(RuntimeEvidencePromptConsistencyGate.class),
-            mock(PromptQualityMessageResolver.class)
-    );
+    private final PromptQualityRuntimeVerificationService verificationService =
+            mock(PromptQualityRuntimeVerificationService.class);
+    private final PromptQualityRuntimeEvidenceService runtimeEvidenceService =
+            mock(PromptQualityRuntimeEvidenceService.class);
+    private final PromptQualityOfficialRunDetailService runDetailService =
+            mock(PromptQualityOfficialRunDetailService.class);
+    private final PromptQualityOfficialConsoleViewAssembler views =
+            new PromptQualityOfficialConsoleViewAssembler(
+                    mock(SealedEvidencePackageLookupService.class),
+                    runDetailService,
+                    mock(OfficialVerificationRunStore.class),
+                    new ObjectMapper(),
+                    mock(RuntimeEvidencePromptConsistencyGate.class),
+                    koreanMessageResolver());
+    private final PromptQualityOfficialRuntimeEvidenceApiController runtimeEvidenceController =
+            new PromptQualityOfficialRuntimeEvidenceApiController(runtimeEvidenceService, views);
+    private final PromptQualityOfficialMetricApiController metricController =
+            new PromptQualityOfficialMetricApiController(runDetailService, views);
+    private final PromptQualityOfficialVerificationRunApiController verificationRunController =
+            new PromptQualityOfficialVerificationRunApiController(
+                    verificationService, runDetailService, views);
+    private static PromptQualityMessageResolver koreanMessageResolver() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("i18n.messages");
+        source.setDefaultEncoding("UTF-8");
+        return new DefaultPromptQualityMessageResolver(source) {
+            @Override
+            public Locale currentLocale() {
+                return Locale.KOREAN;
+            }
+        };
+    }
 
+    @Test
+    void runtimeEvidenceSearchUsesOssServiceAndTypedResponse() {
+        RuntimeEvidencePackageSummary summary = mock(RuntimeEvidencePackageSummary.class);
+        when(runtimeEvidenceService.search(any())).thenReturn(List.of(summary));
+
+        List<RuntimeEvidencePackageSummary> result = runtimeEvidenceController.searchRuntimeEvidence(
+                "pkg-001", "tenant-a", "user-a", "/orders/1", "orders.read", "GET",
+                null, null, 2, 30);
+
+        assertThat(result).containsExactly(summary);
+        verify(runtimeEvidenceService).search(argThat(criteria ->
+                criteria.packageId().equals("pkg-001")
+                        && criteria.tenantId().equals("tenant-a")
+                        && criteria.page() == 2
+                        && criteria.size() == 30));
+    }
     @Test
     void metricFamiliesSeparatePromptTwelveAndLlmDecisionOfficialInspection() {
         when(runDetailService.findPackageDetail("pkg-001", "agg-001")).thenReturn(packageDetail());
 
-        Map<String, Object> payload = controller.packageMetricFamilies("pkg-001", "agg-001");
+        Map<String, Object> payload = metricController.packageMetricFamilies("pkg-001", "agg-001");
 
         Map<?, ?> prompt = (Map<?, ?>) payload.get("prompt");
         Map<?, ?> decision = (Map<?, ?>) payload.get("decision");
         Map<?, ?> other = (Map<?, ?>) payload.get("other");
-        assertThat(prompt.get("label")).isEqualTo("\uD504\uB86C\uD504\uD2B8 12\uC9C0\uD45C");
-        assertThat(decision.get("label")).isEqualTo("LLM \uD310\uC815 \uACF5\uC2DD\uAC80\uC0AC");
-        assertThat(other.get("label")).isEqualTo("\uAE30\uD0C0 \uACF5\uC2DD\uAC80\uC0AC");
+        assertThat(prompt.get("label")).isEqualTo("프롬프트 12지표");
+        assertThat(decision.get("label")).isEqualTo("LLM 판정 공식검사");
+        assertThat(other.get("label")).isEqualTo("기타 공식검사");
         assertThat(prompt.get("totalRunCount")).isEqualTo(2);
         assertThat(decision.get("totalRunCount")).isEqualTo(2);
         assertThat(other.get("totalRunCount")).isEqualTo(1);
@@ -90,7 +130,7 @@ class PromptQualityOfficialConsoleApiControllerTest {
     void metricFailureDetailsFiltersByRequestedMetricOnly() {
         when(runDetailService.findFailureDetails("pkg-001", "agg-001")).thenReturn(packageDetail().failureCauses());
 
-        List<OfficialRunFailureCause> failures = controller.packageMetricFailureDetails("pkg-001", "m04", "agg-001");
+        List<OfficialRunFailureCause> failures = metricController.packageMetricFailureDetails("pkg-001", "m04", "agg-001");
 
         assertThat(failures).extracting(OfficialRunFailureCause::metricCode).containsExactly("M04");
     }
@@ -100,10 +140,10 @@ class PromptQualityOfficialConsoleApiControllerTest {
         RuntimeEvidenceReverifyResult result = new RuntimeEvidenceReverifyResult("pkg-001", null, "queued");
         when(verificationService.reverify(any())).thenReturn(result);
 
-        RuntimeEvidenceReverifyResult actual = controller.reverifyPackage(
+        RuntimeEvidenceReverifyResult actual = verificationRunController.reverifyPackage(
                 "pkg-001",
                 "agg-001",
-                Map.of("reason", "\uACF5\uC2DD\uAC80\uC0AC \uC7AC\uAC80\uC99D", "findingIds", List.of("finding-1"), "issueIds", List.of("issue-1")),
+                Map.of("reason", "공식검사 재검증", "findingIds", List.of("finding-1"), "issueIds", List.of("issue-1")),
                 new TestingAuthenticationToken("admin", "n/a")
         );
 
@@ -111,7 +151,7 @@ class PromptQualityOfficialConsoleApiControllerTest {
         verify(verificationService).reverify(argThat(request ->
                 "pkg-001".equals(request.packageId())
                         && "admin".equals(request.operatorId())
-                        && "\uACF5\uC2DD\uAC80\uC0AC \uC7AC\uAC80\uC99D".equals(request.reason())
+                        && "공식검사 재검증".equals(request.reason())
                         && "agg-001".equals(request.sourceAggregateRunId())
                         && request.findingIds().contains("finding-1")
                         && request.issueIds().contains("issue-1")));

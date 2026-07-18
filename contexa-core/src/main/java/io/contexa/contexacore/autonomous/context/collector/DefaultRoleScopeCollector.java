@@ -60,6 +60,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     private static final int MAX_EVIDENCE_RECORDS = 4;
     private static final int MAX_FIELD_EVIDENCE_IDS = 6;
     private static final String NULL_TOKEN = "~";
+    private static final String FIELD_SEPARATOR = Character.toString(0x1F);
     private static final String OBSERVATION_VERSION_V1 = "v1";
     private static final String PERMISSION_CHANGE_VERSION_V1 = "p1";
     private static final String AUTHORIZATION_STATE_VERSION_V1 = "a1";
@@ -1371,7 +1372,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         if (values == null || values.isEmpty()) {
             return NULL_TOKEN;
         }
-        return encodeNullable(String.join("\u001F", values));
+        return encodeNullable(String.join(FIELD_SEPARATOR, values));
     }
 
     private List<String> decodeStringList(String raw) {
@@ -1379,7 +1380,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         if (!StringUtils.hasText(decoded)) {
             return List.of();
         }
-        return List.of(decoded.split("\u001F", -1)).stream()
+        return List.of(decoded.split(FIELD_SEPARATOR, -1)).stream()
                 .filter(StringUtils::hasText)
                 .toList();
     }

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Objects;
+
 /**
  * Serializes and deserializes CanonicalSecurityContext to/from JSON
  * for sealed evidence package persistence and replay.
@@ -15,9 +17,9 @@ public class CanonicalSecurityContextSerializer {
     private final ObjectMapper objectMapper;
 
     public CanonicalSecurityContextSerializer(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper == null
-                ? new ObjectMapper().findAndRegisterModules()
-                : objectMapper.copy().findAndRegisterModules();
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper")
+                .copy()
+                .findAndRegisterModules();
     }
 
     public String serialize(CanonicalSecurityContext context) {

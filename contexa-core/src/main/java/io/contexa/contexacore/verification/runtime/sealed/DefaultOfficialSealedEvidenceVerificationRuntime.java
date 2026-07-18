@@ -1,17 +1,25 @@
 package io.contexa.contexacore.verification.runtime.sealed;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.firstNonBlank;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.parseJson;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.promptFacts;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.putIfPresent;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.requestAndAuthFacts;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.sha256;
+import static io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceVerificationFacts.text;
+
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
-import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePromptEvidenceBackfill;
-import io.contexa.contexacore.verification.metric.OfficialContextHashStateResolver;
 import io.contexa.contexacore.verification.metric.OfficialMetricEvaluationResult;
 import io.contexa.contexacore.verification.metric.OfficialPromptQualityMetricContractGate;
 import io.contexa.contexacore.verification.metric.OfficialPromptQualityNarrativeCatalog;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricCatalog;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCasePublisher;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunRecord;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
@@ -19,15 +27,11 @@ import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricEvalu
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,78 +41,76 @@ import java.util.stream.Collectors;
 
 public class DefaultOfficialSealedEvidenceVerificationRuntime implements OfficialSealedEvidenceVerificationRuntime {
 
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private static final DateTimeFormatter KOREA_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String EXECUTION_PATH = "CORE_OFFICIAL_SEALED_EVIDENCE_REPLAY";
-    private static final String[] PROMPT_METADATA_FACT_KEYS = {
-            "promptVersion",
-            "contractVersion",
-            "templateKey",
-            "templateName",
-            "promptHash",
-            "contextHash",
-            "canonicalContextHash",
-            "estimatedInputTokens",
-            "estimatedOutputTokens",
-            "actualPromptTokens",
-            "budgetProfile",
-            "budgetViewProfile",
-            "promptTransformationMode",
-            "promptBudgetExceeded",
-            "promptBudgetRemainingTokens",
-            "rawUserPromptLength",
-            "llmUserPromptLength",
-            "runtimeProvider",
-            "runtimeModelId",
-            "runtimeTemperature",
-            "runtimeTopP",
-            "runtimeSeed"
-    };
-
-    private final SealedEvidencePackageLookupService evidenceLookupService;
+    private final SealedEvidencePackageLookupPort evidenceLookupService;
     private final OfficialVerificationMetricCatalog metricCatalog;
     private final OfficialVerificationRunStore runStore;
     private final OfficialVerificationCasePublisher casePublisher;
     private final ObjectMapper objectMapper;
+    private final OfficialVerificationMessageResolver messageResolver;
     private final OfficialPromptQualityMetricContractGate metricContractGate;
     private final FinalPromptMetricEvaluationSuite finalPromptMetricEvaluationSuite;
-    private final OfficialPromptQualityNarrativeCatalog narrativeCatalog = new OfficialPromptQualityNarrativeCatalog();
-    private final SealedEvidenceOfficialRunViewFactory runViewFactory = new SealedEvidenceOfficialRunViewFactory();
+    private final OfficialPromptQualityNarrativeCatalog narrativeCatalog;
+    private final SealedEvidenceOfficialRunViewFactory runViewFactory;
 
     public DefaultOfficialSealedEvidenceVerificationRuntime(
-            SealedEvidencePackageLookupService evidenceLookupService,
+            SealedEvidencePackageLookupPort evidenceLookupService,
             OfficialVerificationMetricCatalog metricCatalog,
             OfficialVerificationRunStore runStore,
             OfficialVerificationCasePublisher casePublisher,
             ObjectMapper objectMapper) {
+        this(
+                evidenceLookupService,
+                metricCatalog,
+                runStore,
+                casePublisher,
+                objectMapper,
+                OfficialVerificationMessageResolver.classpath(Locale.KOREAN));
+    }
+
+    public DefaultOfficialSealedEvidenceVerificationRuntime(
+            SealedEvidencePackageLookupPort evidenceLookupService,
+            OfficialVerificationMetricCatalog metricCatalog,
+            OfficialVerificationRunStore runStore,
+            OfficialVerificationCasePublisher casePublisher,
+            ObjectMapper objectMapper,
+            OfficialVerificationMessageResolver messageResolver) {
         this.evidenceLookupService = evidenceLookupService;
         this.metricCatalog = metricCatalog;
         this.runStore = runStore;
         this.casePublisher = casePublisher;
         this.objectMapper = objectMapper;
+        this.messageResolver = messageResolver;
         this.metricContractGate = new OfficialPromptQualityMetricContractGate(metricCatalog);
-        this.finalPromptMetricEvaluationSuite = new FinalPromptMetricEvaluationSuite(objectMapper);
+        this.finalPromptMetricEvaluationSuite = new FinalPromptMetricEvaluationSuite(objectMapper, this.messageResolver);
+        this.narrativeCatalog = new OfficialPromptQualityNarrativeCatalog(this.messageResolver);
+        this.runViewFactory = new SealedEvidenceOfficialRunViewFactory(this.messageResolver);
     }
 
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
     public OfficialSealedEvidenceVerificationResult executeAll(OfficialSealedEvidenceVerificationRequest request) {
         if (request == null || !StringUtils.hasText(request.packageId())) {
-            throw new IllegalArgumentException("sealed evidence packageId is required.");
+            throw new IllegalArgumentException(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.error.packageId.required"));
         }
         SealedEvidencePackage loadedPackage = evidenceLookupService.findByPackageId(request.packageId().trim())
-                .orElseThrow(() -> new IllegalArgumentException("sealed evidence package not found: " + request.packageId()));
+                .orElseThrow(() -> new IllegalArgumentException(messageResolver.resolve(
+                        "enterprise.pqa.runtimeVerification.error.packageId.notFound",
+                        request.packageId())));
         SealedEvidencePackage evidencePackage = prepareSealedPromptEvidencePackage(loadedPackage);
         String operatorId = firstNonBlank(request.operatorId(), evidencePackage.getUserId(), "official-sealed-evidence-runtime");
         boolean integrityValid = evidenceLookupService.verifyIntegrity(evidencePackage);
         Instant started = Instant.now();
         String startedAt = format(started);
-        Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
-        Map<String, Object> authState = parseJson(evidencePackage.getAuthStateJson());
-        Map<String, Object> promptMetadata = parseJson(evidencePackage.getPromptExecutionMetadataJson());
-        Map<String, Object> decision = parseJson(evidencePackage.getDecisionJson());
+        Map<String, Object> requestFacts = parseJson(objectMapper, evidencePackage.getRequestFactsJson());
+        Map<String, Object> authState = parseJson(objectMapper, evidencePackage.getAuthStateJson());
+        Map<String, Object> promptMetadata = parseJson(objectMapper, evidencePackage.getPromptExecutionMetadataJson());
+        Map<String, Object> decision = parseJson(objectMapper, evidencePackage.getDecisionJson());
         Map<String, String> requestFactStrings = requestAndAuthFacts(requestFacts, authState, decision);
-        Map<String, String> promptFactStrings = promptFacts(evidencePackage, promptMetadata);
+        Map<String, String> promptFactStrings = promptFacts(
+                objectMapper, evidencePackage, promptMetadata, messageResolver);
         String requestPath = firstNonBlank(
                 text(requestFacts, "requestPath"),
                 text(requestFacts, "path"),
@@ -153,7 +155,8 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
     @Override
     public OfficialSealedEvidenceVerificationResult findByPackageId(String packageId) {
         if (!StringUtils.hasText(packageId)) {
-            throw new IllegalArgumentException("sealed evidence packageId is required.");
+            throw new IllegalArgumentException(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.error.packageId.required"));
         }
         SealedEvidencePackage loadedPackage = evidenceLookupService.findByPackageId(packageId.trim())
                 .orElseThrow(() -> new IllegalArgumentException("sealed evidence package not found: " + packageId));
@@ -204,10 +207,11 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
 
     private SealedEvidencePackage prepareSealedPromptEvidencePackage(SealedEvidencePackage loadedPackage) {
         SealedEvidencePromptEvidenceBackfill.Result result =
-                SealedEvidencePromptEvidenceBackfill.prepare(objectMapper, loadedPackage);
+                SealedEvidencePromptEvidenceBackfill.prepare(objectMapper, loadedPackage, messageResolver);
         if (!result.ready()) {
-            throw new IllegalStateException("sealed evidence package is not ready for official verification: "
-                    + String.join(" ", result.violations()));
+            throw new IllegalStateException(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.preflight.inputContractInvalid",
+                    String.join(" ", result.violations())));
         }
         return result.packageForVerification();
     }
@@ -274,126 +278,6 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         return metricCode == null ? "" : metricCode.trim().toUpperCase(Locale.ROOT);
     }
 
-    private Map<String, String> promptFacts(SealedEvidencePackage evidencePackage, Map<String, Object> promptMetadata) {
-        Map<String, String> facts = new LinkedHashMap<>();
-        copyPromptMetadataFacts(facts, promptMetadata);
-        Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
-        OfficialContextHashStateResolver.Resolution contextHashResolution =
-                OfficialContextHashStateResolver.resolve(requestFacts, promptMetadata, evidencePackage.getCanonicalContextJson());
-        putIfPresent(facts, "promptHash", firstNonBlank(evidencePackage.getPromptHash(), facts.get("promptHash")));
-        putIfPresent(facts, "contextHash", contextHashResolution.contextHash());
-        putIfPresent(facts, "contextHashState", contextHashResolution.state());
-        putIfPresent(facts, "contextHashStateReason", contextHashResolution.reason());
-        facts.put("rawSystemPromptCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getRawSystemPrompt())));
-        facts.put("rawUserPromptCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getRawUserPrompt())));
-        facts.put("llmSystemPromptCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getSystemPromptText())));
-        facts.put("llmUserPromptCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getUserPromptText())));
-        facts.put("baselineSnapshotCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getBaselineSnapshotJson())));
-        facts.put("ragResultsCaptured", String.valueOf(StringUtils.hasText(evidencePackage.getRagResultsJson())));
-        putIfPresent(facts, "rawSystemPromptHash", prefixedSha256(evidencePackage.getRawSystemPrompt()));
-        putIfPresent(facts, "rawUserPromptHash", prefixedSha256(evidencePackage.getRawUserPrompt()));
-        putIfPresent(facts, "systemPromptHash", prefixedSha256(evidencePackage.getSystemPromptText()));
-        putIfPresent(facts, "userPromptHash", prefixedSha256(evidencePackage.getUserPromptText()));
-        putIfPresent(facts, "rawSystemPromptRef", promptRef(evidencePackage, "raw_system_prompt"));
-        putIfPresent(facts, "rawUserPromptRef", promptRef(evidencePackage, "raw_user_prompt"));
-        putIfPresent(facts, "systemPromptTextRef", promptRef(evidencePackage, "system_prompt_text"));
-        putIfPresent(facts, "userPromptTextRef", promptRef(evidencePackage, "user_prompt_text"));
-        putIfPresent(facts, "promptExecutionMetadataRef", promptRef(evidencePackage, "prompt_execution_metadata_json"));
-        putIfPresent(facts, "promptEvidenceManifestRef", promptRef(evidencePackage, "prompt_evidence_manifest_json"));
-        putIfPresent(facts, "promptFieldStateLedgerRef",
-                promptRef(evidencePackage, "prompt_evidence_manifest_json") + ":fieldStateLedger");
-        putIfPresent(facts, "promptSourceContextLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptSourceContextLedgerStoragePolicy");
-        putIfPresent(facts, "promptRawUserFieldLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptRawUserFieldLedgerStoragePolicy");
-        putIfPresent(facts, "promptFinalUserFieldLedgerRef",
-                promptRef(evidencePackage, "prompt_execution_metadata_json") + ":promptFinalUserFieldLedgerStoragePolicy");
-        return facts;
-    }
-
-    private Map<String, String> requestAndAuthFacts(
-            Map<String, Object> requestFacts,
-            Map<String, Object> authState,
-            Map<String, Object> decision) {
-        Map<String, String> facts = new LinkedHashMap<>(stringMap(requestFacts));
-        putIfPresent(facts, "requestPath", firstNonBlank(
-                facts.get("requestPath"),
-                facts.get("resourceUrl"),
-                facts.get("path"),
-                facts.get("uri")));
-        putIfPresent(facts, "httpMethod", firstNonBlank(facts.get("httpMethod"), facts.get("method")));
-        putIfPresent(facts, "resourceId", firstNonBlank(facts.get("resourceId"), facts.get("endpointKey")));
-        putIfPresent(facts, "clientIp", firstNonBlank(facts.get("clientIp"), facts.get("ipAddress"), facts.get("remoteAddr")));
-        Map<String, String> authFacts = stringMap(authState);
-        putIfPresent(facts, "mfaVerified", authFacts.get("mfaVerified"));
-        putIfPresent(facts, "authMethod", firstNonBlank(authFacts.get("authMethod"), authFacts.get("authenticationMethod")));
-        putIfPresent(facts, "authorizationEffect", authFacts.get("authorizationEffect"));
-        putIfPresent(facts, "effectiveRoles", firstNonBlank(authFacts.get("effectiveRoles"), authFacts.get("roles")));
-        putIfPresent(facts, "effectivePermissions", firstNonBlank(authFacts.get("effectivePermissions"), authFacts.get("permissions")));
-        Map<String, String> decisionFacts = stringMap(decision);
-        putIfPresent(facts, "decisionAction", firstNonBlank(
-                decisionFacts.get("action"),
-                decisionFacts.get("decisionAction"),
-                decisionFacts.get("effect")));
-        return Map.copyOf(facts);
-    }
-
-    private Map<String, Object> parseJson(String json) {
-        if (!StringUtils.hasText(json)) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(json, MAP_TYPE);
-        }
-        catch (Exception ignored) {
-            return Map.of();
-        }
-    }
-
-    private Map<String, String> stringMap(Map<String, Object> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> result = new LinkedHashMap<>();
-        raw.forEach((key, value) -> putIfPresent(result, key, value == null ? null : String.valueOf(value)));
-        return result;
-    }
-    private void copyPromptMetadataFacts(Map<String, String> facts, Map<String, Object> promptMetadata) {
-        if (promptMetadata == null || promptMetadata.isEmpty()) {
-            return;
-        }
-        for (String key : PROMPT_METADATA_FACT_KEYS) {
-            Object value = promptMetadata.get(key);
-            if (value instanceof Map<?, ?> || value instanceof Iterable<?> || (value != null && value.getClass().isArray())) {
-                continue;
-            }
-            putIfPresent(facts, key, value == null ? null : String.valueOf(value));
-        }
-    }
-
-    private String text(Map<String, Object> raw, String key) {
-        Object value = raw == null ? null : raw.get(key);
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private void putIfPresent(Map<String, String> target, String key, String value) {
-        if (StringUtils.hasText(value)) {
-            target.put(key, value.trim());
-        }
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
     private String format(Instant instant) {
         return LocalDateTime.ofInstant(instant, ZoneId.of("Asia/Seoul")).format(KOREA_TIME);
     }
@@ -427,28 +311,4 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         return runId;
     }
 
-    private String sha256(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-        }
-        catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 digest is not available.", exception);
-        }
-    }
-
-    private String prefixedSha256(String value) {
-        String digest = sha256(value);
-        return digest == null ? null : "sha256:" + digest;
-    }
-
-    private String promptRef(SealedEvidencePackage evidencePackage, String columnName) {
-        if (evidencePackage == null || !StringUtils.hasText(evidencePackage.getPackageId())) {
-            return null;
-        }
-        return "sealed_evidence_package." + columnName + "#" + evidencePackage.getPackageId();
-    }
 }

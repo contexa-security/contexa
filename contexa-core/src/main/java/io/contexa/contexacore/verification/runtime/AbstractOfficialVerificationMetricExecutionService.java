@@ -8,11 +8,7 @@ import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRe
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.util.Comparator;
@@ -26,8 +22,6 @@ import java.util.function.Function;
 @Transactional(transactionManager = "contexaTransactionManager")
 public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
 
-    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE = new ParameterizedTypeReference<>() {
-    };
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {
     };
     private static final String BRIDGE_HEADER_PREFIX = "X-Contexa-Verification-Bridge-";
@@ -35,7 +29,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
     protected final SecurityDecisionForwardingOutboxRepository decisionOutboxRepository;
     protected final PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository;
     protected final OfficialVerificationAnalysisEventStore analysisEventStore;
-    protected final WebClient.Builder webClientBuilder;
+    protected final OfficialVerificationProbeClient probeClient;
     protected final ObjectMapper objectMapper;
 
     private final OfficialVerificationPerUserRunRepository<R> runRepository;
@@ -47,7 +41,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
             SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
             PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
             OfficialVerificationAnalysisEventStore analysisEventStore,
-            WebClient.Builder webClientBuilder,
+            OfficialVerificationProbeClient probeClient,
             ObjectMapper objectMapper,
             Function<R, String> runIdExtractor,
             Function<R, String> startedAtExtractor
@@ -56,7 +50,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
         this.decisionOutboxRepository = decisionOutboxRepository;
         this.promptAuditOutboxRepository = promptAuditOutboxRepository;
         this.analysisEventStore = analysisEventStore;
-        this.webClientBuilder = webClientBuilder;
+        this.probeClient = probeClient;
         this.objectMapper = objectMapper;
         this.runRepository = new OfficialVerificationPerUserRunRepository<>(
                 runIdExtractor,
@@ -101,23 +95,16 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
     }
 
     protected final Map<String, Object> invokeProbeRequest(
-            HttpServletRequest request,
+            OfficialVerificationExecutionRequest request,
             String requestPath,
-            Consumer<HttpHeaders> headerConfigurer
+            Consumer<OfficialVerificationProbeHeaders> headerConfigurer
     ) {
         String baseUrl = resolveBaseUrl(request);
-        WebClient client = webClientBuilder.baseUrl(baseUrl).build();
-        Map<String, Object> payload = client.get()
-                .uri(requestPath)
-                .headers(headers -> {
-                    if (headerConfigurer != null) {
-                        headerConfigurer.accept(headers);
-                    }
-                })
-                .retrieve()
-                .bodyToMono(MAP_TYPE)
-                .block(Duration.ofSeconds(30));
-        return payload != null ? payload : Map.of();
+        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
+        if (headerConfigurer != null) {
+            headerConfigurer.accept(headers);
+        }
+        return probeClient.get(baseUrl, requestPath, headers.asMap(), Duration.ofSeconds(30));
     }
 
     protected final Map<String, Object> parseJson(String payloadJson) {
@@ -131,7 +118,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
         }
     }
 
-    protected final void copyHeader(HttpServletRequest request, HttpHeaders headers, String name) {
+    protected final void copyHeader(OfficialVerificationExecutionRequest request, OfficialVerificationProbeHeaders headers, String name) {
         if (request == null || headers == null || !StringUtils.hasText(name)) {
             return;
         }
@@ -141,7 +128,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
         }
     }
 
-    protected final void copyVerificationBridgeHeaders(HttpServletRequest request, HttpHeaders headers) {
+    protected final void copyVerificationBridgeHeaders(OfficialVerificationExecutionRequest request, OfficialVerificationProbeHeaders headers) {
         if (request == null || headers == null) {
             return;
         }
@@ -160,7 +147,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
             }
         }
     }
-    protected final String resolveBaseUrl(HttpServletRequest request) {
+    protected final String resolveBaseUrl(OfficialVerificationExecutionRequest request) {
         if (request == null) {
             return "http://localhost:10000";
         }

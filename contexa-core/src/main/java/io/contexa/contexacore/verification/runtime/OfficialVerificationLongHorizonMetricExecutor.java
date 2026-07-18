@@ -1,6 +1,5 @@
 package io.contexa.contexacore.verification.runtime;
 
-import jakarta.servlet.http.HttpServletRequest;
 
 public interface OfficialVerificationLongHorizonMetricExecutor<R extends OfficialVerificationRunView> extends OfficialVerificationRequestMetricExecutor<R> {
 
@@ -13,7 +12,7 @@ public interface OfficialVerificationLongHorizonMetricExecutor<R extends Officia
             boolean rerun,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request,
+            OfficialVerificationExecutionRequest request,
             String runId,
             int runOrdinal
     );

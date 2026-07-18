@@ -91,6 +91,21 @@ class AiSecurityImportSelectorTest {
         assertThat(untouched.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
     }
 
+    @Test
+    void shouldSkipImportWhenContexaIsExplicitlyDisabled() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("contexaDisabled",
+                Map.of(AiSecurityImportSelector.PROP_ENABLED, false)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+
+        String[] imports = selector.selectImports(AnnotationMetadata.introspect(FullModeApplication.class));
+
+        assertThat(imports).isEmpty();
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE)).isNull();
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP)).isNull();
+    }
+
     private StandardEnvironment select(Class<?> applicationClass) {
         StandardEnvironment environment = new StandardEnvironment();
         AiSecurityImportSelector selector = new AiSecurityImportSelector();

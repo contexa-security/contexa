@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.config.JpaAuditingConfig;
+import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import jakarta.persistence.EntityManagerFactory;
 import java.io.IOException;
@@ -26,6 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
@@ -43,6 +46,34 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionManager;
 
 class CoreDataAutoConfigurationTest {
+
+    private static PostgresTestDatabase applicationDatabase;
+    private static PostgresTestDatabase contexaDatabase;
+
+    @BeforeAll
+    static void startPostgres() {
+        applicationDatabase = PostgresTestDatabase.empty();
+        try {
+            contexaDatabase = PostgresTestDatabase.empty();
+        } catch (RuntimeException exception) {
+            applicationDatabase.close();
+            applicationDatabase = null;
+            throw exception;
+        }
+    }
+
+    @AfterAll
+    static void stopPostgres() {
+        try {
+            if (contexaDatabase != null) {
+                contexaDatabase.close();
+            }
+        } finally {
+            if (applicationDatabase != null) {
+                applicationDatabase.close();
+            }
+        }
+    }
 
     @Test
     @DisplayName("Contexa EntityManagerFactory should use Spring-compatible Hibernate naming strategies")
@@ -70,13 +101,13 @@ class CoreDataAutoConfigurationTest {
         CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
         configuration.setEnvironment(new MockEnvironment()
                 .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/contexa")
-                .withProperty("contexa.jpa.properties.hibernate.dialect", "org.hibernate.dialect.H2Dialect"));
+                .withProperty("contexa.jpa.properties.hibernate.dialect", "com.example.ExplicitDialect"));
 
         LocalContainerEntityManagerFactoryBean factoryBean =
                 configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
 
         assertThat(factoryBean.getJpaPropertyMap())
-                .containsEntry("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
+                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect");
     }
 
     @Test
@@ -85,13 +116,13 @@ class CoreDataAutoConfigurationTest {
         CoreDataAutoConfiguration configuration = new CoreDataAutoConfiguration();
         configuration.setEnvironment(new MockEnvironment()
                 .withProperty("contexa.datasource.url", "jdbc:postgresql://localhost:5432/contexa")
-                .withProperty("contexa.jpa.database-platform", "org.hibernate.dialect.H2Dialect"));
+                .withProperty("contexa.jpa.database-platform", "com.example.ExplicitDialect"));
 
         LocalContainerEntityManagerFactoryBean factoryBean =
                 configuration.contexaEntityManagerFactory(mock(DataSource.class), null);
 
         assertThat(factoryBean.getJpaPropertyMap())
-                .containsEntry("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
+                .containsEntry("hibernate.dialect", "com.example.ExplicitDialect");
     }
 
     @Test
@@ -107,8 +138,10 @@ class CoreDataAutoConfigurationTest {
                         () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
-                        "spring.datasource.url=jdbc:h2:mem:application-metadata;DB_CLOSE_DELAY=-1",
-                        "spring.datasource.driver-class-name=org.h2.Driver",
+                        "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
+                        "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
+                        "spring.datasource.password=" + applicationDatabase.dataSource().getPassword(),
+                        "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
                         "contexa.datasource.url=jdbc:postgresql://127.0.0.1:1/contexa",
@@ -149,12 +182,16 @@ class CoreDataAutoConfigurationTest {
                         () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
-                        "spring.datasource.url=jdbc:h2:mem:application;DB_CLOSE_DELAY=-1",
-                        "spring.datasource.driver-class-name=org.h2.Driver",
+                        "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
+                        "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
+                        "spring.datasource.password=" + applicationDatabase.dataSource().getPassword(),
+                        "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
-                        "contexa.datasource.url=jdbc:h2:mem:contexa;DB_CLOSE_DELAY=-1",
-                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.datasource.url=" + contexaDatabase.dataSource().getJdbcUrl(),
+                        "contexa.datasource.username=" + contexaDatabase.dataSource().getUsername(),
+                        "contexa.datasource.password=" + contexaDatabase.dataSource().getPassword(),
+                        "contexa.datasource.driver-class-name=org.postgresql.Driver",
                         "contexa.jpa.hibernate.ddl-auto=none")
                 .run(context -> {
                     assertThat(context).hasBean("dataSource");
@@ -178,12 +215,16 @@ class CoreDataAutoConfigurationTest {
                         () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
-                        "spring.datasource.url=jdbc:h2:mem:application-defaults;DB_CLOSE_DELAY=-1",
-                        "spring.datasource.driver-class-name=org.h2.Driver",
+                        "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
+                        "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
+                        "spring.datasource.password=" + applicationDatabase.dataSource().getPassword(),
+                        "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
-                        "contexa.datasource.url=jdbc:h2:mem:contexa-defaults;DB_CLOSE_DELAY=-1",
-                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.datasource.url=" + contexaDatabase.dataSource().getJdbcUrl(),
+                        "contexa.datasource.username=" + contexaDatabase.dataSource().getUsername(),
+                        "contexa.datasource.password=" + contexaDatabase.dataSource().getPassword(),
+                        "contexa.datasource.driver-class-name=org.postgresql.Driver",
                         "contexa.jpa.hibernate.ddl-auto=none")
                 .run(context -> {
                     assertThat(context).hasBean("dataSource");
@@ -220,12 +261,16 @@ class CoreDataAutoConfigurationTest {
                         () -> PlatformConfig.builder().build())
                 .withBean(JPAQueryFactory.class, () -> mock(JPAQueryFactory.class))
                 .withPropertyValues(
-                        "spring.datasource.url=jdbc:h2:mem:auditing-coexistence;DB_CLOSE_DELAY=-1",
-                        "spring.datasource.driver-class-name=org.h2.Driver",
+                        "spring.datasource.url=" + applicationDatabase.dataSource().getJdbcUrl(),
+                        "spring.datasource.username=" + applicationDatabase.dataSource().getUsername(),
+                        "spring.datasource.password=" + applicationDatabase.dataSource().getPassword(),
+                        "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
-                        "contexa.datasource.url=jdbc:h2:mem:contexa-auditing-coexistence;DB_CLOSE_DELAY=-1",
-                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.datasource.url=" + contexaDatabase.dataSource().getJdbcUrl(),
+                        "contexa.datasource.username=" + contexaDatabase.dataSource().getUsername(),
+                        "contexa.datasource.password=" + contexaDatabase.dataSource().getPassword(),
+                        "contexa.datasource.driver-class-name=org.postgresql.Driver",
                         "contexa.jpa.hibernate.ddl-auto=none")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
@@ -250,8 +295,10 @@ class CoreDataAutoConfigurationTest {
                 .withPropertyValues(
                         "spring.jpa.hibernate.ddl-auto=none",
                         "spring.sql.init.mode=never",
-                        "contexa.datasource.url=jdbc:h2:mem:contexa-owned-default;DB_CLOSE_DELAY=-1",
-                        "contexa.datasource.driver-class-name=org.h2.Driver",
+                        "contexa.datasource.url=" + contexaDatabase.dataSource().getJdbcUrl(),
+                        "contexa.datasource.username=" + contexaDatabase.dataSource().getUsername(),
+                        "contexa.datasource.password=" + contexaDatabase.dataSource().getPassword(),
+                        "contexa.datasource.driver-class-name=org.postgresql.Driver",
                         "contexa.datasource.isolation.contexa-owned-application=true",
                         "contexa.jpa.hibernate.ddl-auto=none")
                 .run(context -> {

@@ -17,6 +17,7 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.center.PolicyCenterController;
+import io.contexa.contexaiam.admin.web.center.PolicyCenterOperationsController;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterAnalysisService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterCommandService;
 import io.contexa.contexaiam.admin.web.center.service.PolicyCenterPageService;
@@ -143,6 +144,20 @@ public class IamAdminCenterAutoConfiguration {
         return new PolicyCenterController(
                 messageSource,
                 policyCenterPageService,
+                policyCenterQueryService,
+                policyCenterCommandService,
+                policyCenterAnalysisService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyCenterOperationsController policyCenterOperationsController(
+            MessageSource messageSource,
+            PolicyCenterQueryService policyCenterQueryService,
+            PolicyCenterCommandService policyCenterCommandService,
+            PolicyCenterAnalysisService policyCenterAnalysisService) {
+        return new PolicyCenterOperationsController(
+                messageSource,
                 policyCenterQueryService,
                 policyCenterCommandService,
                 policyCenterAnalysisService);

@@ -8,6 +8,7 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public record FinalPromptEvidenceContext(
         String packageId,
@@ -68,7 +69,7 @@ public record FinalPromptEvidenceContext(
             return Map.of();
         }
         try {
-            ObjectMapper mapper = objectMapper == null ? new ObjectMapper() : objectMapper;
+            ObjectMapper mapper = Objects.requireNonNull(objectMapper, "objectMapper");
             Map<String, Object> parsed = mapper.readValue(json, MAP_TYPE);
             return parsed == null ? Map.of() : new LinkedHashMap<>(parsed);
         }

@@ -25,11 +25,12 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringRe
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetResponse;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.Qualification;
+import io.contexa.contexaiam.testsupport.PostgresTestDatabase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,16 +44,14 @@ import static org.mockito.Mockito.when;
 
 class AiSecurityDecisionMonitoringServiceTest {
 
+    private PostgresTestDatabase database;
     private JdbcTemplate jdbcTemplate;
     private AiSecurityDecisionMonitoringService service;
 
     @BeforeEach
     void setUp() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:ai-monitor-" + System.nanoTime()
-                + ";MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1");
-        jdbcTemplate = new JdbcTemplate(dataSource);
+        database = PostgresTestDatabase.empty();
+        jdbcTemplate = database.jdbcTemplate();
         createTables();
         seedRows();
 
@@ -69,6 +68,13 @@ class AiSecurityDecisionMonitoringServiceTest {
                 new SecurityZeroTrustProperties(),
                 () -> null,
                 () -> null);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (database != null) {
+            database.close();
+        }
     }
 
     @Test

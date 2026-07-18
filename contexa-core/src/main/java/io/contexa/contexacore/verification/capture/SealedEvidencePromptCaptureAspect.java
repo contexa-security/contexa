@@ -1,5 +1,6 @@
 package io.contexa.contexacore.verification.capture;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -39,17 +40,12 @@ public class SealedEvidencePromptCaptureAspect {
             return;
         }
 
-        DomainContext context = request.getContext();
-        if (context == null) {
-            return;
-        }
-
-        if (!context.getClass().getName().equals("io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext")) {
+        if (!(request.getContext() instanceof SecurityDecisionContext securityDecisionContext)) {
             return;
         }
 
         try {
-            traceStore.capture(context, result);
+            traceStore.capture(new SecurityDecisionCaptureContextAdapter(securityDecisionContext, result));
         } catch (Exception e) {
             log.error("[SealedEvidence] Failed to capture prompt trace", e);
         }

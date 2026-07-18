@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexaiam.aiam.web.dto.UnblockRequest;
+
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
@@ -113,10 +115,4 @@ public class ZeroTrustUnblockController {
         }
     }
 
-    public static class UnblockRequest {
-        private String reason;
-
-        public String getReason() { return reason; }
-        public void setReason(String reason) { this.reason = reason; }
-    }
 }

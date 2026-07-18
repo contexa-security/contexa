@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.evidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -12,7 +13,9 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Builds an official-verification-ready detached copy of a sealed evidence
@@ -29,17 +32,27 @@ public final class SealedEvidencePromptEvidenceBackfill {
     }
 
     public static Result prepare(ObjectMapper objectMapper, SealedEvidencePackage source) {
+        return prepare(objectMapper, source, OfficialVerificationMessageResolver.classpath(Locale.KOREAN));
+    }
+
+    public static Result prepare(
+            ObjectMapper objectMapper,
+            SealedEvidencePackage source,
+            OfficialVerificationMessageResolver messageResolver) {
+        Objects.requireNonNull(objectMapper, "objectMapper");
+        Objects.requireNonNull(messageResolver, "messageResolver");
         if (source == null) {
-            return new Result(null, List.of("봉인 증거 패키지가 없습니다."), List.of());
+            return new Result(null, List.of(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.preflight.evidencePackageMissing")), List.of());
         }
         SealedEvidencePackage pkg = copyOf(source);
         List<String> violations = new ArrayList<>();
         List<String> recoveredFields = new ArrayList<>();
 
-        requirePromptText(pkg.getSystemPromptText(), "systemPromptText", violations);
-        requirePromptText(pkg.getUserPromptText(), "userPromptText", violations);
-        requirePromptText(pkg.getRawSystemPrompt(), "rawSystemPrompt", violations);
-        requirePromptText(pkg.getRawUserPrompt(), "rawUserPrompt", violations);
+        requirePromptText(pkg.getSystemPromptText(), "systemPromptText", violations, messageResolver);
+        requirePromptText(pkg.getUserPromptText(), "userPromptText", violations, messageResolver);
+        requirePromptText(pkg.getRawSystemPrompt(), "rawSystemPrompt", violations, messageResolver);
+        requirePromptText(pkg.getRawUserPrompt(), "rawUserPrompt", violations, messageResolver);
 
         recoverHash(pkg::getSystemPromptHash, pkg::setSystemPromptHash, pkg.getSystemPromptText(), "systemPromptHash", recoveredFields);
         recoverHash(pkg::getUserPromptHash, pkg::setUserPromptHash, pkg.getUserPromptText(), "userPromptHash", recoveredFields);
@@ -52,7 +65,7 @@ public final class SealedEvidencePromptEvidenceBackfill {
                 | putIfAbsent(metadata, "rawSystemPromptHash", pkg.getRawSystemPromptHash())
                 | putIfAbsent(metadata, "rawUserPromptHash", pkg.getRawUserPromptHash());
         if (metadataChanged) {
-            pkg.setPromptExecutionMetadataJson(writeMap(objectMapper, metadata));
+            pkg.setPromptExecutionMetadataJson(writeMap(objectMapper, metadata, messageResolver));
             recoveredFields.add("promptExecutionMetadataJson.promptHashes");
         }
 
@@ -72,17 +85,20 @@ public final class SealedEvidencePromptEvidenceBackfill {
                 recoveredFields.add("promptEvidenceManifestJson");
             }
             else {
-                violations.add("실제 사용자 프롬프트 원문이 없어 증거 매니페스트를 만들 수 없습니다.");
+                violations.add(messageResolver.resolve(
+                        "enterprise.pqa.runtimeVerification.preflight.manifestCannotCreate"));
             }
         }
 
-        if (!"SEALED".equalsIgnoreCase(firstNonBlank(pkg.getSealState(), ""))) {
+        if (!pkg.hasSealedState()) {
             if (!StringUtils.hasText(pkg.getSealState())) {
-                pkg.setSealState("SEALED");
+                pkg.setSealState(SealedEvidencePackage.SEAL_STATE_SEALED);
                 recoveredFields.add("sealState");
             }
             else {
-                violations.add("sealState가 SEALED가 아닙니다: " + pkg.getSealState());
+                violations.add(messageResolver.resolve(
+                        "enterprise.pqa.runtimeVerification.preflight.sealStateInvalid",
+                        pkg.getSealState()));
             }
         }
         if (pkg.getSchemaVersion() < 2) {
@@ -100,9 +116,14 @@ public final class SealedEvidencePromptEvidenceBackfill {
         return new Result(pkg, List.of(), List.copyOf(recoveredFields));
     }
 
-    private static void requirePromptText(String value, String fieldName, List<String> violations) {
+    private static void requirePromptText(
+            String value,
+            String fieldName,
+            List<String> violations,
+            OfficialVerificationMessageResolver messageResolver) {
         if (!StringUtils.hasText(value)) {
-            violations.add(fieldName + "가 없습니다.");
+            violations.add(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.preflight.promptTextMissing", fieldName));
         }
     }
 
@@ -147,35 +168,20 @@ public final class SealedEvidencePromptEvidenceBackfill {
         }
     }
 
-    private static String writeMap(ObjectMapper objectMapper, Map<String, Object> metadata) {
+    private static String writeMap(
+            ObjectMapper objectMapper,
+            Map<String, Object> metadata,
+            OfficialVerificationMessageResolver messageResolver) {
         if (metadata == null || metadata.isEmpty()) {
             return null;
         }
         try {
             return objectMapper.writeValueAsString(metadata);
         }
-        catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize prompt execution metadata", e);
+        catch (JsonProcessingException exception) {
+            throw new IllegalStateException(messageResolver.resolve(
+                    "enterprise.pqa.runtimeVerification.preflight.metadataSerializationFailed"), exception);
         }
-    }
-
-    private static String summarizeViolations(List<Map<String, Object>> violations) {
-        if (violations == null || violations.isEmpty()) {
-            return "상세 위반 항목 없음";
-        }
-        return violations.stream()
-                .limit(5)
-                .map(row -> firstNonBlank(
-                        value(row.get("displayName")),
-                        value(row.get("fieldKey")),
-                        "알 수 없는 항목"))
-                .distinct()
-                .toList()
-                .toString();
-    }
-
-    private static String value(Object value) {
-        return value == null ? null : String.valueOf(value);
     }
 
     private static String firstNonBlank(String... values) {

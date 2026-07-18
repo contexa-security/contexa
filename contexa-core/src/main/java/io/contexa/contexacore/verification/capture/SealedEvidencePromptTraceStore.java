@@ -1,22 +1,23 @@
 package io.contexa.contexacore.verification.capture;
 
-import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
-import jakarta.servlet.http.HttpServletRequest;
-import java.lang.reflect.Field;
+import java.time.Clock;
 import java.time.Instant;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 
 /**
@@ -35,41 +36,47 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class SealedEvidencePromptTraceStore {
 
     private static final String PROMPT_FAULT_SCENARIO_KEY = "pqaPromptFaultScenario";
-    private static final String PROMPT_FAULT_SCENARIO_HEADER = "X-PQA-Prompt-Fault";
 
     private final ConcurrentMap<String, SealedEvidencePromptSnapshot> pendingByEventId = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, SealedEvidencePromptSnapshot> completedByRequestId = new ConcurrentHashMap<>();
     private final AtomicReference<SealedEvidencePromptSnapshot> latestCompleted = new AtomicReference<>();
 
-    private final ExecutorService captureExecutor = Executors.newFixedThreadPool(
-            Math.max(2, Runtime.getRuntime().availableProcessors()),
-            r -> {
-                Thread thread = new Thread(r, "sealed-evidence-capturer");
-                thread.setDaemon(true);
-                return thread;
-            }
-    );
-
+    private final Executor captureExecutor;
     private final PromptEvidenceMetadataProvider metadataProvider;
+    private final VerificationCaptureStoreOptions options;
+    private final Clock clock;
 
     public SealedEvidencePromptTraceStore() {
-        this(null);
+        this(null, Runnable::run, VerificationCaptureStoreOptions.defaults(), Clock.systemUTC());
     }
 
     public SealedEvidencePromptTraceStore(PromptEvidenceMetadataProvider metadataProvider) {
-        this.metadataProvider = metadataProvider;
+        this(metadataProvider, Runnable::run, VerificationCaptureStoreOptions.defaults(), Clock.systemUTC());
     }
 
+    public SealedEvidencePromptTraceStore(
+            PromptEvidenceMetadataProvider metadataProvider,
+            Executor captureExecutor,
+            VerificationCaptureStoreOptions options,
+            Clock clock
+    ) {
+        this.metadataProvider = metadataProvider;
+        this.captureExecutor = Objects.requireNonNull(captureExecutor, "captureExecutor must not be null");
+        this.options = Objects.requireNonNull(options, "options must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    }
     /**
      * Called by SealedEvidencePromptCaptureAspect at PromptGenerator.generatePrompt() completion.
      * Stores the prompt snapshot as pending (not yet completed by Layer1).
      */
-    public void capture(DomainContext context, PromptGenerationResult promptResult) {
+    public void capture(VerificationCaptureContext context) {
+        PromptGenerationResult promptResult = context == null ? null : context.promptExecution();
         if (context == null || promptResult == null) {
             return;
         }
 
-        SecurityEvent event = (SecurityEvent) getFieldValue(context, "securityEvent");
+        pruneSnapshots();
+        SecurityEvent event = context.securityEvent();
         if (event == null || !StringUtils.hasText(event.getEventId())) {
             return;
         }
@@ -87,14 +94,14 @@ public class SealedEvidencePromptTraceStore {
                     return Map.copyOf(metadata);
                 }, captureExecutor);
 
-        Object sessionContext = getFieldValue(context, "sessionContext");
-        Object behaviorAnalysis = getFieldValue(context, "behaviorAnalysis");
+        Object sessionContext = context.session();
+        Object behaviorAnalysis = context.behavior();
         List<Document> relatedDocuments =
-                (List<Document>) getFieldValue(context, "relatedDocuments");
+                context.relatedDocuments();
 
         SealedEvidencePromptSnapshot snapshot = new SealedEvidencePromptSnapshot(
                 requestId,
-                Instant.now(),
+                clock.instant(),
                 event,
                 sessionContext,
                 behaviorAnalysis,
@@ -108,6 +115,7 @@ public class SealedEvidencePromptTraceStore {
         );
 
         pendingByEventId.put(event.getEventId(), snapshot);
+        pruneSnapshots();
     }
 
     /**
@@ -119,6 +127,7 @@ public class SealedEvidencePromptTraceStore {
             return;
         }
 
+        pruneSnapshots();
         SealedEvidencePromptSnapshot pending = pendingByEventId.remove(event.getEventId());
         if (pending == null) {
             return;
@@ -143,6 +152,7 @@ public class SealedEvidencePromptTraceStore {
 
         completedByRequestId.put(requestId, completed);
         latestCompleted.set(completed);
+        pruneSnapshots();
     }
 
     /**
@@ -153,6 +163,7 @@ public class SealedEvidencePromptTraceStore {
         if (requestId == null || requestId.isBlank()) {
             return null;
         }
+        pruneSnapshots();
         SealedEvidencePromptSnapshot snapshot = completedByRequestId.remove(requestId);
         if (snapshot != null) {
             latestCompleted.compareAndSet(snapshot, null);
@@ -160,7 +171,7 @@ public class SealedEvidencePromptTraceStore {
         }
         snapshot = consumePending(requestId);
         if (snapshot != null) {
-            log.warn("[SealedEvidence] Consumed pending prompt snapshot before Layer1 completion: requestId={}, eventId={}",
+            log.error("[SealedEvidence] Consumed pending prompt snapshot before Layer1 completion: requestId={}, eventId={}",
                     requestId,
                     snapshot.securityEvent() == null ? null : snapshot.securityEvent().getEventId());
         }
@@ -174,6 +185,7 @@ public class SealedEvidencePromptTraceStore {
         if (requestId == null || requestId.isBlank()) {
             return null;
         }
+        pruneSnapshots();
         return completedByRequestId.get(requestId);
     }
 
@@ -213,7 +225,7 @@ public class SealedEvidencePromptTraceStore {
     }
 
     private Map<String, Object> buildPromptEvidenceMetadata(
-            DomainContext context,
+            VerificationCaptureContext context,
             PromptGenerationResult promptResult) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         if (promptResult.getMetadata() != null) {
@@ -221,7 +233,7 @@ public class SealedEvidencePromptTraceStore {
         }
         if (metadataProvider != null) {
             try {
-                Map<String, Object> providerMetadata = metadataProvider.buildMetadata(context, promptResult);
+                Map<String, Object> providerMetadata = metadataProvider.buildMetadata(context.domainContext(), promptResult);
                 if (providerMetadata != null) {
                     metadata.putAll(providerMetadata);
                 }
@@ -237,7 +249,6 @@ public class SealedEvidencePromptTraceStore {
             String userPrompt,
             Map<String, Object> metadata) {
         String scenario = firstText(
-                currentRequestPromptFaultScenario(),
                 text(event == null || event.getMetadata() == null ? null : event.getMetadata().get(PROMPT_FAULT_SCENARIO_KEY)),
                 text(event == null || event.getMetadata() == null ? null : event.getMetadata().get("officialVerification.pqaPromptFaultScenario")),
                 text(metadata == null ? null : metadata.get(PROMPT_FAULT_SCENARIO_KEY)));
@@ -266,18 +277,6 @@ public class SealedEvidencePromptTraceStore {
         return new PromptFaultProjection(userPrompt);
     }
 
-    private String currentRequestPromptFaultScenario() {
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
-            return null;
-        }
-        HttpServletRequest request = attributes.getRequest();
-        return firstText(
-                request.getParameter(PROMPT_FAULT_SCENARIO_KEY),
-                request.getHeader(PROMPT_FAULT_SCENARIO_HEADER),
-                text(request.getAttribute(PROMPT_FAULT_SCENARIO_KEY)),
-                text(request.getAttribute("officialVerification.pqaPromptFaultScenario")));
-    }
-
     private static String firstText(String... values) {
         if (values == null) {
             return null;
@@ -298,26 +297,29 @@ public class SealedEvidencePromptTraceStore {
         return text.isBlank() ? null : text;
     }
 
-    private static Object getFieldValue(Object obj, String fieldName) {
-        if (obj == null) {
-            return null;
+    private void pruneSnapshots() {
+        Instant cutoff = clock.instant().minus(options.snapshotTtl());
+        pruneMap(pendingByEventId, cutoff, options.maxPending());
+        pruneMap(completedByRequestId, cutoff, options.maxCompleted());
+SealedEvidencePromptSnapshot latest = latestCompleted.get();
+        if (latest != null && (latest.capturedAt().isBefore(cutoff)
+                || completedByRequestId.get(latest.requestId()) != latest)) {
+            latestCompleted.compareAndSet(latest, null);
         }
-        Class<?> clazz = obj.getClass();
-        while (clazz != null) {
-            try {
-                Field field = clazz.getDeclaredField(fieldName);
-                field.setAccessible(true);
-                return field.get(obj);
-            } catch (NoSuchFieldException e) {
-                clazz = clazz.getSuperclass();
-            } catch (Exception e) {
-                log.error("[SealedEvidence] Unexpected error reading field {} from {}", fieldName, obj.getClass().getName(), e);
-                break;
-            }
-        }
-        return null;
     }
 
+    private void pruneMap(
+            ConcurrentMap<String, SealedEvidencePromptSnapshot> snapshots,
+            Instant cutoff,
+            int maximumSize
+    ) {
+        snapshots.entrySet().removeIf(entry -> entry.getValue().capturedAt().isBefore(cutoff));
+        while (snapshots.size() > maximumSize) {
+            snapshots.entrySet().stream()
+                    .min(Comparator.comparing(entry -> entry.getValue().capturedAt()))
+                    .ifPresent(entry -> snapshots.remove(entry.getKey(), entry.getValue()));
+        }
+    }
     private record PromptFaultProjection(String userPrompt) {
     }
 }

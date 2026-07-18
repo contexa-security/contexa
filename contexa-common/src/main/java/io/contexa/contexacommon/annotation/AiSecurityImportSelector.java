@@ -19,6 +19,7 @@ import java.util.Map;
 /** Loads the Contexa configuration and publishes annotation values into this context's Environment. */
 public class AiSecurityImportSelector implements ImportSelector, EnvironmentAware {
 
+    public static final String PROP_ENABLED = "contexa.enabled";
     public static final String PROP_MODE = "contexa.ai.security.mode";
     public static final String PROP_AUTH_OBJECT_LOCATION = "contexa.ai.security.auth-object.location";
     public static final String PROP_AUTH_OBJECT_ATTRIBUTE = "contexa.ai.security.auth-object.attribute";
@@ -31,6 +32,10 @@ public class AiSecurityImportSelector implements ImportSelector, EnvironmentAwar
 
     @Override
     public String[] selectImports(AnnotationMetadata importingClassMetadata) {
+        if (environment != null && !environment.getProperty(PROP_ENABLED, Boolean.class, true)) {
+            return new String[0];
+        }
+
         String version = SpringBootVersion.getVersion();
         if (version.startsWith("4.")) {
             LoggerFactory.getLogger(AiSecurityImportSelector.class)

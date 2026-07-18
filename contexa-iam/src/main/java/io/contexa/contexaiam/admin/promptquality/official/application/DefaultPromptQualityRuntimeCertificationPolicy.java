@@ -5,6 +5,7 @@ import io.contexa.contexacore.verification.adjudication.ScorecardResult;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.replay.DeterministicReplayResult;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationGateCode;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceCheckResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceGateResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeGovernanceDescriptorVerificationResult;
@@ -17,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class DefaultPromptQualityRuntimeCertificationPolicy
@@ -29,22 +31,16 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
 
     private final PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier;
 
-    public DefaultPromptQualityRuntimeCertificationPolicy(ObjectMapper objectMapper) {
-        this(objectMapper, null, null);
-    }
-
-    public DefaultPromptQualityRuntimeCertificationPolicy(
-            ObjectMapper objectMapper,
-            PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier) {
-        this(objectMapper, governanceDescriptorVerifier, null);
-    }
-
     public DefaultPromptQualityRuntimeCertificationPolicy(
             ObjectMapper objectMapper,
             PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier,
             PromptQualityMessageResolver messageResolver) {
-        super(objectMapper, messageResolver);
-        this.governanceDescriptorVerifier = governanceDescriptorVerifier;
+        super(
+                Objects.requireNonNull(objectMapper, "objectMapper"),
+                Objects.requireNonNull(messageResolver, "messageResolver"));
+        this.governanceDescriptorVerifier = Objects.requireNonNull(
+                governanceDescriptorVerifier,
+                "governanceDescriptorVerifier");
     }
 
     @Override
@@ -67,51 +63,53 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
                 text(promptMetadata, "endpointKey"));
         String method = firstNonBlank(text(requestFacts, "httpMethod"), text(requestFacts, "method"));
 
-        add(checks, "PRE", "sealed evidence packageId exists", "packageId",
+        add(checks, OfficialVerificationGateCode.PACKAGE_ID, "PRE", "sealed evidence packageId exists", "packageId",
                 evidencePackage.getPackageId(), StringUtils.hasText(evidencePackage.getPackageId()), "sealedEvidence");
-        add(checks, "PRE", "sealed evidence is locked", "sealed=true",
+        add(checks, OfficialVerificationGateCode.SEALED_EVIDENCE, "PRE", "sealed evidence is locked", "sealed=true",
                 String.valueOf(evidencePackage.isSealed()), evidencePackage.isSealed(), "sealedEvidence");
-        add(checks, "PRE", "sealed evidence integrity is valid", "integrity pass",
+        add(checks, OfficialVerificationGateCode.EVIDENCE_INTEGRITY, "PRE", "sealed evidence integrity is valid", "integrity pass",
                 integrityValid ? "pass" : "fail", integrityValid, "sealedEvidence");
-        add(checks, "PRE", "request resource path exists", "request URL exists",
+        add(checks, OfficialVerificationGateCode.RESOURCE_PATH, "PRE", "request resource path exists", "request URL exists",
                 firstNonBlank(requestPath, "missing"), StringUtils.hasText(requestPath), "resourceScope");
-        add(checks, "PRE", "resource id exists", "resource id exists",
+        add(checks, OfficialVerificationGateCode.RESOURCE_ID, "PRE", "resource id exists", "resource id exists",
                 firstNonBlank(resourceId, "missing"), StringUtils.hasText(resourceId), "resourceScope");
-        add(checks, "PRE", "HTTP method exists", "GET/POST or request method exists",
+        add(checks, OfficialVerificationGateCode.HTTP_METHOD, "PRE", "HTTP method exists", "GET/POST or request method exists",
                 firstNonBlank(method, "missing"), StringUtils.hasText(method), "resourceScope");
-        add(checks, "PFR", "raw system prompt captured", "captured",
+        add(checks, OfficialVerificationGateCode.RAW_SYSTEM_PROMPT, "PFR", "raw system prompt captured", "captured",
                 hasText(evidencePackage.getRawSystemPrompt()) ? "captured" : "missing",
                 hasText(evidencePackage.getRawSystemPrompt()), "promptCapture");
-        add(checks, "PFR", "raw user prompt captured", "captured",
+        add(checks, OfficialVerificationGateCode.RAW_USER_PROMPT, "PFR", "raw user prompt captured", "captured",
                 hasText(evidencePackage.getRawUserPrompt()) ? "captured" : "missing",
                 hasText(evidencePackage.getRawUserPrompt()), "promptCapture");
-        add(checks, "PFR", "LLM prompt captured", "captured",
+        add(checks, OfficialVerificationGateCode.FINAL_LLM_PROMPT, "PFR", "LLM prompt captured", "captured",
                 hasText(evidencePackage.getSystemPromptText()) && hasText(evidencePackage.getUserPromptText()) ? "captured" : "missing",
                 hasText(evidencePackage.getSystemPromptText()) && hasText(evidencePackage.getUserPromptText()), "promptCapture");
-        add(checks, "PFR", "prompt hash exists", "promptHash exists",
+        add(checks, OfficialVerificationGateCode.PROMPT_HASH, "PFR", "prompt hash exists", "promptHash exists",
                 firstNonBlank(evidencePackage.getPromptHash(), "missing"),
                 hasText(evidencePackage.getPromptHash()), "promptCapture");
-        add(checks, "PFR", "prompt hash matches deterministic replay", "raw hash matches replay hash",
+        add(checks, OfficialVerificationGateCode.REPLAY_HASH, "PFR", "prompt hash matches deterministic replay", "raw hash matches replay hash",
                 replayHashLabel(evidencePackage, replay),
                 replayHashMatches(evidencePackage, replay), "deterministicReplay");
 
-        RuntimeGovernanceDescriptorVerificationResult governanceResult = governanceDescriptorVerifier == null
-                ? RuntimeGovernanceDescriptorVerificationResult.empty()
-                : governanceDescriptorVerifier.verify(evidencePackage, promptMetadata);
-        checks.addAll(governanceResult.checks());
+        RuntimeGovernanceDescriptorVerificationResult governanceResult = governanceDescriptorVerifier.verify(
+                evidencePackage,
+                promptMetadata);
+        governanceResult.checks().stream()
+                .map(check -> check.withGateCode(OfficialVerificationGateCode.GOVERNANCE_DESCRIPTOR))
+                .forEach(checks::add);
         checks.addAll(promptEvidenceManifestChecks(evidencePackage));
 
         boolean scorecardPassed = scorecard != null
                 && scorecard.checksRun() > 0
                 && scorecard.passRatePercent() >= SCORECARD_PASS_RATE;
-        add(checks, "MTR", "prompt structure scorecard passed", SCORECARD_PASS_RATE + "% or higher",
+        add(checks, OfficialVerificationGateCode.PROMPT_SCORECARD, "MTR", "prompt structure scorecard passed", SCORECARD_PASS_RATE + "% or higher",
                 scorecard == null ? "not executed" : scorecard.passRatePercent() + "%",
                 scorecardPassed, "promptScorecard");
 
         boolean replayPassed = replay != null
                 && replay.checksRun() > 0
                 && replay.checksPassed() >= replay.checksRun();
-        add(checks, "MTR", "deterministic replay matches sealed evidence", "all replay checks pass",
+        add(checks, OfficialVerificationGateCode.DETERMINISTIC_REPLAY, "MTR", "deterministic replay matches sealed evidence", "all replay checks pass",
                 replay == null ? "not executed" : replay.checksPassed() + "/" + replay.checksRun(),
                 replayPassed, "deterministicReplay");
 
@@ -119,15 +117,14 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
         long failedOfficialMetrics = metrics == null
                 ? PROMPT_QUALITY_METRIC_COUNT
                 : metrics.stream().filter(run -> !officialRunPassed(run)).count();
-        add(checks, "PRE", "12 prompt quality metric results exist", String.valueOf(PROMPT_QUALITY_METRIC_COUNT),
+        add(checks, OfficialVerificationGateCode.REQUIRED_METRICS, "PRE", "12 prompt quality metric results exist", String.valueOf(PROMPT_QUALITY_METRIC_COUNT),
                 metrics == null ? "0" : String.valueOf(metrics.size()), allMetricsPresent, "coreOfficialRuntime");
-        add(checks, "PRE", "prompt quality metrics passed", "all prompt quality metric runs pass",
+        add(checks, OfficialVerificationGateCode.METRIC_RESULTS, "PRE", "prompt quality metrics passed", "all prompt quality metric runs pass",
                 failedOfficialMetrics == 0 ? "all pass" : failedOfficialMetrics + " failed",
                 allMetricsPresent && failedOfficialMetrics == 0, "coreOfficialRuntime");
 
         checks.stream().filter(check -> !check.pass()).forEach(check -> {
             findings.add(message("enterprise.pqa.consistency.gate.issue",
-                    "보증 전 관문 문제: " + metricName(check.metricCode()) + " 기준에서 " + gateLabel(check.label()) + " 항목이 충족되지 않았습니다. 확인 결과는 " + operatorValue(check.actualValue()) + "입니다.",
                     metricName(check.metricCode()), gateLabel(check.label()), operatorValue(check.actualValue())));
             actions.add(actionFor(check.metricCode()));
         });
@@ -143,13 +140,14 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
 
     private void add(
             List<RuntimeEvidenceCheckResult> checks,
+            OfficialVerificationGateCode gateCode,
             String metricCode,
             String label,
             String expected,
             String actual,
             boolean pass,
             String source) {
-        checks.add(new RuntimeEvidenceCheckResult(metricCode, label, expected, actual, pass, source));
+        checks.add(new RuntimeEvidenceCheckResult(metricCode, label, expected, actual, pass, source).withGateCode(gateCode));
     }
 
     private List<RuntimeEvidenceCheckResult> promptEvidenceManifestChecks(SealedEvidencePackage evidencePackage) {
@@ -164,7 +162,7 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
                 continue;
             }
             String fieldKey = stringValue(field.get("fieldKey"));
-            String displayName = firstNonBlank(stringValue(field.get("displayName")), fieldKey, message("enterprise.pqa.consistency.gate.fieldRequired", "필수 프롬프트 항목"));
+            String displayName = firstNonBlank(stringValue(field.get("displayName")), fieldKey, message("enterprise.pqa.consistency.gate.fieldRequired"));
             List<String> metricCodes = metricCodes(field.get("metricCodes"));
             String evidenceSection = firstNonBlank(stringValue(field.get("evidenceSection")), "sealedEvidence");
             String evidencePath = firstNonBlank(stringValue(field.get("evidencePath")), fieldKey);
@@ -173,17 +171,17 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
                 checks.add(new RuntimeEvidenceCheckResult(
                         metricCode,
                         "PROMPT_MANIFEST_FIELD_" + normalizeCheckKey(fieldKey),
-                        message("enterprise.pqa.consistency.gate.reflectionCheck", displayName + " 프롬프트 반영 확인", displayName),
-                        message("enterprise.pqa.consistency.gate.reflectionDesc", displayName + " 값이 봉인 증거와 최종 사용자 프롬프트에 같은 의미로 존재해야 합니다.", displayName),
+                        message("enterprise.pqa.consistency.gate.reflectionCheck", displayName),
+                        message("enterprise.pqa.consistency.gate.reflectionDesc", displayName),
                         promptProjectionActual(field),
                         false,
                         source,
                         "BLOCKING",
                         "PROMPT_EVIDENCE_PROJECTION_MISMATCH",
                         stringValue(field.get("producer")),
-                        message("enterprise.pqa.consistency.gate.reflectionFailure", "문제: " + displayName + " 항목이 최종 사용자 프롬프트에 반영되지 않았습니다. 원인: 봉인 증거에는 값이 있으나 LLM이 보는 프롬프트에는 같은 값이 없습니다.", displayName),
-                        message("enterprise.pqa.consistency.gate.remediationAction", "조치: " + firstNonBlank(stringValue(field.get("producer")), "해당 컨텍스트 생산자") + "에서 " + displayName + " 값을 생성, 저장, 프롬프트 조립까지 같은 이름과 의미로 전달하십시오.", firstNonBlank(stringValue(field.get("producer")), message("enterprise.pqa.consistency.gate.reverifyContextProducer", "해당 컨텍스트 생산자")), displayName),
-                        message("enterprise.pqa.consistency.gate.reverifyCriterion", "재검증 기준: 같은 요청 흐름으로 새 증거를 만들고 공식 검사를 다시 실행했을 때 " + displayName + " 항목이 기준 충족으로 저장되어야 합니다.", displayName)));
+                        message("enterprise.pqa.consistency.gate.reflectionFailure", displayName),
+                        message("enterprise.pqa.consistency.gate.remediationAction", firstNonBlank(stringValue(field.get("producer")), message("enterprise.pqa.consistency.gate.reverifyContextProducer")), displayName),
+                        message("enterprise.pqa.consistency.gate.reverifyCriterion", displayName)).withGateCode(OfficialVerificationGateCode.PROMPT_EVIDENCE_MANIFEST));
             }
         }
         return checks;
@@ -222,9 +220,9 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
         String evidenceValue = stringValue(field.get("evidenceValue"));
         String promptValue = stringValue(field.get("promptValue"));
         if (!StringUtils.hasText(promptValue) && StringUtils.hasText(evidenceValue)) {
-            return message("enterprise.pqa.consistency.gate.evidenceValueMismatch", "봉인 증거 값은 '" + evidenceValue + "'이지만 최종 프롬프트에서는 확인되지 않았습니다.", evidenceValue);
+            return message("enterprise.pqa.consistency.gate.evidenceValueMismatch", evidenceValue);
         }
-        return message("enterprise.pqa.consistency.gate.reflectionState", "프롬프트 반영 상태: " + firstNonBlank(state, message("enterprise.pqa.consistency.gate.notEvaluated", "확인 불가")), firstNonBlank(state, message("enterprise.pqa.consistency.gate.notEvaluated", "확인 불가")));
+        return message("enterprise.pqa.consistency.gate.reflectionState", firstNonBlank(state, message("enterprise.pqa.consistency.gate.notEvaluated")));
     }
 
     private boolean booleanValue(Object value) {
@@ -271,60 +269,60 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
 
     private String replayHashLabel(SealedEvidencePackage evidencePackage, DeterministicReplayResult replay) {
         if (!hasText(evidencePackage.getPromptHash())) {
-            return message("enterprise.pqa.consistency.gate.hashMissing", "Prompt Hash 없음");
+            return message("enterprise.pqa.consistency.gate.hashMissing");
         }
         if (replay == null || !hasText(replay.originalPromptHash())) {
-            return message("enterprise.pqa.consistency.gate.replayHashMissing", "재현 실행 Hash 없음");
+            return message("enterprise.pqa.consistency.gate.replayHashMissing");
         }
         return evidencePackage.getPromptHash().equals(replay.originalPromptHash())
-                ? message("enterprise.pqa.consistency.gate.hashMatch", "일치")
-                : message("enterprise.pqa.consistency.gate.hashMismatch", "불일치");
+                ? message("enterprise.pqa.consistency.gate.hashMatch")
+                : message("enterprise.pqa.consistency.gate.hashMismatch");
     }
 
     private String actionFor(String metricCode) {
         return switch (metricCode) {
-            case "PFR" -> message("enterprise.pqa.consistency.gate.remediationHint.pfr", "Prompt 캡처 설정을 확인한 뒤 보호 리소스를 다시 요청하여 새 봉인 증거를 생성하십시오.");
-            case "MTR" -> message("enterprise.pqa.consistency.gate.remediationHint.mtr", "재현 실행 또는 추적성 불일치를 수정한 뒤 같은 보호 리소스를 다시 요청하고 새 증거 번호로 재검증하십시오.");
-            default -> message("enterprise.pqa.consistency.gate.remediationHint.default", "보호 리소스를 다시 요청한 뒤 코어 공식검사에서 새 봉인 증거를 재검증하십시오.");
+            case "PFR" -> message("enterprise.pqa.consistency.gate.remediationHint.pfr");
+            case "MTR" -> message("enterprise.pqa.consistency.gate.remediationHint.mtr");
+            default -> message("enterprise.pqa.consistency.gate.remediationHint.default");
         };
     }
 
     private String metricName(String metricCode) {
         return switch (metricCode == null ? "" : metricCode.trim().toUpperCase(Locale.ROOT)) {
-            case "PRE" -> message("enterprise.pqa.consistency.gate.dimension.pre", "보호 리소스 적격성");
-            case "PFR" -> message("enterprise.pqa.consistency.gate.dimension.pfr", "Prompt 충실성");
-            case "MTR" -> message("enterprise.pqa.consistency.gate.dimension.mtr", "검사 추적성");
-            default -> message("enterprise.pqa.consistency.gate.dimension.default", "공식 검사");
+            case "PRE" -> message("enterprise.pqa.consistency.gate.dimension.pre");
+            case "PFR" -> message("enterprise.pqa.consistency.gate.dimension.pfr");
+            case "MTR" -> message("enterprise.pqa.consistency.gate.dimension.mtr");
+            default -> message("enterprise.pqa.consistency.gate.dimension.default");
         };
     }
 
     private String gateLabel(String label) {
         String normalized = label == null ? "" : label.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("packageid")) return message("enterprise.pqa.consistency.gate.label.packageId", "봉인 증거 번호");
-        if (normalized.contains("sealed evidence is locked")) return message("enterprise.pqa.consistency.gate.label.sealed", "봉인 상태");
-        if (normalized.contains("integrity")) return message("enterprise.pqa.consistency.gate.label.integrity", "증거 무결성");
-        if (normalized.contains("request resource path")) return message("enterprise.pqa.consistency.gate.label.requestPath", "요청 리소스 경로");
-        if (normalized.contains("resource id")) return message("enterprise.pqa.consistency.gate.label.resourceId", "리소스 식별자");
-        if (normalized.contains("http method")) return message("enterprise.pqa.consistency.gate.label.method", "HTTP 메서드");
-        if (normalized.contains("system prompt")) return message("enterprise.pqa.consistency.gate.label.systemPrompt", "시스템 Prompt 캡처");
-        if (normalized.contains("user prompt")) return message("enterprise.pqa.consistency.gate.label.userPrompt", "사용자 Prompt 캡처");
-        if (normalized.contains("llm prompt")) return message("enterprise.pqa.consistency.gate.label.llmPrompt", "최종 LLM Prompt 캡처");
-        if (normalized.contains("prompt hash")) return message("enterprise.pqa.consistency.gate.label.promptHash", "Prompt Hash");
-        if (normalized.contains("scorecard")) return message("enterprise.pqa.consistency.gate.label.scorecard", "Prompt 구조 점검");
-        if (normalized.contains("replay")) return message("enterprise.pqa.consistency.gate.label.replay", "결정적 재현 실행");
-        if (normalized.contains("12 prompt quality")) return message("enterprise.pqa.consistency.gate.label.twelveMetrics", "12개 Prompt 품질 지표");
-        if (normalized.contains("prompt quality metrics")) return message("enterprise.pqa.consistency.gate.label.metricChecks", "Prompt 품질 지표 통과");
-        return message("enterprise.pqa.consistency.gate.label.defaultGate", "공식 검사 관문");
+        if (normalized.contains("packageid")) return message("enterprise.pqa.consistency.gate.label.packageId");
+        if (normalized.contains("sealed evidence is locked")) return message("enterprise.pqa.consistency.gate.label.sealed");
+        if (normalized.contains("integrity")) return message("enterprise.pqa.consistency.gate.label.integrity");
+        if (normalized.contains("request resource path")) return message("enterprise.pqa.consistency.gate.label.requestPath");
+        if (normalized.contains("resource id")) return message("enterprise.pqa.consistency.gate.label.resourceId");
+        if (normalized.contains("http method")) return message("enterprise.pqa.consistency.gate.label.method");
+        if (normalized.contains("system prompt")) return message("enterprise.pqa.consistency.gate.label.systemPrompt");
+        if (normalized.contains("user prompt")) return message("enterprise.pqa.consistency.gate.label.userPrompt");
+        if (normalized.contains("llm prompt")) return message("enterprise.pqa.consistency.gate.label.llmPrompt");
+        if (normalized.contains("prompt hash")) return message("enterprise.pqa.consistency.gate.label.promptHash");
+        if (normalized.contains("scorecard")) return message("enterprise.pqa.consistency.gate.label.scorecard");
+        if (normalized.contains("replay")) return message("enterprise.pqa.consistency.gate.label.replay");
+        if (normalized.contains("12 prompt quality")) return message("enterprise.pqa.consistency.gate.label.twelveMetrics");
+        if (normalized.contains("prompt quality metrics")) return message("enterprise.pqa.consistency.gate.label.metricChecks");
+        return message("enterprise.pqa.consistency.gate.label.defaultGate");
     }
 
     private String operatorValue(String value) {
         if (!StringUtils.hasText(value)) {
-            return message("enterprise.pqa.consistency.gate.notEvaluated", "확인 불가");
+            return message("enterprise.pqa.consistency.gate.notEvaluated");
         }
         return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "present", "captured", "pass", "all pass" -> message("enterprise.pqa.consistency.gate.state.present", "기준 충족");
-            case "missing" -> message("enterprise.pqa.consistency.gate.state.missing", "값 없음");
-            case "fail" -> message("enterprise.pqa.consistency.gate.state.fail", "실패");
+            case "present", "captured", "pass", "all pass" -> message("enterprise.pqa.consistency.gate.state.present");
+            case "missing" -> message("enterprise.pqa.consistency.gate.state.missing");
+            case "fail" -> message("enterprise.pqa.consistency.gate.state.fail");
             default -> value.trim();
         };
     }

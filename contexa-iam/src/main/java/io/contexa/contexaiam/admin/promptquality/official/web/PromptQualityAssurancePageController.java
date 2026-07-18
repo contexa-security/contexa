@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.web;
 
-import java.text.MessageFormat;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.web.model.PromptQualityNavigationItem;
 
 @Controller
 @RequestMapping("/contexa/admin/prompt-quality")
@@ -19,11 +20,10 @@ public class PromptQualityAssurancePageController {
     private final PromptQualityMessageResolver messageResolver;
 
     public PromptQualityAssurancePageController(PromptQualityMessageResolver messageResolver) {
-        this.messageResolver = messageResolver;
+        this.messageResolver = Objects.requireNonNull(messageResolver, "messageResolver");
     }
 
     private static final String ROUTE_ROOT = "/contexa/admin/prompt-quality";
-    private static final String API_ROOT = "/contexa/admin/api/prompt-quality";
 
     @GetMapping({"", "/"})
     public String index() {
@@ -37,7 +37,7 @@ public class PromptQualityAssurancePageController {
 
     @GetMapping("/resources")
     public String resources(Model model) {
-        return page(model, "resources", message("enterprise.pqa.pageTitle.resources", "Protected resources"), "contexa/admin/prompt-quality/resources");
+        return page(model, "resources", message("enterprise.pqa.pageTitle.resources"), "contexa/admin/prompt-quality/resources");
     }
 
     @GetMapping("/resources/{resourceId}")
@@ -58,7 +58,7 @@ public class PromptQualityAssurancePageController {
         model.addAttribute("resourceId", resourceId);
         model.addAttribute("resourceUrl", resourceUrl);
         model.addAttribute("httpMethod", httpMethod);
-        return page(model, "resources", message("enterprise.pqa.pageTitle.resourceDetail", "Protected resource detail"), "contexa/admin/prompt-quality/resource-detail");
+        return page(model, "resources", message("enterprise.pqa.pageTitle.resourceDetail"), "contexa/admin/prompt-quality/resource-detail");
     }
 
     @GetMapping("/resources/{resourceId}/overlay/edit")
@@ -72,12 +72,12 @@ public class PromptQualityAssurancePageController {
         model.addAttribute("resourceUrl", resourceUrl);
         model.addAttribute("httpMethod", httpMethod);
         model.addAttribute("tenantId", tenantId);
-        return page(model, "resources", message("enterprise.pqa.pageTitle.resourceEdit", "Protected resource edit"), "contexa/admin/prompt-quality/resource-overlay-edit");
+        return page(model, "resources", message("enterprise.pqa.pageTitle.resourceEdit"), "contexa/admin/prompt-quality/resource-overlay-edit");
     }
 
     @GetMapping("/runtime-evidence")
     public String runtimeEvidence(Model model) {
-        return page(model, "runtime-evidence", message("enterprise.pqa.pageTitle.runtimeEvidence", "Official inspection"), "contexa/admin/prompt-quality/runtime-evidence");
+        return page(model, "runtime-evidence", message("enterprise.pqa.pageTitle.runtimeEvidence"), "contexa/admin/prompt-quality/runtime-evidence");
     }
 
     @GetMapping("/verification")
@@ -88,54 +88,54 @@ public class PromptQualityAssurancePageController {
     @GetMapping("/verification/summary")
     public String verificationSummary(Model model) {
         model.addAttribute("verificationStage", "summary");
-        return page(model, "verification-summary", message("enterprise.pqa.pageTitle.verification", "Official inspection"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-summary", message("enterprise.pqa.pageTitle.verification"), "contexa/admin/prompt-quality/verification");
     }
     @GetMapping("/verification/readiness")
     public String verificationReadiness(Model model) {
         model.addAttribute("verificationStage", "readiness");
-        return page(model, "verification-readiness", message("enterprise.pqa.pageTitle.verification", "Official inspection"), "contexa/admin/prompt-quality/verification-readiness");
+        return page(model, "verification-readiness", message("enterprise.pqa.pageTitle.verification"), "contexa/admin/prompt-quality/verification-readiness");
     }
 
     @GetMapping("/verification/run")
     public String verificationRun(Model model) {
         model.addAttribute("verificationStage", "run");
-        return page(model, "verification-run", message("enterprise.pqa.pageTitle.verification", "Official inspection"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-run", message("enterprise.pqa.pageTitle.verification"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/prompt-comparison")
     public String verificationPromptComparison(Model model) {
         model.addAttribute("verificationStage", "comparison");
-        return page(model, "verification-comparison", message("enterprise.pqa.pageTitle.comparison", "Prompt comparison"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-comparison", message("enterprise.pqa.pageTitle.comparison"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/metrics")
     public String verificationMetrics(Model model) {
         model.addAttribute("verificationStage", "prompt-metrics");
-        return page(model, "verification-metrics", message("enterprise.pqa.pageTitle.metrics", "Prompt metrics"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-metrics", message("enterprise.pqa.pageTitle.metrics"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/llm-metrics")
     public String verificationLlmMetrics(Model model) {
         model.addAttribute("verificationStage", "llm-metrics");
-        return page(model, "verification-llm-metrics", message("enterprise.pqa.nav.llmMetrics", "LLM decision metrics"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-llm-metrics", message("enterprise.pqa.nav.llmMetrics"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/failures")
     public String verificationFailures(Model model) {
         model.addAttribute("verificationStage", "failures");
-        return page(model, "verification-failures", message("enterprise.pqa.pageTitle.failures", "Failure causes"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-failures", message("enterprise.pqa.pageTitle.failures"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/evidence-package")
     public String verificationEvidencePackage(Model model) {
         model.addAttribute("verificationStage", "evidence-package");
-        return page(model, "verification-evidence-package", message("enterprise.pqa.pageTitle.evidencePackage", "Evidence package"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-evidence-package", message("enterprise.pqa.pageTitle.evidencePackage"), "contexa/admin/prompt-quality/verification");
     }
 
     @GetMapping("/verification/reverify")
     public String verificationReverify(Model model) {
         model.addAttribute("verificationStage", "reverify");
-        return page(model, "verification-reverify", message("enterprise.pqa.pageTitle.reverify", "Reverification"), "contexa/admin/prompt-quality/verification");
+        return page(model, "verification-reverify", message("enterprise.pqa.pageTitle.reverify"), "contexa/admin/prompt-quality/verification");
     }
     @GetMapping("/verification/handoff")
     public String verificationHandoff() {
@@ -146,47 +146,46 @@ public class PromptQualityAssurancePageController {
         model.addAttribute("pageTitle", pageTitle);
         model.addAttribute("verificationPageHeaderTitle", pageTitle);
         model.addAttribute("verificationPageHeaderSubtitle",
-                message("enterprise.pqa.verification.pageSubtitle", "Review official inspection evidence and results."));
+                message("enterprise.pqa.verification.pageSubtitle"));
         model.addAttribute("activeKey", activeKey);
         model.addAttribute("navigation", navigation(activeKey));
         model.addAttribute("promptQualityRouteRoot", ROUTE_ROOT);
-        model.addAttribute("promptQualityApiRoot", API_ROOT);
         model.addAttribute("promptQualityUiMode", "core");
         return viewName;
     }
 
     private List<PromptQualityNavigationItem> navigation(String activeKey) {
         return List.of(
-                item(message("enterprise.pqa.nav.resources", "Protected resources"), "/contexa/admin/prompt-quality/resources",
-                        message("enterprise.pqa.nav.resources.desc", "Review official inspection target resources."),
+                item(message("enterprise.pqa.nav.resources"), "/contexa/admin/prompt-quality/resources",
+                        message("enterprise.pqa.nav.resources.desc"),
                         "resources".equals(activeKey)),
-                item(message("enterprise.pqa.nav.runtimeEvidence", "Official inspection"), "/contexa/admin/prompt-quality/runtime-evidence",
-                        message("enterprise.pqa.nav.runtimeEvidence.desc", "Select sealed actual request evidence and run official inspection."),
+                item(message("enterprise.pqa.nav.runtimeEvidence"), "/contexa/admin/prompt-quality/runtime-evidence",
+                        message("enterprise.pqa.nav.runtimeEvidence.desc"),
                         "runtime-evidence".equals(activeKey) || (activeKey != null && activeKey.startsWith("verification")),
                         List.of(
-                                item(message("enterprise.pqa.nav.readiness", "Evidence check"), "/contexa/admin/prompt-quality/verification/readiness",
-                                        message("enterprise.pqa.nav.readiness.desc", "Check request evidence to inspect."),
+                                item(message("enterprise.pqa.nav.readiness"), "/contexa/admin/prompt-quality/verification/readiness",
+                                        message("enterprise.pqa.nav.readiness.desc"),
                                         "verification-readiness".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.run", "Inspection run"), "/contexa/admin/prompt-quality/verification/run",
-                                        message("enterprise.pqa.nav.run.desc", "Run official inspection with selected request evidence."),
+                                item(message("enterprise.pqa.nav.run"), "/contexa/admin/prompt-quality/verification/run",
+                                        message("enterprise.pqa.nav.run.desc"),
                                         "verification-run".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.summary", "Integrated result"), "/contexa/admin/prompt-quality/verification/summary",
-                                        message("enterprise.pqa.nav.summary.desc", "Review prompt and LLM official inspection results together."),
+                                item(message("enterprise.pqa.nav.summary"), "/contexa/admin/prompt-quality/verification/summary",
+                                        message("enterprise.pqa.nav.summary.desc"),
                                         "verification-summary".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.promptMetrics", "Prompt 12 metrics"), "/contexa/admin/prompt-quality/verification/metrics",
-                                        message("enterprise.pqa.nav.promptMetrics.desc", "Review 12 prompt and context quality metrics."),
+                                item(message("enterprise.pqa.nav.promptMetrics"), "/contexa/admin/prompt-quality/verification/metrics",
+                                        message("enterprise.pqa.nav.promptMetrics.desc"),
                                         "verification-metrics".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.llmMetrics", "LLM decision metrics"), "/contexa/admin/prompt-quality/verification/llm-metrics",
-                                        message("enterprise.pqa.nav.llmMetrics.desc", "Review LLM decision quality metrics."),
+                                item(message("enterprise.pqa.nav.llmMetrics"), "/contexa/admin/prompt-quality/verification/llm-metrics",
+                                        message("enterprise.pqa.nav.llmMetrics.desc"),
                                         "verification-llm-metrics".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.failures", "Failure causes"), "/contexa/admin/prompt-quality/verification/failures",
-                                        message("enterprise.pqa.nav.failures.desc", "Review official inspection failure causes and remediation targets."),
+                                item(message("enterprise.pqa.nav.failures"), "/contexa/admin/prompt-quality/verification/failures",
+                                        message("enterprise.pqa.nav.failures.desc"),
                                         "verification-failures".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.evidencePackage", "Evidence package"), "/contexa/admin/prompt-quality/verification/evidence-package",
-                                        message("enterprise.pqa.nav.evidencePackage.desc", "Review sealed evidence and decision payload."),
+                                item(message("enterprise.pqa.nav.evidencePackage"), "/contexa/admin/prompt-quality/verification/evidence-package",
+                                        message("enterprise.pqa.nav.evidencePackage.desc"),
                                         "verification-evidence-package".equals(activeKey)),
-                                item(message("enterprise.pqa.nav.reverify", "Reverification"), "/contexa/admin/prompt-quality/verification/reverify",
-                                        message("enterprise.pqa.nav.reverify.desc", "Review prompt, LLM, and full reverification scopes."),
+                                item(message("enterprise.pqa.nav.reverify"), "/contexa/admin/prompt-quality/verification/reverify",
+                                        message("enterprise.pqa.nav.reverify.desc"),
                                         "verification-reverify".equals(activeKey))
                         ))
         );
@@ -208,20 +207,10 @@ public class PromptQualityAssurancePageController {
         return new PromptQualityNavigationItem(label, href, responsibility, active, children);
     }
 
-    public record PromptQualityNavigationItem(
-            String label,
-            String href,
-            String responsibility,
-            boolean active,
-            List<PromptQualityNavigationItem> children) {
-    }
-    private String message(String key, String fallback, Object... args) {
-        if (messageResolver == null) {
-            return args == null || args.length == 0 ? fallback : MessageFormat.format(fallback, args);
-        }
+    private String message(String key, Object... args) {
         String resolved = messageResolver.resolve(key, args);
         if (!StringUtils.hasText(resolved) || key.equals(resolved)) {
-            return args == null || args.length == 0 ? fallback : MessageFormat.format(fallback, args);
+            throw new IllegalStateException("Missing prompt-quality message key: " + key);
         }
         return resolved;
     }

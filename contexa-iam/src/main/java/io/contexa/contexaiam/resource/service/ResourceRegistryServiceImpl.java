@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.resource.service;
 
+import java.util.Objects;
+
 import com.google.common.collect.Lists;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
@@ -49,7 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;

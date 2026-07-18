@@ -13,6 +13,7 @@ public record RuntimeEvidencePackageSummary(
         Instant capturedAt,
         String requestPath,
         String resourceId,
+        String protectableMethod,
         String httpMethod,
         String decisionAction,
         Double decisionConfidence,
@@ -23,7 +24,107 @@ public record RuntimeEvidencePackageSummary(
         String stateLabel,
         String nextAction,
         String state,
-        PromptQualityStateDescriptor stateDescriptor) {
+        PromptQualityStateDescriptor stateDescriptor,
+        String officialAggregateRunId,
+        String officialDecision,
+        Boolean officialBlocked,
+        Integer officialPassedMetricCount,
+        Integer officialFailedMetricCount,
+        Integer officialExpectedMetricCount) {
+
+
+    public RuntimeEvidencePackageSummary(
+            String packageId,
+            String correlationId,
+            String tenantId,
+            String userId,
+            Instant capturedAt,
+            String requestPath,
+            String resourceId,
+            String httpMethod,
+            String decisionAction,
+            Double decisionConfidence,
+            boolean sealed,
+            boolean integrityValid,
+            String promptHash,
+            int promptTextLength,
+            String stateLabel,
+            String nextAction,
+            String state,
+            PromptQualityStateDescriptor stateDescriptor) {
+        this(
+                packageId,
+                correlationId,
+                tenantId,
+                userId,
+                capturedAt,
+                requestPath,
+                resourceId,
+                null,
+                httpMethod,
+                decisionAction,
+                decisionConfidence,
+                sealed,
+                integrityValid,
+                promptHash,
+                promptTextLength,
+                stateLabel,
+                nextAction,
+                state,
+                stateDescriptor,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+    public RuntimeEvidencePackageSummary(
+            String packageId,
+            String correlationId,
+            String tenantId,
+            String userId,
+            Instant capturedAt,
+            String requestPath,
+            String resourceId,
+            String protectableMethod,
+            String httpMethod,
+            String decisionAction,
+            Double decisionConfidence,
+            boolean sealed,
+            boolean integrityValid,
+            String promptHash,
+            int promptTextLength,
+            String stateLabel,
+            String nextAction) {
+        this(
+                packageId,
+                correlationId,
+                tenantId,
+                userId,
+                capturedAt,
+                requestPath,
+                resourceId,
+                protectableMethod,
+                httpMethod,
+                decisionAction,
+                decisionConfidence,
+                sealed,
+                integrityValid,
+                promptHash,
+                promptTextLength,
+                stateLabel,
+                nextAction,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
 
     public RuntimeEvidencePackageSummary(
             String packageId,
@@ -50,6 +151,7 @@ public record RuntimeEvidencePackageSummary(
                 capturedAt,
                 requestPath,
                 resourceId,
+                null,
                 httpMethod,
                 decisionAction,
                 decisionConfidence,
@@ -58,11 +160,8 @@ public record RuntimeEvidencePackageSummary(
                 promptHash,
                 promptTextLength,
                 stateLabel,
-                nextAction,
-                null,
-                null);
+                nextAction);
     }
-
     @JsonProperty("resourceUrl")
     public String resourceUrl() {
         return requestPath;

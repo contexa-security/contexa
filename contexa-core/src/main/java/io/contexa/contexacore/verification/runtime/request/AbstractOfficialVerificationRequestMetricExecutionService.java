@@ -9,8 +9,7 @@ import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRe
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
 import io.contexa.contexacore.repository.SecurityDecisionForwardingOutboxRepository;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.reactive.function.client.WebClient;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationExecutionRequest;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -42,7 +41,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
             boolean rerun,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request,
+            OfficialVerificationExecutionRequest request,
             Instant startedAt,
             Instant completedAt,
             long processingTimeMs,
@@ -56,7 +55,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
             SecurityDecisionForwardingOutboxRepository decisionOutboxRepository,
             PromptContextAuditForwardingOutboxRepository promptAuditOutboxRepository,
             OfficialVerificationAnalysisEventStore analysisEventStore,
-            WebClient.Builder webClientBuilder,
+            OfficialVerificationProbeClient probeClient,
             ObjectMapper objectMapper,
             Function<R, String> runIdExtractor,
             Function<R, String> startedAtExtractor
@@ -66,7 +65,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
                 decisionOutboxRepository,
                 promptAuditOutboxRepository,
                 analysisEventStore,
-                webClientBuilder,
+                probeClient,
                 objectMapper,
                 runIdExtractor,
                 startedAtExtractor
@@ -82,7 +81,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
             boolean rerun,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request
+            OfficialVerificationExecutionRequest request
     ) {
         E endpoint = resolveEndpoint(endpointKey, resourceId, requestPath);
         String requestId = nextMetricRequestId(requestIdPrefix());
@@ -165,7 +164,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
             int requestedRunCount,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request
+            OfficialVerificationExecutionRequest request
     ) {
     }
 
@@ -180,7 +179,7 @@ public abstract class AbstractOfficialVerificationRequestMetricExecutionService<
             int requestedRunCount,
             boolean contaminationSeed,
             boolean baselineSeedRequested,
-            HttpServletRequest request
+            OfficialVerificationExecutionRequest request
     );
 
     protected abstract R buildRunRecord(RequestMetricExecutionState<E> state);

@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.analysis;
 
+import java.util.Objects;
+
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
@@ -30,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Unified policy validation service that combines conflict and duplicate detection.

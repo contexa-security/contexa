@@ -5,8 +5,9 @@ import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricCheck
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContract;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricRule;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceCheckResult;
+import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceMetricResult;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.util.StringUtils;
 
 import java.sql.Timestamp;
@@ -18,7 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.ArrayList;
 
-public class OfficialMetricPurposeContractCatalogWriter {
+public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetricPurposeContractWriter {
 
     private static final List<String> CUSTOMER_DISPLAY_ROLES = List.of(
             "TITLE",
@@ -53,6 +54,34 @@ public class OfficialMetricPurposeContractCatalogWriter {
         deactivateNonCurrentContractVersions(currentVersion);
     }
 
+    @Override
+    public void upsertRuntimeMetricContractCatalog(List<RuntimeEvidenceMetricResult> metrics) {
+        if (metrics == null) {
+            return;
+        }
+        for (RuntimeEvidenceMetricResult metric : metrics) {
+            if (metric == null || metric.checks() == null) {
+                continue;
+            }
+            String metricCode = normalize(metric.metricCode());
+            for (RuntimeEvidenceCheckResult check : metric.checks()) {
+                if (check == null) {
+                    continue;
+                }
+                String purposeVersion = firstNonBlank(check.purposeVersion(), "runtime-official-v1");
+                FinalPromptMetricCheckContract checkContract = finalPromptMetricCheckContractOrNull(metricCode, check);
+                if (checkContract != null) {
+                    upsertMetricPurposeContract(
+                            purposeVersion,
+                            metricCode,
+                            finalPromptMetricContractCatalog().metric(metricCode),
+                            checkContract);
+                } else {
+                    upsertRuntimeMetricPurposeContract(purposeVersion, metricCode, metric, check);
+                }
+            }
+        }
+    }
     public void assertFullMetricContractCatalogPersisted() {
         FinalPromptMetricContractCatalog catalog = finalPromptMetricContractCatalog();
         String currentVersion = currentContractVersion(catalog);
@@ -99,6 +128,148 @@ public class OfficialMetricPurposeContractCatalogWriter {
         assertCurrentContractRows("official_metric_input_contract", currentVersion, expectedInputRows.size());
     }
 
+    private FinalPromptMetricCheckContract finalPromptMetricCheckContractOrNull(
+            String metricCode,
+            RuntimeEvidenceCheckResult check) {
+        if (check == null || !StringUtils.hasText(check.checkCode())) {
+            return null;
+        }
+        try {
+            return finalPromptMetricContractCatalog().check(metricCode, check.checkCode());
+        } catch (IllegalStateException exception) {
+            return null;
+        }
+    }
+
+    private String canonicalMetricCheckCode(String metricCode, RuntimeEvidenceCheckResult check) {
+        String normalizedMetric = normalize(metricCode);
+        String normalizedCheck = normalize(check == null ? null : check.checkCode());
+        if (!StringUtils.hasText(normalizedCheck)) {
+            return "";
+        }
+        try {
+            return finalPromptMetricContractCatalog().check(normalizedMetric, normalizedCheck).checkName();
+        } catch (IllegalStateException exception) {
+            String prefix = normalizedMetric + "_";
+            return normalizedCheck.startsWith(prefix) && normalizedCheck.length() > prefix.length()
+                    ? normalizedCheck.substring(prefix.length())
+                    : normalizedCheck;
+        }
+    }
+
+    private void upsertRuntimeMetricPurposeContract(
+            String purposeVersion,
+            String metricCode,
+            RuntimeEvidenceMetricResult metric,
+            RuntimeEvidenceCheckResult check) {
+        String checkCode = firstNonBlank(
+                canonicalMetricCheckCode(metricCode, check), check.checkCode(), check.label(), "CHECK");
+        String issueKey = firstNonBlank(check.issueKey(), check.source(), checkCode);
+        String readinessScope = firstNonBlank(check.readinessScope(), "OFFICIAL_VERIFICATION");
+        String purpose = firstNonBlank(metric.metricName(), metricCode + " official metric");
+        String question = firstNonBlank(
+                check.whyItMatters(), check.label(), metric.metricName(), metricCode + " official check");
+        String passMessage = firstNonBlank(
+                check.operatorReason(), check.expectedValue(), "Official runtime check passed.");
+        String failureMessage = firstNonBlank(
+                check.operatorReason(), check.actualValue(), "Official runtime check failed.");
+        jdbcTemplate.update("""
+                        insert into official_metric_contract_version (
+                            contract_version, source_artifact, active, created_at
+                        ) values (?, ?, ?, ?)
+                        on conflict (contract_version) do update
+                           set source_artifact = excluded.source_artifact,
+                               active = excluded.active
+                        """,
+                fit(purposeVersion, 128),
+                "runtime:official-verification-metric-results",
+                true,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_purpose_contract (
+                            contract_version, metric_code, purpose_statement, decision_question,
+                            customer_visible, metric_role, blocks_llm_submission, blocks_certificate, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code) do update
+                           set purpose_statement = excluded.purpose_statement,
+                               decision_question = excluded.decision_question,
+                               customer_visible = excluded.customer_visible,
+                               metric_role = excluded.metric_role,
+                               blocks_llm_submission = excluded.blocks_llm_submission,
+                               blocks_certificate = excluded.blocks_certificate
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                purpose,
+                question,
+                metric.checks().stream().anyMatch(RuntimeEvidenceCheckResult::customerVisible),
+                fit(readinessScope, 128),
+                false,
+                false,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_evaluation_contract (
+                            contract_version, metric_code, check_code, purpose_question,
+                            pass_condition, fail_condition, issue_key, customer_visible,
+                            readiness_scope, problem_title, short_problem, expected_message,
+                            pass_message, failure_message, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code, check_code) do update
+                           set purpose_question = excluded.purpose_question,
+                               pass_condition = excluded.pass_condition,
+                               fail_condition = excluded.fail_condition,
+                               issue_key = excluded.issue_key,
+                               customer_visible = excluded.customer_visible,
+                               readiness_scope = excluded.readiness_scope,
+                               problem_title = excluded.problem_title,
+                               short_problem = excluded.short_problem,
+                               expected_message = excluded.expected_message,
+                               pass_message = excluded.pass_message,
+                               failure_message = excluded.failure_message
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                fit(checkCode, 128),
+                question,
+                firstNonBlank(check.expectedValue(), passMessage),
+                firstNonBlank(check.actualValue(), failureMessage),
+                fit(issueKey, 512),
+                check.customerVisible(),
+                fit(readinessScope, 128),
+                firstNonBlank(check.label(), checkCode),
+                firstNonBlank(check.operatorReason(), check.label(), checkCode),
+                firstNonBlank(check.expectedValue(), question),
+                passMessage,
+                failureMessage,
+                nowTimestamp());
+        jdbcTemplate.update("""
+                        insert into official_metric_customer_message_contract (
+                            contract_version, metric_code, check_code,
+                            problem_title, short_problem, why_it_matters,
+                            fix_action, reverify_criterion, metric_purpose,
+                            blocked_reason, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        on conflict (contract_version, metric_code, check_code) do update
+                           set problem_title = excluded.problem_title,
+                               short_problem = excluded.short_problem,
+                               why_it_matters = excluded.why_it_matters,
+                               fix_action = excluded.fix_action,
+                               reverify_criterion = excluded.reverify_criterion,
+                               metric_purpose = excluded.metric_purpose,
+                               blocked_reason = excluded.blocked_reason
+                        """,
+                fit(purposeVersion, 128),
+                fit(metricCode, 32),
+                fit(checkCode, 128),
+                firstNonBlank(check.label(), checkCode),
+                firstNonBlank(check.operatorReason(), check.label(), checkCode),
+                firstNonBlank(check.whyItMatters(), question),
+                firstNonBlank(check.nextAction(), "Review the official runtime metric evidence and rerun verification."),
+                firstNonBlank(check.reverifyCriterion(), "Rerun official verification with the same sealed evidence."),
+                purpose,
+                failureMessage,
+                nowTimestamp());
+    }
     private void addExpectedInputRows(
             LinkedHashSet<String> expectedInputRows,
             String metricCode,
@@ -180,13 +351,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
     }
 
     private void upsertPromptRuntimeSlotContracts() {
-        if (!postgresqlDatabase()
-                || !tableExists("prompt_runtime_slot_contract")
-                || !tableExists("prompt_runtime_metric_check_slot_contract")
-                || !tableExists("official_prompt_signal_contract")
-                || !tableExists("official_metric_evaluation_contract")) {
-            return;
-        }
         jdbcTemplate.update("""
                         with signal_source as (
                             select distinct
@@ -375,18 +539,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                         """);
     }
 
-    private boolean tableExists(String tableName) {
-        Integer count = jdbcTemplate.queryForObject("""
-                        select count(*)
-                          from information_schema.tables
-                         where table_schema = 'public'
-                           and table_name = ?
-                        """,
-                Integer.class,
-                tableName);
-        return count != null && count > 0;
-    }
-
     private void deactivateNonCurrentContractVersions(String currentVersion) {
         jdbcTemplate.update("""
                         update official_metric_contract_version
@@ -401,7 +553,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             String metricCode,
             FinalPromptMetricContract metricContract,
             FinalPromptMetricCheckContract checkContract) {
-        if (postgresqlDatabase()) {
+        
             jdbcTemplate.update("""
                             insert into official_metric_contract_version (
                                 contract_version, source_artifact, active, created_at
@@ -472,55 +624,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     checkContract.passMessage(),
                     checkContract.failureMessage(),
                     nowTimestamp());
-        } else {
-            jdbcTemplate.update("""
-                            merge into official_metric_contract_version (
-                                contract_version, source_artifact, active, created_at
-                            ) key (contract_version) values (?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    "classpath:pqa/final-prompt-metric-contracts.json",
-                    true,
-                    nowTimestamp());
-            jdbcTemplate.update("""
-                            merge into official_metric_purpose_contract (
-                                contract_version, metric_code, purpose_statement, decision_question,
-                                customer_visible, metric_role, blocks_llm_submission, blocks_certificate, created_at
-                            ) key (contract_version, metric_code) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    fit(metricCode, 32),
-                    metricContract.purpose(),
-                    metricContract.qualityQuestion(),
-                    metricContract.checks().stream().anyMatch(FinalPromptMetricCheckContract::customerVisible),
-                    fit(metricContract.metricRole(), 128),
-                    metricContract.blocksLlmSubmission(),
-                    metricContract.blocksCertificate(),
-                    nowTimestamp());
-            jdbcTemplate.update("""
-                            merge into official_metric_evaluation_contract (
-                                contract_version, metric_code, check_code, purpose_question,
-                                pass_condition, fail_condition, issue_key, customer_visible,
-                                readiness_scope, problem_title, short_problem, expected_message,
-                                pass_message, failure_message, created_at
-                            ) key (contract_version, metric_code, check_code) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    fit(metricCode, 32),
-                    fit(checkContract.checkName(), 128),
-                    checkContract.qualityQuestion(),
-                    checkContract.passMessage(),
-                    checkContract.failureMessage(),
-                    fit(checkContract.issueKey(), 512),
-                    checkContract.customerVisible(),
-                    fit(checkContract.readinessScope(), 128),
-                    checkContract.problemTitle(),
-                    checkContract.shortProblem(),
-                    checkContract.expectedMessage(),
-                    checkContract.passMessage(),
-                    checkContract.failureMessage(),
-                    nowTimestamp());
-        }
+        
         upsertMetricInputContract(purposeVersion, metricCode, checkContract);
         upsertMetricSignalContract(purposeVersion, metricCode, checkContract);
         upsertMetricCustomerMessageContract(purposeVersion, metricCode, metricContract, checkContract);
@@ -552,7 +656,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             FinalPromptMetricCheckContract checkContract,
             MetricInputRequirement input,
             String purposeScope) {
-            if (postgresqlDatabase()) {
+            
                 jdbcTemplate.update("""
                             insert into official_metric_input_contract (
                                 contract_version, metric_code, check_code, input_key,
@@ -571,22 +675,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     fit(input.absencePolicy(), 128),
                     fit(purposeScope, 128),
                     nowTimestamp());
-            } else {
-                jdbcTemplate.update("""
-                                merge into official_metric_input_contract (
-                                    contract_version, metric_code, check_code, input_key,
-                                    required_policy, absence_policy, purpose_scope, created_at
-                                ) key (contract_version, metric_code, check_code, input_key) values (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                        fit(purposeVersion, 128),
-                        fit(metricCode, 32),
-                        fit(checkContract.checkName(), 128),
-                        fit(input.inputKey(), 256),
-                        fit(input.requiredPolicy(), 128),
-                        fit(input.absencePolicy(), 128),
-                        fit(purposeScope, 128),
-                        nowTimestamp());
-            }
+            
     }
 
     private void upsertMetricSignalContract(
@@ -633,7 +722,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             String signalKey,
             String requiredRole,
             String interpretationRole) {
-            if (postgresqlDatabase()) {
+            
                 jdbcTemplate.update("""
                             insert into official_prompt_signal_contract (
                                 contract_version, metric_code, check_code, signal_key,
@@ -652,29 +741,14 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     fit(requiredRole, 128),
                     fit(interpretationRole, 128),
                     nowTimestamp());
-            } else {
-                jdbcTemplate.update("""
-                                merge into official_prompt_signal_contract (
-                                    contract_version, metric_code, check_code, signal_key,
-                                    prompt_location, required_role, interpretation_role, created_at
-                                ) key (contract_version, metric_code, check_code, signal_key) values (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                        fit(purposeVersion, 128),
-                        fit(metricCode, 32),
-                        fit(checkContract.checkName(), 128),
-                        fit(signalKey, 256),
-                        fit(checkContract.source(), 512),
-                        fit(requiredRole, 128),
-                        fit(interpretationRole, 128),
-                        nowTimestamp());
-            }
+            
     }
 
     private void upsertPromptSignalRegistryContracts(
             String purposeVersion,
             FinalPromptMetricContractCatalog catalog) {
         for (FinalPromptMetricContractCatalog.PromptSignalContract signal : catalog.promptSignalContracts()) {
-            if (postgresqlDatabase()) {
+            
                 jdbcTemplate.update("""
                             insert into official_prompt_signal_contract (
                                 contract_version, metric_code, check_code, signal_key,
@@ -693,22 +767,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     fit(signal.requiredRole(), 128),
                     fit(signal.interpretationRole(), 128),
                     nowTimestamp());
-            } else {
-                jdbcTemplate.update("""
-                                merge into official_prompt_signal_contract (
-                                    contract_version, metric_code, check_code, signal_key,
-                                    prompt_location, required_role, interpretation_role, created_at
-                                ) key (contract_version, metric_code, check_code, signal_key) values (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                        fit(purposeVersion, 128),
-                        "MTR",
-                        fit(signal.checkCode(), 128),
-                        fit(signal.signalKey(), 256),
-                        fit(signal.promptLocation(), 512),
-                        fit(signal.requiredRole(), 128),
-                        fit(signal.interpretationRole(), 128),
-                        nowTimestamp());
-            }
+            
         }
     }
 
@@ -717,7 +776,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             String metricCode,
             FinalPromptMetricContract metricContract,
             FinalPromptMetricCheckContract checkContract) {
-        if (postgresqlDatabase()) {
+        
             jdbcTemplate.update("""
                         insert into official_metric_customer_message_contract (
                             contract_version, metric_code, check_code,
@@ -745,27 +804,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                 metricContract.purpose(),
                 checkContract.failureMessage(),
                 nowTimestamp());
-        } else {
-            jdbcTemplate.update("""
-                            merge into official_metric_customer_message_contract (
-                                contract_version, metric_code, check_code,
-                                problem_title, short_problem, why_it_matters,
-                                fix_action, reverify_criterion, metric_purpose,
-                                blocked_reason, created_at
-                            ) key (contract_version, metric_code, check_code) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    fit(metricCode, 32),
-                    fit(checkContract.checkName(), 128),
-                    checkContract.problemTitle(),
-                    checkContract.shortProblem(),
-                    checkContract.whyItMatters(),
-                    checkContract.nextAction(),
-                    checkContract.reverifyCriterion(),
-                    metricContract.purpose(),
-                    checkContract.failureMessage(),
-                    nowTimestamp());
-        }
+        
     }
 
     private void upsertMetricCustomerDisplayContracts(
@@ -858,7 +897,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
         }
         String runtimeBindingsJson = writeJson(runtimeFactBindings(checkContract));
         String contextBindingsJson = writeJson(contextItemBindings(checkContract));
-        String sql = postgresqlDatabase() ? """
+        String sql = """
                         insert into official_metric_check_display_evidence_contract (
                             contract_version, metric_code, check_code,
                             criterion_template, judgment_template, failure_judgment_template,
@@ -874,14 +913,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
                                context_item_bindings_json = excluded.context_item_bindings_json,
                                readiness_scope = excluded.readiness_scope,
                                customer_visible = excluded.customer_visible
-                        """
-                : """
-                        merge into official_metric_check_display_evidence_contract (
-                            contract_version, metric_code, check_code,
-                            criterion_template, judgment_template, failure_judgment_template,
-                            not_applicable_judgment_template, runtime_fact_bindings_json,
-                            context_item_bindings_json, readiness_scope, customer_visible, created_at
-                        ) key (contract_version, metric_code, check_code) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """;
         jdbcTemplate.update(sql,
                 fit(purposeVersion, 128),
@@ -915,7 +946,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             throw new IllegalStateException("Customer display contract template is required."
                     + " metric=" + metricCode + ", check=" + checkCode + ", role=" + displayRole);
         }
-        if (postgresqlDatabase()) {
+        
             jdbcTemplate.update("""
                             insert into official_metric_customer_display_contract (
                                 contract_version, metric_code, check_code, display_role,
@@ -932,21 +963,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     displayTemplate,
                     customerVisible,
                     nowTimestamp());
-        } else {
-            jdbcTemplate.update("""
-                            merge into official_metric_customer_display_contract (
-                                contract_version, metric_code, check_code, display_role,
-                                display_template, customer_visible, created_at
-                            ) key (contract_version, metric_code, check_code, display_role) values (?, ?, ?, ?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    fit(metricCode, 32),
-                    fit(checkCode, 128),
-                    fit(displayRole, 64),
-                    displayTemplate,
-                    customerVisible,
-                    nowTimestamp());
-        }
+        
     }
 
     private void upsertMetricCustomerDisplayBindingRow(
@@ -961,7 +978,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
             throw new IllegalStateException("Customer display binding must declare id and source fact."
                     + " metric=" + metricCode + ", check=" + checkCode + ", role=" + displayRole);
         }
-        if (postgresqlDatabase()) {
+        
             jdbcTemplate.update("""
                             insert into official_metric_customer_display_binding (
                                 contract_version, metric_code, check_code, display_role,
@@ -979,22 +996,7 @@ public class OfficialMetricPurposeContractCatalogWriter {
                     fit(sourceFactKey, 256),
                     true,
                     nowTimestamp());
-        } else {
-            jdbcTemplate.update("""
-                            merge into official_metric_customer_display_binding (
-                                contract_version, metric_code, check_code, display_role,
-                                binding_key, source_fact_key, required, created_at
-                            ) key (contract_version, metric_code, check_code, display_role, binding_key) values (?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                    fit(purposeVersion, 128),
-                    fit(metricCode, 32),
-                    fit(checkCode, 128),
-                    fit(displayRole, 64),
-                    fit(bindingKey, 256),
-                    fit(sourceFactKey, 256),
-                    true,
-                    nowTimestamp());
-        }
+        
     }
 
     private static List<Map<String, String>> safeEvidenceBindings(FinalPromptMetricCheckContract checkContract) {
@@ -1303,12 +1305,6 @@ public class OfficialMetricPurposeContractCatalogWriter {
             }
         }
         return "";
-    }
-
-    private boolean postgresqlDatabase() {
-        Boolean result = jdbcTemplate.execute((ConnectionCallback<Boolean>) connection ->
-                connection.getMetaData().getDatabaseProductName().toLowerCase(Locale.ROOT).contains("postgresql"));
-        return Boolean.TRUE.equals(result);
     }
 
     private Timestamp nowTimestamp() {

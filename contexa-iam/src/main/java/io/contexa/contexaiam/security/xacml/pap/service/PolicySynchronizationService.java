@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import java.util.Objects;
+
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.domain.dto.ConditionDto;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
@@ -33,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
