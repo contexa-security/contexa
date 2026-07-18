@@ -1,10 +1,12 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.ui.Model;
 
 @ControllerAdvice
+@ConditionalOnBean(PromptQualityRouteProperties.class)
 public final class PromptQualityRouteModelAdvice {
 
     private final PromptQualityRouteProperties properties;

@@ -285,6 +285,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public PrimaryAuthenticationSuccessHandler primaryAuthenticationSuccessHandler(
             AuthResponseWriter authResponseWriter,
             MfaPolicyProvider mfaPolicyProvider,
@@ -311,6 +312,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public UnifiedAuthenticationFailureHandler unifiedAuthenticationFailureHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthResponseWriter authResponseWriter,
@@ -328,6 +330,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public MfaFactorProcessingSuccessHandler mfaFactorProcessingSuccessHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthResponseWriter authResponseWriter,

@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.capability;
 
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
+import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,23 @@ class ContexaCapabilityAutoConfigurationTest {
             assertThat(properties.getMode().name()).isEqualTo("AUTO");
             assertThat(properties.getRequired()).isEmpty();
         });
+    }
+
+    @Test
+    @DisplayName("PQA capability stays inactive when enterprise features are disabled")
+    void pqaCapabilityStaysInactiveWhenEnterpriseIsDisabled() {
+        contextRunner
+                .withPropertyValues(
+                        "spring.application.name=contexa-demo",
+                        "contexa.enterprise.enabled=false",
+                        "contexa.capability.mode=off")
+                .run(context -> {
+                    CapabilityRequirementResolver resolver = context.getBean(CapabilityRequirementResolver.class);
+                    CapabilityRequirement requirement = resolver.requirement(ContexaCapability.PQA_ENGINE);
+
+                    assertThat(requirement.enabled()).isFalse();
+                    assertThat(requirement.required()).isFalse();
+                });
     }
 
     @Test

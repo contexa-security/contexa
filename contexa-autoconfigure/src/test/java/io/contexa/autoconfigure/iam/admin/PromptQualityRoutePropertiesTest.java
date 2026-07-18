@@ -6,7 +6,9 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.ui.ExtendedModelMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +65,17 @@ class PromptQualityRoutePropertiesTest {
     }
 
     @Test
+    void componentScanDoesNotRegisterAdviceWhenPqaRoutePropertiesAreDisabled() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(RouteAdviceOnlyComponentScanConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(PromptQualityRouteProperties.class);
+                    assertThat(context).doesNotHaveBean(PromptQualityRouteModelAdvice.class);
+                });
+    }
+
+    @Test
     void pqaAutoConfigurationRegistersRoutePropertiesAndModelAdvice() throws NoSuchMethodException {
         EnableConfigurationProperties annotation = PqaOfficialInspectionAutoConfiguration.class
                 .getAnnotation(EnableConfigurationProperties.class);
@@ -99,5 +112,15 @@ class PromptQualityRoutePropertiesTest {
             PromptQualityOfficialVerificationProperties.class
     })
     static class RoutePropertiesConfiguration {
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ComponentScan(
+            basePackageClasses = PromptQualityRouteModelAdvice.class,
+            useDefaultFilters = false,
+            includeFilters = @ComponentScan.Filter(
+                    type = FilterType.ASSIGNABLE_TYPE,
+                    classes = PromptQualityRouteModelAdvice.class))
+    static class RouteAdviceOnlyComponentScanConfiguration {
     }
 }

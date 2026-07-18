@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcOperations;
 
@@ -61,6 +63,40 @@ class IdentitySecurityCoreAutoConfigurationTest {
                     .run(context -> {
                         assertThat(context).doesNotHaveBean(IdentitySecurityCoreAutoConfiguration.class);
                     });
+        }
+
+        @Test
+        @DisplayName("Should limit Contexa-owned authentication handlers to CONTEXA_OWNED mode")
+        void shouldLimitAuthenticationHandlersToContexaOwnedMode() {
+            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+                    "primaryAuthenticationSuccessHandler");
+            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+                    "unifiedAuthenticationFailureHandler");
+            assertContexaOwnedCondition(IdentitySecurityCoreAutoConfiguration.class,
+                    "mfaFactorProcessingSuccessHandler");
+
+            ConditionalOnProperty handlerCondition = Arrays.stream(IdentityHandlerAutoConfiguration.class
+                            .getAnnotationsByType(ConditionalOnProperty.class))
+                    .filter(condition -> condition.prefix().equals("contexa.bridge"))
+                    .findFirst()
+                    .orElseThrow();
+            assertContexaOwnedCondition(handlerCondition);
+        }
+
+        private void assertContexaOwnedCondition(Class<?> configurationClass, String methodName) {
+            Method method = Arrays.stream(configurationClass.getDeclaredMethods())
+                    .filter(candidate -> candidate.getName().equals(methodName))
+                    .findFirst()
+                    .orElseThrow();
+            assertContexaOwnedCondition(method.getAnnotation(ConditionalOnProperty.class));
+        }
+
+        private void assertContexaOwnedCondition(ConditionalOnProperty condition) {
+            assertThat(condition).isNotNull();
+            assertThat(condition.prefix()).isEqualTo("contexa.bridge");
+            assertThat(condition.name()).containsExactly("ownership");
+            assertThat(condition.havingValue()).isEqualTo("CONTEXA_OWNED");
+            assertThat(condition.matchIfMissing()).isFalse();
         }
     }
 
