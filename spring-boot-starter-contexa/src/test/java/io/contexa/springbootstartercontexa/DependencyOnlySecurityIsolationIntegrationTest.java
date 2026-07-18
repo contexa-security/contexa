@@ -24,6 +24,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.FilterChainProxy;
@@ -36,6 +37,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +48,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 class DependencyOnlySecurityIsolationIntegrationTest {
 
@@ -122,6 +130,23 @@ class DependencyOnlySecurityIsolationIntegrationTest {
                 });
     }
 
+    @Test
+    void dependencyOnlyHttpContractMatchesContexaDisabledHostBaseline() {
+        HostHttpContract baseline = captureHostHttpContract(
+                contexaDisabledBaselineRunner().withUserConfiguration(HostSecurityConfiguration.class));
+        HostHttpContract actual = captureHostHttpContract(
+                contextRunner.withUserConfiguration(HostSecurityConfiguration.class));
+
+        assertThat(actual).isEqualTo(baseline);
+        assertThat(actual).isEqualTo(new HostHttpContract(
+                200,
+                401,
+                200,
+                "host-principal|ROLE_HOST",
+                404,
+                404));
+    }
+
     private WebApplicationContextRunner contexaDisabledBaselineRunner() {
         return new WebApplicationContextRunner()
                 .withPropertyValues(
@@ -138,6 +163,42 @@ class DependencyOnlySecurityIsolationIntegrationTest {
         });
         assertThat(baseline.get()).isNotNull();
         return baseline.get();
+    }
+
+    private HostHttpContract captureHostHttpContract(WebApplicationContextRunner runner) {
+        AtomicReference<HostHttpContract> contract = new AtomicReference<>();
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            MockMvc mockMvc = MockMvcBuilders
+                    .webAppContextSetup(context.getSourceApplicationContext())
+                    .apply(springSecurity())
+                    .build();
+            try {
+                int publicStatus = mockMvc.perform(get("/host/public"))
+                        .andReturn().getResponse().getStatus();
+                int anonymousProtectedStatus = mockMvc.perform(get("/host/protected"))
+                        .andReturn().getResponse().getStatus();
+                var authenticatedResponse = mockMvc.perform(get("/host/protected")
+                                .with(user("host-principal").authorities(() -> "ROLE_HOST")))
+                        .andReturn().getResponse();
+                int adminStatus = mockMvc.perform(get("/contexa/admin/not-installed"))
+                        .andReturn().getResponse().getStatus();
+                int probeStatus = mockMvc.perform(get("/contexa/admin/api/not-installed/probe"))
+                        .andReturn().getResponse().getStatus();
+                contract.set(new HostHttpContract(
+                        publicStatus,
+                        anonymousProtectedStatus,
+                        authenticatedResponse.getStatus(),
+                        authenticatedResponse.getContentAsString(),
+                        adminStatus,
+                        probeStatus));
+            }
+            catch (Exception exception) {
+                throw new AssertionError("Failed to execute host HTTP isolation contract", exception);
+            }
+        });
+        assertThat(contract.get()).isNotNull();
+        return contract.get();
     }
 
     private SecurityBeanGraph securityBeanGraph(ConfigurableApplicationContext context) {
@@ -184,12 +245,47 @@ class DependencyOnlySecurityIsolationIntegrationTest {
         SecurityFilterChain hostSecurityFilterChain(HttpSecurity httpSecurity) throws Exception {
             return httpSecurity
                     .securityMatcher("/host/**")
-                    .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+                    .authorizeHttpRequests(authorize -> authorize
+                            .requestMatchers("/host/public").permitAll()
+                            .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
                     .build();
+        }
+
+        @Bean
+        HostContractController hostContractController() {
+            return new HostContractController();
+        }
+    }
+
+    @RestController
+    static class HostContractController {
+
+        @GetMapping("/host/public")
+        String publicEndpoint() {
+            return "public";
+        }
+
+        @GetMapping("/host/protected")
+        String protectedEndpoint(Authentication authentication) {
+            String authorities = authentication.getAuthorities().stream()
+                    .map(authority -> authority.getAuthority())
+                    .sorted()
+                    .reduce((left, right) -> left + "," + right)
+                    .orElse("");
+            return authentication.getName() + "|" + authorities;
         }
     }
 
     private record SecurityBeanGraph(Map<String, List<String>> categories) {
+    }
+
+    private record HostHttpContract(
+            int publicStatus,
+            int anonymousProtectedStatus,
+            int authenticatedProtectedStatus,
+            String authenticatedBody,
+            int contexaAdminStatus,
+            int contexaProbeStatus) {
     }
 }
