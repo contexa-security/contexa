@@ -8,6 +8,7 @@ package io.contexa.autoconfigure.identity;
 import io.contexa.autoconfigure.iam.IamInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration;
 import io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration;
+import io.contexa.autoconfigure.iam.IamWebSocketAutoConfiguration;
 import io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration;
 import io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
@@ -17,6 +18,8 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 import java.lang.reflect.Method;
@@ -76,6 +79,22 @@ class SecurityOwnershipBoundaryContractTest {
 
         assertThat(configuration.ipAccessFilter(service, tieredProperties, bridgeProperties).getUrlPatterns())
                 .containsExactly("/*");
+    }
+
+    @Test
+    void dependencyOnlyDoesNotActivateIamWebSocketAndSandboxCanDisableIt() {
+        ConditionalOnBean activation = IamWebSocketAutoConfiguration.class
+                .getAnnotation(ConditionalOnBean.class);
+        assertThat(activation).isNotNull();
+        assertThat(activation.value()).containsExactly(PlatformConfig.class);
+
+        ConditionalOnProperty enabled = IamWebSocketAutoConfiguration.class
+                .getAnnotation(ConditionalOnProperty.class);
+        assertThat(enabled).isNotNull();
+        assertThat(enabled.prefix()).isEqualTo("contexa.iam.websocket");
+        assertThat(enabled.name()).containsExactly("enabled");
+        assertThat(enabled.havingValue()).isEqualTo("true");
+        assertThat(enabled.matchIfMissing()).isTrue();
     }
 
     private Method findMethod(Class<?> type, String name) {
