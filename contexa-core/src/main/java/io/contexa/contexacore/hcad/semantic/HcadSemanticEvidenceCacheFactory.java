@@ -24,8 +24,20 @@ public final class HcadSemanticEvidenceCacheFactory {
     private HcadSemanticEvidenceCacheFactory() {
     }
 
-    public static HcadSemanticEvidenceCache create(
-            String infrastructureMode,
+    public static HcadSemanticEvidenceCache createLocal(HcadProperties hcadProperties) {
+        HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider provider =
+                hcadProperties.getSemanticEvidence().getProvider();
+        if (!hcadProperties.getSemanticEvidence().isEnabled()
+                || provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.DISABLED) {
+            return new DisabledHcadSemanticEvidenceCache("SEMANTIC_EVIDENCE_DISABLED");
+        }
+        if (provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.REDIS) {
+            return new DisabledHcadSemanticEvidenceCache("REDIS_NOT_ALLOWED_FOR_LOCAL_SEMANTIC_EVIDENCE");
+        }
+        return new CaffeineHcadSemanticEvidenceCache(hcadProperties);
+    }
+
+    public static HcadSemanticEvidenceCache createDistributed(
             HcadProperties hcadProperties,
             StringRedisTemplate stringRedisTemplate,
             ObjectMapper objectMapper) {
@@ -35,19 +47,23 @@ public final class HcadSemanticEvidenceCacheFactory {
                 || provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.DISABLED) {
             return new DisabledHcadSemanticEvidenceCache("SEMANTIC_EVIDENCE_DISABLED");
         }
+        if (provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.CAFFEINE) {
+            return new DisabledHcadSemanticEvidenceCache("CAFFEINE_NOT_ALLOWED_FOR_DISTRIBUTED_SEMANTIC_EVIDENCE");
+        }
+        if (stringRedisTemplate == null) {
+            return new DisabledHcadSemanticEvidenceCache("REDIS_REQUIRED_FOR_DISTRIBUTED_SEMANTIC_EVIDENCE");
+        }
+        return new RedisHcadSemanticEvidenceCache(stringRedisTemplate, objectMapper, hcadProperties);
+    }
+
+    public static HcadSemanticEvidenceCache create(
+            String infrastructureMode,
+            HcadProperties hcadProperties,
+            StringRedisTemplate stringRedisTemplate,
+            ObjectMapper objectMapper) {
         boolean distributed = "distributed".equalsIgnoreCase(infrastructureMode);
-        if (distributed) {
-            if (provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.CAFFEINE) {
-                return new DisabledHcadSemanticEvidenceCache("CAFFEINE_NOT_ALLOWED_FOR_DISTRIBUTED_SEMANTIC_EVIDENCE");
-            }
-            if (stringRedisTemplate == null) {
-                return new DisabledHcadSemanticEvidenceCache("REDIS_REQUIRED_FOR_DISTRIBUTED_SEMANTIC_EVIDENCE");
-            }
-            return new RedisHcadSemanticEvidenceCache(stringRedisTemplate, objectMapper, hcadProperties);
-        }
-        if (provider == HcadProperties.SemanticEvidenceSettings.EvidenceCacheProvider.REDIS) {
-            return new DisabledHcadSemanticEvidenceCache("REDIS_NOT_ALLOWED_FOR_LOCAL_SEMANTIC_EVIDENCE");
-        }
-        return new CaffeineHcadSemanticEvidenceCache(hcadProperties);
+        return distributed
+                ? createDistributed(hcadProperties, stringRedisTemplate, objectMapper)
+                : createLocal(hcadProperties);
     }
 }

@@ -68,8 +68,6 @@ public class IamSeedDataAutoConfiguration {
     private static final int EXPECTED_OFFICIAL_METRIC_CHECK_DISPLAY_EVIDENCE_CONTRACTS = 66;
     private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS = 390;
     private static final int EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS = 212;
-    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS = 12;
-    private static final int EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS = 26;
 
     static final String[] SCHEMA_LOCATIONS = {
             CANONICAL_SCHEMA_LOCATION
@@ -257,10 +255,6 @@ public class IamSeedDataAutoConfiguration {
                     >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_CONTRACTS
                     && countRows(connection, "official_metric_customer_display_binding")
                     >= EXPECTED_OFFICIAL_METRIC_CUSTOMER_DISPLAY_BINDINGS
-                    && countRows(connection, "official_verification_metric_definition")
-                    >= EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS
-                    && countRows(connection, "official_verification_metric_check_definition")
-                    >= EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS
                     ? PqaOfficialSeedState.COMPLETE
                     : PqaOfficialSeedState.PARTIAL;
         }

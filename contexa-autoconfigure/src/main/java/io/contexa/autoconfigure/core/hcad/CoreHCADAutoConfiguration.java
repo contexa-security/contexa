@@ -106,20 +106,6 @@ public class CoreHCADAutoConfiguration {
         return new HcadPreProtectablePromotionScorer(hcadProperties);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public HcadSemanticEvidenceCache hcadSemanticEvidenceCache(
-            HcadProperties hcadProperties,
-            ObjectMapper objectMapper,
-            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            Environment environment) {
-        return HcadSemanticEvidenceCacheFactory.create(
-                environment.getProperty("contexa.infrastructure.mode", "local"),
-                hcadProperties,
-                stringRedisTemplateProvider.getIfAvailable(),
-                objectMapper);
-    }
-
     @Bean(name = "hcadSemanticEvidenceWarmupExecutor")
     @ConditionalOnMissingBean(name = "hcadSemanticEvidenceWarmupExecutor")
     public TaskExecutor hcadSemanticEvidenceWarmupExecutor(HcadProperties hcadProperties) {
@@ -302,11 +288,45 @@ public class CoreHCADAutoConfiguration {
                 securityZeroTrustPropertiesProvider.getIfAvailable());
     }
 
-    @Configuration
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "standalone", matchIfMissing = true)
+    static class StandaloneSemanticEvidenceCacheConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(HcadSemanticEvidenceCache.class)
+        HcadSemanticEvidenceCache hcadSemanticEvidenceCache(HcadProperties hcadProperties) {
+            return HcadSemanticEvidenceCacheFactory.createLocal(hcadProperties);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "local")
+    static class LegacyLocalSemanticEvidenceCacheConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(HcadSemanticEvidenceCache.class)
+        HcadSemanticEvidenceCache hcadSemanticEvidenceCache(HcadProperties hcadProperties) {
+            return HcadSemanticEvidenceCacheFactory.createLocal(hcadProperties);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "org.springframework.data.redis.core.RedisTemplate")
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(name = "generalRedisTemplate")
     static class DistributedHCADConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(HcadSemanticEvidenceCache.class)
+        HcadSemanticEvidenceCache hcadSemanticEvidenceCache(
+                HcadProperties hcadProperties,
+                StringRedisTemplate stringRedisTemplate,
+                ObjectMapper objectMapper) {
+            return HcadSemanticEvidenceCacheFactory.createDistributed(
+                    hcadProperties,
+                    stringRedisTemplate,
+                    objectMapper);
+        }
 
         @Bean
         @ConditionalOnMissingBean(HCADDataStore.class)

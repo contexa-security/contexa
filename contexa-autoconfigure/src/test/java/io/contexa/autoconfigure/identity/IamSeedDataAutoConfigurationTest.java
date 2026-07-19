@@ -228,6 +228,17 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("IAM PQA completeness must not require deleted legacy metric definition seed rows")
+    void pqaOfficialCompletenessDoesNotRequireLegacyMetricDefinitionSeeds() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/io/contexa/autoconfigure/identity/IamSeedDataAutoConfiguration.java"));
+
+        assertThat(source)
+                .doesNotContain("EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS")
+                .doesNotContain("EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS");
+    }
+
+    @Test
     @DisplayName("IAM schema initialization should skip DDL when CLI already installed the schema")
     void iamSchemaInitializationSkipsDdlWhenSchemaIsAlreadyInstalled() {
         Set<String> allMarkers = Arrays.stream(IamSeedDataAutoConfiguration.SCHEMA_MARKER_TABLES)

@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.core.hcad;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.lang.reflect.Method;
+import io.contexa.contexacore.properties.HcadProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,22 @@ class CoreHCADAutoConfigurationTest {
             assertInMemoryFallback("hcadDataStore");
             assertInMemoryFallback("baselineDataStore");
             assertInMemoryFallback("analysisTriggerStateRepository");
+        }
+
+        @Test
+        @DisplayName("Standalone semantic cache must not expose Redis types on the outer auto-configuration")
+        void standaloneSemanticCacheDoesNotExposeRedisTypesOnOuterConfiguration() throws Exception {
+            assertThat(Arrays.stream(CoreHCADAutoConfiguration.class.getDeclaredMethods())
+                    .filter(method -> method.getName().equals("hcadSemanticEvidenceCache")))
+                    .isEmpty();
+
+            Class<?> standaloneClass = Class.forName(
+                    CoreHCADAutoConfiguration.class.getName() + "$StandaloneSemanticEvidenceCacheConfig");
+            Method method = standaloneClass.getDeclaredMethod(
+                    "hcadSemanticEvidenceCache", HcadProperties.class);
+            assertThat(Arrays.stream(method.getParameterTypes())
+                    .map(Class::getName))
+                    .noneMatch(name -> name.startsWith("org.springframework.data.redis"));
         }
 
         @Test
