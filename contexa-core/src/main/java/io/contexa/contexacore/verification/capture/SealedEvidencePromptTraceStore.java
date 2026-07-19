@@ -233,7 +233,7 @@ public class SealedEvidencePromptTraceStore {
         }
         if (metadataProvider != null) {
             try {
-                Map<String, Object> providerMetadata = metadataProvider.buildMetadata(context.domainContext(), promptResult);
+                Map<String, Object> providerMetadata = metadataProvider.buildMetadata(context, promptResult);
                 if (providerMetadata != null) {
                     metadata.putAll(providerMetadata);
                 }

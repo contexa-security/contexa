@@ -1096,6 +1096,8 @@ public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
     @ConditionalOnMissingBean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
+    @ConditionalOnBean(OssOfficialSealedEvidenceCaptureService.class)
+    @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence", name = "capture-enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
     public FilterRegistrationBean<OssOfficialSealedEvidenceCaptureFilter> pqaOssOfficialSealedEvidenceCaptureFilter(
             OssOfficialSealedEvidenceCaptureService captureService) {

@@ -3,6 +3,7 @@ package io.contexa.contexacore.std.components.prompt;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.verification.capture.PromptEvidenceMetadataProvider;
+import io.contexa.contexacore.verification.capture.VerificationCaptureContext;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -17,8 +18,22 @@ public class CorePromptEvidenceMetadataProvider implements PromptEvidenceMetadat
             return Map.of();
         }
 
+        return buildMetadata(PromptSourceContextSnapshotFactory.capture(securityDecisionContext), promptResult);
+    }
+
+    @Override
+    public Map<String, Object> buildMetadata(
+            VerificationCaptureContext captureContext,
+            PromptGenerationResult promptResult
+    ) {
+        return buildMetadata(PromptSourceContextSnapshotFactory.capture(captureContext), promptResult);
+    }
+
+    private Map<String, Object> buildMetadata(
+            PromptSourceContextSnapshot sourceSnapshot,
+            PromptGenerationResult promptResult
+    ) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        PromptSourceContextSnapshot sourceSnapshot = PromptSourceContextSnapshotFactory.capture(securityDecisionContext);
         PromptFieldLineageAnalysis fieldLineage = PromptFieldLineageAnalyzer.analyze(
                 promptResult.getRawUserPrompt(),
                 promptResult.getUserPrompt());

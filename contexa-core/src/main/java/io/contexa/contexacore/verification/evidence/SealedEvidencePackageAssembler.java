@@ -290,6 +290,7 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(facts, event, "protectableResourceUrl");
         putFromMetadata(facts, event, "protectableHttpMethod");
         putFromMetadata(facts, event, "protectableMethod");
+        putFromMetadata(facts, event, "protectableCriticality");
         putFromMetadata(facts, event, "protectableVerificationRequired");
         putFromMetadata(facts, event, "protectableSync");
         putFromMetadata(facts, event, "contextBindingHash");
@@ -800,7 +801,7 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "promptUserFieldCompactedMarkerCount");
         copyPromptMetadataField(compact, source, "promptUserFieldTruncatedMarkerCount");
         recordOmittedMetadataLedger(compact, source, "promptSourceContextLedger", "SUMMARY_ONLY");
-        recordOmittedMetadataLedger(compact, source, "promptFieldStateLedger", "NORMALIZED_LEDGER_OR_MANIFEST_SUMMARY_ONLY");
+        copyPromptFieldStateLedger(compact, source);
         recordOmittedMetadataLedger(compact, source, "promptRawUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
         recordOmittedMetadataLedger(compact, source, "promptFinalUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
         recordOmittedMetadataLedger(compact, source, "promptUserFieldDiffLedger", "NORMALIZED_LEDGER_ONLY");
@@ -858,6 +859,17 @@ public class SealedEvidencePackageAssembler {
         }
         target.put(key + "StoragePolicy", storagePolicy);
         target.put(key + "OriginalCount", collectionSize(source.get(key)));
+    }
+
+    private void copyPromptFieldStateLedger(Map<String, Object> target, Map<String, Object> source) {
+        if (!source.containsKey("promptFieldStateLedger")) {
+            return;
+        }
+        List<Object> ledger = compactFieldStateLedger(source.get("promptFieldStateLedger"));
+        target.put("promptFieldStateLedger", ledger);
+        target.put("promptFieldStateLedgerStoragePolicy", "OFFICIAL_RELEVANT_COMPACT_ROWS");
+        target.put("promptFieldStateLedgerOriginalCount", collectionSize(source.get("promptFieldStateLedger")));
+        target.put("promptFieldStateLedgerStoredCount", ledger.size());
     }
     private List<Object> compactFieldStateLedger(Object value) {
         if (!(value instanceof Iterable<?> rows)) {

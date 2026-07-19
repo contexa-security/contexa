@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.IpManagementController;
 import io.contexa.contexaiam.admin.web.auth.filter.IpAccessFilter;
 import io.contexa.contexaiam.admin.web.auth.service.IpAccessRuleService;
@@ -49,10 +50,11 @@ public class IamAdminIpAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(IpAccessFilter.class)
     public FilterRegistrationBean<IpAccessFilter> ipAccessFilter(IpAccessRuleService ipAccessRuleService,
-                                                                 TieredStrategyProperties tieredStrategyProperties) {
+                                                                 TieredStrategyProperties tieredStrategyProperties,
+                                                                 BridgeProperties bridgeProperties) {
         FilterRegistrationBean<IpAccessFilter> reg = new FilterRegistrationBean<>();
         reg.setFilter(new IpAccessFilter(ipAccessRuleService, tieredStrategyProperties.getSecurity()));
-        reg.addUrlPatterns("/*");
+        reg.addUrlPatterns(bridgeProperties.isContexaOwned() ? "/*" : "/contexa/*");
         reg.setName("ipAccessFilter");
         reg.setOrder(50);
         return reg;

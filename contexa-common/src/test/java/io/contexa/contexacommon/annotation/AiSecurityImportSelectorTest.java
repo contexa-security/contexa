@@ -73,6 +73,28 @@ class AiSecurityImportSelectorTest {
     }
 
     @Test
+    void shouldPreserveExplicitContexaOwnershipForSandboxMode() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("explicitOwnership",
+                Map.of(
+                        AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP,
+                        SecurityOwnershipMode.CONTEXA_OWNED.name(),
+                        AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION,
+                        true)));
+        AiSecurityImportSelector selector = new AiSecurityImportSelector();
+        selector.setEnvironment(environment);
+        selector.selectImports(AnnotationMetadata.introspect(DefaultSandboxApplication.class));
+
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_MODE))
+                .isEqualTo(SecurityMode.SANDBOX.name());
+        assertThat(environment.getProperty(AiSecurityImportSelector.PROP_BRIDGE_OWNERSHIP))
+                .isEqualTo(SecurityOwnershipMode.CONTEXA_OWNED.name());
+        assertThat(environment.getProperty(
+                AiSecurityImportSelector.PROP_CONTEXA_OWNED_APPLICATION, Boolean.class))
+                .isTrue();
+    }
+
+    @Test
     void shouldPropagateAuthObjectHintsWhenDeclared() {
         StandardEnvironment environment = select(SessionHintApplication.class);
         assertThat(environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION))

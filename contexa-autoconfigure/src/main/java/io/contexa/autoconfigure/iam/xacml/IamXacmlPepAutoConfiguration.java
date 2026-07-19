@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.ExpressionEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandlerFactory;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -37,7 +38,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 import java.util.List;
@@ -84,9 +84,10 @@ public class IamXacmlPepAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
-            @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
+            CustomMethodSecurityExpressionHandlerFactory expressionHandlerFactory,
             PolicyCombiningEvaluator policyCombiningEvaluator) {
-        return new ProtectableMethodAuthorizationManager(expressionHandler, policyCombiningEvaluator);
+        return new ProtectableMethodAuthorizationManager(
+                expressionHandlerFactory.getHandler(), policyCombiningEvaluator);
     }
 }
 

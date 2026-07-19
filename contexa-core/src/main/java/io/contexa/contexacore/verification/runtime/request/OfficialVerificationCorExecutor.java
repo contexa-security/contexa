@@ -6,6 +6,6 @@ public interface OfficialVerificationCorExecutor extends OfficialVerificationReq
 
     @Override
     default String metricCode() {
-        return "CoR";
+        return "COR";
     }
 }

@@ -61,6 +61,11 @@ public class CoreSecurityAutoConfiguration {
             havingValue = "true",
             matchIfMissing = true
     )
+    @ConditionalOnProperty(
+            prefix = "contexa.bridge",
+            name = "ownership",
+            havingValue = "CONTEXA_OWNED"
+    )
     @ConditionalOnMissingBean(UserDetailsService.class)
         public UnifiedUserDetailsService unifiedUserDetailsService(
                 UserRepository userRepository,

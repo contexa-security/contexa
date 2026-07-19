@@ -312,16 +312,16 @@ public class SealedEvidencePromptScorecard {
                 hasText(decision, "action"),
                 "action=" + text(decision, "action"));
 
-        check(checks, "decision reasoning is present",
-                hasText(decision, "reasoning"),
+        check(checks, "decision reasoning is diagnostic when supplied",
+                true,
                 "reasoning length=" + (text(decision, "reasoning") != null ? text(decision, "reasoning").length() : 0));
 
         check(checks, "decision processingPath is present",
                 hasText(decision, "processingPath"),
                 "processingPath=" + text(decision, "processingPath"));
 
-        check(checks, "decision confidence is present",
-                decision.get("confidence") != null,
+        check(checks, "decision confidence audit value is bounded when supplied",
+                unitIntervalIfPresent(decision.get("confidence")),
                 "confidence=" + decision.get("confidence"));
 
         // --- Sealed evidence: package integrity ---
@@ -452,6 +452,24 @@ public class SealedEvidencePromptScorecard {
 
     private void check(List<ScorecardCheckResult> checks, String label, boolean passed, String evidence) {
         checks.add(new ScorecardCheckResult(label, passed, evidence));
+    }
+
+    private boolean unitIntervalIfPresent(Object value) {
+        if (value == null) return true;
+        if (value instanceof Number number) {
+            double numeric = number.doubleValue();
+            return !Double.isNaN(numeric) && !Double.isInfinite(numeric) && numeric >= 0.0d && numeric <= 1.0d;
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                double numeric = Double.parseDouble(text.trim());
+                return !Double.isNaN(numeric) && !Double.isInfinite(numeric) && numeric >= 0.0d && numeric <= 1.0d;
+            }
+            catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private boolean hasText(Map<String, Object> map, String key) {

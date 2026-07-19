@@ -23,6 +23,7 @@ import io.contexa.contexaiam.repository.ActiveSessionRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
@@ -48,6 +49,7 @@ public class IamAdminSessionAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(SessionTrackingFilter.class)
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public FilterRegistrationBean<SessionTrackingFilter> sessionTrackingFilter(
             SessionManagementService sessionManagementService,
             ActiveSessionRepository activeSessionRepository) {

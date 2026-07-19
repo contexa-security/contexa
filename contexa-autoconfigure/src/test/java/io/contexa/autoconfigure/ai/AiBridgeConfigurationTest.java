@@ -75,6 +75,22 @@ class AiBridgeConfigurationTest {
     }
 
     @Test
+    void shouldApplyAuthObjectHintsFromSpringEnvironment() {
+        contextRunner.withPropertyValues(
+                        "contexa.ai.security.auth-object.location=REQUEST_ATTRIBUTE",
+                        "contexa.ai.security.auth-object.attribute=hostAuthentication",
+                        "contexa.ai.security.auth-object.type=java.util.Map")
+                .run(context -> {
+                    BridgeProperties properties = context.getBean(BridgeProperties.class);
+                    BridgeProperties.RequestAttributes requestAttributes =
+                            properties.getAuthentication().getRequestAttributes();
+
+                    assertThat(requestAttributes.getAttribute()).isEqualTo("hostAuthentication");
+                    assertThat(requestAttributes.getObjectTypeName()).isEqualTo("java.util.Map");
+                });
+    }
+
+    @Test
     void shouldRegisterBridgeResolutionConfigurerWhenUserProvidesPlatformConfig() {
         new ApplicationContextRunner()
                 .withUserConfiguration(AiSecurityConfiguration.class)

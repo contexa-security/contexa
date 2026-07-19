@@ -111,6 +111,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.securityMatcher("/" + UUID.randomUUID())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
@@ -279,6 +280,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public WebSecurityConfigurationDependencyInjector webSecurityConfigurationDependencyInjector() {
         return new WebSecurityConfigurationDependencyInjector();
     }

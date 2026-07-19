@@ -86,6 +86,7 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public LoginAttemptEventListener loginAttemptEventListener(LoginPolicyHandler loginPolicyHandler) {
         return new LoginAttemptEventListener(loginPolicyHandler);
     }
@@ -98,6 +99,7 @@ public class IamSecurityCoreAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(name = "loginAttemptCleanupFilterRegistration")
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "CONTEXA_OWNED")
     public FilterRegistrationBean<LoginAttemptCleanupFilter> loginAttemptCleanupFilterRegistration() {
         FilterRegistrationBean<LoginAttemptCleanupFilter> registration =
                 new FilterRegistrationBean<>(new LoginAttemptCleanupFilter());

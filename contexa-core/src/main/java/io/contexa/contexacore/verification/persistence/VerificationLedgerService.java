@@ -8,23 +8,21 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class VerificationLedgerService {
 
     private final OfficialVerificationRunStore runStore;
 
     public VerificationLedgerService(OfficialVerificationRunStore runStore) {
-        this.runStore = runStore;
+        this.runStore = Objects.requireNonNull(runStore, "runStore");
     }
 
     public List<OfficialVerificationRunView> findMetricRunsByPackageId(String packageId) {
-        return runStore == null ? List.of() : runStore.listDetailedByPackageId(packageId);
+        return runStore.listDetailedByPackageId(packageId);
     }
 
     public OfficialVerificationRunRecord findRunRecord(String userId, String runId) {
-        if (runStore == null) {
-            return null;
-        }
         if (userId != null && !userId.isBlank()) {
             return runStore.find(userId, runId);
         }
@@ -52,9 +50,6 @@ public class VerificationLedgerService {
     }
 
     public OfficialVerificationRunView findMetricRun(String userId, String metricCode, String runId) {
-        if (runStore == null) {
-            return null;
-        }
         if (userId != null && !userId.isBlank()) {
             return runStore.findDetailed(userId, metricCode, runId);
         }

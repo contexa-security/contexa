@@ -42,6 +42,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.ArrayList;
@@ -70,17 +71,17 @@ public class AiBridgeConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(AuthBridge.class)
-    public AuthBridge authBridge(BridgeProperties properties) {
+    public AuthBridge authBridge(BridgeProperties properties, Environment environment) {
         BridgeProperties.Session sessionProperties = properties.getAuthentication().getSession();
         BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
-        applyAuthObjectHints(sessionProperties, requestAttributes);
+        applyAuthObjectHints(sessionProperties, requestAttributes, environment);
 
         SessionAuthBridge sessionAuthBridge = new SessionAuthBridge(sessionProperties);
         RequestAttributeAuthBridge requestAttributeAuthBridge = new RequestAttributeAuthBridge(requestAttributes);
         HeaderAuthBridge headerAuthBridge = new HeaderAuthBridge(properties.getAuthentication().getHeaders());
 
         List<AuthBridge> bridges = new ArrayList<>();
-        AuthObjectLocation location = resolveAuthObjectLocation();
+        AuthObjectLocation location = resolveAuthObjectLocation(environment);
         if (location == AuthObjectLocation.REQUEST_ATTRIBUTE) {
             bridges.add(requestAttributeAuthBridge);
             bridges.add(sessionAuthBridge);
@@ -236,19 +237,20 @@ public class AiBridgeConfiguration {
 
     private void applyAuthObjectHints(
             BridgeProperties.Session sessionProperties,
-            BridgeProperties.RequestAttributes requestAttributes) {
-        String authObjectType = resolveAuthObjectType();
+            BridgeProperties.RequestAttributes requestAttributes,
+            Environment environment) {
+        String authObjectType = resolveAuthObjectType(environment);
         if (authObjectType != null) {
             sessionProperties.setObjectTypeName(authObjectType);
             requestAttributes.setObjectTypeName(authObjectType);
         }
 
-        String authObjectAttribute = resolveAuthObjectAttribute();
+        String authObjectAttribute = resolveAuthObjectAttribute(environment);
         if (authObjectAttribute == null) {
             return;
         }
 
-        AuthObjectLocation location = resolveAuthObjectLocation();
+        AuthObjectLocation location = resolveAuthObjectLocation(environment);
         if (location == AuthObjectLocation.SESSION) {
             sessionProperties.setAttribute(authObjectAttribute);
         } else if (location == AuthObjectLocation.REQUEST_ATTRIBUTE) {
@@ -256,8 +258,8 @@ public class AiBridgeConfiguration {
         }
     }
 
-    private AuthObjectLocation resolveAuthObjectLocation() {
-        String configured = System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION);
+    private AuthObjectLocation resolveAuthObjectLocation(Environment environment) {
+        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_LOCATION);
         if (configured == null || configured.isBlank()) {
             return AuthObjectLocation.AUTO;
         }
@@ -268,8 +270,8 @@ public class AiBridgeConfiguration {
         }
     }
 
-    private String resolveAuthObjectAttribute() {
-        String configured = System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE);
+    private String resolveAuthObjectAttribute(Environment environment) {
+        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_ATTRIBUTE);
         if (configured == null) {
             return null;
         }
@@ -277,8 +279,8 @@ public class AiBridgeConfiguration {
         return normalized.isBlank() ? null : normalized;
     }
 
-    private String resolveAuthObjectType() {
-        String configured = System.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE);
+    private String resolveAuthObjectType(Environment environment) {
+        String configured = environment.getProperty(AiSecurityImportSelector.PROP_AUTH_OBJECT_TYPE);
         if (configured == null) {
             return null;
         }
