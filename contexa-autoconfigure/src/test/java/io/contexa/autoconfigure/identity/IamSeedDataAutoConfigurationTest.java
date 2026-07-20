@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacore.verification.metric.OfficialVerificationDefinitionCatalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,15 +23,18 @@ import java.nio.file.Path;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
+import org.springframework.core.env.Environment;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.beans.factory.InitializingBean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 
 class IamSeedDataAutoConfigurationTest {
@@ -69,7 +73,8 @@ class IamSeedDataAutoConfigurationTest {
     @Test
     @DisplayName("IAM seed data should be exposed as an InitializingBean")
     void iamSeedDataIsExposedAsInitializingBean() throws NoSuchMethodException {
-        Method initializer = IamSeedDataAutoConfiguration.class.getDeclaredMethod("iamSeedDataInitializer", DataSource.class);
+        Method initializer = IamSeedDataAutoConfiguration.class.getDeclaredMethod(
+                "iamSeedDataInitializer", DataSource.class, OssSchemaGovernance.class, Environment.class);
 
         assertThat(initializer.getReturnType())
                 .as("IAM seed must run during bean initialization against contexaDataSource")
@@ -228,14 +233,94 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM PQA completeness must not require deleted legacy metric definition seed rows")
-    void pqaOfficialCompletenessDoesNotRequireLegacyMetricDefinitionSeeds() throws Exception {
-        String source = Files.readString(Path.of(
-                "src/main/java/io/contexa/autoconfigure/identity/IamSeedDataAutoConfiguration.java"));
+    @DisplayName("IAM owns the versioned 12 metric and 26 check definition catalog")
+    void pqaOfficialDefinitionCatalogIsVersionedAndKeyBacked() {
+        assertThat(OfficialVerificationDefinitionCatalog.metrics()).hasSize(12);
+        assertThat(OfficialVerificationDefinitionCatalog.checks()).hasSize(26);
+        assertThat(OfficialVerificationDefinitionCatalog.metrics())
+                .extracting(OfficialVerificationDefinitionCatalog.MetricSeed::code)
+                .doesNotHaveDuplicates();
+        assertThat(OfficialVerificationDefinitionCatalog.checks())
+                .extracting(check -> check.metricCode() + "|" + check.checkCode())
+                .doesNotHaveDuplicates();
+        assertThat(OfficialVerificationDefinitionCatalog.checksum()).matches("[a-f0-9]{64}");
+    }
 
-        assertThat(source)
-                .doesNotContain("EXPECTED_OFFICIAL_VERIFICATION_METRIC_DEFINITIONS")
-                .doesNotContain("EXPECTED_OFFICIAL_VERIFICATION_METRIC_CHECK_DEFINITIONS");
+    @Test
+    @DisplayName("IAM canonical schema inventory includes versioned OSS provenance")
+    void iamSchemaInventoryIncludesProvenance() throws Exception {
+        ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources(
+                "OSS", List.of(new ClassPathResource("db/schema.sql")));
+
+        assertThat(inventory.tables()).contains(
+                "contexa_schema_provenance",
+                "contexa_schema_inventory_object");
+        assertThat(inventory.version()).startsWith("oss-");
+        assertThat(inventory.checksum()).matches("[a-f0-9]{64}");
+    }
+
+    @Test
+    @DisplayName("Schema inventory resolves ordered create, drop, and rename DDL to the final state")
+    void schemaInventoryResolvesFinalDdlState() throws Exception {
+        ByteArrayResource first = new ByteArrayResource("""
+                create table first_table (id bigint);
+                create view first_view as select id from first_table;
+                create table old_name (id bigint);
+                """.getBytes(StandardCharsets.UTF_8), "01-create.sql");
+        ByteArrayResource second = new ByteArrayResource("""
+                drop table if exists first_table;
+                drop view if exists first_view;
+                alter table old_name rename to final_name;
+                """.getBytes(StandardCharsets.UTF_8), "02-transform.sql");
+
+        ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources(
+                "ENTERPRISE", List.of(second, first));
+
+        assertThat(inventory.tables()).containsExactly("final_name");
+        assertThat(inventory.views()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Database ownership inventory is deterministic and separates host from unowned objects")
+    void databaseOwnershipInventorySeparatesHostAndUnownedObjects() {
+        ContexaSchemaInventory.DatabaseObjects actual = new ContexaSchemaInventory.DatabaseObjects(
+                Set.of("oss_table", "orders", "official_verification_oss_run"),
+                Set.of("host_view"));
+        ContexaSchemaInventory.Snapshot oss = ContexaSchemaInventory.fromDatabaseObjects(
+                "OSS", new ContexaSchemaInventory.DatabaseObjects(Set.of("oss_table"), Set.of()));
+        ContexaSchemaInventory.Snapshot host = ContexaSchemaInventory.fromDatabaseObjects(
+                "HOST", new ContexaSchemaInventory.DatabaseObjects(Set.of("orders"), Set.of("host_view")));
+
+        ContexaSchemaInventory.DatabaseObjects unowned = ContexaSchemaInventory.subtract(
+                actual, List.of(oss, host));
+        ContexaSchemaInventory.Snapshot first = ContexaSchemaInventory.fromDatabaseObjects(
+                "LEGACY_UNOWNED", unowned);
+        ContexaSchemaInventory.Snapshot second = ContexaSchemaInventory.fromDatabaseObjects(
+                "LEGACY_UNOWNED",
+                new ContexaSchemaInventory.DatabaseObjects(
+                        Set.of("official_verification_oss_run"), Set.of()));
+
+        assertThat(host.tables()).containsExactlyInAnyOrder("orders");
+        assertThat(unowned.tables()).containsExactlyInAnyOrder("official_verification_oss_run");
+        assertThat(first.version()).isEqualTo(second.version());
+        assertThat(first.checksum()).isEqualTo(second.checksum());
+    }
+
+    @Test
+    @DisplayName("OSS handoff accepts a version upgrade only when the recorded owned object set is unchanged")
+    void ossHandoffVersionUpgradeRequiresSameOwnedObjects() {
+        ContexaSchemaInventory.Snapshot current = new ContexaSchemaInventory.Snapshot(
+                "OSS", "oss-current", "current-checksum",
+                Set.of("users", "policy"), Set.of("policy_view"), Set.of());
+        ContexaSchemaInventory.Snapshot historical = new ContexaSchemaInventory.Snapshot(
+                "OSS", "oss-historical", "historical-checksum",
+                Set.of("policy", "users"), Set.of("policy_view"), Set.of());
+        ContexaSchemaInventory.Snapshot incomplete = new ContexaSchemaInventory.Snapshot(
+                "OSS", "oss-historical", "historical-checksum",
+                Set.of("users"), Set.of("policy_view"), Set.of());
+
+        assertThat(OssSchemaGovernance.sameOwnedObjects(current, historical)).isTrue();
+        assertThat(OssSchemaGovernance.sameOwnedObjects(current, incomplete)).isFalse();
     }
 
     @Test
@@ -267,6 +352,35 @@ class IamSeedDataAutoConfigurationTest {
     void iamSchemaInitializationRejectsPartialSchema() {
         assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(Set.of("users")))
                 .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.PARTIAL);
+    }
+
+    @Test
+    @DisplayName("Enterprise provenance prevents OSS canonical DDL maintenance on restart")
+    void enterpriseRestartDoesNotReapplyOssCanonicalDdl() {
+        assertThat(IamSeedDataAutoConfiguration.shouldApplyCanonicalSchemaMaintenance(
+                IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE, true)).isFalse();
+        assertThat(IamSeedDataAutoConfiguration.shouldApplyCanonicalSchemaMaintenance(
+                IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE, false)).isTrue();
+        assertThat(IamSeedDataAutoConfiguration.shouldApplyCanonicalSchemaMaintenance(
+                IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT, false)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Direct Enterprise startup rejects an unverified non-empty database before DDL")
+    void directEnterpriseStartupRejectsUnverifiedNonEmptyDatabase() {
+        ContexaSchemaInventory.DatabaseObjects unknown = new ContexaSchemaInventory.DatabaseObjects(
+                Set.of("host_only_marker"), Set.of());
+        ContexaSchemaInventory.DatabaseObjects empty = new ContexaSchemaInventory.DatabaseObjects(
+                Set.of(), Set.of());
+
+        assertThat(IamSeedDataAutoConfiguration.shouldRejectUnverifiedEnterpriseSchema(
+                true, false, IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT, unknown)).isTrue();
+        assertThat(IamSeedDataAutoConfiguration.shouldRejectUnverifiedEnterpriseSchema(
+                true, false, IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT, empty)).isFalse();
+        assertThat(IamSeedDataAutoConfiguration.shouldRejectUnverifiedEnterpriseSchema(
+                true, true, IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE, unknown)).isFalse();
+        assertThat(IamSeedDataAutoConfiguration.shouldRejectUnverifiedEnterpriseSchema(
+                false, false, IamSeedDataAutoConfiguration.SchemaInstallState.ABSENT, unknown)).isFalse();
     }
 
     private int privateStaticInt(String fieldName) throws Exception {

@@ -18,6 +18,8 @@ package io.contexa.autoconfigure.compat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.mock.env.MockEnvironment;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +27,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ContexaDefaultPropertiesPostProcessorTest {
 
     private final ContexaDefaultPropertiesPostProcessor postProcessor = new ContexaDefaultPropertiesPostProcessor();
+
+    @Test
+    @DisplayName("is registered in the Spring Boot environment post-processor factory")
+    void isRegisteredInSpringBootFactory() {
+        var processorNames = SpringFactoriesLoader.loadFactoryNames(
+                EnvironmentPostProcessor.class,
+                getClass().getClassLoader());
+
+        assertThat(processorNames)
+                .contains(ContexaDefaultPropertiesPostProcessor.class.getName());
+    }
 
     @Test
     @DisplayName("injects zero-configuration 1024-dimension vector and OpenAI embedding defaults")
@@ -42,6 +55,8 @@ class ContexaDefaultPropertiesPostProcessorTest {
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("contexa.llm.selection.embedding.mode")).isNull();
         assertThat(environment.getProperty("contexa.llm.selection.embedding.priority")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.chat")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.embedding")).isNull();
     }
 
     @Test
@@ -75,6 +90,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
     @DisplayName("keeps explicit Ollama embedding runtime on the 1024 product dimension")
     void keepsExplicitOllamaRuntimeOnProductDimension() {
         MockEnvironment environment = new MockEnvironment()
+                .withProperty("contexa.llm.selection.chat.priority", "ollama")
                 .withProperty("contexa.llm.selection.embedding.priority", "ollama");
 
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
@@ -82,5 +98,39 @@ class ContexaDefaultPropertiesPostProcessorTest {
         assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
         assertThat(environment.getProperty("spring.ai.openai.embedding.options.dimensions")).isEqualTo("1024");
+        assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
+        assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
+        assertThat(environment.getProperty("spring.ai.model.image")).isEqualTo("none");
+        assertThat(environment.getProperty("spring.ai.model.moderation")).isEqualTo("none");
+        assertThat(environment.getProperty("spring.ai.model.audio.speech")).isEqualTo("none");
+        assertThat(environment.getProperty("spring.ai.model.audio.transcription")).isEqualTo("none");
+    }
+
+    @Test
+    @DisplayName("keeps multi-provider chat dynamic while selecting the fixed embedding provider")
+    void keepsMultiProviderChatDynamic() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("contexa.llm.selection.chat.priority", "ollama,openai")
+                .withProperty("contexa.llm.selection.embedding.priority", "ollama");
+
+        postProcessor.postProcessEnvironment(environment, new SpringApplication());
+
+        assertThat(environment.getProperty("spring.ai.model.chat")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("ollama");
+    }
+
+    @Test
+    @DisplayName("does not override explicit Spring AI model selectors")
+    void doesNotOverrideExplicitSpringAiModelSelectors() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("contexa.llm.selection.chat.priority", "ollama")
+                .withProperty("contexa.llm.selection.embedding.priority", "ollama")
+                .withProperty("spring.ai.model.chat", "openai")
+                .withProperty("spring.ai.model.embedding", "openai");
+
+        postProcessor.postProcessEnvironment(environment, new SpringApplication());
+
+        assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("openai");
+        assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("openai");
     }
 }

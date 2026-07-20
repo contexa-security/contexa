@@ -1,3 +1,7 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+io.contexa.autoconfigure.core.infra.StandaloneInfrastructurePostProcessor,\
+io.contexa.autoconfigure.compat.LegacyPrefixMigrator,\
+io.contexa.autoconfigure.compat.ContexaDefaultPropertiesPostProcessor
 org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
 io.contexa.autoconfigure.core.infra.StandaloneAutoConfigurationFilter
 org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer=\

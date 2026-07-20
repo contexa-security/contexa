@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Import;
@@ -28,6 +29,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBean(PlatformConfig.class)
+@ConditionalOnMissingBean(name = "clientInboundChannel")
 @ConditionalOnProperty(prefix = "contexa.iam.websocket", name = "enabled",
         havingValue = "true", matchIfMissing = true)
 @Import(WebSocketConfig.class)

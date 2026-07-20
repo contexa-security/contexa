@@ -54,15 +54,15 @@ public class GeoIpService implements Closeable {
                     r = new DatabaseReader.Builder(dbFile)
                             .fileMode(Reader.FileMode.MEMORY_MAPPED)
                             .build();
-                    log.error("[GeoIpService] GeoLite2 database loaded: {}", dbPath);
+                    log.info("[GeoIpService] GeoLite2 database loaded: {}", dbPath);
                 } catch (IOException e) {
                     log.error("[GeoIpService] Failed to load GeoLite2 database: {}", dbPath, e);
                 }
             } else {
-                log.error("[GeoIpService] GeoLite2 database not found at: {}. GeoIP disabled.", dbPath);
+                log.warn("[GeoIpService] GeoLite2 database not found at: {}. GeoIP disabled.", dbPath);
             }
         } else {
-            log.error("[GeoIpService] No GeoLite2 database path configured. GeoIP disabled.");
+            log.warn("[GeoIpService] No GeoLite2 database path configured. GeoIP disabled.");
         }
         this.reader = r;
     }

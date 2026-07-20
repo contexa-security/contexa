@@ -33,6 +33,7 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
@@ -121,16 +122,56 @@ public class IamSeedDataAutoConfiguration {
     }
 
     @Bean(name = IAM_SEED_DATA_INITIALIZER_BEAN)
-    public InitializingBean iamSeedDataInitializer(@Qualifier("contexaDataSource") DataSource dataSource) {
-        return () -> initializeSchemaAndSeedData(dataSource);
+    public InitializingBean iamSeedDataInitializer(
+            @Qualifier("contexaDataSource") DataSource dataSource,
+            OssSchemaGovernance ossSchemaGovernance,
+            Environment environment) {
+        return () -> {
+            boolean enterpriseManaged = ossSchemaGovernance.hasProvenance(OssSchemaGovernance.ENTERPRISE_OWNER);
+            boolean ossProvenanceExists = ossSchemaGovernance.hasProvenance(OssSchemaGovernance.OSS_OWNER);
+            boolean enterpriseRequested = environment.getProperty(
+                    "contexa.enterprise.enabled", Boolean.class, false);
+            ContexaSchemaInventory.DatabaseObjects preInstallationObjects =
+                    ContexaSchemaInventory.readDatabase(dataSource);
+            SchemaInstallState schemaInstallState = detectSchemaInstallState(dataSource);
+            if (shouldRejectUnverifiedEnterpriseSchema(
+                    enterpriseRequested, ossProvenanceExists, schemaInstallState, preInstallationObjects)) {
+                throw new IllegalStateException(
+                        "Enterprise schema coordination rejected a non-empty database without verified OSS "
+                                + "provenance. No schema changes were applied.");
+            }
+            if (schemaInstallState == SchemaInstallState.ABSENT) {
+                ossSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
+            }
+            initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged);
+            OssSchemaGovernance.GovernanceReport report = ossSchemaGovernance.initializeAndRecordOss(
+                    schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
+            log.info("[IamSeedData] OSS schema provenance verified. version={}, tables={}, views={}, checksum={}, "
+                            + "hostTables={}, hostViews={}, unownedTables={}, unownedViews={}",
+                    report.inventory().version(), report.inventory().tables().size(),
+                    report.inventory().views().size(), report.inventory().checksum(),
+                    report.ownership().host().tables().size(), report.ownership().host().views().size(),
+                    report.ownership().unowned().tables().size(), report.ownership().unowned().views().size());
+        };
     }
 
-    private void initializeSchemaAndSeedData(DataSource dataSource) throws SQLException, IOException {
-        SchemaInstallState schemaInstallState = detectSchemaInstallState(dataSource);
-        if (schemaInstallState == SchemaInstallState.ABSENT || schemaInstallState == SchemaInstallState.PARTIAL) {
-            if (schemaInstallState == SchemaInstallState.PARTIAL) {
-                log.warn("[IamSeedData] Contexa schema is partially installed; attempting idempotent completion");
-            }
+    @Bean
+    public OssSchemaGovernance ossSchemaGovernance(
+            @Qualifier("contexaDataSource") DataSource dataSource) {
+        return new OssSchemaGovernance(dataSource);
+    }
+
+    private void initializeSchemaAndSeedData(
+            DataSource dataSource,
+            SchemaInstallState schemaInstallState,
+            boolean enterpriseManaged)
+            throws SQLException, IOException {
+        if (schemaInstallState == SchemaInstallState.PARTIAL) {
+            throw new IllegalStateException(
+                    "Contexa schema is partially installed without a complete ownership contract. "
+                            + "No schema changes were applied. Restore a verified OSS backup or use a clean database.");
+        }
+        if (schemaInstallState == SchemaInstallState.ABSENT) {
             for (String location : SCHEMA_LOCATIONS) {
                 Resource schema = new ClassPathResource(location);
                 if (!schema.exists()) {
@@ -151,7 +192,11 @@ public class IamSeedDataAutoConfiguration {
             }
         } else if (schemaInstallState == SchemaInstallState.COMPLETE) {
             log.info("[IamSeedData] Contexa schema already installed, skipping schema initialization");
-            applyCanonicalSchemaMaintenance(dataSource);
+            if (shouldApplyCanonicalSchemaMaintenance(schemaInstallState, enterpriseManaged)) {
+                applyCanonicalSchemaMaintenance(dataSource);
+            } else {
+                log.info("[IamSeedData] Enterprise provenance is present; OSS canonical DDL maintenance is skipped");
+            }
         }
         for (String location : SEED_LOCATIONS) {
             Resource seed = new ClassPathResource(location);
@@ -166,6 +211,23 @@ public class IamSeedDataAutoConfiguration {
             log.info("[IamSeedData] {} executed", location);
         }
         completePqaOfficialSchemaIfNeeded(dataSource);
+    }
+
+    static boolean shouldApplyCanonicalSchemaMaintenance(
+            SchemaInstallState schemaInstallState,
+            boolean enterpriseManaged) {
+        return schemaInstallState == SchemaInstallState.COMPLETE && !enterpriseManaged;
+    }
+
+    static boolean shouldRejectUnverifiedEnterpriseSchema(
+            boolean enterpriseRequested,
+            boolean ossProvenanceExists,
+            SchemaInstallState schemaInstallState,
+            ContexaSchemaInventory.DatabaseObjects preInstallationObjects) {
+        return enterpriseRequested
+                && !ossProvenanceExists
+                && schemaInstallState == SchemaInstallState.ABSENT
+                && (!preInstallationObjects.tables().isEmpty() || !preInstallationObjects.views().isEmpty());
     }
 
     private void applyCanonicalSchemaMaintenance(DataSource dataSource) throws IOException, SQLException {

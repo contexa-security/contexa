@@ -19,7 +19,9 @@ package io.contexa.contexaiam.aiam.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -27,9 +29,8 @@ import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.web.socket.WebSocketHandler;
-import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurationSupport;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 import org.springframework.http.server.ServerHttpRequest;
 
@@ -42,8 +43,7 @@ import java.util.UUID;
 
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport {
     private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
 
     static class SessionPrincipal implements Principal {
@@ -113,6 +113,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 return message;
             }
         });
+    }
+
+    @Bean
+    @Override
+    public TaskExecutor clientInboundChannelExecutor() {
+        return (TaskExecutor) super.clientInboundChannelExecutor();
+    }
+
+    @Bean
+    @Override
+    public TaskExecutor clientOutboundChannelExecutor() {
+        return (TaskExecutor) super.clientOutboundChannelExecutor();
     }
 }
 
