@@ -101,3 +101,31 @@ tasks.named('processResources') {
     exclude 'static/js/token-test.js'
     exclude 'static/css/token-test.css'
 }
+
+tasks.register('verifyDependencyOnlyRuntimeClasspath') {
+    group = 'verification'
+    description = 'Fails when the dependency-only starter exports host Spring Security.'
+    doLast {
+        def forbidden = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll { artifact ->
+            def id = artifact.moduleVersion.id
+            id.group == 'org.springframework.security'
+                    || (id.group == 'org.springframework.boot' && id.name in [
+                        'spring-boot-starter-security',
+                        'spring-boot-starter-oauth2-client',
+                        'spring-boot-starter-oauth2-resource-server'
+                    ])
+                    || (id.group == 'org.thymeleaf.extras'
+                        && id.name == 'thymeleaf-extras-springsecurity6')
+        }
+        if (!forbidden.isEmpty()) {
+            def coordinates = forbidden.collect {
+                "${it.moduleVersion.id.group}:${it.name}:${it.moduleVersion.id.version}"
+            }.sort().join(', ')
+            throw new GradleException("Dependency-only starter exports host security artifacts: ${coordinates}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyDependencyOnlyRuntimeClasspath')
+}
