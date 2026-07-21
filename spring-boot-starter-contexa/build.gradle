@@ -11,12 +11,8 @@ dependencies {
     api platform("io.github.resilience4j:resilience4j-bom:2.1.0")
     api platform("org.springframework.statemachine:spring-statemachine-bom:4.0.0")
 
-    // Spring Security (contexa-common/identity compileOnly -> starter provides transitively)
-    api 'org.springframework.boot:spring-boot-starter-security'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
-    api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+    // Host security remains host-owned. Applications that explicitly activate
+    // @EnableAISecurity declare Spring Security themselves.
     // Spring AI provider starters are application-level choices and are not forced by the library starter
 
     // PgVector implementation only. Do not expose Spring AI's PgVector starter because
