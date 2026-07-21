@@ -17,8 +17,12 @@ package io.contexa.autoconfigure.compat;
  
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
  
 import java.util.LinkedHashMap;
 import java.util.Arrays;
@@ -26,14 +30,44 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.io.IOException;
  
 public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostProcessor {
  
     static final String SOURCE_NAME = "contexaDefaultProperties";
+    static final String OVERLAY_RESOURCE = "application-contexa.yml";
+
+    private final Resource overlayResource;
+
+    public ContexaDefaultPropertiesPostProcessor() {
+        this(new ClassPathResource(OVERLAY_RESOURCE));
+    }
+
+    ContexaDefaultPropertiesPostProcessor(Resource overlayResource) {
+        this.overlayResource = overlayResource;
+    }
  
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        loadOwnedOverlay(environment);
         environment.getPropertySources().addLast(new MapPropertySource(SOURCE_NAME, defaults(environment)));
+    }
+
+    private void loadOwnedOverlay(ConfigurableEnvironment environment) {
+        if (!overlayResource.exists()) {
+            return;
+        }
+        try {
+            List<PropertySource<?>> sources =
+                    new YamlPropertySourceLoader().load("contexaOwnedOverlay", overlayResource);
+            for (PropertySource<?> source : sources) {
+                environment.getPropertySources().addLast(source);
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "Contexa-owned configuration overlay could not be loaded: " + OVERLAY_RESOURCE,
+                    exception);
+        }
     }
  
     private Map<String, Object> defaults(ConfigurableEnvironment environment) {

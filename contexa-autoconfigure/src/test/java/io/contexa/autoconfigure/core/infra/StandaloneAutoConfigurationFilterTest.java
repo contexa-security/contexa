@@ -174,6 +174,7 @@ class StandaloneAutoConfigurationFilterTest {
         void shouldExcludeContexaAutoConfigurationsWhenPlatformIsInactive() {
             StandaloneAutoConfigurationFilter filter = createFilter("standalone");
             String[] classes = {
+                    "io.contexa.autoconfigure.identity.DependencyOnlySecurityIsolationAutoConfiguration",
                     "io.contexa.autoconfigure.core.CoreDataAutoConfiguration",
                     "io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration",
                     "io.contexa.contexacore.config.CoreSecurityAutoConfiguration",
@@ -183,7 +184,7 @@ class StandaloneAutoConfigurationFilterTest {
 
             boolean[] result = filter.match(classes, metadata);
 
-            assertThat(result).containsExactly(false, false, false, false, true);
+            assertThat(result).containsExactly(true, false, false, false, false, true);
         }
 
         @Test

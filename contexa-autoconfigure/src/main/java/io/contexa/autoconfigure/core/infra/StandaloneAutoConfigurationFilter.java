@@ -35,6 +35,8 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
     private static final String CONTEXA_PACKAGE_PREFIX = "io.contexa.";
     private static final String CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION =
             "io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration";
+    private static final String DEPENDENCY_ONLY_SECURITY_ISOLATION_AUTO_CONFIGURATION =
+            "io.contexa.autoconfigure.identity.DependencyOnlySecurityIsolationAutoConfiguration";
 
     private Environment environment;
 
@@ -53,7 +55,9 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
             }
 
             if (!contexaPlatformActive) {
-                if (isContexaOwnedDataSourceAutoConfiguration(autoConfigurationClass)) {
+                if (isDependencyOnlySecurityIsolationAutoConfiguration(autoConfigurationClass)) {
+                    result[i] = true;
+                } else if (isContexaOwnedDataSourceAutoConfiguration(autoConfigurationClass)) {
                     result[i] = hasContexaOwnedDataSource();
                 } else if (isContexaAutoConfiguration(autoConfigurationClass)) {
                     result[i] = false;
@@ -97,6 +101,10 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
 
     private boolean isContexaOwnedDataSourceAutoConfiguration(String autoConfigurationClass) {
         return CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION.equals(autoConfigurationClass);
+    }
+
+    private boolean isDependencyOnlySecurityIsolationAutoConfiguration(String autoConfigurationClass) {
+        return DEPENDENCY_ONLY_SECURITY_ISOLATION_AUTO_CONFIGURATION.equals(autoConfigurationClass);
     }
 
     private boolean hasContexaOwnedDataSource() {
