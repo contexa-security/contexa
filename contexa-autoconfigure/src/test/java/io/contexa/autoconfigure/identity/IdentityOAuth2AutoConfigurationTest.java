@@ -21,6 +21,9 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -34,6 +37,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class IdentityOAuth2AutoConfigurationTest {
+
+    @Test
+    @DisplayName("Missing authorization server should not break a dependency-only application context")
+    void missingAuthorizationServerDoesNotBreakDependencyOnlyContext() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(IdentityOAuth2AutoConfiguration.class))
+                .withClassLoader(new FilteredClassLoader(
+                        "org.springframework.security.oauth2.server.authorization"))
+                .run(context -> assertThat(context.getStartupFailure()).isNull());
+    }
 
     @Test
     @DisplayName("JWK fallback should be allowed for the internal token engine")

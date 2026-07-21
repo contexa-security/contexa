@@ -51,7 +51,6 @@ io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration
 io.contexa.autoconfigure.identity.IdentityMfaAutoConfiguration
 
 # Identity Security Core
-io.contexa.autoconfigure.identity.DependencyOnlySecurityIsolationAutoConfiguration
 io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration
 
 # Identity ASEP (Security Exception Handler)

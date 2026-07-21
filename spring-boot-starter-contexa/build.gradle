@@ -11,8 +11,13 @@ dependencies {
     api platform("io.github.resilience4j:resilience4j-bom:2.1.0")
     api platform("org.springframework.statemachine:spring-statemachine-bom:4.0.0")
 
-    // Host security remains host-owned. Applications that explicitly activate
-    // @EnableAISecurity declare Spring Security themselves.
+    // Spring Security runtime required by the OSS identity and IAM modules.
+    // Auto-configuration activation, not dependency removal, protects HOST_OWNED applications.
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
+    api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     // Spring AI provider starters are application-level choices and are not forced by the library starter
 
     // PgVector implementation only. Do not expose Spring AI's PgVector starter because
@@ -24,7 +29,6 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webflux'
     testImplementation 'org.awaitility:awaitility:4.2.0'
@@ -101,32 +105,4 @@ tasks.named('processResources') {
     exclude 'templates/test/token-test.html'
     exclude 'static/js/token-test.js'
     exclude 'static/css/token-test.css'
-}
-
-tasks.register('verifyDependencyOnlyRuntimeClasspath') {
-    group = 'verification'
-    description = 'Fails when the dependency-only starter exports host Spring Security.'
-    doLast {
-        def forbidden = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.findAll { artifact ->
-            def id = artifact.moduleVersion.id
-            id.group == 'org.springframework.security'
-                    || (id.group == 'org.springframework.boot' && id.name in [
-                        'spring-boot-starter-security',
-                        'spring-boot-starter-oauth2-client',
-                        'spring-boot-starter-oauth2-resource-server'
-                    ])
-                    || (id.group == 'org.thymeleaf.extras'
-                        && id.name == 'thymeleaf-extras-springsecurity6')
-        }
-        if (!forbidden.isEmpty()) {
-            def coordinates = forbidden.collect {
-                "${it.moduleVersion.id.group}:${it.name}:${it.moduleVersion.id.version}"
-            }.sort().join(', ')
-            throw new GradleException("Dependency-only starter exports host security artifacts: ${coordinates}")
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('verifyDependencyOnlyRuntimeClasspath')
 }

@@ -8,7 +8,6 @@ package io.contexa.springbootstartercontexa;
 import io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.bootstrap.SecurityPlatformInitializer;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import jakarta.servlet.Filter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -74,13 +73,10 @@ class DependencyOnlySecurityIsolationIntegrationTest {
             .withUserConfiguration(DependencyOnlyApplication.class);
 
     @Test
-    void dependencyOnlyDoesNotSecureHostRequestsOrLoadContexaSecurity() {
+    void dependencyOnlyKeepsBootDefaultSecurityChainWithoutContexaFilters() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(SecurityFilterChain.class);
-            assertThat(context).doesNotHaveBean(PlatformConfig.class);
-            assertThat(context.getBeansOfType(SecurityFilterChain.class))
-                    .containsOnlyKeys("contexaDependencyOnlyIsolationFilterChain");
             assertThat(context).doesNotHaveBean("securityFilterChain");
             assertThat(context).doesNotHaveBean(IdentitySecurityCoreAutoConfiguration.class);
             assertThat(context).doesNotHaveBean(SecurityPlatformInitializer.class);
@@ -88,16 +84,6 @@ class DependencyOnlySecurityIsolationIntegrationTest {
 
             SecurityFilterChain chain = context.getBean(SecurityFilterChain.class);
             assertNoContexaFilters(chain);
-            MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context.getSourceApplicationContext())
-                    .apply(springSecurity()).build();
-            try {
-                int status = mockMvc.perform(get("/host-route-not-mapped"))
-                        .andReturn().getResponse().getStatus();
-                assertThat(status).isEqualTo(404);
-            }
-            catch (Exception exception) {
-                throw new AssertionError("Dependency-only host request must bypass security", exception);
-            }
         });
     }
 

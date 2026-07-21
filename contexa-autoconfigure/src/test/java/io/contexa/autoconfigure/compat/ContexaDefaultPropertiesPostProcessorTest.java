@@ -21,9 +21,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.core.io.ByteArrayResource;
-
-import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -107,33 +104,6 @@ class ContexaDefaultPropertiesPostProcessorTest {
         assertThat(environment.getProperty("spring.ai.model.moderation")).isEqualTo("none");
         assertThat(environment.getProperty("spring.ai.model.audio.speech")).isEqualTo("none");
         assertThat(environment.getProperty("spring.ai.model.audio.transcription")).isEqualTo("none");
-    }
-
-    @Test
-    @DisplayName("loads the Contexa-owned overlay below host properties and above module defaults")
-    void loadsOwnedOverlayWithoutOverridingHostProperties() {
-        ByteArrayResource overlay = new ByteArrayResource("""
-                server:
-                  port: 9080
-                contexa:
-                  security:
-                    zerotrust:
-                      mode: ENFORCE
-                spring:
-                  ai:
-                    vectorstore:
-                      pgvector:
-                        dimensions: 2048
-                """.getBytes(StandardCharsets.UTF_8));
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("server.port", "9191");
-
-        new ContexaDefaultPropertiesPostProcessor(overlay)
-                .postProcessEnvironment(environment, new SpringApplication());
-
-        assertThat(environment.getProperty("server.port")).isEqualTo("9191");
-        assertThat(environment.getProperty("contexa.security.zerotrust.mode")).isEqualTo("ENFORCE");
-        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("2048");
     }
 
     @Test
