@@ -61,6 +61,22 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         this(objectMapper, loginPageUrl, mfaPageConfig, null, null, null);
     }
 
+    public MfaAuthenticationEntryPoint withRuntimeDependencies(
+            AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            MfaStateMachineIntegrator stateMachineIntegrator) {
+        Assert.notNull(authUrlProvider, "AuthUrlProvider cannot be null");
+        Assert.notNull(mfaFlowUrlRegistry, "MfaFlowUrlRegistry cannot be null");
+        Assert.notNull(stateMachineIntegrator, "MfaStateMachineIntegrator cannot be null");
+        return new MfaAuthenticationEntryPoint(
+                objectMapper,
+                getLoginFormUrl(),
+                mfaPageConfig,
+                authUrlProvider,
+                mfaFlowUrlRegistry,
+                stateMachineIntegrator);
+    }
+
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException, ServletException {

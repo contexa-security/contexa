@@ -32,10 +32,8 @@ import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
-import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
-import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -333,19 +331,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             throw new DslConfigurationException("Failed to retrieve ObjectMapper bean from ApplicationContext for MfaAuthenticationEntryPoint", e);
         }
 
-        MfaFlowUrlRegistry mfaFlowUrlRegistry = null;
-        MfaStateMachineIntegrator stateMachineIntegrator = null;
-        try {
-            mfaFlowUrlRegistry = this.applicationContext.getBean(MfaFlowUrlRegistry.class);
-        } catch (Exception ignored) {
-        }
-        try {
-            stateMachineIntegrator = this.applicationContext.getBean(MfaStateMachineIntegrator.class);
-        } catch (Exception ignored) {
-        }
-
-        return new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig,
-                null, mfaFlowUrlRegistry, stateMachineIntegrator);
+        return new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig);
     }
 }
 

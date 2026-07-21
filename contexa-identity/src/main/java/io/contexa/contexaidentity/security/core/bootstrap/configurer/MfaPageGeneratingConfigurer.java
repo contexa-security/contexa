@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 The Contexa Project
  *
  * The Contexa Project licenses this file to you under the Apache License,
@@ -44,7 +44,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.accept.ContentNegotiationStrategy;
 import org.springframework.web.accept.HeaderContentNegotiationStrategy;
-
+
 @Slf4j
 @Component
 public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
@@ -120,7 +120,12 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
             flowContext.http().addFilterBefore(mfaPageFilter, UsernamePasswordAuthenticationFilter.class);
 
-            registerMfaAuthenticationEntryPoint(flowContext, flowConfig);
+            registerMfaAuthenticationEntryPoint(
+                    flowContext,
+                    flowConfig,
+                    authUrlProvider,
+                    flowUrlRegistry,
+                    stateMachineIntegrator);
 
             String customPagesInfo = buildCustomPagesInfo(flowConfig);
             if (StringUtils.hasText(customPagesInfo)) {
@@ -137,7 +142,12 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         return SecurityConfigurer.HIGHEST_PRECEDENCE + 150;
     }
 
-    private void registerMfaAuthenticationEntryPoint(FlowContext flowContext, AuthenticationFlowConfig flowConfig) {
+    private void registerMfaAuthenticationEntryPoint(
+            FlowContext flowContext,
+            AuthenticationFlowConfig flowConfig,
+            AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry flowUrlRegistry,
+            MfaStateMachineIntegrator stateMachineIntegrator) {
         MfaAuthenticationEntryPoint entryPoint = flowConfig.getMfaAuthenticationEntryPoint();
 
         if (entryPoint == null) {
@@ -148,6 +158,11 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                             "Check that primaryAuthenticationOptions is properly configured and EntryPoint is created in build() method."
             );
         }
+
+        entryPoint = entryPoint.withRuntimeDependencies(
+                authUrlProvider,
+                flowUrlRegistry,
+                stateMachineIntegrator);
 
         try {
             ExceptionHandlingConfigurer<HttpSecurity> exceptionHandling =

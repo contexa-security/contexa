@@ -25,7 +25,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.Message;
 import org.springframework.statemachine.action.StateDoActionPolicy;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
@@ -56,15 +55,15 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final RetryLimitGuard retryLimitGuard;
 
     public MfaStateMachineConfiguration(
-            @Lazy InitializeMfaAction initializeMfaAction,
-            @Lazy SelectFactorAction selectFactorAction,
-            @Lazy InitiateChallengeAction initiateChallengeAction,
-            @Lazy VerifyFactorAction verifyFactorAction,
-            @Lazy CompleteMfaAction completeMfaAction,
-            @Lazy HandleFailureAction handleFailureAction,
-            @Lazy DetermineNextFactorAction determineNextFactorAction,
-            @Lazy AllFactorsCompletedGuard allFactorsCompletedGuard,
-            @Lazy RetryLimitGuard retryLimitGuard) {
+            InitializeMfaAction initializeMfaAction,
+            SelectFactorAction selectFactorAction,
+            InitiateChallengeAction initiateChallengeAction,
+            VerifyFactorAction verifyFactorAction,
+            CompleteMfaAction completeMfaAction,
+            HandleFailureAction handleFailureAction,
+            DetermineNextFactorAction determineNextFactorAction,
+            AllFactorsCompletedGuard allFactorsCompletedGuard,
+            RetryLimitGuard retryLimitGuard) {
         this.initializeMfaAction = initializeMfaAction;
         this.selectFactorAction = selectFactorAction;
         this.initiateChallengeAction = initiateChallengeAction;
