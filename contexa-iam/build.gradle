@@ -12,8 +12,8 @@ tasks.named('resolveMainClassName') {
 dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-common')
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     // Module-specific dependencies (moved from root subprojects)
