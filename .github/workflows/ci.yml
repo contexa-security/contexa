@@ -42,6 +42,10 @@ jobs:
         run: ./gradlew clean compileJava
 
       - name: Run tests
+        env:
+          CONTEXA_TEST_DB_URL: jdbc:postgresql://localhost:5432/contexa
+          CONTEXA_TEST_DB_USERNAME: admin
+          CONTEXA_TEST_DB_PASSWORD: 1111
         run: ./gradlew test jacocoTestReport
 
       - name: Upload test reports
