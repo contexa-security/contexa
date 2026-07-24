@@ -16,6 +16,7 @@
 package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.HeaderBridgeTrustPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
@@ -32,6 +33,9 @@ public class HeaderAuthorizationStampResolver implements AuthorizationStampResol
     public Optional<AuthorizationStamp> resolve(HttpServletRequest request, RequestContextSnapshot requestContext, BridgeProperties properties) {
         BridgeProperties.Headers config = properties.getAuthorization().getHeaders();
         if (!config.isEnabled()) {
+            return Optional.empty();
+        }
+        if (!HeaderBridgeTrustPolicy.accepts(request, properties)) {
             return Optional.empty();
         }
         String effect = request.getHeader(config.getAuthorizationEffect());

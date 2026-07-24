@@ -146,6 +146,7 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
                 headers.set(name, value);
             }
         }
+        request.fault().ifPresent(headers::setAuthorizedFault);
     }
     protected final String resolveBaseUrl(OfficialVerificationExecutionRequest request) {
         if (request == null) {

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -79,7 +80,10 @@ final class PromptQualityFaultInjector {
         if (scenario.isBlank()) {
             return null;
         }
-        return scenario.toUpperCase(Locale.ROOT).replace('-', '_');
+        String normalizedScenario = scenario.toUpperCase(Locale.ROOT).replace('-', '_');
+        return OfficialVerificationProbeHeaders.consumeAuthorizedFaultMetadata(metadata, normalizedScenario)
+                ? normalizedScenario
+                : null;
     }
 
     private static String injectResourceActionConflict(String userPrompt) {

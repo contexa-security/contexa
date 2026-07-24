@@ -23,15 +23,24 @@ import java.util.Set;
 
 public class HeaderAuthBridge implements AuthBridge {
 
+    private final BridgeProperties bridgeProperties;
     private final BridgeProperties.Headers properties;
 
     public HeaderAuthBridge(BridgeProperties.Headers properties) {
-        this.properties = properties != null ? properties : new BridgeProperties.Headers();
+        this(propertiesFor(properties));
+    }
+
+    public HeaderAuthBridge(BridgeProperties properties) {
+        this.bridgeProperties = properties != null ? properties : new BridgeProperties();
+        this.properties = this.bridgeProperties.getAuthentication().getHeaders();
     }
 
     @Override
     public BridgedUser extractUser(HttpServletRequest request) {
         if (!properties.isEnabled()) {
+            return null;
+        }
+        if (!HeaderBridgeTrustPolicy.accepts(request, bridgeProperties)) {
             return null;
         }
         String authenticated = request.getHeader(properties.getAuthenticated());
@@ -77,5 +86,11 @@ public class HeaderAuthBridge implements AuthBridge {
             return Set.of();
         }
         return Set.of(raw.split("\\s*,\\s*"));
+    }
+
+    private static BridgeProperties propertiesFor(BridgeProperties.Headers headers) {
+        BridgeProperties properties = new BridgeProperties();
+        properties.getAuthentication().setHeaders(headers != null ? headers : new BridgeProperties.Headers());
+        return properties;
     }
 }

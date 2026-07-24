@@ -240,7 +240,7 @@ public class BridgeProperties {
 
     @Data
     public static class Headers {
-        private boolean enabled = true;
+        private boolean enabled = false;
         private String principalId = "X-Contexa-Principal-Id";
         private String displayName = "X-Contexa-Principal-Name";
         private String authenticated = "X-Contexa-Authenticated";

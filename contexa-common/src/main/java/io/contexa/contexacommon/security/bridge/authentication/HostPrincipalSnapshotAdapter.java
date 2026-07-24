@@ -1,10 +1,12 @@
 package io.contexa.contexacommon.security.bridge.authentication;
 
+import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,6 +16,8 @@ import java.util.Set;
 public final class HostPrincipalSnapshotAdapter {
 
     public static final HostPrincipalSnapshotAdapter INSTANCE = new HostPrincipalSnapshotAdapter();
+    private static final List<String> TRUSTED_IDENTITY_ATTRIBUTE_KEYS = List.of(
+            "tenantId", "organizationId", "orgId", "department");
 
     private HostPrincipalSnapshotAdapter() {
     }
@@ -40,7 +44,18 @@ public final class HostPrincipalSnapshotAdapter {
         if (principal != null) {
             trustedAttributes.put("principalType", principal.getClass().getName());
         }
+        copyTrustedIdentityAttributes(trustedAttributes, authentication.getDetails());
+        copyTrustedIdentityAttributes(trustedAttributes, principal);
         trustedAttributes.put("authenticated", true);
         return new HostPrincipalSnapshot(principalId, authorities, trustedAttributes);
+    }
+
+    private void copyTrustedIdentityAttributes(Map<String, Object> target, Object source) {
+        BridgeObjectExtractor.extractAttributes(source, TRUSTED_IDENTITY_ATTRIBUTE_KEYS)
+                .forEach((key, value) -> {
+                    if (value != null) {
+                        target.putIfAbsent(key, value);
+                    }
+                });
     }
 }

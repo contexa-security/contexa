@@ -25,4 +25,11 @@ public record ContextCoverageReport(
         List<String> remediationHints,
         List<String> confidenceWarnings,
         String summary) {
+
+    public ContextCoverageReport {
+        availableFacts = availableFacts == null ? List.of() : List.copyOf(availableFacts);
+        missingCriticalFacts = missingCriticalFacts == null ? List.of() : List.copyOf(missingCriticalFacts);
+        remediationHints = remediationHints == null ? List.of() : List.copyOf(remediationHints);
+        confidenceWarnings = confidenceWarnings == null ? List.of() : List.copyOf(confidenceWarnings);
+    }
 }

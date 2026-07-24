@@ -42,6 +42,7 @@ import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -251,9 +252,13 @@ public class ZeroTrustEventPublisher {
                 payload.put("anomalySignal", requestInfo.getAnomalySignal());
             }
             if (requestInfo.getPqaPromptFaultScenario() != null) {
-                payload.put("pqaPromptFaultEnabled", true);
-                payload.put("pqaPromptFaultScenario", requestInfo.getPqaPromptFaultScenario());
-                payload.put("pqaPromptFaultSource", "REQUEST");
+                OfficialVerificationProbeHeaders.authorizeFaultMetadata(
+                        payload, requestInfo.getPqaPromptFaultScenario());
+                payload.put("pqaPromptFaultSource", "OFFICIAL_VERIFICATION_INTERNAL");
+            }
+            if (Boolean.TRUE.equals(requestInfo.getPqaPromptFaultRejected())) {
+                payload.put("pqaPromptFaultRejected", true);
+                payload.put("pqaPromptFaultRejectedSource", requestInfo.getPqaPromptFaultRejectedSource());
             }
             if (requestInfo.getPromptBudgetProfile() != null) {
                 payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
@@ -922,13 +927,25 @@ public class ZeroTrustEventPublisher {
 
     private void reconcileAuthorizationDecision(boolean granted, Map<String, Object> payload) {
         String existingEffect = textValue(payload.get("authorizationEffect"));
+        if (StringUtils.hasText(existingEffect)) {
+            payload.putIfAbsent("bridgeAuthorizationEffect", existingEffect);
+        }
+        payload.put("methodAuthorizationGranted", granted);
         boolean synthesizedAuthorizationEffect = !StringUtils.hasText(existingEffect)
                 || "UNKNOWN".equalsIgnoreCase(existingEffect);
         if (synthesizedAuthorizationEffect) {
             payload.put("authorizationEffect", granted ? "ALLOW" : "DENY");
             payload.put("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+            payload.put("authorizationEffectFallbackFrom",
+                    StringUtils.hasText(existingEffect) ? existingEffect : "ABSENT");
         } else if (!hasNonNullPayload(payload, "authorizationEffectProvenance")) {
             payload.put("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
+        }
+        if (StringUtils.hasText(existingEffect)
+                && !"UNKNOWN".equalsIgnoreCase(existingEffect)
+                && granted != "ALLOW".equalsIgnoreCase(existingEffect)) {
+            payload.put("authorizationDecisionConflict",
+                    granted ? "METHOD_GRANTED_WITH_BRIDGE_DENY" : "METHOD_DENIED_WITH_BRIDGE_ALLOW");
         }
 
         if (!payload.containsKey("bridgeCoverageLevel") || hasNonNullPayload(payload, "bridgeCoverageSummary")) {

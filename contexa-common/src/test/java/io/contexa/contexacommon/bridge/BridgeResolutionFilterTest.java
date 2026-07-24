@@ -28,6 +28,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -49,7 +50,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldResolveHeaderContextWithoutReplacingHostAuthentication() throws Exception {
         BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         populateHeaderBridgeContext(request);
@@ -101,7 +102,7 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldDeriveAuthorizationStampFromAuthenticationAuthoritiesWhenExplicitAuthorizationIsMissing() throws Exception {
         BridgeResolutionFilter filter = createExternalContextFilter();
-        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
         request.addHeader("X-Contexa-Principal-Id", "alice");
@@ -124,6 +125,126 @@ class BridgeResolutionFilterTest {
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
         assertThat(result.coverageReport().missingContexts()).contains(MissingBridgeContext.AUTHORIZATION_EFFECT);
         assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldIgnoreHeaderContextByDefault() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        BridgeResolutionFilter filter = createExternalContextFilter(properties);
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        populateHeaderBridgeContext(request);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authenticationStamp()).isNull();
+        assertThat(result.authorizationStamp()).isNull();
+        assertThat(result.delegationStamp()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldRejectTrustedHeaderWhenSubjectDoesNotMatchHostPrincipal() throws Exception {
+        BridgeResolutionFilter filter = createExternalContextFilter();
+        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        populateHeaderBridgeContext(request);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authenticationStamp()).isNull();
+        assertThat(result.authorizationStamp()).isNull();
+        assertThat(result.delegationStamp()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldRejectHeaderContextFromUntrustedSource() throws Exception {
+        BridgeResolutionFilter filter = createExternalContextFilter();
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setRemoteAddr("203.0.113.10");
+        populateHeaderBridgeContext(request);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authenticationStamp()).isNull();
+        assertThat(result.authorizationStamp()).isNull();
+        assertThat(result.delegationStamp()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldRejectHeaderTenantThatDoesNotMatchHostPrincipalSnapshot() throws Exception {
+        BridgeResolutionFilter filter = createExternalContextFilter();
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of("tenantId", "tenant-a"));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        populateHeaderBridgeContext(request);
+        request.addHeader("X-Contexa-Tenant-Id", "tenant-b");
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authenticationStamp()).isNull();
+        assertThat(result.authorizationStamp()).isNull();
+        assertThat(result.delegationStamp()).isNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldPreferExplicitSessionDenyOverSecurityContextUnknown() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
+        user.setAuthorizationEffect("DENY");
+        user.setPolicyId("session-deny-policy");
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("LOGIN_USER", user);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setSession(session);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authorizationStamp().effect().name()).isEqualTo("DENY");
+        assertThat(result.authorizationStamp().decisionSource()).isEqualTo("SESSION");
+        assertThat(result.authorizationStamp().policyId()).isEqualTo("session-deny-policy");
+        assertThat(result.authorizationStamp().attributes().get("authorizationEvidenceSources"))
+                .isEqualTo(List.of("SECURITY_CONTEXT", "SESSION"));
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
+    }
+
+    @Test
+    void shouldFailSafeToDenyWhenExplicitAuthorizationEffectsConflict() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        BridgeResolutionFilter filter = createSecurityContextAndSessionFilter(properties);
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
+        ((UsernamePasswordAuthenticationToken) hostAuthentication).setDetails(Map.of(
+                "authorizationEffect", "ALLOW",
+                "policyId", "host-allow-policy"));
+        SessionUser user = sessionUser("alice", List.of("REPORT_EXPORT"));
+        user.setAuthorizationEffect("DENY");
+        user.setPolicyId("session-deny-policy");
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("LOGIN_USER", user);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setSession(session);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.authorizationStamp().effect().name()).isEqualTo("DENY");
+        assertThat(result.authorizationStamp().decisionSource()).isEqualTo("CONFLICT_FAIL_SAFE");
+        assertThat(result.authorizationStamp().policyId()).isEqualTo("session-deny-policy");
+        assertThat(result.authorizationStamp().attributes())
+                .containsEntry("authorizationConflict", true)
+                .containsEntry("authorizationConflictResolution", "DENY_FAIL_SAFE");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 
@@ -158,12 +279,13 @@ class BridgeResolutionFilterTest {
     @Test
     void shouldProjectShadowUserSyncResultIntoSecurityContext() throws Exception {
         BridgeProperties properties = new BridgeProperties();
+        enableTrustedHeaders(properties);
         BridgeResolutionFilter filter = new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),
                 List.of(new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(List.of(
                         new SessionAuthBridge(properties.getAuthentication().getSession()),
-                        new HeaderAuthBridge(properties.getAuthentication().getHeaders())
+                        new HeaderAuthBridge(properties)
                 )))),
                 List.of(
                         new SessionAuthorizationStampResolver(),
@@ -186,7 +308,7 @@ class BridgeResolutionFilterTest {
                 )
         );
 
-        Authentication hostAuthentication = authenticateHost("host-user", "ROLE_HOST");
+        Authentication hostAuthentication = authenticateHost("alice", "ROLE_HOST");
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         populateHeaderBridgeContext(request);
 
@@ -204,12 +326,17 @@ class BridgeResolutionFilterTest {
 
     private BridgeResolutionFilter createExternalContextFilter() {
         BridgeProperties properties = new BridgeProperties();
+        enableTrustedHeaders(properties);
+        return createExternalContextFilter(properties);
+    }
+
+    private BridgeResolutionFilter createExternalContextFilter(BridgeProperties properties) {
         return new BridgeResolutionFilter(
                 properties,
                 new RequestContextCollector(),
                 List.of(new AuthBridgeAuthenticationStampResolver(new CompositeAuthBridge(List.of(
                         new SessionAuthBridge(properties.getAuthentication().getSession()),
-                        new HeaderAuthBridge(properties.getAuthentication().getHeaders())
+                        new HeaderAuthBridge(properties)
                 )))),
                 List.of(
                         new SessionAuthorizationStampResolver(),
@@ -221,6 +348,29 @@ class BridgeResolutionFilterTest {
                 ),
                 new BridgeCoverageEvaluator()
         );
+    }
+
+    private BridgeResolutionFilter createSecurityContextAndSessionFilter(BridgeProperties properties) {
+        return new BridgeResolutionFilter(
+                properties,
+                new RequestContextCollector(),
+                List.of(
+                        new SecurityContextAuthenticationStampResolver(),
+                        new AuthBridgeAuthenticationStampResolver(
+                                new SessionAuthBridge(properties.getAuthentication().getSession()))),
+                List.of(
+                        new SecurityContextAuthorizationStampResolver(),
+                        new SessionAuthorizationStampResolver()),
+                List.of(),
+                new BridgeCoverageEvaluator()
+        );
+    }
+
+    private void enableTrustedHeaders(BridgeProperties properties) {
+        properties.getAuthentication().getHeaders().setEnabled(true);
+        properties.getAuthorization().getHeaders().setEnabled(true);
+        properties.getDelegation().getHeaders().setEnabled(true);
+        properties.getNetwork().setTrustedProxies(List.of("127.0.0.1"));
     }
 
     private BridgeResolutionFilter createSecurityContextFilter() {
@@ -272,6 +422,8 @@ class BridgeResolutionFilterTest {
         sessionUser.setRoles(List.of("ROLE_USER"));
         sessionUser.setPermissions(permissions);
         sessionUser.setAuthorizationEffect("ALLOW");
+        sessionUser.setPolicyId("session-policy");
+        sessionUser.setPolicyVersion("1");
         sessionUser.setPrivileged(false);
         sessionUser.setScopeTags(List.of("customer_data"));
         sessionUser.setDelegated(true);
@@ -293,6 +445,8 @@ class BridgeResolutionFilterTest {
         private List<String> permissions = List.of();
         private List<String> scopeTags = List.of();
         private String authorizationEffect;
+        private String policyId;
+        private String policyVersion;
         private boolean privileged;
         private boolean delegated;
         private String agentId;
@@ -350,6 +504,22 @@ class BridgeResolutionFilterTest {
 
         public void setAuthorizationEffect(String authorizationEffect) {
             this.authorizationEffect = authorizationEffect;
+        }
+
+        public String getPolicyId() {
+            return policyId;
+        }
+
+        public void setPolicyId(String policyId) {
+            this.policyId = policyId;
+        }
+
+        public String getPolicyVersion() {
+            return policyVersion;
+        }
+
+        public void setPolicyVersion(String policyVersion) {
+            this.policyVersion = policyVersion;
         }
 
         public boolean isPrivileged() {

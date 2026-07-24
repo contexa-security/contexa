@@ -78,7 +78,7 @@ public class AiBridgeConfiguration {
 
         SessionAuthBridge sessionAuthBridge = new SessionAuthBridge(sessionProperties);
         RequestAttributeAuthBridge requestAttributeAuthBridge = new RequestAttributeAuthBridge(requestAttributes);
-        HeaderAuthBridge headerAuthBridge = new HeaderAuthBridge(properties.getAuthentication().getHeaders());
+        HeaderAuthBridge headerAuthBridge = new HeaderAuthBridge(properties);
 
         List<AuthBridge> bridges = new ArrayList<>();
         AuthObjectLocation location = resolveAuthObjectLocation(environment);

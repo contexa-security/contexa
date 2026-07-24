@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 The Contexa Project
  *
  * The Contexa Project licenses this file to you under the Apache License,

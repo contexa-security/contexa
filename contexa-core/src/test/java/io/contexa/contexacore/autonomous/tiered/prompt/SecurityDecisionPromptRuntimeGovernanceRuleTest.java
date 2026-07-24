@@ -22,11 +22,15 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplication;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlan;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlanProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -55,7 +59,10 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
-                new PromptContextComposer(),
+                promptContextComposer(List.of(slotPlan(
+                        "runtime.test.narrative",
+                        "CURRENT REQUEST AND EVENT",
+                        "EventId"))),
                 null,
                 provider);
 
@@ -129,6 +136,8 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         event.addMetadata("authorizationEffect", "ALLOW");
         event.addMetadata("pqaPromptFaultEnabled", true);
         event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+        OfficialVerificationProbeHeaders.authorizeFaultMetadata(
+                event.getMetadata(), "RAG_SCOPE_SLOT_FAULT");
 
         SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
                 event,
@@ -186,7 +195,15 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
-                new PromptContextComposer(),
+                promptContextComposer(List.of(
+                        slotPlan(
+                                "user_ragevidence_scopeboundary_section_threat_memory_test",
+                                "RAG EVIDENCE",
+                                "RagDocument1"),
+                        slotPlan(
+                                "user_ragevidence_authorizationreason_groupterm_authorized_test",
+                                "RAG EVIDENCE",
+                                "RagAuthorizationReason"))),
                 null,
                 provider);
 
@@ -204,6 +221,8 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         event.addMetadata("authorizationEffect", "ALLOW");
         event.addMetadata("pqaPromptFaultEnabled", true);
         event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+        OfficialVerificationProbeHeaders.authorizeFaultMetadata(
+                event.getMetadata(), "RAG_SCOPE_SLOT_FAULT");
 
         SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
                 event,
@@ -236,6 +255,52 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         assertThat(provider.recordedApplications()).hasSize(2);
         assertThat(provider.recordedApplications())
                 .allSatisfy(application -> assertThat(application.changedPrompt()).isTrue());
+    }
+
+    @Test
+    void ordinaryEventMetadataCannotActivatePromptFaultWithoutInternalCapability() {
+        SecurityEvent event = SecurityEvent.builder().eventId("untrusted-fault-event").build();
+        event.addMetadata("pqaPromptFaultEnabled", true);
+        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+        SecurityPromptBuildContext context = new SecurityPromptBuildContext(
+                event, null, null, List.of(), null, null, null, null, null, null, null);
+        String originalPrompt = "ResourceId: resource-001\nActionFamily: READ\n";
+
+        PromptQualityFaultInjectionResult result = PromptQualityFaultInjector.apply(originalPrompt, context);
+
+        assertThat(result.userPrompt()).isEqualTo(originalPrompt);
+        assertThat(result.metadata()).isEmpty();
+        assertThat(event.getMetadata())
+                .containsEntry("pqaPromptFaultRejected", true)
+                .containsEntry("pqaPromptFaultRejectedSource", "UNTRUSTED_EVENT_METADATA");
+    }
+
+    private static PromptContextComposer promptContextComposer(List<PromptSlotPlan> plans) {
+        PromptSlotPlanProvider provider = new PromptSlotPlanProvider() {
+            @Override
+            public PromptSlotPlan planFor(String sectionKey, String labelKey) {
+                return PromptSlotPlan.unscoped(sectionKey, labelKey);
+            }
+
+            @Override
+            public List<PromptSlotPlan> plansForSlotKey(String promptKey, String slotKey) {
+                return plans.stream()
+                        .filter(plan -> plan.slotKey().equals(slotKey))
+                        .toList();
+            }
+        };
+        return new PromptContextComposer(new PromptSlotRenderer(), provider);
+    }
+
+    private static PromptSlotPlan slotPlan(String slotKey, String sectionKey, String labelKey) {
+        return new PromptSlotPlan(
+                slotKey,
+                sectionKey,
+                labelKey,
+                "canonical." + labelKey,
+                "PromptContextComposer",
+                "P1_HIGH_VALUE",
+                "PROTECT");
     }
 
     private static final class CapturingRuleProvider implements PromptRuntimeGovernanceRuleProvider {

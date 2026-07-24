@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context.prompt;
 
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.SecurityPromptSectionCatalog;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -29,6 +30,48 @@ public class PromptRuntimeGovernanceRuleApplier {
     public PromptRuntimeGovernanceRuleApplicationResult apply(
             String userPrompt,
             List<PromptRuntimeGovernanceRule> rules) {
+        return applyInternal(userPrompt, rules, null, false);
+    }
+
+    public PromptRuntimeGovernanceRuleApplicationResult apply(
+            String userPrompt,
+            List<PromptRuntimeGovernanceRule> rules,
+            PromptSlotPlanProvider slotPlanProvider) {
+        return applyInternal(
+                userPrompt,
+                rules,
+                slotPlanProvider == null ? null : slotPlanProvider::plansForSlotKey,
+                false);
+    }
+
+    public PromptRuntimeGovernanceRuleApplicationResult apply(
+            String userPrompt,
+            List<PromptRuntimeGovernanceRule> rules,
+            PromptContextComposer promptContextComposer) {
+        return applyInternal(
+                userPrompt,
+                rules,
+                promptContextComposer == null ? null : promptContextComposer::plansForSlotKey,
+                false);
+    }
+
+    public PromptRuntimeGovernanceRuleApplicationResult apply(
+            String userPrompt,
+            List<PromptRuntimeGovernanceRule> rules,
+            PromptContextComposer promptContextComposer,
+            boolean authorizedOfficialFaultRepair) {
+        return applyInternal(
+                userPrompt,
+                rules,
+                promptContextComposer == null ? null : promptContextComposer::plansForSlotKey,
+                authorizedOfficialFaultRepair);
+    }
+
+    private PromptRuntimeGovernanceRuleApplicationResult applyInternal(
+            String userPrompt,
+            List<PromptRuntimeGovernanceRule> rules,
+            SlotPlanResolver slotPlanResolver,
+            boolean authorizedOfficialFaultRepair) {
         String currentPrompt = userPrompt == null ? "" : userPrompt;
         if (rules == null || rules.isEmpty()) {
             return new PromptRuntimeGovernanceRuleApplicationResult(currentPrompt, List.of());
@@ -41,7 +84,24 @@ public class PromptRuntimeGovernanceRuleApplier {
         for (PromptRuntimeGovernanceRule rule : orderedRules) {
             String before = currentPrompt;
             String beforeHash = PromptGovernanceSupport.sha256(before);
-            AppliedRule applied = applyRule(currentPrompt, rule);
+            AppliedRule applied;
+            if (slotPlanResolver == null) {
+                applied = applyRule(currentPrompt, rule, authorizedOfficialFaultRepair);
+            }
+            else {
+                SlotRuleScope scope = validateSlotRuleScope(currentPrompt, rule, slotPlanResolver);
+                if (!scope.valid()) {
+                    applied = new AppliedRule(currentPrompt, scope.resultState());
+                }
+                else {
+                    String scopedPrompt = currentPrompt.substring(scope.startInclusive(), scope.endExclusive());
+                    AppliedRule scopedResult = applyRule(scopedPrompt, rule, authorizedOfficialFaultRepair);
+                    String updated = currentPrompt.substring(0, scope.startInclusive())
+                            + scopedResult.userPrompt()
+                            + currentPrompt.substring(scope.endExclusive());
+                    applied = new AppliedRule(updated, scopedResult.resultState());
+                }
+            }
             currentPrompt = applied.userPrompt();
             boolean changed = !before.equals(currentPrompt);
             applications.add(new PromptRuntimeGovernanceRuleApplication(
@@ -58,19 +118,171 @@ public class PromptRuntimeGovernanceRuleApplier {
         return new PromptRuntimeGovernanceRuleApplicationResult(currentPrompt, List.copyOf(applications));
     }
 
-    private AppliedRule applyRule(String prompt, PromptRuntimeGovernanceRule rule) {
+    private SlotRuleScope validateSlotRuleScope(
+            String prompt,
+            PromptRuntimeGovernanceRule rule,
+            SlotPlanResolver slotPlanResolver) {
+        if (rule == null || !StringUtils.hasText(rule.slotKey())) {
+            return SlotRuleScope.invalid("SKIPPED_SLOT_KEY_REQUIRED");
+        }
+        List<PromptSlotPlan> plans = slotPlanResolver.resolve(rule.promptKey(), rule.slotKey());
+        if (plans == null || plans.isEmpty()) {
+            return SlotRuleScope.invalid("SKIPPED_SLOT_NOT_FOUND");
+        }
+        if (plans.size() != 1) {
+            return SlotRuleScope.invalid("SKIPPED_DUPLICATE_SLOT_CONTRACT");
+        }
+        PromptSlotPlan plan = plans.get(0);
+        if (plan == null || !StringUtils.hasText(plan.sectionKey()) || !StringUtils.hasText(plan.labelKey())) {
+            return SlotRuleScope.invalid("SKIPPED_INVALID_SLOT_CONTRACT");
+        }
+        String requestedSection = firstText(rule, "sectionKey");
+        if (StringUtils.hasText(requestedSection)
+                && !normalize(requestedSection).equals(normalize(plan.sectionKey()))) {
+            return SlotRuleScope.invalid("SKIPPED_SECTION_MISMATCH");
+        }
+        List<SectionRange> sectionRanges = sectionRanges(prompt, plan.sectionKey());
+        if (sectionRanges.isEmpty()) {
+            int renderedSlotCount = countExactLabel(prompt, plan.labelKey());
+            if (renderedSlotCount > 1) {
+                return SlotRuleScope.invalid("SKIPPED_DUPLICATE_RENDERED_SLOT");
+            }
+            if (renderedSlotCount == 0) {
+                return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
+            }
+            sectionRanges = sectionRangeForUniqueLabel(prompt, plan.labelKey());
+            if (sectionRanges.isEmpty()) {
+                return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
+            }
+        }
+        if (sectionRanges.size() != 1) {
+            return SlotRuleScope.invalid("SKIPPED_DUPLICATE_SECTION");
+        }
+        SectionRange section = sectionRanges.get(0);
+        String sectionText = prompt.substring(section.startInclusive(), section.endExclusive());
+        int renderedSlotCount = countExactLabel(sectionText, plan.labelKey());
+        if (renderedSlotCount > 1) {
+            return SlotRuleScope.invalid("SKIPPED_DUPLICATE_RENDERED_SLOT");
+        }
+        if (requiresRenderedSlot(rule.ruleType()) && renderedSlotCount == 0) {
+            return SlotRuleScope.invalid("SKIPPED_SLOT_NOT_RENDERED");
+        }
+        return new SlotRuleScope(true, section.startInclusive(), section.endExclusive(), "VALID");
+    }
+
+    private List<SectionRange> sectionRanges(String prompt, String sectionKey) {
+        if (!StringUtils.hasText(prompt) || !StringUtils.hasText(sectionKey)) {
+            return List.of();
+        }
+        String[] lines = prompt.split("\\n", -1);
+        List<Integer> lineStarts = new ArrayList<>();
+        int offset = 0;
+        for (String line : lines) {
+            lineStarts.add(offset);
+            offset += line.length() + 1;
+        }
+        List<String> expectedMarkers = SecurityPromptSectionCatalog.headersFor(sectionKey.trim());
+        if (expectedMarkers.isEmpty()) {
+            expectedMarkers = List.of("=== " + sectionKey.trim() + " ===");
+        }
+        List<SectionRange> ranges = new ArrayList<>();
+        for (int index = 0; index < lines.length; index++) {
+            String renderedLine = lines[index].trim();
+            if (!expectedMarkers.contains(renderedLine)) {
+                continue;
+            }
+            int endIndex = index + 1;
+            while (endIndex < lines.length && !lines[endIndex].trim().startsWith("=== ")) {
+                endIndex++;
+            }
+            int end = endIndex < lineStarts.size() ? lineStarts.get(endIndex) : prompt.length();
+            ranges.add(new SectionRange(lineStarts.get(index), Math.min(end, prompt.length())));
+        }
+        return List.copyOf(ranges);
+    }
+
+    private List<SectionRange> sectionRangeForUniqueLabel(String prompt, String label) {
+        if (!StringUtils.hasText(prompt) || !StringUtils.hasText(label)) {
+            return List.of();
+        }
+        String[] lines = prompt.split("\\n", -1);
+        List<Integer> lineStarts = new ArrayList<>();
+        int offset = 0;
+        int labelIndex = -1;
+        for (int index = 0; index < lines.length; index++) {
+            lineStarts.add(offset);
+            offset += lines[index].length() + 1;
+            if (isExactLabelLine(lines[index], label)) {
+                if (labelIndex >= 0) {
+                    return List.of();
+                }
+                labelIndex = index;
+            }
+        }
+        if (labelIndex < 0) {
+            return List.of();
+        }
+        int sectionIndex = labelIndex;
+        while (sectionIndex >= 0 && !lines[sectionIndex].trim().startsWith("=== ")) {
+            sectionIndex--;
+        }
+        if (sectionIndex < 0) {
+            return List.of();
+        }
+        int endIndex = labelIndex + 1;
+        while (endIndex < lines.length && !lines[endIndex].trim().startsWith("=== ")) {
+            endIndex++;
+        }
+        int end = endIndex < lineStarts.size() ? lineStarts.get(endIndex) : prompt.length();
+        return List.of(new SectionRange(lineStarts.get(sectionIndex), Math.min(end, prompt.length())));
+    }
+
+    private int countExactLabel(String sectionText, String label) {
+        int count = 0;
+        for (String line : sectionText.split("\\R")) {
+            if (isExactLabelLine(line, label)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean isExactLabelLine(String line, String label) {
+        return line != null
+                && StringUtils.hasText(label)
+                && line.stripLeading().startsWith(label.trim() + ":");
+    }
+
+    private boolean requiresRenderedSlot(String ruleType) {
+        return "UPDATE_SLOT_VALUE".equals(ruleType)
+                || "SUPPRESS_SLOT".equals(ruleType)
+                || "REORDER_SLOT".equals(ruleType)
+                || "RAISE_PRIORITY".equals(ruleType)
+                || "FORBID_TRUNCATION".equals(ruleType)
+                || "REPLACE_SECTION_POLICY".equals(ruleType);
+    }
+
+    private AppliedRule applyRule(
+            String prompt,
+            PromptRuntimeGovernanceRule rule,
+            boolean authorizedOfficialFaultRepair) {
         String ruleType = rule == null ? null : rule.ruleType();
         if (!StringUtils.hasText(ruleType)) {
             return new AppliedRule(prompt, "SKIPPED_UNSUPPORTED_RULE_TYPE");
         }
         if ("SUPPRESS_SLOT".equals(ruleType)) {
-            return suppress(prompt, rule);
+            return authorizedOfficialFaultRepair ? suppress(prompt, rule) : suppressExact(prompt, rule);
         }
         if ("UPDATE_SLOT_VALUE".equals(ruleType)) {
             return updateSlotValue(prompt, rule);
         }
+        if ("ADD_SLOT".equals(ruleType)) {
+            return appendConfiguredText(prompt, rule);
+        }
         if ("FORBID_TRUNCATION".equals(ruleType)) {
-            return forbidTruncation(prompt, rule);
+            return authorizedOfficialFaultRepair
+                    ? forbidTruncation(prompt, rule)
+                    : appendConfiguredText(prompt, rule);
         }
         if ("REORDER_SLOT".equals(ruleType) || "RAISE_PRIORITY".equals(ruleType)) {
             return reorder(prompt, rule);
@@ -82,7 +294,12 @@ public class PromptRuntimeGovernanceRuleApplier {
             return new AppliedRule(prompt, "SKIPPED_INPUT_RECOLLECTION_REQUIRED");
         }
         if ("ADD_NARRATIVE".equals(ruleType) || "ADD_LIMITATION".equals(ruleType)) {
-            return addRuntimeExplanation(prompt, rule);
+            return authorizedOfficialFaultRepair
+                    ? addRuntimeExplanation(prompt, rule)
+                    : appendConfiguredText(prompt, rule);
+        }
+        if (!authorizedOfficialFaultRepair) {
+            return new AppliedRule(prompt, "SKIPPED_UNSUPPORTED_RULE_TYPE");
         }
         AppliedRule structuredRepair = repairStructuredRuntimeSlot(prompt, rule);
         if (!prompt.equals(structuredRepair.userPrompt())) {
@@ -111,6 +328,37 @@ public class PromptRuntimeGovernanceRuleApplier {
                 ? prompt + text + "\n"
                 : prompt + "\n" + text + "\n";
         return new AppliedRule(updated, "APPLIED");
+    }
+
+    private AppliedRule suppressExact(String prompt, PromptRuntimeGovernanceRule rule) {
+        String pattern = firstText(rule, "suppressPattern", "label");
+        if (!StringUtils.hasText(pattern) || !prompt.contains(pattern)) {
+            return new AppliedRule(prompt, "SKIPPED_NO_MATCH");
+        }
+        StringBuilder result = new StringBuilder();
+        boolean removed = false;
+        for (String line : prompt.split("\\R", -1)) {
+            if (line.contains(pattern)) {
+                removed = true;
+                continue;
+            }
+            result.append(line).append("\n");
+        }
+        return removed
+                ? new AppliedRule(result.toString(), "APPLIED")
+                : new AppliedRule(prompt, "SKIPPED_NO_MATCH");
+    }
+
+    private AppliedRule appendConfiguredText(String prompt, PromptRuntimeGovernanceRule rule) {
+        String text = firstText(
+                rule, "renderedValue", "narrative", "limitation", "runtimeInstruction", "completionCriterion");
+        if (!StringUtils.hasText(text)) {
+            return new AppliedRule(prompt, "SKIPPED_NO_RENDERABLE_PAYLOAD");
+        }
+        if (prompt.contains(text)) {
+            return new AppliedRule(prompt, "SKIPPED_ALREADY_PRESENT");
+        }
+        return new AppliedRule(appendLine(prompt, text), "APPLIED");
     }
 
     private AppliedRule suppress(String prompt, PromptRuntimeGovernanceRule rule) {
@@ -1140,6 +1388,20 @@ public class PromptRuntimeGovernanceRuleApplier {
     }
 
     private record AppliedRule(String userPrompt, String resultState) {
+    }
+
+    private record SectionRange(int startInclusive, int endExclusive) {
+    }
+
+    private record SlotRuleScope(boolean valid, int startInclusive, int endExclusive, String resultState) {
+        private static SlotRuleScope invalid(String resultState) {
+            return new SlotRuleScope(false, 0, 0, resultState);
+        }
+    }
+
+    @FunctionalInterface
+    private interface SlotPlanResolver {
+        List<PromptSlotPlan> resolve(String promptKey, String slotKey);
     }
 }
 

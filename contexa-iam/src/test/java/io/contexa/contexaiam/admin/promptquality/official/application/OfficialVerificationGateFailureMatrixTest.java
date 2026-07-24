@@ -16,11 +16,13 @@ import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceP
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeGovernanceDescriptorVerificationResult;
 import io.contexa.contexaiam.admin.promptquality.official.common.DefaultPromptQualityMessageResolver;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.support.StaticMessageSource;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.springframework.context.support.ResourceBundleMessageSource;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,12 +30,20 @@ class OfficialVerificationGateFailureMatrixTest {
 
     private final OfficialVerificationVerdictFactory verdictFactory = new OfficialVerificationVerdictFactory();
     private final DefaultPromptQualityMessageResolver messageResolver = new DefaultPromptQualityMessageResolver(
-            new StaticMessageSource());
+            messageSource());
     private final DefaultPromptQualityRuntimeCertificationPolicy policy =
             new DefaultPromptQualityRuntimeCertificationPolicy(
                     new ObjectMapper(),
                     (evidencePackage, metadata) -> RuntimeGovernanceDescriptorVerificationResult.empty(),
                     messageResolver);
+
+    private static ResourceBundleMessageSource messageSource() {
+        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
+        source.setBasename("i18n.messages");
+        source.setDefaultEncoding("UTF-8");
+        source.setFallbackToSystemLocale(false);
+        return source;
+    }
 
     @Test
     void integrityFailureIsIneligible() {
@@ -107,6 +117,30 @@ class OfficialVerificationGateFailureMatrixTest {
         assertIneligible(evaluate(governedPolicy, validPackage(), true, passingScorecard(),
                         passingReplay("prompt-hash"), passingMetrics()),
                 passedConsistency(), OfficialVerificationGateCode.GOVERNANCE_DESCRIPTOR);
+    }
+
+    @Test
+    void passesGovernanceDescriptorObjectFromSealedMetadataToVerifier() {
+        AtomicReference<Map<String, Object>> capturedMetadata = new AtomicReference<>();
+        DefaultPromptQualityRuntimeCertificationPolicy governedPolicy =
+                new DefaultPromptQualityRuntimeCertificationPolicy(new ObjectMapper(), (evidencePackage, metadata) -> {
+                    capturedMetadata.set(metadata);
+                    return RuntimeGovernanceDescriptorVerificationResult.empty();
+                }, messageResolver);
+        SealedEvidencePackage evidencePackage = validPackage();
+        evidencePackage.setPromptExecutionMetadataJson("""
+                {"governanceDescriptor":{"registryScope":"PLATFORM_GLOBAL","promptKey":"cortex.security-decision","templateKey":"SecurityDecisionStandard","promptVersion":"2026.06.24-v2","contractVersion":"CORTEX_PROMPT_CONTRACT_V2"},"promptCompressionLedger":[]}
+                """);
+
+        evaluate(governedPolicy, evidencePackage, true, passingScorecard(),
+                passingReplay("prompt-hash"), passingMetrics());
+
+        assertThat(capturedMetadata.get()).containsKey("governanceDescriptor");
+        assertThat(capturedMetadata.get().get("governanceDescriptor"))
+                .isInstanceOf(Map.class)
+                .asInstanceOf(InstanceOfAssertFactories.MAP)
+                .containsEntry("promptVersion", "2026.06.24-v2")
+                .containsEntry("contractVersion", "CORTEX_PROMPT_CONTRACT_V2");
     }
 
     @Test

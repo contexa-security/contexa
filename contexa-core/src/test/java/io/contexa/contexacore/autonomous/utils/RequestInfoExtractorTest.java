@@ -330,4 +330,17 @@ class RequestInfoExtractorTest {
 
         assertThat(clientIp).isEqualTo("203.0.113.10");
     }
+
+    @Test
+    void ordinaryFaultHeaderCannotEnablePromptFaultAndIsRecordedAsRejected() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/ordinary/resource");
+        request.addHeader("X-PQA-Prompt-Fault", "RUNTIME_SLOT_MULTI_FAULT");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getPqaPromptFaultScenario()).isNull();
+        assertThat(requestInfo.getPqaPromptFaultRejected()).isTrue();
+        assertThat(requestInfo.getPqaPromptFaultRejectedSource()).isEqualTo("UNTRUSTED_REQUEST_HEADER");
+    }
 }

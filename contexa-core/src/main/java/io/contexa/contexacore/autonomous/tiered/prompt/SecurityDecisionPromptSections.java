@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
@@ -69,6 +71,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
@@ -141,7 +144,8 @@ public class SecurityDecisionPromptSections {
     private final LearningContextEvidenceAssembler learningContextEvidenceAssembler;
     private final List<PromptSectionPlan> systemSectionPlans;
     private final List<PromptSectionPlan> userSectionPlans;
-    private final Cache<String, CanonicalSecurityContext> canonicalSecurityContextCache;
+    private final Cache<String, byte[]> canonicalSecurityContextCache;
+    private final ObjectMapper canonicalContextSnapshotMapper;
     private final Cache<String, RenderedPromptSections> systemSectionsCache;
 
     public SecurityDecisionPromptSections(
@@ -195,6 +199,7 @@ public class SecurityDecisionPromptSections {
                 : PromptRuntimeGovernanceRuleProvider.none();
         this.promptRuntimeGovernanceRuleApplier = new PromptRuntimeGovernanceRuleApplier();
         this.learningContextEvidenceAssembler = new LearningContextEvidenceAssembler();
+        this.canonicalContextSnapshotMapper = new ObjectMapper().findAndRegisterModules();
         this.canonicalSecurityContextCache = Caffeine.newBuilder()
                 .maximumSize(2000)
                 .expireAfterWrite(15, TimeUnit.MINUTES)
@@ -299,10 +304,13 @@ public class SecurityDecisionPromptSections {
             );
         }
         long createBuildContextMs = elapsedMillis(createContextStartedNanos);
+        long descriptorStartedNanos = System.nanoTime();
+        PromptGovernanceDescriptorResolution governanceResolution = resolvePromptGovernanceDescriptor(buildContext);
+        long governanceDescriptorMs = elapsedMillis(descriptorStartedNanos);
         long runtimeGovernanceStartedNanos = System.nanoTime();
         PromptGovernanceResolutionContext runtimeResolutionContext = promptGovernanceResolutionContext(buildContext);
         PromptRuntimeGovernanceRuleContext runtimeGovernanceRuleContext =
-                promptRuntimeGovernanceRuleContext(runtimeResolutionContext);
+                promptRuntimeGovernanceRuleContext(runtimeResolutionContext, governanceResolution.descriptor());
         List<PromptRuntimeGovernanceRule> runtimeGovernanceRules =
                 promptRuntimeGovernanceRuleProvider.activeRules(runtimeGovernanceRuleContext);
         buildContext = buildContext.withRuntimeGovernanceRules(runtimeGovernanceRules);
@@ -338,8 +346,12 @@ public class SecurityDecisionPromptSections {
         userText = promptFaultInjectionResult.userPrompt();
         long promptFaultMs = elapsedMillis(promptFaultStartedNanos);
         long runtimeGovernanceApplyStartedNanos = System.nanoTime();
-        PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
-                promptRuntimeGovernanceRuleApplier.apply(userText, runtimeGovernanceRules);
+      PromptRuntimeGovernanceRuleApplicationResult runtimeGovernanceResult =
+              promptRuntimeGovernanceRuleApplier.apply(
+                      userText,
+                      runtimeGovernanceRules,
+                      promptContextComposer,
+                      Boolean.TRUE.equals(promptFaultInjectionResult.metadata().get("pqaPromptFaultApplied")));
         userText = runtimeGovernanceResult.userPrompt();
         long runtimeGovernanceApplyMs = elapsedMillis(runtimeGovernanceApplyStartedNanos);
         long renderTimeMs = elapsedMillis(renderStartedNanos);
@@ -349,9 +361,6 @@ public class SecurityDecisionPromptSections {
         long completenessStartedNanos = System.nanoTime();
         PromptEvidenceCompleteness promptEvidenceCompleteness = evaluateCompleteness(buildContext, omissionLedger, promptContractAudit);
         long completenessMs = elapsedMillis(completenessStartedNanos);
-        long descriptorStartedNanos = System.nanoTime();
-        PromptGovernanceDescriptorResolution governanceResolution = resolvePromptGovernanceDescriptor(buildContext);
-        long governanceDescriptorMs = elapsedMillis(descriptorStartedNanos);
         long metadataStartedNanos = System.nanoTime();
         Map<String, Object> supplementalMetadata = new LinkedHashMap<>();
         supplementalMetadata.putAll(buildRagPromptMetadata(buildContext));
@@ -374,6 +383,8 @@ public class SecurityDecisionPromptSections {
                 runtimeGovernanceResult.applications(),
                 PromptGovernanceSupport.sha256(systemText != null ? systemText : ""),
                 PromptGovernanceSupport.sha256(userText != null ? userText : ""));
+        supplementalMetadata.putAll(
+                promptRuntimeGovernanceRuleProvider.runtimeCacheMetadata(runtimeGovernanceRuleContext));
         long recordApplicationsMs = elapsedMillis(recordApplicationsStartedNanos);
         supplementalMetadata.put("promptTiming.createBuildContextMs", createBuildContextMs);
         supplementalMetadata.put("promptTiming.runtimeGovernanceLookupMs", runtimeGovernanceLookupMs);
@@ -654,16 +665,26 @@ public class SecurityDecisionPromptSections {
     }
 
     private PromptRuntimeGovernanceRuleContext promptRuntimeGovernanceRuleContext(
-            PromptGovernanceResolutionContext resolutionContext) {
+            PromptGovernanceResolutionContext resolutionContext,
+            PromptGovernanceDescriptor resolvedDescriptor) {
+        PromptGovernanceDescriptor descriptor = resolvedDescriptor != null
+                ? resolvedDescriptor
+                : promptGovernanceDescriptor;
+        Map<String, Object> attributes = new LinkedHashMap<>(resolutionContext.attributes());
+        attributes.put("registryScope", resolutionContext.registryScope());
+        attributes.put("promptKey", descriptor.promptKey());
+        attributes.put("templateKey", descriptor.templateKey());
+        attributes.put("promptVersion", descriptor.promptVersion());
+        attributes.put("contractVersion", descriptor.contractVersion());
         return new PromptRuntimeGovernanceRuleContext(
                 resolutionContext.registryScope(),
-                resolutionContext.promptKey(),
-                promptGovernanceDescriptor.promptVersion(),
+                descriptor.promptKey(),
+                descriptor.promptVersion(),
                 resolutionContext.tenantId(),
                 resolutionContext.resourceId(),
                 resolutionContext.resourceUrl(),
                 resolutionContext.httpMethod(),
-                resolutionContext.attributes());
+                Map.copyOf(attributes));
     }
 
     private Map<String, Object> buildPromptRuntimeGovernanceMetadata(
@@ -884,41 +905,53 @@ public class SecurityDecisionPromptSections {
             SecurityPromptBuildContext buildContext,
             List<PromptOmissionRecord> omissionLedger,
             SecurityPromptContractAudit promptContractAudit) {
-        if (omissionLedger == null || omissionLedger.isEmpty()) {
-            CanonicalSecurityContext context = buildContext != null ? buildContext.getCanonicalSecurityContext() : null;
-            LearningContextEvidence learningEvidence = buildContext != null ? buildContext.getLearningContextEvidence() : null;
-            if (context == null
-                    || !CanonicalContextFieldPolicy.hasActorIdentity(context)
-                    || !CanonicalContextFieldPolicy.hasSessionIdentity(context)
-                    || !CanonicalContextFieldPolicy.hasResourceIdentity(context)) {
-                return PromptEvidenceCompleteness.INCOMPLETE;
-            }
-            if (!CanonicalContextFieldPolicy.hasEffectiveRoles(context)
-                    || !CanonicalContextFieldPolicy.hasAuthorizationScope(context)
-                    || !CanonicalContextFieldPolicy.hasResourceSensitivity(context)
-                    || !CanonicalContextFieldPolicy.hasMfaState(context)
-                    || CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)
-                    || CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
-                return PromptEvidenceCompleteness.PARTIAL;
-            }
-            ContextCoverageReport coverage = context.getCoverage();
-            if (coverage != null && !coverage.missingCriticalFacts().isEmpty()) {
-                return PromptEvidenceCompleteness.PARTIAL;
-            }
-            if (learningEvidence != null && !learningEvidence.carryMissingFacts().isEmpty()) {
-                return PromptEvidenceCompleteness.PARTIAL;
-            }
-            if (promptContractAudit != null && !promptContractAudit.violations().isEmpty()) {
-                return PromptEvidenceCompleteness.INCOMPLETE;
-            }
-            return PromptEvidenceCompleteness.SUFFICIENT;
-        }
-        boolean requiredOmission = omissionLedger.stream()
-                .anyMatch(item -> item.semanticRisk() == PromptSemanticRisk.CRITICAL || item.semanticRisk() == PromptSemanticRisk.HIGH);
+        boolean requiredOmission = omissionLedger != null && omissionLedger.stream()
+                .anyMatch(this::isCompletenessBlockingOmission);
         if (requiredOmission) {
             return PromptEvidenceCompleteness.INCOMPLETE;
         }
-        return PromptEvidenceCompleteness.PARTIAL;
+        CanonicalSecurityContext context = buildContext != null ? buildContext.getCanonicalSecurityContext() : null;
+        LearningContextEvidence learningEvidence = buildContext != null ? buildContext.getLearningContextEvidence() : null;
+        if (context == null
+                || !CanonicalContextFieldPolicy.hasActorIdentity(context)
+                || !CanonicalContextFieldPolicy.hasSessionIdentity(context)
+                || !CanonicalContextFieldPolicy.hasResourceIdentity(context)) {
+            return PromptEvidenceCompleteness.INCOMPLETE;
+        }
+        if (!CanonicalContextFieldPolicy.hasEffectiveRoles(context)
+                || !CanonicalContextFieldPolicy.hasAuthorizationScope(context)
+                || !CanonicalContextFieldPolicy.hasResourceSensitivity(context)
+                || !CanonicalContextFieldPolicy.hasMfaState(context)
+                || CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)
+                || CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
+            return PromptEvidenceCompleteness.PARTIAL;
+        }
+        ContextCoverageReport coverage = context.getCoverage();
+        if (coverage != null && !coverage.missingCriticalFacts().isEmpty()) {
+            return PromptEvidenceCompleteness.PARTIAL;
+        }
+        if (learningEvidence != null && !learningEvidence.carryMissingFacts().isEmpty()) {
+            return PromptEvidenceCompleteness.PARTIAL;
+        }
+        if (promptContractAudit != null && !promptContractAudit.violations().isEmpty()) {
+            return PromptEvidenceCompleteness.INCOMPLETE;
+        }
+        return PromptEvidenceCompleteness.SUFFICIENT;
+    }
+
+    private boolean isCompletenessBlockingOmission(PromptOmissionRecord omission) {
+        if (omission == null) {
+            return false;
+        }
+        PromptSectionPlan plan = Stream.concat(systemSectionPlans.stream(), userSectionPlans.stream())
+                .filter(candidate -> Objects.equals(candidate.sectionKey(), omission.sectionKey()))
+                .findFirst()
+                .orElse(null);
+        if (plan != null) {
+            return !plan.omittable() && plan.priorityClass() == PromptSectionPriorityClass.P0_REQUIRED;
+        }
+        return omission.semanticRisk() == PromptSemanticRisk.CRITICAL
+                || omission.semanticRisk() == PromptSemanticRisk.HIGH;
     }
 
     private Map<String, Object> buildPromptContractMetadata(SecurityPromptContractAudit promptContractAudit) {
@@ -2488,22 +2521,95 @@ public class SecurityDecisionPromptSections {
         if (event == null || canonicalSecurityContextProvider == null) {
             return Optional.empty();
         }
-        if (event.getEventId() != null) {
-            CanonicalSecurityContext cached = canonicalSecurityContextCache.getIfPresent(event.getEventId());
-            if (cached != null) {
-                return Optional.of(cached);
+        String cacheKey = canonicalContextCacheKey(event);
+        byte[] cached = canonicalSecurityContextCache.getIfPresent(cacheKey);
+        if (cached != null) {
+            Optional<CanonicalSecurityContext> restored = restoreCanonicalContext(cached);
+            if (restored.isPresent()) {
+                return restored;
             }
+            canonicalSecurityContextCache.invalidate(cacheKey);
         }
         Optional<CanonicalSecurityContext> resolved = canonicalSecurityContextProvider.resolve(event);
         resolved.ifPresent(context -> cacheCanonicalSecurityContext(event, context));
-        return resolved;
+        return resolved.flatMap(context -> restoreCanonicalContext(snapshotCanonicalContext(context)))
+                .or(() -> resolved);
     }
 
     private void cacheCanonicalSecurityContext(SecurityEvent event, CanonicalSecurityContext context) {
-        if (event == null || event.getEventId() == null || context == null) {
+        if (event == null || context == null) {
             return;
         }
-        canonicalSecurityContextCache.put(event.getEventId(), context);
+        byte[] snapshot = snapshotCanonicalContext(context);
+        if (snapshot.length > 0) {
+            canonicalSecurityContextCache.put(canonicalContextCacheKey(event), snapshot);
+        }
+    }
+
+    private String canonicalContextCacheKey(SecurityEvent event) {
+        Map<String, Object> input = new TreeMap<>();
+        input.put("userId", event.getUserId());
+        input.put("sessionId", event.getSessionId());
+        input.put("sourceIp", event.getSourceIp());
+        input.put("description", event.getDescription());
+        input.put("metadata", event.getMetadata() == null ? Map.of() : new TreeMap<>(event.getMetadata()));
+        String inputText;
+        try {
+            inputText = canonicalContextSnapshotMapper.writeValueAsString(input);
+        }
+        catch (JsonProcessingException exception) {
+            inputText = input.toString();
+        }
+        Map<String, Object> metadata = event.getMetadata() == null ? Map.of() : event.getMetadata();
+        String revision = firstCacheText(
+                metadata.get("evidenceRevision"),
+                metadata.get("revisionNo"),
+                metadata.get("sealedEvidence.revision"),
+                metadata.get("officialVerification.revisionNo"),
+                "UNREVISIONED");
+        String contractVersion = firstCacheText(
+                metadata.get("contractVersion"),
+                promptGovernanceDescriptor != null ? promptGovernanceDescriptor.contractVersion() : null,
+                "UNVERSIONED");
+        return firstCacheText(event.getEventId(), "NO_EVENT_ID")
+                + '\u001f' + revision
+                + '\u001f' + contractVersion
+                + '\u001f' + PromptGovernanceSupport.sha256(inputText);
+    }
+
+    private byte[] snapshotCanonicalContext(CanonicalSecurityContext context) {
+        if (context == null) {
+            return new byte[0];
+        }
+        try {
+            return canonicalContextSnapshotMapper.writeValueAsBytes(context);
+        }
+        catch (JsonProcessingException exception) {
+            return new byte[0];
+        }
+    }
+
+    private Optional<CanonicalSecurityContext> restoreCanonicalContext(byte[] snapshot) {
+        if (snapshot == null || snapshot.length == 0) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(canonicalContextSnapshotMapper.readValue(snapshot, CanonicalSecurityContext.class));
+        }
+        catch (Exception exception) {
+            return Optional.empty();
+        }
+    }
+
+    private String firstCacheText(Object... values) {
+        if (values != null) {
+            for (Object value : values) {
+                if (value != null && !String.valueOf(value).isBlank()) {
+                    return String.valueOf(value).trim();
+                }
+            }
+        }
+        return "";
     }
 
     String buildBridgeResolutionSection(CanonicalSecurityContext canonicalSecurityContext) {

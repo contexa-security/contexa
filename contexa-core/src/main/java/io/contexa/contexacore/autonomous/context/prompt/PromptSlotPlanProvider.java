@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context.prompt;
 
+import java.util.List;
+
 @FunctionalInterface
 public interface PromptSlotPlanProvider {
 
@@ -26,6 +28,10 @@ public interface PromptSlotPlanProvider {
 
     default String cacheScopeKey() {
         return "UNSCOPED";
+    }
+
+    default List<PromptSlotPlan> plansForSlotKey(String promptKey, String slotKey) {
+        return List.of();
     }
 
     static PromptSlotPlanProvider unscoped() {

@@ -36,6 +36,28 @@ public class PromptSlotRenderer {
         if (slot == null || !StringUtils.hasText(slot.label()) || !StringUtils.hasText(slot.renderedValue())) {
             return "";
         }
-        return slot.label() + ": " + slot.renderedValue() + "\n";
+        return slot.label() + ": " + encodeValue(slot.renderedValue()) + "\n";
+    }
+
+    private String encodeValue(String value) {
+        StringBuilder encoded = new StringBuilder(value.length());
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '\r' -> encoded.append("\\r");
+                case '\n' -> encoded.append("\\n");
+                case '\t' -> encoded.append("\\t");
+                case '\u2028' -> encoded.append("\\u2028");
+                case '\u2029' -> encoded.append("\\u2029");
+                default -> {
+                    if (Character.isISOControl(character)) {
+                        encoded.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        encoded.append(character);
+                    }
+                }
+            }
+        }
+        return encoded.toString();
     }
 }

@@ -115,13 +115,48 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("objectiveFamily", "REPORT_EXPORT")
                 .containsEntry("privilegedExportAllowed", false)
                 .containsEntry("authorizationEffect", "ALLOW")
-                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT")
+                .containsEntry("bridgeAuthorizationEffect", "UNKNOWN")
+                .containsEntry("authorizationEffectFallbackFrom", "UNKNOWN")
+                .containsEntry("methodAuthorizationGranted", true)
+                .containsEntry("policyId", "policy-1")
+                .doesNotContainKeys("credentials", "credential", "accessToken", "token", "secret");
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeMissingContexts", List.of()))
                 .contains(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeRemediationHints", List.of()))
                 .anyMatch(hint -> hint.contains("authorization effect"));
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
+    }
+
+    @Test
+    @DisplayName("explicit bridge deny and its policy evidence should survive a granted method result")
+    void shouldPreserveExplicitBridgeDenyWhenMethodInvocationIsGranted() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
+        request.setAttribute(
+                BridgeRequestAttributes.RESOLUTION_RESULT,
+                createBridgeResolutionResultWithEffect(AuthorizationEffect.DENY));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .containsEntry("authorizationEffect", "DENY")
+                .containsEntry("bridgeAuthorizationEffect", "DENY")
+                .containsEntry("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP")
+                .containsEntry("authorizationDecisionConflict", "METHOD_GRANTED_WITH_BRIDGE_DENY")
+                .containsEntry("methodAuthorizationGranted", true)
+                .containsEntry("policyId", "policy-1");
+        assertThat((List<String>) event.getPayload().get("scopeTags")).contains("report:export");
     }
 
     @Test
@@ -637,7 +672,10 @@ class ZeroTrustEventPublisherTest {
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
                 new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER"), Map.of(
                         "tenantId", "tenant-a",
-                        "organizationId", "org-a")),
+                        "organizationId", "org-a",
+                        "credentials", "must-not-leak",
+                        "accessToken", "must-not-leak",
+                        "secret", "must-not-leak")),
                 new AuthorizationStamp(
                         "alice",
                         "/reports/export",
@@ -654,8 +692,10 @@ class ZeroTrustEventPublisherTest {
                                 "PermissionAuthority{authority='REPORT_EXPORT', permissionId=7}",
                                 "RoleAuthority{authority='ROLE_USER', roleId=1}",
                                 "/reports/export"),
-                        Map.of()),
-                new DelegationStamp("alice", "agent-1", true, "objective-1", "REPORT_EXPORT", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, false, null, Map.of("delegationResolver", "HEADER")),
+                        Map.of("token", "must-not-leak", "secret", "must-not-leak")),
+                new DelegationStamp("alice", "agent-1", true, "objective-1", "REPORT_EXPORT", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, false, null, Map.of(
+                        "delegationResolver", "HEADER",
+                        "credential", "must-not-leak")),
                 new BridgeCoverageReport(
                         BridgeCoverageLevel.DELEGATION_CONTEXT,
                         90,
@@ -663,6 +703,30 @@ class ZeroTrustEventPublisherTest {
                         "Bridge resolved authentication, authorization, and delegated execution context for the current request.",
                         List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request."))
         );
+    }
+
+    private BridgeResolutionResult createBridgeResolutionResultWithEffect(AuthorizationEffect effect) {
+        BridgeResolutionResult baseline = createBridgeResolutionResult();
+        AuthorizationStamp authorization = baseline.authorizationStamp();
+        return new BridgeResolutionResult(
+                baseline.requestContext(),
+                baseline.authenticationStamp(),
+                new AuthorizationStamp(
+                        authorization.subjectId(),
+                        authorization.resourceId(),
+                        authorization.action(),
+                        effect,
+                        authorization.privileged(),
+                        authorization.scopeTags(),
+                        authorization.policyId(),
+                        authorization.policyVersion(),
+                        authorization.decisionSource(),
+                        authorization.decisionTime(),
+                        authorization.effectiveRoles(),
+                        authorization.effectiveAuthorities(),
+                        authorization.attributes()),
+                baseline.delegationStamp(),
+                baseline.coverageReport());
     }
 
     private BridgeResolutionResult createBridgeResolutionResultWithoutDelegatedFlag() {

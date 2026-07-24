@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.context.prompt;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -56,5 +57,11 @@ public class PromptSlotPlanCache implements PromptSlotPlanProvider {
 
     public int cachedPlanCount() {
         return plans.size();
+    }
+
+    @Override
+    public List<PromptSlotPlan> plansForSlotKey(String promptKey, String slotKey) {
+        List<PromptSlotPlan> resolved = delegate.plansForSlotKey(promptKey, slotKey);
+        return resolved == null ? List.of() : List.copyOf(resolved);
     }
 }

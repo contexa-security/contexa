@@ -62,6 +62,14 @@ public class PromptContextComposer {
         this.slotPlanCache = slotPlanCache == null ? new PromptSlotPlanCache() : slotPlanCache;
     }
 
+    public PromptSlotPlan planFor(String sectionKey, String labelKey) {
+        return slotPlanCache.planFor(sectionKey, labelKey);
+    }
+
+    public List<PromptSlotPlan> plansForSlotKey(String promptKey, String slotKey) {
+        return slotPlanCache.plansForSlotKey(promptKey, slotKey);
+    }
+
     public String compose(CanonicalSecurityContext context) {
         if (context == null) {
             return null;
@@ -1296,4 +1304,3 @@ public class PromptContextComposer {
         return null;
     }
 }
-

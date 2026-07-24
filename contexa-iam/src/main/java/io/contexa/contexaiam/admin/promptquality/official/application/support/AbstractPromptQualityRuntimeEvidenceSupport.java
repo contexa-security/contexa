@@ -32,6 +32,7 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
             "protectableResourceId",
             "resourceId",
             "endpointKey",
+            "governanceDescriptor",
             "promptContractVersion",
             "modelProfile",
             "promptCompressionApplied",
@@ -106,6 +107,9 @@ public abstract class AbstractPromptQualityRuntimeEvidenceSupport {
                 }
                 else if ("promptCompressionLedger".equals(key) && valueToken == JsonToken.START_ARRAY) {
                     result.put(key, objectMapper.readValue(parser, List.class));
+                }
+                else if ("governanceDescriptor".equals(key) && valueToken == JsonToken.START_OBJECT) {
+                    result.put(key, objectMapper.readValue(parser, Map.class));
                 }
                 else {
                     parser.skipChildren();

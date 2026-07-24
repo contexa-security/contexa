@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context;
 
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,23 @@ import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 
 class PromptContextComposerTest {
+
+    @Test
+    void bridgeRemediationIsNotMisclassifiedAsAnAvailableFact() {
+        String remediation = "Propagate a verified authorization effect.";
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .bridge(CanonicalSecurityContext.Bridge.builder()
+                        .remediationHints(List.of(remediation))
+                        .build())
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.remediationHints()).contains(remediation);
+        assertThat(report.availableFacts()).doesNotContain("Bridge remediation hint: " + remediation);
+        assertThat(report.missingCriticalFacts()).doesNotContain(remediation);
+        assertThat(report.confidenceWarnings()).doesNotContain(remediation);
+    }
 
     @Test
     void composeShouldRenderCoverageIdentityResourceAndDelegationSections() {

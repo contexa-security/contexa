@@ -23,6 +23,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +46,7 @@ class MfaAuthenticationEntryPointTest {
 
     @Test
     void boundEntryPointUsesProviderForTheActiveMfaFlow() throws Exception {
-        when(stateMachineIntegrator.loadFactorContextFromRequest(org.mockito.ArgumentMatchers.any()))
+        when(stateMachineIntegrator.loadFactorContextFromRequest(any()))
                 .thenReturn(factorContext);
         when(factorContext.getFlowTypeName()).thenReturn("adaptive-mfa");
         when(flowUrlRegistry.getProvider("adaptive-mfa")).thenReturn(flowProvider);
@@ -58,7 +59,7 @@ class MfaAuthenticationEntryPointTest {
 
     @Test
     void boundEntryPointFallsBackToTheConfiguredFlowProviderWhenContextIsAbsent() throws Exception {
-        when(stateMachineIntegrator.loadFactorContextFromRequest(org.mockito.ArgumentMatchers.any()))
+        when(stateMachineIntegrator.loadFactorContextFromRequest(any()))
                 .thenReturn(null);
         when(defaultProvider.getMfaSelectFactor()).thenReturn("/default/select-factor");
 

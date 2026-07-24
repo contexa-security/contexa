@@ -281,7 +281,6 @@ public class ContextCoverageEvaluator {
             missingCriticalFacts.add("Bridge missing context: " + missingContext + ".");
         }
         for (String remediationHint : bridge.getRemediationHints()) {
-            availableFacts.add("Bridge remediation hint: " + remediationHint);
             remediationHints.add(remediationHint);
         }
     }

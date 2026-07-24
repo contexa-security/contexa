@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -27,6 +29,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptEvidenceCompleteness;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.junit.jupiter.api.DisplayName;
@@ -36,10 +39,92 @@ import org.springframework.ai.document.Document;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityDecisionStandardPromptTemplateTest {
+
+    @Test
+    void canonicalContextCacheSeparatesRevisionsAndReturnsDefensiveSnapshots() {
+        AtomicInteger resolutions = new AtomicInteger();
+        CanonicalSecurityContextProvider provider = event -> {
+            resolutions.incrementAndGet();
+            return Optional.of(CanonicalSecurityContext.builder()
+                    .actor(CanonicalSecurityContext.Actor.builder()
+                            .userId(String.valueOf(event.getMetadata().get("canonicalUser")))
+                            .build())
+                    .build());
+        };
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                provider,
+                new PromptContextComposer(),
+                template.getPromptGovernanceDescriptor());
+        SecurityEvent event = SecurityEvent.builder().eventId("shared-event-id").build();
+        event.addMetadata("evidenceRevision", 1);
+        event.addMetadata("canonicalUser", "revision-one");
+
+        CanonicalSecurityContext first = sections.resolveCanonicalSecurityContext(event).orElseThrow();
+        first.getActor().setUserId("caller-mutation");
+        CanonicalSecurityContext cachedCopy = sections.resolveCanonicalSecurityContext(event).orElseThrow();
+        event.addMetadata("evidenceRevision", 2);
+        event.addMetadata("canonicalUser", "revision-two");
+        CanonicalSecurityContext revised = sections.resolveCanonicalSecurityContext(event).orElseThrow();
+
+        assertThat(cachedCopy.getActor().getUserId()).isEqualTo("revision-one");
+        assertThat(revised.getActor().getUserId()).isEqualTo("revision-two");
+        assertThat(resolutions).hasValue(2);
+    }
+
+    @Test
+    void omittedOptionalSectionsDoNotMakeAnOtherwiseUsablePromptIncomplete() {
+        CanonicalSecurityContext completeRequiredContext = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder().userId("alice").build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-optional")
+                        .mfaVerified(true)
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("resource-optional")
+                        .requestPath("/resource-optional")
+                        .httpMethod("GET")
+                        .sensitivity("NORMAL")
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("USER"))
+                        .scopeTags(List.of("READ"))
+                        .authorizationEffect("ALLOW")
+                        .build())
+                .build();
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(), new TieredStrategyProperties());
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                event -> Optional.of(completeRequiredContext),
+                new PromptContextComposer(),
+                template.getPromptGovernanceDescriptor());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-optional-sections")
+                .userId("alice")
+                .sessionId("session-optional")
+                .build();
+        SecurityDecisionStandardPromptTemplate.SessionContext session =
+                new SecurityDecisionStandardPromptTemplate.SessionContext();
+        session.setUserId("alice");
+        session.setSessionId("session-optional");
+
+        var prompt = sections.buildStructuredPrompt(event, session, null, List.of());
+
+        assertThat(prompt.executionMetadata().promptEvidenceCompleteness())
+                .isNotEqualTo(PromptEvidenceCompleteness.INCOMPLETE);
+    }
 
     @Test
     @DisplayName("governed standard prompt should keep core contract sections only")
