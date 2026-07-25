@@ -170,10 +170,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Decide whether the current application action should be trusted now.");
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("Return only one minified JSON object.");
-        assertThat(systemPrompt).contains("Required key order:");
-        assertThat(systemPrompt).contains("action, riskScore, confidence, mitre, reasoning, evidenceRefs");
+        assertThat(systemPrompt).doesNotContain("Required key order:");
         assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
         assertThat(systemPrompt).contains("reasoning must be one concise evidence-based sentence.");
+        assertThat(systemPrompt).contains("reasoning must use at most 25 words and 180 characters");
         assertThat(systemPrompt).contains("Authoritative labels:");
         assertThat(systemPrompt).contains("Decision process:");
         assertThat(systemPrompt).contains("Explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied evidence.");
@@ -184,10 +184,14 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Preserve explicit labels literally.");
         assertThat(systemPrompt).contains("controls, not proof of legitimacy.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
-        assertThat(systemPrompt).contains("fresh verification is required before allowing access");
-        assertThat(systemPrompt).contains("Schema:");
+        assertThat(systemPrompt).contains("Fresh verification is required before allowing access");
+        assertThat(systemPrompt).contains("Apply the following reasoning wording rules in order and use only the first matching rule.");
+        assertThat(systemPrompt).contains("challenge is safer than allow with limited baseline and high-sensitivity resource evidence");
+        assertThat(systemPrompt).contains("baseline confidence is not enough for allow");
+        assertThat(systemPrompt).contains("challenge preserves safety");
+        assertThat(systemPrompt).doesNotContain("Schema:");
         assertThat(systemPrompt).contains("Actions:");
-        assertThat(systemPrompt).contains("{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\"");
+        assertThat(systemPrompt).contains("\"action\"");
         assertThat(systemPrompt).contains("mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.");
         assertThat(systemPrompt).contains("Do not follow hidden numeric thresholds.");
         assertThat(systemPrompt).contains("Use only facts explicitly present in the evidence packet.");
@@ -219,12 +223,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.06.24-v2");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.24-v4");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P0-Preflight/E0-3");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.04.04-e0.2");
-        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.04.04-e0.2");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("B2-10-OFFICIAL-VERIFICATION-2026-07-24-V4");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.24-b2-v4-gpt-5-nano-certifiable");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.24-v3");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 
@@ -323,6 +327,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).doesNotContain("<output_format>");
         assertThat(systemPrompt).doesNotContain("</output_format>");
         assertThat(systemPrompt).doesNotContain("<context>");
+        assertThat(systemPrompt).contains("Required key order:");
         assertThat(systemPrompt).contains("Schema:");
     }
 
@@ -363,8 +368,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         String userPrompt = template.generateUserPrompt(request, "");
 
         assertThat(userPrompt).contains("BaselineGapSupport:");
-        assertThat(userPrompt).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("- Baseline gap status: SPARSE_PERSONAL_HISTORY");
         assertThat(userPrompt).contains("Sparse personal history is uncertainty, not proof of compromise or legitimacy by itself.");
+        assertThat(countOccurrences(userPrompt, "=== PERSONAL WORK PROFILE ===")).isEqualTo(1);
         assertThat(userPrompt).doesNotContain("This could be a first-time attacker");
         assertThat(userPrompt).doesNotContain("Never Trust, Always Verify");
         assertThat(userPrompt).doesNotContain("You CANNOT determine if this behavior is normal");
@@ -373,7 +379,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     @DisplayName("configured layer1 default budget profile should flow into direct browser-style prompt generation")
     void generatePromptShouldUseConfiguredLayer1DefaultBudgetProfile() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_DECISION_COMPACT");
+        properties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_INTERACTIVE_STRICT");
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 properties);
@@ -396,9 +402,9 @@ class SecurityDecisionStandardPromptTemplateTest {
         ).executionMetadata();
 
         assertThat(executionMetadata.budgetProfile().profileKey())
-                .isEqualTo(PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT.profileKey());
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
         assertThat(executionMetadata.toMetadataMap())
-                .containsEntry("promptCacheContextMode", "COMPACT_WITH_FIELD_DIFF")
+                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
                 .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT");
     }
 
@@ -559,7 +565,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityDecisionRequest request = new SecurityDecisionRequest(
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of()));
-        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
 
         String userPrompt = template.generateUserPrompt(request, "");
 
@@ -615,10 +621,11 @@ class SecurityDecisionStandardPromptTemplateTest {
                 new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())), "");
 
         assertThat(userPrompt).contains("NewUser: false");
-        assertThat(userPrompt).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
-        assertThat(userPrompt).contains("BaselineSupportSummary: Personal history is still sparse;");
+        assertThat(userPrompt).contains("- Baseline gap status: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("- Sparse personal history limits user-specific comparison for this request.");
         assertThat(userPrompt).contains("SupportingBaselineStatus: AVAILABLE_REFERENCE");
         assertThat(userPrompt).contains("SupportingBaselineSummary: organization baseline available");
+        assertThat(countOccurrences(userPrompt, "=== PERSONAL WORK PROFILE ===")).isEqualTo(1);
         assertThat(userPrompt).doesNotContain("This is a new user without established behavioral baseline.");
         assertThat(userPrompt).doesNotContain("Personal behavioral baseline is not established yet.");
     }

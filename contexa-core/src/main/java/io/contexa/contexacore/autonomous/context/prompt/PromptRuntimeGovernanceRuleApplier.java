@@ -133,7 +133,10 @@ public class PromptRuntimeGovernanceRuleApplier {
             return SlotRuleScope.invalid("SKIPPED_DUPLICATE_SLOT_CONTRACT");
         }
         PromptSlotPlan plan = plans.get(0);
-        if (plan == null || !StringUtils.hasText(plan.sectionKey()) || !StringUtils.hasText(plan.labelKey())) {
+        if (plan == null || !StringUtils.hasText(plan.sectionKey())) {
+            return SlotRuleScope.invalid("SKIPPED_INVALID_SLOT_CONTRACT");
+        }
+        if (requiresRenderedSlot(rule.ruleType()) && !StringUtils.hasText(plan.labelKey())) {
             return SlotRuleScope.invalid("SKIPPED_INVALID_SLOT_CONTRACT");
         }
         String requestedSection = firstText(rule, "sectionKey");
@@ -143,16 +146,21 @@ public class PromptRuntimeGovernanceRuleApplier {
         }
         List<SectionRange> sectionRanges = sectionRanges(prompt, plan.sectionKey());
         if (sectionRanges.isEmpty()) {
-            int renderedSlotCount = countExactLabel(prompt, plan.labelKey());
-            if (renderedSlotCount > 1) {
-                return SlotRuleScope.invalid("SKIPPED_DUPLICATE_RENDERED_SLOT");
+            if (!StringUtils.hasText(plan.labelKey())) {
+                sectionRanges = List.of(new SectionRange(0, prompt.length()));
             }
-            if (renderedSlotCount == 0) {
-                return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
-            }
-            sectionRanges = sectionRangeForUniqueLabel(prompt, plan.labelKey());
-            if (sectionRanges.isEmpty()) {
-                return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
+            else {
+                int renderedSlotCount = countExactLabel(prompt, plan.labelKey());
+                if (renderedSlotCount > 1) {
+                    return SlotRuleScope.invalid("SKIPPED_DUPLICATE_RENDERED_SLOT");
+                }
+                if (renderedSlotCount == 0) {
+                    return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
+                }
+                sectionRanges = sectionRangeForUniqueLabel(prompt, plan.labelKey());
+                if (sectionRanges.isEmpty()) {
+                    return SlotRuleScope.invalid("SKIPPED_SECTION_NOT_FOUND");
+                }
             }
         }
         if (sectionRanges.size() != 1) {
@@ -188,11 +196,11 @@ public class PromptRuntimeGovernanceRuleApplier {
         List<SectionRange> ranges = new ArrayList<>();
         for (int index = 0; index < lines.length; index++) {
             String renderedLine = lines[index].trim();
-            if (!expectedMarkers.contains(renderedLine)) {
+            if (!lines[index].equals(renderedLine) || !expectedMarkers.contains(renderedLine)) {
                 continue;
             }
             int endIndex = index + 1;
-            while (endIndex < lines.length && !lines[endIndex].trim().startsWith("=== ")) {
+            while (endIndex < lines.length && !lines[endIndex].startsWith("=== ")) {
                 endIndex++;
             }
             int end = endIndex < lineStarts.size() ? lineStarts.get(endIndex) : prompt.length();
@@ -223,14 +231,14 @@ public class PromptRuntimeGovernanceRuleApplier {
             return List.of();
         }
         int sectionIndex = labelIndex;
-        while (sectionIndex >= 0 && !lines[sectionIndex].trim().startsWith("=== ")) {
+        while (sectionIndex >= 0 && !lines[sectionIndex].startsWith("=== ")) {
             sectionIndex--;
         }
         if (sectionIndex < 0) {
             return List.of();
         }
         int endIndex = labelIndex + 1;
-        while (endIndex < lines.length && !lines[endIndex].trim().startsWith("=== ")) {
+        while (endIndex < lines.length && !lines[endIndex].startsWith("=== ")) {
             endIndex++;
         }
         int end = endIndex < lineStarts.size() ? lineStarts.get(endIndex) : prompt.length();

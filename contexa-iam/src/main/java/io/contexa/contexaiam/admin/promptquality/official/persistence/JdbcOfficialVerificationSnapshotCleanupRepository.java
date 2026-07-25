@@ -1,20 +1,31 @@
 package io.contexa.contexaiam.admin.promptquality.official.persistence;
 
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCleanupRepository;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationResolutionCleanup;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class JdbcOfficialVerificationSnapshotCleanupRepository
         implements OfficialVerificationSnapshotCleanupRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final OfficialVerificationResolutionCleanup resolutionCleanup;
 
     public JdbcOfficialVerificationSnapshotCleanupRepository(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, OfficialVerificationResolutionCleanup.none());
+    }
+
+    public JdbcOfficialVerificationSnapshotCleanupRepository(
+            JdbcTemplate jdbcTemplate,
+            OfficialVerificationResolutionCleanup resolutionCleanup) {
         this.jdbcTemplate = jdbcTemplate;
+        this.resolutionCleanup = resolutionCleanup;
     }
     @Override
     public void deleteDiagnosticPackage(String tenantId, String packageId) {
         String tenant = required(tenantId, "tenantId");
         String evidencePackage = required(packageId, "packageId");
+
+        resolutionCleanup.deleteDiagnosticPackage(tenant, evidencePackage);
 
         jdbcTemplate.update("""
                         delete from official_verification_metric_execution_ledger execution
@@ -27,21 +38,6 @@ public final class JdbcOfficialVerificationSnapshotCleanupRepository
                         delete from official_verification_execution_state_history history
                         using sealed_evidence_package sealed
                          where history.package_id = sealed.package_id
-                           and sealed.package_id = ?
-                           and sealed.tenant_id = ?
-                        """, evidencePackage, tenant);
-        jdbcTemplate.update("""
-                        delete from prompt_quality_remediation_action action
-                        using prompt_quality_issue issue, sealed_evidence_package sealed
-                         where action.issue_id = issue.issue_id
-                           and issue.package_id = sealed.package_id
-                           and sealed.package_id = ?
-                           and sealed.tenant_id = ?
-                        """, evidencePackage, tenant);
-        jdbcTemplate.update("""
-                        delete from prompt_quality_issue issue
-                        using sealed_evidence_package sealed
-                         where issue.package_id = sealed.package_id
                            and sealed.package_id = ?
                            and sealed.tenant_id = ?
                         """, evidencePackage, tenant);

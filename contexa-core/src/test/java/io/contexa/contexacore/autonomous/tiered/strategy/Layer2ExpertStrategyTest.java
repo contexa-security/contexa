@@ -105,8 +105,8 @@ class Layer2ExpertStrategyTest {
     }
 
     @Test
-    @DisplayName("performDeepAnalysis should return failsafe BLOCK when pipeline fails")
-    void performDeepAnalysis_pipelineFailure_returnsFailsafeBlock() {
+    @DisplayName("performDeepAnalysis should return technical ESCALATE when the LLM pipeline fails")
+    void performDeepAnalysis_pipelineFailure_returnsTechnicalEscalate() {
         SecurityEvent event = buildTestEvent();
         when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.error(new RuntimeException("pipeline unavailable")));
@@ -114,14 +114,23 @@ class Layer2ExpertStrategyTest {
         SecurityDecision decision = strategy.performDeepAnalysis(event);
 
         assertThat(decision).isNotNull();
-        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
-        assertThat(decision.getReasoning()).contains("failsafe blocking");
+        assertThat(decision.getReasoning()).contains("escalating for manual review");
+        assertThat(decision.getFieldProvenance()).containsOnly(
+                Map.entry("riskScore", "PLATFORM_FALLBACK"),
+                Map.entry("confidence", "PLATFORM_FALLBACK"),
+                Map.entry("reasoning", "PLATFORM_FALLBACK"),
+                Map.entry("mitre", "PLATFORM_FALLBACK"),
+                Map.entry("evidenceRefs", "PLATFORM_FALLBACK"));
     }
 
     @Test
-    @DisplayName("performDeepAnalysis should return failsafe BLOCK when pipeline exceeds layer budget")
-    void performDeepAnalysis_pipelineTimeout_returnsFailsafeBlock() {
+    @DisplayName("performDeepAnalysis should return technical ESCALATE when the pipeline exceeds the layer budget")
+    void performDeepAnalysis_pipelineTimeout_returnsTechnicalEscalate() {
         TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer2().setTimeoutMs(10);
         strategy = new Layer2ExpertStrategy(
@@ -148,9 +157,62 @@ class Layer2ExpertStrategyTest {
         SecurityDecision decision = strategy.performDeepAnalysis(event);
 
         assertThat(decision).isNotNull();
-        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
+        assertThat(decision.getFieldProvenance().values())
+                .containsOnly("PLATFORM_FALLBACK");
+    }
+
+    @Test
+    @DisplayName("missing Layer2 response action should apply CHALLENGE without technical fallback")
+    void performDeepAnalysis_missingAction_appliesResponseFallbackChallenge() {
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.4);
+        response.setConfidence(0.7);
+        response.setReasoning("Evidence was evaluated but action was omitted");
+        when(pipelineOrchestrator.execute(
+                any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
+        assertThat(decision.getLlmDecisionPresent()).isFalse();
+        assertThat(decision.getResponseActionFallbackApplied()).isTrue();
+        assertThat(decision.getResponseActionFallbackCategory()).isEqualTo("ACTION_MISSING");
+        assertThat(decision.getResponseActionFallbackAction()).isEqualTo("CHALLENGE");
+    }
+
+    @Test
+    @DisplayName("invalid Layer2 response action should apply CHALLENGE without technical fallback")
+    void performDeepAnalysis_invalidAction_appliesResponseFallbackChallenge() {
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.4);
+        response.setConfidence(0.7);
+        response.setAction("RETRY_LATER");
+        response.setReasoning("Unsupported action format");
+        when(pipelineOrchestrator.execute(
+                any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
+        assertThat(decision.getLlmDecisionPresent()).isFalse();
+        assertThat(decision.getResponseActionFallbackApplied()).isTrue();
+        assertThat(decision.getResponseActionFallbackCategory()).isEqualTo("ACTION_FORMAT_INVALID");
+        assertThat(decision.getResponseActionFallbackAction()).isEqualTo("CHALLENGE");
     }
 
     @Test
@@ -203,6 +265,65 @@ class Layer2ExpertStrategyTest {
         assertThat(assessment.isShouldEscalate()).isFalse();
         assertThat(assessment.getStrategyName()).isEqualTo("Layer2-Expert");
         assertThat(assessment.getAction()).isEqualTo("CHALLENGE");
+    }
+
+    @Test
+    @DisplayName("Layer2 terminal fallback preserves the LLM ESCALATE proposal and exposes the final action")
+    void performDeepAnalysis_escalateProposal_preservesProposalAndFinalFallback() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        strategy = new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.7);
+        response.setConfidence(0.8);
+        response.setAction("ESCALATE");
+        response.setReasoning("Expert review is required");
+        when(pipelineOrchestrator.execute(
+                any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(buildTestEvent());
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
+        assertThat(decision.getAutonomyConstraintReasons())
+                .containsExactly("LAYER2_ESCALATE_TERMINALIZED");
+        assertThat(decision.getAutonomyConstraintPolicy())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY);
+        assertThat(decision.getAutonomyConstraintSource())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_SOURCE);
+        assertThat(decision.getAutonomyConstraintVersion())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_VERSION);
+
+        ThreatAssessment assessment = strategy.evaluate(buildTestEvent());
+
+        assertThat(assessment.getAction()).isEqualTo("ESCALATE");
+        assertThat(assessment.getAutonomousAction()).isEqualTo("CHALLENGE");
+        assertThat(assessment.getAutonomyConstraintPolicy())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY);
+        assertThat(assessment.getAutonomyConstraintSource())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_SOURCE);
+        assertThat(assessment.getAutonomyConstraintVersion())
+                .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_VERSION);
     }
 
     private SecurityEvent buildTestEvent() {

@@ -17,7 +17,6 @@ import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOffici
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationSnapshotCleanupRepository;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationActualPromptProblemRepository;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationActualPromptProblemWriter;
-import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationPromptQualityIssueSynchronizer;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationMetricPurposeWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationMetricPurposeEvidenceWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationPromptSignalWriter;
@@ -167,7 +166,7 @@ public class OfficialVerificationOperatorSnapshotService {
                                 new JdbcOfficialVerificationMetricExecutionReferenceWriter(jdbcTemplate))),
                 new OfficialVerificationLedgerWriters(
                         new JdbcOfficialVerificationActualPromptProblemWriter(jdbcTemplate),
-                        new JdbcOfficialVerificationPromptQualityIssueSynchronizer(jdbcTemplate),
+                        OfficialVerificationPromptQualityIssueSynchronizer.none(),
                         new JdbcOfficialVerificationMetricPurposeWriter(jdbcTemplate),
                         new JdbcOfficialVerificationMetricPurposeEvidenceWriter(jdbcTemplate),
                         new JdbcOfficialVerificationPromptSignalWriter(jdbcTemplate),

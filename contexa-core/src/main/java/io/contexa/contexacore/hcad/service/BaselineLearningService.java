@@ -78,7 +78,7 @@ public class BaselineLearningService {
     }
 
     private boolean shouldLearnFromSecurityEvent(SecurityDecision decision) {
-        return decision.getAction() == ZeroTrustAction.ALLOW;
+        return decision.resolveAutonomousAction() == ZeroTrustAction.ALLOW;
     }
 
     private BaselineVector updateWithEMAFromSecurityEvent(BaselineVector current, String userId,
@@ -241,10 +241,10 @@ public class BaselineLearningService {
     }
 
     private double resolveVerifiedTrustSignal(SecurityDecision decision) {
-        if (decision == null || decision.getAction() == null) {
+        if (decision == null || decision.resolveAutonomousAction() == null) {
             return 0.5d;
         }
-        return switch (decision.getAction()) {
+        return switch (decision.resolveAutonomousAction()) {
             case ALLOW -> 1.0d;
             case CHALLENGE -> 0.5d;
             case ESCALATE, PENDING_ANALYSIS -> 0.25d;

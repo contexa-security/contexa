@@ -33,6 +33,7 @@ class SecurityDecisionResponseProcessorTest {
         lite.setRiskScore(0.7);
         lite.setConfidence(0.6);
         lite.setMitre("UNKNOWN");
+        lite.setEvidenceRefs(List.of("baseline", "sensitivity"));
 
         SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
 
@@ -45,6 +46,12 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(response.getRiskScore()).isEqualTo(0.7);
         assertThat(response.getConfidence()).isEqualTo(0.6);
         assertThat(response.getMitre()).isEqualTo("UNKNOWN");
+        assertThat(response.getFieldProvenance()).containsOnly(
+                Map.entry("riskScore", "MODEL"),
+                Map.entry("confidence", "MODEL"),
+                Map.entry("reasoning", "MODEL"),
+                Map.entry("mitre", "MODEL"),
+                Map.entry("evidenceRefs", "MODEL"));
     }
 
     @Test
@@ -129,6 +136,12 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(response.getReasoning()).isEqualTo("Decision metadata was incomplete; block remains required.");
         assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class))
                 .contains("riskScore", "confidence", "reasoning", "mitre");
+        assertThat(response.getFieldProvenance())
+                .containsEntry("riskScore", "SYNTHETIC_DEFAULT")
+                .containsEntry("confidence", "SYNTHETIC_DEFAULT")
+                .containsEntry("reasoning", "SYNTHETIC_DEFAULT")
+                .containsEntry("mitre", "SYNTHETIC_DEFAULT")
+                .containsEntry("evidenceRefs", "SYNTHETIC_DEFAULT");
     }
 
     @Test

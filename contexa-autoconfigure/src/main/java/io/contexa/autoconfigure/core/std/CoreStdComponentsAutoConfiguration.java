@@ -105,9 +105,8 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public LLMViewComposer llmViewComposer(TieredStrategyProperties tieredStrategyProperties) {
-        return new SafePromptNormalizationLLMViewComposer(
-                tieredStrategyProperties.getPromptCompression().isEnabled());
+    public LLMViewComposer llmViewComposer() {
+        return new SafePromptNormalizationLLMViewComposer();
     }
 
     @Bean

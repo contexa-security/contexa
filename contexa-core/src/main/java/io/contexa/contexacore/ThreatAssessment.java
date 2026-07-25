@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -57,10 +58,18 @@ public class ThreatAssessment {
     private String technicalFallbackCategory;
     private String technicalFallbackReason;
     private String technicalFallbackAction;
+    private Boolean responseActionFallbackApplied;
+    private String responseActionFallbackCategory;
+    private String responseActionFallbackReason;
+    private String responseActionFallbackAction;
     private String reasoning;
     private Boolean autonomyConstraintApplied;
     private List<String> autonomyConstraintReasons;
     private String autonomyConstraintSummary;
+    private String autonomyConstraintPolicy;
+    private String autonomyConstraintSource;
+    private String autonomyConstraintVersion;
+    private Map<String, String> fieldProvenance;
 
     @Builder.Default
     private boolean shouldEscalate = false;

@@ -69,6 +69,9 @@ public final class OfficialVerificationProbeHeaders {
                 scenario,
                 rawCapability == null ? null : String.valueOf(rawCapability));
         if (!authorized) {
+            metadata.remove("pqaPromptFaultEnabled");
+            metadata.remove("pqaPromptFaultScenario");
+            metadata.remove("officialVerification.pqaPromptFaultScenario");
             metadata.put("pqaPromptFaultRejected", true);
             metadata.put("pqaPromptFaultRejectedSource", "UNTRUSTED_EVENT_METADATA");
         }

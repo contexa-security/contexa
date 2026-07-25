@@ -75,6 +75,9 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                 .build();
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+        event.addMetadata("resourceUrl", "/api/security-test/sensitive/resource-001");
+        event.addMetadata("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}");
+        event.addMetadata("protectableHttpMethod", "GET");
         event.addMetadata("resourceId", "resource-001");
         event.addMetadata("tenantId", "demo");
         event.addMetadata("authorizationEffect", "ALLOW");
@@ -88,6 +91,9 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         assertThat(prompt.userText()).contains("RuntimeGovernanceNarrative: preserve browser transition context.");
         assertThat(provider.requestedContexts()).hasSize(1);
         assertThat(provider.requestedContexts().get(0).promptKey()).isEqualTo("cortex.security-decision");
+        assertThat(provider.requestedContexts().get(0).resourceUrl())
+                .isEqualTo("/api/security-test/sensitive/{resourceId}");
+        assertThat(provider.requestedContexts().get(0).httpMethod()).isEqualTo("GET");
         assertThat(provider.recordedApplications()).hasSize(1);
         assertThat(provider.recordedApplications().get(0).ruleId()).isEqualTo("pqa-rtg-rule-runtime-test");
         assertThat(provider.recordedApplications().get(0).changedPrompt()).isTrue();
@@ -109,6 +115,70 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                         .containsEntry("slotKey", "runtime.test.narrative")
                         .containsEntry("resultState", "APPLIED")
                         .containsEntry("changedPrompt", true));
+    }
+
+    @Test
+    void appliesNoveltyNarrativeToItsRenderedSectionWhenRagContainsTheSameLabel() {
+        String narrative = "Explain whether the current access hour appears in observed hours.";
+        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(new PromptRuntimeGovernanceRule(
+                "pqa-rtg-rule-novelty-test",
+                "pqa-rtg-action-novelty-test",
+                "cortex.security-decision",
+                "user.novelty.current-access-hour",
+                "ADD_NARRATIVE",
+                100,
+                Map.of("narrative", narrative))));
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                promptContextComposer(List.of(slotPlan(
+                        "user.novelty.current-access-hour",
+                        "PERSONAL WORK PROFILE",
+                        "CurrentAccessHourPresentInObservedHours"))),
+                null,
+                provider);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-novelty-001")
+                .timestamp(LocalDateTime.of(2026, 7, 24, 11, 30))
+                .userId("persona_hr_admin")
+                .sessionId("session-runtime-governance-novelty")
+                .description("GET /api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/api/security-test/sensitive/resource-001");
+        event.addMetadata("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}");
+        event.addMetadata("protectableHttpMethod", "GET");
+        event.addMetadata("resourceId", "resource-001");
+        event.addMetadata("tenantId", "demo");
+        event.addMetadata("authorizationEffect", "ALLOW");
+
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of(new Document(
+                        "CurrentAccessHourPresentInObservedHours: historical document text",
+                        Map.of(
+                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                VectorDocumentMetadata.USER_ID, "persona_hr_admin",
+                                VectorDocumentMetadata.TENANT_ID, "demo",
+                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
+
+        assertThat(prompt.userText()).contains(narrative);
+        assertThat(provider.recordedApplications())
+                .singleElement()
+                .satisfies(application -> assertThat(application)
+                        .extracting(
+                                PromptRuntimeGovernanceRuleApplication::resultState,
+                                PromptRuntimeGovernanceRuleApplication::changedPrompt)
+                        .containsExactly("APPLIED", true));
     }
 
     @Test
@@ -272,7 +342,12 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         assertThat(result.metadata()).isEmpty();
         assertThat(event.getMetadata())
                 .containsEntry("pqaPromptFaultRejected", true)
-                .containsEntry("pqaPromptFaultRejectedSource", "UNTRUSTED_EVENT_METADATA");
+                .containsEntry("pqaPromptFaultRejectedSource", "UNTRUSTED_EVENT_METADATA")
+                .doesNotContainKeys(
+                        "pqaPromptFaultEnabled",
+                        "pqaPromptFaultScenario",
+                        "officialVerification.pqaPromptFaultScenario",
+                        "pqaPromptFaultCapability");
     }
 
     private static PromptContextComposer promptContextComposer(List<PromptSlotPlan> plans) {

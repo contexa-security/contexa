@@ -250,12 +250,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         putIfPresent(additionalFields, "technicalFallbackCategory", result.getTechnicalFallbackCategory());
         putIfPresent(additionalFields, "technicalFallbackReason", result.getTechnicalFallbackReason());
         putIfPresent(additionalFields, "technicalFallbackAction", result.getTechnicalFallbackAction());
+        putIfPresent(additionalFields, "responseActionFallbackApplied", result.getResponseActionFallbackApplied());
+        putIfPresent(additionalFields, "responseActionFallbackCategory", result.getResponseActionFallbackCategory());
+        putIfPresent(additionalFields, "responseActionFallbackReason", result.getResponseActionFallbackReason());
+        putIfPresent(additionalFields, "responseActionFallbackAction", result.getResponseActionFallbackAction());
+        putIfPresent(additionalFields, "fieldProvenance", result.getFieldProvenance());
         if (Boolean.TRUE.equals(result.getAutonomyConstraintApplied())) {
             additionalFields.put("autonomyConstraintApplied", true);
             additionalFields.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
             if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
                 additionalFields.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
             }
+            putIfPresent(additionalFields, "autonomyConstraintPolicy", result.getAutonomyConstraintPolicy());
+            putIfPresent(additionalFields, "autonomyConstraintSource", result.getAutonomyConstraintSource());
+            putIfPresent(additionalFields, "autonomyConstraintVersion", result.getAutonomyConstraintVersion());
         }
         String contextBindingHash = resolveContextBindingHash(event);
         if (contextBindingHash != null) {
@@ -357,6 +365,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 .technicalFallbackCategory(result.getTechnicalFallbackCategory())
                 .technicalFallbackReason(result.getTechnicalFallbackReason())
                 .technicalFallbackAction(result.getTechnicalFallbackAction())
+                .responseActionFallbackApplied(result.getResponseActionFallbackApplied())
+                .responseActionFallbackCategory(result.getResponseActionFallbackCategory())
+                .responseActionFallbackReason(result.getResponseActionFallbackReason())
+                .responseActionFallbackAction(result.getResponseActionFallbackAction())
                 .confidence(result.getConfidence())
                 .llmAuditConfidence(result.resolveAuditConfidence())
                 .iocIndicators(indicators)
@@ -365,6 +377,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(result.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
+                .autonomyConstraintPolicy(result.getAutonomyConstraintPolicy())
+                .autonomyConstraintSource(result.getAutonomyConstraintSource())
+                .autonomyConstraintVersion(result.getAutonomyConstraintVersion())
+                .fieldProvenance(result.getFieldProvenance())
                 .build();
     }
 

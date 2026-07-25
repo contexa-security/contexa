@@ -73,10 +73,18 @@ public class SecurityDecision {
     private String technicalFallbackCategory;
     private String technicalFallbackReason;
     private String technicalFallbackAction;
+    private Boolean responseActionFallbackApplied;
+    private String responseActionFallbackCategory;
+    private String responseActionFallbackReason;
+    private String responseActionFallbackAction;
     private Boolean autonomyConstraintApplied;
     @Builder.Default
     private List<String> autonomyConstraintReasons = new ArrayList<>();
     private String autonomyConstraintSummary;
+    private String autonomyConstraintPolicy;
+    private String autonomyConstraintSource;
+    private String autonomyConstraintVersion;
+    private Map<String, String> fieldProvenance;
 
     public Double resolveAuditRiskScore() {
         return llmAuditRiskScore;

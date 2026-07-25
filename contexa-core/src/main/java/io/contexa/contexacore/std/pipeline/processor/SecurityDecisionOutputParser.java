@@ -47,6 +47,7 @@ public class SecurityDecisionOutputParser {
     public SecurityDecisionResponseLite parse(String rawResponse, PipelineExecutionContext context) {
         String raw = rawResponse != null ? rawResponse : "";
         Set<String> repairedFields = new LinkedHashSet<>();
+        Set<String> syntheticDefaultFields = new LinkedHashSet<>();
         String parseFailureCategory = firstNonBlank(
                 context != null ? context.getMetadata("securityDecisionParseFailureCategory", String.class) : null,
                 "NONE");
@@ -62,6 +63,7 @@ public class SecurityDecisionOutputParser {
             }
             fallbackActionApplied = true;
             repairedFields.addAll(List.of("action", "reasoning", "riskScore", "confidence", "mitre", "evidenceRefs"));
+            syntheticDefaultFields.addAll(List.of("reasoning", "riskScore", "confidence", "mitre", "evidenceRefs"));
             SecurityDecisionResponseLite fallback = buildResponse(
                     FALLBACK_ACTION,
                     defaultReasoning(FALLBACK_ACTION),
@@ -69,7 +71,14 @@ public class SecurityDecisionOutputParser {
                     defaultNumericScore("confidence", FALLBACK_ACTION),
                     DEFAULT_MITRE,
                     List.of());
-            recordMetadata(context, false, fallbackActionApplied, repairedFields, parseFailureCategory, FALLBACK_ACTION);
+            recordMetadata(
+                    context,
+                    false,
+                    fallbackActionApplied,
+                    repairedFields,
+                    syntheticDefaultFields,
+                    parseFailureCategory,
+                    FALLBACK_ACTION);
             return fallback;
         }
 
@@ -88,7 +97,7 @@ public class SecurityDecisionOutputParser {
             fallbackActionApplied = actionResult.fallbackApplied();
             repairedFields.add("action");
             if (fallbackActionApplied && "NONE".equals(parseFailureCategory)) {
-                parseFailureCategory = "MISSING_ACTION";
+                parseFailureCategory = actionResult.fallbackCategory();
             }
         }
 
@@ -100,6 +109,7 @@ public class SecurityDecisionOutputParser {
         String reasoning = extractedReasoning;
         if (reasoning == null) {
             repairedFields.add("reasoning");
+            syntheticDefaultFields.add("reasoning");
             reasoning = defaultReasoning(actionResult.action());
         }
         reasoning = normalizeReasoning(reasoning);
@@ -110,6 +120,7 @@ public class SecurityDecisionOutputParser {
                 extractLineNumber(RISK_LINE, raw));
         if (riskScore == null) {
             repairedFields.add("riskScore");
+            syntheticDefaultFields.add("riskScore");
             riskScore = defaultNumericScore("riskScore", actionResult.action());
         } else {
             riskScore = clamp(riskScore);
@@ -121,6 +132,7 @@ public class SecurityDecisionOutputParser {
                 extractLineNumber(CONFIDENCE_LINE, raw));
         if (confidence == null) {
             repairedFields.add("confidence");
+            syntheticDefaultFields.add("confidence");
             confidence = defaultNumericScore("confidence", actionResult.action());
         } else {
             confidence = clamp(confidence);
@@ -132,20 +144,32 @@ public class SecurityDecisionOutputParser {
                 extractLine(MITRE_LINE, raw));
         if (mitre == null) {
             repairedFields.add("mitre");
+            syntheticDefaultFields.add("mitre");
             mitre = DEFAULT_MITRE;
         }
 
-        List<String> evidenceRefs = normalizeEvidenceRefs(firstNonNull(
+        List<String> rawEvidenceRefs = firstNonNull(
                 asStringList(getCaseInsensitive(fields, "evidenceRefs")),
                 asStringList(getCaseInsensitive(fields, "evidenceReferences")),
-                extractJsonStringArray(raw, "evidenceRefs")), reasoning);
+                extractJsonStringArray(raw, "evidenceRefs"));
+        List<String> evidenceRefs = normalizeEvidenceRefs(rawEvidenceRefs, reasoning);
         if (evidenceRefs.isEmpty()) {
             repairedFields.add("evidenceRefs");
+        }
+        if (rawEvidenceRefs == null || rawEvidenceRefs.isEmpty() || evidenceRefs.isEmpty()) {
+            syntheticDefaultFields.add("evidenceRefs");
         }
 
         boolean coreFieldsPresent = !actionResult.fallbackApplied() && reasoningPresent && !evidenceRefs.isEmpty();
         SecurityDecisionResponseLite parsed = buildResponse(actionResult.action(), reasoning, riskScore, confidence, mitre, evidenceRefs);
-        recordMetadata(context, coreFieldsPresent, fallbackActionApplied, repairedFields, parseFailureCategory, actionResult.fallbackApplied() ? actionResult.action() : null);
+        recordMetadata(
+                context,
+                coreFieldsPresent,
+                fallbackActionApplied,
+                repairedFields,
+                syntheticDefaultFields,
+                parseFailureCategory,
+                actionResult.fallbackApplied() ? actionResult.action() : null);
         return parsed;
     }
 
@@ -171,6 +195,7 @@ public class SecurityDecisionOutputParser {
             boolean coreFieldsPresent,
             boolean fallbackActionApplied,
             Set<String> repairedFields,
+            Set<String> syntheticDefaultFields,
             String parseFailureCategory,
             String fallbackAction) {
         addMetadata(context, "securityDecisionCoreFieldsPresent", coreFieldsPresent);
@@ -180,10 +205,15 @@ public class SecurityDecisionOutputParser {
         addMetadata(context, "securityDecisionFallbackApplied", fallbackActionApplied);
         addMetadata(context, "securityDecisionOutputRepairApplied", !repairedFields.isEmpty());
         addMetadata(context, "securityDecisionOutputRepairFields", new ArrayList<>(repairedFields));
+        addMetadata(
+                context,
+                "securityDecisionSyntheticDefaultFields",
+                new ArrayList<>(syntheticDefaultFields));
         addMetadata(context, "securityDecisionEvidenceRefsPresent", !repairedFields.contains("evidenceRefs"));
         addMetadata(context, "securityDecisionParseFailureCategory", parseFailureCategory);
         if (fallbackAction != null) {
             addMetadata(context, "securityDecisionFallbackAction", fallbackAction);
+            addMetadata(context, "securityDecisionFallbackReason", parseFailureCategory);
         }
         if (!"NONE".equals(parseFailureCategory)) {
             addMetadata(context, "structuredOutputFailureCategory", parseFailureCategory);
@@ -448,14 +478,16 @@ public class SecurityDecisionOutputParser {
 
     private ActionResult normalizeAction(String action) {
         if (action == null || action.isBlank()) {
-            return new ActionResult(FALLBACK_ACTION, true, true);
+            return new ActionResult(FALLBACK_ACTION, true, true, "ACTION_MISSING");
         }
         String normalized = action.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
-            case "ALLOW", "CHALLENGE", "BLOCK", "ESCALATE" -> new ActionResult(normalized, false, false);
-            case "DENY", "DENIED", "REJECT", "REJECTED" -> new ActionResult("BLOCK", true, false);
-            case "REVIEW" -> new ActionResult("ESCALATE", true, false);
-            default -> new ActionResult(FALLBACK_ACTION, true, true);
+            case "ALLOW", "CHALLENGE", "BLOCK", "ESCALATE" ->
+                    new ActionResult(normalized, false, false, null);
+            case "DENY", "DENIED", "REJECT", "REJECTED" ->
+                    new ActionResult("BLOCK", true, false, null);
+            case "REVIEW" -> new ActionResult("ESCALATE", true, false, null);
+            default -> new ActionResult(FALLBACK_ACTION, true, true, "ACTION_FORMAT_INVALID");
         };
     }
 
@@ -573,6 +605,10 @@ public class SecurityDecisionOutputParser {
         }
     }
 
-    private record ActionResult(String action, boolean repaired, boolean fallbackApplied) {
+    private record ActionResult(
+            String action,
+            boolean repaired,
+            boolean fallbackApplied,
+            String fallbackCategory) {
     }
 }

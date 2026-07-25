@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
@@ -68,6 +70,31 @@ class SecurityEventCollectorParityTest {
         assertThat(kafkaResult.get()).isNotNull();
         assertThat(standaloneResult.get()).isNotNull();
         assertEquivalent(standaloneResult.get(), kafkaResult.get());
+    }
+
+    @Test
+    void listenerActionFiltersShouldUseFinalAutonomousAction() {
+        SecurityEvent event = SecurityEvent.builder().eventId("event-final-action").build();
+        AtomicReference<SecurityEvent> sink = new AtomicReference<>();
+        CapturingListener listener = new CapturingListener(sink);
+        SecurityDecision challenge = SecurityDecision.builder()
+                .action(ZeroTrustAction.ESCALATE)
+                .autonomousAction(ZeroTrustAction.CHALLENGE)
+                .build();
+
+        listener.onChallengeEvent(event, challenge);
+
+        assertThat(sink.get()).isSameAs(event);
+        sink.set(null);
+        listener.onHighRiskEventByAction(event, challenge);
+        assertThat(sink.get()).isNull();
+
+        SecurityDecision block = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.BLOCK)
+                .build();
+        listener.onBlockEvent(event, block);
+        assertThat(sink.get()).isSameAs(event);
     }
 
     private void assertEquivalent(SecurityEvent standalone, SecurityEvent distributed) {

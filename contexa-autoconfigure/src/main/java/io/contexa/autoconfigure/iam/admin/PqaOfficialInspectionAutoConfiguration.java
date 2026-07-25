@@ -45,6 +45,7 @@ import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVe
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationMetricResultAssembler;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationCurrentResultCoordinator;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationResolutionCleanup;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationProgressRecorder;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationEvidencePreflight;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLedger;
@@ -95,6 +96,7 @@ import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVe
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationReverificationWriter;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationMetricExecutionReferenceWriter;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.NoResolutionPromptQualityAssuranceCaseService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialMetricCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityOfficialRunDetailService;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityProtectableResourceLookup;
@@ -124,7 +126,6 @@ import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOffici
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationMetricExecutionReferenceWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationActualPromptProblemWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationActualPromptProblemLinker;
-import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationPromptQualityIssueSynchronizer;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationMetricPurposeWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationMetricPurposeEvidenceWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationPromptSignalWriter;
@@ -148,6 +149,7 @@ import io.contexa.contexaiam.admin.promptquality.official.persistence.OfficialVe
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationSnapshotCleanupRepository;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.process.JdbcPromptQualityProcessRunService;
+import io.contexa.contexaiam.admin.promptquality.official.process.NoOpPromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import io.contexa.contexaiam.admin.promptquality.official.state.DefaultPromptQualityStateCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.state.PromptQualityStateCatalog;
@@ -177,12 +179,35 @@ import java.util.Optional;
         value = IamAdminCenterAutoConfiguration.class,
         name = "io.contexa.autoconfigure.enterprise.iam.IamEnterpriseAutoConfiguration")
 @ConditionalOnClass(OfficialSealedEvidenceVerificationRuntime.class)
-@ConditionalOnBean(PromptQualityAssuranceCaseService.class)
 @EnableConfigurationProperties({
         PromptQualityRouteProperties.class,
         PromptQualityOfficialVerificationProperties.class
 })
 public class PqaOfficialInspectionAutoConfiguration {
+
+    @Bean(name = "pqaOssPromptQualityAssuranceCaseService")
+    @ConditionalOnMissingBean(PromptQualityAssuranceCaseService.class)
+    public PromptQualityAssuranceCaseService pqaOssPromptQualityAssuranceCaseService() {
+        return new NoResolutionPromptQualityAssuranceCaseService();
+    }
+
+    @Bean(name = "pqaOssPromptRuntimeGovernanceDescriptorVerifier")
+    @ConditionalOnMissingBean(PromptRuntimeGovernanceDescriptorVerifier.class)
+    public PromptRuntimeGovernanceDescriptorVerifier pqaOssPromptRuntimeGovernanceDescriptorVerifier() {
+        return PromptRuntimeGovernanceDescriptorVerifier.none();
+    }
+
+    @Bean(name = "pqaOssPromptQualityProtectableResourceLookup")
+    @ConditionalOnMissingBean(PromptQualityProtectableResourceLookup.class)
+    public PromptQualityProtectableResourceLookup pqaOssPromptQualityProtectableResourceLookup() {
+        return PromptQualityProtectableResourceLookup.none();
+    }
+
+    @Bean(name = "pqaOssRuntimeIssueDiagnosticService")
+    @ConditionalOnMissingBean(RuntimeIssueDiagnosticService.class)
+    public RuntimeIssueDiagnosticService pqaOssRuntimeIssueDiagnosticService() {
+        return RuntimeIssueDiagnosticService.none();
+    }
 
     @Bean(name = "promptQualityRouteModelAdvice")
     @ConditionalOnMissingBean(PromptQualityRouteModelAdvice.class)
@@ -405,7 +430,15 @@ public class PqaOfficialInspectionAutoConfiguration {
 
     @Bean(name = "pqaPromptQualityProcessRunService")
     @ConditionalOnMissingBean(PromptQualityProcessRunService.class)
-    public PromptQualityProcessRunService pqaPromptQualityProcessRunService(
+    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
+    public PromptQualityProcessRunService pqaOssPromptQualityProcessRunService() {
+        return new NoOpPromptQualityProcessRunService();
+    }
+
+    @Bean(name = "pqaPromptQualityProcessRunService")
+    @ConditionalOnMissingBean(PromptQualityProcessRunService.class)
+    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true")
+    public PromptQualityProcessRunService pqaEnterprisePromptQualityProcessRunService(
             @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
             ObjectMapper objectMapper) {
         return new JdbcPromptQualityProcessRunService(jdbcTemplate, objectMapper);
@@ -423,8 +456,15 @@ public class PqaOfficialInspectionAutoConfiguration {
     @ConditionalOnMissingBean(OfficialVerificationSnapshotCleanupRepository.class)
     @ConditionalOnBean(name = "contexaJdbcTemplate")
     public OfficialVerificationSnapshotCleanupRepository pqaOfficialVerificationSnapshotCleanupRepository(
-            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
-        return new JdbcOfficialVerificationSnapshotCleanupRepository(jdbcTemplate);
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            OfficialVerificationResolutionCleanup resolutionCleanup) {
+        return new JdbcOfficialVerificationSnapshotCleanupRepository(jdbcTemplate, resolutionCleanup);
+    }
+
+    @Bean(name = "pqaOfficialVerificationResolutionCleanup")
+    @ConditionalOnMissingBean(OfficialVerificationResolutionCleanup.class)
+    public OfficialVerificationResolutionCleanup pqaOfficialVerificationResolutionCleanup() {
+        return OfficialVerificationResolutionCleanup.none();
     }
     @Bean(name = "pqaOfficialPromptFieldDefinitionWriter")
     @ConditionalOnMissingBean(OfficialPromptFieldDefinitionWriter.class)
@@ -443,10 +483,8 @@ public class PqaOfficialInspectionAutoConfiguration {
     }
     @Bean(name = "pqaOfficialVerificationPromptQualityIssueSynchronizer")
     @ConditionalOnMissingBean(OfficialVerificationPromptQualityIssueSynchronizer.class)
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public OfficialVerificationPromptQualityIssueSynchronizer pqaOfficialVerificationPromptQualityIssueSynchronizer(
-            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate) {
-        return new JdbcOfficialVerificationPromptQualityIssueSynchronizer(jdbcTemplate);
+    public OfficialVerificationPromptQualityIssueSynchronizer pqaOfficialVerificationPromptQualityIssueSynchronizer() {
+        return OfficialVerificationPromptQualityIssueSynchronizer.none();
     }
     @Bean(name = "pqaOfficialVerificationPromptComparisonWriter")
     @ConditionalOnMissingBean(OfficialVerificationPromptComparisonWriter.class)

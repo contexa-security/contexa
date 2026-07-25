@@ -102,17 +102,8 @@ public class PromptContextComposer {
     }
 
     public String composeCoverageSection(CanonicalSecurityContext context) {
-        return composeCoverageSection(context, false);
-    }
-
-    public String composeCoverageSection(CanonicalSecurityContext context, boolean compact) {
-        return composeSection(context, section -> {
-            if (compact) {
-                appendCompactCoverageSection(section, context, context.getCoverage());
-            } else {
-                appendCoverageSection(section, context, context.getCoverage());
-            }
-        });
+        return composeSection(context, section ->
+                appendCoverageSection(section, context, context.getCoverage()));
     }
 
     public String composeIdentitySection(CanonicalSecurityContext context) {
@@ -148,17 +139,7 @@ public class PromptContextComposer {
     }
 
     public String composeWorkProfileSection(CanonicalSecurityContext context) {
-        return composeWorkProfileSection(context, false);
-    }
-
-    public String composeWorkProfileSection(CanonicalSecurityContext context, boolean compact) {
-        return composeSection(context, section -> {
-            if (compact) {
-                appendCompactWorkProfileSection(section, context);
-            } else {
-                appendWorkProfileSection(section, context);
-            }
-        });
+        return composeSection(context, section -> appendWorkProfileSection(section, context));
     }
 
     public String composeContextQualityAndProvenanceSection(CanonicalSecurityContext context) {
@@ -186,17 +167,7 @@ public class PromptContextComposer {
     }
 
     public String composeMissingKnowledgeSection(CanonicalSecurityContext context) {
-        return composeMissingKnowledgeSection(context, false);
-    }
-
-    public String composeMissingKnowledgeSection(CanonicalSecurityContext context, boolean compact) {
-        return composeSection(context, section -> {
-            if (compact) {
-                appendCompactMissingKnowledgeSection(section, context);
-            } else {
-                appendMissingKnowledgeSection(section, context);
-            }
-        });
+        return composeSection(context, section -> appendMissingKnowledgeSection(section, context));
     }
 
     private String composeSection(CanonicalSecurityContext context, Consumer<StringBuilder> composer) {
@@ -267,12 +238,25 @@ public class PromptContextComposer {
             return;
         }
         List<String> missingCriticalFacts = sanitizeMissingCriticalFacts(context, coverage.missingCriticalFacts());
+        List<String> availableFacts = coverage.availableFacts().stream()
+                .filter(StringUtils::hasText)
+                .filter(fact -> !fact.startsWith("Bridge "))
+                .toList();
+        List<String> bridgeRemediationHints = context != null
+                && context.getBridge() != null
+                && context.getBridge().getRemediationHints() != null
+                ? context.getBridge().getRemediationHints()
+                : List.of();
+        List<String> remediationHints = coverage.remediationHints().stream()
+                .filter(StringUtils::hasText)
+                .filter(hint -> !bridgeRemediationHints.contains(hint))
+                .toList();
         section.append("\n=== CONTEXT COVERAGE ===\n");
         section.append("CoverageLevel: ").append(coverage.level()).append("\n");
         section.append("CoverageSummary: ").append(coverage.summary()).append("\n");
-        if (!coverage.availableFacts().isEmpty()) {
+        if (!availableFacts.isEmpty()) {
             section.append("AvailableFacts:\n");
-            for (String fact : coverage.availableFacts()) {
+            for (String fact : availableFacts) {
                 section.append("- ").append(fact).append("\n");
             }
         }
@@ -282,9 +266,9 @@ public class PromptContextComposer {
                 section.append("- ").append(fact).append("\n");
             }
         }
-        if (!coverage.remediationHints().isEmpty()) {
+        if (!remediationHints.isEmpty()) {
             section.append("RemediationHints:\n");
-            for (String hint : coverage.remediationHints()) {
+            for (String hint : remediationHints) {
                 section.append("- ").append(hint).append("\n");
             }
         }
@@ -294,25 +278,6 @@ public class PromptContextComposer {
                 section.append("- ").append(warning).append("\n");
             }
         }
-    }
-
-    private void appendCompactCoverageSection(
-            StringBuilder section,
-            CanonicalSecurityContext context,
-            ContextCoverageReport coverage) {
-        if (coverage == null) {
-            return;
-        }
-        List<String> missingCriticalFacts = sanitizeMissingCriticalFacts(context, coverage.missingCriticalFacts());
-        section.append("\n=== CONTEXT COVERAGE ===\n");
-        appendLine(section, "CoverageLevel", coverage.level());
-        appendLine(section, "CoverageSummary", coverage.summary());
-        appendLine(section, "AvailableFactCount", coverage.availableFacts().size());
-        appendLine(section, "MissingCriticalFactCount", missingCriticalFacts.size());
-        appendLine(section, "RemediationHintCount", coverage.remediationHints().size());
-        appendLine(section, "ConfidenceWarningCount", coverage.confidenceWarnings().size());
-        appendListLimited(section, "AvailableFactsSample", coverage.availableFacts(), 3);
-        appendListLimited(section, "MissingCriticalFacts", missingCriticalFacts, 4);
     }
 
     private List<String> sanitizeMissingCriticalFacts(
@@ -426,18 +391,12 @@ public class PromptContextComposer {
         if (intent == null) {
             appendLine(section, "IntentSignalStatus",
                     "UNKNOWN - intent signal producer was not available; do not assume bot, referer, language, TLS, header, or travel risk");
-            appendLineOrExplainedUnknown(section, "BotUserAgent", null,
-                    "not available from intent signal context; do not assume automated client behavior");
-            appendLineOrExplainedUnknown(section, "MissingReferer", null,
-                    "not available from intent signal context; do not assume referer state");
-            appendLineOrExplainedUnknown(section, "LanguageMismatch", null,
-                    "not available from intent signal context; do not assume language mismatch");
-            appendLineOrExplainedUnknown(section, "TlsFingerprintAltered", null,
-                    "not available from intent signal context; do not assume TLS fingerprint alteration");
-            appendLineOrExplainedUnknown(section, "AbnormalHeaderOrder", null,
-                    "not available from intent signal context; do not assume abnormal header order");
-            appendLineOrExplainedUnknown(section, "ImpossibleTravel", null,
-                    "not available from intent signal context; do not assume impossible travel");
+            appendLine(section, "BotUserAgent", "UNKNOWN");
+            appendLine(section, "MissingReferer", "UNKNOWN");
+            appendLine(section, "LanguageMismatch", "UNKNOWN");
+            appendLine(section, "TlsFingerprintAltered", "UNKNOWN");
+            appendLine(section, "AbnormalHeaderOrder", "UNKNOWN");
+            appendLine(section, "ImpossibleTravel", "UNKNOWN");
             return;
         }
         appendLine(section, "BotUserAgent", intent.getBotUserAgent() == null ? false : intent.getBotUserAgent());
@@ -545,29 +504,6 @@ public class PromptContextComposer {
         appendLine(section, "ProtectableInvocationDensity", workProfile.getProtectableInvocationDensity());
         appendLine(section, "SeasonalBusinessProfile", workProfile.getSeasonalBusinessProfile());
         appendList(section, "LongTailLegitimateTasks", workProfile.getLongTailLegitimateTasks());
-    }
-
-    private void appendCompactWorkProfileSection(StringBuilder section, CanonicalSecurityContext context) {
-        CanonicalSecurityContext.WorkProfile workProfile = context != null ? context.getWorkProfile() : null;
-        if (workProfile == null) {
-            return;
-        }
-        section.append("\n=== PERSONAL WORK PROFILE ===\n");
-        appendEvidenceState(section, "WorkProfileEvidenceState",
-                CanonicalContextFieldPolicy.hasWorkProfileTrustAssessment(context),
-                CanonicalContextFieldPolicy.hasWorkProfile(context),
-                CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context));
-        appendLine(section, "WorkProfileSummary", workProfile.getSummary());
-        appendListLimited(section, "FrequentProtectableResources", workProfile.getFrequentProtectableResources(), 3);
-        appendListLimited(section, "FrequentActionFamilies", workProfile.getFrequentActionFamilies(), 3);
-        appendListLimited(section, "FrequentSensitiveResourceCategories", workProfile.getFrequentSensitiveResourceCategories(), 3);
-        appendListLimited(section, "ProtectableResourceHeatmap", workProfile.getProtectableResourceHeatmap(), 2);
-        appendIntegerListLimited(section, "NormalAccessHours", workProfile.getNormalAccessHours(), 6);
-        appendIntegerListLimited(section, "NormalAccessDays", workProfile.getNormalAccessDays(), 5);
-        appendLine(section, "NormalRequestRate", workProfile.getNormalRequestRate());
-        appendLine(section, "NormalReadWriteExportRatio", workProfile.getNormalReadWriteExportRatio());
-        appendLine(section, "NormalPrivilegedActionFrequency", workProfile.getNormalPrivilegedActionFrequency());
-        appendLine(section, "ProtectableInvocationDensity", workProfile.getProtectableInvocationDensity());
     }
 
     private void appendContextQualityAndProvenanceSection(StringBuilder section, List<ContextTrustProfile> trustProfiles) {
@@ -780,14 +716,11 @@ public class PromptContextComposer {
     private void appendFrictionSection(StringBuilder section, CanonicalSecurityContext.FrictionProfile frictionProfile) {
         section.append("\n=== FRICTION AND APPROVAL HISTORY ===\n");
         if (frictionProfile == null) {
-            appendLine(section, "ApprovalRequired",
-                    "UNKNOWN - approval provider supplied no approval requirement for this request; do not infer prior approval.");
-            appendLine(section, "ApprovalGranted",
-                    "UNKNOWN - approval provider supplied no grant result for this request; do not infer granted approval.");
-            appendLine(section, "ApprovalMissing",
-                    "UNKNOWN - approval provider supplied no missing-approval signal; do not infer approval completeness.");
             appendLine(section, "ApprovalStatus",
                     "UNKNOWN - approval provider supplied no approval lineage for this request; do not infer prior approval.");
+            appendLine(section, "ApprovalRequired", "UNKNOWN");
+            appendLine(section, "ApprovalGranted", "UNKNOWN");
+            appendLine(section, "ApprovalMissing", "UNKNOWN");
             return;
         }
         appendLine(section, "FrictionSummary", frictionProfile.getSummary());
@@ -816,12 +749,9 @@ public class PromptContextComposer {
         if (delegation == null || !hasDelegationData(delegation)) {
             appendLine(section, "Delegated",
                     "UNKNOWN - delegation context was not provided for this request; do not infer delegated objective.");
-            appendLine(section, "ObjectiveFamily",
-                    "UNKNOWN - delegation context was not provided for this request; do not infer objective family.");
-            appendLine(section, "ObjectiveSummary",
-                    "UNKNOWN - delegation context was not provided for this request; do not infer objective summary.");
-            appendLine(section, "ObjectiveAlignmentEvidence",
-                    "UNKNOWN - delegation context supplied no objective alignment evidence; do not infer business intent.");
+            appendLine(section, "ObjectiveFamily", "UNKNOWN");
+            appendLine(section, "ObjectiveSummary", "UNKNOWN");
+            appendLine(section, "ObjectiveAlignmentEvidence", "UNKNOWN");
             return;
         }
         if (Boolean.FALSE.equals(delegation.getDelegated())) {
@@ -960,70 +890,6 @@ public class PromptContextComposer {
         }
     }
 
-    private void appendCompactMissingKnowledgeSection(StringBuilder section, CanonicalSecurityContext context) {
-        ContextCoverageReport coverage = context.getCoverage();
-        List<ContextTrustProfile> trustProfiles = context.getContextTrustProfiles();
-        if (!hasMissingKnowledge(coverage, trustProfiles)) {
-            return;
-        }
-        section.append("\n=== EXPLICIT MISSING KNOWLEDGE ===\n");
-        boolean hasResolvedAuthorizationEffect = context != null
-                && context.getAuthorization() != null
-                && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
-        List<String> missingFacts = new ArrayList<>();
-        if (coverage != null) {
-            for (String fact : coverage.missingCriticalFacts()) {
-                if (hasResolvedAuthorizationEffect
-                        && "Bridge missing context: AUTHORIZATION_EFFECT.".equals(fact)) {
-                    continue;
-                }
-                missingFacts.add(fact);
-            }
-            appendLine(section, "MissingCriticalFactCount", missingFacts.size());
-            appendListLimited(section, "MissingCriticalFacts", missingFacts, 4);
-            appendLine(section, "RemediationHintCount", coverage.remediationHints().size());
-            appendLine(section, "ConfidenceWarningCount", coverage.confidenceWarnings().size());
-        }
-        if (trustProfiles == null || trustProfiles.isEmpty()) {
-            return;
-        }
-        int profileCount = 0;
-        int fieldCautionCount = 0;
-        int emittedProfiles = 0;
-        int emittedFieldCautions = 0;
-        for (ContextTrustProfile trustProfile : trustProfiles) {
-            if (trustProfile == null || !hasTrustGating(trustProfile)) {
-                continue;
-            }
-            profileCount++;
-            if (emittedProfiles < 2) {
-                appendLine(section, "ContextEvidenceLimitation", trustProfile.getProfileKey()
-                        + " | evidenceState=" + describeProfileEvidenceState(trustProfile));
-                emittedProfiles++;
-            }
-            for (ContextFieldTrustRecord fieldRecord : trustProfile.getFieldRecords()) {
-                if (fieldRecord == null || !ContextSemanticBoundaryPolicy.requiresEvidenceCaution(fieldRecord)) {
-                    continue;
-                }
-                fieldCautionCount++;
-                if (emittedFieldCautions < 2) {
-                    appendLine(section, "ContextFieldCoverage", fieldRecord.getFieldPath()
-                            + " | fallback=" + formatPercent(fieldRecord.getFallbackRate())
-                            + " | unknown=" + formatPercent(fieldRecord.getUnknownRate()));
-                    emittedFieldCautions++;
-                }
-            }
-        }
-        appendLine(section, "TrustProfileLimitationCount", profileCount);
-        appendLine(section, "FieldCoverageCautionCount", fieldCautionCount);
-        if (profileCount > emittedProfiles) {
-            appendLine(section, "ContextEvidenceLimitationOmittedCount", profileCount - emittedProfiles);
-        }
-        if (fieldCautionCount > emittedFieldCautions) {
-            appendLine(section, "ContextFieldCoverageOmittedCount", fieldCautionCount - emittedFieldCautions);
-        }
-    }
-
     private boolean hasMissingKnowledge(ContextCoverageReport coverage, List<ContextTrustProfile> trustProfiles) {
         boolean hasCoverageGap = coverage != null
                 && (!coverage.missingCriticalFacts().isEmpty()
@@ -1093,51 +959,6 @@ public class PromptContextComposer {
             return;
         }
         appendSlot(section, label, values, values.stream().map(String::valueOf).toList().toString());
-    }
-
-    private void appendListLimited(StringBuilder section, String label, List<String> values, int limit) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        int safeLimit = Math.max(1, limit);
-        List<String> selected = values.stream()
-                .filter(StringUtils::hasText)
-                .map(value -> truncateSingleLine(value, 160))
-                .limit(safeLimit)
-                .toList();
-        if (selected.isEmpty()) {
-            return;
-        }
-        appendSlot(section, label, selected, String.join(", ", selected));
-        int omitted = values.size() - selected.size();
-        if (omitted > 0) {
-            appendLine(section, label + "OmittedCount", omitted);
-        }
-    }
-
-    private String truncateSingleLine(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String normalized = value.replace('\n', ' ').replace('\r', ' ').trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
-    private void appendIntegerListLimited(StringBuilder section, String label, List<Integer> values, int limit) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        int safeLimit = Math.max(1, limit);
-        List<Integer> selected = values.stream()
-                .limit(safeLimit)
-                .toList();
-        appendSlot(section, label, selected, selected.stream().map(String::valueOf).toList().toString());
-        int omitted = values.size() - selected.size();
-        if (omitted > 0) {
-            appendLine(section, label + "OmittedCount", omitted);
-        }
     }
 
     private void appendLine(StringBuilder section, String label, Object value) {
@@ -1234,8 +1055,7 @@ public class PromptContextComposer {
             return;
         }
         if (comparedValues == null || comparedValues.isEmpty() || present == null) {
-            appendLine(section, label,
-                    "UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.");
+            appendLine(section, label, "UNKNOWN");
             return;
         }
         appendLine(section, label, present);

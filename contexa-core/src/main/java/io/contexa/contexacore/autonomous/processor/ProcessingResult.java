@@ -65,6 +65,10 @@ public class ProcessingResult {
     private String technicalFallbackCategory;
     private String technicalFallbackReason;
     private String technicalFallbackAction;
+    private Boolean responseActionFallbackApplied;
+    private String responseActionFallbackCategory;
+    private String responseActionFallbackReason;
+    private String responseActionFallbackAction;
 
     private String reasoning;
 
@@ -92,6 +96,14 @@ public class ProcessingResult {
     private List<String> autonomyConstraintReasons;
 
     private String autonomyConstraintSummary;
+
+    private String autonomyConstraintPolicy;
+
+    private String autonomyConstraintSource;
+
+    private String autonomyConstraintVersion;
+
+    private Map<String, String> fieldProvenance;
 
     public enum ProcessingPath {
         COLD_PATH("Cold Path - AI Analysis"),

@@ -132,48 +132,6 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("prompt budget profile header should flow into request info")
-    void extractShouldIncludePromptBudgetProfileFromHeader() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
-        request.addHeader("X-Request-ID", "req-budget-profile");
-        request.addHeader("X-Contexa-Prompt-Budget-Profile", "CORTEX_L1_COMPACT");
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_COMPACT");
-    }
-
-    @Test
-    @DisplayName("official verification probe should not override the runtime prompt profile by path")
-    void extractShouldNotOverrideOfficialVerificationProbePromptProfileByPath() {
-        MockHttpServletRequest request = new MockHttpServletRequest(
-                "GET",
-                "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
-        request.addHeader("X-Request-ID", "req-official-runtime-profile");
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getPromptBudgetProfile()).isNull();
-    }
-
-    @Test
-    @DisplayName("explicit prompt profile header should override official verification raw default")
-    void extractShouldLetExplicitPromptProfileOverrideOfficialVerificationDefault() {
-        MockHttpServletRequest request = new MockHttpServletRequest(
-                "GET",
-                "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
-        request.addHeader("X-Request-ID", "req-official-explicit-profile");
-        request.addHeader("X-Contexa-Prompt-Budget-Profile", "CORTEX_L1_COMPACT");
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getPromptBudgetProfile()).isEqualTo("CORTEX_L1_COMPACT");
-    }
-
-    @Test
     @DisplayName("generic requested model header should be ignored for ordinary security requests")
     void extractShouldIgnoreRequestedModelIdFromGenericHeader() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");

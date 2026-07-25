@@ -40,21 +40,21 @@ public interface SecurityEventListener {
     }
 
     default void onBlockEvent(SecurityEvent event, SecurityDecision decision) {
-        if (decision != null && decision.getAction() == ZeroTrustAction.BLOCK) {
+        if (decision != null && decision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {
             onSecurityEvent(event);
         }
     }
 
     default void onChallengeEvent(SecurityEvent event, SecurityDecision decision) {
-        if (decision != null && decision.getAction() == ZeroTrustAction.CHALLENGE) {
+        if (decision != null && decision.resolveAutonomousAction() == ZeroTrustAction.CHALLENGE) {
             onSecurityEvent(event);
         }
     }
 
     default void onHighRiskEventByAction(SecurityEvent event, SecurityDecision decision) {
         if (decision != null &&
-            (decision.getAction() == ZeroTrustAction.BLOCK ||
-             decision.getAction() == ZeroTrustAction.ESCALATE)) {
+            (decision.resolveAutonomousAction() == ZeroTrustAction.BLOCK ||
+             decision.resolveAutonomousAction() == ZeroTrustAction.ESCALATE)) {
             onSecurityEvent(event);
         }
     }

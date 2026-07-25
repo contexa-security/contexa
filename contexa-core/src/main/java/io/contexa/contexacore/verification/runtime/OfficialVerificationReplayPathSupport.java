@@ -7,6 +7,12 @@ import java.util.Locale;
 
 public final class OfficialVerificationReplayPathSupport {
 
+    private static final List<String> SYNTHETIC_PROBE_PATH_PREFIXES = List.of(
+            "/contexa/admin/api/enterprise/verification/runtime/probe/",
+            "/admin/api/enterprise/verification/runtime/probe/",
+            "/internal/api/demo-verification/probe/"
+    );
+
     private static final List<String> MANUAL_PATH_PREFIXES = List.of(
             "/contexa/admin/api/security-test/",
             "/contexa/api/security-test/",
@@ -123,6 +129,12 @@ public final class OfficialVerificationReplayPathSupport {
             normalized = normalized.substring(0, fragmentStart);
         }
         return normalized;
+    }
+
+    public static boolean isSyntheticProbePath(String requestPath) {
+        String normalized = normalizeReplayPath(requestPath);
+        return StringUtils.hasText(normalized)
+                && SYNTHETIC_PROBE_PATH_PREFIXES.stream().anyMatch(normalized::startsWith);
     }
 
     public static String normalizeResourceId(String resourceId) {

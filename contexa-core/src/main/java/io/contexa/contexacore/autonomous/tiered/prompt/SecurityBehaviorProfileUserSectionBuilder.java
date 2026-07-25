@@ -22,19 +22,17 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
         StringBuilder section = new StringBuilder();
         String observedWorkPatternSection = template.buildObservedWorkPatternContextSection(context.getCanonicalSecurityContext());
         String personalWorkProfileSection = template.buildPersonalWorkProfileContextSection(context);
-        boolean runtimeCompactPrompt = template.shouldUseRuntimeCompactPrompt(context);
-        String historicalBaselineSupport = null;
-        if (!runtimeCompactPrompt) {
-            historicalBaselineSupport = template.buildSupportingPromptBlock(
-                    "HistoricalBaselineSupport",
-                    template.buildUserProfileNarrative(
-                            context.getEvent(),
-                            context.getDetectedPatterns(),
-                            context.getBehaviorAnalysis(),
-                            context.getBaselineStatus()
-                    )
-            );
-        }
+        String historicalBaselineSupport = hasCanonicalBaselineGapSection(context)
+                ? null
+                : template.buildSupportingPromptBlock(
+                        "HistoricalBaselineSupport",
+                        template.buildUserProfileNarrative(
+                                context.getEvent(),
+                                context.getDetectedPatterns(),
+                                context.getBehaviorAnalysis(),
+                                context.getBaselineStatus()
+                        )
+                );
 
         template.appendIfPresent(section, observedWorkPatternSection);
         if (personalWorkProfileSection == null && historicalBaselineSupport != null) {
@@ -43,6 +41,11 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
         template.appendIfPresent(section, personalWorkProfileSection);
         template.appendIfPresent(section, historicalBaselineSupport);
         return section.toString();
+    }
+
+    private boolean hasCanonicalBaselineGapSection(SecurityPromptBuildContext context) {
+        return context.getBaselineStatus() == BaselineStatus.NEW_USER
+                || context.getBaselineStatus() == BaselineStatus.SPARSE_PERSONAL_HISTORY;
     }
 }
 

@@ -86,6 +86,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.setTechnicalFallbackCategory(analysisResult.getTechnicalFallbackCategory());
             result.setTechnicalFallbackReason(analysisResult.getTechnicalFallbackReason());
             result.setTechnicalFallbackAction(analysisResult.getTechnicalFallbackAction());
+            result.setResponseActionFallbackApplied(analysisResult.getResponseActionFallbackApplied());
+            result.setResponseActionFallbackCategory(analysisResult.getResponseActionFallbackCategory());
+            result.setResponseActionFallbackReason(analysisResult.getResponseActionFallbackReason());
+            result.setResponseActionFallbackAction(analysisResult.getResponseActionFallbackAction());
             result.setReasoning(analysisResult.getReasoning());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
@@ -93,14 +97,26 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.setAutonomyConstraintApplied(analysisResult.getAutonomyConstraintApplied());
             result.setAutonomyConstraintReasons(analysisResult.getAutonomyConstraintReasons());
             result.setAutonomyConstraintSummary(analysisResult.getAutonomyConstraintSummary());
+            result.setAutonomyConstraintPolicy(analysisResult.getAutonomyConstraintPolicy());
+            result.setAutonomyConstraintSource(analysisResult.getAutonomyConstraintSource());
+            result.setAutonomyConstraintVersion(analysisResult.getAutonomyConstraintVersion());
+            result.setFieldProvenance(analysisResult.getFieldProvenance());
             result.addAnalysisData("aiAssessment", analysisResult);
             result.addAnalysisData("llmAuditRiskScore", analysisResult.getFinalScore());
             result.addAnalysisData("confidence", analysisResult.getConfidence());
             result.addAnalysisData("llmAuditConfidence", analysisResult.getLlmAuditConfidence());
             result.addAnalysisData("llmProposedAction", analysisResult.getProposedAction());
             result.addAnalysisData("autonomousEnforcementAction", analysisResult.getAction());
+            result.addAnalysisData("responseActionFallbackApplied", analysisResult.getResponseActionFallbackApplied());
+            result.addAnalysisData("responseActionFallbackCategory", analysisResult.getResponseActionFallbackCategory());
+            result.addAnalysisData("responseActionFallbackReason", analysisResult.getResponseActionFallbackReason());
+            result.addAnalysisData("responseActionFallbackAction", analysisResult.getResponseActionFallbackAction());
             result.addAnalysisData("autonomyConstraintApplied", analysisResult.getAutonomyConstraintApplied());
             result.addAnalysisData("autonomyConstraintSummary", analysisResult.getAutonomyConstraintSummary());
+            result.addAnalysisData("autonomyConstraintPolicy", analysisResult.getAutonomyConstraintPolicy());
+            result.addAnalysisData("autonomyConstraintSource", analysisResult.getAutonomyConstraintSource());
+            result.addAnalysisData("autonomyConstraintVersion", analysisResult.getAutonomyConstraintVersion());
+            result.addAnalysisData("fieldProvenance", analysisResult.getFieldProvenance());
             if (analysisResult.getLayer1AssessmentSnapshot() != null && !analysisResult.getLayer1AssessmentSnapshot().isEmpty()) {
                 result.addAnalysisData("layer1Assessment", analysisResult.getLayer1AssessmentSnapshot());
             }
@@ -166,17 +182,22 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                    result.setAutonomyConstraintPolicy(layer1Assessment.getAutonomyConstraintPolicy());
+                    result.setAutonomyConstraintSource(layer1Assessment.getAutonomyConstraintSource());
+                    result.setAutonomyConstraintVersion(layer1Assessment.getAutonomyConstraintVersion());
+                    result.setFieldProvenance(layer1Assessment.getFieldProvenance());
                     result.setLlmDecisionPresent(defaultBoolean(layer1Assessment.getLlmDecisionPresent(), true));
                     result.setTechnicalFallbackApplied(defaultBoolean(layer1Assessment.getTechnicalFallbackApplied(), false));
                     result.setTechnicalFallbackCategory(layer1Assessment.getTechnicalFallbackCategory());
                     result.setTechnicalFallbackReason(layer1Assessment.getTechnicalFallbackReason());
                     result.setTechnicalFallbackAction(layer1Assessment.getTechnicalFallbackAction());
+                    copyResponseActionFallback(result, layer1Assessment);
                     result.setDecisionAppliedStage("LAYER1");
                     String reasoning = layer1Assessment.getReasoning() != null
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
                     publishLayer1Complete(
                             userId,
-                            layer1Assessment.getAction(),
+                            resolveEnforcedAction(layer1Assessment),
                             layer1Assessment.resolveAuditRiskScore(),
                             layer1Assessment.resolveAuditConfidence(),
                             reasoning,
@@ -270,16 +291,21 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setTechnicalFallbackCategory(layer2Assessment.getTechnicalFallbackCategory());
                 result.setTechnicalFallbackReason(layer2Assessment.getTechnicalFallbackReason());
                 result.setTechnicalFallbackAction(layer2Assessment.getTechnicalFallbackAction());
+                copyResponseActionFallback(result, layer2Assessment);
                 result.setReasoning(layer2Assessment.getReasoning());
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
+                result.setAutonomyConstraintPolicy(layer2Assessment.getAutonomyConstraintPolicy());
+                result.setAutonomyConstraintSource(layer2Assessment.getAutonomyConstraintSource());
+                result.setAutonomyConstraintVersion(layer2Assessment.getAutonomyConstraintVersion());
+                result.setFieldProvenance(layer2Assessment.getFieldProvenance());
                 result.setDecisionAppliedStage("LAYER2");
                 String layer2Reasoning = layer2Assessment.getReasoning() != null
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
                 publishLayer2Complete(
                         userId,
-                        layer2Assessment.getAction(),
+                        resolveEnforcedAction(layer2Assessment),
                         layer2Assessment.resolveAuditRiskScore(),
                         layer2Assessment.resolveAuditConfidence(),
                         layer2Reasoning,
@@ -314,6 +340,11 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
+                result.setAutonomyConstraintPolicy(layer1Assessment.getAutonomyConstraintPolicy());
+                result.setAutonomyConstraintSource(layer1Assessment.getAutonomyConstraintSource());
+                result.setAutonomyConstraintVersion(layer1Assessment.getAutonomyConstraintVersion());
+                result.setFieldProvenance(layer1Assessment.getFieldProvenance());
+                copyResponseActionFallback(result, layer1Assessment);
                 result.setLlmDecisionPresent(defaultBoolean(layer1Assessment.getLlmDecisionPresent(), true));
             } else {
                 result.setDecisionAppliedStage("COLD_PATH_FALLBACK");
@@ -426,9 +457,17 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private String technicalFallbackCategory;
         private String technicalFallbackReason;
         private String technicalFallbackAction;
+        private Boolean responseActionFallbackApplied;
+        private String responseActionFallbackCategory;
+        private String responseActionFallbackReason;
+        private String responseActionFallbackAction;
         private Boolean autonomyConstraintApplied;
         private List<String> autonomyConstraintReasons = new ArrayList<>();
         private String autonomyConstraintSummary;
+        private String autonomyConstraintPolicy;
+        private String autonomyConstraintSource;
+        private String autonomyConstraintVersion;
+        private Map<String, String> fieldProvenance = Map.of();
         private Map<String, Object> layer1AssessmentSnapshot = Map.of();
         private Map<String, Object> layer2AssessmentSnapshot = Map.of();
         private String decisionAppliedStage;
@@ -481,12 +520,20 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .technicalFallbackCategory(technicalFallbackCategory)
                     .technicalFallbackReason(technicalFallbackReason)
                     .technicalFallbackAction(technicalFallbackAction)
+                    .responseActionFallbackApplied(responseActionFallbackApplied)
+                    .responseActionFallbackCategory(responseActionFallbackCategory)
+                    .responseActionFallbackReason(responseActionFallbackReason)
+                    .responseActionFallbackAction(responseActionFallbackAction)
                     .iocIndicators(new ArrayList<>(indicators))
                     .mitigationActions(new ArrayList<>(recommendedActions))
                     .reasoning(reasoningPrefix + (reasoning != null ? reasoning : "No additional reasoning"))
                     .autonomyConstraintApplied(autonomyConstraintApplied)
                     .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
                     .autonomyConstraintSummary(autonomyConstraintSummary)
+                    .autonomyConstraintPolicy(autonomyConstraintPolicy)
+                    .autonomyConstraintSource(autonomyConstraintSource)
+                    .autonomyConstraintVersion(autonomyConstraintVersion)
+                    .fieldProvenance(fieldProvenance)
                     .build();
         }
     }
@@ -506,6 +553,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     private boolean defaultBoolean(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private void copyResponseActionFallback(
+            ThreatAnalysisResult target,
+            ThreatAssessment assessment) {
+        target.setResponseActionFallbackApplied(assessment.getResponseActionFallbackApplied());
+        target.setResponseActionFallbackCategory(assessment.getResponseActionFallbackCategory());
+        target.setResponseActionFallbackReason(assessment.getResponseActionFallbackReason());
+        target.setResponseActionFallbackAction(assessment.getResponseActionFallbackAction());
     }
 
     private void publishContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
@@ -685,11 +741,19 @@ public class ColdPathEventProcessor implements IPathProcessor {
             putIfNotNull(metadata, "reasoning", assessment.getReasoning());
             putIfNotNull(metadata, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
             putIfNotNull(metadata, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+            putIfNotNull(metadata, "autonomyConstraintPolicy", assessment.getAutonomyConstraintPolicy());
+            putIfNotNull(metadata, "autonomyConstraintSource", assessment.getAutonomyConstraintSource());
+            putIfNotNull(metadata, "autonomyConstraintVersion", assessment.getAutonomyConstraintVersion());
+            putIfNotNull(metadata, "fieldProvenance", assessment.getFieldProvenance());
             putIfNotNull(metadata, "llmDecisionPresent", assessment.getLlmDecisionPresent());
             putIfNotNull(metadata, "technicalFallbackApplied", assessment.getTechnicalFallbackApplied());
             putIfNotNull(metadata, "technicalFallbackCategory", assessment.getTechnicalFallbackCategory());
             putIfNotNull(metadata, "technicalFallbackReason", assessment.getTechnicalFallbackReason());
             putIfNotNull(metadata, "technicalFallbackAction", assessment.getTechnicalFallbackAction());
+            putIfNotNull(metadata, "responseActionFallbackApplied", assessment.getResponseActionFallbackApplied());
+            putIfNotNull(metadata, "responseActionFallbackCategory", assessment.getResponseActionFallbackCategory());
+            putIfNotNull(metadata, "responseActionFallbackReason", assessment.getResponseActionFallbackReason());
+            putIfNotNull(metadata, "responseActionFallbackAction", assessment.getResponseActionFallbackAction());
             if (assessment.getAutonomyConstraintReasons() != null && !assessment.getAutonomyConstraintReasons().isEmpty()) {
                 metadata.put("autonomyConstraintReasons", assessment.getAutonomyConstraintReasons());
             }
@@ -710,6 +774,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         putIfNotNull(metadata, "technicalFallbackCategory", result.getTechnicalFallbackCategory());
         putIfNotNull(metadata, "technicalFallbackReason", result.getTechnicalFallbackReason());
         putIfNotNull(metadata, "technicalFallbackAction", result.getTechnicalFallbackAction());
+        putIfNotNull(metadata, "responseActionFallbackApplied", result.getResponseActionFallbackApplied());
+        putIfNotNull(metadata, "responseActionFallbackCategory", result.getResponseActionFallbackCategory());
+        putIfNotNull(metadata, "responseActionFallbackReason", result.getResponseActionFallbackReason());
+        putIfNotNull(metadata, "responseActionFallbackAction", result.getResponseActionFallbackAction());
         putIfNotNull(metadata, "riskScore", result.getFinalScore());
         putIfNotNull(metadata, "confidence", result.getLlmAuditConfidence());
         putIfNotNull(metadata, "reasoning", result.getReasoning());
@@ -723,6 +791,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
         putIfNotNull(metadata, "autonomyConstraintApplied", result.getAutonomyConstraintApplied());
         putIfNotNull(metadata, "autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+        putIfNotNull(metadata, "autonomyConstraintPolicy", result.getAutonomyConstraintPolicy());
+        putIfNotNull(metadata, "autonomyConstraintSource", result.getAutonomyConstraintSource());
+        putIfNotNull(metadata, "autonomyConstraintVersion", result.getAutonomyConstraintVersion());
+        putIfNotNull(metadata, "fieldProvenance", result.getFieldProvenance());
         if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
             metadata.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
         }
@@ -743,6 +815,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         putIfNotNull(snapshot, "technicalFallbackCategory", assessment.getTechnicalFallbackCategory());
         putIfNotNull(snapshot, "technicalFallbackReason", assessment.getTechnicalFallbackReason());
         putIfNotNull(snapshot, "technicalFallbackAction", assessment.getTechnicalFallbackAction());
+        putIfNotNull(snapshot, "responseActionFallbackApplied", assessment.getResponseActionFallbackApplied());
+        putIfNotNull(snapshot, "responseActionFallbackCategory", assessment.getResponseActionFallbackCategory());
+        putIfNotNull(snapshot, "responseActionFallbackReason", assessment.getResponseActionFallbackReason());
+        putIfNotNull(snapshot, "responseActionFallbackAction", assessment.getResponseActionFallbackAction());
         putIfNotNull(snapshot, "riskScore", assessment.resolveAuditRiskScore());
         putIfNotNull(snapshot, "confidence", assessment.getConfidence());
         putIfNotNull(snapshot, "llmAuditConfidence", assessment.resolveAuditConfidence());
@@ -751,6 +827,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         putIfNotNull(snapshot, "shouldEscalate", assessment.isShouldEscalate());
         putIfNotNull(snapshot, "autonomyConstraintApplied", assessment.getAutonomyConstraintApplied());
         putIfNotNull(snapshot, "autonomyConstraintSummary", assessment.getAutonomyConstraintSummary());
+        putIfNotNull(snapshot, "autonomyConstraintPolicy", assessment.getAutonomyConstraintPolicy());
+        putIfNotNull(snapshot, "autonomyConstraintSource", assessment.getAutonomyConstraintSource());
+        putIfNotNull(snapshot, "autonomyConstraintVersion", assessment.getAutonomyConstraintVersion());
+        putIfNotNull(snapshot, "fieldProvenance", assessment.getFieldProvenance());
         if (assessment.getIndicators() != null && !assessment.getIndicators().isEmpty()) {
             snapshot.put("indicators", new ArrayList<>(assessment.getIndicators()));
         }

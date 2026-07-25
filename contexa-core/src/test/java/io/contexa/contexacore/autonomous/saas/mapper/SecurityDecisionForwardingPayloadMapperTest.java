@@ -53,6 +53,13 @@ class SecurityDecisionForwardingPayloadMapperTest {
         assertThat(payload.getLlmAuditConfidence()).isEqualTo(0.88);
         assertThat(payload.getAutonomyConstraintApplied()).isTrue();
         assertThat(payload.getAutonomyConstraintSummary()).contains("approval lineage");
+        assertThat(payload.getAutonomyConstraintPolicy()).isEqualTo("LAYER2_ESCALATE_TERMINAL_POLICY");
+        assertThat(payload.getAutonomyConstraintSource())
+                .isEqualTo("contexa.ai.tiered.layer2.escalate-fallback-action");
+        assertThat(payload.getAutonomyConstraintVersion()).isEqualTo("1");
+        assertThat(payload.getResponseActionFallbackApplied()).isTrue();
+        assertThat(payload.getResponseActionFallbackCategory()).isEqualTo("ACTION_MISSING");
+        assertThat(payload.getResponseActionFallbackAction()).isEqualTo("CHALLENGE");
         assertThat(payload.getReasoning()).isNull();
         assertThat(payload.getWorkProfileSummary()).contains("Frequent protectable resources");
         assertThat(payload.getRoleDriftSummary()).contains("Current resource family: ACCOUNT");
@@ -260,6 +267,14 @@ class SecurityDecisionForwardingPayloadMapperTest {
                 .reasoning("Suspicious impossible-travel pattern detected")
                 .autonomyConstraintApplied(true)
                 .autonomyConstraintSummary("Autonomous allow is not permitted until approval lineage is explicit.")
+                .autonomyConstraintPolicy("LAYER2_ESCALATE_TERMINAL_POLICY")
+                .autonomyConstraintSource("contexa.ai.tiered.layer2.escalate-fallback-action")
+                .autonomyConstraintVersion("1")
+                .technicalFallbackApplied(false)
+                .responseActionFallbackApplied(true)
+                .responseActionFallbackCategory("ACTION_MISSING")
+                .responseActionFallbackReason("Layer2 LLM response action was missing; CHALLENGE was applied.")
+                .responseActionFallbackAction("CHALLENGE")
                 .threatIndicators(List.of("geo_velocity_anomaly", "new_browser_fingerprint", "token_replay"))
                 .analysisData(Map.of(
                         "behaviorPatterns", List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"),

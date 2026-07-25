@@ -31,7 +31,6 @@ public class TieredStrategyProperties {
 
     private Truncation truncation = new Truncation();
     private Security security = new Security();
-    private PromptCompression promptCompression = new PromptCompression();
     private PromptRuntime promptRuntime = new PromptRuntime();
 
     @Data
@@ -40,15 +39,6 @@ public class TieredStrategyProperties {
         private List<String> trustedProxies = Collections.emptyList();
 
         private boolean trustedProxyValidationEnabled = true;
-    }
-
-    @Data
-    public static class PromptCompression {
-        /**
-         * Runtime compression is opt-in. Official metric inspection and security decision prompts must keep their
-         * configured content unless an operator explicitly enables governed compaction.
-         */
-        private boolean enabled = false;
     }
 
     @Data
@@ -129,7 +119,7 @@ public class TieredStrategyProperties {
         private Prompt prompt = new Prompt();
         private int vectorSearchLimit = 12;
         private String defaultBudgetProfile = "CORTEX_L1_INTERACTIVE_STRICT";
-        private int maxOutputTokens = 1024;
+        private int maxOutputTokens = 256;
         private String openAiReasoningEffort = "minimal";
         private String openAiVerbosity = "low";
 
@@ -203,7 +193,7 @@ public class TieredStrategyProperties {
         private ZeroTrustAction escalateFallbackAction = ZeroTrustAction.CHALLENGE;
         private int ragTopK = 5;
         private String defaultBudgetProfile = "CORTEX_L2_EXPERT_STRICT";
-        private int maxOutputTokens = 1536;
+        private int maxOutputTokens = 320;
         private String openAiReasoningEffort = "minimal";
         private String openAiVerbosity = "low";
 

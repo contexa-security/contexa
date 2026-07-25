@@ -292,7 +292,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .reasoning(fallbackReason)
                 .requiresApproval(requiresApproval)
                 .expertRecommendation(expertRecommendation)
+                .fieldProvenance(platformFallbackFieldProvenance())
                 .build();
+    }
+
+    private Map<String, String> platformFallbackFieldProvenance() {
+        Map<String, String> provenance = new LinkedHashMap<>();
+        for (String field : List.of("riskScore", "confidence", "reasoning", "mitre", "evidenceRefs")) {
+            provenance.put(field, "PLATFORM_FALLBACK");
+        }
+        return Map.copyOf(provenance);
     }
 
     protected String resolveTechnicalFailureCategory(Throwable throwable) {
@@ -1637,6 +1646,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (decision == null || pipelineResponse == null) {
             return;
         }
+        if (pipelineResponse.getFieldProvenance() != null
+                && !pipelineResponse.getFieldProvenance().isEmpty()) {
+            decision.setFieldProvenance(Map.copyOf(pipelineResponse.getFieldProvenance()));
+        }
         Map<String, Object> metadata = pipelineResponse.getAllMetadata();
         if (metadata == null || metadata.isEmpty()) {
             return;
@@ -1650,6 +1663,22 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 metadata.get("structuredOutputFailureCategory"),
                 metadata.get("securityDecisionParseFailureCategory"),
                 metadata.get("decisionFailureCategory")));
+        if (fallbackApplied && !rawExecutionFailed) {
+            String responseFallbackCategory = firstNonBlank(
+                    metadata.get("securityDecisionFallbackReason"),
+                    failureCategory,
+                    "ACTION_FORMAT_INVALID");
+            decision.setLlmDecisionPresent(Boolean.FALSE.equals(llmDecisionPresent) ? false : true);
+            decision.setTechnicalFallbackApplied(false);
+            decision.setResponseActionFallbackApplied(true);
+            decision.setResponseActionFallbackCategory(responseFallbackCategory);
+            decision.setResponseActionFallbackReason(
+                    "Security decision response action was repaired: " + responseFallbackCategory);
+            decision.setResponseActionFallbackAction(firstNonBlank(
+                    metadata.get("securityDecisionFallbackAction"),
+                    decision.getAction() != null ? decision.getAction().name() : null));
+            return;
+        }
         if (Boolean.FALSE.equals(llmDecisionPresent) || rawExecutionFailed || fallbackApplied || failureCategory != null) {
             decision.setLlmDecisionPresent(false);
             decision.setTechnicalFallbackApplied(true);
@@ -1761,6 +1790,22 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (StringUtils.hasText(verbosity)) {
             request.withParameter("openAiVerbosity", verbosity.trim());
         }
+        int maxOutputTokens = resolveConfiguredMaxOutputTokens();
+        if (maxOutputTokens > 0) {
+            request.withParameter("platformSecurityDecisionMaxTokens", maxOutputTokens);
+        }
+    }
+
+    protected int resolveConfiguredMaxOutputTokens() {
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            return tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
+                    ? tieredStrategyProperties.getLayer2().getMaxOutputTokens()
+                    : 0;
+        }
+        return tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                ? tieredStrategyProperties.getLayer1().getMaxOutputTokens()
+                : 0;
     }
 
     protected String resolveOpenAiReasoningEffort() {
@@ -1814,35 +1859,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected PromptBudgetProfile resolvePromptBudgetProfile(SecurityEvent event) {
-        if (event != null && event.getMetadata() != null) {
-            Object explicitProfile = event.getMetadata().get("promptBudgetProfile");
-            if (explicitProfile instanceof PromptBudgetProfile budgetProfile) {
-                return budgetProfile;
-            }
-            if (explicitProfile instanceof String profileKey && !profileKey.isBlank()) {
-                return PromptBudgetProfile.fromKey(profileKey, resolvePromptBudgetProfile());
-            }
-        }
         return resolvePromptBudgetProfile();
     }
 
-    protected int resolveMaxOutputTokens(PromptBudgetProfile promptBudgetProfile) {
-        int configuredMaxOutputTokens = 0;
-        String layerName = getLayerName();
-        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
-            configuredMaxOutputTokens = tieredStrategyProperties != null && tieredStrategyProperties.getLayer2() != null
-                    ? tieredStrategyProperties.getLayer2().getMaxOutputTokens()
-                    : 0;
-        } else {
-            configuredMaxOutputTokens = tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
-                    ? tieredStrategyProperties.getLayer1().getMaxOutputTokens()
-                    : 0;
-        }
-        if (configuredMaxOutputTokens > 0) {
-            return configuredMaxOutputTokens;
-        }
-        return promptBudgetProfile == null ? 0 : promptBudgetProfile.outputReserveTokens();
-    }
     protected PromptBudgetProfile resolvePromptBudgetProfile() {
         String layerName = getLayerName();
         if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {

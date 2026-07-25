@@ -398,7 +398,7 @@ public class LLMExecutionStep implements PipelineStep {
             temperature = nullIfSecurityOverride(context, "temperature", temperature);
             topP = nullIfSecurityOverride(context, "topP", topP);
             seed = nullIfSecurityOverride(context, "seed", seed);
-            maxTokens = nullIfSecurityOverride(context, "maxTokens", maxTokens);
+            maxTokens = resolveTrustedSecurityMaxTokens(request, context, maxTokens);
             disableRetries = nullIfSecurityOverride(context, "disableRetries", disableRetries);
             disableOllamaThinking = nullIfSecurityOverride(context, "disableOllamaThinking", disableOllamaThinking);
             boundaryMode = nullIfSecurityOverride(context, "decisionBoundaryMode", boundaryMode);
@@ -490,6 +490,24 @@ public class LLMExecutionStep implements PipelineStep {
             return new ResolvedValue<>(pinnedModel.value(), "officialVerificationPinnedModelId");
         }
         return nullIfSecurityOverride(context, "preferredModel", blockedRuntimeModel);
+    }
+
+    private <T extends DomainContext> ResolvedValue<Integer> resolveTrustedSecurityMaxTokens(
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            ResolvedValue<Integer> blockedRuntimeMaxTokens) {
+        recordIgnoredSecurityOverride(context, "maxTokens", blockedRuntimeMaxTokens);
+        ResolvedValue<Integer> officialMaxTokens =
+                resolveIntegerParameter(request, context, "officialVerificationMaxTokens");
+        if (officialMaxTokens != null) {
+            return new ResolvedValue<>(officialMaxTokens.value(), "officialVerificationMaxTokens");
+        }
+        ResolvedValue<Integer> platformMaxTokens =
+                resolveIntegerParameter(request, context, "platformSecurityDecisionMaxTokens");
+        if (platformMaxTokens != null) {
+            return new ResolvedValue<>(platformMaxTokens.value(), "platformSecurityDecisionMaxTokens");
+        }
+        return null;
     }
 
     private <T> ResolvedValue<T> nullIfSecurityOverride(

@@ -396,6 +396,8 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                                 )::varchar(256) as slot_key,
                                 prompt_location,
                                 case
+                                    when prompt_location like 'finalUserPrompt.novelty.%'
+                                      and signal_key like 'label:%' then 'PERSONAL WORK PROFILE'
                                     when signal_key like 'section:%' then substring(signal_key from 9)
                                     else prompt_location
                                 end::varchar(256) as section_key,

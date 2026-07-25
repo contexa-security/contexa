@@ -49,7 +49,7 @@ public final class PromptGovernanceSupport {
             String userPrompt) {
         return buildExecutionMetadata(
                 descriptor,
-                PromptBudgetProfile.CORTEX_L1_STANDARD,
+                PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
                 List.of(),
                 List.of(),
                 List.of(),
@@ -174,7 +174,7 @@ public final class PromptGovernanceSupport {
                 ? promptCompressionLedger
                 : PromptCompressionLedger.identity(normalizedRawSystemPrompt, normalizedRawUserPrompt);
         String enforcementMode = effectiveCompressionLedger.compressionApplied()
-                ? "LLM_VIEW_ENFORCED"
+                ? "LOSSLESS_OPTIMIZED"
                 : estimated.budgetEnforcementMode();
         PromptTokenEstimate promptTokenEstimate = new PromptTokenEstimate(
                 estimated.estimatorKey(),

@@ -89,6 +89,12 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
                 .autonomyConstraintReasons(copyList(result.getAutonomyConstraintReasons()))
+                .autonomyConstraintPolicy(result.getAutonomyConstraintPolicy())
+                .autonomyConstraintSource(result.getAutonomyConstraintSource())
+                .autonomyConstraintVersion(result.getAutonomyConstraintVersion())
+                .fieldProvenance(result.getFieldProvenance() != null
+                        ? Map.copyOf(result.getFieldProvenance())
+                        : Map.of())
                 .severityLevel(event.getSeverity() != null ? event.getSeverity().name() : null)
                 .eventSource(event.getSource() != null ? event.getSource().name() : null)
                 .eventTimestamp(event.getTimestamp())
@@ -134,6 +140,10 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .technicalFallbackCategory(result.getTechnicalFallbackCategory())
                 .technicalFallbackReason(result.getTechnicalFallbackReason())
                 .technicalFallbackAction(result.getTechnicalFallbackAction())
+                .responseActionFallbackApplied(result.getResponseActionFallbackApplied())
+                .responseActionFallbackCategory(result.getResponseActionFallbackCategory())
+                .responseActionFallbackReason(result.getResponseActionFallbackReason())
+                .responseActionFallbackAction(result.getResponseActionFallbackAction())
                 .promptRuntimeTelemetry(extractPromptRuntimeTelemetry(eventMetadata))
                 .requestPath(extractRequestPath(eventMetadata))
                 .geoCountry(extractText(eventMetadata, "geoCountry"))
@@ -299,6 +309,18 @@ public class SecurityDecisionForwardingPayloadMapper {
             if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
                 attributes.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
             }
+            putIfNotBlank(attributes, "autonomyConstraintPolicy", result.getAutonomyConstraintPolicy());
+            putIfNotBlank(attributes, "autonomyConstraintSource", result.getAutonomyConstraintSource());
+            putIfNotBlank(attributes, "autonomyConstraintVersion", result.getAutonomyConstraintVersion());
+        }
+        if (result.getResponseActionFallbackApplied() != null) {
+            attributes.put("responseActionFallbackApplied", result.getResponseActionFallbackApplied());
+        }
+        putIfNotBlank(attributes, "responseActionFallbackCategory", result.getResponseActionFallbackCategory());
+        putIfNotBlank(attributes, "responseActionFallbackReason", result.getResponseActionFallbackReason());
+        putIfNotBlank(attributes, "responseActionFallbackAction", result.getResponseActionFallbackAction());
+        if (result.getFieldProvenance() != null && !result.getFieldProvenance().isEmpty()) {
+            attributes.put("fieldProvenance", Map.copyOf(result.getFieldProvenance()));
         }
         attributes.put(OPERATIONAL_EVIDENCE_SOURCE, resolveOperationalEvidenceSource(result, analysisData));
         copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");
@@ -597,6 +619,12 @@ public class SecurityDecisionForwardingPayloadMapper {
     }
 
     @SuppressWarnings("unchecked")
+    private void putIfNotBlank(Map<String, Object> target, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            target.put(key, value);
+        }
+    }
+
     private List<String> extractStringList(Object value) {
         if (value instanceof List<?> list) {
             return list.stream()

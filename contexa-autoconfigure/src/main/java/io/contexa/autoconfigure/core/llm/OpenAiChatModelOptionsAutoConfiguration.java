@@ -15,11 +15,14 @@
  */
 package io.contexa.autoconfigure.core.llm;
 
+import io.contexa.autoconfigure.properties.OpenAiModelCapabilitiesProperties;
 import io.contexa.contexacore.std.llm.client.ProviderAwareChatOptionsFactory;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 
 @AutoConfiguration(beforeName = "org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration")
@@ -28,11 +31,18 @@ public class OpenAiChatModelOptionsAutoConfiguration {
 
     @Bean
     public static BeanFactoryPostProcessor providerAwareChatOptionsEnvironmentBridge(Environment environment) {
-        return beanFactory -> ProviderAwareChatOptionsFactory.configureModelCapabilities(
-                environment.getProperty("spring.ai.openai.chat.options.model"),
-                environment.getProperty("contexa.llm.model-capabilities.openai.max-completion-token-patterns"),
-                environment.getProperty("contexa.llm.model-capabilities.openai.default-sampling-only-patterns"),
-                environment.getProperty("contexa.llm.model-capabilities.ollama.disable-thinking-patterns"));
+        return beanFactory -> {
+            OpenAiModelCapabilitiesProperties capabilities = Binder.get(environment)
+                    .bind(
+                            OpenAiModelCapabilitiesProperties.PREFIX,
+                            Bindable.of(OpenAiModelCapabilitiesProperties.class))
+                    .orElseGet(OpenAiModelCapabilitiesProperties::new);
+            ProviderAwareChatOptionsFactory.configureModelCapabilities(
+                    environment.getProperty("spring.ai.openai.chat.options.model"),
+                    capabilities.getMaxCompletionTokenPatterns(),
+                    capabilities.getDefaultSamplingOnlyPatterns(),
+                    environment.getProperty("contexa.llm.model-capabilities.ollama.disable-thinking-patterns"));
+        };
     }
 
     @Bean

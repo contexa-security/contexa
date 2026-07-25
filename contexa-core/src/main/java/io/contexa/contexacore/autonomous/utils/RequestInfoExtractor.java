@@ -95,8 +95,6 @@ public final class RequestInfoExtractor {
                 runtimeMaxTokens,
                 runtimeDisableRetries,
                 runtimeDisableOllamaThinking);
-        String promptBudgetProfile = resolvePromptBudgetProfile(request);
-
         return RequestInfo.builder()
                 .requestUri(request.getRequestURI())
                 .method(request.getMethod())
@@ -124,7 +122,6 @@ public final class RequestInfoExtractor {
                         : extractHeader(request, "X-PQA-Prompt-Fault") != null
                                 ? "UNTRUSTED_REQUEST_HEADER"
                                 : null)
-                .promptBudgetProfile(promptBudgetProfile)
                 .decisionBoundaryMode(decisionBoundaryMode)
                 .runtimeTemperature(runtimeTemperature)
                 .runtimeTopP(runtimeTopP)
@@ -332,14 +329,6 @@ public final class RequestInfoExtractor {
         }
         String path = request.getRequestURI();
         return path != null && path.contains("/admin/api/enterprise/verification/runtime/probe/");
-    }
-
-    private static String resolvePromptBudgetProfile(HttpServletRequest request) {
-        String explicit = extractHeader(request, "X-Contexa-Prompt-Budget-Profile");
-        if (explicit != null && !explicit.isBlank()) {
-            return explicit;
-        }
-        return null;
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
@@ -711,7 +700,6 @@ public final class RequestInfoExtractor {
         private final String pqaPromptFaultScenario;
         private final Boolean pqaPromptFaultRejected;
         private final String pqaPromptFaultRejectedSource;
-        private final String promptBudgetProfile;
         private final String decisionBoundaryMode;
         private final Double runtimeTemperature;
         private final Double runtimeTopP;

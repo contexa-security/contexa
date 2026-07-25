@@ -21,4 +21,8 @@ public interface RuntimeIssueDiagnosticService {
             String httpMethod,
             List<RuntimeEvidenceMetricResult> metrics,
             List<String> nextActions);
+
+    static RuntimeIssueDiagnosticService none() {
+        return (runId, packageId, httpMethod, metrics, nextActions) -> List.of();
+    }
 }

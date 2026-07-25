@@ -777,6 +777,49 @@ class PromptRuntimeGovernanceRuleApplierTest {
     }
 
     @Test
+    void sectionScopedNoveltyRuleIgnoresTheSameLabelInsideRagEvidence() {
+        PromptRuntimeGovernanceRule rule = ruleWithSlot(
+                "rule-novelty-user-profile",
+                "ADD_NARRATIVE",
+                "user.novelty.current-access-hour",
+                Map.of("narrative", "Explain whether the current access hour appears in observed hours."));
+        PromptSlotPlan plan = new PromptSlotPlan(
+                "user.novelty.current-access-hour",
+                "PERSONAL WORK PROFILE",
+                "CurrentAccessHourPresentInObservedHours",
+                "canonical.label.currentaccesshourpresentinobservedhours",
+                "PromptContextComposer",
+                "P1_HIGH_VALUE",
+                "PROTECT");
+        String prompt = """
+                === PERSONAL WORK PROFILE ===
+                CurrentAccessHourPresentInObservedHours: UNKNOWN
+
+                === RAG EVIDENCE ===
+                CurrentAccessHourPresentInObservedHours: historical document text
+
+                === EXPLICIT MISSING KNOWLEDGE ===
+                BaselineGapSupport:
+                  === PERSONAL WORK PROFILE ===
+                  CurrentAccessHourPresentInObservedHours: repeated supporting context
+                """;
+
+        PromptRuntimeGovernanceRuleApplicationResult result = applier.apply(
+                prompt,
+                List.of(rule),
+                slotProvider(List.of(plan)));
+
+        assertThat(result.applications().get(0).resultState()).isEqualTo("APPLIED");
+        assertThat(result.userPrompt())
+                .contains("=== PERSONAL WORK PROFILE ===\nCurrentAccessHourPresentInObservedHours: UNKNOWN\n\n"
+                        + "Explain whether the current access hour appears in observed hours.\n")
+                .contains("=== RAG EVIDENCE ===\n"
+                        + "CurrentAccessHourPresentInObservedHours: historical document text")
+                .contains("  === PERSONAL WORK PROFILE ===\n"
+                        + "  CurrentAccessHourPresentInObservedHours: repeated supporting context");
+    }
+
+    @Test
     void strictRuntimePathReportsMissingSectionMismatchAndDuplicateSlots() {
         PromptRuntimeGovernanceRule rule = ruleWithSlot(
                 "rule-strict-invalid",
@@ -810,6 +853,56 @@ class PromptRuntimeGovernanceRuleApplierTest {
         assertThat(duplicateContract.userPrompt()).isEqualTo(prompt);
         assertThat(sectionMismatch.userPrompt()).isEqualTo(prompt);
         assertThat(duplicateRendered.userPrompt()).isEqualTo(prompt);
+    }
+
+    @Test
+    void strictRuntimePathAllowsAdditiveRuleForSemanticSlotWithoutRenderedLabel() {
+        PromptRuntimeGovernanceRule rule = ruleWithSlot(
+                "rule-semantic-limitation",
+                "ADD_LIMITATION",
+                "user_behavior_delegationboundary_forbiddenterm_business_intent_confirmed",
+                Map.of("limitation", "Do not infer a delegated objective when its evidence is unknown."));
+        PromptSlotPlan plan = new PromptSlotPlan(
+                "user_behavior_delegationboundary_forbiddenterm_business_intent_confirmed",
+                "finalUserPrompt.behavior.delegationBoundary",
+                null,
+                "canonical.forbiddenterm.business.intent.confirmed",
+                "PromptContextComposer",
+                "P0_REQUIRED",
+                "PROTECT");
+        String prompt = "=== DELEGATED OBJECTIVE CONTEXT ===\nDelegated: UNKNOWN\n";
+
+        PromptRuntimeGovernanceRuleApplicationResult result = applier.apply(
+                prompt, List.of(rule), slotProvider(List.of(plan)));
+
+        assertThat(result.userPrompt())
+                .contains("Do not infer a delegated objective when its evidence is unknown.");
+        assertThat(result.applications().get(0).resultState()).isEqualTo("APPLIED");
+    }
+
+    @Test
+    void strictRuntimePathRejectsMutationRuleForSemanticSlotWithoutRenderedLabel() {
+        PromptRuntimeGovernanceRule rule = ruleWithSlot(
+                "rule-semantic-update",
+                "UPDATE_SLOT_VALUE",
+                "user_behavior_delegationboundary_forbiddenterm_business_intent_confirmed",
+                Map.of("renderedValue", "must-not-apply"));
+        PromptSlotPlan plan = new PromptSlotPlan(
+                "user_behavior_delegationboundary_forbiddenterm_business_intent_confirmed",
+                "finalUserPrompt.behavior.delegationBoundary",
+                null,
+                "canonical.forbiddenterm.business.intent.confirmed",
+                "PromptContextComposer",
+                "P0_REQUIRED",
+                "PROTECT");
+        String prompt = "=== DELEGATED OBJECTIVE CONTEXT ===\nDelegated: UNKNOWN\n";
+
+        PromptRuntimeGovernanceRuleApplicationResult result = applier.apply(
+                prompt, List.of(rule), slotProvider(List.of(plan)));
+
+        assertThat(result.userPrompt()).isEqualTo(prompt);
+        assertThat(result.applications().get(0).resultState())
+                .isEqualTo("SKIPPED_INVALID_SLOT_CONTRACT");
     }
 
     private PromptSlotPlanProvider slotProvider(List<PromptSlotPlan> plans) {

@@ -69,11 +69,12 @@ class BaselineLearningServiceTest {
     }
 
     @Test
-    @DisplayName("Only ALLOW decisions should trigger learning, BLOCK should return false")
+    @DisplayName("Only final ALLOW decisions should trigger learning")
     void shouldOnlyLearnFromAllowDecisions() {
         // given
         SecurityDecision blockDecision = SecurityDecision.builder()
-                .action(ZeroTrustAction.BLOCK)
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.BLOCK)
                 .riskScore(0.9)
                 .confidence(0.8)
                 .build();
@@ -113,7 +114,8 @@ class BaselineLearningServiceTest {
         when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(existing);
 
         SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.ALLOW)
+                .action(ZeroTrustAction.BLOCK)
+                .autonomousAction(ZeroTrustAction.ALLOW)
                 .riskScore(newRiskScore)
                 .confidence(1.0)
                 .build();

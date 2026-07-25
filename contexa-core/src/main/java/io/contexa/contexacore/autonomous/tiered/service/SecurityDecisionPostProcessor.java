@@ -405,6 +405,21 @@ public class SecurityDecisionPostProcessor {
         if (auditConfidence != null) {
             metadata.put("llmAuditConfidence", sanitizeScore(auditConfidence));
         }
+        if (decision.getTechnicalFallbackApplied() != null) {
+            metadata.put("technicalFallbackApplied", decision.getTechnicalFallbackApplied());
+        }
+        putIfNotBlank(metadata, "technicalFallbackCategory", decision.getTechnicalFallbackCategory());
+        putIfNotBlank(metadata, "technicalFallbackReason", decision.getTechnicalFallbackReason());
+        putIfNotBlank(metadata, "technicalFallbackAction", decision.getTechnicalFallbackAction());
+        if (decision.getResponseActionFallbackApplied() != null) {
+            metadata.put("responseActionFallbackApplied", decision.getResponseActionFallbackApplied());
+        }
+        putIfNotBlank(metadata, "responseActionFallbackCategory", decision.getResponseActionFallbackCategory());
+        putIfNotBlank(metadata, "responseActionFallbackReason", decision.getResponseActionFallbackReason());
+        putIfNotBlank(metadata, "responseActionFallbackAction", decision.getResponseActionFallbackAction());
+        if (decision.getFieldProvenance() != null && !decision.getFieldProvenance().isEmpty()) {
+            metadata.put("fieldProvenance", Map.copyOf(decision.getFieldProvenance()));
+        }
         if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
             metadata.put("autonomyConstraintApplied", true);
             if (decision.getAutonomyConstraintSummary() != null) {
@@ -413,6 +428,9 @@ public class SecurityDecisionPostProcessor {
             if (decision.getAutonomyConstraintReasons() != null && !decision.getAutonomyConstraintReasons().isEmpty()) {
                 metadata.put("autonomyConstraintReasons", decision.getAutonomyConstraintReasons());
             }
+            putIfNotBlank(metadata, "autonomyConstraintPolicy", decision.getAutonomyConstraintPolicy());
+            putIfNotBlank(metadata, "autonomyConstraintSource", decision.getAutonomyConstraintSource());
+            putIfNotBlank(metadata, "autonomyConstraintVersion", decision.getAutonomyConstraintVersion());
         }
         if (decision.getProcessingLayer() > 0) {
             metadata.put("analysisDepth", decision.getProcessingLayer());
@@ -620,6 +638,12 @@ public class SecurityDecisionPostProcessor {
             return -1.0;
         }
         return score;
+    }
+
+    private static void putIfNotBlank(Map<String, Object> target, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            target.put(key, value);
+        }
     }
 
     private static String formatScore(double score) {

@@ -248,9 +248,13 @@ public class SealedEvidencePromptTraceStore {
             SecurityEvent event,
             String userPrompt,
             Map<String, Object> metadata) {
+        Map<String, Object> eventMetadata = event == null ? null : event.getMetadata();
+        if (eventMetadata == null || !Boolean.TRUE.equals(eventMetadata.get("pqaPromptFaultApplied"))) {
+            return new PromptFaultProjection(userPrompt);
+        }
         String scenario = firstText(
-                text(event == null || event.getMetadata() == null ? null : event.getMetadata().get(PROMPT_FAULT_SCENARIO_KEY)),
-                text(event == null || event.getMetadata() == null ? null : event.getMetadata().get("officialVerification.pqaPromptFaultScenario")),
+                text(eventMetadata.get(PROMPT_FAULT_SCENARIO_KEY)),
+                text(eventMetadata.get("officialVerification.pqaPromptFaultScenario")),
                 text(metadata == null ? null : metadata.get(PROMPT_FAULT_SCENARIO_KEY)));
         if (!StringUtils.hasText(scenario)) {
             return new PromptFaultProjection(userPrompt);

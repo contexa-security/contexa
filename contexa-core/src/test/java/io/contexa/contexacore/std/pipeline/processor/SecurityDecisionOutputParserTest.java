@@ -48,6 +48,7 @@ class SecurityDecisionOutputParserTest {
         assertThat(result.getReasoning()).isEqualTo("Known session context supports the read request.");
         assertThat(context.getMetadata("securityDecisionOutputRepairApplied", Boolean.class)).isFalse();
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("NONE");
+        assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class)).isEmpty();
     }
 
     @Test
@@ -110,6 +111,30 @@ class SecurityDecisionOutputParserTest {
         assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
         assertThat(context.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
+                .isEqualTo("ACTION_MISSING");
+        assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class))
+                .containsExactlyInAnyOrder("confidence", "mitre", "evidenceRefs");
+    }
+
+    @Test
+    void parseShouldDistinguishInvalidActionFromMissingAction() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-invalid-action");
+
+        SecurityDecisionResponseLite result = parser.parse("""
+                {
+                  "action": "RETRY_LATER",
+                  "reasoning": "The model returned an unsupported action.",
+                  "riskScore": 0.4,
+                  "confidence": 0.5,
+                  "mitre": "UNKNOWN",
+                  "evidenceRefs": ["session"]
+                }
+                """, context);
+
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
+                .isEqualTo("ACTION_FORMAT_INVALID");
     }
 
     @Test
@@ -123,6 +148,8 @@ class SecurityDecisionOutputParserTest {
         assertThat(result.getRiskScore()).isEqualTo(0.55d);
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("EMPTY_RESPONSE");
         assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class))
+                .containsExactlyInAnyOrder("riskScore", "confidence", "reasoning", "mitre", "evidenceRefs");
     }
 
     @Test

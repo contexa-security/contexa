@@ -124,21 +124,21 @@ class PromptGeneratorTest {
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
         assertThat(executionMetadata).isNotNull();
-        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.06.24-v2");
+        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.07.24-v4");
         assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("P0-Preflight/E0-3");
-        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.04.04-e0.2");
-        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.04.04-e0.2");
+        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("B2-10-OFFICIAL-VERIFICATION-2026-07-24-V4");
+        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.07.24-b2-v4-gpt-5-nano-certifiable");
+        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.07.24-v3");
         assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
-        assertThat(executionMetadata.budgetProfile().viewProfile()).isEqualTo(PromptViewProfile.STANDARD);
         assertThat(executionMetadata.budgetProfile().maxInputTokens()).isEqualTo(4200);
         assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
-        assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("LLM_VIEW_ENFORCED");
+        assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("OBSERVE_ONLY");
         assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens()).isPositive();
         assertThat(executionMetadata.promptTokenEstimate().compressionApplied())
                 .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
-        assertThat(executionMetadata.promptCompressionLedger().transformationMode()).isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_COMPACT", "NORMALIZE_AND_FUSE");
+        assertThat(executionMetadata.promptCompressionLedger().transformationMode())
+                .isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_DEDUPLICATE");
         assertThat(executionMetadata.promptEvidenceCompleteness().name()).isEqualTo("INCOMPLETE");
         assertThat(executionMetadata.omittedSections()).contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
         assertThat(executionMetadata.duplicationInventory()).isNotEmpty();
@@ -146,7 +146,7 @@ class PromptGeneratorTest {
                 .extracting(PromptDuplicationRecord::dimension)
                 .contains("session", "device", "location");
         assertThat(executionMetadata.sectionSet())
-                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
+                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "EXPLICIT_MISSING_KNOWLEDGE");
         assertThat(executionMetadata.promptHash()).startsWith("sha256:");
         assertThat(executionMetadata.rawPromptHash()).startsWith("sha256:");
         assertThat(result.getMetadata()).containsKeys(
@@ -183,7 +183,7 @@ class PromptGeneratorTest {
                 "promptCompressionSavedEstimatedTokens",
                 "promptCompressionLedger");
         assertThat(result.getMetadata().get("promptSectionSet")).asList()
-                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "OBSERVED_AND_PERSONAL_WORK_PATTERN");
+                .contains("SYSTEM_INSTRUCTION", "DECISION_CONTRACT", "CURRENT_REQUEST_AND_EVENT", "EXPLICIT_MISSING_KNOWLEDGE");
         assertThat(result.getMetadata().get("omittedSections")).asList()
                 .contains("BRIDGE_AND_COVERAGE", "IDENTITY_AND_ROLE");
         assertThat(result.getMetadata().get("promptDuplicationInventoryCount")).isEqualTo(executionMetadata.duplicationInventory().size());
@@ -373,8 +373,8 @@ class PromptGeneratorTest {
     }
 
     @Test
-    @DisplayName("PromptGenerator should deliver raw identity prompt text as the final LLM prompt")
-    void generatePromptShouldDeliverRawIdentityPromptToFinalLlmPrompt() {
+    @DisplayName("PromptGenerator should preserve raw prompt lineage while applying only lossless normalization")
+    void generatePromptShouldPreserveRawPromptLineageDuringLosslessNormalization() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties());
@@ -382,12 +382,12 @@ class PromptGeneratorTest {
         promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
 
         SecurityDecisionRequest request = officialVerificationRequest();
-        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
 
         PromptGenerationResult result = promptGenerator.generatePrompt(request, "", "");
 
-        assertThat(result.getRawSystemPrompt()).isEqualTo(result.getSystemPrompt());
-        assertThat(result.getRawUserPrompt()).isEqualTo(result.getUserPrompt());
+        assertThat(result.getRawSystemPrompt()).isNotBlank();
+        assertThat(result.getRawUserPrompt()).isNotBlank();
         assertThat(result.getPrompt().getContents()).contains(result.getSystemPrompt());
         assertThat(result.getPrompt().getContents()).contains(result.getUserPrompt());
         assertThat(result.getUserPrompt()).contains("=== CURRENT REQUEST AND EVENT ===");
@@ -395,11 +395,18 @@ class PromptGeneratorTest {
         assertThat(result.getUserPrompt())
                 .contains("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey())
-                .isEqualTo(PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
         assertThat(result.getPromptExecutionMetadata().promptCompressionLedger().transformationMode())
                 .isEqualTo("IDENTITY");
         assertThat(result.getPromptExecutionMetadata().promptCompressionLedger().rawPromptParity())
                 .isTrue();
+        assertThat(result.getPromptExecutionMetadata().promptCompressionLedger().records()).isEmpty();
+        assertThat(result.getSystemPrompt()).isEqualTo(result.getRawSystemPrompt());
+        assertThat(result.getUserPrompt()).isEqualTo(result.getRawUserPrompt());
+        assertThat(countOccurrences(result.getUserPrompt(), "=== PERSONAL WORK PROFILE ==="))
+                .isEqualTo(1);
+        assertThat(countOccurrences(result.getUserPrompt(), "ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE"))
+                .isEqualTo(1);
     }
 
     @Test
@@ -408,7 +415,7 @@ class PromptGeneratorTest {
         TemplateType templateType = new TemplateType("configured-layer1-default");
         PromptTemplate template = new PlainPromptTemplate(templateType);
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        properties.getLayer1().setDefaultBudgetProfile(PromptBudgetProfile.CORTEX_L1_STANDARD.profileKey());
+        properties.getLayer1().setDefaultBudgetProfile(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
         PromptGenerator promptGenerator = new PromptGenerator(
                 List.of(template),
                 new SafePromptNormalizationLLMViewComposer(),
@@ -423,12 +430,12 @@ class PromptGeneratorTest {
         PromptGenerationResult result = promptGenerator.generatePrompt(request, "", "");
 
         assertThat(result.getPromptExecutionMetadata().budgetProfile().profileKey())
-                .isEqualTo(PromptBudgetProfile.CORTEX_L1_STANDARD.profileKey());
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
     }
 
     @Test
-    @DisplayName("PromptGenerator should reject identity view composers that mutate final LLM prompt text")
-    void generatePromptShouldRejectIdentityComposerThatChangesFinalLlmPrompt() {
+    @DisplayName("PromptGenerator should reject a composer whose ledger contradicts the final prompt")
+    void generatePromptShouldRejectComposerWithContradictoryLedger() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties());
@@ -442,11 +449,15 @@ class PromptGeneratorTest {
         promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
 
         SecurityDecisionRequest request = officialVerificationRequest();
-        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_RAW_IDENTITY.profileKey());
+        request.withParameter("promptBudgetProfile", PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
 
         assertThatThrownBy(() -> promptGenerator.generatePrompt(request, "", ""))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Identity prompt view profile must preserve raw prompt text");
+                .hasMessageContaining("Prompt composition ledger does not match");
+    }
+
+    private int countOccurrences(String value, String token) {
+        return (value.length() - value.replace(token, "").length()) / token.length();
     }
 
     private record PlainPromptTemplate(TemplateType supportedType) implements PromptTemplate {

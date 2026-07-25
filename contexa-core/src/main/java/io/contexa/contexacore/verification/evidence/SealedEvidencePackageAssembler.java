@@ -802,6 +802,7 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceInvalidationPolled");
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceInvalidationPollIntervalMillis");
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceReadFailurePolicy");
+        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceSecurityMandatoryReadFailureAction");
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleReadFailure");
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceSelectedRuleIds");
         copyPromptMetadataField(compact, source, "promptRuntimeGovernanceExcludedRules");
@@ -1103,9 +1104,21 @@ public class SealedEvidencePackageAssembler {
         decision.put("processingPath", result.getProcessingPath() != null
                 ? result.getProcessingPath().name() : null);
         decision.put("llmProposedAction", result.getProposedAction());
+        decision.put("technicalFallbackApplied", result.getTechnicalFallbackApplied());
+        decision.put("technicalFallbackCategory", result.getTechnicalFallbackCategory());
+        decision.put("technicalFallbackReason", result.getTechnicalFallbackReason());
+        decision.put("technicalFallbackAction", result.getTechnicalFallbackAction());
+        decision.put("responseActionFallbackApplied", result.getResponseActionFallbackApplied());
+        decision.put("responseActionFallbackCategory", result.getResponseActionFallbackCategory());
+        decision.put("responseActionFallbackReason", result.getResponseActionFallbackReason());
+        decision.put("responseActionFallbackAction", result.getResponseActionFallbackAction());
         decision.put("autonomyConstraintApplied", result.getAutonomyConstraintApplied());
         decision.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
         decision.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+        decision.put("autonomyConstraintPolicy", result.getAutonomyConstraintPolicy());
+        decision.put("autonomyConstraintSource", result.getAutonomyConstraintSource());
+        decision.put("autonomyConstraintVersion", result.getAutonomyConstraintVersion());
+        decision.put("fieldProvenance", result.getFieldProvenance());
         decision.put("aiAnalysisLevel", result.getAiAnalysisLevel());
 
         Map<String, Object> analysisData = result.getAnalysisData();

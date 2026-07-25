@@ -7,4 +7,8 @@ import java.util.Optional;
 public interface PromptQualityProtectableResourceLookup {
 
     Optional<ProtectableResourceDescriptor> findBestMatch(String resourceUrl, String resourceId, String httpMethod);
+
+    static PromptQualityProtectableResourceLookup none() {
+        return (resourceUrl, resourceId, httpMethod) -> Optional.empty();
+    }
 }

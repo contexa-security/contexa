@@ -16,22 +16,30 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexaiam.admin.promptquality.official.api.PromptQualityOfficialConsoleApiController;
-import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLockService;
-import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.NoResolutionPromptQualityAssuranceCaseService;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationCurrentResultCoordinator;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationExecutionLockService;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationPromptQualityIssueSynchronizer;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationLedgerWriters;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCleanupRepository;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotCommandWriters;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationSnapshotQueryService;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationVerdictQueryService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityAssuranceCaseService;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptQualityProtectableResourceLookup;
+import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
+import io.contexa.contexaiam.admin.promptquality.official.application.RuntimeIssueDiagnosticService;
 import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractCatalogBootstrap;
 import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractWriter;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.process.NoOpPromptQualityProcessRunService;
+import io.contexa.contexaiam.admin.promptquality.official.process.PromptQualityProcessRunService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -44,6 +52,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 class PqaOfficialInspectionAutoConfigurationTest {
 
@@ -72,13 +82,42 @@ class PqaOfficialInspectionAutoConfigurationTest {
     }
 
     @Test
-    void requiredAssuranceRepositoryOwnerMissingKeepsPqaBeansDisabled() {
+    void missingEnterpriseAssuranceRepositoryUsesOssBoundaryAndEnablesPqaBeans() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(PqaOfficialInspectionAutoConfiguration.class))
+                .withBean("contexaJdbcTemplate", JdbcTemplate.class,
+                        () -> mock(JdbcTemplate.class))
+                .withInitializer(context -> context.addBeanFactoryPostProcessor(beanFactory -> {
+                    for (String beanName : beanFactory.getBeanDefinitionNames()) {
+                        beanFactory.getBeanDefinition(beanName).setLazyInit(true);
+                    }
+                }))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).doesNotHaveBean(PromptQualityOfficialConsoleApiController.class);
-                    assertThat(context).doesNotHaveBean(OfficialVerificationExecutionLockService.class);
+                    assertThat(context).hasSingleBean(PromptQualityAssuranceCaseService.class);
+                    assertThat(context.getBean(PromptQualityAssuranceCaseService.class))
+                            .isInstanceOf(NoResolutionPromptQualityAssuranceCaseService.class);
+                    assertThat(context).hasSingleBean(PromptRuntimeGovernanceDescriptorVerifier.class);
+                    assertThat(context).hasSingleBean(PromptQualityProtectableResourceLookup.class);
+                    assertThat(context).hasSingleBean(RuntimeIssueDiagnosticService.class);
+                    assertThat(context.getBean(PromptRuntimeGovernanceDescriptorVerifier.class)
+                            .verify(null, Map.of()).passed()).isTrue();
+                    assertThat(context.getBean(PromptQualityProtectableResourceLookup.class)
+                            .findBestMatch("/oss/resource", "oss-resource", "GET")).isEmpty();
+                    assertThat(context.getBean(RuntimeIssueDiagnosticService.class)
+                            .recordIssues("run", "package", List.of(), List.of())).isEmpty();
+                    assertThat(context).hasSingleBean(PromptQualityProcessRunService.class);
+                    assertThat(context.getBean(PromptQualityProcessRunService.class))
+                            .isInstanceOf(NoOpPromptQualityProcessRunService.class);
+                    JdbcTemplate jdbcTemplate = context.getBean("contexaJdbcTemplate", JdbcTemplate.class);
+                    clearInvocations(jdbcTemplate);
+                    context.getBean(OfficialVerificationPromptQualityIssueSynchronizer.class)
+                            .synchronize("oss", "package", "run");
+                    verifyNoInteractions(jdbcTemplate);
+                    assertThat(context.containsBeanDefinition("pqaPromptQualityOfficialConsoleApiController"))
+                            .isTrue();
+                    assertThat(context.containsBeanDefinition("pqaOfficialVerificationExecutionLockService"))
+                            .isTrue();
                 });
     }
 

@@ -43,6 +43,10 @@ public class SecurityDecisionForwardingPayload {
     private Boolean autonomyConstraintApplied;
     private String autonomyConstraintSummary;
     private List<String> autonomyConstraintReasons;
+    private String autonomyConstraintPolicy;
+    private String autonomyConstraintSource;
+    private String autonomyConstraintVersion;
+    private Map<String, String> fieldProvenance;
     private String severityLevel;
     private String eventSource;
     private LocalDateTime eventTimestamp;
@@ -88,6 +92,10 @@ public class SecurityDecisionForwardingPayload {
     private String technicalFallbackCategory;
     private String technicalFallbackReason;
     private String technicalFallbackAction;
+    private Boolean responseActionFallbackApplied;
+    private String responseActionFallbackCategory;
+    private String responseActionFallbackReason;
+    private String responseActionFallbackAction;
     private Map<String, Object> promptRuntimeTelemetry;
     private String legitimateHypothesis;
     private String suspiciousHypothesis;

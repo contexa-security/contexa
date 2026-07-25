@@ -85,7 +85,7 @@ public class PromptGenerator {
                 rawUserPrompt,
                 effectiveBudgetProfile,
                 modelHint);
-        assertIdentityViewPreservesRawPrompt(effectiveBudgetProfile, promptViewComposition);
+        validatePromptViewComposition(rawSystemPrompt, rawUserPrompt, promptViewComposition);
         String systemPrompt = promptViewComposition.llmSystemPrompt();
         String userPrompt = promptViewComposition.llmUserPrompt();
 
@@ -196,18 +196,45 @@ public class PromptGenerator {
         return PromptBudgetProfile.fromKey(configuredProfile, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT);
     }
 
-    private void assertIdentityViewPreservesRawPrompt(
-            PromptBudgetProfile budgetProfile,
-            PromptViewComposition promptViewComposition) {
-        if (budgetProfile == null
-                || budgetProfile.viewProfile() != PromptViewProfile.IDENTITY
-                || promptViewComposition == null) {
-            return;
+    private void validatePromptViewComposition(
+            String rawSystemPrompt,
+            String rawUserPrompt,
+            PromptViewComposition composition) {
+        if (composition == null) {
+            throw new IllegalStateException("Prompt view composer must return a composition.");
         }
-        if (!Objects.equals(promptViewComposition.rawSystemPrompt(), promptViewComposition.llmSystemPrompt())
-                || !Objects.equals(promptViewComposition.rawUserPrompt(), promptViewComposition.llmUserPrompt())) {
-            throw new IllegalStateException(
-                    "Identity prompt view profile must preserve raw prompt text as the final LLM prompt.");
+
+        String expectedRawSystemPrompt = normalizeLineEndings(rawSystemPrompt);
+        String expectedRawUserPrompt = normalizeLineEndings(rawUserPrompt);
+        if (!Objects.equals(expectedRawSystemPrompt, normalizeLineEndings(composition.rawSystemPrompt()))
+                || !Objects.equals(expectedRawUserPrompt, normalizeLineEndings(composition.rawUserPrompt()))) {
+            throw new IllegalStateException("Prompt view composer must preserve the generated raw prompt text.");
+        }
+
+        PromptCompressionLedger ledger = composition.compressionLedger();
+        boolean exactParity = Objects.equals(composition.rawSystemPrompt(), composition.llmSystemPrompt())
+                && Objects.equals(composition.rawUserPrompt(), composition.llmUserPrompt());
+        int expectedSavedCharacters = Math.max(
+                0,
+                composition.rawSystemPrompt().length()
+                        + composition.rawUserPrompt().length()
+                        - composition.llmSystemPrompt().length()
+                        - composition.llmUserPrompt().length());
+        boolean ledgerMatches = ledger.rawPromptParity() == exactParity
+                && ledger.rawSystemPromptLength() == composition.rawSystemPrompt().length()
+                && ledger.rawUserPromptLength() == composition.rawUserPrompt().length()
+                && ledger.llmSystemPromptLength() == composition.llmSystemPrompt().length()
+                && ledger.llmUserPromptLength() == composition.llmUserPrompt().length()
+                && ledger.savedCharacters() == expectedSavedCharacters;
+        if (!ledgerMatches) {
+            throw new IllegalStateException("Prompt composition ledger does not match the raw and final prompt text.");
         }
     }
+
+    private String normalizeLineEndings(String value) {
+        return Objects.requireNonNullElse(value, "")
+                .replace("\r\n", "\n")
+                .replace('\r', '\n');
+    }
+
 }

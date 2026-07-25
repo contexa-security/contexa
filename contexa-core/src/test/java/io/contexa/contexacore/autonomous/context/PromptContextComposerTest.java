@@ -423,6 +423,31 @@ class PromptContextComposerTest {
     }
 
     @Test
+    void composeCoverageSectionShouldNotRepeatBridgeOwnedFactsAndHints() {
+        String bridgeHint = "Populate an explicit authorization effect.";
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .bridge(CanonicalSecurityContext.Bridge.builder()
+                        .summary("Bridge summary")
+                        .remediationHints(List.of(bridgeHint))
+                        .build())
+                .coverage(new ContextCoverageReport(
+                        ContextCoverageLevel.BUSINESS_AWARE,
+                        List.of("Actor identity is available.", "Bridge summary: Bridge summary"),
+                        List.of(),
+                        List.of(bridgeHint, "Collect protectable access history."),
+                        List.of(),
+                        "Business-aware context is available."))
+                .build();
+
+        PromptContextComposer composer = new PromptContextComposer();
+        assertThat(composer.composeBridgeSection(context)).contains(bridgeHint);
+        assertThat(composer.composeCoverageSection(context))
+                .contains("Actor identity is available.")
+                .contains("Collect protectable access history.")
+                .doesNotContain("Bridge summary: Bridge summary", bridgeHint);
+    }
+
+    @Test
     void composeMissingKnowledgeSectionShouldKeepCriticalGapsWithoutCompactionMarkers() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .coverage(new ContextCoverageReport(
@@ -515,7 +540,9 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("NewSession: UNKNOWN - not available from session context");
         assertThat(promptSection).contains("NewUser: UNKNOWN - not available from identity context");
         assertThat(promptSection).contains("PreviousPath: UNKNOWN - not available from session narrative context");
-        assertThat(promptSection).contains("BotUserAgent: UNKNOWN - not available from intent signal context");
+        assertThat(promptSection)
+                .contains("IntentSignalStatus: UNKNOWN - intent signal producer was not available")
+                .contains("BotUserAgent: UNKNOWN");
     }
 
     @Test
@@ -538,8 +565,9 @@ class PromptContextComposerTest {
 
         assertThat(promptSection)
                 .contains("RecentPermissionChanges: UNKNOWN - recent permission change evidence was not provided; do not infer permission stability.")
-                .contains("CurrentResourceFamilyPresentInExpectedRoleScope: UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.")
-                .contains("CurrentActionFamilyPresentInExpectedRoleScope: UNKNOWN - comparison baseline is unavailable; do not treat this scope comparison as proof.")
+                .contains("RoleScopeDeltaSummary: current-vs-scope comparison not reliable")
+                .contains("CurrentResourceFamilyPresentInExpectedRoleScope: UNKNOWN")
+                .contains("CurrentActionFamilyPresentInExpectedRoleScope: UNKNOWN")
                 .contains("ApprovalRequired: UNKNOWN - approval provider supplied no approval requirement for this request; do not infer prior approval.")
                 .contains("ApprovalGranted: UNKNOWN - approval provider supplied no grant result for this request; do not infer granted approval.")
                 .contains("ApprovalStatus: UNKNOWN - approval provider supplied no approval lineage for this request; do not infer prior approval.")

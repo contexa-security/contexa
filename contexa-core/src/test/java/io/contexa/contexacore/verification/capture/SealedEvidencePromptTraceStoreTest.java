@@ -212,6 +212,25 @@ class SealedEvidencePromptTraceStoreTest {
     }
 
     @Test
+    void arbitraryFaultScenarioIsNotProjectedWithoutAnAppliedOfficialFault() {
+        SecurityEvent event = buildEvent("req-untrusted-fault", "evt-untrusted-fault");
+        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+        event.addMetadata("officialVerification.pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
+
+        store.capture(mockContext(event, mockPromptResult()));
+        store.complete(event);
+
+        SealedEvidencePromptSnapshot snapshot = store.consume("req-untrusted-fault");
+        assertThat(snapshot).isNotNull();
+        assertThat(snapshot.userPrompt()).isEqualTo("user prompt");
+        assertThat(snapshot.metadata())
+                .doesNotContainKeys(
+                        "pqaPromptFaultScenario",
+                        "pqaPromptFaultApplied",
+                        "pqaPromptFaultSource");
+    }
+
+    @Test
     void rejectedExecutorDoesNotRetainSnapshotAfterShutdown() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.shutdownNow();

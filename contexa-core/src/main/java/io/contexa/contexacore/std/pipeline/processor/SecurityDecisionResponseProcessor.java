@@ -21,8 +21,13 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseL
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
@@ -43,6 +48,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
     @Override
     public Object wrapResponse(Object parsedData, PipelineExecutionContext context) {
         if (parsedData instanceof SecurityDecisionResponse fullResponse) {
+            Map<String, String> fieldProvenance = buildFieldProvenance(context);
+            fullResponse.setFieldProvenance(fieldProvenance);
+            fullResponse.withMetadata("securityDecisionFieldProvenance", fieldProvenance);
             return fullResponse;
         }
         if (!(parsedData instanceof SecurityDecisionResponseLite liteResponse)) {
@@ -52,6 +60,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         }
         SecurityDecisionResponseLite normalized = normalizeAndValidate(liteResponse, context);
         SecurityDecisionResponse response = SecurityDecisionResponse.fromLite(normalized);
+        Map<String, String> fieldProvenance = buildFieldProvenance(context);
+        response.setFieldProvenance(fieldProvenance);
+        response.withMetadata("securityDecisionFieldProvenance", fieldProvenance);
         if (normalized.getEvidenceRefs() != null && !normalized.getEvidenceRefs().isEmpty()) {
             response.withMetadata("evidenceRefs", normalized.getEvidenceRefs());
         }
@@ -66,6 +77,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
     private SecurityDecisionResponseLite normalizeAndValidate(SecurityDecisionResponseLite lite, PipelineExecutionContext context) {
         SecurityDecisionResponseLite normalized = new SecurityDecisionResponseLite();
         List<String> repairedFields = new ArrayList<>();
+        Set<String> syntheticDefaultFields = detectSyntheticDefaultFields(lite);
         String normalizedAction = normalizeAction(lite.getAction(), repairedFields, context);
         Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore", normalizedAction, repairedFields);
         Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence", normalizedAction, repairedFields);
@@ -78,7 +90,66 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         normalized.setEvidenceRefs(normalizeEvidenceRefs(lite.getEvidenceRefs(), normalizedReasoning, repairedFields));
         recordSemanticConsistency(context, normalizedAction, normalizedRiskScore);
         recordRepairMetadata(context, repairedFields);
+        recordSyntheticDefaultMetadata(context, syntheticDefaultFields);
         return normalized;
+    }
+
+    private Set<String> detectSyntheticDefaultFields(SecurityDecisionResponseLite response) {
+        Set<String> fields = new LinkedHashSet<>();
+        if (response.getRiskScore() == null || !Double.isFinite(response.getRiskScore())) {
+            fields.add("riskScore");
+        }
+        if (response.getConfidence() == null || !Double.isFinite(response.getConfidence())) {
+            fields.add("confidence");
+        }
+        if (response.getReasoning() == null || response.getReasoning().isBlank()) {
+            fields.add("reasoning");
+        }
+        if (response.getMitre() == null || response.getMitre().isBlank()) {
+            fields.add("mitre");
+        }
+        if (response.getEvidenceRefs() == null || response.getEvidenceRefs().isEmpty()) {
+            fields.add("evidenceRefs");
+        }
+        return fields;
+    }
+
+    private void recordSyntheticDefaultMetadata(
+            PipelineExecutionContext context,
+            Set<String> syntheticDefaultFields) {
+        if (context == null || syntheticDefaultFields.isEmpty()) {
+            return;
+        }
+        Set<String> combined = new LinkedHashSet<>(metadataStringList(
+                context,
+                "securityDecisionSyntheticDefaultFields"));
+        combined.addAll(syntheticDefaultFields);
+        context.addMetadata("securityDecisionSyntheticDefaultFields", List.copyOf(combined));
+    }
+
+    private Map<String, String> buildFieldProvenance(PipelineExecutionContext context) {
+        Set<String> syntheticFields = new LinkedHashSet<>(metadataStringList(
+                context,
+                "securityDecisionSyntheticDefaultFields"));
+        Map<String, String> provenance = new LinkedHashMap<>();
+        for (String field : List.of("riskScore", "confidence", "reasoning", "mitre", "evidenceRefs")) {
+            provenance.put(field, syntheticFields.contains(field) ? "SYNTHETIC_DEFAULT" : "MODEL");
+        }
+        return Map.copyOf(provenance);
+    }
+
+    private List<String> metadataStringList(PipelineExecutionContext context, String key) {
+        if (context == null) {
+            return List.of();
+        }
+        Object value = context.getMetadata(key, Object.class);
+        if (!(value instanceof List<?> values)) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .toList();
     }
 
     private Double normalizeNumericScore(Double score, String fieldName, String action, List<String> repairedFields) {

@@ -10,4 +10,8 @@ public interface PromptRuntimeGovernanceDescriptorVerifier {
     RuntimeGovernanceDescriptorVerificationResult verify(
             SealedEvidencePackage evidencePackage,
             Map<String, Object> promptMetadata);
+
+    static PromptRuntimeGovernanceDescriptorVerifier none() {
+        return (evidencePackage, promptMetadata) -> RuntimeGovernanceDescriptorVerificationResult.empty();
+    }
 }

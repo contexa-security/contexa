@@ -243,6 +243,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())
+                .fieldProvenance(decision.getFieldProvenance())
                 .build();
     }
 

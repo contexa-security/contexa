@@ -362,8 +362,8 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    @DisplayName("buildSecurityDecisionRequest should prefer explicit prompt budget profile from event metadata")
-    void buildSecurityDecisionRequest_shouldPreferExplicitPromptBudgetProfileFromEventMetadata() {
+    @DisplayName("buildSecurityDecisionRequest should ignore prompt budget profile from event metadata")
+    void buildSecurityDecisionRequest_shouldIgnorePromptBudgetProfileFromEventMetadata() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-budget-profile")
                 .metadata(new LinkedHashMap<>(Map.of("promptBudgetProfile", "CORTEX_L1_COMPACT")))
@@ -375,13 +375,14 @@ class AbstractTieredStrategyTest {
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
                 List.of());
 
-        assertThat(request.getParameter("promptBudgetProfile", String.class)).isEqualTo("CORTEX_L1_COMPACT");
+        assertThat(request.getParameter("promptBudgetProfile", String.class))
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
     }
 
     @Test
     @DisplayName("buildSecurityDecisionRequest should use configured layer1 default budget profile when no override exists")
     void buildSecurityDecisionRequest_shouldUseConfiguredLayer1DefaultBudgetProfile() {
-        tieredStrategyProperties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_DECISION_COMPACT");
+        tieredStrategyProperties.getLayer1().setDefaultBudgetProfile("CORTEX_L1_INTERACTIVE_STRICT");
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-budget-profile-default-layer1")
                 .metadata(new LinkedHashMap<>())
@@ -394,13 +395,13 @@ class AbstractTieredStrategyTest {
                 List.of());
 
         assertThat(request.getParameter("promptBudgetProfile", String.class))
-                .isEqualTo(PromptBudgetProfile.CORTEX_L1_DECISION_COMPACT.profileKey());
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
     }
 
     @Test
     @DisplayName("buildSecurityDecisionRequest should use configured layer2 default budget profile for layer2 strategies")
     void buildSecurityDecisionRequest_shouldUseConfiguredLayer2DefaultBudgetProfile() {
-        tieredStrategyProperties.getLayer2().setDefaultBudgetProfile("CORTEX_L2_COMPACT");
+        tieredStrategyProperties.getLayer2().setDefaultBudgetProfile("CORTEX_L2_EXPERT_STRICT");
         Layer2ConcreteStrategy layer2Strategy = new Layer2ConcreteStrategy(
                 eventEnricher,
                 promptTemplate,
@@ -423,13 +424,14 @@ class AbstractTieredStrategyTest {
                 List.of());
 
         assertThat(request.getParameter("promptBudgetProfile", String.class))
-                .isEqualTo(PromptBudgetProfile.CORTEX_L2_COMPACT.profileKey());
+                .isEqualTo(PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT.profileKey());
     }
     @Test
     @DisplayName("buildSecurityDecisionRequest should apply layer OpenAI runtime options for normal runtime decisions")
     void buildSecurityDecisionRequest_shouldApplyLayerOpenAiRuntimeOptionsForNormalRuntimeDecision() {
         tieredStrategyProperties.getLayer1().setOpenAiReasoningEffort("minimal");
         tieredStrategyProperties.getLayer1().setOpenAiVerbosity("low");
+        tieredStrategyProperties.getLayer1().setMaxOutputTokens(256);
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-runtime-openai-options")
                 .metadata(new LinkedHashMap<>())
@@ -443,6 +445,8 @@ class AbstractTieredStrategyTest {
 
         assertThat(request.getParameter("openAiReasoningEffort", String.class)).isEqualTo("minimal");
         assertThat(request.getParameter("openAiVerbosity", String.class)).isEqualTo("low");
+        assertThat(request.getParameter("maxTokens", Integer.class)).isNull();
+        assertThat(request.getParameter("platformSecurityDecisionMaxTokens", Integer.class)).isEqualTo(256);
     }
 
     @Test
@@ -491,7 +495,8 @@ class AbstractTieredStrategyTest {
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
                 List.of());
 
-        assertThat(request.getParameter("promptBudgetProfile", String.class)).isEqualTo("CORTEX_L1_COMPACT");
+        assertThat(request.getParameter("promptBudgetProfile", String.class))
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
         assertThat(request.getParameter("officialVerificationPinnedModelId", String.class)).isEqualTo("qwen3:8b");
         assertThat(request.getParameter("officialVerificationTemperature", Double.class)).isEqualTo(0.0d);
         assertThat(request.getParameter("officialVerificationTopP", Double.class)).isEqualTo(0.2d);
@@ -507,7 +512,7 @@ class AbstractTieredStrategyTest {
     @DisplayName("buildSecurityDecisionRequest should disable native structured output for explicitly disabled prompt profiles")
     void buildSecurityDecisionRequest_shouldDisableNativeStructuredOutputForDisabledProfile() {
         tieredStrategyProperties.getPromptRuntime()
-                .setNativeStructuredOutputDisabledProfiles(List.of("CORTEX_L1_COMPACT"));
+                .setNativeStructuredOutputDisabledProfiles(List.of("CORTEX_L1_INTERACTIVE_STRICT"));
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-native-disabled-profile")
                 .metadata(new LinkedHashMap<>(Map.of("promptBudgetProfile", "CORTEX_L1_COMPACT")))

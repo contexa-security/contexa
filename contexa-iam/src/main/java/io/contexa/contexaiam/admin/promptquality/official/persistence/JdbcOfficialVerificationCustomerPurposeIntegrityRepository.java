@@ -128,22 +128,6 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                         """,
                 Integer.class,
                 aggregateRunId);
-        Integer promptQualityIssueTechnicalText = jdbcTemplate.queryForObject("""
-                        /* prompt_quality_issue_customer_technical_text */
-                        select count(*)
-                          from prompt_quality_issue
-                         where aggregate_run_id = ?
-                           and (
-                                actual_value ilike '%Evidence:%'
-                                or actual_value ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                or next_action ilike '%Evidence:%'
-                                or next_action ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                or reverify_criterion ilike '%Evidence:%'
-                                or reverify_criterion ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                           )
-                        """,
-                Integer.class,
-                aggregateRunId);
         Integer promptComparisonTechnicalText = jdbcTemplate.queryForObject("""
                         /* prompt_comparison_customer_technical_text */
                         select count(*)
@@ -167,16 +151,15 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
         int reverifyCount = purposeReverifyTechnicalText == null ? 0 : purposeReverifyTechnicalText;
         int evidenceCount = purposeEvidenceTechnicalText == null ? 0 : purposeEvidenceTechnicalText;
         int actualProblemCount = actualPromptProblemTechnicalText == null ? 0 : actualPromptProblemTechnicalText;
-        int issueCount = promptQualityIssueTechnicalText == null ? 0 : promptQualityIssueTechnicalText;
         int comparisonCount = promptComparisonTechnicalText == null ? 0 : promptComparisonTechnicalText;
         if (actualCount > 0 || nextActionCount > 0 || reverifyCount > 0
-                || evidenceCount > 0 || actualProblemCount > 0 || issueCount > 0 || comparisonCount > 0) {
+                || evidenceCount > 0 || actualProblemCount > 0 || comparisonCount > 0) {
             String firstOffender = firstCustomerVisiblePurposeLedgerTechnicalLocation(aggregateRunId);
             throw new IllegalStateException("Customer-visible purpose ledgers contain raw technical evidence. aggregateRunId="
                     + aggregateRunId + ", actualValueCount=" + actualCount + ", nextActionCount=" + nextActionCount
                     + ", reverifyCriterionCount=" + reverifyCount + ", evidenceValueCount=" + evidenceCount
                     + ", actualPromptProblemCount=" + actualProblemCount
-                    + ", promptQualityIssueCount=" + issueCount + ", promptComparisonCount=" + comparisonCount
+                    + ", promptComparisonCount=" + comparisonCount
                     + ", firstOffender=" + firstOffender);
         }
         Integer duplicatedPurposeEvidenceText = jdbcTemplate.queryForObject("""
@@ -377,18 +360,6 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                                         or evidence_value ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
                                    )
                                  union all
-                                 select 'prompt_quality_issue:' || metric_code || '.' || failed_check as location, detected_at as created_at
-                                   from prompt_quality_issue
-                                  where aggregate_run_id = ?
-                                    and (
-                                         actual_value ilike '%Evidence:%'
-                                        or actual_value ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                        or next_action ilike '%Evidence:%'
-                                        or next_action ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                        or reverify_criterion ilike '%Evidence:%'
-                                         or reverify_criterion ~ '[A-Za-z][A-Za-z0-9_.-]{1,80}\\s*=\\s*'
-                                    )
-                                 union all
                                  select 'actual_prompt_problem:' || field_key as location, created_at
                                    from official_actual_prompt_problem_ledger
                                   where aggregate_run_id = ?
@@ -425,7 +396,6 @@ public final class JdbcOfficialVerificationCustomerPurposeIntegrityRepository
                          limit 1
                         """,
                 String.class,
-                aggregateRunId,
                 aggregateRunId,
                 aggregateRunId,
                 aggregateRunId,

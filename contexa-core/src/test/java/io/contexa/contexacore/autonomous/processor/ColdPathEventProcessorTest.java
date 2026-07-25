@@ -31,8 +31,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -124,6 +127,98 @@ class ColdPathEventProcessorTest {
         verify(expertStrategy).evaluate(any(SecurityEvent.class));
         assertThat(result.getAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
         assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+    }
+
+    @Test
+    @DisplayName("Layer2 terminal fallback should keep the proposal and expose policy metadata")
+    void layer2TerminalFallback_shouldPreserveProposalAndPolicyMetadata() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-layer2-terminal")
+                .sourceIp("10.0.0.22")
+                .build();
+        event.addMetadata("requestPath", "/api/sensitive");
+
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .action(ZeroTrustAction.ESCALATE.name())
+                .reasoning("Layer2 analysis required")
+                .shouldEscalate(true)
+                .build();
+        ThreatAssessment layer2Assessment = ThreatAssessment.builder()
+                .action(ZeroTrustAction.ESCALATE.name())
+                .autonomousAction(ZeroTrustAction.CHALLENGE.name())
+                .llmAuditRiskScore(0.7)
+                .llmAuditConfidence(0.8)
+                .reasoning("Human verification is required")
+                .autonomyConstraintApplied(true)
+                .autonomyConstraintReasons(List.of("LAYER2_ESCALATE_TERMINALIZED"))
+                .autonomyConstraintSummary("Layer2 ESCALATE was terminalized to CHALLENGE.")
+                .autonomyConstraintPolicy("LAYER2_ESCALATE_TERMINAL_POLICY")
+                .autonomyConstraintSource("contexa.ai.tiered.layer2.escalate-fallback-action")
+                .autonomyConstraintVersion("1")
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
+
+        ProcessingResult result = processor.processEvent(event, 0.5);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.ESCALATE.name());
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+        assertThat(result.getAutonomyConstraintPolicy())
+                .isEqualTo("LAYER2_ESCALATE_TERMINAL_POLICY");
+        assertThat(result.getAutonomyConstraintSource())
+                .isEqualTo("contexa.ai.tiered.layer2.escalate-fallback-action");
+        assertThat(result.getAutonomyConstraintVersion()).isEqualTo("1");
+        assertThat(result.getAnalysisData())
+                .containsEntry("llmProposedAction", ZeroTrustAction.ESCALATE.name())
+                .containsEntry("autonomousEnforcementAction", ZeroTrustAction.CHALLENGE.name())
+                .containsEntry("autonomyConstraintPolicy", "LAYER2_ESCALATE_TERMINAL_POLICY")
+                .containsEntry("autonomyConstraintVersion", "1");
+        verify(llmAnalysisEventListener).onLayer2Complete(
+                eq("user-layer2-terminal"),
+                eq(ZeroTrustAction.CHALLENGE.name()),
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Layer2 response action fallback should remain distinct from technical fallback")
+    void layer2ResponseActionFallback_shouldRemainDistinctFromTechnicalFallback() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-layer2-missing-action")
+                .sourceIp("10.0.0.23")
+                .build();
+        event.addMetadata("requestPath", "/api/sensitive");
+
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .action(ZeroTrustAction.ESCALATE.name())
+                .shouldEscalate(true)
+                .build();
+        ThreatAssessment layer2Assessment = ThreatAssessment.builder()
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .autonomousAction(ZeroTrustAction.CHALLENGE.name())
+                .technicalFallbackApplied(false)
+                .responseActionFallbackApplied(true)
+                .responseActionFallbackCategory("ACTION_MISSING")
+                .responseActionFallbackReason("Layer2 LLM response action was missing; CHALLENGE was applied.")
+                .responseActionFallbackAction(ZeroTrustAction.CHALLENGE.name())
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
+
+        ProcessingResult result = processor.processEvent(event, 0.5);
+
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+        assertThat(result.getTechnicalFallbackApplied()).isFalse();
+        assertThat(result.getResponseActionFallbackApplied()).isTrue();
+        assertThat(result.getResponseActionFallbackCategory()).isEqualTo("ACTION_MISSING");
+        assertThat(result.getResponseActionFallbackAction()).isEqualTo("CHALLENGE");
+        assertThat(result.getAnalysisData())
+                .containsEntry("responseActionFallbackApplied", true)
+                .containsEntry("responseActionFallbackCategory", "ACTION_MISSING");
     }
 
     @Test

@@ -50,6 +50,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -127,6 +128,37 @@ class ZeroTrustEventPublisherTest {
                 .anyMatch(hint -> hint.contains("authorization effect"));
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
+    }
+
+    @Test
+    @DisplayName("server-verified protectable URL should override the MVC probe route")
+    void shouldPreferServerVerifiedProtectableResourceUrl() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+        request.setAttribute(
+                HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE,
+                "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/{resourceId}");
+        request.setAttribute(
+                "officialVerification.protectableResourceUrl",
+                "/api/security-test/sensitive/{resourceId}");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .containsEntry("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}")
+                .containsEntry("resourceUrlTemplate", "/api/security-test/sensitive/{resourceId}");
     }
 
     @Test
@@ -285,8 +317,8 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("prompt budget profile should propagate into authorization event payload")
-    void shouldPropagatePromptBudgetProfileIntoAuthorizationEventPayload() throws Exception {
+    @DisplayName("untrusted prompt budget profile header should not affect authorization event payload")
+    void shouldIgnorePromptBudgetProfileHeaderInAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-budget");
         request.addHeader("User-Agent", "JUnit");
@@ -306,7 +338,7 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
-        assertThat(event.getPayload()).containsEntry("promptBudgetProfile", "CORTEX_L1_COMPACT");
+        assertThat(event.getPayload()).doesNotContainKey("promptBudgetProfile");
     }
 
     @Test
@@ -429,6 +461,7 @@ class ZeroTrustEventPublisherTest {
         request.setAttribute("hcad.actorSessionKey", "actor-window-1");
         request.setAttribute("hcad.windowId", "window-1");
         request.setAttribute("hcad.windowRequestCount", 4);
+        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/admin/users/{userId}");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         TrustedHcadContextProjection projection = new TrustedHcadContextProjection(
@@ -511,6 +544,11 @@ class ZeroTrustEventPublisherTest {
 
         assertThat(event.getPayload())
                 .containsEntry("protectableDeclared", true)
+                .containsEntry("protectableResourceId",
+                        SampleService.class.getName() + "#protectableApprove")
+                .containsEntry("protectableResourceUrl", "/admin/users/{userId}")
+                .containsEntry("resourceUrlTemplate", "/admin/users/{userId}")
+                .containsEntry("protectableHttpMethod", "GET")
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
                 .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")

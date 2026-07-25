@@ -883,7 +883,8 @@ final class UserPromptEvidenceContract {
         if (prompt.equals(evidence)) {
             return true;
         }
-        return isListSetComparisonField(spec) && tokenSet(prompt).equals(tokenSet(evidence));
+        return isListSetComparisonField(spec)
+                && tokenSet(spec, prompt).equals(tokenSet(spec, evidence));
     }
 
     private static boolean isListSetComparisonField(FieldSpec spec) {
@@ -891,17 +892,22 @@ final class UserPromptEvidenceContract {
             return false;
         }
         String fieldKey = normalizeContractProbe(spec.fieldKey());
-        return "EFFECTIVE_ROLES".equals(fieldKey)
-                || "EFFECTIVE_PERMISSIONS".equals(fieldKey);
+        return normalizeContractProbe("effectiveRoles").equals(fieldKey)
+                || normalizeContractProbe("effectivePermissions").equals(fieldKey);
     }
 
-    private static Set<String> tokenSet(String value) {
+    private static Set<String> tokenSet(FieldSpec spec, String value) {
         if (!StringUtils.hasText(value)) {
             return Set.of();
         }
+        boolean roleField = normalizeContractProbe("effectiveRoles")
+                .equals(normalizeContractProbe(spec.fieldKey()));
         Set<String> tokens = new LinkedHashSet<>();
         for (String token : value.split(",")) {
             String normalized = token.trim();
+            if (roleField && normalized.startsWith("role_")) {
+                normalized = normalized.substring("role_".length());
+            }
             if (StringUtils.hasText(normalized)) {
                 tokens.add(normalized);
             }

@@ -236,7 +236,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         behaviorAnalysis.setBaselineUpdateCount(20L);
         behaviorAnalysis.setLearningContextEvidence(new LearningContextEvidence(
-                new CurrentLearningContextSnapshot("21", "6", "CORPORATE", "Chrome/120", "Windows", "/admin/api/*", "PASSWORD", "READ", "SENSITIVE"),
+                new CurrentLearningContextSnapshot("21", "6", "CORPORATE", null, "Windows", "/admin/api/*", "PASSWORD", "READ", "SENSITIVE"),
                 new BaselineEvidenceSnapshot(LearningEvidenceScope.PERSONAL, true, true, 20L, 0.92,
                         List.of("CORPORATE"), List.of(), List.of(), List.of(), List.of(),
                         List.of(), List.of(), List.of(), List.of(),
@@ -266,6 +266,8 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
                 BaselineStatus.ESTABLISHED);
 
         assertThat(section).contains("CurrentAccessHourPresentInObservedHours: UNKNOWN");
+        assertThat(section).contains("CurrentBrowser: UNKNOWN - current value unavailable; do not infer baseline membership");
+        assertThat(section).contains("CurrentBrowserPresentInObservedBrowsers: UNKNOWN - current value unavailable; do not infer baseline membership");
         assertThat(section).contains("CurrentVsObservedDeltaCount: UNKNOWN");
         assertThat(section).contains("ObservedPatternEvidenceScope: PERSONAL_BASELINE_ONLY");
         assertThat(section).contains("StrongestCurrentVsObservedDelta: insufficient observed evidence");

@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -34,6 +35,7 @@ public class SecurityDecisionResponse extends AIResponse {
     private String reasoning;
     private String mitre;
     private List<String> evidenceRefs;
+    private Map<String, String> fieldProvenance;
 
     public SecurityResponse toSecurityResponse() {
         return SecurityResponse.builder()

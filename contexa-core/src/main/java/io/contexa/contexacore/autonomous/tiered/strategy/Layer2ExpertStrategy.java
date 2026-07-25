@@ -55,6 +55,11 @@ import java.util.Map;
 @Slf4j
 public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
+    static final String ESCALATE_TERMINAL_POLICY = "LAYER2_ESCALATE_TERMINAL_POLICY";
+    static final String ESCALATE_TERMINAL_POLICY_SOURCE =
+            "contexa.ai.tiered.layer2.escalate-fallback-action";
+    static final String ESCALATE_TERMINAL_POLICY_VERSION = "1";
+
     private final ApprovalService approvalService;
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
@@ -190,17 +195,25 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .technicalFallbackCategory(expertDecision.getTechnicalFallbackCategory())
                 .technicalFallbackReason(expertDecision.getTechnicalFallbackReason())
                 .technicalFallbackAction(expertDecision.getTechnicalFallbackAction())
+                .responseActionFallbackApplied(expertDecision.getResponseActionFallbackApplied())
+                .responseActionFallbackCategory(expertDecision.getResponseActionFallbackCategory())
+                .responseActionFallbackReason(expertDecision.getResponseActionFallbackReason())
+                .responseActionFallbackAction(expertDecision.getResponseActionFallbackAction())
                 .reasoning(expertDecision.getReasoning())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
+                .autonomyConstraintPolicy(expertDecision.getAutonomyConstraintPolicy())
+                .autonomyConstraintSource(expertDecision.getAutonomyConstraintSource())
+                .autonomyConstraintVersion(expertDecision.getAutonomyConstraintVersion())
+                .fieldProvenance(expertDecision.getFieldProvenance())
                 .build();
     }
 
     public SecurityDecision performDeepAnalysis(SecurityEvent event) {
         if (event == null) {
             log.error("[Layer2] Analysis failed: event is null");
-            return createFailsafeDecision(null, System.currentTimeMillis(), "NULL_EVENT");
+            return createInvalidEventDecision(System.currentTimeMillis());
         }
 
         long startTime = System.currentTimeMillis();
@@ -247,8 +260,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 }
                 long responseValidateStart = System.currentTimeMillis();
                 response = validateAndFixResponse(pipelineResponse.toSecurityResponse());
+                ResponseActionFallback responseActionFallback =
+                        normalizeLayer2ResponseAction(pipelineResponse.getAction(), response);
                 responseValidateMs = System.currentTimeMillis() - responseValidateStart;
                 capturePromptRuntimeTelemetry(event, pipelineResponse);
+                event.addMetadata("layer2ResponseActionFallbackApplied", responseActionFallback != null);
+                if (responseActionFallback != null) {
+                    event.addMetadata("layer2ResponseActionFallbackCategory", responseActionFallback.category());
+                    event.addMetadata("layer2ResponseActionFallbackReason", responseActionFallback.reason());
+                    event.addMetadata("layer2ResponseActionFallbackAction", ZeroTrustAction.CHALLENGE.name());
+                }
             } else {
                 throw new IllegalStateException("Layer2 PipelineOrchestrator not available");
             }
@@ -256,10 +277,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
+            applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
             applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
             terminalizeLayer2EscalateDecision(expertDecision);
 
-            if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
+            if (tieredStrategyProperties.getLayer2().isEnableSoar()
+                    && expertDecision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
             }
 
@@ -291,7 +314,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
         } catch (Exception e) {
             log.error("[Layer2] Expert analysis failed for event {}", event.getEventId() != null ? event.getEventId() : "unknown", e);
-            return createFailsafeDecision(event, startTime, resolveTechnicalFailureCategory(e));
+            return createLayer2TechnicalFailureDecision(event, startTime, resolveTechnicalFailureCategory(e));
         }
     }
 
@@ -301,7 +324,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                 .onErrorResume(throwable -> {
                     log.error("[Layer2] Async analysis failed or timed out", throwable);
-                    return Mono.just(createFailsafeDecision(event, startTime, resolveTechnicalFailureCategory(throwable)));
+                    return Mono.just(createLayer2TechnicalFailureDecision(
+                            event,
+                            startTime,
+                            resolveTechnicalFailureCategory(throwable)));
                 });
     }
     private void recordLayer2TimingMetadata(
@@ -404,6 +430,48 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return decision;
     }
 
+    private ResponseActionFallback normalizeLayer2ResponseAction(
+            String rawAction,
+            SecurityResponse normalizedResponse) {
+        ResponseActionFallback fallback = responseActionFallback(rawAction);
+        if (fallback != null) {
+            normalizedResponse.setAction(ZeroTrustAction.CHALLENGE.name());
+        }
+        return fallback;
+    }
+
+    private void applyResponseActionFallback(SecurityDecision decision, String rawAction) {
+        ResponseActionFallback fallback = responseActionFallback(rawAction);
+        if (fallback == null) {
+            decision.setResponseActionFallbackApplied(false);
+            return;
+        }
+        decision.setLlmDecisionPresent(false);
+        decision.setResponseActionFallbackApplied(true);
+        decision.setResponseActionFallbackCategory(fallback.category());
+        decision.setResponseActionFallbackReason(fallback.reason());
+        decision.setResponseActionFallbackAction(ZeroTrustAction.CHALLENGE.name());
+    }
+
+    private ResponseActionFallback responseActionFallback(String rawAction) {
+        if (rawAction == null || rawAction.isBlank()) {
+            return new ResponseActionFallback(
+                    "ACTION_MISSING",
+                    "Layer2 LLM response action was missing; CHALLENGE was applied.");
+        }
+        String normalized = rawAction.trim().toUpperCase();
+        boolean recognized = switch (normalized) {
+            case "ALLOW", "A", "BLOCK", "B", "CHALLENGE", "C",
+                    "ESCALATE", "E", "PENDING_ANALYSIS" -> true;
+            default -> false;
+        };
+        return recognized
+                ? null
+                : new ResponseActionFallback(
+                        "ACTION_FORMAT_INVALID",
+                        "Layer2 LLM response action was invalid; CHALLENGE was applied.");
+    }
+
     private void terminalizeLayer2EscalateDecision(SecurityDecision decision) {
         if (decision == null || tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
             return;
@@ -420,7 +488,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 || fallback == ZeroTrustAction.PENDING_ANALYSIS) {
             fallback = ZeroTrustAction.CHALLENGE;
         }
-        decision.setAction(fallback);
         decision.setAutonomousAction(fallback);
         decision.setAutonomyConstraintApplied(true);
         List<String> reasons = decision.getAutonomyConstraintReasons();
@@ -429,6 +496,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             decision.setAutonomyConstraintReasons(reasons);
         }
         reasons.add("LAYER2_ESCALATE_TERMINALIZED");
+        decision.setAutonomyConstraintPolicy(ESCALATE_TERMINAL_POLICY);
+        decision.setAutonomyConstraintSource(ESCALATE_TERMINAL_POLICY_SOURCE);
+        decision.setAutonomyConstraintVersion(ESCALATE_TERMINAL_POLICY_VERSION);
         String summary = "Layer2 returned ESCALATE, so final autonomous action was terminalized to "
                 + fallback.name() + " by tiered strategy policy.";
         decision.setAutonomyConstraintSummary(summary);
@@ -445,7 +515,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         try {
             List<Map<String, Object>> actions = new ArrayList<>();
 
-            if (decision.getAction() == ZeroTrustAction.BLOCK) {
+            if (decision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {
                 Map<String, Object> blockAction = Map.of(
                         "actionType", "BLOCK_IP",
                         "parameters", Map.of("ip", event.getSourceIp())
@@ -492,7 +562,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             Map<String, Object> metadata = Map.of(
                     "threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : "UNKNOWN",
-                    "action", decision.getAction()
+                    "action", decision.resolveAutonomousAction()
             );
 
             ApprovalRequestDetails details = new ApprovalRequestDetails(
@@ -542,16 +612,34 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return null;
     }
 
-    private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime, String fallbackCategory) {
+    private SecurityDecision createInvalidEventDecision(long startTime) {
         return createTechnicalFallbackDecision(
-                event,
+                null,
                 ZeroTrustAction.BLOCK,
                 "[AI Native] Layer 2 analysis failed - applying failsafe blocking",
+                "NULL_EVENT",
+                startTime,
+                2,
+                true,
+                "Manual review required - LLM analysis failed");
+    }
+
+    private SecurityDecision createLayer2TechnicalFailureDecision(
+            SecurityEvent event,
+            long startTime,
+            String fallbackCategory) {
+        return createTechnicalFallbackDecision(
+                event,
+                ZeroTrustAction.ESCALATE,
+                "[AI Native] Layer 2 LLM call failed - escalating for manual review",
                 fallbackCategory,
                 startTime,
                 2,
                 true,
                 "Manual review required - LLM analysis failed");
+    }
+
+    private record ResponseActionFallback(String category, String reason) {
     }
 
     @Override

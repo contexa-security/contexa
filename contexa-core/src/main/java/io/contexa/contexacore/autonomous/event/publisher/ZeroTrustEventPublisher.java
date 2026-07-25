@@ -58,6 +58,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -228,6 +229,16 @@ public class ZeroTrustEventPublisher {
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
                     + "." + methodInvocation.getMethod().getName());
+            payload.put("protectableResourceId", methodInvocation.getMethod().getDeclaringClass().getName()
+                    + "#" + methodInvocation.getMethod().getName());
+            String resourceUrlTemplate = currentResourceUrlTemplate();
+            if (StringUtils.hasText(resourceUrlTemplate)) {
+                payload.put("protectableResourceUrl", resourceUrlTemplate);
+                payload.put("resourceUrlTemplate", resourceUrlTemplate);
+            }
+            if (requestInfo != null && StringUtils.hasText(requestInfo.getMethod())) {
+                payload.put("protectableHttpMethod", requestInfo.getMethod());
+            }
         }
 
         if (requestInfo != null) {
@@ -259,9 +270,6 @@ public class ZeroTrustEventPublisher {
             if (Boolean.TRUE.equals(requestInfo.getPqaPromptFaultRejected())) {
                 payload.put("pqaPromptFaultRejected", true);
                 payload.put("pqaPromptFaultRejectedSource", requestInfo.getPqaPromptFaultRejectedSource());
-            }
-            if (requestInfo.getPromptBudgetProfile() != null) {
-                payload.put("promptBudgetProfile", requestInfo.getPromptBudgetProfile());
             }
             if (requestInfo.getDecisionBoundaryMode() != null) {
                 payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
@@ -379,6 +387,22 @@ public class ZeroTrustEventPublisher {
                 payload,
                 requestInfo != null ? requestInfo.getObservedAt() : null
         );
+    }
+
+    private String currentResourceUrlTemplate() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)
+                || attributes.getRequest() == null) {
+            return null;
+        }
+        Object managedResourceUrl =
+                attributes.getRequest().getAttribute("officialVerification.protectableResourceUrl");
+        if (managedResourceUrl != null && StringUtils.hasText(String.valueOf(managedResourceUrl))) {
+            return String.valueOf(managedResourceUrl).trim();
+        }
+        Object pattern = attributes.getRequest().getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        return pattern == null || !StringUtils.hasText(String.valueOf(pattern))
+                ? null
+                : String.valueOf(pattern).trim();
     }
 
     private String securityZeroTrustMode() {
