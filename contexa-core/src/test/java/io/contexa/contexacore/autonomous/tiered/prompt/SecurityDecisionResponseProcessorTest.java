@@ -118,7 +118,7 @@ class SecurityDecisionResponseProcessorTest {
     }
 
     @Test
-    void wrapResponseShouldDefaultMissingMetadataWithoutStoppingDecision() {
+    void wrapResponseShouldPreserveMissingOptionalMetadataWithoutStoppingDecision() {
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction("BLOCK");
 
@@ -130,18 +130,19 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
         SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
         assertThat(response.getAction()).isEqualTo("BLOCK");
-        assertThat(response.getRiskScore()).isEqualTo(0.90);
-        assertThat(response.getConfidence()).isEqualTo(0.70);
-        assertThat(response.getMitre()).isEqualTo("UNKNOWN");
-        assertThat(response.getReasoning()).isEqualTo("Decision metadata was incomplete; block remains required.");
-        assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class))
-                .contains("riskScore", "confidence", "reasoning", "mitre");
+        assertThat(response.getRiskScore()).isNull();
+        assertThat(response.getConfidence()).isNull();
+        assertThat(response.getMitre()).isNull();
+        assertThat(response.getReasoning()).isNull();
+        assertThat(response.getEvidenceRefs()).isEmpty();
+        assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class)).isNull();
+        assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class)).isNull();
         assertThat(response.getFieldProvenance())
-                .containsEntry("riskScore", "SYNTHETIC_DEFAULT")
-                .containsEntry("confidence", "SYNTHETIC_DEFAULT")
-                .containsEntry("reasoning", "SYNTHETIC_DEFAULT")
-                .containsEntry("mitre", "SYNTHETIC_DEFAULT")
-                .containsEntry("evidenceRefs", "SYNTHETIC_DEFAULT");
+                .containsEntry("riskScore", "ABSENT")
+                .containsEntry("confidence", "ABSENT")
+                .containsEntry("reasoning", "ABSENT")
+                .containsEntry("mitre", "ABSENT")
+                .containsEntry("evidenceRefs", "ABSENT");
     }
 
     @Test
@@ -157,8 +158,8 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(wrapped).isInstanceOf(SecurityDecisionResponse.class);
         SecurityDecisionResponse response = (SecurityDecisionResponse) wrapped;
         assertThat(response.getAction()).isEqualTo("CHALLENGE");
-        assertThat(response.getRiskScore()).isEqualTo(0.55);
-        assertThat(response.getConfidence()).isEqualTo(0.60);
+        assertThat(response.getRiskScore()).isNull();
+        assertThat(response.getConfidence()).isNull();
         assertThat(context.getMetadata("securityDecisionFallbackApplied", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("CHALLENGE");
         assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();

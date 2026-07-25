@@ -52,7 +52,7 @@ class SecurityDecisionOutputParserTest {
     }
 
     @Test
-    void parseShouldRepairStringOrBlankAuxiliaryScores() {
+    void parseShouldPreserveBlankOptionalScoresAndMetadata() {
         PipelineExecutionContext context = new PipelineExecutionContext("parse-score-string");
 
         SecurityDecisionResponseLite result = parser.parse("""
@@ -67,11 +67,10 @@ class SecurityDecisionOutputParserTest {
 
         assertThat(result.getAction()).isEqualTo("ALLOW");
         assertThat(result.getConfidence()).isEqualTo(0.9d);
-        assertThat(result.getRiskScore()).isEqualTo(0.20d);
-        assertThat(result.getMitre()).isEqualTo("UNKNOWN");
-        assertThat(context.getMetadata("securityDecisionOutputRepairApplied", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("securityDecisionOutputRepairFields", List.class))
-                .contains("riskScore", "mitre");
+        assertThat(result.getRiskScore()).isNull();
+        assertThat(result.getMitre()).isNull();
+        assertThat(context.getMetadata("securityDecisionOutputRepairApplied", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class)).isEmpty();
     }
 
     @Test
@@ -89,7 +88,7 @@ class SecurityDecisionOutputParserTest {
 
         assertThat(result.getAction()).isEqualTo("ALLOW");
         assertThat(result.getReasoning()).isEqualTo("The current request has known identity and low privilege scope.");
-        assertThat(result.getRiskScore()).isEqualTo(0.20d);
+        assertThat(result.getRiskScore()).isNull();
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("TRUNCATED_JSON");
         assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
     }
@@ -114,7 +113,7 @@ class SecurityDecisionOutputParserTest {
         assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
                 .isEqualTo("ACTION_MISSING");
         assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class))
-                .containsExactlyInAnyOrder("confidence", "mitre", "evidenceRefs");
+                .isEmpty();
     }
 
     @Test
@@ -144,12 +143,15 @@ class SecurityDecisionOutputParserTest {
         SecurityDecisionResponseLite result = parser.parse("", context);
 
         assertThat(result.getAction()).isEqualTo("CHALLENGE");
-        assertThat(result.getReasoning()).isEqualTo("Model output was incomplete; challenge is required.");
-        assertThat(result.getRiskScore()).isEqualTo(0.55d);
+        assertThat(result.getReasoning()).isNull();
+        assertThat(result.getRiskScore()).isNull();
+        assertThat(result.getConfidence()).isNull();
+        assertThat(result.getMitre()).isNull();
+        assertThat(result.getEvidenceRefs()).isEmpty();
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("EMPTY_RESPONSE");
         assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
         assertThat(context.getMetadata("securityDecisionSyntheticDefaultFields", List.class))
-                .containsExactlyInAnyOrder("riskScore", "confidence", "reasoning", "mitre", "evidenceRefs");
+                .isEmpty();
     }
 
     @Test
@@ -183,8 +185,8 @@ class SecurityDecisionOutputParserTest {
                 "mfa.freshness.stale",
                 "authorization.policy.allow_after_verification",
                 "baseline.status.insufficient",
-                "baseline.confidence.low",
-                "baseline");
+                "baseline.confidence.low");
+        assertThat(result.getEvidenceRefs()).doesNotContain("baseline");
         assertThat(context.getMetadata("securityDecisionEvidenceRefsPresent", Boolean.class)).isTrue();
     }
 }

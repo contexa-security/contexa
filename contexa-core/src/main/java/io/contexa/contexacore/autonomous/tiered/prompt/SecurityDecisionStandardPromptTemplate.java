@@ -134,6 +134,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     }
 
     @Override
+    protected String getFormatInstructions() {
+        return SecurityDecisionContractSectionBuilder.formatInstructions();
+    }
+
+    @Override
     protected boolean shouldIncludeSystemMetadata(AIRequest<? extends DomainContext> request) {
         return false;
     }

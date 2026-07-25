@@ -16,6 +16,8 @@ public record OfficialVerificationRunPresentation(
         return switch (normalized) {
             case "SUCCESS", "PASSED" -> new OfficialVerificationRunPresentation("success", "PASS", true, false);
             case "NOT_APPLICABLE" -> new OfficialVerificationRunPresentation("warning", "NOT_APPLICABLE", false, true);
+            case "NOT_EVALUATED_INPUT_INVALID" -> new OfficialVerificationRunPresentation(
+                    "warning", "NOT_EVALUATED_INPUT_INVALID", false, true);
             case "INSUFFICIENT" -> new OfficialVerificationRunPresentation("warning", "BLOCKED", false, false);
             default -> new OfficialVerificationRunPresentation("danger", "BLOCKED", false, false);
         };

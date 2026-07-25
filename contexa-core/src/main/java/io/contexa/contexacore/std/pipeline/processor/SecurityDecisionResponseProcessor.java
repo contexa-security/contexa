@@ -22,18 +22,14 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 public class SecurityDecisionResponseProcessor implements DomainResponseProcessor {
 
     private static final int MAX_REASONING_WORDS = 40;
     private static final int MAX_REASONING_CHARS = 280;
-    private static final String DEFAULT_MITRE = "UNKNOWN";
 
     @Override
     public boolean supports(String templateKey) {
@@ -48,7 +44,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
     @Override
     public Object wrapResponse(Object parsedData, PipelineExecutionContext context) {
         if (parsedData instanceof SecurityDecisionResponse fullResponse) {
-            Map<String, String> fieldProvenance = buildFieldProvenance(context);
+            SecurityDecisionResponseLite normalized = normalizeAndValidate(toLite(fullResponse), context);
+            applyNormalized(fullResponse, normalized);
+            Map<String, String> fieldProvenance = buildFieldProvenance(normalized);
             fullResponse.setFieldProvenance(fieldProvenance);
             fullResponse.withMetadata("securityDecisionFieldProvenance", fieldProvenance);
             return fullResponse;
@@ -60,7 +58,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         }
         SecurityDecisionResponseLite normalized = normalizeAndValidate(liteResponse, context);
         SecurityDecisionResponse response = SecurityDecisionResponse.fromLite(normalized);
-        Map<String, String> fieldProvenance = buildFieldProvenance(context);
+        Map<String, String> fieldProvenance = buildFieldProvenance(normalized);
         response.setFieldProvenance(fieldProvenance);
         response.withMetadata("securityDecisionFieldProvenance", fieldProvenance);
         if (normalized.getEvidenceRefs() != null && !normalized.getEvidenceRefs().isEmpty()) {
@@ -77,106 +75,66 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
     private SecurityDecisionResponseLite normalizeAndValidate(SecurityDecisionResponseLite lite, PipelineExecutionContext context) {
         SecurityDecisionResponseLite normalized = new SecurityDecisionResponseLite();
         List<String> repairedFields = new ArrayList<>();
-        Set<String> syntheticDefaultFields = detectSyntheticDefaultFields(lite);
         String normalizedAction = normalizeAction(lite.getAction(), repairedFields, context);
-        Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore", normalizedAction, repairedFields);
-        Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence", normalizedAction, repairedFields);
+        Double normalizedRiskScore = normalizeNumericScore(lite.getRiskScore(), "riskScore", repairedFields);
+        Double normalizedConfidence = normalizeNumericScore(lite.getConfidence(), "confidence", repairedFields);
         normalized.setRiskScore(normalizedRiskScore);
         normalized.setConfidence(normalizedConfidence);
         normalized.setAction(normalizedAction);
-        String normalizedReasoning = normalizeReasoning(lite.getReasoning(), normalizedAction, repairedFields);
+        String normalizedReasoning = normalizeReasoning(lite.getReasoning(), repairedFields);
         normalized.setReasoning(normalizedReasoning);
         normalized.setMitre(normalizeMitre(lite.getMitre(), repairedFields));
-        normalized.setEvidenceRefs(normalizeEvidenceRefs(lite.getEvidenceRefs(), normalizedReasoning, repairedFields));
+        normalized.setEvidenceRefs(normalizeEvidenceRefs(lite.getEvidenceRefs(), repairedFields));
         recordSemanticConsistency(context, normalizedAction, normalizedRiskScore);
         recordRepairMetadata(context, repairedFields);
-        recordSyntheticDefaultMetadata(context, syntheticDefaultFields);
         return normalized;
     }
 
-    private Set<String> detectSyntheticDefaultFields(SecurityDecisionResponseLite response) {
-        Set<String> fields = new LinkedHashSet<>();
-        if (response.getRiskScore() == null || !Double.isFinite(response.getRiskScore())) {
-            fields.add("riskScore");
-        }
-        if (response.getConfidence() == null || !Double.isFinite(response.getConfidence())) {
-            fields.add("confidence");
-        }
-        if (response.getReasoning() == null || response.getReasoning().isBlank()) {
-            fields.add("reasoning");
-        }
-        if (response.getMitre() == null || response.getMitre().isBlank()) {
-            fields.add("mitre");
-        }
-        if (response.getEvidenceRefs() == null || response.getEvidenceRefs().isEmpty()) {
-            fields.add("evidenceRefs");
-        }
-        return fields;
-    }
-
-    private void recordSyntheticDefaultMetadata(
-            PipelineExecutionContext context,
-            Set<String> syntheticDefaultFields) {
-        if (context == null || syntheticDefaultFields.isEmpty()) {
-            return;
-        }
-        Set<String> combined = new LinkedHashSet<>(metadataStringList(
-                context,
-                "securityDecisionSyntheticDefaultFields"));
-        combined.addAll(syntheticDefaultFields);
-        context.addMetadata("securityDecisionSyntheticDefaultFields", List.copyOf(combined));
-    }
-
-    private Map<String, String> buildFieldProvenance(PipelineExecutionContext context) {
-        Set<String> syntheticFields = new LinkedHashSet<>(metadataStringList(
-                context,
-                "securityDecisionSyntheticDefaultFields"));
+    private Map<String, String> buildFieldProvenance(SecurityDecisionResponseLite response) {
         Map<String, String> provenance = new LinkedHashMap<>();
-        for (String field : List.of("riskScore", "confidence", "reasoning", "mitre", "evidenceRefs")) {
-            provenance.put(field, syntheticFields.contains(field) ? "SYNTHETIC_DEFAULT" : "MODEL");
-        }
+        provenance.put("riskScore", response.getRiskScore() == null ? "ABSENT" : "MODEL");
+        provenance.put("confidence", response.getConfidence() == null ? "ABSENT" : "MODEL");
+        provenance.put("reasoning", response.getReasoning() == null ? "ABSENT" : "MODEL");
+        provenance.put("mitre", response.getMitre() == null ? "ABSENT" : "MODEL");
+        provenance.put("evidenceRefs", response.getEvidenceRefs() == null || response.getEvidenceRefs().isEmpty()
+                ? "ABSENT"
+                : "MODEL");
         return Map.copyOf(provenance);
     }
 
-    private List<String> metadataStringList(PipelineExecutionContext context, String key) {
-        if (context == null) {
-            return List.of();
-        }
-        Object value = context.getMetadata(key, Object.class);
-        if (!(value instanceof List<?> values)) {
-            return List.of();
-        }
-        return values.stream()
-                .filter(Objects::nonNull)
-                .map(String::valueOf)
-                .toList();
+    private SecurityDecisionResponseLite toLite(SecurityDecisionResponse response) {
+        SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
+        lite.setRiskScore(response.getRiskScore());
+        lite.setConfidence(response.getConfidence());
+        lite.setAction(response.getAction());
+        lite.setReasoning(response.getReasoning());
+        lite.setMitre(response.getMitre());
+        lite.setEvidenceRefs(response.getEvidenceRefs());
+        return lite;
     }
 
-    private Double normalizeNumericScore(Double score, String fieldName, String action, List<String> repairedFields) {
-        if (score == null || !Double.isFinite(score)) {
+    private void applyNormalized(SecurityDecisionResponse response, SecurityDecisionResponseLite normalized) {
+        response.setRiskScore(normalized.getRiskScore());
+        response.setConfidence(normalized.getConfidence());
+        response.setAction(normalized.getAction());
+        response.setReasoning(normalized.getReasoning());
+        response.setMitre(normalized.getMitre());
+        response.setEvidenceRefs(normalized.getEvidenceRefs());
+    }
+
+    private Double normalizeNumericScore(Double score, String fieldName, List<String> repairedFields) {
+        if (score == null) {
+            return null;
+        }
+        if (!Double.isFinite(score)) {
             repairedFields.add(fieldName);
-            return defaultNumericScore(fieldName, action);
+            return null;
         }
-        return Math.max(0.0d, Math.min(1.0d, score));
-    }
-
-    private Double defaultNumericScore(String fieldName, String action) {
-        return switch (fieldName) {
-            case "riskScore" -> switch (action) {
-                case "ALLOW" -> 0.20d;
-                case "CHALLENGE" -> 0.55d;
-                case "ESCALATE" -> 0.75d;
-                case "BLOCK" -> 0.90d;
-                default -> 0.60d;
-            };
-            case "confidence" -> switch (action) {
-                case "ALLOW", "BLOCK" -> 0.70d;
-                case "CHALLENGE" -> 0.60d;
-                case "ESCALATE" -> 0.55d;
-                default -> 0.55d;
-            };
-            default -> throw new IllegalArgumentException("Unknown security decision numeric field: " + fieldName);
-        };
+        double normalized = Math.max(0.0d, Math.min(1.0d, score));
+        if (Double.compare(normalized, score) != 0) {
+            repairedFields.add(fieldName);
+        }
+        return normalized;
     }
 
     private String normalizeAction(String action, List<String> repairedFields, PipelineExecutionContext context) {
@@ -198,10 +156,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         };
     }
 
-    private String normalizeReasoning(String reasoning, String action, List<String> repairedFields) {
+    private String normalizeReasoning(String reasoning, List<String> repairedFields) {
         if (reasoning == null || reasoning.isBlank()) {
-            repairedFields.add("reasoning");
-            return defaultReasoning(action);
+            return null;
         }
         String normalized = reasoning.replaceAll("\\s+", " ").trim();
         if (containsMultipleSentences(normalized)) {
@@ -216,32 +173,27 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
             repairedFields.add("reasoning");
             normalized = normalized.substring(0, MAX_REASONING_CHARS).trim();
         }
-        return normalized.isBlank() ? defaultReasoning(action) : normalized;
+        return normalized.isBlank() ? null : normalized;
     }
 
-    private List<String> normalizeEvidenceRefs(List<String> evidenceRefs, String reasoning, List<String> repairedFields) {
+    private List<String> normalizeEvidenceRefs(List<String> evidenceRefs, List<String> repairedFields) {
+        if (evidenceRefs == null || evidenceRefs.isEmpty()) {
+            return List.of();
+        }
         List<String> normalized = new ArrayList<>();
-        if (evidenceRefs != null) {
-            for (String ref : evidenceRefs) {
-                if (ref == null || ref.isBlank()) {
-                    continue;
-                }
-                String canonical = canonicalEvidenceRef(ref);
-                if (canonical != null && !normalized.contains(canonical)) {
-                    normalized.add(canonical);
-                }
+        for (String ref : evidenceRefs) {
+            if (ref == null || ref.isBlank()) {
+                continue;
+            }
+            String canonical = canonicalEvidenceRef(ref);
+            if (canonical != null && !normalized.contains(canonical)) {
+                normalized.add(canonical);
             }
         }
-        if (mentionsSensitivityEvidence(reasoning) && !normalized.contains("sensitivity")) {
-            normalized.add("sensitivity");
-        }
-        if (mentionsBaselineEvidence(reasoning) && !normalized.contains("baseline")) {
-            normalized.add("baseline");
-        }
-        if (normalized.isEmpty()) {
+        if (normalized.size() != evidenceRefs.size()) {
             repairedFields.add("evidenceRefs");
         }
-        return normalized;
+        return List.copyOf(normalized);
     }
 
     private String canonicalEvidenceRef(String ref) {
@@ -266,38 +218,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         };
     }
 
-    private boolean mentionsSensitivityEvidence(String reasoning) {
-        if (reasoning == null || reasoning.isBlank()) {
-            return false;
-        }
-        String lower = reasoning.toLowerCase(Locale.ROOT);
-        return lower.contains("high-sensitivity")
-                || lower.contains("high sensitivity")
-                || lower.contains("sensitive-resource")
-                || lower.contains("sensitive resource")
-                || lower.contains("sensitive res")
-                || lower.contains("resource sensitivity")
-                || lower.contains("critical resource")
-                || lower.contains("critical sensitivity")
-                || lower.contains("business impact");
-    }
-
-    private boolean mentionsBaselineEvidence(String reasoning) {
-        if (reasoning == null || reasoning.isBlank()) {
-            return false;
-        }
-        String lower = reasoning.toLowerCase(Locale.ROOT);
-        return lower.contains("limited baseline")
-                || lower.contains("baseline")
-                || lower.contains("work profile")
-                || lower.contains("work-profile")
-                || lower.contains("history")
-                || lower.contains("historical");
-    }
     private String normalizeMitre(String mitre, List<String> repairedFields) {
         if (mitre == null || mitre.isBlank()) {
-            repairedFields.add("mitre");
-            return DEFAULT_MITRE;
+            return null;
         }
         return mitre.trim();
     }
@@ -364,16 +287,6 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
             return reasoning.trim();
         }
         return String.join(" ", Arrays.copyOf(words, maxWords));
-    }
-
-    private String defaultReasoning(String action) {
-        return switch (action) {
-            case "ALLOW" -> "Decision metadata was incomplete; action remained ALLOW.";
-            case "CHALLENGE" -> "Decision metadata was incomplete; challenge remains required.";
-            case "ESCALATE" -> "Decision metadata was incomplete; escalation remains required.";
-            case "BLOCK" -> "Decision metadata was incomplete; block remains required.";
-            default -> "Decision metadata was incomplete.";
-        };
     }
 
     private int countWords(String reasoning) {

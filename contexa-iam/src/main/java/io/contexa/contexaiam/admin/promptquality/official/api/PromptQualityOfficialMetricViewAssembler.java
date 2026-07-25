@@ -4,7 +4,6 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPacka
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,11 +17,8 @@ final class PromptQualityOfficialMetricViewAssembler {
 
     private static final Set<String> PROMPT_OFFICIAL_METRIC_CODES = Set.of(
             "EIR", "CCR", "CCSR", "PFR", "MTR", "COR", "RAP", "RPI", "BMA", "USNS", "BSR", "PRE");
-    private static final Set<String> LLM_DECISION_GATE_CODES = Set.of("G01", "G02", "G03", "G04");
     private static final Set<String> LLM_DECISION_METRIC_CODES = Set.of(
-            "M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08",
-            "M09", "M10", "M11", "M12", "M13", "M14", "M15", "M16",
-            "M17", "M18", "M19", "M20", "M21", "M22", "M23", "M24");
+            "D01", "D02", "D03", "D04", "D05");
 
     private final MessageSource messages;
 
@@ -73,10 +69,7 @@ final class PromptQualityOfficialMetricViewAssembler {
             return PROMPT_OFFICIAL_METRIC_CODES.stream().sorted().toList();
         }
         if ("decision".equals(family)) {
-            List<String> codes = new ArrayList<>();
-            codes.addAll(LLM_DECISION_GATE_CODES.stream().sorted().toList());
-            codes.addAll(LLM_DECISION_METRIC_CODES.stream().sorted().toList());
-            return codes;
+            return LLM_DECISION_METRIC_CODES.stream().sorted().toList();
         }
         return List.of();
     }
@@ -96,7 +89,6 @@ final class PromptQualityOfficialMetricViewAssembler {
     String expectedMetricLabel(String metricCode) {
         String normalized = normalizeMetricCode(metricCode);
         if (!PROMPT_OFFICIAL_METRIC_CODES.contains(normalized)
-                && !LLM_DECISION_GATE_CODES.contains(normalized)
                 && !LLM_DECISION_METRIC_CODES.contains(normalized)) {
             return metricCode;
         }
@@ -137,10 +129,8 @@ final class PromptQualityOfficialMetricViewAssembler {
     String metricFamily(OfficialVerificationMetricTrace run) {
         String code = normalizeMetricCode(run == null ? null : run.metricCode());
         String group = normalizeMetricCode(run == null ? null : run.groupName());
-        if (LLM_DECISION_GATE_CODES.contains(code)
-                || LLM_DECISION_METRIC_CODES.contains(code)
+        if (LLM_DECISION_METRIC_CODES.contains(code)
                 || "LLM_DECISION".equals(group)
-                || "LLM_DECISION_GATE".equals(group)
                 || "DECISION_OFFICIAL".equals(group)) {
             return "decision";
         }

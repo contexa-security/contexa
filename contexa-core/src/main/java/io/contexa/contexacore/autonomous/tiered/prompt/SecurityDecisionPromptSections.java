@@ -2159,12 +2159,14 @@ public class SecurityDecisionPromptSections {
     String buildDecisionSection(StructuredOutputMode structuredOutputMode) {
         String explicitSchema = structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED
                 ? """
-                Required key order:
-                action, riskScore, confidence, mitre, reasoning, evidenceRefs
-                Schema:
-                {"action":"ALLOW|CHALLENGE|ESCALATE|BLOCK","riskScore":0.0,"confidence":0.0,"mitre":"UNKNOWN","reasoning":"one sentence, max 25 words","evidenceRefs":["baseline","sensitivity"]}
+                Required key:
+                action
+                Optional keys:
+                reasoning, mitre, riskScore, confidence, evidenceRefs
+                Minimal schema:
+                %s
 
-                """
+                """.formatted(SecurityDecisionContractSectionBuilder.MINIMAL_RESPONSE_EXAMPLE)
                 : "";
         return """
 
@@ -2180,11 +2182,12 @@ public class SecurityDecisionPromptSections {
                 Return only one minified JSON object.
                 No markdown, no extra keys, no comments.
                 %s
-                riskScore and confidence must be JSON numbers between 0.0 and 1.0.
-                mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.
-                reasoning must be one concise evidence-based sentence.
-                reasoning must use at most 25 words and 180 characters, citing concrete evidence rather than abstract labels.
-                Apply the following reasoning wording rules in order and use only the first matching rule.
+                action is the only required key.
+                When present, riskScore and confidence must be JSON numbers between 0.0 and 1.0.
+                When present, mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.
+                When present, reasoning must be one concise evidence-based sentence.
+                When present, reasoning must use at most 25 words and 180 characters, citing concrete evidence rather than abstract labels.
+                When reasoning is present, apply the following wording rules in order and use only the first matching rule.
                 1. If MFA is not verified, stale, or fresh verification is required, and the resource is high-sensitivity while baseline evidence is limited, reasoning must be exactly "Fresh verification is required before allowing access; challenge is safer than allow with limited baseline and high-sensitivity resource evidence."
                 2. If MFA is not verified, stale, or fresh verification is required, reasoning must be exactly "Fresh verification is required before allowing access; challenge is safer than allow."
                 3. If resource sensitivity increased from the previous flow or a higher sensitivity resource is reached, reasoning must explain that resource sensitivity is higher than the previous flow and that challenge is appropriate for the sensitivity change.
@@ -2192,7 +2195,7 @@ public class SecurityDecisionPromptSections {
                 5. If baseline evidence is unknown, provisional, thin, sparse, partial, or not established, reasoning must contain the exact phrase "limited baseline".
                 6. If policy allows access only after additional verification, reasoning must explain that additional verification can resolve the risk and that challenge is proportionate.
                 Do not claim "missing authorization effect" when AuthorizationEffect is present; express uncertainty as "limited baseline" instead.
-                evidenceRefs must be a non-empty JSON array of lower-case canonical evidence references used by reasoning.
+                When present, evidenceRefs must be a JSON array of lower-case canonical evidence references used by reasoning; an empty array is valid when no explicit reference is returned.
                 Use only these canonical evidenceRefs when supported: baseline, sensitivity, authorization, resource, session, device, location, rag, threat, approval, delegation.
                 Use precise evidenceRefs when the prompt evidence supports them: verification.required, mfa.freshness.stale, resource.sensitivity.protected, resource.sensitivity.high, authorization.policy.allow, authorization.policy.allow_after_verification, baseline.status.insufficient, baseline.confidence.low.
                 Include baseline for relevant baseline/work-profile evidence and sensitivity for relevant resource sensitivity or business impact.

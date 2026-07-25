@@ -39,6 +39,37 @@ public class VerificationPromptReplayBuilder {
         return buildContext(pkg, rebuiltUserPrompt, hasText(rebuiltUserPrompt), fullPromptRebuilt);
     }
 
+    public VerificationPromptReplayContext buildSingleContextMutation(
+            SealedEvidencePackage pkg,
+            String originalContextSections,
+            String mutatedContextSections
+    ) {
+        if (pkg == null) {
+            throw new IllegalArgumentException("Sealed evidence package is required");
+        }
+        if (!hasText(originalContextSections) || !hasText(mutatedContextSections)) {
+            throw new IllegalArgumentException("Original and mutated context sections are required");
+        }
+        if (originalContextSections.equals(mutatedContextSections)) {
+            throw new IllegalStateException("Context mutation did not change the composed context");
+        }
+        String originalUserPrompt = firstText(pkg.getUserPromptText(), pkg.getRawUserPrompt());
+        if (!hasText(originalUserPrompt)) {
+            throw new IllegalStateException("Original user prompt is required for a context mutation");
+        }
+        int firstIndex = originalUserPrompt.indexOf(originalContextSections);
+        if (firstIndex < 0) {
+            throw new IllegalStateException("Original canonical context section is not present in the user prompt");
+        }
+        if (originalUserPrompt.indexOf(originalContextSections, firstIndex + originalContextSections.length()) >= 0) {
+            throw new IllegalStateException("Original canonical context section is ambiguous in the user prompt");
+        }
+        String rebuiltUserPrompt = originalUserPrompt.substring(0, firstIndex)
+                + mutatedContextSections
+                + originalUserPrompt.substring(firstIndex + originalContextSections.length());
+        return buildContext(pkg, rebuiltUserPrompt, true, true);
+    }
+
     private VerificationPromptReplayContext buildContext(
             SealedEvidencePackage pkg,
             String selectedUserPrompt,

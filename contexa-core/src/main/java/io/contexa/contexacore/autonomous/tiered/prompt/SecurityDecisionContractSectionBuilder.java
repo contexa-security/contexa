@@ -17,6 +17,22 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 public class SecurityDecisionContractSectionBuilder implements SecurityPromptSectionBuilder {
 
+    static final String MINIMAL_RESPONSE_EXAMPLE =
+            "{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\"}";
+
+    private static final String JSON_SCHEMA = """
+            {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"action":{"type":"string","enum":["ALLOW","CHALLENGE","ESCALATE","BLOCK"]},"reasoning":{"type":"string"},"mitre":{"type":"string"},"riskScore":{"type":"number","minimum":0.0,"maximum":1.0},"confidence":{"type":"number","minimum":0.0,"maximum":1.0},"evidenceRefs":{"type":"array","items":{"type":"string"}}},"required":["action"],"additionalProperties":false}
+            """.trim();
+
+    static String formatInstructions() {
+        return """
+                Your response should be in JSON format.
+                Return one RFC8259 compliant JSON object without explanations or markdown.
+                The response must satisfy this JSON Schema:
+                ```%s```
+                """.formatted(JSON_SCHEMA);
+    }
+
     @Override
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
         return template.buildDecisionSection(context.getStructuredOutputMode());

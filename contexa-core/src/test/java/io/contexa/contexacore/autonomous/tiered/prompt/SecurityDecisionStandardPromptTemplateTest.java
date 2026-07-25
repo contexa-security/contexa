@@ -171,9 +171,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("Return only one minified JSON object.");
         assertThat(systemPrompt).doesNotContain("Required key order:");
-        assertThat(systemPrompt).contains("riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
-        assertThat(systemPrompt).contains("reasoning must be one concise evidence-based sentence.");
-        assertThat(systemPrompt).contains("reasoning must use at most 25 words and 180 characters");
+        assertThat(systemPrompt).contains("action is the only required key.");
+        assertThat(systemPrompt).contains("\"required\":[\"action\"]");
+        assertThat(systemPrompt).doesNotContain("\"required\":[\"action\",\"confidence\"");
+        assertThat(systemPrompt).contains("When present, riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
+        assertThat(systemPrompt).contains("When present, reasoning must be one concise evidence-based sentence.");
+        assertThat(systemPrompt).contains("When present, reasoning must use at most 25 words and 180 characters");
         assertThat(systemPrompt).contains("Authoritative labels:");
         assertThat(systemPrompt).contains("Decision process:");
         assertThat(systemPrompt).contains("Explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied evidence.");
@@ -185,11 +188,11 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("controls, not proof of legitimacy.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
         assertThat(systemPrompt).contains("Fresh verification is required before allowing access");
-        assertThat(systemPrompt).contains("Apply the following reasoning wording rules in order and use only the first matching rule.");
+        assertThat(systemPrompt).contains("When reasoning is present, apply the following wording rules in order and use only the first matching rule.");
         assertThat(systemPrompt).contains("challenge is safer than allow with limited baseline and high-sensitivity resource evidence");
         assertThat(systemPrompt).contains("baseline confidence is not enough for allow");
         assertThat(systemPrompt).contains("challenge preserves safety");
-        assertThat(systemPrompt).doesNotContain("Schema:");
+        assertThat(systemPrompt).contains("The response must satisfy this JSON Schema:");
         assertThat(systemPrompt).contains("Actions:");
         assertThat(systemPrompt).contains("\"action\"");
         assertThat(systemPrompt).contains("mitre must be UNKNOWN if no supported MITRE tactic or technique clearly applies.");
@@ -327,8 +330,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).doesNotContain("<output_format>");
         assertThat(systemPrompt).doesNotContain("</output_format>");
         assertThat(systemPrompt).doesNotContain("<context>");
-        assertThat(systemPrompt).contains("Required key order:");
-        assertThat(systemPrompt).contains("Schema:");
+        assertThat(systemPrompt).contains("Required key:");
+        assertThat(systemPrompt).contains("Optional keys:");
+        assertThat(systemPrompt).contains("Minimal schema:");
+        assertThat(systemPrompt).contains(SecurityDecisionContractSectionBuilder.MINIMAL_RESPONSE_EXAMPLE);
     }
 
 

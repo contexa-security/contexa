@@ -42,7 +42,6 @@ public class SecurityDecisionOutputParser {
     private static final Pattern RISK_LINE = Pattern.compile("(?im)^\\s*riskScore\\s*[:=]\\s*([0-9.]+)\\s*$");
     private static final Pattern CONFIDENCE_LINE = Pattern.compile("(?im)^\\s*confidence\\s*[:=]\\s*([0-9.]+)\\s*$");
     private static final String FALLBACK_ACTION = "CHALLENGE";
-    private static final String DEFAULT_MITRE = "UNKNOWN";
 
     public SecurityDecisionResponseLite parse(String rawResponse, PipelineExecutionContext context) {
         String raw = rawResponse != null ? rawResponse : "";
@@ -62,14 +61,13 @@ public class SecurityDecisionOutputParser {
                 parseFailureCategory = "EMPTY_RESPONSE";
             }
             fallbackActionApplied = true;
-            repairedFields.addAll(List.of("action", "reasoning", "riskScore", "confidence", "mitre", "evidenceRefs"));
-            syntheticDefaultFields.addAll(List.of("reasoning", "riskScore", "confidence", "mitre", "evidenceRefs"));
+            repairedFields.add("action");
             SecurityDecisionResponseLite fallback = buildResponse(
                     FALLBACK_ACTION,
-                    defaultReasoning(FALLBACK_ACTION),
-                    defaultNumericScore("riskScore", FALLBACK_ACTION),
-                    defaultNumericScore("confidence", FALLBACK_ACTION),
-                    DEFAULT_MITRE,
+                    null,
+                    null,
+                    null,
+                    null,
                     List.of());
             recordMetadata(
                     context,
@@ -105,24 +103,13 @@ public class SecurityDecisionOutputParser {
                 asString(getCaseInsensitive(fields, "reasoning")),
                 extractQuotedField(raw, "reasoning"),
                 extractLine(REASONING_LINE, raw));
-        boolean reasoningPresent = extractedReasoning != null;
-        String reasoning = extractedReasoning;
-        if (reasoning == null) {
-            repairedFields.add("reasoning");
-            syntheticDefaultFields.add("reasoning");
-            reasoning = defaultReasoning(actionResult.action());
-        }
-        reasoning = normalizeReasoning(reasoning);
+        String reasoning = normalizeReasoning(extractedReasoning);
 
         Double riskScore = firstNonNull(
                 asDouble(getCaseInsensitive(fields, "riskScore")),
                 extractNumberField(raw, "riskScore"),
                 extractLineNumber(RISK_LINE, raw));
-        if (riskScore == null) {
-            repairedFields.add("riskScore");
-            syntheticDefaultFields.add("riskScore");
-            riskScore = defaultNumericScore("riskScore", actionResult.action());
-        } else {
+        if (riskScore != null) {
             riskScore = clamp(riskScore);
         }
 
@@ -130,11 +117,7 @@ public class SecurityDecisionOutputParser {
                 asDouble(getCaseInsensitive(fields, "confidence")),
                 extractNumberField(raw, "confidence"),
                 extractLineNumber(CONFIDENCE_LINE, raw));
-        if (confidence == null) {
-            repairedFields.add("confidence");
-            syntheticDefaultFields.add("confidence");
-            confidence = defaultNumericScore("confidence", actionResult.action());
-        } else {
+        if (confidence != null) {
             confidence = clamp(confidence);
         }
 
@@ -142,25 +125,13 @@ public class SecurityDecisionOutputParser {
                 asString(getCaseInsensitive(fields, "mitre")),
                 extractQuotedField(raw, "mitre"),
                 extractLine(MITRE_LINE, raw));
-        if (mitre == null) {
-            repairedFields.add("mitre");
-            syntheticDefaultFields.add("mitre");
-            mitre = DEFAULT_MITRE;
-        }
-
         List<String> rawEvidenceRefs = firstNonNull(
                 asStringList(getCaseInsensitive(fields, "evidenceRefs")),
                 asStringList(getCaseInsensitive(fields, "evidenceReferences")),
                 extractJsonStringArray(raw, "evidenceRefs"));
-        List<String> evidenceRefs = normalizeEvidenceRefs(rawEvidenceRefs, reasoning);
-        if (evidenceRefs.isEmpty()) {
-            repairedFields.add("evidenceRefs");
-        }
-        if (rawEvidenceRefs == null || rawEvidenceRefs.isEmpty() || evidenceRefs.isEmpty()) {
-            syntheticDefaultFields.add("evidenceRefs");
-        }
+        List<String> evidenceRefs = normalizeEvidenceRefs(rawEvidenceRefs);
 
-        boolean coreFieldsPresent = !actionResult.fallbackApplied() && reasoningPresent && !evidenceRefs.isEmpty();
+        boolean coreFieldsPresent = !actionResult.fallbackApplied();
         SecurityDecisionResponseLite parsed = buildResponse(actionResult.action(), reasoning, riskScore, confidence, mitre, evidenceRefs);
         recordMetadata(
                 context,
@@ -279,7 +250,7 @@ public class SecurityDecisionOutputParser {
         }
     }
 
-    private List<String> normalizeEvidenceRefs(List<String> refs, String reasoning) {
+    private List<String> normalizeEvidenceRefs(List<String> refs) {
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         if (refs != null) {
             for (String ref : refs) {
@@ -292,12 +263,6 @@ public class SecurityDecisionOutputParser {
                     normalized.add(canonical);
                 }
             }
-        }
-        if (mentionsSensitivityEvidence(reasoning)) {
-            normalized.add("sensitivity");
-        }
-        if (mentionsBaselineEvidence(reasoning)) {
-            normalized.add("baseline");
         }
         return List.copyOf(normalized);
     }
@@ -324,34 +289,6 @@ public class SecurityDecisionOutputParser {
         };
     }
 
-    private boolean mentionsSensitivityEvidence(String reasoning) {
-        if (reasoning == null || reasoning.isBlank()) {
-            return false;
-        }
-        String lower = reasoning.toLowerCase(Locale.ROOT);
-        return lower.contains("high-sensitivity")
-                || lower.contains("high sensitivity")
-                || lower.contains("sensitive-resource")
-                || lower.contains("sensitive resource")
-                || lower.contains("sensitive res")
-                || lower.contains("resource sensitivity")
-                || lower.contains("critical resource")
-                || lower.contains("critical sensitivity")
-                || lower.contains("business impact");
-    }
-
-    private boolean mentionsBaselineEvidence(String reasoning) {
-        if (reasoning == null || reasoning.isBlank()) {
-            return false;
-        }
-        String lower = reasoning.toLowerCase(Locale.ROOT);
-        return lower.contains("limited baseline")
-                || lower.contains("baseline")
-                || lower.contains("work profile")
-                || lower.contains("work-profile")
-                || lower.contains("history")
-                || lower.contains("historical");
-    }
     private String extractJsonCandidate(String raw) {
         String cleaned = stripCodeFence(raw);
         int start = cleaned.indexOf('{');
@@ -555,34 +492,6 @@ public class SecurityDecisionOutputParser {
             return null;
         }
         return Math.max(0.0d, Math.min(1.0d, value));
-    }
-
-    private Double defaultNumericScore(String fieldName, String action) {
-        return switch (fieldName) {
-            case "riskScore" -> switch (action) {
-                case "ALLOW" -> 0.20d;
-                case "CHALLENGE" -> 0.55d;
-                case "ESCALATE" -> 0.75d;
-                case "BLOCK" -> 0.90d;
-                default -> 0.60d;
-            };
-            case "confidence" -> switch (action) {
-                case "ALLOW", "BLOCK" -> 0.70d;
-                case "CHALLENGE" -> 0.60d;
-                case "ESCALATE" -> 0.55d;
-                default -> 0.55d;
-            };
-            default -> 0.55d;
-        };
-    }
-
-    private String defaultReasoning(String action) {
-        return switch (action) {
-            case "ALLOW" -> "Decision metadata was incomplete; action remained ALLOW.";
-            case "ESCALATE" -> "Decision metadata was incomplete; escalation remains required.";
-            case "BLOCK" -> "Decision metadata was incomplete; block remains required.";
-            default -> "Model output was incomplete; challenge is required.";
-        };
     }
 
     private String sha256(String value) {
