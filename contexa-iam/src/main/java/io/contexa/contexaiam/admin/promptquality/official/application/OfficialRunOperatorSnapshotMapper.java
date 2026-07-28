@@ -1,6 +1,8 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorMetricSnapshot;
+import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorPurposeEvidence;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorRunBatch;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorSnapshot;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -62,7 +64,8 @@ final class OfficialRunOperatorSnapshotMapper {
                 batch.promptHash(), batch.contextHash(), batch.contextHashState(), batch.templateResourceId(),
                 batch.actualResourceId(), batch.resourceUrlTemplate(), batch.actualRequestPath(), batch.httpMethod(),
                 batch.createdAt(),
-                snapshot.metrics().stream().filter(Objects::nonNull).map(this::metricSummary).toList(),
+                snapshot.metrics().stream().filter(Objects::nonNull)
+                        .map(metric -> metricSummary(metric, snapshot)).toList(),
                 failures, actions, null, groups,
                 List.of(new OfficialRunAttemptSummary(
                         batch.aggregateRunId(), batch.packageId(), 1,
@@ -169,13 +172,40 @@ final class OfficialRunOperatorSnapshotMapper {
         return List.copyOf(result);
     }
 
-    private OfficialRunMetricSummary metricSummary(OperatorMetricSnapshot metric) {
+    private OfficialRunMetricSummary metricSummary(OperatorMetricSnapshot metric, OperatorSnapshot snapshot) {
+        List<OfficialVerificationCheckState> checkStates = snapshot.purposeEvidence().stream()
+                .filter(Objects::nonNull)
+                .filter(evidence -> normalize(metric.metricCode()).equals(normalize(evidence.metricCode())))
+                .map(this::checkState)
+                .toList();
+        int totalChecks = checkStates.isEmpty() ? metric.totalChecks() : checkStates.size();
+        int passedChecks = checkStates.isEmpty() ? metric.passedChecks()
+                : count(checkStates, OfficialVerificationCheckState.PASS);
+        int failedChecks = checkStates.isEmpty() ? metric.failedCheckCount()
+                : count(checkStates, OfficialVerificationCheckState.FAIL);
         return new OfficialRunMetricSummary(
                 metric.metricCode(), metric.metricName(), metric.metricGroup(), metric.score(), metric.state(),
-                metric.severity(), metric.passedChecks(), metric.totalChecks(), metric.failedCheckCount(),
+                metric.severity(), passedChecks, totalChecks, failedChecks,
+                count(checkStates, OfficialVerificationCheckState.NOT_APPLICABLE),
+                count(checkStates, OfficialVerificationCheckState.NOT_EVALUATED),
                 metric.operatorTitle(), metric.operatorSummary(), metric.primaryFailureReason(),
                 metric.remediationOwner(), metric.nextAction(), metric.reverifyCriterion(),
                 metric.officialRunId(), metric.createdAt());
+    }
+
+    private OfficialVerificationCheckState checkState(OperatorPurposeEvidence evidence) {
+        String purpose = normalize(evidence.purposeResult());
+        String readiness = "NOT_APPLICABLE".equals(purpose) ? "NOT_APPLICABLE"
+                : "INPUT_NOT_READY".equals(purpose) || purpose.startsWith("NOT_EVALUATED")
+                ? "INPUT_NOT_READY" : "READY";
+        boolean passed = "PASS".equals(purpose)
+                || "PASSED".equals(purpose)
+                || "PURPOSE_PASSED".equals(purpose);
+        return OfficialVerificationCheckState.resolve(readiness, purpose, passed);
+    }
+
+    private int count(List<OfficialVerificationCheckState> states, OfficialVerificationCheckState expected) {
+        return (int) states.stream().filter(expected::equals).count();
     }
 
     private OfficialRunFailureCause metricFailureCause(OperatorMetricSnapshot metric) {

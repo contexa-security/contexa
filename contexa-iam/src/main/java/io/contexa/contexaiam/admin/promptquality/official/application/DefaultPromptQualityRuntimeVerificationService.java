@@ -203,9 +203,12 @@ public class DefaultPromptQualityRuntimeVerificationService
         return executionLedger.status(packageId);
     }
     @Override
+    public OfficialVerificationExecutionStatus executionStatus(String packageId, String aggregateRunId) {
+        return executionLedger.status(packageId, aggregateRunId);
+    }
+    @Override
     public RuntimeEvidenceReverifyResult reverify(RuntimeEvidenceReverifyRequest request) {
         RuntimeEvidenceVerificationRun run = verify(reverificationCoordinator.verificationRequest(request));
         return reverificationCoordinator.complete(request, run);
     }
 }
-

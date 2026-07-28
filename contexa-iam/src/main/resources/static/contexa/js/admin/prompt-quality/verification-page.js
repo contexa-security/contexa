@@ -18,16 +18,7 @@ const OFFICIAL_EXECUTION_RUNNING_STATES = new Set([
     'SNAPSHOT_WRITING',
     'RUNNING'
 ]);
-const LLM_DECISION_OPERATIONAL_METRICS = new Set([
-    'M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08',
-    'M09', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16',
-    'M17', 'M18', 'M19', 'M20', 'M21', 'M22', 'M23', 'M24'
-]);
-const LLM_DECISION_GATE_METRICS = new Set(['G01', 'G02', 'G03', 'G04']);
-const LLM_DECISION_OFFICIAL_METRICS = new Set([
-    ...LLM_DECISION_OPERATIONAL_METRICS,
-    ...LLM_DECISION_GATE_METRICS
-]);
+const LLM_DECISION_OFFICIAL_METRICS = new Set(['D01', 'D02', 'D03', 'D04', 'D05']);
 const RESOURCE_ELIGIBILITY_OFFICIAL_METRICS = new Set(['PRE']);
 const PROMPT_OFFICIAL_METRICS = new Set([
     'EIR', 'CCR', 'CCSR', 'PFR', 'MTR', 'COR', 'RAP', 'RPI', 'BMA', 'USNS', 'BSR', 'PRE'
@@ -808,7 +799,17 @@ async function runVerification(pageRoot, item) {
                     t('enterprise.pqa.verification.run.ledgerMissingAfterRun.detail'));
             return;
         }
-        const officialPassed = officialVerificationPassedForDisplay(displayRun, ledger);
+        const ledgerRuns = ensureArray(ledger.runs).length ? ensureArray(ledger.runs) : ensureArray(ledger.metrics);
+        const ledgerCounts = officialMetricFamilyTotals(officialMetricFamilySummary(ledgerRuns, ledger));
+        const officialPassed = officialVerificationPassedForDisplay(displayRun, {
+            totalMetricCount: ledgerCounts.total,
+            passedMetricCount: ledgerCounts.passed,
+            failedMetricCount: ledgerCounts.failed,
+            notEvaluatedMetricCount: ledgerCounts.notEvaluated,
+            countConsistent: ledgerCounts.consistent,
+            actualProblems: ledger?.summaryCounts?.actualProblems,
+            blockedMetrics: ledger?.summaryCounts?.blockedMetrics
+        });
         setStatus(pageRoot,
                 officialPassed ? 'success' : 'error',
                 officialPassed ? t('enterprise.pqa.verification.run.passed') : t('enterprise.pqa.verification.run.blocked'),
@@ -1186,14 +1187,12 @@ function officialInspectionProgress(source) {
             source.totalMetricCount,
             source.ledgerConsistency?.expectedMetricCount,
             rows.length);
+    const runStateCounts = officialMetricStateCountsFromPayload(source, 'Run');
+    const metricStateCounts = officialMetricStateCountsFromPayload(source, 'Metric');
     const completed = Math.min(
             firstPositiveNumber(
-                    Number(source.passedRunCount || 0)
-                            + Number(source.failedRunCount || 0)
-                            + Number(source.notApplicableRunCount || 0),
-                    Number(source.passedMetricCount || 0)
-                            + Number(source.failedMetricCount || 0)
-                            + Number(source.notApplicableMetricCount || 0),
+                    runStateCounts?.classified,
+                    metricStateCounts?.classified,
                     rows.length),
             total);
     if (total > 0) {
@@ -1301,98 +1300,109 @@ function splitOfficialMetricRuns(runs = []) {
     }, { prompt: [], decision: [], other: [] });
 }
 
-function decisionRunScope(run = {}) {
-    const code = upperText(run?.metricCode);
-    const group = upperText(run?.groupName || run?.metricGroup);
-    if (LLM_DECISION_OPERATIONAL_METRICS.has(code)) {
-        return 'operational';
-    }
-    if (LLM_DECISION_GATE_METRICS.has(code)) {
-        return 'gate';
-    }
-    return 'other';
-}
-
-function splitDecisionRunsByScope(runs = []) {
-    return ensureArray(runs).reduce((acc, run) => {
-        acc[decisionRunScope(run)].push(run);
-        return acc;
-    }, { operational: [], gate: [], other: [] });
-}
-
 function renderLlmDecisionOfficialSections(runs = [], detail = {}) {
-    const split = splitDecisionRunsByScope(runs);
-    const sections = [];
-    if (split.operational.length) {
-        sections.push(officialMetricFamilySection(
-                t('enterprise.pqa.verification.display.llmScope.operational.title'),
-                t('enterprise.pqa.verification.display.llmScope.operational.detail'),
-                split.operational,
-                detailScopedToMetricRuns(detail, split.operational)));
-    }
-    if (split.gate.length) {
-        sections.push(officialMetricFamilySection(
-                t('enterprise.pqa.verification.display.llmScope.gate.title'),
-                t('enterprise.pqa.verification.display.llmScope.gate.detail'),
-                split.gate,
-                detailScopedToMetricRuns(detail, split.gate)));
-    }
-    if (split.other.length) {
-        sections.push(officialMetricFamilySection(
-                t('enterprise.pqa.verification.display.llmScope.other.title'),
-                t('enterprise.pqa.verification.display.llmScope.other.detail'),
-                split.other,
-                detailScopedToMetricRuns(detail, split.other)));
-    }
-    return sections.join('');
+    const decisionRuns = ensureArray(runs).filter(run => LLM_DECISION_OFFICIAL_METRICS.has(upperText(run?.metricCode)));
+    return decisionRuns.length
+            ? officialMetricFamilySection(
+                    officialMetricFamilyLabel('decision'),
+                    t('enterprise.pqa.official.family.decision.hint'),
+                    decisionRuns,
+                    detailScopedToMetricRuns(detail, decisionRuns))
+            : '';
 }
 function officialMetricFamilyStats(runs = [], detail = {}) {
     const safeRuns = ensureArray(runs);
     const failed = safeRuns.filter(run => {
         const counts = metricCheckCounts(run, [], detail);
-        return !metricNotApplicable(run)
+        return !metricNotApplicable(run) && !metricNotEvaluated(run)
                 && (!passState(run?.state) || counts.actualProblemCount > 0 || counts.technicalFailed > 0 || counts.inputReview);
     }).length;
     const notApplicable = safeRuns.filter(run => metricNotApplicable(run)).length;
+    const notEvaluated = safeRuns.filter(run => metricNotEvaluated(run)).length;
     const total = safeRuns.length;
-    const passed = safeRuns.filter(run => !metricNotApplicable(run) && passState(run?.state)).length;
-    return { total, passed, failed, notApplicable };
+    const passed = safeRuns.filter(run => !metricNotApplicable(run)
+            && !metricNotEvaluated(run)
+            && passState(run?.state)).length;
+    const classified = passed + failed + notApplicable + notEvaluated;
+    return { total, passed, failed, notApplicable, notEvaluated, classified, consistent: classified === total };
 }
 
 function officialMetricFamilySummary(runs = [], detail = {}) {
     const includeDecision = isEnterprisePromptQualityMode();
     const families = detail?.metricFamilies || {};
     if (families.prompt || families.decision || families.other) {
-        return {
-            prompt: officialMetricFamilyStatsFromApi(families.prompt),
-            decision: includeDecision ? officialMetricFamilyStatsFromApi(families.decision) : { total: 0, passed: 0, failed: 0 },
-            other: officialMetricFamilyStatsFromApi(families.other)
-        };
+        const prompt = officialMetricFamilyStatsFromApi(families.prompt);
+        const decision = includeDecision
+                ? officialMetricFamilyStatsFromApi(families.decision)
+                : emptyMetricFamilyStats();
+        const other = officialMetricFamilyStatsFromApi(families.other);
+        if (prompt && decision && other) {
+            return { prompt, decision, other };
+        }
     }
     const split = splitOfficialMetricRuns(runs);
     return {
         prompt: officialMetricFamilyStats(split.prompt, detail),
-        decision: includeDecision ? officialMetricFamilyStats(split.decision, detail) : { total: 0, passed: 0, failed: 0 },
+        decision: includeDecision ? officialMetricFamilyStats(split.decision, detail) : emptyMetricFamilyStats(),
         other: officialMetricFamilyStats(split.other, detail)
+    };
+}
+
+function emptyMetricFamilyStats() {
+    return {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        notApplicable: 0,
+        notEvaluated: 0,
+        classified: 0,
+        consistent: true
     };
 }
 
 function officialMetricFamilyTotals(summary = {}) {
     const keys = isEnterprisePromptQualityMode() ? ['prompt', 'decision', 'other'] : ['prompt', 'other'];
-    const families = keys.map(key => summary[key] || {});
-    const total = families.reduce((sum, item) => sum + Number(item.total || 0), 0);
-    const passed = families.reduce((sum, item) => sum + Number(item.passed || 0), 0);
-    const failed = families.reduce((sum, item) => sum + Number(item.failed || 0), 0);
-    const notApplicable = families.reduce((sum, item) => sum + Number(item.notApplicable || 0), 0);
-    return { total, passed, failed, notApplicable, hasFamilies: total > 0 };
+    const families = keys.map(key => summary[key] || emptyMetricFamilyStats());
+    const total = families.reduce((sum, item) => sum + Number(item.total), 0);
+    const passed = families.reduce((sum, item) => sum + Number(item.passed), 0);
+    const failed = families.reduce((sum, item) => sum + Number(item.failed), 0);
+    const notApplicable = families.reduce((sum, item) => sum + Number(item.notApplicable), 0);
+    const notEvaluated = families.reduce((sum, item) => sum + Number(item.notEvaluated), 0);
+    const classified = passed + failed + notApplicable + notEvaluated;
+    const consistent = families.every(item => item.consistent !== false) && classified === total;
+    return { total, passed, failed, notApplicable, notEvaluated, classified, consistent, hasFamilies: total > 0 };
 }
 
 function officialMetricFamilyStatsFromApi(payload = {}) {
-    const total = Number(payload?.totalRunCount || 0);
-    const passed = Number(payload?.passedRunCount || 0);
-    const notApplicable = Number(payload?.notApplicableRunCount || 0);
-    const failed = Number(payload?.failedRunCount ?? Math.max(total - passed - notApplicable, 0));
-    return { total, passed, failed, notApplicable };
+    return officialMetricStateCountsFromPayload(payload, 'Run');
+}
+
+function officialMetricStateCountsFromPayload(payload = {}, countType = 'Run') {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+    const names = {
+        total: `total${countType}Count`,
+        passed: `passed${countType}Count`,
+        failed: `failed${countType}Count`,
+        notApplicable: `notApplicable${countType}Count`,
+        notEvaluated: `notEvaluated${countType}Count`
+    };
+    const values = Object.fromEntries(Object.entries(names).map(([name, key]) => {
+        if (!Object.prototype.hasOwnProperty.call(payload, key)
+                || payload[key] === null
+                || payload[key] === undefined
+                || payload[key] === '') {
+            return [name, null];
+        }
+        const number = Number(payload[key]);
+        return [name, Number.isFinite(number) && number >= 0 ? number : null];
+    }));
+    if (Object.values(values).some(value => value === null)) {
+        return null;
+    }
+    const classified = values.passed + values.failed + values.notApplicable + values.notEvaluated;
+    return { ...values, classified, consistent: classified === values.total };
 }
 
 function renderOfficialMetricFamilyOverview(summary = {}) {
@@ -1406,13 +1416,28 @@ function renderOfficialMetricFamilyOverview(summary = {}) {
     return `
         <section class="pqa-official-family-overview" aria-label="${escapeHtml(t('enterprise.pqa.official.family.overview.aria'))}">
             ${cards.map(card => {
-                const stats = summary[card.key] || { total: 0, passed: 0, failed: 0 };
-                const tone = stats.failed ? 'blocked' : stats.total ? 'ready' : 'neutral';
+                const stats = summary[card.key] || emptyMetricFamilyStats();
+                const tone = stats.failed
+                        ? 'blocked'
+                        : stats.notEvaluated || stats.consistent === false
+                                ? 'warning'
+                                : stats.notApplicable === stats.total && stats.total
+                                        ? 'neutral'
+                                        : stats.total ? 'ready' : 'neutral';
+                const detail = stats.failed
+                        ? t('enterprise.pqa.official.family.failedCountTpl', stats.failed)
+                        : stats.notEvaluated
+                                ? `${t('enterprise.pqa.runtimeVerification.metric.state.notEvaluated')} ${t('enterprise.pqa.verification.display.count', stats.notEvaluated)}`
+                                : stats.consistent === false
+                                        ? t('enterprise.pqa.verification.ui.additionalReviewRequired')
+                                        : stats.notApplicable
+                                                ? `${t('enterprise.pqa.verification.ui.notApplicable')} ${t('enterprise.pqa.verification.display.count', stats.notApplicable)}`
+                                                : card.hint;
                 return `
                     <article class="${escapeHtml(tone)}">
                         <span>${escapeHtml(card.label)}</span>
                         <strong>${escapeHtml(`${stats.passed} / ${stats.total}`)}</strong>
-                        <small>${escapeHtml(stats.failed ? t('enterprise.pqa.official.family.failedCountTpl', stats.failed) : card.hint)}</small>
+                        <small>${escapeHtml(detail)}</small>
                     </article>
                 `;
             }).join('')}
@@ -1430,8 +1455,10 @@ function officialMetricFamilySection(title, description, runs, detail = {}) {
                 <span>${escapeHtml(description)}</span>
             </div>
             <div class="pqa-official-family-section-summary">
-                ${comparisonKpi(t('enterprise.pqa.verification.summary.passed'), `${stats.passed} / ${stats.total}`, stats.failed ? 'warning' : 'ready')}
+                ${comparisonKpi(t('enterprise.pqa.verification.summary.passed'), `${stats.passed} / ${stats.total}`, stats.failed || stats.notEvaluated || stats.consistent === false ? 'warning' : 'ready')}
                 ${comparisonKpi(t('enterprise.pqa.verification.display.failure'), String(stats.failed), stats.failed ? 'blocked' : 'ready')}
+                ${comparisonKpi(t('enterprise.pqa.runtimeVerification.metric.state.notEvaluated'), String(stats.notEvaluated), stats.notEvaluated ? 'warning' : 'ready')}
+                ${comparisonKpi(t('enterprise.pqa.verification.ui.notApplicable'), String(stats.notApplicable || 0), stats.notApplicable ? 'neutral' : 'ready')}
             </div>
             ${cards.length
                     ? `<div class="pqa-official-run-card-grid">${cards.join('')}</div>`
@@ -1480,7 +1507,11 @@ function officialEvidencePackageSnapshot(detail = {}) {
 
 function renderOfficialEvidencePackageOverview(detail = {}) {
     const snapshot = officialEvidencePackageSnapshot(detail);
-    const evidenceRefs = snapshot.evidenceRefs.length ? snapshot.evidenceRefs.join(', ') : t('enterprise.pqa.verification.value.none');
+    const riskConfidence = [snapshot.decisionRiskScore, snapshot.decisionConfidence]
+            .map(rawText)
+            .filter(Boolean)
+            .join(' / ');
+    const evidenceRefs = snapshot.evidenceRefs.map(rawText).filter(Boolean).join(', ');
     return `
         <section class="pqa-official-summary-section pqa-official-evidence-overview">
             <div class="pqa-official-ops-head">
@@ -1493,9 +1524,9 @@ function renderOfficialEvidencePackageOverview(detail = {}) {
                 <div><dt>${escapeHtml('promptHash')}</dt><dd><code>${escapeHtml(shortHash(snapshot.promptHash) || text(snapshot.promptHash))}</code></dd></div>
                 <div><dt>${escapeHtml('contextHash')}</dt><dd><code>${escapeHtml(shortHash(snapshot.contextHash) || text(snapshot.contextHash))}</code></dd></div>
                 <div><dt>${escapeHtml(t('enterprise.pqa.verification.display.evidenceOverview.decision'))}</dt><dd>${escapeHtml(llmDecisionActionLabel(snapshot.decisionAction) || t('enterprise.pqa.verification.value.none'))}</dd></div>
-                <div><dt>${escapeHtml(t('enterprise.pqa.verification.display.evidenceOverview.riskConfidence'))}</dt><dd>${escapeHtml([snapshot.decisionRiskScore, snapshot.decisionConfidence].filter(Boolean).join(' / ') || t('enterprise.pqa.verification.value.none'))}</dd></div>
+                ${riskConfidence ? `<div><dt>${escapeHtml(t('enterprise.pqa.verification.display.evidenceOverview.riskConfidence'))}</dt><dd>${escapeHtml(riskConfidence)}</dd></div>` : ''}
                 <div><dt>${escapeHtml('provider/model')}</dt><dd>${escapeHtml([snapshot.provider, snapshot.model].filter(Boolean).join(' / ') || t('enterprise.pqa.verification.value.none'))}</dd></div>
-                <div><dt>${escapeHtml('evidenceRefs')}</dt><dd><code>${escapeHtml(evidenceRefs)}</code></dd></div>
+                ${evidenceRefs ? `<div><dt>${escapeHtml('evidenceRefs')}</dt><dd><code>${escapeHtml(evidenceRefs)}</code></dd></div>` : ''}
             </dl>
         </section>
     `;
@@ -1610,9 +1641,10 @@ function renderRun(pageRoot, run) {
     const gateConditionCount = Number(runTotals.gateConditions || 0);
     const inputReviewCount = Number(runTotals.inputReviewMetrics || 0);
     const notApplicableMetricCount = Number(runTotals.notApplicableMetrics || 0);
+    const notEvaluatedMetricCount = familyCounts.hasFamilies ? familyCounts.notEvaluated : inputReviewCount;
     const passedMetricCount = familyCounts.hasFamilies
             ? familyCounts.passed
-            : Math.max(totalMetricCount - blockedMetricCount - inputReviewCount - notApplicableMetricCount, 0);
+            : Math.max(totalMetricCount - blockedMetricCount - notEvaluatedMetricCount - notApplicableMetricCount, 0);
     renderRunSummary(pageRoot, scopedRun);
     updateHandoffLinks(pageRoot, scopedRun);
     renderStatusChart(
@@ -1621,7 +1653,7 @@ function renderRun(pageRoot, run) {
                 { label: t('enterprise.pqa.verification.summary.passed'), count: passedMetricCount, tone: 'ready' },
                 { label: t('enterprise.pqa.verification.summary.blocked'), count: blockedMetricCount, tone: 'blocked' },
                 { label: t('enterprise.pqa.verification.additionalConfirmation'), count: gateConditionCount, tone: 'warning' },
-                { label: t('enterprise.pqa.verification.display.inputReview'), count: inputReviewCount, tone: 'neutral' },
+                { label: t('enterprise.pqa.runtimeVerification.metric.state.notEvaluated'), count: notEvaluatedMetricCount, tone: 'warning' },
                 { label: t('enterprise.pqa.runtimeVerification.metric.state.notApplicable'), count: notApplicableMetricCount, tone: 'neutral' }
             ],
             { title: t('enterprise.pqa.verification.chart.title'), subtitle: t('enterprise.pqa.verification.chart.subtitle') });
@@ -1643,13 +1675,22 @@ function renderRunSummary(pageRoot, run) {
     const inputReviewMetrics = Number(totals.inputReviewMetrics || 0);
     const gateConditions = Number(totals.gateConditions || 0);
     const notApplicableMetrics = Number(totals.notApplicableMetrics || 0);
+    const notEvaluatedMetrics = familyCounts.hasFamilies ? familyCounts.notEvaluated : inputReviewMetrics;
     const officialPassed = officialVerificationPassedForDisplay(run, {
         totalMetricCount: total,
         passedMetricCount: passed,
         failedMetricCount: failed,
+        notEvaluatedMetricCount: notEvaluatedMetrics,
+        countConsistent: familyCounts.consistent,
         actualProblems
     });
-    const resultTone = officialPassed ? 'ready' : failed || actualProblems ? 'blocked' : inputReviewMetrics || gateConditions ? 'warning' : 'ready';
+    const resultTone = officialPassed
+            ? 'ready'
+            : failed || actualProblems
+                    ? 'blocked'
+                    : notEvaluatedMetrics || gateConditions || familyCounts.consistent === false
+                            ? 'warning'
+                            : 'ready';
     const resultTitle = firstCleanText(
             run?.officialStateLabel,
             officialDecisionLabel(run?.officialFinalDecision || run?.finalDecision || run?.state),
@@ -1688,7 +1729,7 @@ function renderRunSummary(pageRoot, run) {
                 <div class="pqa-run-kpi-grid">
                     ${runKpiCard('', t('enterprise.pqa.verification.display.runSummary.totalMetrics'), `${passed} / ${total}`, t('enterprise.pqa.verification.display.runSummary.totalMetricsDetail'), passed === total ? 'ready' : 'neutral')}
                     ${runKpiCard('', t('enterprise.pqa.verification.display.runSummary.promptProblems'), t('enterprise.pqa.verification.display.count', actualProblems), actualProblems ? t('enterprise.pqa.verification.display.runSummary.promptImprovementRequired') : t('enterprise.pqa.verification.value.none'), actualProblems ? 'blocked' : 'ready')}
-                    ${runKpiCard('', t('enterprise.pqa.verification.display.inputReview'), inputReviewMetrics ? t('enterprise.pqa.verification.display.count', inputReviewMetrics) : t('enterprise.pqa.verification.value.none'), inputReviewMetrics ? t('enterprise.pqa.verification.display.runSummary.inputSupplementRequired') : t('enterprise.pqa.verification.value.none'), inputReviewMetrics ? 'warning' : 'ready')}
+                    ${runKpiCard('', t('enterprise.pqa.runtimeVerification.metric.state.notEvaluated'), notEvaluatedMetrics ? t('enterprise.pqa.verification.display.count', notEvaluatedMetrics) : t('enterprise.pqa.verification.value.none'), notEvaluatedMetrics ? t('enterprise.pqa.verification.display.runSummary.inputSupplementRequired') : t('enterprise.pqa.verification.value.none'), notEvaluatedMetrics ? 'warning' : 'ready')}
                     ${runKpiCard('', t('enterprise.pqa.verification.additionalConfirmation'), gateConditions ? t('enterprise.pqa.verification.display.count', gateConditions) : t('enterprise.pqa.verification.value.none'), gateConditions ? t('enterprise.pqa.governance.tone.pending') : t('enterprise.pqa.verification.value.none'), gateConditions ? 'warning' : 'ready')}
                     ${runKpiCard('', t('enterprise.pqa.runtimeVerification.metric.state.notApplicable'), notApplicableMetrics ? t('enterprise.pqa.verification.display.count', notApplicableMetrics) : t('enterprise.pqa.verification.value.none'), notApplicableMetrics ? t('enterprise.pqa.verification.display.runSummary.notApplicableDetail') : t('enterprise.pqa.verification.value.none'), notApplicableMetrics ? 'neutral' : 'ready')}
                 </div>
@@ -2525,19 +2566,24 @@ function runFromOfficialLedger(pageRoot, detail, fallbackRun = {}) {
     const promptProblemFindings = actualPromptProblemFindingTexts(actualPromptProblems);
     const promptProblemNextActions = actualPromptProblemActionTexts(actualPromptProblems);
     const firstRun = runs[0] || {};
-    const totalCount = Number(detail?.totalRunCount ?? runs.length ?? fallbackRun.totalMetricCount ?? 0);
-    const rawPassedCount = Number(detail?.passedRunCount ?? runs.filter(run => passState(run.state)).length ?? fallbackRun.passedMetricCount ?? 0);
+    const familyCounts = officialMetricFamilyTotals(officialMetricFamilySummary(runs, detail));
+    const totalCount = familyCounts.hasFamilies
+            ? familyCounts.total
+            : Number(detail?.totalRunCount ?? runs.length ?? fallbackRun.totalMetricCount ?? 0);
     const promptTotals = metricCheckTotals(runs, detail);
-    const failedCount = Number(promptTotals.blockedMetrics || 0);
-    const gateCount = Number(promptTotals.gateMetrics || 0);
-    const passedCount = totalCount > 0
-            ? (rawPassedCount || Math.max(totalCount - failedCount - gateCount, 0))
-            : rawPassedCount;
+    const failedCount = familyCounts.hasFamilies
+            ? familyCounts.failed
+            : Number(promptTotals.blockedMetrics || 0);
+    const passedCount = familyCounts.hasFamilies
+            ? familyCounts.passed
+            : Number(detail?.passedRunCount ?? fallbackRun.passedMetricCount ?? 0);
     const finalDecision = firstCleanText(detail?.officialFinalDecision, detail?.finalDecision, fallbackRun.officialFinalDecision, fallbackRun.finalDecision);
     const officialPassed = officialVerificationPassedForDisplay(detail, {
         totalMetricCount: totalCount,
         passedMetricCount: passedCount,
         failedMetricCount: failedCount,
+        notEvaluatedMetricCount: familyCounts.notEvaluated,
+        countConsistent: familyCounts.consistent,
         actualProblems: promptTotals.actualProblems,
         blockedMetrics: promptTotals.blockedMetrics
     });
@@ -2619,21 +2665,44 @@ function renderOfficialLedgerSummary(target, detail) {
         return;
     }
     const runs = ensureArray(detail?.runs);
-    const familySummary = detail?.metricFamilies || officialMetricFamilySummary(runs, detail);
+    const familySummary = officialMetricFamilySummary(runs, detail);
     const familyCounts = officialMetricFamilyTotals(familySummary);
-    const totalCount = familyCounts.total || Number(detail?.totalRunCount ?? detail?.totalMetricCount ?? runs.length ?? 0);
-    const passedCount = familyCounts.passed || Number(detail?.passedRunCount ?? detail?.passedMetricCount ?? runs.filter(run => passState(run.state)).length ?? 0);
-    const failedCount = familyCounts.failed || Number(detail?.failedRunCount ?? detail?.failedMetricCount ?? Math.max(totalCount - passedCount, 0));
+    const derivedCounts = officialMetricFamilyStats(runs, detail);
+    const totalCount = familyCounts.hasFamilies
+            ? familyCounts.total
+            : Number(detail?.totalRunCount ?? detail?.totalMetricCount ?? derivedCounts.total);
+    const passedCount = familyCounts.hasFamilies
+            ? familyCounts.passed
+            : Number(detail?.passedRunCount ?? detail?.passedMetricCount ?? derivedCounts.passed);
+    const failedCount = familyCounts.hasFamilies
+            ? familyCounts.failed
+            : Number(detail?.failedRunCount ?? detail?.failedMetricCount ?? derivedCounts.failed);
     const promptTotals = promptOfficialTotals(detail);
-    const verdict = officialVerdict(detail, totalCount, passedCount, failedCount, promptTotals);
+    const verdict = officialVerdict(detail, totalCount, passedCount, failedCount, {
+        ...promptTotals,
+        notEvaluatedMetricCount: familyCounts.notEvaluated,
+        countConsistent: familyCounts.consistent
+    });
     const failures = sortFailuresProblemFirst(ensureArray(detail?.failureCauses));
-    const promptFamily = familySummary.prompt || { total: 0, passed: 0, failed: 0 };
+    const promptFamily = familySummary.prompt || emptyMetricFamilyStats();
     const includeDecision = isEnterprisePromptQualityMode(pageRoot);
-    const llmFamily = includeDecision ? (familySummary.decision || { total: 0, passed: 0, failed: 0 }) : { total: 0, passed: 0, failed: 0 };
-    const promptTone = Number(promptFamily.failed || 0) > 0 ? 'blocked' : Number(promptFamily.total || 0) > 0 ? 'ready' : 'neutral';
-    const llmTone = Number(llmFamily.failed || 0) > 0 ? 'blocked' : Number(llmFamily.total || 0) > 0 ? 'ready' : 'neutral';
+    const llmFamily = includeDecision ? (familySummary.decision || emptyMetricFamilyStats()) : emptyMetricFamilyStats();
+    const promptTone = Number(promptFamily.failed) > 0
+            ? 'blocked'
+            : Number(promptFamily.notEvaluated) > 0 || promptFamily.consistent === false
+                    ? 'warning'
+                    : Number(promptFamily.total) > 0 ? 'ready' : 'neutral';
+    const llmTone = Number(llmFamily.failed) > 0
+            ? 'blocked'
+            : Number(llmFamily.notEvaluated) > 0 || llmFamily.consistent === false
+                    ? 'warning'
+                    : Number(llmFamily.total) > 0 ? 'ready' : 'neutral';
     const blockerCount = Number(promptTotals.actualProblems || 0) + Number(promptTotals.blockedMetrics || 0) + (includeDecision ? Number(llmFamily.failed || 0) : 0);
-    const additionalReview = Number(promptTotals.gateConditions || 0) + Number(promptTotals.inputReviewMetrics || 0) + Number(promptTotals.notApplicableMetrics || 0);
+    const notEvaluatedCount = Number(familyCounts.notEvaluated);
+    const notApplicableCount = Number(familyCounts.notApplicable);
+    const additionalReview = Number(promptTotals.gateConditions || 0)
+            + notEvaluatedCount
+            + (familyCounts.consistent === false ? 1 : 0);
     const failureItems = failures.slice(0, 4).map(failure => {
         const title = firstCleanText(failure?.title, failure?.metricLabel, failure?.metricCode, failure?.reasonCode, failure?.category, failure?.code);
         const detailText = firstCleanText(failure?.summary, failure?.message, failure?.reason, failure?.detail);
@@ -2667,12 +2736,14 @@ function renderOfficialLedgerSummary(target, detail) {
                 ${comparisonKpi(t('enterprise.pqa.verification.display.runSummary.promptProblems'), promptTotals.actualProblems || 0, promptTotals.actualProblems ? 'blocked' : 'ready')}
                 ${comparisonKpi(t('enterprise.pqa.verification.display.final.promptFailedMetrics'), promptTotals.blockedMetrics || 0, promptTotals.blockedMetrics ? 'blocked' : 'ready')}
                 ${includeDecision ? comparisonKpi(t('enterprise.pqa.verification.display.final.llmFailedMetrics'), llmFamily.failed || 0, llmFamily.failed ? 'blocked' : 'ready') : ''}
+                ${comparisonKpi(t('enterprise.pqa.runtimeVerification.metric.state.notEvaluated'), notEvaluatedCount, notEvaluatedCount ? 'warning' : 'ready')}
+                ${comparisonKpi(t('enterprise.pqa.runtimeVerification.metric.state.notApplicable'), notApplicableCount, notApplicableCount ? 'neutral' : 'ready')}
                 ${comparisonKpi(t('enterprise.pqa.verification.display.final.additionalReview'), additionalReview ? t('enterprise.pqa.verification.display.count', additionalReview) : t('enterprise.pqa.verification.value.none'), additionalReview ? 'warning' : 'ready')}
             </section>
-            <section class="pqa-official-summary-guidance ${blockerCount ? 'blocked' : 'ready'}">
+            <section class="pqa-official-summary-guidance ${blockerCount ? 'blocked' : additionalReview ? 'warning' : 'ready'}">
                 <div>
                     <span>${escapeHtml(t('enterprise.pqa.verification.display.final.nextReview'))}</span>
-                    <strong>${escapeHtml(blockerCount ? t('enterprise.pqa.verification.display.final.reviewFailuresAndEvidence') : t('enterprise.pqa.verification.display.final.criteriaSatisfied'))}</strong>
+                    <strong>${escapeHtml(blockerCount || additionalReview ? t('enterprise.pqa.verification.display.final.reviewFailuresAndEvidence') : t('enterprise.pqa.verification.display.final.criteriaSatisfied'))}</strong>
                     <p>${escapeHtml(remediationText)}</p>
                 </div>
             </section>
@@ -2709,10 +2780,14 @@ function renderOfficialRemediationGroups(target, detail) {
 function officialVerdict(detail, totalCount, passedCount, failedCount, promptTotals = {}) {
     const gateMetrics = Number(promptTotals.gateMetrics || 0);
     const inputReviewMetrics = Number(promptTotals.inputReviewMetrics || 0);
+    const notEvaluatedMetricCount = Number(promptTotals.notEvaluatedMetricCount);
+    const countConsistent = promptTotals.countConsistent !== false;
     const officialPassed = officialVerificationPassedForDisplay(detail, {
         totalMetricCount: totalCount,
         passedMetricCount: passedCount,
         failedMetricCount: failedCount,
+        notEvaluatedMetricCount,
+        countConsistent,
         actualProblems: promptTotals.actualProblems,
         blockedMetrics: promptTotals.blockedMetrics
     });
@@ -2729,7 +2804,10 @@ function officialVerdict(detail, totalCount, passedCount, failedCount, promptTot
             detail?.certificateSummary,
             ...ensureArray(detail?.nextActions),
             ...ensureArray(detail?.blockingFindings));
-    if (officialPassed || detail?.certificateIssued || (totalCount > 0 && passedCount === totalCount && !gateMetrics && !inputReviewMetrics && !failedCount)) {
+    if ((officialPassed || detail?.certificateIssued
+            || (totalCount > 0 && passedCount === totalCount && !gateMetrics && !inputReviewMetrics && !failedCount))
+            && !notEvaluatedMetricCount
+            && countConsistent) {
         return {
             tone: 'ready',
             badge: title || '-',
@@ -2737,7 +2815,7 @@ function officialVerdict(detail, totalCount, passedCount, failedCount, promptTot
             detail: detailText
         };
     }
-    if (inputReviewMetrics > 0 || gateMetrics > 0 || failedCount > 0) {
+    if (notEvaluatedMetricCount > 0 || !countConsistent || inputReviewMetrics > 0 || gateMetrics > 0 || failedCount > 0) {
         return {
             tone: failedCount > 0 ? 'blocked' : 'warning',
             badge: title || '-',
@@ -4714,30 +4792,29 @@ function renderOfficialReverifySummary(target, detail) {
         target.innerHTML = `<div class="pqa-empty"><p>${escapeHtml(t('enterprise.pqa.verification.ledger.runs.empty'))}</p></div>`;
         return;
     }
-    const split = detail?.metricFamilies
-            ? {
-                prompt: ensureArray(detail.metricFamilies.prompt?.runs),
-                decision: ensureArray(detail.metricFamilies.decision?.runs),
-                other: ensureArray(detail.metricFamilies.other?.runs)
-            }
-            : splitOfficialMetricRuns(sourceRuns);
-    const promptBlocked = split.prompt.filter(run => !officialRunPassed(run)).length;
-    const decisionBlocked = split.decision.filter(run => !officialRunPassed(run)).length;
-    const allBlocked = sourceRuns.filter(run => !officialRunPassed(run)).length;
     const summary = officialMetricFamilySummary(sourceRuns, detail);
+    const totals = officialMetricFamilyTotals(summary);
+    const promptStats = summary.prompt || emptyMetricFamilyStats();
+    const decisionStats = summary.decision || emptyMetricFamilyStats();
+    const promptBlocked = promptStats.failed;
+    const decisionBlocked = decisionStats.failed;
+    const allBlocked = totals.failed;
+    const promptPending = promptStats.notEvaluated || promptStats.consistent === false;
+    const decisionPending = decisionStats.notEvaluated || decisionStats.consistent === false;
+    const allPending = totals.notEvaluated || totals.consistent === false;
     target.innerHTML = `
         <section class="pqa-metric-check-total-summary" aria-label="${escapeHtml(t('enterprise.pqa.verification.ui.metricSummaryAria'))}">
-            <article class="${promptBlocked ? 'is-blocked' : 'is-ready'}">
+            <article class="${promptBlocked ? 'is-blocked' : promptPending ? 'is-pending' : 'is-ready'}">
                 <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.prompt'))}</span>
                 <strong>${escapeHtml(String(promptBlocked))}</strong>
                 <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.prompt.detail'))}</small>
             </article>
-            <article class="${decisionBlocked ? 'is-blocked' : 'is-ready'}">
+            <article class="${decisionBlocked ? 'is-blocked' : decisionPending ? 'is-pending' : 'is-ready'}">
                 <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.llm'))}</span>
                 <strong>${escapeHtml(String(decisionBlocked))}</strong>
                 <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.llm.detail'))}</small>
             </article>
-            <article class="${allBlocked ? 'is-pending' : 'is-ready'}">
+            <article class="${allBlocked ? 'is-blocked' : allPending ? 'is-pending' : 'is-ready'}">
                 <span>${escapeHtml(t('enterprise.pqa.verification.reverify.option.all'))}</span>
                 <strong>${escapeHtml(String(sourceRuns.length))}</strong>
                 <small>${escapeHtml(t('enterprise.pqa.verification.reverify.option.all.detail'))}</small>
@@ -4750,9 +4827,13 @@ function renderOfficialReverifySummary(target, detail) {
 }
 
 function bindOfficialReverifyActions(target, detail = {}) {
-    target.querySelectorAll('[data-pqa-reverify-scope]').forEach(button => {
+    const buttons = Array.from(target.querySelectorAll('[data-pqa-reverify-scope]'));
+    buttons.forEach(button => {
         button.addEventListener('click', async event => {
             event.preventDefault();
+            if (buttons.some(candidate => candidate.getAttribute('aria-busy') === 'true')) {
+                return;
+            }
             const scope = rawText(event.currentTarget.dataset.pqaReverifyScope) || 'full';
             const packageId = rawText(detail.packageId);
             if (!packageId) {
@@ -4762,8 +4843,10 @@ function bindOfficialReverifyActions(target, detail = {}) {
                 });
                 return;
             }
-            event.currentTarget.setAttribute('aria-busy', 'true');
-            event.currentTarget.setAttribute('aria-disabled', 'true');
+            buttons.forEach(candidate => {
+                candidate.setAttribute('aria-busy', 'true');
+                candidate.setAttribute('aria-disabled', 'true');
+            });
             renderOfficialReverifyResult(target, {
                 ok: true,
                 pending: true,
@@ -4791,8 +4874,10 @@ function bindOfficialReverifyActions(target, detail = {}) {
                     detail: publicErrorGuidance(error)
                 });
             } finally {
-                event.currentTarget.removeAttribute('aria-busy');
-                event.currentTarget.removeAttribute('aria-disabled');
+                buttons.forEach(candidate => {
+                    candidate.removeAttribute('aria-busy');
+                    candidate.removeAttribute('aria-disabled');
+                });
             }
         });
     });
@@ -5393,7 +5478,9 @@ function metricDisplayStateLabel(run, counts = {}) {
     if (metricHasOfficialFailure(run, counts)) {
         return t('enterprise.pqa.verification.display.failure');
     }
-    return t('enterprise.pqa.state.passed');
+    return passState(run?.state)
+            ? t('enterprise.pqa.state.passed')
+            : firstCleanText(run?.stateLabel, run?.state, t('enterprise.pqa.verification.ui.additionalReviewRequired'));
 }
 function metricGateSummaryText(run, counts = {}) {
     const summary = counts && Object.prototype.hasOwnProperty.call(counts, 'gateFailed')
@@ -5428,6 +5515,16 @@ function metricNotApplicable(run) {
     return upperText(run?.state) === 'NOT_APPLICABLE'
             || (ensureArray(run?.checks).some(check => isNotApplicableMetricCheck(run, check))
                     && metricEvaluatedChecks(run).length === 0);
+}
+
+function metricNotEvaluated(run) {
+    const state = upperText(run?.state);
+    if (['NOT_EVALUATED', 'NOT_EVALUATED_INPUT_INVALID', 'NOT_EXECUTED'].includes(state)) {
+        return true;
+    }
+    return !metricNotApplicable(run)
+            && !passState(run?.state)
+            && metricInputReadinessReview(run);
 }
 
 async function showOfficialRunDetail(tableRoot, runId, trigger) {
@@ -5903,7 +6000,8 @@ function renderLlmDecisionMetricDetailSummary(run, summary) {
     const total = Number(summary?.technicalTotal || 0);
     const passed = Number(summary?.technicalPassed || 0);
     const failed = metricFailedOfficialCheckCount(summary);
-    const tone = failed ? 'blocked' : 'ready';
+    const passedState = passState(run?.state) && total > 0 && failed === 0;
+    const tone = failed ? 'blocked' : passedState ? 'ready' : 'pending';
     return `
         <section class="pqa-metric-modal-kpis pqa-llm-decision-kpis" aria-label="${escapeHtml(t('enterprise.pqa.verification.ui.llmSummaryAria'))}">
             <article class="${escapeHtml(tone)}">
@@ -5911,15 +6009,15 @@ function renderLlmDecisionMetricDetailSummary(run, summary) {
                 <strong>${escapeHtml(`${passed} / ${total}`)}</strong>
                 <small>${escapeHtml(t('enterprise.pqa.verification.ui.decisionCasesDetail'))}</small>
             </article>
-            <article class="${escapeHtml(failed ? 'blocked' : 'ready')}">
+            <article class="${escapeHtml(failed ? 'blocked' : passedState ? 'ready' : 'pending')}">
                 <span>${escapeHtml(t('enterprise.pqa.verification.ui.failedCases'))}</span>
                 <strong>${escapeHtml(String(failed))}</strong>
-                <small>${escapeHtml(failed ? t('enterprise.pqa.verification.ui.failedCasesDetail') : t('enterprise.pqa.verification.ui.noFailedCases'))}</small>
+                <small>${escapeHtml(failed ? t('enterprise.pqa.verification.ui.failedCasesDetail') : passedState ? t('enterprise.pqa.verification.ui.noFailedCases') : metricDisplayStateLabel(run, summary))}</small>
             </article>
-            <article class="${escapeHtml(failed ? 'pending' : 'ready')}">
+            <article class="${escapeHtml(passedState ? 'ready' : 'pending')}">
                 <span>${escapeHtml(t('enterprise.pqa.verification.ui.nextAction'))}</span>
-                <strong>${escapeHtml(failed ? t('enterprise.pqa.verification.ui.supplementAndReverify') : t('enterprise.pqa.verification.summary.passed'))}</strong>
-                <small>${escapeHtml(failed ? t('enterprise.pqa.verification.ui.decideRemediation') : t('enterprise.pqa.verification.ui.decisionPassedSameEvidence'))}</small>
+                <strong>${escapeHtml(passedState ? t('enterprise.pqa.verification.summary.passed') : t('enterprise.pqa.verification.ui.supplementAndReverify'))}</strong>
+                <small>${escapeHtml(passedState ? t('enterprise.pqa.verification.ui.decisionPassedSameEvidence') : t('enterprise.pqa.verification.ui.decideRemediation'))}</small>
             </article>
         </section>
     `;
@@ -5959,16 +6057,26 @@ function renderLlmDecisionMetricInterpretation(run) {
 }
 
 function renderLlmDecisionCriteriaCard(run, check, evidence = []) {
-    const expected = parseLlmDecisionKv(firstCleanText(check?.expectedValue, check?.expected, check?.criteria));
-    const actual = parseLlmDecisionKv(firstCleanText(check?.actualValue, check?.actual, check?.operatorReason, check?.evidenceValue));
+    const expectedValue = firstCleanText(check?.expectedValue, check?.expected, check?.criteria);
+    const actualValue = firstCleanText(check?.actualValue, check?.actual, check?.evidenceValue);
     const caseId = llmDecisionCaseId(check, evidence);
     const title = llmDecisionCaseTitle(check, caseId);
     const passed = Boolean(check?.pass);
     const issue = passed
             ? t('enterprise.pqa.verification.ui.decisionCaseSatisfied')
-            : llmDecisionCriteriaIssue(actual, expected);
-    const requiredEvidence = splitListValue(expected.requiredEvidenceRefs || expected.requiredEvidence || '');
-    const requiredReasoning = splitListValue(expected.requiredReasoning || expected.reasoning || '');
+            : firstCleanText(check?.operatorReason, check?.failureType, actualValue, t('enterprise.pqa.verification.ui.decisionFailure'));
+    const evidenceSource = firstCleanText(check?.source, evidence?.[0]?.sourceType, evidence?.[0]?.evidenceValue);
+    const resolution = firstCleanText(check?.nextAction, check?.remediationHint, check?.remediationOwner);
+    const reverifyCriterion = firstCleanText(check?.reverifyCriterion);
+    const runFailures = ensureArray(run?.failureCauses);
+    const relatedFailure = runFailures.find(item =>
+        upperText(item?.checkCode) === upperText(check?.checkCode))
+            || (runFailures.length === 1 ? runFailures[0] : null);
+    const affectedTarget = firstCleanText(relatedFailure?.affectedTarget, check?.remediationOwner);
+    const impact = firstCleanText(relatedFailure?.impact, check?.whyItMatters, check?.decisionUtility);
+    const issueHref = !passed && relatedFailure
+            ? failureHandoffLink(relatedFailure, { ...run, failureCauses: [relatedFailure] })
+            : '';
     return `
         <article class="pqa-metric-criteria-card pqa-llm-decision-criteria-card ${passed ? 'is-ready' : 'is-blocked'}">
             <header class="pqa-metric-criteria-card-head">
@@ -5985,13 +6093,16 @@ function renderLlmDecisionCriteriaCard(run, check, evidence = []) {
                 </section>
             </div>
             <dl class="pqa-llm-decision-fact-grid">
-                ${llmDecisionFact(t('enterprise.pqa.verification.ui.expectedDecision'), expected.expectedAction || expected.acceptableActions || expected.action)}
-                ${llmDecisionFact(t('enterprise.pqa.verification.ui.actualDecision'), actual.actualAction || actual.action)}
-                ${llmDecisionFact(t('enterprise.pqa.verification.ui.evidenceLink'), llmEvidenceStatusLabel(actual.evidence))}
-                ${llmDecisionFact(t('enterprise.pqa.verification.ui.reasoning'), llmReasoningStatusLabel(actual.reasoning))}
+                ${llmDecisionFact(t('enterprise.pqa.verification.metricCheck.expected'), expectedValue)}
+                ${llmDecisionFact(t('enterprise.pqa.verification.metricCheck.actual'), actualValue)}
+                ${llmDecisionFact(t('enterprise.pqa.verification.ui.evidenceLink'), evidenceSource)}
+                ${llmDecisionFact(t('enterprise.pqa.runtimeVerification.error.failureCause'), passed ? '' : issue)}
+                ${llmDecisionFact(t('enterprise.pqa.governance.handoff.col.target'), passed ? '' : affectedTarget)}
+                ${llmDecisionFact(t('enterprise.pqa.verification.impact'), passed ? '' : impact)}
+                ${llmDecisionFact(t('enterprise.pqa.resolutionHub.field.action'), passed ? '' : resolution)}
+                ${llmDecisionFact(t('enterprise.pqa.common.glossary.reverify.label'), passed ? '' : reverifyCriterion)}
             </dl>
-            ${requiredEvidence.length ? `<div class="pqa-llm-decision-chip-block"><span>${escapeHtml(t('enterprise.pqa.verification.ui.requiredEvidence'))}</span>${renderLlmDecisionChips(requiredEvidence)}</div>` : ''}
-            ${requiredReasoning.length ? `<div class="pqa-llm-decision-chip-block"><span>${escapeHtml(t('enterprise.pqa.verification.ui.requiredReasoning'))}</span>${renderLlmDecisionChips(requiredReasoning)}</div>` : ''}
+            ${issueHref ? `<div class="pqa-finding-actions"><a class="pqa-action-button compact" href="${escapeHtml(issueHref)}">${escapeHtml(t('enterprise.pqa.issue.action.toGovernance'))}</a></div>` : ''}
             ${caseId ? `<footer class="pqa-llm-decision-case-id"><span>${escapeHtml(t('enterprise.pqa.verification.ui.verificationCase'))}</span><code>${escapeHtml(caseId)}</code></footer>` : ''}
         </article>
     `;
@@ -6015,35 +6126,11 @@ function llmDecisionMetricPurpose(code, run = {}) {
 }
 
 function llmDecisionMetricFailureSummary(code, failedCount) {
-    const metric = upperText(code);
-    if (metric === 'M18') {
-        return t('enterprise.pqa.verification.ui.unsafeCasesSummary', failedCount);
-    }
     return t('enterprise.pqa.verification.ui.operationalCasesFailureSummary', failedCount);
 }
 
 function llmDecisionMetricResolution(code) {
-    const metric = upperText(code);
-    if (metric === 'M18') {
-        return t('enterprise.pqa.verification.ui.safeDecisionRemediation');
-    }
     return t('enterprise.pqa.verification.ui.operationalCaseRemediation');
-}
-
-function parseLlmDecisionKv(value) {
-    const result = {};
-    rawText(value).split(';').forEach(part => {
-        const idx = part.indexOf('=');
-        if (idx < 0) {
-            return;
-        }
-        const key = part.slice(0, idx).trim();
-        const val = part.slice(idx + 1).trim();
-        if (key) {
-            result[key] = val;
-        }
-    });
-    return result;
 }
 
 function llmDecisionFact(label, value) {
@@ -6847,6 +6934,30 @@ function passState(state) {
 }
 
 function officialVerificationPassedForDisplay(source = {}, counts = {}) {
+    const total = firstNumber(
+            source?.totalMetricCount,
+            source?.totalRunCount,
+            counts?.totalMetricCount,
+            counts?.totalRunCount);
+    const passed = firstNumber(
+            source?.passedMetricCount,
+            source?.passedRunCount,
+            counts?.passedMetricCount,
+            counts?.passedRunCount);
+    const failed = firstNumber(
+            source?.failedMetricCount,
+            source?.failedRunCount,
+            counts?.failedMetricCount,
+            counts?.failedRunCount);
+    const notEvaluated = firstNumber(
+            counts?.notEvaluatedMetricCount,
+            source?.notEvaluatedMetricCount,
+            source?.notEvaluatedRunCount);
+    if (total === null || passed === null || failed === null || notEvaluated === null
+            || notEvaluated > 0
+            || counts?.countConsistent === false) {
+        return false;
+    }
     if (source?.officialVerificationPassed === true) {
         return true;
     }
@@ -6854,9 +6965,6 @@ function officialVerificationPassedForDisplay(source = {}, counts = {}) {
     if (['CERTIFIABLE', 'CERTIFICATE_ISSUED', 'ISSUABLE', 'ISSUED'].includes(decision)) {
         return true;
     }
-    const total = Number(source?.totalMetricCount ?? source?.totalRunCount ?? counts?.totalMetricCount ?? counts?.totalRunCount ?? 0);
-    const passed = Number(source?.passedMetricCount ?? source?.passedRunCount ?? counts?.passedMetricCount ?? counts?.passedRunCount ?? 0);
-    const failed = Number(source?.failedMetricCount ?? source?.failedRunCount ?? counts?.failedMetricCount ?? counts?.failedRunCount ?? 0);
     const actualProblems = Number(counts?.actualProblems ?? source?.summaryCounts?.actualProblems ?? 0);
     const blockedMetrics = Number(counts?.blockedMetrics ?? source?.summaryCounts?.blockedMetrics ?? 0);
     return total >= 12
@@ -7053,18 +7161,15 @@ if (globalThis.__PQA_RENDER_CONTRACT_HOOKS__) {
         visibleActualPromptProblems,
         comparisonProblemCounts,
         metricCheckTotals,
+        officialMetricFamilyStats,
+        officialMetricFamilyStatsFromApi,
+        officialMetricFamilyTotals,
+        renderOfficialMetricFamilyOverview,
+        officialVerdict,
+        officialVerificationPassedForDisplay,
+        metricNotEvaluated,
         actualProblemsForMetric,
         promptComparisonsForMetric,
         comparisonMetricCodeForRun
     };
 }
-
-
-
-
-
-
-
-
-
-

@@ -109,7 +109,10 @@ public class SealedEvidencePackageAssembler {
         String canonicalContextJson = canonicalContext != null ? contextSerializer.serialize(canonicalContext) : null;
         String baselineSnapshotJson = buildBaselineSnapshot(event);
         String ragResultsJson = buildRagResults(event, promptSnapshot);
-        String promptExecutionMetadataJson = serializePromptExecutionMetadata(promptSnapshot);
+        String promptExecutionMetadataJson = serializePromptExecutionMetadata(
+                promptSnapshot,
+                event.getMetadata(),
+                canonicalContextJson);
         String decisionJson = buildDecisionSnapshot(result);
         UserPromptEvidenceContract.Result evidenceContract = UserPromptEvidenceContract.evaluate(
                 objectMapper,
@@ -734,7 +737,10 @@ public class SealedEvidencePackageAssembler {
      * Section 6 partial: PromptExecutionMetadata serialization.
      * Source: SealedEvidencePromptSnapshot.promptExecutionMetadata (captured by AOP)
      */
-    private String serializePromptExecutionMetadata(SealedEvidencePromptSnapshot promptSnapshot) {
+    private String serializePromptExecutionMetadata(
+            SealedEvidencePromptSnapshot promptSnapshot,
+            Map<String, Object> runtimeMetadata,
+            String canonicalContextJson) {
         if (promptSnapshot == null) {
             return null;
         }
@@ -745,6 +751,13 @@ public class SealedEvidencePackageAssembler {
         if (promptSnapshot.metadata() != null) {
             metadata.putAll(promptSnapshot.metadata());
         }
+        putIfAbsent(metadata, "runtimeModelId", resolveText(
+                runtimeMetadata,
+                "runtimeModelId",
+                "requestedModelId",
+                "preferredModel",
+                "officialVerificationPinnedModelId"));
+        putIfAbsent(metadata, "canonicalContextHash", sha256Prefixed(canonicalContextJson));
         normalizeFaultedPromptHashes(promptSnapshot, metadata);
         return toJson(compactPromptExecutionMetadata(metadata));
     }

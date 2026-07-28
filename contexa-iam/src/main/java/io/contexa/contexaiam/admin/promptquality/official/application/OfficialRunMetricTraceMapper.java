@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationEventItemView;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorMetricSnapshot;
@@ -49,11 +50,8 @@ final class OfficialRunMetricTraceMapper {
         OperatorMetricSnapshot storedMetric = evidenceMapper.operatorMetric(operatorSnapshot, run.endpointKey());
         List<OfficialMetricPurposeEvidence> purposeEvidence = contractView.purposeEvidenceForMetric(
                 operatorSnapshot, run.endpointKey());
-        List<OfficialRunCheckDetail> checks = evidenceMapper.customerVisibleChecks(
-                run.endpointKey(),
-                evidenceMapper.mergePurposeEvidenceChecks(
-                        run.endpointKey(), evidenceMapper.checks(run), purposeEvidence),
-                purposeEvidence);
+        List<OfficialRunCheckDetail> checks = evidenceMapper.mergePurposeEvidenceChecks(
+                run.endpointKey(), evidenceMapper.checks(run), purposeEvidence);
         int totalChecks = summaryCalculator.detailTotalChecks(
                 checks,
                 run.checks() != null && !run.checks().isEmpty()
@@ -68,7 +66,7 @@ final class OfficialRunMetricTraceMapper {
                 .filter(cause -> same(cause.metricCode(), run.endpointKey()))
                 .toList();
         List<OfficialRunFailureCause> checkFailures = checks.stream()
-                .filter(check -> !check.pass())
+                .filter(check -> check.evaluationState() == OfficialVerificationCheckState.FAIL)
                 .map(check -> failure(run, metric, check))
                 .toList();
         List<OfficialRunFailureCause> failures = operatorFailures.isEmpty() ? checkFailures : operatorFailures;

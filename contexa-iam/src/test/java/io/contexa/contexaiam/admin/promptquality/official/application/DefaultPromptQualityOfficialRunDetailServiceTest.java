@@ -2,18 +2,22 @@ package io.contexa.contexaiam.admin.promptquality.official.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
+import io.contexa.contexaiam.admin.promptquality.official.common.OfficialMetricPurposeContractWriter;
 import io.contexa.contexaiam.testsupport.PromptQualityTestResolvers;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
 import io.contexa.contexacore.verification.persistence.VerificationLedgerService;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunRecord;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationResult;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
 import io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceOfficialRunView;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import io.contexa.contexaiam.admin.promptquality.official.application.DefaultPromptQualityOfficialRunDetailService;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunLedgerConsistency;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialMetricPurposeEvidence;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunCheckDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageListItem;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
@@ -31,8 +35,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -41,6 +47,46 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DefaultPromptQualityOfficialRunDetailServiceTest {
+
+    @Test
+    void internalExecutionGateContractDoesNotBecomeCustomerVisible() {
+        OfficialFinalPromptMetricContractRegistry registry = new OfficialFinalPromptMetricContractRegistry(
+                new ObjectMapper(),
+                mock(OfficialMetricPurposeContractWriter.class),
+                mock(OfficialVerificationSnapshotQueryService.class));
+
+        assertThat(registry.metric("MTR").checks())
+                .isNotEmpty()
+                .allSatisfy(check -> {
+                    assertThat(check.customerVisible()).isFalse();
+                    assertThat(check.readinessScope()).isEqualTo("INTERNAL_EXECUTION_GATE");
+                    assertThat(registry.customerDisplayEligible(check)).isFalse();
+                });
+    }
+
+    @Test
+    void llmDecisionQualityCheckRemainsVisibleForPreviouslyPersistedPurposeEvidence() {
+        PromptQualityMessageResolver messages = PromptQualityTestResolvers.koreanBundle();
+        OfficialRunMetricEvidenceMapper mapper = new OfficialRunMetricEvidenceMapper(
+                mock(OfficialRunMetricContractView.class),
+                new OfficialRunDetailPresentation(messages));
+        OfficialRunCheckDetail check = new OfficialRunCheckDetail(
+                1, "llm-mutation-case", "Safe mutation boundary",
+                "CHALLENGE", "CHALLENGE", false,
+                "decision.mutation", "BLOCKING", "GATE_REVIEW", "PQA_RUNTIME",
+                "Mutation evidence requires review.", "Review the mutation evidence.",
+                "Persisted decision evidence", "Review the mutation evidence.",
+                "The same scenario must pass.", "decisionUtility", "Prevents unsafe action changes.");
+        OfficialMetricPurposeEvidence legacyEvidence = new OfficialMetricPurposeEvidence(
+                "D03", "llm-mutation-case", null, "SAFE_MUTATION_BOUNDARY",
+                "decision.mutation", "CHALLENGE->CHALLENGE", null,
+                "Mutation evidence requires review.", "PURPOSE_FAILED", false,
+                "LLM_DECISION_QUALITY", List.of(), List.of());
+
+        assertThat(mapper.customerVisibleChecks("D03", List.of(check), List.of(legacyEvidence)))
+                .containsExactly(check);
+    }
+
     private DefaultPromptQualityOfficialRunDetailService service(
             OfficialSealedEvidenceVerificationRuntime officialRuntime,
             VerificationLedgerService ledgerService,
@@ -371,6 +417,10 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
             assertThat(event.type()).isEqualTo("OFFICIAL_VERIFICATION_AUDIT_SNAPSHOT");
             assertThat(event.payloadJson()).contains("agg-old");
         });
+        assertThatThrownBy(() -> service.findPackageDetail("pkg-001", "does-not-exist"))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining("does-not-exist")
+                .hasMessageContaining("pkg-001");
         assertThat(detail.auditSnapshots()).singleElement().satisfies(snapshot -> {
             assertThat(snapshot.packageId()).isEqualTo("pkg-001");
             assertThat(snapshot.aggregateRunId()).isEqualTo("agg-old");
@@ -441,7 +491,7 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
     }
 
     @Test
-    void packageDetailExcludesNotApplicableChecksFromMetricCountsAndUiRows() {
+    void packageDetailPreservesNotApplicableChecksForAuthorizedOperatorRows() {
         OfficialSealedEvidenceVerificationRuntime officialRuntime = mock(OfficialSealedEvidenceVerificationRuntime.class);
         VerificationLedgerService ledgerService = mock(VerificationLedgerService.class);
         PromptQualityRuntimeEvidenceService evidenceService = mock(PromptQualityRuntimeEvidenceService.class);
@@ -471,23 +521,28 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
         OfficialRunPackageDetail detail = service.findPackageDetail("pkg-001");
 
         assertThat(detail.ledgerConsistency()).satisfies(consistency -> {
-            assertThat(consistency.declaredCheckCount()).isEqualTo(1);
-            assertThat(consistency.storedCheckRowCount()).isEqualTo(1);
-            assertThat(consistency.totalCheckCount()).isEqualTo(1);
+            assertThat(consistency.declaredCheckCount()).isEqualTo(2);
+            assertThat(consistency.storedCheckRowCount()).isEqualTo(2);
+            assertThat(consistency.totalCheckCount()).isEqualTo(2);
             assertThat(consistency.checkCountMatched()).isTrue();
         });
         assertThat(detail.runs()).singleElement().satisfies(run -> {
-            assertThat(run.totalChecks()).isEqualTo(1);
-            assertThat(run.checks()).hasSize(1);
+            assertThat(run.totalChecks()).isEqualTo(2);
+            assertThat(run.passedChecks()).isEqualTo(1);
+            assertThat(run.notApplicableChecks()).isEqualTo(1);
+            assertThat(run.checks()).hasSize(2);
             assertThat(run.checks()).extracting("checkCode")
-                    .containsExactly("RAG_SEARCH_STATE_EXPLAINED");
-            assertThat(run.checks()).extracting("checkCode")
-                    .doesNotContain("RAG_AUTHORIZATION_REASON_PRESENT");
+                    .containsExactly("RAG_SEARCH_STATE_EXPLAINED", "RAG_AUTHORIZATION_REASON_PRESENT");
+            assertThat(run.checks()).filteredOn(check -> !check.customerVisible())
+                    .singleElement().satisfies(check -> {
+                        assertThat(check.operatorVisible()).isTrue();
+                        assertThat(check.evaluationState().name()).isEqualTo("NOT_APPLICABLE");
+                    });
         });
     }
 
     @Test
-    void packageDetailExcludesInternalReferenceChecksFromCustomerMetricDetailRows() {
+    void packageDetailSeparatesInternalReferenceCustomerVisibilityFromOperatorVisibility() {
         OfficialSealedEvidenceVerificationRuntime officialRuntime = mock(OfficialSealedEvidenceVerificationRuntime.class);
         VerificationLedgerService ledgerService = mock(VerificationLedgerService.class);
         PromptQualityRuntimeEvidenceService evidenceService = mock(PromptQualityRuntimeEvidenceService.class);
@@ -517,18 +572,18 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
         OfficialRunPackageDetail detail = service.findPackageDetail("pkg-001");
 
         assertThat(detail.ledgerConsistency()).satisfies(consistency -> {
-            assertThat(consistency.declaredCheckCount()).isEqualTo(1);
-            assertThat(consistency.storedCheckRowCount()).isEqualTo(1);
-            assertThat(consistency.totalCheckCount()).isEqualTo(1);
+            assertThat(consistency.declaredCheckCount()).isEqualTo(2);
+            assertThat(consistency.storedCheckRowCount()).isEqualTo(2);
+            assertThat(consistency.totalCheckCount()).isEqualTo(2);
             assertThat(consistency.checkCountMatched()).isTrue();
         });
         assertThat(detail.runs()).singleElement().satisfies(run -> {
-            assertThat(run.totalChecks()).isEqualTo(1);
-            assertThat(run.passedChecks()).isEqualTo(1);
+            assertThat(run.totalChecks()).isEqualTo(2);
+            assertThat(run.passedChecks()).isEqualTo(2);
             assertThat(run.checks()).extracting("checkCode")
-                    .containsExactly("RAG_APPLICABILITY_DECLARED");
-            assertThat(run.checks()).extracting("checkCode")
-                    .doesNotContain("NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE");
+                    .containsExactly("RAG_APPLICABILITY_DECLARED", "NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE");
+            assertThat(run.checks()).filteredOn(check -> !check.customerVisible())
+                    .singleElement().extracting("operatorVisible").isEqualTo(true);
         });
     }
 
@@ -568,8 +623,12 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
         assertThat(detail.runs()).singleElement().satisfies(run -> {
             assertThat(run.state()).isEqualTo("NOT_APPLICABLE");
             assertThat(run.stateLabel()).isEqualTo("해당 없음");
-            assertThat(run.totalChecks()).isZero();
-            assertThat(run.checks()).isEmpty();
+            assertThat(run.totalChecks()).isEqualTo(1);
+            assertThat(run.passedChecks()).isZero();
+            assertThat(run.notApplicableChecks()).isEqualTo(1);
+            assertThat(run.checks()).singleElement()
+                    .extracting("evaluationState").isEqualTo(
+                            OfficialVerificationCheckState.NOT_APPLICABLE);
         });
     }
 
@@ -610,8 +669,11 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
             assertThat(run.metricCode()).isEqualTo("COR");
             assertThat(run.state()).isEqualTo("NOT_APPLICABLE");
             assertThat(run.stateLabel()).isEqualTo("해당 없음");
-            assertThat(run.totalChecks()).isZero();
-            assertThat(run.checks()).isEmpty();
+            assertThat(run.totalChecks()).isEqualTo(1);
+            assertThat(run.passedChecks()).isZero();
+            assertThat(run.notApplicableChecks()).isEqualTo(1);
+            assertThat(run.checks()).singleElement()
+                    .extracting("operatorVisible").isEqualTo(true);
             assertThat(run.purposeEvidence()).allSatisfy(evidence -> {
                 assertThat(evidence.customerVisible()).isFalse();
                 assertThat(evidence.purposeResult()).isEqualTo("NOT_APPLICABLE");
@@ -850,6 +912,54 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
         assertThat(detail.aggregateRunId()).isEqualTo("agg-stale");
         assertThat(detail.runs()).isEmpty();
         assertThat(detail.actualPromptProblems()).isEmpty();
+    }
+
+    @Test
+    void failedTrackedAggregateDoesNotFallBackToCoreLedgerResult() {
+        OfficialSealedEvidenceVerificationRuntime officialRuntime = mock(OfficialSealedEvidenceVerificationRuntime.class);
+        VerificationLedgerService ledgerService = mock(VerificationLedgerService.class);
+        PromptQualityRuntimeEvidenceService evidenceService = mock(PromptQualityRuntimeEvidenceService.class);
+        PromptQualityOfficialMetricCatalog metricCatalog = () -> List.of(new OfficialVerificationMetricDefinition(
+                "EIR",
+                "Required Evidence",
+                "IMPLEMENTATION_ALIGNMENT",
+                "required evidence",
+                true,
+                1.0d,
+                true));
+        OfficialVerificationOperatorSnapshotService snapshotService = mock(OfficialVerificationOperatorSnapshotService.class);
+        DefaultPromptQualityOfficialRunDetailService service = service(
+                officialRuntime,
+                ledgerService,
+                evidenceService,
+                metricCatalog,
+                snapshotService);
+        SealedEvidenceOfficialRunView failed = officialRun(
+                "run-failed-001",
+                "EIR",
+                "agg-failed",
+                "FAILED",
+                4,
+                5,
+                "2026-05-04T08:00:00Z",
+                "2026-05-04T08:00:01Z");
+        when(evidenceService.findDetail("pkg-001")).thenReturn(sealedEvidence());
+        when(ledgerService.findMetricRunsByPackageId("pkg-001")).thenReturn(List.of(failed));
+        when(officialRuntime.findByPackageId("pkg-001")).thenReturn(new OfficialSealedEvidenceVerificationResult(
+                "agg-failed",
+                "pkg-001",
+                "operator-a",
+                "2026-05-04T08:00:01Z",
+                true,
+                List.of(failed)));
+        when(snapshotService.findLatest("pkg-001", "agg-failed"))
+                .thenReturn(OfficialVerificationOperatorSnapshotService.OperatorSnapshot.empty());
+        when(snapshotService.executionRecordExists("agg-failed")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.findPackageDetail("pkg-001", "agg-failed"))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessageContaining("agg-failed")
+                .hasMessageContaining("pkg-001");
     }
 
     @Test

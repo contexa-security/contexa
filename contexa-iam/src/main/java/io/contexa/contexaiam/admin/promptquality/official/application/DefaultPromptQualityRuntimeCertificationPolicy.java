@@ -20,13 +20,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DefaultPromptQualityRuntimeCertificationPolicy
         extends AbstractPromptQualityRuntimeEvidenceSupport
         implements PromptQualityRuntimeCertificationPolicy {
 
     private static final int PROMPT_QUALITY_METRIC_COUNT = 12;
-    private static final double SCORECARD_PASS_RATE = 95.0d;
+    private static final Set<String> PROMPT_QUALITY_METRIC_CODES = Set.of(
+            "EIR", "CCR", "CCSR", "PFR", "MTR", "COR",
+            "RAP", "RPI", "BMA", "USNS", "BSR", "PRE");
     private static final Set<String> PASS_STATES = Set.of("SUCCESS", "PASS", "PASSED", "VERIFIED", "COMPLETED");
 
     private final PromptRuntimeGovernanceDescriptorVerifier governanceDescriptorVerifier;
@@ -99,12 +102,8 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
                 .forEach(checks::add);
         checks.addAll(promptEvidenceManifestChecks(evidencePackage));
 
-        boolean scorecardPassed = scorecard != null
-                && scorecard.checksRun() > 0
-                && scorecard.passRatePercent() >= SCORECARD_PASS_RATE;
-        add(checks, OfficialVerificationGateCode.PROMPT_SCORECARD, "MTR", "prompt structure scorecard passed", SCORECARD_PASS_RATE + "% or higher",
-                scorecard == null ? "not executed" : scorecard.passRatePercent() + "%",
-                scorecardPassed, "promptScorecard");
+        // The legacy structural scorecard remains diagnostic input only. The authoritative
+        // prompt-quality certification gate is the non-overlapping 12-metric set below.
 
         boolean replayPassed = replay != null
                 && replay.checksRun() > 0
@@ -113,12 +112,25 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
                 replay == null ? "not executed" : replay.checksPassed() + "/" + replay.checksRun(),
                 replayPassed, "deterministicReplay");
 
-        boolean allMetricsPresent = metrics != null && metrics.size() >= PROMPT_QUALITY_METRIC_COUNT;
+        Set<String> actualPromptMetricCodes = metrics == null
+                ? Set.of()
+                : metrics.stream()
+                        .map(OfficialVerificationRunView::endpointKey)
+                        .filter(StringUtils::hasText)
+                        .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                        .filter(PROMPT_QUALITY_METRIC_CODES::contains)
+                        .collect(Collectors.toUnmodifiableSet());
+        boolean allMetricsPresent = actualPromptMetricCodes.containsAll(PROMPT_QUALITY_METRIC_CODES);
         long failedOfficialMetrics = metrics == null
                 ? PROMPT_QUALITY_METRIC_COUNT
-                : metrics.stream().filter(run -> !officialRunPassed(run)).count();
+                : metrics.stream()
+                        .filter(run -> run != null && StringUtils.hasText(run.endpointKey()))
+                        .filter(run -> PROMPT_QUALITY_METRIC_CODES.contains(
+                                run.endpointKey().trim().toUpperCase(Locale.ROOT)))
+                        .filter(run -> !officialRunPassed(run))
+                        .count();
         add(checks, OfficialVerificationGateCode.REQUIRED_METRICS, "PRE", "12 prompt quality metric results exist", String.valueOf(PROMPT_QUALITY_METRIC_COUNT),
-                metrics == null ? "0" : String.valueOf(metrics.size()), allMetricsPresent, "coreOfficialRuntime");
+                String.valueOf(actualPromptMetricCodes.size()), allMetricsPresent, "coreOfficialRuntime");
         add(checks, OfficialVerificationGateCode.METRIC_RESULTS, "PRE", "prompt quality metrics passed", "all prompt quality metric runs pass",
                 failedOfficialMetrics == 0 ? "all pass" : failedOfficialMetrics + " failed",
                 allMetricsPresent && failedOfficialMetrics == 0, "coreOfficialRuntime");

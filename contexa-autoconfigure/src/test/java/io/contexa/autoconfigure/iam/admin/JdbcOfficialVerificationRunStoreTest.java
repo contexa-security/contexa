@@ -7,6 +7,7 @@ import io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceOfficial
 import io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceOfficialRunView.SealedEvidenceCheckView;
 import io.contexa.contexacore.verification.runtime.sealed.SealedEvidenceOfficialRunView.SealedEvidenceEventView;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,16 +75,27 @@ class JdbcOfficialVerificationRunStoreTest {
                 "request-1",
                 100.0d,
                 1,
-                1,
+                3,
                 5L,
                 "COMPLETED",
                 "success",
                 "completed",
                 "2026-07-15 09:00:00",
                 "2026-07-15 09:00:01",
-                List.of(new SealedEvidenceCheckView(
-                        "CHECK_1", "Check 1", "expected", "actual", true, "runtime",
-                        "INFO", "", "PQA_RUNTIME", "", "", "")),
+                List.of(
+                        new SealedEvidenceCheckView(
+                                "CHECK_1", "Check 1", "expected", "actual", true, "runtime",
+                                "INFO", "", "PQA_RUNTIME", "", "", ""),
+                        new SealedEvidenceCheckView(
+                                "CHECK_NA", "Not applicable", "expected", "not applicable", true, "runtime",
+                                "INFO", "", "PQA_RUNTIME", "", "", "", "", true,
+                                "INTERNAL_REFERENCE", "v1", "NOT_APPLICABLE", "NOT_APPLICABLE",
+                                "[]", "[]", "", ""),
+                        new SealedEvidenceCheckView(
+                                "CHECK_NE", "Not evaluated", "expected", "missing input", false, "runtime",
+                                "BLOCKING", "INPUT_NOT_READY", "PQA_RUNTIME", "", "", "", "", true,
+                                "CUSTOMER_PROMPT_QUALITY", "v1", "INPUT_NOT_READY", "INPUT_NOT_READY",
+                                "[]", "[]", "", "")),
                 Map.of("requestId", "request-1"),
                 Map.of("event", "captured"),
                 Map.of("promptHash", "sha256:prompt"),
@@ -94,7 +107,15 @@ class JdbcOfficialVerificationRunStoreTest {
 
         verify(jdbcOperations, atLeastOnce()).update(contains("insert into verification_run_ledger"), any(Object[].class));
         verify(jdbcOperations).update(contains("insert into verification_run_round_ledger"), any(Object[].class));
-        verify(jdbcOperations).update(contains("insert into verification_run_check_ledger"), any(Object[].class));
+        ArgumentCaptor<Object[]> checkArguments = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcOperations, times(3)).update(
+                contains("insert into verification_run_check_ledger"), checkArguments.capture());
+        assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[17])
+                .containsExactly("PASS", "NOT_APPLICABLE", "NOT_EVALUATED");
+        assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[6])
+                .containsExactly(true, false, false);
+        assertThat(checkArguments.getAllValues()).extracting(arguments -> arguments[15])
+                .containsExactly("PASS", "NOT_APPLICABLE", "NOT_EVALUATED");
         verify(jdbcOperations, atLeastOnce()).update(contains("insert into verification_run_fact_ledger"), any(Object[].class));
         verify(jdbcOperations).update(contains("insert into verification_run_event_ledger"), any(Object[].class));
         verify(jdbcOperations).update(contains("insert into verification_raw_evidence_artifact_ledger"), any(Object[].class));

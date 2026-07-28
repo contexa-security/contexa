@@ -5,8 +5,6 @@ import io.contexa.contexaiam.admin.promptquality.official.model.OfficialActualPr
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationPromptComparison;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceMetricResult;
 import org.springframework.dao.DataAccessException;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashSet;
@@ -42,7 +40,6 @@ final class OfficialVerificationSnapshotRecordingService {
         this.recorders = recorders;
     }
 
-    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
     void record(
             String aggregateRunId,
             SealedEvidencePackage evidencePackage,

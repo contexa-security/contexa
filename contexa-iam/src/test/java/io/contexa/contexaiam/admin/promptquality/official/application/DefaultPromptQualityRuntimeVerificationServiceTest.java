@@ -8,6 +8,7 @@ import io.contexa.contexacore.verification.adjudication.ScorecardResult;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
 import io.contexa.contexacore.verification.replay.DeterministicReplayResult;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationResult;
 import io.contexa.contexacore.verification.runtime.sealed.OfficialSealedEvidenceVerificationRuntime;
@@ -730,10 +731,82 @@ class DefaultPromptQualityRuntimeVerificationServiceTest {
         RuntimeEvidenceMetricResult result = results.get(0);
         assertThat(result.metricCode()).isEqualTo("RAP");
         assertThat(result.state()).isEqualTo("NOT_APPLICABLE");
-        assertThat(result.totalChecks()).isZero();
+        assertThat(result.totalChecks()).isEqualTo(1);
         assertThat(result.passedChecks()).isZero();
         assertThat(result.checks()).hasSize(1);
         assertThat(result.checks().get(0).purposeResult()).isEqualTo("NOT_APPLICABLE");
+        assertThat(result.checks().get(0).evaluationState())
+                .isEqualTo(OfficialVerificationCheckState.NOT_APPLICABLE);
+    }
+
+    @Test
+    void metricResultsPreserveNotEvaluatedStateWhenRequiredInputIsMissing() throws Exception {
+        PromptQualityOfficialMetricCatalog metricCatalog = mock(PromptQualityOfficialMetricCatalog.class);
+        when(metricCatalog.promptQualityMetrics()).thenReturn(List.of(new OfficialVerificationMetricDefinition(
+                "RAP",
+                "RAG Authorization Precision",
+                "RAG_AND_BASELINE",
+                "RAG evidence must be authorized when documents exist.",
+                true,
+                1.0d,
+                true)));
+        SealedEvidenceOfficialRunView rapRun = new SealedEvidenceOfficialRunView(
+                "official-run-rap-002",
+                1,
+                "RAP",
+                "RAG Authorization Precision",
+                "request-002",
+                0.0d,
+                0,
+                0,
+                10L,
+                "not_evaluated",
+                "warning",
+                "Required RAG authorization evidence is missing.",
+                "2026-04-28 09:00:00",
+                "2026-04-28 09:00:01",
+                List.of(new SealedEvidenceOfficialRunView.SealedEvidenceCheckView(
+                        "RAP_RAG_AUTHORIZATION_REASON_PRESENT",
+                        "RAG authorization reason could not be evaluated",
+                        "RAG documents require an authorization reason.",
+                        "Required authorization evidence is missing.",
+                        false,
+                        "finalUserPrompt.ragAuthorization",
+                        "BLOCKING",
+                        "MISSING_REQUIRED_INPUT",
+                        "RAG_AUTHORIZATION_FILTER",
+                        "The required authorization evidence was not captured.",
+                        "Capture the authorization evidence and re-run verification.",
+                        "The authorization evidence is present.",
+                        "ragAuthorization",
+                        true,
+                        "CUSTOMER_PROMPT_QUALITY",
+                        "final-user-prompt.v1",
+                        "INPUT_NOT_READY",
+                        "NOT_EVALUATED",
+                        "[]",
+                        "[]",
+                        "Authorization quality cannot be decided without its required input.",
+                        "This prevents missing evidence from being reported as a pass.")),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                List.of(),
+                Map.of());
+
+        RuntimeEvidenceMetricResult result = metricResults(
+                metricCatalog,
+                List.of(rapRun),
+                List.of(),
+                "sep-sync-002").get(0);
+
+        assertThat(result.state()).isEqualTo("NOT_EVALUATED");
+        assertThat(result.totalChecks()).isEqualTo(1);
+        assertThat(result.passedChecks()).isZero();
+        assertThat(result.checks()).hasSize(1);
+        assertThat(result.checks().get(0).evaluationState())
+                .isEqualTo(OfficialVerificationCheckState.NOT_EVALUATED);
     }
 
     @Test
@@ -1348,6 +1421,125 @@ class DefaultPromptQualityRuntimeVerificationServiceTest {
                         && "prompt-hash".equals(payload.get("promptHash"))),
                 eq("operator-admin"),
                 eq("Official verification audit snapshot persisted."));
+    }
+
+    @Test
+    void metricEvaluatorFailureMarksOfficialExecutionFailedAndPreservesOriginalException() {
+        SealedEvidencePackageQueryService lookupService = mock(SealedEvidencePackageQueryService.class);
+        RuntimeEvidenceReplayService replayService = mock(RuntimeEvidenceReplayService.class);
+        RuntimeEvidencePromptScorecardService scorecardService = mock(RuntimeEvidencePromptScorecardService.class);
+        OfficialSealedEvidenceVerificationRuntime officialRuntime = mock(OfficialSealedEvidenceVerificationRuntime.class);
+        PromptQualityRuntimeCertificationPolicy certificationPolicy = mock(PromptQualityRuntimeCertificationPolicy.class);
+        PromptQualityProtectableResourceLookup resourceLookup = mock(PromptQualityProtectableResourceLookup.class);
+        PromptQualityOfficialMetricCatalog metricCatalog = mock(PromptQualityOfficialMetricCatalog.class);
+        PromptQualityAssuranceCaseService assuranceCaseService = mock(PromptQualityAssuranceCaseService.class);
+        RuntimeIssueDiagnosticService issueDiagnosticService = mock(RuntimeIssueDiagnosticService.class);
+        PromptQualityProcessRunService processRunService = mock(PromptQualityProcessRunService.class);
+        OfficialVerificationOperatorSnapshotService snapshotService = mock(OfficialVerificationOperatorSnapshotService.class);
+        OfficialVerificationExecutionLockService executionLockService = mock(OfficialVerificationExecutionLockService.class);
+        SealedEvidencePackage evidencePackage = evidencePackage();
+        OfficialVerificationMetricDefinition eirMetric = new OfficialVerificationMetricDefinition(
+                "EIR",
+                "Evidence Integrity",
+                "IMPLEMENTATION_ALIGNMENT",
+                "evidence integrity",
+                true,
+                1.0d,
+                true);
+        OfficialVerificationExecutionLockService.ExecutionRecord executionRecord =
+                new OfficialVerificationExecutionLockService.ExecutionRecord(
+                        1L,
+                        "failure-key-001",
+                        "failure-key-001",
+                        evidencePackage.getPackageId(),
+                        evidencePackage.getTenantId(),
+                        null,
+                        1,
+                        1,
+                        OfficialVerificationExecutionLockService.STATE_LOCK_ACQUIRED,
+                        0,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "operator-admin",
+                        null,
+                        "{}",
+                        null,
+                        Instant.EPOCH,
+                        null,
+                        null,
+                        Instant.EPOCH,
+                        Instant.EPOCH,
+                        true);
+        IllegalStateException evaluatorFailure = new IllegalStateException("fixture metric evaluator failure");
+
+        when(lookupService.findByPackageId("sep-blocked-001")).thenReturn(Optional.of(evidencePackage));
+        when(lookupService.verifyIntegrity(any(SealedEvidencePackage.class))).thenReturn(true);
+        when(processRunService.steps(any())).thenReturn(List.of());
+        when(metricCatalog.allMetrics()).thenReturn(List.of(eirMetric));
+        when(metricCatalog.promptQualityMetrics()).thenReturn(List.of(eirMetric));
+        when(scorecardService.evaluate(evidencePackage)).thenReturn(
+                new ScorecardResult("scorecard", 1, 1, 100.0d, List.of()));
+        when(replayService.replay("sep-blocked-001")).thenReturn(new DeterministicReplayResult(
+                "sep-blocked-001",
+                true,
+                "prompt-hash",
+                "prompt-hash",
+                1,
+                1,
+                List.of(),
+                List.of(),
+                List.of(),
+                Instant.parse("2026-04-28T00:00:01Z")));
+        when(certificationPolicy.evaluate(any(SealedEvidencePackage.class), eq(true), any(), any(), any()))
+                .thenReturn(new RuntimeEvidenceGateResult(true, List.of(), List.of(), List.of()));
+        when(resourceLookup.findBestMatch(any(), any(), any())).thenReturn(Optional.empty());
+        when(snapshotService.replaceDiagnosticsForQualityTarget(any(), any(), any(), any(), any()))
+                .thenReturn(List.of());
+        when(snapshotService.promptComparisons(any(), any())).thenReturn(List.of());
+        when(snapshotService.actualPromptProblems(any(), any())).thenReturn(List.of());
+        when(executionLockService.start(any())).thenReturn(executionRecord);
+        when(executionLockService.completedResult(any())).thenReturn(Optional.empty());
+        when(officialRuntime.executeAll(any())).thenThrow(evaluatorFailure);
+        RuntimeEvidencePromptConsistencyGate promptConsistencyGate = ignored ->
+                new RuntimeEvidencePromptConsistencyResult(
+                        "PASS",
+                        "Pass",
+                        true,
+                        false,
+                        List.of(),
+                        List.of(),
+                        List.of());
+        DefaultPromptQualityRuntimeVerificationService service = service(
+                lookupService,
+                replayService,
+                scorecardService,
+                officialRuntime,
+                certificationPolicy,
+                resourceLookup,
+                metricCatalog,
+                assuranceCaseService,
+                issueDiagnosticService,
+                null,
+                new ObjectMapper(),
+                promptConsistencyGate,
+                snapshotService,
+                processRunService,
+                executionLockService);
+
+        assertThatThrownBy(() -> service.verify(
+                new RuntimeEvidenceVerificationRequest("sep-blocked-001", "operator-admin")))
+                .isSameAs(evaluatorFailure);
+        verify(executionLockService).markMetricsRunning(
+                eq(executionRecord),
+                eq("osev-failed-sep-blocked-001-lock-1-attempt-1"),
+                eq(List.of("EIR")));
+        verify(executionLockService).markFailed(
+                eq(executionRecord),
+                eq(evaluatorFailure),
+                eq(true),
+                any());
     }
 
     @Test

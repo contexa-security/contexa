@@ -44,7 +44,12 @@ final class OfficialVerificationRemediationGroupRecorder {
             String failureType = firstNonBlank(
                     problem.problemType(), problem.fieldKey(), "PROMPT_FIELD_CONTRACT");
             String nextAction = problemNarrative.action(problem);
-            String key = normalize(owner) + "|" + normalize(failureType) + "|" + normalize(nextAction);
+            String evidenceIdentity = firstNonBlank(
+                    problem.sealedEvidencePath(), problem.sourceFieldPath(), problem.fieldKey());
+            String fixTarget = firstNonBlank(
+                    problem.sourceFieldPath(), problem.fieldKey(), problem.promptSection());
+            String key = normalize(failureType) + "|" + normalize(evidenceIdentity)
+                    + "|" + normalize(owner) + "|" + normalize(fixTarget);
             groups.computeIfAbsent(key, ignored -> new GroupAccumulator(
                     owner, failureType, nextAction, problem, problemNarrative)).add(problem);
         }

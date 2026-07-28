@@ -38,13 +38,35 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
                 "select max(expected_metric_count) from official_verification_run_batch where aggregate_run_id = ?",
                 aggregateRunId);
         return matchingMetricCounts(metricCount, expectedMetricCount)
+                && purposeEvaluationCountMatchesContract(aggregateRunId)
                 && customerDisplayPayloadComplete(aggregateRunId)
                 && countFindingWithoutProblem(aggregateRunId) == 0
                 && countInputReadinessProblems(aggregateRunId) == 0
-                && countStaleInputReadinessPurposeRows(aggregateRunId) == 0
+                && countInputReadinessDisplayPayloads(aggregateRunId) == 0
                 && countMissingPromptComparisons(aggregateRunId) == 0
                 && actualProblemCountMatchesFindings(aggregateRunId)
                 && countBlockedMetricsWithoutProblem(aggregateRunId) == 0;
+    }
+
+    @Override
+    public boolean publishableSnapshotExists(String aggregateRunId) {
+        return completeSnapshotExists(aggregateRunId)
+                && count("""
+                        select count(*) from official_verification_execution_lock
+                         where aggregate_run_id = ?
+                           and state = 'COMPLETED'
+                           and progress_percent = 100
+                           and failure_stage is null
+                           and failure_reason is null
+                        """, aggregateRunId) > 0;
+    }
+
+    @Override
+    public boolean executionRecordExists(String aggregateRunId) {
+        return count("""
+                select count(*) from official_verification_execution_lock
+                 where aggregate_run_id = ?
+                """, aggregateRunId) > 0;
     }
 
     @Override
@@ -63,12 +85,50 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
         int expected = count("""
                 select coalesce(sum(case when purpose_result = 'PURPOSE_FAILED' then 5 else 3 end), 0)
                   from official_metric_purpose_evaluation_ledger
-                 where aggregate_run_id = ? and customer_visible = true
+                 where aggregate_run_id = ?
+                   and customer_visible = true
+                   and purpose_result <> 'INPUT_NOT_READY'
                 """, aggregateRunId);
         int actual = count("""
                 select count(*) from official_metric_customer_display_payload where aggregate_run_id = ?
                 """, aggregateRunId);
         return expected == actual;
+    }
+
+    private boolean purposeEvaluationCountMatchesContract(String aggregateRunId) {
+        int actual = count("""
+                select count(*)
+                  from official_metric_purpose_evaluation_ledger purpose
+                  join official_metric_evaluation_contract evaluation
+                    on evaluation.contract_version = purpose.contract_version
+                   and upper(evaluation.metric_code) = upper(purpose.metric_code)
+                   and upper(evaluation.check_code) = upper(purpose.check_code)
+                  join official_metric_purpose_contract metric
+                    on metric.contract_version = evaluation.contract_version
+                   and upper(metric.metric_code) = upper(evaluation.metric_code)
+                  join official_metric_contract_version version
+                    on version.contract_version = evaluation.contract_version
+                   and version.active = true
+                 where purpose.aggregate_run_id = ?
+                   and upper(coalesce(metric.metric_role, '')) <> 'LLM_DECISION_QUALITY'
+                """, aggregateRunId);
+        int expected = count("""
+                select count(*)
+                  from official_metric_evaluation_contract contract
+                  join official_metric_purpose_contract metric
+                    on metric.contract_version = contract.contract_version
+                   and upper(metric.metric_code) = upper(contract.metric_code)
+                  join official_metric_contract_version version
+                    on version.contract_version = contract.contract_version
+                   and version.active = true
+                 where upper(coalesce(metric.metric_role, '')) <> 'LLM_DECISION_QUALITY'
+                   and exists (
+                       select 1 from official_verification_metric_snapshot metric
+                        where metric.aggregate_run_id = ?
+                          and upper(metric.metric_code) = upper(contract.metric_code)
+                 )
+                """, aggregateRunId);
+        return expected > 0 && actual == expected;
     }
 
     private int countFindingWithoutProblem(String aggregateRunId) {
@@ -89,12 +149,18 @@ public final class JdbcOfficialVerificationSnapshotCompletionRepository
                 """, aggregateRunId);
     }
 
-    private int countStaleInputReadinessPurposeRows(String aggregateRunId) {
+    private int countInputReadinessDisplayPayloads(String aggregateRunId) {
         return count("""
-                select count(*) from official_metric_purpose_evaluation_ledger
-                 where aggregate_run_id = ?
-                   and upper(coalesce(purpose_result, '')) in ('NOT_EVALUATED_INPUT_NOT_READY', 'INPUT_NOT_READY')
-                   and customer_visible = true
+                select count(*) from official_metric_purpose_evaluation_ledger purpose
+                 where purpose.aggregate_run_id = ?
+                   and upper(coalesce(purpose.purpose_result, ''))
+                       in ('NOT_EVALUATED_INPUT_NOT_READY', 'INPUT_NOT_READY')
+                   and exists (
+                       select 1 from official_metric_customer_display_payload payload
+                        where payload.aggregate_run_id = purpose.aggregate_run_id
+                          and upper(payload.metric_code) = upper(purpose.metric_code)
+                          and payload.check_code = purpose.check_code
+                   )
                 """, aggregateRunId);
     }
 

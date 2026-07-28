@@ -54,8 +54,7 @@ final class OfficialMetricPurposeLedgerRecorder {
         if (!StringUtils.hasText(aggregateRunId) || !StringUtils.hasText(packageId) || metrics == null) {
             return;
         }
-        contractRegistry.upsertFull();
-        contractRegistry.assertFullPersisted();
+        contractRegistry.upsertRuntime(metrics);
         metrics.forEach(metric -> recordMetric(aggregateRunId, packageId, metric));
     }
 
@@ -91,10 +90,17 @@ final class OfficialMetricPurposeLedgerRecorder {
             RuntimeEvidenceMetricResult metric,
             RuntimeEvidenceCheckResult check) {
         String metricCode = normalize(metric.metricCode());
-        String runtimeCheckCode = firstNonBlank(check.checkCode(), check.label(), "CHECK");
+        String runtimeCheckCode = firstNonBlank(
+                contractRegistry.canonicalCheckCode(metricCode, check),
+                check.checkCode(), check.label(), "CHECK");
         FinalPromptMetricCheckContract contract = StringUtils.hasText(check.purposeVersion())
                 ? contractRegistry.checkOrNull(metricCode, check) : null;
-        boolean customerVisible = contractRegistry.customerDisplayEligible(contract)
+        boolean decisionQualityCheck = check.customerVisible()
+                && "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope());
+        boolean customerVisible = contract == null
+                ? check.customerVisible() : contract.customerVisible();
+        boolean customerDisplayEligible = check.customerVisible()
+                && (decisionQualityCheck || contractRegistry.customerDisplayEligible(contract))
                 && !checkInterpreter.inputNotReady(check)
                 && !(metricPassed(metric) && !check.pass());
         String readinessScope = checkInterpreter.inputNotReady(check)
@@ -102,10 +108,12 @@ final class OfficialMetricPurposeLedgerRecorder {
         String checkCode = firstNonBlank(contract == null ? null : contract.checkName(), runtimeCheckCode);
         String issueKey = firstNonBlank(
                 check.issueKey(), contract == null ? null : contract.issueKey(), check.source(), checkCode);
-        CustomerDisplayPayloadFactory.Payload payload = customerVisible && StringUtils.hasText(check.purposeVersion())
+        CustomerDisplayPayloadFactory.Payload payload = customerDisplayEligible
+                && StringUtils.hasText(check.purposeVersion())
                 ? narrative.customerDisplayPayload(check, contract) : null;
         return new PurposeContext(
-                metricCode, checkCode, check.purposeVersion(), issueKey, customerVisible,
+                metricCode, checkCode, check.purposeVersion(), issueKey,
+                customerVisible, customerDisplayEligible,
                 readinessScope, checkInterpreter.detectedSignals(check), contract, payload);
     }
 
@@ -134,15 +142,15 @@ final class OfficialMetricPurposeLedgerRecorder {
                 fit(packageId, 128), fit(aggregateRunId, 256), fit(context.metricCode(), 32),
                 fit(context.checkCode(), 128), fit(context.purposeVersion(), 128),
                 narrativeCatalog.metricPurpose(context.metricCode()),
-                narrative.decisionUtility(check, context.customerVisible(), context.contract()),
+                narrative.decisionUtility(check, context.customerDisplayEligible(), context.contract()),
                 fit(checkInterpreter.purposeResult(check), 128), fit(context.issueKey(), 512),
                 context.customerVisible(), fit(context.readinessScope(), 128),
                 validJsonArray(check.detectedSignalsJson()), validJsonArray(check.interpretationLinksJson()),
-                narrative.expectedValue(check, context.customerVisible(), context.contract()),
-                narrative.actualValue(check, context.customerVisible(), context.contract()),
+                narrative.expectedValue(check, context.customerDisplayEligible(), context.contract()),
+                narrative.actualValue(check, context.customerDisplayEligible(), context.contract()),
                 fit(check.remediationOwner(), 128),
-                narrative.nextAction(check, context.customerVisible(), context.contract()),
-                narrative.reverifyCriterion(check, context.customerVisible(), context.contract()));
+                narrative.nextAction(check, context.customerDisplayEligible(), context.contract()),
+                narrative.reverifyCriterion(check, context.customerDisplayEligible(), context.contract()));
     }
 
     private void recordCustomerDisplay(
@@ -160,7 +168,8 @@ final class OfficialMetricPurposeLedgerRecorder {
                     fit(packageId, 128), fit(aggregateRunId, 256), fit(context.metricCode(), 32),
                     fit(context.checkCode(), 128), fit(context.purposeVersion(), 128), fit(role.displayRole(), 64),
                     fit(role.title(), 512), fit(role.summary(), 1200), role.evidenceText(), role.whyItMatters(),
-                    role.resolutionAction(), role.reverifyCondition(), writeJson(displayContextItems(context.contract())),
+                    role.resolutionAction(), role.reverifyCondition(),
+                    writeJson(displayContextItems(check, context)),
                     validJsonArray(check.detectedSignalsJson()),
                     fit(firstNonBlank(check.source(), check.issueKey(), context.checkCode()), 512)));
         }
@@ -181,17 +190,18 @@ final class OfficialMetricPurposeLedgerRecorder {
     private EvidenceContext evidenceContext(
             RuntimeEvidenceCheckResult check,
             PurposeContext context) {
-        List<String> signals = context.customerVisible()
+        List<String> signals = context.customerDisplayEligible()
                 ? evidenceParser.visibleSignals(context.detectedSignals(), check, true)
                 : context.detectedSignals().stream().filter(StringUtils::hasText).distinct().toList();
-        boolean contractBacked = context.customerVisible() && StringUtils.hasText(check.purposeVersion());
+        boolean contractBacked = context.customerDisplayEligible()
+                && StringUtils.hasText(check.purposeVersion());
         if (signals.isEmpty() && contractBacked) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Customer-visible metric purpose evidence is missing. "
                     + "metricCode=" + context.metricCode() + ", checkCode=" + context.checkCode());
         }
         if (signals.isEmpty()) {
             signals = List.of(firstNonBlank(
-                    context.customerVisible() ? check.label() : check.issueKey(),
+                    context.customerDisplayEligible() ? check.label() : check.issueKey(),
                     check.source(), context.checkCode()));
         }
         String interpretation = contractBacked
@@ -214,17 +224,18 @@ final class OfficialMetricPurposeLedgerRecorder {
             PurposeContext context,
             EvidenceContext evidenceContext,
             String signal) {
-        CustomerPurposeEvidenceDisplay display = context.customerVisible() || evidenceParser.structuredSignal(signal)
+        CustomerPurposeEvidenceDisplay display = context.customerDisplayEligible()
+                || evidenceParser.structuredSignal(signal)
                 ? evidenceParser.display(signal, check, context.contract()) : null;
         if (display == null) {
             display = new CustomerPurposeEvidenceDisplay(
                     firstNonBlank(signal, context.checkCode()),
                     firstNonBlank(signal, check.actualValue(), check.expectedValue()));
         }
-        if (context.customerVisible()) {
+        if (context.customerDisplayEligible()) {
             evidenceValidator.validate(display, check, context.contract());
         }
-        List<String> runtimeFacts = context.customerVisible()
+        List<String> runtimeFacts = context.customerDisplayEligible()
                 ? evidenceParser.scopedRuntimeFacts(display) : display.runtimeFacts();
         evidenceWriter.insert(new OfficialVerificationMetricPurposeEvidenceWriter.Command(
                 fit(packageId, 128), fit(aggregateRunId, 256), context.metricCode(), fit(context.checkCode(), 128),
@@ -243,6 +254,27 @@ final class OfficialMetricPurposeLedgerRecorder {
             }
             appendDelimited(items, binding.get("customerVisibleContextItems"));
             appendDelimited(items, binding.get("customerVisiblePromptItems"));
+        }
+        return List.copyOf(items);
+    }
+
+    private List<String> displayContextItems(
+            RuntimeEvidenceCheckResult check,
+            PurposeContext context) {
+        List<String> items = new ArrayList<>(displayContextItems(context.contract()));
+        if (!items.isEmpty()) {
+            return List.copyOf(items);
+        }
+        for (String signal : evidenceParser.visibleSignals(context.detectedSignals(), check, true)) {
+            CustomerPurposeEvidenceDisplay display = evidenceParser.display(signal, check, context.contract());
+            if (display == null) {
+                continue;
+            }
+            for (String item : display.contextItems()) {
+                if (StringUtils.hasText(item) && !items.contains(item.trim())) {
+                    items.add(item.trim());
+                }
+            }
         }
         return List.copyOf(items);
     }
@@ -329,6 +361,7 @@ final class OfficialMetricPurposeLedgerRecorder {
             String purposeVersion,
             String issueKey,
             boolean customerVisible,
+            boolean customerDisplayEligible,
             String readinessScope,
             List<String> detectedSignals,
             FinalPromptMetricCheckContract contract,

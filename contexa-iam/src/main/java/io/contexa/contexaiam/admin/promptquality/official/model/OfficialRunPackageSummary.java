@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.springframework.util.StringUtils;
 
@@ -63,7 +64,9 @@ public record OfficialRunPackageSummary(
                         null,
                         run.passedChecks(),
                         run.totalChecks(),
-                        Math.max(run.totalChecks() - run.passedChecks(), 0),
+                        run.failedChecks(),
+                        run.notApplicableChecks(),
+                        run.notEvaluatedChecks(),
                         run.metricName(),
                         run.stateLabel(),
                         run.failureCauses().stream()
@@ -119,6 +122,31 @@ public record OfficialRunPackageSummary(
                 detail.nextActionHref(),
                 detail.remediationGroups(),
                 detail.attempts());
+    }
+
+    @JsonProperty("totalCheckCount")
+    public int totalCheckCount() {
+        return metrics.stream().mapToInt(OfficialRunMetricSummary::totalChecks).sum();
+    }
+
+    @JsonProperty("passedCheckCount")
+    public int passedCheckCount() {
+        return metrics.stream().mapToInt(OfficialRunMetricSummary::passedChecks).sum();
+    }
+
+    @JsonProperty("failedCheckCount")
+    public int failedCheckCount() {
+        return metrics.stream().mapToInt(OfficialRunMetricSummary::failedCheckCount).sum();
+    }
+
+    @JsonProperty("notApplicableCheckCount")
+    public int notApplicableCheckCount() {
+        return metrics.stream().mapToInt(OfficialRunMetricSummary::notApplicableCheckCount).sum();
+    }
+
+    @JsonProperty("notEvaluatedCheckCount")
+    public int notEvaluatedCheckCount() {
+        return metrics.stream().mapToInt(OfficialRunMetricSummary::notEvaluatedCheckCount).sum();
     }
 
     private static String blockReasonSummary(

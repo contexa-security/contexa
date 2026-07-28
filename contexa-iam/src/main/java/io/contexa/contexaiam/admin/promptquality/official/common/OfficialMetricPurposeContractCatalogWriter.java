@@ -85,16 +85,18 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
     public void assertFullMetricContractCatalogPersisted() {
         FinalPromptMetricContractCatalog catalog = finalPromptMetricContractCatalog();
         String currentVersion = currentContractVersion(catalog);
-        int expectedMetricCount = catalog.metricCodesInOrder().size();
-        int expectedCheckCount = 0;
-        int expectedCustomerDisplayRows = 0;
-        int expectedCustomerDisplayBindingRows = 0;
+        LinkedHashSet<String> expectedMetricRows = new LinkedHashSet<>();
+        LinkedHashSet<String> expectedCheckRows = new LinkedHashSet<>();
+        LinkedHashSet<String> expectedCustomerDisplayRows = new LinkedHashSet<>();
+        LinkedHashSet<String> expectedCustomerDisplayBindingRows = new LinkedHashSet<>();
         LinkedHashSet<String> expectedInputRows = new LinkedHashSet<>();
         LinkedHashSet<String> expectedSignalRows = new LinkedHashSet<>();
         for (String metricCode : catalog.metricCodesInOrder()) {
+            expectedMetricRows.add(metricCode);
             FinalPromptMetricContract metricContract = catalog.metric(metricCode);
-            expectedCheckCount += metricContract.checks().size();
             for (FinalPromptMetricCheckContract checkContract : metricContract.checks()) {
+                String checkKey = metricCode + "|" + checkContract.checkName();
+                expectedCheckRows.add(checkKey);
                 addExpectedInputRows(expectedInputRows, metricCode, checkContract, checkContract.rule());
                 if (checkContract.inputReadinessRule() != null) {
                     addExpectedInputRows(expectedInputRows, metricCode, checkContract, checkContract.inputReadinessRule());
@@ -110,22 +112,38 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                     addExpectedSignalRows(expectedSignalRows, metricCode, checkContract, checkContract.applicabilityRule());
                 }
                 if (customerDisplayEligible(checkContract)) {
-                    expectedCustomerDisplayRows += CUSTOMER_DISPLAY_ROLES.size();
-                    expectedCustomerDisplayBindingRows += safeEvidenceBindings(checkContract).size() * 2;
+                    for (String displayRole : CUSTOMER_DISPLAY_ROLES) {
+                        expectedCustomerDisplayRows.add(checkKey + "|" + displayRole);
+                    }
+                    for (Map<String, String> binding : safeEvidenceBindings(checkContract)) {
+                        String bindingKey = firstNonBlank(binding.get("id"), binding.get("name"));
+                        expectedCustomerDisplayBindingRows.add(checkKey + "|PASS_EVIDENCE|" + bindingKey);
+                        expectedCustomerDisplayBindingRows.add(checkKey + "|FAIL_EVIDENCE|" + bindingKey);
+                    }
                 }
             }
         }
         for (FinalPromptMetricContractCatalog.PromptSignalContract signal : catalog.promptSignalContracts()) {
             expectedSignalRows.add("MTR|" + signal.checkCode() + "|" + signal.signalKey());
         }
-        assertCurrentContractRows("official_metric_purpose_contract", currentVersion, expectedMetricCount);
-        assertCurrentContractRows("official_metric_evaluation_contract", currentVersion, expectedCheckCount);
-        assertCurrentContractRows("official_prompt_signal_contract", currentVersion, expectedSignalRows.size());
-        assertCurrentContractRows("official_metric_customer_message_contract", currentVersion, expectedCheckCount);
-        assertCurrentContractRows("official_metric_check_display_evidence_contract", currentVersion, expectedCheckCount);
-        assertCurrentContractRows("official_metric_customer_display_contract", currentVersion, expectedCustomerDisplayRows);
-        assertCurrentContractRows("official_metric_customer_display_binding", currentVersion, expectedCustomerDisplayBindingRows);
-        assertCurrentContractRows("official_metric_input_contract", currentVersion, expectedInputRows.size());
+        assertCurrentContractKeys("official_metric_purpose_contract", "metric_code",
+                currentVersion, expectedMetricRows);
+        assertCurrentContractKeys("official_metric_evaluation_contract", "metric_code || '|' || check_code",
+                currentVersion, expectedCheckRows);
+        assertCurrentContractKeys("official_prompt_signal_contract",
+                "metric_code || '|' || check_code || '|' || signal_key", currentVersion, expectedSignalRows);
+        assertCurrentContractKeys("official_metric_customer_message_contract", "metric_code || '|' || check_code",
+                currentVersion, expectedCheckRows);
+        assertCurrentContractKeys("official_metric_check_display_evidence_contract",
+                "metric_code || '|' || check_code", currentVersion, expectedCheckRows);
+        assertCurrentContractKeys("official_metric_customer_display_contract",
+                "metric_code || '|' || check_code || '|' || display_role",
+                currentVersion, expectedCustomerDisplayRows);
+        assertCurrentContractKeys("official_metric_customer_display_binding",
+                "metric_code || '|' || check_code || '|' || display_role || '|' || binding_key",
+                currentVersion, expectedCustomerDisplayBindingRows);
+        assertCurrentContractKeys("official_metric_input_contract",
+                "metric_code || '|' || check_code || '|' || input_key", currentVersion, expectedInputRows);
     }
 
     private FinalPromptMetricCheckContract finalPromptMetricCheckContractOrNull(
@@ -146,6 +164,9 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         String normalizedCheck = normalize(check == null ? null : check.checkCode());
         if (!StringUtils.hasText(normalizedCheck)) {
             return "";
+        }
+        if (check != null && "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope())) {
+            return normalizedCheck;
         }
         try {
             return finalPromptMetricContractCatalog().check(normalizedMetric, normalizedCheck).checkName();
@@ -269,6 +290,35 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
                 purpose,
                 failureMessage,
                 nowTimestamp());
+        upsertRuntimeMetricCustomerDisplayContracts(purposeVersion, metricCode, checkCode, check);
+    }
+
+    private void upsertRuntimeMetricCustomerDisplayContracts(
+            String purposeVersion,
+            String metricCode,
+            String checkCode,
+            RuntimeEvidenceCheckResult check) {
+        if (!check.customerVisible()) {
+            return;
+        }
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "TITLE",
+                firstNonBlank(check.label(), checkCode), true);
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "PASS_EVIDENCE",
+                firstNonBlank(check.operatorReason(), check.actualValue(), check.expectedValue()), true);
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "FAIL_EVIDENCE",
+                firstNonBlank(check.actualValue(), check.operatorReason(), check.expectedValue()), true);
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "WHY_IT_MATTERS",
+                firstNonBlank(check.whyItMatters(), check.decisionUtility(), check.label()), true);
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "RESOLUTION_ACTION",
+                firstNonBlank(check.nextAction(), check.operatorReason()), true);
+        upsertMetricCustomerDisplayContractRow(
+                purposeVersion, metricCode, checkCode, "REVERIFY_CONDITION",
+                firstNonBlank(check.reverifyCriterion(), check.expectedValue()), true);
     }
     private void addExpectedInputRows(
             LinkedHashSet<String> expectedInputRows,
@@ -290,16 +340,30 @@ public class OfficialMetricPurposeContractCatalogWriter implements OfficialMetri
         }
     }
 
-    private void assertCurrentContractRows(String tableName, String contractVersion, int expectedRows) {
-        Integer actualRows = jdbcTemplate.queryForObject(
-                "select count(*) from " + tableName + " where contract_version = ?",
-                Integer.class,
+    private void assertCurrentContractKeys(
+            String tableName,
+            String keyExpression,
+            String contractVersion,
+            LinkedHashSet<String> expectedKeys) {
+        List<String> actualRows = jdbcTemplate.query(
+                "select " + keyExpression + " as contract_key from " + tableName
+                        + " where contract_version = ? order by contract_key",
+                (resultSet, rowNum) -> resultSet.getString("contract_key"),
                 contractVersion);
-        if (actualRows == null || actualRows != expectedRows) {
-            throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric contract catalog was not persisted."
-                    + " table=" + tableName + ", contractVersion=" + contractVersion
-                    + ", expectedRows=" + expectedRows + ", actualRows=" + actualRows);
+        LinkedHashSet<String> actualKeys = new LinkedHashSet<>(actualRows);
+        if (actualRows.size() == expectedKeys.size() && actualKeys.equals(expectedKeys)) {
+            return;
         }
+        LinkedHashSet<String> missingKeys = new LinkedHashSet<>(expectedKeys);
+        missingKeys.removeAll(actualKeys);
+        LinkedHashSet<String> unexpectedKeys = new LinkedHashSet<>(actualKeys);
+        unexpectedKeys.removeAll(expectedKeys);
+        int duplicateRows = actualRows.size() - actualKeys.size();
+        throw new IllegalStateException("ENGINE_CONTRACT_ERROR: Metric contract catalog keys were not persisted exactly."
+                + " table=" + tableName + ", contractVersion=" + contractVersion
+                + ", expectedRows=" + expectedKeys.size() + ", actualRows=" + actualRows.size()
+                + ", duplicateRows=" + duplicateRows
+                + ", missingKeys=" + missingKeys + ", unexpectedKeys=" + unexpectedKeys);
     }
 
     private void removeFallbackContractRows() {

@@ -23,7 +23,7 @@ final class OfficialRunDetailPresentation {
             case "IMPLEMENTATION_ALIGNMENT" -> message("enterprise.pqa.runtimeVerification.metric.group.implementationAlignment");
             case "RAG_AND_BASELINE" -> message("enterprise.pqa.runtimeVerification.metric.group.ragAndBaseline");
             case "BEHAVIORAL_CONTEXT" -> message("enterprise.pqa.runtimeVerification.metric.group.behavioralContext");
-            case "LLM_DECISION", "LLM_DECISION_GATE" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision");
+            case "LLM_DECISION" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision");
             case "RESOURCE_ELIGIBILITY" -> message("enterprise.pqa.runtimeVerification.metric.group.resourceEligibility");
             default -> message("enterprise.pqa.runtimeVerification.metric.group.other");
         };

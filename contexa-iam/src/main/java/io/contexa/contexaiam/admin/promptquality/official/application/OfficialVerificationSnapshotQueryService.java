@@ -51,6 +51,10 @@ public final class OfficialVerificationSnapshotQueryService {
         return integrityRepositories.completion().completeSnapshotExists(aggregateRunId);
     }
 
+    public boolean executionRecordExists(String aggregateRunId) {
+        return integrityRepositories.completion().executionRecordExists(aggregateRunId);
+    }
+
     public boolean actualPromptProblemExists(String packageId, String aggregateRunId, String problemId) {
         return integrityRepositories.completion().actualPromptProblemExists(packageId, aggregateRunId, problemId);
     }
@@ -110,6 +114,19 @@ public final class OfficialVerificationSnapshotQueryService {
     }
     public OperatorSnapshot findLatest(String packageId, String aggregateRunId) {
         OperatorRunBatch batch = currentBatch(packageId, aggregateRunId);
+        return assemble(batch);
+    }
+
+    public OperatorSnapshot findPublished(String packageId, String aggregateRunId) {
+        OperatorRunBatch batch = currentBatch(packageId, aggregateRunId);
+        if (batch == null
+                || !integrityRepositories.completion().publishableSnapshotExists(batch.aggregateRunId())) {
+            return OperatorSnapshot.empty();
+        }
+        return assemble(batch);
+    }
+
+    private OperatorSnapshot assemble(OperatorRunBatch batch) {
         if (batch == null) {
             return OperatorSnapshot.empty();
         }
@@ -149,6 +166,21 @@ public final class OfficialVerificationSnapshotQueryService {
         List<OperatorRunBatch> batches = batchRepository.findRecentCurrentBatches(
                 diagnosticCatalogVersion,
                 rowLimit);
+        return assembleAll(batches);
+    }
+
+    public List<OperatorSnapshot> recentPublishedSnapshots(int limit) {
+        int rowLimit = Math.max(1, Math.min(limit <= 0 ? 10 : limit, 50));
+        List<OperatorRunBatch> batches = batchRepository.findRecentCurrentBatches(
+                        diagnosticCatalogVersion,
+                        rowLimit).stream()
+                .filter(batch -> integrityRepositories.completion()
+                        .publishableSnapshotExists(batch.aggregateRunId()))
+                .toList();
+        return assembleAll(batches);
+    }
+
+    private List<OperatorSnapshot> assembleAll(List<OperatorRunBatch> batches) {
         if (batches.isEmpty()) {
             return List.of();
         }

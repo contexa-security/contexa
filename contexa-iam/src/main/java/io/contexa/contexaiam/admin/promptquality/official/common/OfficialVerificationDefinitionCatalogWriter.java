@@ -12,7 +12,7 @@ import java.sql.SQLException;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** Persists and verifies the OSS-owned versioned 12/26 definition catalog. */
+/** Persists and verifies the canonical final-prompt contract's derived definition view. */
 public final class OfficialVerificationDefinitionCatalogWriter {
 
     private static final String UPSERT_METRIC = """

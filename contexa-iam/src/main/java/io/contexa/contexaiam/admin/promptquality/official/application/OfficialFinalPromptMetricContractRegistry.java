@@ -65,6 +65,9 @@ final class OfficialFinalPromptMetricContractRegistry {
     }
 
     String canonicalCheckCode(String metricCode, RuntimeEvidenceCheckResult check) {
+        if (check != null && "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope())) {
+            return normalize(check.checkCode());
+        }
         return check == null ? "" : canonicalCheckCode(metricCode, check.checkCode());
     }
 
@@ -89,9 +92,7 @@ final class OfficialFinalPromptMetricContractRegistry {
     }
 
     boolean customerDisplayEligible(FinalPromptMetricCheckContract checkContract) {
-        return checkContract != null
-                && (checkContract.customerVisible()
-                || "INTERNAL_EXECUTION_GATE".equalsIgnoreCase(checkContract.readinessScope()));
+        return checkContract != null && checkContract.customerVisible();
     }
 
     List<Map<String, String>> evidenceBindings(FinalPromptMetricCheckContract checkContract) {

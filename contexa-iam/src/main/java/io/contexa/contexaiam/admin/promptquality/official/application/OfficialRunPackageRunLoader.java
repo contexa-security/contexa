@@ -11,6 +11,8 @@ import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMe
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageDetail;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidencePackageSummary;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
@@ -22,6 +24,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 final class OfficialRunPackageRunLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(OfficialRunPackageRunLoader.class);
 
     private final OfficialSealedEvidenceVerificationRuntime officialRuntime;
     private final VerificationLedgerService ledgerService;
@@ -58,19 +62,35 @@ final class OfficialRunPackageRunLoader {
         long ledgerStartedNanos = System.nanoTime();
         List<OfficialVerificationRunView> allPackageRuns = safeRunViews(ledgerService.findMetricRunsByPackageId(packageId));
         long ledgerMs = elapsedMillis(ledgerStartedNanos);
+        String requestedAggregateRunId = normalizeRequestedAggregateRunId(aggregateRunId);
+        OperatorSnapshot operatorSnapshot = operatorSnapshotService.findLatest(packageId, requestedAggregateRunId);
+        requireExplicitAggregateCandidate(
+                packageId, requestedAggregateRunId, allPackageRuns, operatorSnapshot);
+        String selectedAggregateRunId = firstNonBlank(
+                requestedAggregateRunId,
+                operatorSnapshot.available() ? operatorSnapshot.batch().aggregateRunId() : null);
         long runtimeMs = 0L;
         OfficialSealedEvidenceVerificationResult officialResult = storedResult(
-                packageId, aggregateRunId, sealedEvidence, allPackageRuns);
+                packageId, selectedAggregateRunId, sealedEvidence, allPackageRuns);
         if (officialResult == null) {
             long runtimeStartedNanos = System.nanoTime();
             officialResult = officialRuntime.findByPackageId(packageId);
             runtimeMs = elapsedMillis(runtimeStartedNanos);
         }
-        officialResult = selectAggregate(officialResult, aggregateRunId, allPackageRuns);
-        OperatorSnapshot operatorSnapshot = operatorSnapshotService.findLatest(packageId, officialResult.aggregateRunId());
+        officialResult = selectAggregate(officialResult, selectedAggregateRunId, allPackageRuns);
+        String resolvedRequestedAggregateRunId = firstNonBlank(
+                requestedAggregateRunId,
+                operatorSnapshot.available() ? null : officialResult.aggregateRunId());
+        requireRequestedAggregateRun(
+                packageId,
+                resolvedRequestedAggregateRunId,
+                allPackageRuns,
+                officialResult,
+                operatorSnapshot,
+                operatorSnapshotService.executionRecordExists(resolvedRequestedAggregateRunId));
         String resolvedAggregateRunId = firstNonBlank(
                 operatorSnapshot.available() ? operatorSnapshot.batch().aggregateRunId() : null,
-                officialResult.aggregateRunId(), aggregateRunId);
+                officialResult.aggregateRunId(), requestedAggregateRunId);
         List<OfficialVerificationMetricTrace> runs = metricTraces(officialResult, sealedEvidence, operatorSnapshot);
         return new LoadedRunPackage(
                 sealedEvidence, allPackageRuns, officialResult, operatorSnapshot,
@@ -123,6 +143,72 @@ final class OfficialRunPackageRunLoader {
                 officialResult.integrityValid(), selectedRuns);
     }
 
+    private String normalizeRequestedAggregateRunId(String aggregateRunId) {
+        if (!StringUtils.hasText(aggregateRunId)) {
+            return null;
+        }
+        return aggregateRunId.trim();
+    }
+
+    private void requireExplicitAggregateCandidate(
+            String packageId,
+            String requested,
+            List<OfficialVerificationRunView> allPackageRuns,
+            OperatorSnapshot operatorSnapshot) {
+        if (!StringUtils.hasText(requested) || operatorSnapshot.available()) {
+            return;
+        }
+        boolean ledgerMatch = allPackageRuns.stream()
+                .anyMatch(run -> same(requested, attemptSummaryFactory.aggregateRunId(run)));
+        boolean trackedExecution = operatorSnapshotService.executionRecordExists(requested);
+        if (trackedExecution || (!ledgerMatch && !allPackageRuns.isEmpty())) {
+            throw aggregateNotFound(
+                    packageId,
+                    requested,
+                    trackedExecution
+                            ? "TRACKED_EXECUTION_WITHOUT_PUBLISHABLE_SNAPSHOT"
+                            : "NO_PACKAGE_AGGREGATE_MATCH");
+        }
+    }
+
+    private void requireRequestedAggregateRun(
+            String packageId,
+            String requested,
+            List<OfficialVerificationRunView> allPackageRuns,
+            OfficialSealedEvidenceVerificationResult officialResult,
+            OperatorSnapshot operatorSnapshot,
+            boolean executionTracked) {
+        if (!StringUtils.hasText(requested)) {
+            return;
+        }
+        boolean ledgerMatch = allPackageRuns.stream()
+                .anyMatch(run -> same(requested, attemptSummaryFactory.aggregateRunId(run)));
+        boolean runtimeMatch = officialResult != null && same(requested, officialResult.aggregateRunId());
+        boolean snapshotMatch = operatorSnapshot.available()
+                && same(requested, operatorSnapshot.batch().aggregateRunId());
+        if (executionTracked && !snapshotMatch) {
+            throw aggregateNotFound(
+                    packageId,
+                    requested,
+                    "TRACKED_EXECUTION_WITHOUT_PUBLISHABLE_SNAPSHOT");
+        }
+        if (!ledgerMatch && !runtimeMatch && !snapshotMatch) {
+            throw aggregateNotFound(packageId, requested, "NO_PACKAGE_AGGREGATE_MATCH");
+        }
+    }
+
+    private NoSuchElementException aggregateNotFound(String packageId, String aggregateRunId, String reason) {
+        log.warn(
+                "PQA official aggregate lookup rejected. packageId={}, aggregateRunId={}, reason={}",
+                packageId,
+                aggregateRunId,
+                reason);
+        return new NoSuchElementException(message(
+                "enterprise.pqa.officialRun.error.aggregate.notFoundTpl",
+                aggregateRunId,
+                packageId));
+    }
+
     private List<OfficialVerificationMetricTrace> metricTraces(
             OfficialSealedEvidenceVerificationResult officialResult,
             RuntimeEvidencePackageDetail sealedEvidence,
@@ -160,7 +246,7 @@ final class OfficialRunPackageRunLoader {
                     .filter(run -> same(requested, attemptSummaryFactory.aggregateRunId(run)))
                     .toList();
         }
-        if (selectedRuns.isEmpty()) {
+        if (!StringUtils.hasText(aggregateRunId) && selectedRuns.isEmpty()) {
             resolvedAggregateRunId = latestAggregateRunId(allPackageRuns);
             if (StringUtils.hasText(resolvedAggregateRunId)) {
                 String latest = resolvedAggregateRunId;

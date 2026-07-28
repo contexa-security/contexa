@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 
 import java.util.List;
 import java.util.Map;
@@ -164,5 +165,26 @@ public record OfficialVerificationMetricTrace(
     @JsonProperty("resourceUrl")
     public String resourceUrl() {
         return requestPath;
+    }
+
+    @JsonProperty("failedChecks")
+    public int failedChecks() {
+        return checkCount(OfficialVerificationCheckState.FAIL);
+    }
+
+    @JsonProperty("notApplicableChecks")
+    public int notApplicableChecks() {
+        return checkCount(OfficialVerificationCheckState.NOT_APPLICABLE);
+    }
+
+    @JsonProperty("notEvaluatedChecks")
+    public int notEvaluatedChecks() {
+        return checkCount(OfficialVerificationCheckState.NOT_EVALUATED);
+    }
+
+    private int checkCount(OfficialVerificationCheckState state) {
+        return checks == null ? 0 : (int) checks.stream()
+                .filter(check -> check != null && check.evaluationState() == state)
+                .count();
     }
 }

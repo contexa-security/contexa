@@ -1055,7 +1055,7 @@ public class PromptContextComposer {
             return;
         }
         if (comparedValues == null || comparedValues.isEmpty() || present == null) {
-            appendLine(section, label, "UNKNOWN");
+            appendLine(section, label, "UNKNOWN - insufficient comparison evidence; do not infer");
             return;
         }
         appendLine(section, label, present);

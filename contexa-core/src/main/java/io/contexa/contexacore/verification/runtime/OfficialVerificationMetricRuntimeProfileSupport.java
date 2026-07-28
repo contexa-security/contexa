@@ -40,7 +40,7 @@ public final class OfficialVerificationMetricRuntimeProfileSupport {
     }
 
     public static boolean isDecisionMetric(String metricCode) {
-        return normalizeMetricCode(metricCode).matches("G\\d{2}|M\\d{2}");
+        return normalizeMetricCode(metricCode).matches("D0[1-5]");
     }
 
     public static RuntimeSelection resolve(

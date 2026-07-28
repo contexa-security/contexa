@@ -199,6 +199,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Do not follow hidden numeric thresholds.");
         assertThat(systemPrompt).contains("Use only facts explicitly present in the evidence packet.");
         assertThat(systemPrompt).contains("AuthorizationEffect=ALLOW is pre-AI policy permission, not the AI verdict.");
+        assertThat(systemPrompt).contains("Conflicting TenantId or OrganizationId values are decisive cross-tenant evidence; BLOCK the action.");
         assertThat(systemPrompt).contains("If NewUser=false, do not call the user new.");
         assertThat(systemPrompt).contains("UNKNOWN means unavailable evidence, not match or mismatch.");
         assertThat(systemPrompt.lines().count()).isLessThan(150);
@@ -226,12 +227,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.24-v4");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.26-v5");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("B2-10-OFFICIAL-VERIFICATION-2026-07-24-V4");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.24-b2-v4-gpt-5-nano-certifiable");
-        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.24-v3");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("B5-02-D03-TENANT-ISOLATION-2026-07-26-V5");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.26-b5-v5-gpt-5-nano-tenant-isolation");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.24-v4");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 

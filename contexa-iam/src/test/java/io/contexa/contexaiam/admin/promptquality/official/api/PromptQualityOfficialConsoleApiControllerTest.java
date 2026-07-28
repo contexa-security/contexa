@@ -12,6 +12,7 @@ import io.contexa.contexaiam.admin.promptquality.official.common.DefaultPromptQu
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunFailureCause;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageDetail;
+import io.contexa.contexaiam.admin.promptquality.official.model.OfficialRunPackageSummary;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationMetricTrace;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyResult;
 import org.junit.jupiter.api.Test;
@@ -82,7 +83,10 @@ class PromptQualityOfficialConsoleApiControllerTest {
     }
     @Test
     void metricFamiliesSeparatePromptTwelveAndLlmDecisionOfficialInspection() {
-        when(runDetailService.findPackageDetail("pkg-001", "agg-001")).thenReturn(packageDetail());
+        OfficialRunPackageDetail detail = packageDetail();
+        when(runDetailService.findPackageDetail("pkg-001", "agg-001")).thenReturn(detail);
+        when(runDetailService.findPackageSummary("pkg-001", "agg-001"))
+                .thenReturn(OfficialRunPackageSummary.fromDetail(detail, koreanMessageResolver()));
 
         Map<String, Object> payload = metricController.packageMetricFamilies("pkg-001", "agg-001");
 
@@ -93,32 +97,39 @@ class PromptQualityOfficialConsoleApiControllerTest {
         assertThat(decision.get("label")).isEqualTo("LLM 판정 공식검사");
         assertThat(other.get("label")).isEqualTo("기타 공식검사");
         assertThat(prompt.get("totalRunCount")).isEqualTo(2);
-        assertThat(decision.get("totalRunCount")).isEqualTo(2);
+        assertThat(decision.get("totalRunCount")).isEqualTo(3);
         assertThat(other.get("totalRunCount")).isEqualTo(1);
         assertThat(decision.get("failedRunCount")).isEqualTo(1);
+        assertThat(decision.get("notEvaluatedRunCount")).isEqualTo(0);
+        assertThat(decision.get("notApplicableRunCount")).isEqualTo(1);
+        Map<?, ?> decisionReverify = (Map<?, ?>) metricController
+                .packageReverifyOptions("pkg-001", "agg-001")
+                .get("decision");
+        assertThat(decisionReverify.get("totalRunCount")).isEqualTo(3);
+        assertThat(decisionReverify.get("passedRunCount")).isEqualTo(1);
+        assertThat(decisionReverify.get("failedRunCount")).isEqualTo(1);
         assertThat(prompt.get("expectedMetricCount")).isEqualTo(12);
         assertThat(prompt.get("executedMetricCount")).isEqualTo(2);
         assertThat(prompt.get("notAppliedMetricCount")).isEqualTo(10L);
-        assertThat(decision.get("expectedMetricCount")).isEqualTo(28);
-        assertThat(decision.get("executedMetricCount")).isEqualTo(2);
-        assertThat(decision.get("notAppliedMetricCount")).isEqualTo(26L);
+        assertThat(decision.get("expectedMetricCount")).isEqualTo(5);
+        assertThat(decision.get("executedMetricCount")).isEqualTo(3);
+        assertThat(decision.get("notAppliedMetricCount")).isEqualTo(2L);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> expectedDecisionMetrics =
                 (List<Map<String, Object>>) decision.get("expectedMetrics");
-        assertThat(expectedDecisionMetrics).hasSize(28);
+        assertThat(expectedDecisionMetrics).hasSize(5);
         assertThat(expectedDecisionMetrics).extracting(metric -> metric.get("metricCode"))
-                .contains("G01", "M01", "M04", "M24")
-                .doesNotContain("CDC", "ERA", "SUHR", "OCR", "DSS", "ARR");
+                .containsExactlyInAnyOrder("D01", "D02", "D03", "D04", "D05");
         assertThat(expectedDecisionMetrics)
-                .filteredOn(metric -> "G01".equals(metric.get("metricCode")))
+                .filteredOn(metric -> "D01".equals(metric.get("metricCode")))
                 .singleElement()
                 .satisfies(metric -> {
                     assertThat(metric.get("executed")).isEqualTo(true);
                     assertThat(metric.get("status")).isEqualTo("EXECUTED");
                 });
         assertThat(expectedDecisionMetrics)
-                .filteredOn(metric -> "M01".equals(metric.get("metricCode")))
+                .filteredOn(metric -> "D04".equals(metric.get("metricCode")))
                 .singleElement()
                 .satisfies(metric -> {
                     assertThat(metric.get("executed")).isEqualTo(false);
@@ -130,9 +141,9 @@ class PromptQualityOfficialConsoleApiControllerTest {
     void metricFailureDetailsFiltersByRequestedMetricOnly() {
         when(runDetailService.findFailureDetails("pkg-001", "agg-001")).thenReturn(packageDetail().failureCauses());
 
-        List<OfficialRunFailureCause> failures = metricController.packageMetricFailureDetails("pkg-001", "m04", "agg-001");
+        List<OfficialRunFailureCause> failures = metricController.packageMetricFailureDetails("pkg-001", "d03", "agg-001");
 
-        assertThat(failures).extracting(OfficialRunFailureCause::metricCode).containsExactly("M04");
+        assertThat(failures).extracting(OfficialRunFailureCause::metricCode).containsExactly("D03");
     }
 
     @Test
@@ -161,14 +172,15 @@ class PromptQualityOfficialConsoleApiControllerTest {
         List<OfficialVerificationMetricTrace> runs = List.of(
                 metric("EIR", "IMPLEMENTATION_ALIGNMENT", "SUCCESS"),
                 metric("PRE", "RESOURCE_ELIGIBILITY", "SUCCESS"),
-                metric("G01", "LLM_DECISION_GATE", "SUCCESS"),
-                metric("M04", "LLM_DECISION", "ERROR"),
+                metric("D01", "LLM_DECISION", "SUCCESS"),
+                metric("D02", "LLM_DECISION", "NOT_APPLICABLE"),
+                metric("D03", "LLM_DECISION", "ERROR"),
                 metric("CUSTOM", "CUSTOM_GROUP", "ERROR")
         );
         List<OfficialRunFailureCause> failures = List.of(
                 failure("EIR"),
-                failure("G01"),
-                failure("M04"),
+                failure("D01"),
+                failure("D03"),
                 failure("CUSTOM")
         );
         return new OfficialRunPackageDetail(

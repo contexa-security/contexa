@@ -1,5 +1,8 @@
 package io.contexa.contexaiam.admin.promptquality.official.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
+
 import java.util.Locale;
 
 public record RuntimeEvidenceCheckResult(
@@ -30,6 +33,11 @@ public record RuntimeEvidenceCheckResult(
 
     public RuntimeEvidenceCheckResult {
         gateCode = gateCode == null ? OfficialVerificationGateCode.UNCLASSIFIED : gateCode;
+    }
+
+    @JsonProperty("evaluationState")
+    public OfficialVerificationCheckState evaluationState() {
+        return OfficialVerificationCheckState.resolve(inputReadinessState, purposeResult, pass);
     }
 
     public RuntimeEvidenceCheckResult(

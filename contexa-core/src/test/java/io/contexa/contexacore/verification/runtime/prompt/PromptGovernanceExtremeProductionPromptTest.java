@@ -1,7 +1,6 @@
 package io.contexa.contexacore.verification.runtime.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplicationResult;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleApplier;
@@ -11,7 +10,6 @@ import io.contexa.contexacore.verification.metric.OfficialMetricEvaluationResult
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import org.junit.jupiter.api.Test;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -83,6 +81,11 @@ class PromptGovernanceExtremeProductionPromptTest {
         FinalPromptMetricEvaluationSuite suite = new FinalPromptMetricEvaluationSuite(objectMapper, PromptGovernanceExtremeTestHarness.messages());
         SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt =
                 harness.browserEquivalentPromptWithRagDocuments();
+        SealedEvidencePackage baselinePackage = harness.packageFor(
+                prompt,
+                prompt.userText(),
+                harness.ragAvailableJson());
+        Map<String, OfficialMetricEvaluationResult> baselineResults = suite.evaluatePromptQuality(baselinePackage);
 
         for (ExtremeFaultScenario scenario : loadExtremeFaultScenarios()) {
             if ("*".equals(scenario.metricCode())) {
@@ -99,10 +102,12 @@ class PromptGovernanceExtremeProductionPromptTest {
                 results = suite.evaluatePromptQuality(faulted.packageValue());
             }
             catch (IllegalStateException exception) {
-                assertThat(isMtrPreflightScenario(scenario))
-                        .as(scenario.scenarioId() + " is allowed to stop at official preflight only for MTR gate checks")
+                assertThat(isOfficialPreflightGateCheck(check))
+                        .as(scenario.scenarioId()
+                                + " may stop at official preflight only for an INTERNAL_EXECUTION_GATE check")
                         .isTrue();
                 assertThat(exception.getMessage()).contains("PREFLIGHT_FINAL_PROMPT_CONTRACT");
+                assertRepairedRunRestoresBaseline(scenario, baselinePackage, baselineResults, suite);
                 continue;
             }
 
@@ -117,7 +122,28 @@ class PromptGovernanceExtremeProductionPromptTest {
                                 observation.checkCode())).isTrue();
                         assertThat(observation.passed()).isFalse();
                     });
+            assertRepairedRunRestoresBaseline(scenario, baselinePackage, baselineResults, suite);
         }
+    }
+
+    private void assertRepairedRunRestoresBaseline(
+            ExtremeFaultScenario scenario,
+            SealedEvidencePackage baselinePackage,
+            Map<String, OfficialMetricEvaluationResult> baselineResults,
+            FinalPromptMetricEvaluationSuite suite) {
+        Map<String, OfficialMetricEvaluationResult> repairedResults = suite.evaluatePromptQuality(baselinePackage);
+        assertThat(repairedResults.get(scenario.metricCode()).checks())
+                .as(scenario.scenarioId() + " must pass the repaired official check")
+                .anySatisfy(observation -> {
+                    assertThat(matchesOfficialCheck(
+                            scenario.metricCode(),
+                            scenario.checkCode(),
+                            observation.checkCode())).isTrue();
+                    assertThat(observation.passed()).isTrue();
+                });
+        assertThat(repairedResults)
+                .as(scenario.scenarioId() + " must not change unrelated metric results after repair")
+                .isEqualTo(baselineResults);
     }
 
     private void assertInternalReferenceCheckRemainsNonCustomerVisible(
@@ -144,9 +170,8 @@ class PromptGovernanceExtremeProductionPromptTest {
                 });
     }
 
-    private static boolean isMtrPreflightScenario(ExtremeFaultScenario scenario) {
-        return "MTR".equals(scenario.metricCode())
-                && !"UNMAPPED_PROMPT_FACTS_ABSENT".equals(scenario.checkCode());
+    private static boolean isOfficialPreflightGateCheck(FinalPromptMetricCheckContract check) {
+        return check != null && "INTERNAL_EXECUTION_GATE".equals(check.readinessScope());
     }
 
     @Test
@@ -263,6 +288,32 @@ class PromptGovernanceExtremeProductionPromptTest {
             assertThat(check.passed()).isTrue();
             assertThat(check.purposeResult()).isEqualTo("PURPOSE_PASSED");
         });
+        damagedResults.forEach((metricCode, damagedResult) -> {
+            if (!"CCSR".equals(metricCode)) {
+                OfficialMetricEvaluationResult repairedResult = repairedResults.get(metricCode);
+                assertThat(repairedResult.state())
+                        .as(metricCode + " must remain unchanged when only the CCSR request path is repaired")
+                        .isEqualTo(damagedResult.state());
+                assertThat(repairedResult.checks().stream()
+                        .map(check -> check.checkCode() + "|" + check.passed() + "|" + check.purposeResult())
+                        .toList())
+                        .as(metricCode + " check outcomes must remain unchanged")
+                        .containsExactlyElementsOf(damagedResult.checks().stream()
+                                .map(check -> check.checkCode() + "|" + check.passed() + "|" + check.purposeResult())
+                                .toList());
+            }
+        });
+        List<String> damagedNonTargetChecks = damagedResults.get("CCSR").checks().stream()
+                .filter(check -> !"CCSR_PATH_CONSISTENT".equals(check.checkCode()))
+                .map(check -> check.checkCode() + "|" + check.passed() + "|" + check.purposeResult())
+                .toList();
+        List<String> repairedNonTargetChecks = repairedResults.get("CCSR").checks().stream()
+                .filter(check -> !"CCSR_PATH_CONSISTENT".equals(check.checkCode()))
+                .map(check -> check.checkCode() + "|" + check.passed() + "|" + check.purposeResult())
+                .toList();
+        assertThat(repairedNonTargetChecks)
+                .as("CCSR checks outside the repaired request-path contract must remain unchanged")
+                .containsExactlyElementsOf(damagedNonTargetChecks);
     }
 
     @Test
@@ -398,12 +449,27 @@ class PromptGovernanceExtremeProductionPromptTest {
     private record FaultedPackage(SealedEvidencePackage packageValue) {
     }
 
-    private List<ExtremeFaultScenario> loadExtremeFaultScenarios() throws Exception {
-        try (InputStream input = getClass().getResourceAsStream(
-                "/pqa/prompt-governance-extreme-fault-scenarios.json")) {
-            assertThat(input).as("extreme fault scenario catalog must exist").isNotNull();
-            return objectMapper.readValue(input, new TypeReference<>() {});
-        }
+    private List<ExtremeFaultScenario> loadExtremeFaultScenarios() {
+        FinalPromptMetricContractCatalog catalog = FinalPromptMetricContractCatalog.load(objectMapper);
+        return catalog.metricCodesInOrder().stream()
+                .flatMap(metricCode -> catalog.metric(metricCode).checks().stream())
+                .map(check -> new ExtremeFaultScenario(
+                        "canonical-" + check.metricCode() + "-" + check.checkName(),
+                        check.metricCode(),
+                        check.checkName(),
+                        contractValue(check.failureType(), "CONTRACT_SIGNAL_GAP"),
+                        "PURPOSE_FAILED",
+                        contractValue(check.source(), check.checkName()),
+                        contractValue(check.shortProblem(), check.checkName()),
+                        contractValue(check.remediationOwner(), "PROMPT_CONTEXT_ASSEMBLER"),
+                        contractValue(check.nextAction(), check.issueKey()),
+                        contractValue(check.issueKey(), check.checkName()),
+                        contractValue(check.reverifyCriterion(), "REVERIFY_SAME_CONTRACT")))
+                .toList();
+    }
+
+    private static String contractValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private FaultedPackage faultFor(
@@ -418,7 +484,16 @@ class PromptGovernanceExtremeProductionPromptTest {
             case "CCSR" -> userPrompt = applyConsistencyFault(userPrompt, scenario.checkCode());
             case "CCR" -> userPrompt = applyCcrFault(userPrompt, scenario.checkCode(), check);
             case "PFR" -> {
-                if ("SYSTEM_OUTPUT_CONTRACT_DECIDABLE".equals(scenario.checkCode())) {
+                if ("USER_PROMPT_HAS_DECISION_CONTEXT".equals(scenario.checkCode())) {
+                    String originalUserPrompt = userPrompt;
+                    userPrompt = userPrompt.replace(
+                            "AuthorizationEffect: ALLOW",
+                            "AuthorizationEffect: MISSING");
+                    assertThat(userPrompt)
+                            .as("PFR decision-context fault must change the rendered authorization effect")
+                            .isNotEqualTo(originalUserPrompt);
+                }
+                else if ("SYSTEM_OUTPUT_CONTRACT_DECIDABLE".equals(scenario.checkCode())) {
                     systemPrompt = "You are a security model. Explain briefly.";
                     return new FaultedPackage(harness.packageFor(systemPrompt, userPrompt, ragJson));
                 }
@@ -675,11 +750,11 @@ class PromptGovernanceExtremeProductionPromptTest {
     private String applyPreFault(String userPrompt, String checkCode) {
         return switch (checkCode) {
             case "AUTHORIZATION_AND_ACTION_BOUNDARY_PRESENT" ->
-                    removeFieldLines(userPrompt, List.of("AuthorizationEffect", "ActionFamily", "CurrentActionFamily"));
+                    userPrompt.replace("AuthorizationEffect: ALLOW", "AuthorizationEffect: MISSING");
             case "PROTECTABLE_TARGET_DECIDABLE" ->
-                    removeFieldLines(userPrompt, List.of("ResourceId", "Resource ID", "RequestPath", "Path"));
+                    userPrompt.replace("ResourceId: resource-001", "ResourceId: MISSING");
             case "RESOURCE_RISK_LABEL_DECIDABLE" ->
-                    removeFieldLines(userPrompt, List.of("Sensitivity", "SensitiveResource"));
+                    userPrompt.replace("Sensitivity: HIGH", "Sensitivity: MISSING");
             case "RESOURCE_TEMPLATE_NOT_USED_AS_ACTUAL" ->
                     appendLineToSection(
                             removeFieldLines(userPrompt, List.of("ResourceId", "Resource ID", "RequestPath", "Path")),

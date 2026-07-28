@@ -6,16 +6,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OfficialVerificationOperatorSnapshotServiceTest {
@@ -44,7 +47,7 @@ class OfficialVerificationOperatorSnapshotServiceTest {
     }
 
     @Test
-    void replaceDiagnosticsForQualityTargetDoesNotDeleteCoreOfficialRunLedger() {
+    void replaceDiagnosticsForQualityTargetPreservesAllExistingOfficialRunHistory() {
         OfficialVerificationOperatorSnapshotService service =
                 new OfficialVerificationOperatorSnapshotService(jdbcTemplate, new ObjectMapper());
 
@@ -56,31 +59,52 @@ class OfficialVerificationOperatorSnapshotServiceTest {
                 "GET"))
                 .isEmpty();
 
-        verify(jdbcTemplate, atLeastOnce()).update(
-                contains("delete from official_verification_metric_execution_ledger"),
-                eq(PACKAGE_ID),
-                eq(TENANT_ID));
-        verify(jdbcTemplate, atLeastOnce()).update(
-                contains("delete from official_verification_run_batch"),
-                eq(PACKAGE_ID),
-                eq(TENANT_ID));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_run_round_ledger where run_id = ?"),
-                any(Object[].class));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_run_check_ledger where run_id = ?"),
-                any(Object[].class));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_run_fact_ledger where run_id = ?"),
-                any(Object[].class));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_run_event_ledger where run_id = ?"),
-                any(Object[].class));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_raw_evidence_artifact_ledger where run_id = ?"),
-                any(Object[].class));
-        verify(jdbcTemplate, never()).update(
-                contains("delete from verification_run_ledger where run_id = ?"),
-                any(Object[].class));
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void recordTransactionIsAppliedAtTheSpringManagedPublicBoundary() {
+        Method publicRecord = Arrays.stream(OfficialVerificationOperatorSnapshotService.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("record"))
+                .findFirst()
+                .orElseThrow();
+        Method internalRecord = Arrays.stream(OfficialVerificationSnapshotRecordingService.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("record"))
+                .findFirst()
+                .orElseThrow();
+
+        Transactional transactional = publicRecord.getAnnotation(Transactional.class);
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.transactionManager()).isEqualTo("contexaTransactionManager");
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
+        assertThat(internalRecord.getAnnotation(Transactional.class)).isNull();
+    }
+
+    @Test
+    void publishedSnapshotQueryRejectsIncompleteOrFailedExecution() {
+        OfficialVerificationSnapshotRepository batchRepository = mock(OfficialVerificationSnapshotRepository.class);
+        OfficialVerificationSnapshotReadModel readModel = mock(OfficialVerificationSnapshotReadModel.class);
+        OfficialVerificationSnapshotAssembler assembler = mock(OfficialVerificationSnapshotAssembler.class);
+        OfficialVerificationSnapshotCompletionRepository completion =
+                mock(OfficialVerificationSnapshotCompletionRepository.class);
+        OfficialVerificationSnapshotIntegrityRepositories integrity =
+                new OfficialVerificationSnapshotIntegrityRepositories(
+                        completion,
+                        mock(OfficialVerificationSnapshotRelationIntegrityRepository.class),
+                        mock(OfficialVerificationCustomerPurposeIntegrityRepository.class),
+                        mock(OfficialVerificationCustomerDisplayIntegrityRepository.class),
+                        mock(OfficialVerificationContractLinkIntegrityRepository.class));
+        OfficialVerificationSnapshotQueryService queryService = new OfficialVerificationSnapshotQueryService(
+                batchRepository, readModel, assembler, "catalog-v1", integrity);
+        OfficialVerificationOperatorSnapshotService.OperatorRunBatch batch =
+                mock(OfficialVerificationOperatorSnapshotService.OperatorRunBatch.class);
+        when(batch.aggregateRunId()).thenReturn("agg-failed");
+        when(batchRepository.findCurrentBatch("pkg-001", "agg-failed", "catalog-v1"))
+                .thenReturn(Optional.of(batch));
+        when(completion.publishableSnapshotExists("agg-failed")).thenReturn(false);
+
+        assertThat(queryService.findPublished("pkg-001", "agg-failed").available()).isFalse();
+        verify(completion).publishableSnapshotExists("agg-failed");
+        verifyNoInteractions(readModel, assembler);
     }
 }

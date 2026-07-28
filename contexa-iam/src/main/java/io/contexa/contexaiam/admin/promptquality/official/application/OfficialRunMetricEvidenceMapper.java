@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.official.application;
 
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricCheckContract;
 import io.contexa.contexaiam.admin.promptquality.official.application.OfficialVerificationOperatorSnapshotService.OperatorMetricSnapshot;
@@ -94,10 +95,7 @@ final class OfficialRunMetricEvidenceMapper {
         List<OfficialRunCheckDetail> result = new ArrayList<>();
         for (int i = 0; i < source.size(); i++) {
             OfficialVerificationCheckResultView check = source.get(i);
-            if (check == null || !check.customerVisible()
-                    || "INTERNAL_REFERENCE".equals(normalize(check.readinessScope()))
-                    || "NOT_APPLICABLE".equals(normalize(check.readinessScope()))
-                    || "NOT_APPLICABLE".equals(normalize(check.purposeResult()))) {
+            if (check == null) {
                 continue;
             }
             result.add(checkDetail(i + 1, run.endpointKey(), check));
@@ -153,10 +151,11 @@ final class OfficialRunMetricEvidenceMapper {
             String metricCode,
             OfficialVerificationCheckResultView check) {
         String evidenceSource = StringUtils.hasText(check.source()) ? check.source().trim() : "MISSING_SOURCE";
+        OfficialVerificationCheckState evaluationState = check.evaluationState();
         FinalPromptMetricCheckContract contract = metricContractView.metricCheckContract(metricCode, check.checkCode());
         String label = firstNonBlank(contract == null ? null : contract.qualityQuestion(), check.label());
         String expected = firstNonBlank(contract == null ? null : contract.expectedMessage(), check.expectedValue());
-        String actual = check.pass()
+        String actual = evaluationState == OfficialVerificationCheckState.PASS
                 ? firstNonBlank(contract == null ? null : contract.passMessage(), check.actualValue())
                 : firstNonBlank(check.actualValue(), contract == null ? null : contract.failureMessage());
         String nextAction = firstNonBlank(contract == null ? null : contract.nextAction(), check.nextAction());
@@ -166,14 +165,16 @@ final class OfficialRunMetricEvidenceMapper {
                 sequence, check.checkCode(), label,
                 OfficialRunDetailValueSanitizer.detailCheckText(expected),
                 OfficialRunDetailValueSanitizer.detailCheckText(actual),
-                check.pass(), evidenceSource, check.severity(),
+                evaluationState == OfficialVerificationCheckState.PASS, evidenceSource, check.severity(),
                 firstNonBlank(contract == null ? null : contract.failureType(), check.failureType()),
                 firstNonBlank(contract == null ? null : contract.remediationOwner(), check.remediationOwner()),
                 OfficialRunDetailValueSanitizer.detailCheckText(firstNonBlank(check.operatorReason(), actual)),
                 nextAction, presentation.sourceMeaning(evidenceSource),
                 firstNonBlank(nextAction, presentation.remediationHint(label, evidenceSource)),
                 firstNonBlank(reverify, presentation.reverifyCriterion(label)),
-                check.decisionUtility(), OfficialRunDetailValueSanitizer.detailCheckText(whyItMatters));
+                check.decisionUtility(), OfficialRunDetailValueSanitizer.detailCheckText(whyItMatters),
+                evaluationState, check.customerVisible(), true,
+                check.readinessScope(), check.purposeResult());
     }
 
     private boolean visiblePurposeCheck(
@@ -188,7 +189,8 @@ final class OfficialRunMetricEvidenceMapper {
         if (matched.isEmpty()) {
             return true;
         }
-        return matched.stream().anyMatch(OfficialMetricPurposeEvidence::customerVisible)
+        return matched.stream().anyMatch(evidence -> evidence.customerVisible()
+                        || "LLM_DECISION_QUALITY".equals(normalize(evidence.readinessScope())))
                 && matched.stream().noneMatch(evidence ->
                 "INTERNAL_REFERENCE".equals(normalize(evidence.readinessScope()))
                         || "NOT_APPLICABLE".equals(normalize(evidence.readinessScope()))
@@ -197,6 +199,11 @@ final class OfficialRunMetricEvidenceMapper {
 
     private OfficialRunCheckDetail purposeEvidenceCheck(int sequence, OfficialMetricPurposeEvidence evidence) {
         boolean passed = purposeEvidencePassed(evidence.purposeResult());
+        OfficialVerificationCheckState evaluationState = OfficialVerificationCheckState.resolve(
+                "NOT_APPLICABLE".equals(normalize(evidence.purposeResult()))
+                        ? "NOT_APPLICABLE" : "READY",
+                evidence.purposeResult(),
+                passed);
         FinalPromptMetricCheckContract contract = metricContractView.metricCheckContract(
                 evidence.metricCode(), evidence.checkCode());
         String label = firstNonBlank(
@@ -211,7 +218,7 @@ final class OfficialRunMetricEvidenceMapper {
                 sequence, evidence.checkCode(), label,
                 OfficialRunDetailValueSanitizer.detailCheckText(expected),
                 OfficialRunDetailValueSanitizer.detailCheckText(actual),
-                passed, source,
+                evaluationState == OfficialVerificationCheckState.PASS, source,
                 firstNonBlank(contract == null ? null : contract.severity(), passed ? "INFO" : "BLOCKING"),
                 firstNonBlank(contract == null ? null : contract.failureType(), passed ? "" : "OFFICIAL_CHECK_FAILED"),
                 firstNonBlank(contract == null ? null : contract.remediationOwner(), evidence.readinessScope(), "PQA_RUNTIME"),
@@ -221,7 +228,9 @@ final class OfficialRunMetricEvidenceMapper {
                 firstNonBlank(contract == null ? null : contract.reverifyCriterion(), ""), "",
                 OfficialRunDetailValueSanitizer.detailCheckText(firstNonBlank(
                         contract == null ? null : contract.whyItMatters(),
-                        evidence.interpretation(), evidence.evidenceValue())));
+                        evidence.interpretation(), evidence.evidenceValue())),
+                evaluationState, evidence.customerVisible(), true,
+                evidence.readinessScope(), evidence.purposeResult());
     }
 
     private void putIfText(Map<String, String> target, String key, String value) {

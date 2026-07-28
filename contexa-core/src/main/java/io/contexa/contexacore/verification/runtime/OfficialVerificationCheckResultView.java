@@ -1,5 +1,7 @@
 package io.contexa.contexacore.verification.runtime;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public interface OfficialVerificationCheckResultView {
 
     default String checkCode() {
@@ -63,6 +65,11 @@ public interface OfficialVerificationCheckResultView {
 
     default String purposeResult() {
         return pass() ? "PASSED" : "FAILED";
+    }
+
+    @JsonProperty("evaluationState")
+    default OfficialVerificationCheckState evaluationState() {
+        return OfficialVerificationCheckState.resolve(inputReadinessState(), purposeResult(), pass());
     }
 
     default String detectedSignalsJson() {

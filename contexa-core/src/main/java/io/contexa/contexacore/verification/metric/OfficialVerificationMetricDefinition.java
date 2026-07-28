@@ -14,10 +14,6 @@ public record OfficialVerificationMetricDefinition(
         return "LLM_DECISION".equals(category);
     }
 
-    public boolean decisionGateMetric() {
-        return "LLM_DECISION_GATE".equals(category);
-    }
-
     public boolean contextMetric() {
         return "IMPLEMENTATION_ALIGNMENT".equals(category)
                 || "RAG_AND_BASELINE".equals(category)

@@ -20,6 +20,7 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.springframework.context.support.ResourceBundleMessageSource;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -95,11 +96,15 @@ class OfficialVerificationGateFailureMatrixTest {
     }
 
     @Test
-    void scorecardBelowNinetyFivePercentIsIneligible() {
+    void legacyScorecardDoesNotDuplicateTheTwelveOfficialPromptMetrics() {
         ScorecardResult scorecard = new ScorecardResult("scorecard", 20, 18, 90.0d, List.of());
 
-        assertIneligible(evaluate(policy, validPackage(), true, scorecard, passingReplay("prompt-hash"), passingMetrics()),
-                passedConsistency(), OfficialVerificationGateCode.PROMPT_SCORECARD);
+        RuntimeEvidenceGateResult result = evaluate(
+                policy, validPackage(), true, scorecard, passingReplay("prompt-hash"), passingMetrics());
+
+        assertThat(verdict(result, passedConsistency()).eligible()).isTrue();
+        assertThat(result.checks())
+                .noneMatch(check -> check.gateCode() == OfficialVerificationGateCode.PROMPT_SCORECARD);
     }
 
     @Test
@@ -183,6 +188,25 @@ class OfficialVerificationGateFailureMatrixTest {
         RuntimeEvidenceGateResult failedResult = evaluate(
                 policy, validPackage(), true, passingScorecard(), passingReplay("prompt-hash"), failed);
         assertIneligible(failedResult, passedConsistency(), OfficialVerificationGateCode.METRIC_RESULTS);
+    }
+
+    @Test
+    void decisionQualityMetricsDoNotChangeTheTwelvePromptMetricGate() {
+        List<OfficialVerificationRunView> combined = new ArrayList<>(passingMetrics());
+        combined.add(new StubRunView("D01", "SUCCESS"));
+        combined.add(new StubRunView("D02", "NOT_APPLICABLE"));
+        combined.add(new StubRunView("D03", "SUCCESS"));
+        combined.add(new StubRunView("D04", "SUCCESS"));
+        combined.add(new StubRunView("D05", "SUCCESS"));
+
+        RuntimeEvidenceGateResult result = evaluate(
+                policy, validPackage(), true, passingScorecard(), passingReplay("prompt-hash"), combined);
+
+        assertThat(verdict(result, passedConsistency()).eligible()).isTrue();
+        assertThat(result.checks()).filteredOn(check ->
+                        check.gateCode() == OfficialVerificationGateCode.REQUIRED_METRICS)
+                .singleElement()
+                .satisfies(check -> assertThat(check.actualValue()).isEqualTo("12"));
     }
 
     @Test

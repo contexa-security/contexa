@@ -15,7 +15,9 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.metric.OfficialVerificationDefinitionCatalog;
+import io.contexa.contexacore.verification.runtime.prompt.FinalPromptMetricContractCatalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -233,16 +235,25 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("IAM owns the versioned 12 metric and 26 check definition catalog")
+    @DisplayName("IAM derives the versioned 12 metric and 66 check definition view from the canonical contract")
     void pqaOfficialDefinitionCatalogIsVersionedAndKeyBacked() {
+        FinalPromptMetricContractCatalog canonical = FinalPromptMetricContractCatalog.load(new ObjectMapper());
         assertThat(OfficialVerificationDefinitionCatalog.metrics()).hasSize(12);
-        assertThat(OfficialVerificationDefinitionCatalog.checks()).hasSize(26);
+        assertThat(OfficialVerificationDefinitionCatalog.checks()).hasSize(66);
+        assertThat(OfficialVerificationDefinitionCatalog.VERSION).isEqualTo(canonical.contractVersion());
         assertThat(OfficialVerificationDefinitionCatalog.metrics())
                 .extracting(OfficialVerificationDefinitionCatalog.MetricSeed::code)
-                .doesNotHaveDuplicates();
+                .containsExactlyElementsOf(canonical.metricCodesInOrder());
         assertThat(OfficialVerificationDefinitionCatalog.checks())
                 .extracting(check -> check.metricCode() + "|" + check.checkCode())
-                .doesNotHaveDuplicates();
+                .containsExactlyElementsOf(canonical.metrics().stream()
+                        .flatMap(metric -> metric.checks().stream())
+                        .map(check -> check.metricCode() + "|" + check.checkName())
+                        .toList());
+        assertThat(OfficialVerificationDefinitionCatalog.metrics())
+                .extracting(OfficialVerificationDefinitionCatalog.MetricSeed::code)
+                .contains("COR")
+                .doesNotContain("CoR");
         assertThat(OfficialVerificationDefinitionCatalog.checksum()).matches("[a-f0-9]{64}");
     }
 

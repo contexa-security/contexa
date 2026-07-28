@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.metric.OfficialMetricEvaluationResult;
 import io.contexa.contexacore.verification.metric.OfficialMetricCheckObservation;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class FinalPromptMetricEvaluationSuiteTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void evaluatorExceptionPropagatesInsteadOfBecomingARegularMetricFailure() {
+        OfficialVerificationMessageResolver delegate = PromptGovernanceExtremeTestHarness.messages();
+        OfficialVerificationMessageResolver failingResolver = (key, args) -> {
+            if (key.startsWith("verification.finalPrompt.")) {
+                throw new IllegalStateException("fixture metric evaluator failure");
+            }
+            return delegate.resolve(key, args);
+        };
+        SealedEvidencePackage evidencePackage = packageFor(
+                outputContractSystemPrompt(), validFinalUserPrompt());
+
+        assertThatThrownBy(() -> new FinalPromptMetricEvaluationSuite(objectMapper, failingResolver)
+                .evaluatePromptQuality(evidencePackage))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("fixture metric evaluator failure");
+    }
 
     @Test
     void metricContractsExposeOnlyRealPromptLocationsForCustomerVisibleIssues() {
@@ -265,6 +284,21 @@ class FinalPromptMetricEvaluationSuiteTest {
 
         Map<String, OfficialMetricEvaluationResult> results =
                 new FinalPromptMetricEvaluationSuite(objectMapper, PromptGovernanceExtremeTestHarness.messages()).evaluatePromptQuality(evidencePackage);
+
+        FinalPromptMetricContractCatalog catalog = FinalPromptMetricContractCatalog.load(objectMapper);
+        Map<String, Boolean> expectedCustomerVisibility = new LinkedHashMap<>();
+        for (String metricCode : catalog.metricCodesInOrder()) {
+            for (FinalPromptMetricCheckContract check : catalog.metric(metricCode).checks()) {
+                expectedCustomerVisibility.put(
+                        metricCode + "_" + check.checkName(),
+                        check.customerVisible());
+            }
+        }
+        results.values().stream()
+                .flatMap(result -> result.checks().stream())
+                .forEach(check -> assertThat(check.customerVisible())
+                        .as(check.checkCode() + " must preserve canonical customerVisible")
+                        .isEqualTo(expectedCustomerVisibility.get(check.checkCode())));
 
         assertThat(results.get("EIR").checks())
                 .allSatisfy(check -> {
@@ -1088,7 +1122,7 @@ class FinalPromptMetricEvaluationSuiteTest {
                 .hasSize(5)
                 .allSatisfy(check -> {
                     assertThat(check.passed()).isTrue();
-                    assertThat(check.customerVisible()).isFalse();
+                    assertThat(check.customerVisible()).isTrue();
                     assertThat(check.readinessScope()).isEqualTo("INTERNAL_REFERENCE");
                     assertThat(check.inputReadinessState()).isEqualTo("NOT_APPLICABLE");
                     assertThat(check.purposeResult()).isEqualTo("NOT_APPLICABLE");
@@ -1119,7 +1153,7 @@ class FinalPromptMetricEvaluationSuiteTest {
                 .hasSize(5)
                 .allSatisfy(check -> {
                     assertThat(check.passed()).isTrue();
-                    assertThat(check.customerVisible()).isFalse();
+                    assertThat(check.customerVisible()).isTrue();
                     assertThat(check.readinessScope()).isEqualTo("INTERNAL_REFERENCE");
                     assertThat(check.inputReadinessState()).isEqualTo("NOT_APPLICABLE");
                     assertThat(check.purposeResult()).isEqualTo("NOT_APPLICABLE");

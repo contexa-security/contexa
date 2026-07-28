@@ -65,6 +65,10 @@ final class OfficialMetricPurposeNarrative {
         if (contract != null && StringUtils.hasText(contract.expectedMessage())) {
             return evidenceValidator.requireText(contract.expectedMessage(), check, "purpose.expected_value");
         }
+        if (decisionQualityCheck(check)) {
+            return evidenceValidator.requireText(
+                    firstNonBlank(check.label(), check.expectedValue()), check, "purpose.expected_value");
+        }
         if (check == null || !StringUtils.hasText(check.purposeVersion())) {
             return legacyExpectedValue(check);
         }
@@ -81,6 +85,11 @@ final class OfficialMetricPurposeNarrative {
         }
         if (contract != null && StringUtils.hasText(contract.whyItMatters())) {
             return evidenceValidator.requireText(contract.whyItMatters(), check, "purpose.decision_utility");
+        }
+        if (decisionQualityCheck(check)) {
+            return evidenceValidator.requireText(
+                    firstNonBlank(utility, check.whyItMatters(), check.operatorReason(), check.label()),
+                    check, "purpose.decision_utility");
         }
         if (check == null || !StringUtils.hasText(check.purposeVersion())) {
             String legacy = firstNonBlank(
@@ -260,6 +269,12 @@ final class OfficialMetricPurposeNarrative {
             }
         }
         return text;
+    }
+
+    private boolean decisionQualityCheck(RuntimeEvidenceCheckResult check) {
+        return check != null
+                && check.customerVisible()
+                && "LLM_DECISION_QUALITY".equalsIgnoreCase(check.readinessScope());
     }
 
     private IllegalStateException contractError(String message, RuntimeEvidenceCheckResult check) {

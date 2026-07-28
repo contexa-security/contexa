@@ -15,9 +15,14 @@ import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceR
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceReverifyResult;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRequest;
 import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceVerificationRun;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,11 +34,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification")
 public class PromptQualityOfficialVerificationRunApiController {
 
+    private static final Logger log = LoggerFactory.getLogger(PromptQualityOfficialVerificationRunApiController.class);
     private final PromptQualityRuntimeVerificationService verificationService;
     private final PromptQualityOfficialRunDetailService runDetailService;
     private final PromptQualityOfficialConsoleViewAssembler views;
@@ -124,8 +131,10 @@ public class PromptQualityOfficialVerificationRunApiController {
     }
 
     @GetMapping("/runtime-runs/package/{packageId}/execution-status")
-    public OfficialVerificationExecutionStatus packageExecutionStatus(@PathVariable String packageId) {
-        return verificationService.executionStatus(packageId);
+    public OfficialVerificationExecutionStatus packageExecutionStatus(
+            @PathVariable String packageId,
+            @RequestParam(required = false) String aggregateRunId) {
+        return verificationService.executionStatus(packageId, aggregateRunId);
     }
 
     @GetMapping("/runtime-runs/{runId}")
@@ -136,6 +145,13 @@ public class PromptQualityOfficialVerificationRunApiController {
     @GetMapping("/runs/{runId}/metric-detail")
     public OfficialVerificationMetricTrace officialMetricTrace(@PathVariable String runId) {
         return runDetailService.findRunDetail(runId);
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<ProblemDetail> officialRunNotFound(NoSuchElementException exception) {
+        log.warn("[PQA-OFFICIAL-NOT-FOUND] {}", exception.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     @GetMapping("/packages/{packageId}/prompt-comparison")

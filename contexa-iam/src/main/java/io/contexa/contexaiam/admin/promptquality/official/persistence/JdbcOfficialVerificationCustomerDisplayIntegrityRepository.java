@@ -29,7 +29,9 @@ public final class JdbcOfficialVerificationCustomerDisplayIntegrityRepository
         int expected = count("""
                 select coalesce(sum(case when purpose_result = 'PURPOSE_FAILED' then 5 else 3 end), 0)
                   from official_metric_purpose_evaluation_ledger
-                 where aggregate_run_id = ? and customer_visible = true
+                 where aggregate_run_id = ?
+                   and customer_visible = true
+                   and purpose_result <> 'INPUT_NOT_READY'
                 """, aggregateRunId);
         int actual = count("""
                 select count(*) from official_metric_customer_display_payload where aggregate_run_id = ?

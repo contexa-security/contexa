@@ -15,4 +15,8 @@ public interface PromptQualityRuntimeVerificationService {
     default OfficialVerificationExecutionStatus executionStatus(String packageId) {
         return OfficialVerificationExecutionStatus.empty(packageId);
     }
+
+    default OfficialVerificationExecutionStatus executionStatus(String packageId, String aggregateRunId) {
+        return executionStatus(packageId);
+    }
 }

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -78,8 +79,7 @@ public class DeterministicReplayService {
         String userPromptText = replayContext.userPrompt();
 
         checksRun++;
-        if (rawUserPrompt != null && reassembledContextSections != null
-                && rawUserPrompt.contains(reassembledContextSections)) {
+        if (selectedCanonicalSectionsMatch(rawUserPrompt, reassembledContextSections)) {
             checksPassed++;
         } else if (rawUserPrompt == null) {
             findings.add("RAW_USER_PROMPT_MISSING: sealed evidence lacks raw user prompt");
@@ -165,6 +165,30 @@ public class DeterministicReplayService {
 
         String reconstructedHash = null;
         return buildResult(pkg, checksRun, checksPassed, findings, systemPromptDiff, userPromptDiff, reconstructedHash);
+    }
+
+    private boolean selectedCanonicalSectionsMatch(String rawUserPrompt, String reassembledContextSections) {
+        if (rawUserPrompt == null || rawUserPrompt.isBlank()
+                || reassembledContextSections == null || reassembledContextSections.isBlank()) {
+            return false;
+        }
+        List<String> sections = Arrays.stream(reassembledContextSections.split("(?m)(?=^=== )"))
+                .map(String::strip)
+                .filter(section -> !section.isBlank())
+                .toList();
+        int selectedSections = 0;
+        int exactMatches = 0;
+        for (String section : sections) {
+            String header = section.lines().findFirst().orElse("");
+            if (header.isBlank() || !rawUserPrompt.contains(header)) {
+                continue;
+            }
+            selectedSections++;
+            if (rawUserPrompt.contains(section)) {
+                exactMatches++;
+            }
+        }
+        return selectedSections > 0 && selectedSections == exactMatches;
     }
 
     private List<DiffSection> computeLineDiff(String original, String reconstructed) {

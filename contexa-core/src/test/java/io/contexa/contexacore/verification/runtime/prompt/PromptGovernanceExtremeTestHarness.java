@@ -6,6 +6,9 @@ import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvalua
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRule;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlan;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlanProvider;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -73,13 +76,16 @@ final class PromptGovernanceExtremeTestHarness {
         PromptRuntimeGovernanceRuleProvider provider = rules == null || rules.isEmpty()
                 ? PromptRuntimeGovernanceRuleProvider.none()
                 : context -> rules;
+        PromptContextComposer promptContextComposer = rules == null || rules.isEmpty()
+                ? new PromptContextComposer()
+                : new PromptContextComposer(new PromptSlotRenderer(), businessLabelSlotPlanProvider());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties(),
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
-                new PromptContextComposer(),
+                promptContextComposer,
                 null,
                 provider);
 
@@ -146,6 +152,31 @@ final class PromptGovernanceExtremeTestHarness {
         event.addMetadata("sessionProtectableSequence", List.of("/admin/api/security-test/sensitive/resource-001"));
 
         return buildPrompt(template, event);
+    }
+
+    private PromptSlotPlanProvider businessLabelSlotPlanProvider() {
+        PromptSlotPlan businessLabelPlan = new PromptSlotPlan(
+                "BusinessLabel",
+                "RESOURCE_AND_ACTION",
+                "BusinessLabel",
+                "resource.businessLabel",
+                "PromptContextComposer",
+                "P1_HIGH_VALUE",
+                "PROTECT");
+        return new PromptSlotPlanProvider() {
+            @Override
+            public PromptSlotPlan planFor(String sectionKey, String labelKey) {
+                return PromptSlotPlan.unscoped(sectionKey, labelKey);
+            }
+
+            @Override
+            public List<PromptSlotPlan> plansForSlotKey(String promptKey, String slotKey) {
+                return "cortex.security-decision".equals(promptKey)
+                        && businessLabelPlan.slotKey().equals(slotKey)
+                        ? List.of(businessLabelPlan)
+                        : List.of();
+            }
+        };
     }
 
     String appendConflictingResourceSection(String userPrompt) {

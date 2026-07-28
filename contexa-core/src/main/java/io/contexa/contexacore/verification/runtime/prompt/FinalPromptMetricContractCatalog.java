@@ -225,6 +225,10 @@ public final class FinalPromptMetricContractCatalog {
         return metrics.stream().map(metric -> normalize(metric.metricCode())).toList();
     }
 
+    public List<FinalPromptMetricContract> metrics() {
+        return metrics;
+    }
+
     public String contractVersion() {
         String version = null;
         for (FinalPromptMetricContract metric : metrics) {
@@ -339,6 +343,16 @@ public final class FinalPromptMetricContractCatalog {
     private static void validateMetricPurposeContract(FinalPromptMetricContract metric, String metricCode) {
         if (!StringUtils.hasText(metric.version())) {
             throw new IllegalStateException("Final prompt metric contract version is required: " + metricCode);
+        }
+        if (!StringUtils.hasText(metric.metricName())) {
+            throw new IllegalStateException("Final prompt metric contract metricName is required: " + metricCode);
+        }
+        if (!StringUtils.hasText(metric.metricGroup())) {
+            throw new IllegalStateException("Final prompt metric contract metricGroup is required: " + metricCode);
+        }
+        if (metric.benchmarkSuccessThreshold() <= 0.0d || metric.benchmarkSuccessThreshold() > 100.0d) {
+            throw new IllegalStateException("Final prompt metric contract benchmarkSuccessThreshold is invalid: "
+                    + metricCode + ", threshold=" + metric.benchmarkSuccessThreshold());
         }
         if (!StringUtils.hasText(metric.purpose())) {
             throw new IllegalStateException("Final prompt metric contract purpose is required: " + metricCode);

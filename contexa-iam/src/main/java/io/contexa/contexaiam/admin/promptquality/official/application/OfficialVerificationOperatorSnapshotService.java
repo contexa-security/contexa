@@ -301,10 +301,10 @@ public class OfficialVerificationOperatorSnapshotService {
         if (!StringUtils.hasText(tenantId)) {
             throw new IllegalArgumentException("tenantId is required for official verification diagnostic mutation.");
         }
-        snapshotCleanupRepository.deleteDiagnosticPackage(tenantId.trim(), currentPackageId.trim());
         return List.of();
     }
 
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRED)
     public void record(
             String aggregateRunId,
             SealedEvidencePackage evidencePackage,
@@ -323,7 +323,11 @@ public class OfficialVerificationOperatorSnapshotService {
                 promptHash, contextHash, certificateId, caseId, metrics, promptComparisons);
     }
     public OperatorSnapshot findLatest(String packageId, String aggregateRunId) {
-        return snapshotQueryService.findLatest(packageId, aggregateRunId);
+        return snapshotQueryService.findPublished(packageId, aggregateRunId);
+    }
+
+    public boolean executionRecordExists(String aggregateRunId) {
+        return snapshotQueryService.executionRecordExists(aggregateRunId);
     }
 
     public List<OfficialVerificationPromptComparison> promptComparisons(
@@ -359,7 +363,7 @@ public class OfficialVerificationOperatorSnapshotService {
     }
 
     public List<OperatorSnapshot> recentSnapshots(int limit) {
-        return snapshotQueryService.recentSnapshots(limit);
+        return snapshotQueryService.recentPublishedSnapshots(limit);
     }
 
     public List<OperatorReverificationResult> reverificationResults(

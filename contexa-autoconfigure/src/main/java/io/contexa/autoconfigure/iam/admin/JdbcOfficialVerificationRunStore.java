@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationEventItemView;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunRecord;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
@@ -216,21 +217,22 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
             if (check == null) {
                 continue;
             }
+            OfficialVerificationCheckState evaluationState = check.evaluationState();
             jdbcOperations.update("""
-                            insert into verification_run_check_ledger (
-                                run_id, round_no, sequence_no, label, expected_value, actual_value,
-                                pass, source, check_code, severity, failure_type, remediation_owner,
-                                operator_reason, next_action, reverify_criterion,
-                                customer_visible_severity, related_process_step, created_at
-                            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
-                            """,
+                        insert into verification_run_check_ledger (
+                            run_id, round_no, sequence_no, label, expected_value, actual_value,
+                            pass, source, check_code, severity, failure_type, remediation_owner,
+                            operator_reason, next_action, reverify_criterion,
+                            customer_visible_severity, related_process_step, evaluation_state, created_at
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
+                        """,
                     runId,
                     round,
                     index + 1,
                     fit(required(check.label(), "CHECK"), 255),
                     check.expectedValue(),
                     check.actualValue(),
-                    check.pass(),
+                evaluationState == OfficialVerificationCheckState.PASS,
                     fit(check.source(), 255),
                     fit(check.checkCode(), 128),
                     fit(check.severity(), 32),
@@ -239,8 +241,14 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                     check.operatorReason(),
                     check.nextAction(),
                     check.reverifyCriterion(),
-                    fit(check.pass() ? "PASS" : required(check.severity(), "BLOCKING"), 64),
-                    "OFFICIAL_VERIFICATION");
+                fit(switch (evaluationState) {
+                    case PASS -> "PASS";
+                    case FAIL -> required(check.severity(), "BLOCKING");
+                    case NOT_APPLICABLE -> "NOT_APPLICABLE";
+                    case NOT_EVALUATED -> "NOT_EVALUATED";
+                }, 64),
+                "OFFICIAL_VERIFICATION",
+                evaluationState.name());
         }
     }
 

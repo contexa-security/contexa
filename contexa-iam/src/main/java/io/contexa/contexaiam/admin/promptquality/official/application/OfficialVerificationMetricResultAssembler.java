@@ -3,6 +3,7 @@ package io.contexa.contexaiam.admin.promptquality.official.application;
 import io.contexa.contexacore.verification.metric.OfficialPromptQualityNarrativeCatalog;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricDefinition;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckResultView;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationCheckState;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunView;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.model.OfficialVerificationGateCode;
@@ -69,16 +70,21 @@ public final class OfficialVerificationMetricResultAssembler {
             List<OfficialVerificationPromptComparison> comparisons,
             String packageId) {
         List<RuntimeEvidenceCheckResult> checks = checks(metricCode, run, comparisons, packageId);
-        List<RuntimeEvidenceCheckResult> evaluated = checks.stream()
-                .filter(check -> !notApplicable(check))
-                .toList();
-        int total = evaluated.size();
-        int passed = (int) evaluated.stream().filter(RuntimeEvidenceCheckResult::pass).count();
+        int total = checks.size();
+        int passed = count(checks, OfficialVerificationCheckState.PASS);
+        int failed = count(checks, OfficialVerificationCheckState.FAIL);
+        int notApplicableCount = count(checks, OfficialVerificationCheckState.NOT_APPLICABLE);
+        int notEvaluatedCount = count(checks, OfficialVerificationCheckState.NOT_EVALUATED);
         boolean notApplicable = "not_applicable".equalsIgnoreCase(run == null ? null : run.state())
-                || (!checks.isEmpty() && checks.stream().allMatch(this::notApplicable));
-        boolean metricPassed = !notApplicable && passed == total;
-        String state = notApplicable ? "NOT_APPLICABLE" : metricPassed ? "SUCCESS" : "threshold_failed";
-        double score = total == 0 ? 100.0d : Math.round(((double) passed / total) * 1000.0d) / 10.0d;
+                || (total > 0 && notApplicableCount == total);
+        boolean notEvaluated = !notApplicable && notEvaluatedCount > 0;
+        boolean metricPassed = !notApplicable && !notEvaluated && failed == 0;
+        String state = notApplicable ? "NOT_APPLICABLE"
+                : notEvaluated ? "NOT_EVALUATED"
+                : metricPassed ? "SUCCESS" : "threshold_failed";
+        int evaluated = passed + failed;
+        double score = evaluated == 0 ? (notApplicable ? 100.0d : 0.0d)
+                : Math.round(((double) passed / evaluated) * 1000.0d) / 10.0d;
         return new RuntimeEvidenceMetricResult(
                 metricCode,
                 run == null ? null : run.runId(),
@@ -86,7 +92,7 @@ public final class OfficialVerificationMetricResultAssembler {
                 groupName(definition == null ? null : definition.category()),
                 score,
                 state,
-                stateLabel(notApplicable, metricPassed),
+                stateLabel(state),
                 passed,
                 total,
                 List.copyOf(checks));
@@ -291,17 +297,19 @@ public final class OfficialVerificationMetricResultAssembler {
         return (pass ? "apc-" : "app-") + UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8));
     }
 
-    private boolean notApplicable(RuntimeEvidenceCheckResult check) {
-        return check != null && "NOT_APPLICABLE".equalsIgnoreCase(check.purposeResult());
+    private int count(List<RuntimeEvidenceCheckResult> checks, OfficialVerificationCheckState state) {
+        return (int) checks.stream()
+                .filter(check -> check != null && check.evaluationState() == state)
+                .count();
     }
 
-    private String stateLabel(boolean notApplicable, boolean passed) {
-        if (notApplicable) {
-            return message("enterprise.pqa.runtimeVerification.metric.state.notApplicable");
-        }
-        return passed
-                ? message("enterprise.pqa.runtimeVerification.metric.state.passed")
-                : message("enterprise.pqa.runtimeVerification.metric.state.blocked");
+    private String stateLabel(String state) {
+        return switch (normalized(state)) {
+            case "NOT_APPLICABLE" -> message("enterprise.pqa.runtimeVerification.metric.state.notApplicable");
+            case "NOT_EVALUATED" -> message("enterprise.pqa.runtimeVerification.metric.state.notEvaluated");
+            case "SUCCESS" -> message("enterprise.pqa.runtimeVerification.metric.state.passed");
+            default -> message("enterprise.pqa.runtimeVerification.metric.state.blocked");
+        };
     }
 
     private String groupName(String category) {
@@ -309,7 +317,7 @@ public final class OfficialVerificationMetricResultAssembler {
             case "IMPLEMENTATION_ALIGNMENT" -> message("enterprise.pqa.runtimeVerification.metric.group.implementationAlignment");
             case "RAG_AND_BASELINE" -> message("enterprise.pqa.runtimeVerification.metric.group.ragAndBaseline");
             case "BEHAVIORAL_CONTEXT" -> message("enterprise.pqa.runtimeVerification.metric.group.behavioralContext");
-            case "LLM_DECISION", "LLM_DECISION_GATE" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision");
+            case "LLM_DECISION" -> message("enterprise.pqa.runtimeVerification.metric.group.llmDecision");
             case "RESOURCE_ELIGIBILITY" -> message("enterprise.pqa.runtimeVerification.metric.group.resourceEligibility");
             default -> message("enterprise.pqa.runtimeVerification.metric.group.other");
         };

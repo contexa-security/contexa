@@ -99,6 +99,17 @@ public final class OfficialVerificationExecutionLedger extends AbstractPromptQua
                 .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
     }
 
+    public OfficialVerificationExecutionStatus status(String packageId, String aggregateRunId) {
+        if (!StringUtils.hasText(packageId) || !StringUtils.hasText(aggregateRunId)) {
+            return status(packageId);
+        }
+        return evidencePreflight.findByPackageId(packageId.trim())
+                .filter(evidencePackage -> StringUtils.hasText(evidencePackage.getTenantId()))
+                .map(evidencePackage -> executionLockService.status(
+                        evidencePackage.getTenantId(), evidencePackage.getPackageId(), aggregateRunId.trim()))
+                .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
+    }
+
     public RuntimeEvidenceVerificationRun idempotentRun(
             OfficialVerificationExecutionLockService.ExecutionRecord record,
             OfficialVerificationEvidencePreflight.EvidenceContext evidence) {

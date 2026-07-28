@@ -2,6 +2,10 @@
   {
     "metricCode": "EIR",
     "version": "final-user-prompt.v1",
+    "metricName": "Event Integrity Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "현재 요청의 사용자, 인증, 권한, 리소스, 행위가 하나의 보안 사건으로 연결되는지 검증합니다.",
     "checks": [
       {
@@ -984,6 +988,10 @@
   {
     "metricCode": "CCR",
     "version": "final-user-prompt.v1",
+    "metricName": "Context Completeness Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM이 판단에 필요한 정보와 부족한 정보를 구분할 수 있는지 검증합니다.",
     "checks": [
       {
@@ -2127,6 +2135,10 @@
   {
     "metricCode": "CCSR",
     "version": "final-user-prompt.v1",
+    "metricName": "Context Consistency Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM 입력 안에서 같은 의미의 값이 서로 충돌하지 않는지 검증합니다.",
     "checks": [
       {
@@ -4880,6 +4892,10 @@
   {
     "metricCode": "PFR",
     "version": "final-user-prompt.v1",
+    "metricName": "Prompt Fidelity Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM 입력이 공격 탐지에 필요한 판단 재료를 빠짐없이 전달하는지 검증합니다.",
     "checks": [
       {
@@ -5866,6 +5882,10 @@
   {
     "metricCode": "MTR",
     "version": "final-user-prompt.v1",
+    "metricName": "Metadata Traceability Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM 입력 기록, 해시, 계약 버전이 추적 가능한지 검증합니다.",
     "checks": [
       {
@@ -6758,6 +6778,10 @@
   {
     "metricCode": "COR",
     "version": "final-user-prompt.v1",
+    "metricName": "Context Contamination Rate",
+    "metricGroup": "IMPLEMENTATION_ALIGNMENT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "RAG와 외부 문맥이 LLM 지시문이나 권한 밖 근거로 섞이지 않는지 검증합니다.",
     "checks": [
       {
@@ -8243,6 +8267,10 @@
   {
     "metricCode": "RAP",
     "version": "final-user-prompt.v1",
+    "metricName": "RAG Authorization Precision",
+    "metricGroup": "RAG_AND_BASELINE",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "RAG 근거가 권한 범위 안에서만 사용되고 LLM 입력에 안전하게 반영되는지 검증합니다.",
     "checks": [
       {
@@ -9542,6 +9570,10 @@
   {
     "metricCode": "RPI",
     "version": "final-user-prompt.v1",
+    "metricName": "Round Progression Integrity",
+    "metricGroup": "RAG_AND_BASELINE",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "재검증과 이전 라운드 정보가 현재 보안 판단을 오염시키지 않는지 검증합니다.",
     "checks": [
       {
@@ -10333,6 +10365,10 @@
   {
     "metricCode": "BMA",
     "version": "final-user-prompt.v1",
+    "metricName": "Baseline Maturity Accuracy",
+    "metricGroup": "RAG_AND_BASELINE",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM이 기준선의 신뢰 수준과 한계를 알고 판단할 수 있는지 검증합니다.",
     "checks": [
       {
@@ -11053,6 +11089,10 @@
   {
     "metricCode": "USNS",
     "version": "final-user-prompt.v1",
+    "metricName": "User-Specific Novelty Sensitivity",
+    "metricGroup": "BEHAVIORAL_CONTEXT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM이 사용자 기준선과 다른 미세한 변화 신호를 볼 수 있는지 검증합니다.",
     "checks": [
       {
@@ -11686,6 +11726,10 @@
   {
     "metricCode": "BSR",
     "version": "final-user-prompt.v1",
+    "metricName": "Behavioral Surprise Resolution",
+    "metricGroup": "BEHAVIORAL_CONTEXT",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 95.0,
     "purpose": "LLM이 세션 흐름과 행동 변화가 정상 예외인지 공격 징후인지 판단할 수 있는지 검증합니다.",
     "checks": [
       {
@@ -12627,6 +12671,10 @@
   {
     "metricCode": "PRE",
     "version": "final-user-prompt.v1",
+    "metricName": "Protectable Resource Eligibility",
+    "metricGroup": "RESOURCE_ELIGIBILITY",
+    "higherIsBetter": true,
+    "benchmarkSuccessThreshold": 100.0,
     "purpose": "검사 대상이 실제 보호 리소스이며 보증서 발급 대상인지 검증합니다.",
     "checks": [
       {

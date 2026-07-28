@@ -55,7 +55,11 @@ final class PromptQualityOfficialMetricViewAssembler {
         payload.put("expectedMetrics", expectedMetrics);
         payload.put("totalRunCount", runs.size());
         payload.put("passedRunCount", (int) runs.stream().filter(run -> passState(run.state())).count());
-        payload.put("failedRunCount", (int) runs.stream().filter(run -> !passState(run.state())).count());
+        int notApplicableRunCount = (int) runs.stream().filter(run -> notApplicableState(run.state())).count();
+        int notEvaluatedRunCount = (int) runs.stream().filter(run -> notEvaluatedState(run.state())).count();
+        payload.put("notApplicableRunCount", notApplicableRunCount);
+        payload.put("notEvaluatedRunCount", notEvaluatedRunCount);
+        payload.put("failedRunCount", (int) runs.stream().filter(run -> failedState(run.state())).count());
         payload.put("runs", runs);
         payload.put("failureCauses", detail.failureCauses().stream()
                 .filter(failure -> runs.stream().anyMatch(run ->
@@ -121,7 +125,7 @@ final class PromptQualityOfficialMetricViewAssembler {
         });
         option.put("totalRunCount", scopedRuns.size());
         option.put("passedRunCount", (int) scopedRuns.stream().filter(run -> passState(run.state())).count());
-        option.put("failedRunCount", (int) scopedRuns.stream().filter(run -> !passState(run.state())).count());
+        option.put("failedRunCount", (int) scopedRuns.stream().filter(run -> failedState(run.state())).count());
         option.put("endpoint", endpoint);
         return option;
     }
@@ -156,6 +160,22 @@ final class PromptQualityOfficialMetricViewAssembler {
     private boolean passState(String state) {
         String normalized = state == null ? "" : state.toUpperCase(Locale.ROOT);
         return normalized.equals("PASSED") || normalized.equals("PASS") || normalized.equals("SUCCESS");
+    }
+
+    private boolean notApplicableState(String state) {
+        String normalized = normalizeMetricCode(state);
+        return normalized.equals("NOT_APPLICABLE") || normalized.equals("NOT_APPLICABLE_METRIC");
+    }
+
+    private boolean notEvaluatedState(String state) {
+        String normalized = normalizeMetricCode(state);
+        return normalized.equals("NOT_EVALUATED")
+                || normalized.equals("NOT_EVALUATED_INPUT_INVALID")
+                || normalized.equals("NOT_EXECUTED");
+    }
+
+    private boolean failedState(String state) {
+        return !passState(state) && !notApplicableState(state) && !notEvaluatedState(state);
     }
 
     @FunctionalInterface

@@ -5,6 +5,10 @@ import java.util.List;
 public record FinalPromptMetricContract(
         String metricCode,
         String version,
+        String metricName,
+        String metricGroup,
+        boolean higherIsBetter,
+        double benchmarkSuccessThreshold,
         String purpose,
         String qualityQuestion,
         String metricRole,

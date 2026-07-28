@@ -56,21 +56,34 @@ public interface OfficialVerificationExecutionLockService {
 
     default OfficialVerificationExecutionStatus status(String tenantId, String packageId) {
         return findLatestByPackageId(tenantId, packageId)
-                .map(record -> new OfficialVerificationExecutionStatus(
-                        record.packageId(),
-                        record.aggregateRunId(),
-                        record.state(),
-                        record.progressPercent(),
-                        STATE_COMPLETED.equals(record.state()),
-                        record.failed(),
-                        record.recoverable(),
-                        record.failureReason(),
-                        record.retryInstruction(),
-                        record.revisionNo(),
-                        record.attemptNo(),
-                        record.failureStage(),
-                        metricStatuses(record)))
+                .map(this::status)
                 .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
+    }
+
+    default OfficialVerificationExecutionStatus status(
+            String tenantId,
+            String packageId,
+            String aggregateRunId) {
+        return findByAggregateRunId(tenantId, packageId, aggregateRunId)
+                .map(this::status)
+                .orElseGet(() -> OfficialVerificationExecutionStatus.empty(packageId));
+    }
+
+    private OfficialVerificationExecutionStatus status(ExecutionRecord record) {
+        return new OfficialVerificationExecutionStatus(
+                record.packageId(),
+                record.aggregateRunId(),
+                record.state(),
+                record.progressPercent(),
+                STATE_COMPLETED.equals(record.state()),
+                record.failed(),
+                record.recoverable(),
+                record.failureReason(),
+                record.retryInstruction(),
+                record.revisionNo(),
+                record.attemptNo(),
+                record.failureStage(),
+                metricStatuses(record));
     }
 
     default List<OfficialVerificationMetricExecutionStatus> metricStatuses(ExecutionRecord record) {

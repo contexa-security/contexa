@@ -44,6 +44,28 @@ public final class JdbcOfficialVerificationActualPromptProblemWriter
                 ),
                 ?
             )
+            on conflict (problem_id) do update set
+                package_id = excluded.package_id,
+                aggregate_run_id = excluded.aggregate_run_id,
+                field_key = excluded.field_key,
+                problem_type = excluded.problem_type,
+                prompt_section = excluded.prompt_section,
+                prompt_label = excluded.prompt_label,
+                prompt_value = excluded.prompt_value,
+                source_field_path = excluded.source_field_path,
+                sealed_evidence_path = excluded.sealed_evidence_path,
+                expected_state = excluded.expected_state,
+                actual_state = excluded.actual_state,
+                severity = excluded.severity,
+                affected_metric_codes = excluded.affected_metric_codes,
+                remediation_owner = excluded.remediation_owner,
+                quality_question = excluded.quality_question,
+                why_it_matters = excluded.why_it_matters,
+                fix_action = excluded.fix_action,
+                reverify_criterion_detail = excluded.reverify_criterion_detail,
+                purpose_evaluation_id = excluded.purpose_evaluation_id,
+                contract_version_id = excluded.contract_version_id,
+                created_at = excluded.created_at
             """;
 
     private final JdbcTemplate jdbcTemplate;
