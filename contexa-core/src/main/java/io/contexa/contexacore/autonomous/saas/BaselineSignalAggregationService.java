@@ -15,9 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.saas;
 
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.domain.entity.BaselineSignalOutboxRecord;
-import io.contexa.contexacore.hcad.store.BaselineDataStore;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.BaselineSignalOutboxRepository;
 import java.time.Clock;

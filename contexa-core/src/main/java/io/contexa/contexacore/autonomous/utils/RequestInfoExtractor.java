@@ -15,7 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacommon.hcad.official.OfficialContextRequestAttributes;
+import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes.Field;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageReport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -65,26 +67,11 @@ public final class RequestInfoExtractor {
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
                 castToText(officialContextFields.get("tenantId")),
-                authenticationStampAttribute(request, "tenantId", "tenant_id"),
-                extractAttributeText(request,
-                        "tenantId",
-                        "ctxa.auth.tenantId",
-                        "hcad.tenant_id",
-                        "hcad.tenantId"));
+                authenticationStampAttribute(request, "tenantId", "tenant_id"));
         String organizationId = firstNonBlankText(
                 castToText(officialContextFields.get("organizationId")),
                 castToText(officialContextFields.get("orgId")),
-                authenticationStampAttribute(request, "organizationId", "orgId"),
-                extractAttributeText(request,
-                        "organizationId",
-                        "ctxa.auth.organizationId",
-                        "hcad.organization_id",
-                        "hcad.organizationId"),
-                extractAttributeText(request,
-                        "orgId",
-                        "ctxa.auth.orgId",
-                        "hcad.org_id",
-                        "hcad.orgId"));
+                authenticationStampAttribute(request, "organizationId", "orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
                 runtimeOverrideHeadersAllowed,
@@ -131,26 +118,16 @@ public final class RequestInfoExtractor {
                 .runtimeDisableOllamaThinking(runtimeDisableOllamaThinking)
                 .simulatedUserAgentLabel(extractHeader(request, "X-Simulated-User-Agent-Label"))
                 .secure(request.isSecure())
-                .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
-                .isNewUser((Boolean) request.getAttribute("hcad.is_new_user"))
-                .isNewDevice((Boolean) request.getAttribute("hcad.is_new_device"))
-                .recentRequestCount((Integer) request.getAttribute("hcad.recent_request_count"))
-                .failedLoginAttempts(castToInteger(request.getAttribute("hcad.failed_login_attempts")))
-                .baselineConfidence(castToDouble(request.getAttribute("hcad.baseline_confidence")))
-                .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
-                .resourceSensitivity(extractAttributeText(request,
-                        "hcad.resource_sensitivity",
-                        "hcad.resourceSensitivity",
-                        "resourceSensitivity",
-                        "sensitivity"))
-                .resourceBusinessLabel(extractAttributeText(request,
-                        "hcad.resource_business_label",
-                        "hcad.resourceBusinessLabel",
-                        "resourceLabel",
-                        "businessLabel"))
-                .resourceId(extractAttributeText(request,
-                        "hcad.resource_id",
-                        "hcad.resourceId"))
+                .isNewSession(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_SESSION)))
+                .isNewUser(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_USER)))
+                .isNewDevice(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_DEVICE)))
+                .recentRequestCount(castToInteger(officialContextFields.get("recentRequestCount")))
+                .failedLoginAttempts(castToInteger(officialContextFields.get("failedLoginAttempts")))
+                .baselineConfidence(castToDouble(RequestSecurityContextAttributes.read(request, Field.BASELINE_CONFIDENCE)))
+                .isSensitiveResource(castToBoolean(RequestSecurityContextAttributes.read(request, Field.SENSITIVE_RESOURCE)))
+                .resourceSensitivity(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_SENSITIVITY)))
+                .resourceBusinessLabel(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_BUSINESS_LABEL)))
+                .resourceId(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_ID)))
                 .currentResourceFamily(extractAttributeText(request,
                         "currentResourceFamily",
                         "current_resource_family"))
@@ -193,24 +170,17 @@ public final class RequestInfoExtractor {
                 .tenantId(tenantId)
                 .organizationId(organizationId)
                 .mfaVerified(castToBoolean(officialContextFields.get("mfaVerified")))
-                .previousPath(extractAttributeText(request,
-                        "hcad.previous_path",
-                        "hcad.previousPath",
-                        "previousPath"))
-                .lastRequestIntervalMs(castToLong(
-                        firstNonNullAttribute(request,
-                                "hcad.last_request_interval_ms",
-                                "hcad.lastRequestIntervalMs",
-                                "lastRequestIntervalMs")))
-                .userRoles((String) request.getAttribute("hcad.user_roles"))
+                .previousPath(castToText(RequestSecurityContextAttributes.read(request, Field.PREVIOUS_PATH)))
+                .lastRequestIntervalMs(castToLong(RequestSecurityContextAttributes.read(request, Field.LAST_REQUEST_INTERVAL_MS)))
+                .userRoles(castToText(RequestSecurityContextAttributes.read(request, Field.USER_ROLES)))
                 .geoCountry(castToText(officialContextFields.get("country")))
                 .geoCity(castToText(officialContextFields.get("city")))
-                .geoLatitude(castToDouble(request.getAttribute("hcad.latitude")))
-                .geoLongitude(castToDouble(request.getAttribute("hcad.longitude")))
+                .geoLatitude(castToDouble(RequestSecurityContextAttributes.read(request, Field.GEO_LATITUDE)))
+                .geoLongitude(castToDouble(RequestSecurityContextAttributes.read(request, Field.GEO_LONGITUDE)))
                 .impossibleTravel(castToBoolean(officialContextFields.get("impossibleTravel")))
-                .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
-                .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
-                .previousLocation((String) request.getAttribute("hcad.previousLocation"))
+                .travelDistanceKm(castToInteger(RequestSecurityContextAttributes.read(request, Field.TRAVEL_DISTANCE_KM)))
+                .travelElapsedMinutes(castToInteger(RequestSecurityContextAttributes.read(request, Field.TRAVEL_ELAPSED_MINUTES)))
+                .previousLocation(castToText(RequestSecurityContextAttributes.read(request, Field.PREVIOUS_LOCATION)))
                 .ipBand(castToText(officialContextFields.get("ipBand")))
                 .asn(castToText(officialContextFields.get("asn")))
                 .deviceOs(castToText(officialContextFields.get("deviceOs")))
@@ -231,11 +201,8 @@ public final class RequestInfoExtractor {
                 .passwordAgeDays(castToInteger(officialContextFields.get("passwordAgeDays")))
                 .sessionAgeMinutes(castToInteger(officialContextFields.get("sessionAgeMinutes")))
                 .authMethod(firstNonBlankText(
-                        extractAttributeText(request,
-                                "hcad.auth_method",
-                                "hcad.authMethod",
-                                "authMethod"),
-                        authenticationType))
+                        authenticationType,
+                        extractAttributeText(request, "authMethod")))
                 .officialContextFields(Map.copyOf(officialContextFields))
                 .bridgeResolutionResult(extractBridgeResolutionResult(request, security, requestId))
                 .build();
@@ -291,7 +258,8 @@ public final class RequestInfoExtractor {
             return null;
         }
 
-        Instant fromAttribute = parseObservedAt(request.getAttribute("hcad.observed_at"));
+        Instant fromAttribute = parseObservedAt(
+                RequestSecurityContextAttributes.read(request, Field.OBSERVED_AT));
         if (fromAttribute != null) {
             return fromAttribute;
         }

@@ -4,557 +4,104 @@
     <th:block th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.aiMonitor.title})}"></th:block>
     <link rel="stylesheet" th:href="@{/contexa/css/policy-center.css}" />
     <style>
-        .ai-monitor-layout { display: grid; gap: 1rem; }
-        .ai-monitor-tabs { display: flex; gap: .5rem; flex-wrap: wrap; border-bottom: 1px solid rgba(71,85,105,.45); padding-bottom: .75rem; }
-        .ai-monitor-tab { border: 1px solid rgba(71,85,105,.45); border-radius: .5rem; color: #94a3b8; padding: .45rem .75rem; text-decoration: none; font-size: .86rem; }
-        .ai-monitor-tab.active { border-color: rgba(34,211,238,.55); background: rgba(34,211,238,.12); color: #67e8f9; }
-        .ai-monitor-toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-        .ai-monitor-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .85rem; }
-        .ai-monitor-kpis:empty { display: none; }
-        .ai-monitor-kpi { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.48); }
-        .ai-monitor-kpi-value { color: #e2e8f0; font-size: 1.6rem; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
-        .ai-monitor-kpi-label { color: #94a3b8; font-size: .9rem; margin-top: .45rem; }
-        .ai-monitor-kpi-help { color: #64748b; font-size: .84rem; line-height: 1.5; margin-top: .35rem; }
-        .ai-monitor-band { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: 1rem; background: rgba(15,23,42,.36); }
-        .ai-monitor-band-title { color: #e2e8f0; font-size: 1rem; font-weight: 700; margin-bottom: .75rem; }
-        .ai-monitor-band-help { color: #94a3b8; font-size: .9rem; line-height: 1.55; margin: -.35rem 0 .85rem; }
-        .ai-monitor-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); gap: .75rem; margin-top: .85rem; }
-        .ai-monitor-mode-card { border: 1px solid rgba(34,211,238,.28); border-radius: .5rem; background: rgba(8,47,73,.24); padding: .85rem; display: grid; gap: .45rem; }
-        .ai-monitor-mode-card.enforce { border-color: rgba(34,197,94,.42); background: rgba(20,83,45,.18); }
-        .ai-monitor-mode-card.shadow { border-color: rgba(245,158,11,.45); background: rgba(120,53,15,.18); }
-        .ai-monitor-mode-card.disabled { border-color: rgba(148,163,184,.35); background: rgba(30,41,59,.34); }
-        .ai-monitor-mode-head { display: flex; justify-content: space-between; gap: .75rem; align-items: center; }
-        .ai-monitor-mode-title { color: #cbd5e1; font-size: .9rem; font-weight: 700; }
-        .ai-monitor-mode-badge { color: #f8fafc; font-size: .88rem; font-weight: 900; border-radius: 999px; padding: .28rem .65rem; background: rgba(34,211,238,.18); }
-        .ai-monitor-mode-effect { color: #94a3b8; font-size: .9rem; line-height: 1.45; }
-        .ai-monitor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
-        .ai-monitor-dashboard { display: grid; gap: 1rem; }
-        .ai-monitor-overview-top { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(420px, 1.4fr); gap: 1rem; }
-        .ai-monitor-overview-grid { display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(360px, 1fr); gap: 1rem; align-items: stretch; }
-        .ai-monitor-judgement { min-height: 190px; display: grid; align-content: space-between; }
-        .ai-monitor-judgement-value { color: #f8fafc; font-size: 1.9rem; line-height: 1.1; font-weight: 800; overflow-wrap: anywhere; }
-        .ai-monitor-judgement-sub { color: #94a3b8; font-size: .9rem; line-height: 1.55; margin-top: .55rem; }
-        .ai-monitor-meter { height: .55rem; border-radius: 999px; overflow: hidden; background: rgba(15,23,42,.9); border: 1px solid rgba(71,85,105,.5); }
-        .ai-monitor-meter-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #06b6d4, #22c55e); }
-        .ai-monitor-meter-fill.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-        .ai-monitor-meter-fill.bad { background: linear-gradient(90deg, #ef4444, #fb7185); }
-        .ai-monitor-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
-        .ai-monitor-flow-step { position: relative; min-height: 124px; padding: .95rem; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; background: rgba(15,23,42,.48); overflow: hidden; }
-        .ai-monitor-flow-step::after { content: ""; position: absolute; inset: auto 0 0 0; height: .2rem; background: var(--flow-color, #22d3ee); opacity: .9; }
-        .ai-monitor-flow-label { color: #94a3b8; font-size: .88rem; min-height: 2.35rem; line-height: 1.4; }
-        .ai-monitor-flow-value { color: #f8fafc; font-size: 1.55rem; font-weight: 800; margin-top: .35rem; }
-        .ai-monitor-flow-rate { color: #cbd5e1; font-size: .86rem; margin-top: .35rem; }
-        .ai-monitor-flow-bar { height: .45rem; border-radius: 999px; background: rgba(30,41,59,.8); overflow: hidden; margin-top: .65rem; }
-        .ai-monitor-flow-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--flow-color, #22d3ee); }
-        .ai-monitor-chart-shell { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 1rem; align-items: center; min-height: 210px; }
-        .ai-monitor-donut { width: 148px; aspect-ratio: 1; border-radius: 50%; position: relative; background: rgba(30,41,59,.9); box-shadow: inset 0 0 0 1px rgba(148,163,184,.18); }
-        .ai-monitor-donut::after { content: ""; position: absolute; inset: 26px; border-radius: 50%; background: #0f172a; box-shadow: inset 0 0 0 1px rgba(71,85,105,.45); }
-        .ai-monitor-donut-center { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; color: #e2e8f0; font-size: 1rem; font-weight: 800; text-align: center; padding: 2.4rem; line-height: 1.25; }
-        .ai-monitor-legend { display: grid; gap: .55rem; }
-        .ai-monitor-legend-row { display: grid; grid-template-columns: .6rem minmax(0, 1fr) auto; gap: .55rem; align-items: center; color: #94a3b8; font-size: .88rem; }
-        .ai-monitor-legend-dot { width: .6rem; height: .6rem; border-radius: 999px; background: var(--legend-color, #22d3ee); }
-        .ai-monitor-bars { display: grid; gap: .85rem; }
-        .ai-monitor-bar-row { display: grid; gap: .35rem; }
-        .ai-monitor-bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; color: #cbd5e1; font-size: .9rem; }
-        .ai-monitor-bar-track { height: .55rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.8); }
-        .ai-monitor-bar-fill { display: block; height: 100%; border-radius: inherit; background: #22c55e; }
-        .ai-monitor-bar-fill.warn { background: #f59e0b; }
-        .ai-monitor-bar-fill.bad { background: #ef4444; }
-        .ai-monitor-dashboard-note { color: #64748b; font-size: .86rem; line-height: 1.55; margin-top: .75rem; }
-        .ai-monitor-table { width: 100%; border-collapse: collapse; }
-        .ai-monitor-table th { color: #cbd5e1; font-size: .84rem; text-align: left; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.45); }
-        .ai-monitor-table td { color: #94a3b8; font-size: .9rem; padding: .7rem; border-bottom: 1px solid rgba(71,85,105,.22); }
-        .ai-monitor-row-meta { color: #64748b; font-size: .8rem; line-height: 1.4; margin-top: .25rem; overflow-wrap: anywhere; }
-        .ai-monitor-inline-link { display: inline-flex; align-items: center; width: fit-content; border: 1px solid rgba(34,211,238,.42); border-radius: .45rem; color: #67e8f9; padding: .5rem .75rem; text-decoration: none; font-size: .88rem; font-weight: 700; background: rgba(34,211,238,.08); }
-        .ai-monitor-inline-link:hover { background: rgba(34,211,238,.16); }
-        .ai-monitor-status { border-radius: 999px; padding: .25rem .65rem; font-size: .82rem; font-weight: 700; display: inline-flex; background: rgba(34,211,238,.16); color: #67e8f9; }
-        .ai-monitor-status.good { background: rgba(34,197,94,.18); color: #4ade80; }
-        .ai-monitor-status.warn { background: rgba(245,158,11,.18); color: #fbbf24; }
-        .ai-monitor-status.bad { background: rgba(239,68,68,.18); color: #f87171; }
-        .ai-monitor-status.info { background: rgba(34,211,238,.16); color: #67e8f9; }
-        .ai-monitor-details-note { color: #64748b; font-size: .86rem; margin-top: .7rem; }
-        .ai-monitor-hero-grid { display: grid; grid-template-columns: minmax(320px, 1.15fr) minmax(280px, .85fr); gap: 1rem; }
-        .ai-monitor-decision-card { border-color: rgba(34,211,238,.25); padding: 1.2rem; }
-        .ai-monitor-decision-card.good { border-color: rgba(34,197,94,.45); }
-        .ai-monitor-decision-card.warn { border-color: rgba(245,158,11,.55); }
-        .ai-monitor-decision-card.bad { border-color: rgba(239,68,68,.6); }
-        .ai-monitor-decision-head { display: grid; grid-template-columns: minmax(240px, auto) minmax(280px, 1fr); gap: 1.25rem; align-items: end; border-bottom: 1px solid rgba(71,85,105,.35); padding-bottom: 1rem; margin-bottom: 1rem; }
-        .ai-monitor-decision-value { color: #f8fafc; font-size: 2.35rem; line-height: 1.05; font-weight: 900; margin: .15rem 0 0; overflow-wrap: anywhere; letter-spacing: 0; }
-        .ai-monitor-decision-caption { color: #cbd5e1; font-size: .95rem; line-height: 1.55; justify-self: end; max-width: 32rem; text-align: right; }
-        .ai-monitor-blocker-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin-top: .2rem; }
-        .ai-monitor-blocker { display: grid; gap: .55rem; border-left: .26rem solid #38bdf8; padding: .8rem .9rem; background: rgba(15,23,42,.76); border-radius: .45rem; min-height: 92px; box-shadow: inset 0 0 0 1px rgba(148,163,184,.05); }
-        .ai-monitor-blocker-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .8rem; align-items: baseline; }
-        .ai-monitor-blocker strong { color: #f8fafc; font-size: 1rem; line-height: 1.35; }
-        .ai-monitor-blocker-value { color: #f8fafc; font-size: 1.55rem; line-height: 1; font-weight: 900; white-space: nowrap; }
-        .ai-monitor-blocker-criteria { color: #cbd5e1; font-size: .9rem; line-height: 1.45; }
-        .ai-monitor-blocker.good { border-left-color: #22c55e; }
-        .ai-monitor-blocker.warn { border-left-color: #f59e0b; }
-        .ai-monitor-blocker.bad { border-left-color: #ef4444; }
-        .ai-monitor-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .75rem; }
-        .ai-monitor-funnel-step { position: relative; min-height: 136px; padding: .95rem; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; background: rgba(15,23,42,.48); overflow: hidden; }
-        .ai-monitor-flow-index { width: 1.4rem; height: 1.4rem; display: grid; place-items: center; border-radius: 999px; color: #0f172a; background: var(--flow-color, #22d3ee); font-size: .8rem; font-weight: 900; margin-bottom: .5rem; }
-        .ai-monitor-simple-list { display: grid; gap: .55rem; }
-        .ai-monitor-simple-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: center; border-bottom: 1px solid rgba(71,85,105,.22); padding: .55rem 0; color: #94a3b8; font-size: .9rem; }
-        .ai-monitor-simple-row:last-child { border-bottom: 0; }
-        .ai-monitor-simple-row strong { color: #e2e8f0; }
-        .ai-monitor-empty-note { color: #94a3b8; line-height: 1.55; font-size: .92rem; padding: .85rem; border: 1px dashed rgba(71,85,105,.4); border-radius: .45rem; background: rgba(15,23,42,.3); }
-        .ai-monitor-two-stack { display: grid; gap: .85rem; }
-        .ai-monitor-mini-bars { display: grid; gap: .65rem; }
-        .ai-monitor-mini-bar { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr) 3.2rem; gap: .65rem; align-items: center; color: #94a3b8; font-size: .86rem; }
-        .ai-monitor-mini-bar div { height: .55rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.85); }
-        .ai-monitor-mini-bar i { display: block; height: 100%; border-radius: inherit; background: #38bdf8; }
-        .ai-monitor-mini-bar strong { color: #e2e8f0; text-align: right; }
-        .ai-monitor-confusion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-        .ai-monitor-confusion-cell { min-height: 118px; border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .9rem; background: rgba(15,23,42,.45); display: grid; gap: .35rem; }
-        .ai-monitor-confusion-cell.good { border-color: rgba(34,197,94,.38); }
-        .ai-monitor-confusion-cell.bad { border-color: rgba(239,68,68,.38); }
-        .ai-monitor-confusion-cell strong { color: #e2e8f0; font-size: 1rem; }
-        .ai-monitor-confusion-cell span { color: #94a3b8; font-size: .88rem; line-height: 1.45; }
-        .ai-monitor-confusion-cell b { color: #f8fafc; font-size: 1.5rem; }
-        .ai-monitor-cause-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
-        .ai-monitor-cause { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; background: rgba(15,23,42,.48); display: grid; gap: .35rem; }
-        .ai-monitor-cause strong { color: #dbeafe; font-size: .95rem; }
-        .ai-monitor-cause span { color: #f8fafc; font-size: 1.45rem; font-weight: 800; }
-        .ai-monitor-cause i { color: #94a3b8; font-style: normal; font-size: .86rem; }
-        .ai-monitor-trend { height: 170px; display: flex; gap: .5rem; align-items: end; border: 1px solid rgba(71,85,105,.22); border-radius: .5rem; padding: .8rem; background: rgba(15,23,42,.32); }
-        .ai-monitor-trend-bar { flex: 1; min-width: 0; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: .45rem; align-items: end; }
-        .ai-monitor-trend-bar i { display: block; width: 100%; min-height: 4px; border-radius: .3rem .3rem 0 0; background: linear-gradient(180deg, #67e8f9, #0e7490); }
-        .ai-monitor-trend-bar span { color: #94a3b8; font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
-        .ai-monitor-readiness-visual-grid { display: grid; grid-template-columns: minmax(260px, .52fr) minmax(420px, 1.48fr); gap: 1rem; align-items: stretch; }
-        .ai-monitor-readiness-gauge-card { display: grid; align-content: start; justify-items: center; gap: .9rem; }
-        .ai-monitor-readiness-gauge { width: 184px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(#22c55e var(--readiness-angle), rgba(30,41,59,.9) 0deg); box-shadow: inset 0 0 0 1px rgba(148,163,184,.2), 0 18px 45px rgba(15,23,42,.38); }
-        .ai-monitor-readiness-gauge-core { width: 128px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; align-content: center; gap: .35rem; background: #0f172a; box-shadow: inset 0 0 0 1px rgba(71,85,105,.5); text-align: center; }
-        .ai-monitor-readiness-gauge-core strong { color: #f8fafc; font-size: 2rem; line-height: 1; font-weight: 900; }
-        .ai-monitor-readiness-gauge-core span { color: #94a3b8; font-size: .84rem; line-height: 1.35; max-width: 104px; }
-        .ai-monitor-readiness-bars { display: grid; gap: .85rem; }
-        .ai-monitor-readiness-bar-row { display: grid; gap: .4rem; }
-        .ai-monitor-readiness-bar-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; color: #cbd5e1; font-size: .9rem; }
-        .ai-monitor-readiness-bar-head strong { color: #e2e8f0; font-size: .95rem; }
-        .ai-monitor-readiness-bar-head span { color: #94a3b8; font-size: .86rem; text-align: right; }
-        .ai-monitor-readiness-track { height: .72rem; border-radius: 999px; overflow: hidden; background: rgba(30,41,59,.85); border: 1px solid rgba(71,85,105,.35); }
-        .ai-monitor-readiness-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #06b6d4, #22c55e); }
-        .ai-monitor-readiness-bar-row.bad .ai-monitor-readiness-track > span { background: linear-gradient(90deg, #f97316, #ef4444); }
-        .ai-monitor-criteria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; }
-        .ai-monitor-criterion { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; display: grid; gap: .35rem; background: rgba(15,23,42,.45); }
-        .ai-monitor-criterion.good { border-color: rgba(34,197,94,.42); }
-        .ai-monitor-criterion.bad { border-color: rgba(239,68,68,.42); }
-        .ai-monitor-criterion strong { color: #e2e8f0; font-size: .98rem; }
-        .ai-monitor-criterion span { color: #94a3b8; font-size: .88rem; }
-        .ai-monitor-criterion em { color: #cbd5e1; font-style: normal; font-size: .88rem; }
-        .ai-monitor-muted { color: #94a3b8; font-size: .95rem; line-height: 1.55; }
-        .ai-monitor-reset-panel { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-        .ai-monitor-reset-scope { margin: .75rem 0 0; padding-left: 1.15rem; color: #cbd5e1; font-size: .94rem; line-height: 1.55; }
-        .ai-monitor-reset-scope li + li { margin-top: .2rem; }
-        .ai-monitor-primary-button { border: 1px solid rgba(34,211,238,.42); border-radius: .55rem; background: rgba(8,145,178,.22); color: #cffafe; font-weight: 800; padding: .75rem 1rem; min-width: 11rem; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(103,232,249,.08); }
-        .ai-monitor-primary-button:hover { background: rgba(8,145,178,.34); border-color: rgba(103,232,249,.58); }
-        .ai-monitor-session-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-top: .85rem; }
-        .ai-monitor-session-fact { border: 1px solid rgba(71,85,105,.35); border-radius: .5rem; padding: .85rem; display: grid; gap: .35rem; background: rgba(15,23,42,.42); }
-        .ai-monitor-session-fact span { color: #94a3b8; font-size: .9rem; }
-        .ai-monitor-session-fact strong { color: #f8fafc; font-size: 1.12rem; overflow-wrap: anywhere; }
-        .ai-monitor-session-list { display: grid; gap: .65rem; margin-top: .85rem; }
-        .ai-monitor-session-row { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(120px, .8fr)); gap: .8rem; align-items: center; border: 1px solid rgba(71,85,105,.28); border-radius: .5rem; padding: .85rem; background: rgba(15,23,42,.36); color: #cbd5e1; }
-        .ai-monitor-session-row strong { color: #f8fafc; display: block; margin-bottom: .2rem; }
-        .ai-monitor-session-row span { color: #94a3b8; font-size: .88rem; line-height: 1.45; }
-        @media (max-width: 1180px) {
-            .ai-monitor-overview-top,
-            .ai-monitor-overview-grid,
-            .ai-monitor-readiness-visual-grid,
-            .ai-monitor-hero-grid { grid-template-columns: 1fr; }
-            .ai-monitor-decision-head { grid-template-columns: 1fr; }
-            .ai-monitor-decision-caption { justify-self: start; text-align: left; }
-            .ai-monitor-blocker-list { grid-template-columns: 1fr; }
-            .ai-monitor-flow,
-            .ai-monitor-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 700px) {
-            .ai-monitor-flow,
-            .ai-monitor-funnel,
-            .ai-monitor-confusion,
-            .ai-monitor-chart-shell { grid-template-columns: 1fr; }
-            .ai-monitor-donut { width: 136px; }
-        }
+        .ai-monitor-layout { display:grid; gap:1rem; }
+        .ai-monitor-tabs,.ai-monitor-toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+        .ai-monitor-tabs { border-bottom:1px solid rgba(71,85,105,.45); padding-bottom:.75rem; }
+        .ai-monitor-tab { border:1px solid rgba(71,85,105,.45); border-radius:.5rem; color:#94a3b8; padding:.45rem .75rem; text-decoration:none; font-size:.86rem; }
+        .ai-monitor-tab.active { border-color:rgba(34,211,238,.55); background:rgba(34,211,238,.12); color:#67e8f9; }
+        .ai-monitor-kpis,.ai-monitor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.85rem; }
+        .ai-monitor-kpi,.ai-monitor-band { border:1px solid rgba(71,85,105,.35); border-radius:.5rem; padding:1rem; background:rgba(15,23,42,.48); }
+        .ai-monitor-kpi-value { color:#e2e8f0; font-size:1.55rem; font-weight:800; overflow-wrap:anywhere; }
+        .ai-monitor-kpi-label,.ai-monitor-muted { color:#94a3b8; font-size:.9rem; margin-top:.4rem; line-height:1.5; }
+        .ai-monitor-band-title { color:#e2e8f0; font-size:1rem; font-weight:700; margin-bottom:.75rem; }
+        .ai-monitor-table { width:100%; border-collapse:collapse; }
+        .ai-monitor-table th,.ai-monitor-table td { padding:.65rem; border-bottom:1px solid rgba(71,85,105,.3); text-align:left; color:#cbd5e1; font-size:.86rem; }
+        .ai-monitor-status { display:inline-flex; border-radius:999px; padding:.25rem .65rem; color:#67e8f9; background:rgba(34,211,238,.16); font-size:.82rem; font-weight:700; }
+        .ai-monitor-status.bad { color:#f87171; background:rgba(239,68,68,.18); }
+        .ai-monitor-status.good { color:#4ade80; background:rgba(34,197,94,.18); }
+        .ai-monitor-list { display:grid; gap:.55rem; }
+        .ai-monitor-list-row { display:flex; justify-content:space-between; gap:.75rem; color:#94a3b8; border-bottom:1px solid rgba(71,85,105,.22); padding:.5rem 0; }
+        .ai-monitor-button { border:1px solid rgba(34,211,238,.42); border-radius:.5rem; background:rgba(8,145,178,.22); color:#cffafe; font-weight:700; padding:.55rem .85rem; cursor:pointer; text-decoration:none; }
+        .ai-monitor-button.danger { border-color:rgba(239,68,68,.5); background:rgba(127,29,29,.25); color:#fecaca; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen font-sans">
-
 <div th:insert="~{contexa/fragments/header :: header}"></div>
-
 <div class="flex flex-1 overflow-hidden">
     <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
-
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
         <div class="modern-card ai-monitor-layout" id="ai-monitor"
-             th:data-section="${section}"
-             th:data-period="${period}"
+             th:data-section="${section}" th:data-period="${period}"
              th:data-csrf-token="${_csrf != null ? _csrf.token : ''}"
              th:data-csrf-header="${_csrf != null ? _csrf.headerName : 'X-CSRF-TOKEN'}"
              th:data-label-loading="#{admin.aiMonitor.status.loading}"
              th:data-label-unavailable="#{admin.aiMonitor.status.unavailable}"
-             th:data-label-observed-requests="#{admin.aiMonitor.kpi.observedRequests}"
-             th:data-label-observed-requests-help="#{admin.aiMonitor.help.observedRequests}"
-             th:data-label-hcad-windows="#{admin.aiMonitor.kpi.hcadWindows}"
-             th:data-label-hcad-windows-help="#{admin.aiMonitor.help.hcadWindows}"
-             th:data-label-llm-calls="#{admin.aiMonitor.kpi.llmCalls}"
-             th:data-label-accepted-llm-triggers="#{admin.aiMonitor.kpi.acceptedLlmTriggers}"
-             th:data-label-flow-accepted-to-completed="#{admin.aiMonitor.dashboard.flowAcceptedToCompleted}"
-             th:data-label-hcad-ai-connected="#{admin.aiMonitor.kpi.hcadAiConnected}"
-             th:data-label-hcad-candidates="#{admin.aiMonitor.kpi.hcadCandidates}"
+             th:data-label-no-data="#{admin.aiMonitor.status.noData}"
+             th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
              th:data-label-llm-decisions="#{admin.aiMonitor.kpi.llmDecisions}"
-             th:data-label-llm-decisions-help="#{admin.aiMonitor.help.llmDecisions}"
-             th:data-label-confirmed-decisions="#{admin.aiMonitor.kpi.confirmedDecisions}"
-             th:data-label-confirmed-decisions-help="#{admin.aiMonitor.help.confirmedDecisions}"
-             th:data-label-protectable-decisions="#{admin.aiMonitor.kpi.protectableDecisions}"
-             th:data-label-protectable-decisions-help="#{admin.aiMonitor.help.protectableDecisions}"
-             th:data-label-hcad-pretrigger-decisions="#{admin.aiMonitor.kpi.hcadPreTriggerDecisions}"
-             th:data-label-hcad-pretrigger-help="#{admin.aiMonitor.help.hcadPreTriggerDecisions}"
-             th:data-label-hcad-triggered-ai-decisions="#{admin.aiMonitor.kpi.hcadTriggeredAiDecisions}"
-             th:data-label-non-triggered-ai-decisions="#{admin.aiMonitor.kpi.nonTriggeredAiDecisions}"
-             th:data-label-hcad-and-protectable="#{admin.aiMonitor.kpi.hcadAndProtectable}"
-             th:data-label-hcad-and-protectable-help="#{admin.aiMonitor.help.hcadAndProtectable}"
-             th:data-label-correlation-unknown="#{admin.aiMonitor.kpi.correlationUnknown}"
-             th:data-label-timeouts="#{admin.aiMonitor.kpi.timeouts}"
+             th:data-label-protectable="#{admin.aiMonitor.kpi.protectableDecisions}"
+             th:data-label-failure-rate="#{admin.aiMonitor.kpi.failureRate}"
+             th:data-label-timeout-rate="#{admin.aiMonitor.kpi.timeoutRate}"
+             th:data-label-average-latency="#{admin.aiMonitor.kpi.averageLatency}"
+             th:data-label-p95-latency="#{admin.aiMonitor.kpi.p95Latency}"
              th:data-label-parser-failures="#{admin.aiMonitor.kpi.parserFailures}"
              th:data-label-fallbacks="#{admin.aiMonitor.kpi.fallbacks}"
+             th:data-label-timeouts="#{admin.aiMonitor.kpi.timeouts}"
              th:data-label-model-unavailable="#{admin.aiMonitor.kpi.modelUnavailable}"
-             th:data-label-parser-failure-rate="#{admin.aiMonitor.kpi.parserFailureRate}"
-             th:data-label-fallback-rate="#{admin.aiMonitor.kpi.fallbackRate}"
-             th:data-label-timeout-rate="#{admin.aiMonitor.kpi.timeoutRate}"
-             th:data-label-model-unavailable-rate="#{admin.aiMonitor.kpi.modelUnavailableRate}"
-             th:data-label-average-latency="#{admin.aiMonitor.kpi.averageLatency}"
-             th:data-label-average-latency-help="#{admin.aiMonitor.help.averageLatency}"
-             th:data-label-provider-throttle-waits="#{admin.aiMonitor.kpi.providerThrottleWaits}"
-             th:data-label-provider-throttle-waits-help="#{admin.aiMonitor.help.providerThrottleWaits}"
-             th:data-label-suppressed-llm-triggers="#{admin.aiMonitor.kpi.suppressedLlmTriggers}"
-             th:data-label-suppressed-llm-triggers-help="#{admin.aiMonitor.help.suppressedLlmTriggers}"
-             th:data-label-p95-latency="#{admin.aiMonitor.kpi.p95Latency}"
-             th:data-label-recommendation="#{admin.aiMonitor.kpi.recommendation}"
-             th:data-label-minimum-sample="#{admin.aiMonitor.kpi.minimumSample}"
-             th:data-label-hcad-precision="#{admin.aiMonitor.kpi.hcadPrecision}"
-             th:data-label-hcad-precision-help="#{admin.aiMonitor.help.hcadPrecision}"
-             th:data-label-false-positive="#{admin.aiMonitor.kpi.falsePositive}"
-             th:data-label-observable-fn="#{admin.aiMonitor.kpi.observableFn}"
-             th:data-label-observable-fn-rate="#{admin.aiMonitor.kpi.observableFnRate}"
-             th:data-label-observable-fn-rate-help="#{admin.aiMonitor.help.observableFnRate}"
-             th:data-label-true-negative="#{admin.aiMonitor.kpi.trueNegative}"
-             th:data-label-unknown="#{admin.aiMonitor.kpi.unknown}"
-             th:data-label-unobserved="#{admin.aiMonitor.kpi.unobserved}"
-             th:data-label-unknown-rate="#{admin.aiMonitor.kpi.unknownRate}"
-             th:data-label-unknown-rate-help="#{admin.aiMonitor.help.unknownRate}"
-             th:data-label-failure-rate="#{admin.aiMonitor.kpi.failureRate}"
-             th:data-label-failure-rate-help="#{admin.aiMonitor.help.failureRate}"
-             th:data-label-action-breakdown="#{admin.aiMonitor.section.actionBreakdown}"
-             th:data-label-proposed-action-breakdown="#{admin.aiMonitor.section.proposedActionBreakdown}"
-             th:data-label-final-action-breakdown="#{admin.aiMonitor.section.finalActionBreakdown}"
-             th:data-label-trigger-source="#{admin.aiMonitor.section.triggerSource}"
-             th:data-label-correlation-outcome="#{admin.aiMonitor.section.correlationOutcome}"
-             th:data-label-trigger-relation="#{admin.aiMonitor.section.triggerRelation}"
              th:data-label-provider="#{admin.aiMonitor.section.provider}"
              th:data-label-model="#{admin.aiMonitor.section.model}"
              th:data-label-prompt-template="#{admin.aiMonitor.section.promptTemplate}"
-             th:data-label-risk-score-distribution="#{admin.aiMonitor.section.riskScoreDistribution}"
-             th:data-label-confidence-distribution="#{admin.aiMonitor.section.confidenceDistribution}"
-             th:data-label-correlation-matrix="#{admin.aiMonitor.section.correlationMatrix}"
-             th:data-label-recent-correlations="#{admin.aiMonitor.section.recentCorrelations}"
-             th:data-label-explicit-failure="#{admin.aiMonitor.section.explicitFailure}"
-             th:data-label-readiness-criteria="#{admin.aiMonitor.section.readinessCriteria}"
+             th:data-label-action="#{admin.aiMonitor.section.actionBreakdown}"
+             th:data-label-proposed-action="#{admin.aiMonitor.section.proposedActionBreakdown}"
+             th:data-label-final-action="#{admin.aiMonitor.section.finalActionBreakdown}"
+             th:data-label-trigger-source="#{admin.aiMonitor.section.triggerSource}"
+             th:data-label-risk-score="#{admin.aiMonitor.section.riskScoreDistribution}"
+             th:data-label-confidence="#{admin.aiMonitor.section.confidenceDistribution}"
              th:data-label-failure-type="#{admin.aiMonitor.section.failureType}"
              th:data-label-fallback-category="#{admin.aiMonitor.section.fallbackCategory}"
-             th:data-label-category="#{admin.aiMonitor.table.category}"
-             th:data-label-llm-risk="#{admin.aiMonitor.table.llmRisk}"
-             th:data-label-llm-allow="#{admin.aiMonitor.table.llmAllow}"
-             th:data-label-llm-unknown="#{admin.aiMonitor.table.llmUnknown}"
-             th:data-label-llm-not-called="#{admin.aiMonitor.table.llmNotCalled}"
-             th:data-label-created-at="#{admin.aiMonitor.table.createdAt}"
-             th:data-label-user="#{admin.aiMonitor.table.user}"
-             th:data-label-outcome="#{admin.aiMonitor.table.outcome}"
-             th:data-label-hcad-score="#{admin.aiMonitor.table.hcadScore}"
-             th:data-label-llm-risk-score="#{admin.aiMonitor.table.llmRiskScore}"
-             th:data-label-final-action="#{admin.aiMonitor.table.finalAction}"
-             th:data-label-no-data="#{admin.aiMonitor.table.noData}"
-             th:data-label-key="#{admin.aiMonitor.table.key}"
-             th:data-label-count="#{admin.aiMonitor.table.count}"
-             th:data-label-enum-hcad-early-trigger="#{admin.aiMonitor.enum.hcadEarlyTrigger}"
-             th:data-label-enum-hcad-missed-observed="#{admin.aiMonitor.enum.hcadMissedObserved}"
-             th:data-label-enum-hcad-duplicate-suppressed="#{admin.aiMonitor.enum.hcadDuplicateSuppressed}"
-             th:data-label-enum-hcad-unevaluated="#{admin.aiMonitor.enum.hcadUnevaluated}"
-             th:data-label-enum-hcad-only="#{admin.aiMonitor.enum.hcadOnly}"
-             th:data-label-enum-protectable-only="#{admin.aiMonitor.enum.protectableOnly}"
-             th:data-label-enum-hcad-and-protectable="#{admin.aiMonitor.enum.hcadAndProtectable}"
-             th:data-label-enum-protectable-suppressed-by-hcad="#{admin.aiMonitor.enum.protectableSuppressedByHcad}"
-             th:data-label-enum-hcad-suppressed-by-protectable="#{admin.aiMonitor.enum.hcadSuppressedByProtectable}"
-             th:data-label-enum-observed-only="#{admin.aiMonitor.enum.observedOnly}"
-             th:data-label-enum-unmatched-llm="#{admin.aiMonitor.enum.unmatchedLlm}"
-             th:data-label-screen-or-api="#{admin.aiMonitor.label.screenOrApi}"
-             th:data-label-screen-purpose="#{admin.aiMonitor.status.screenPurpose}"
-             th:data-label-current-decision="#{admin.aiMonitor.status.currentDecision}"
-             th:data-label-mode-title="#{admin.aiMonitor.mode.title}"
-             th:data-label-mode-hcad="#{admin.aiMonitor.mode.hcad}"
-             th:data-label-mode-llm="#{admin.aiMonitor.mode.llm}"
-             th:data-label-mode-effect-hcad-disabled="#{admin.aiMonitor.mode.effect.hcad.disabled}"
-             th:data-label-mode-effect-hcad-observe-log-only="#{admin.aiMonitor.mode.effect.hcad.observeLogOnly}"
-             th:data-label-mode-effect-hcad-shadow-log-only="#{admin.aiMonitor.mode.effect.hcad.shadowLogOnly}"
-             th:data-label-mode-effect-hcad-enforce-llm-trigger-log="#{admin.aiMonitor.mode.effect.hcad.enforceLlmTriggerLog}"
-             th:data-label-mode-effect-hcad-enforce-llm-trigger-action-log="#{admin.aiMonitor.mode.effect.hcad.enforceLlmTriggerActionLog}"
-             th:data-label-mode-effect-llm-disabled="#{admin.aiMonitor.mode.effect.llm.disabled}"
-             th:data-label-mode-effect-llm-observe-log-only="#{admin.aiMonitor.mode.effect.llm.observeLogOnly}"
-             th:data-label-mode-effect-llm-shadow-log-only="#{admin.aiMonitor.mode.effect.llm.shadowLogOnly}"
-             th:data-label-mode-effect-llm-enforce-action-log="#{admin.aiMonitor.mode.effect.llm.enforceActionLog}"
-             th:data-label-no-decision="#{admin.aiMonitor.status.noDecision}"
-             th:data-label-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
-             th:data-label-section-overview-title="#{admin.aiMonitor.section.overviewTitle}"
-             th:data-label-section-overview-desc="#{admin.aiMonitor.section.overviewDesc}"
-             th:data-label-section-llm-title="#{admin.aiMonitor.section.llmTitle}"
-             th:data-label-section-llm-desc="#{admin.aiMonitor.section.llmDesc}"
-             th:data-label-section-correlation-title="#{admin.aiMonitor.section.correlationTitle}"
-             th:data-label-section-correlation-desc="#{admin.aiMonitor.section.correlationDesc}"
-             th:data-label-section-failures-title="#{admin.aiMonitor.section.failuresTitle}"
-             th:data-label-section-failures-desc="#{admin.aiMonitor.section.failuresDesc}"
-             th:data-label-section-readiness-title="#{admin.aiMonitor.section.readinessTitle}"
-             th:data-label-section-readiness-desc="#{admin.aiMonitor.section.readinessDesc}"
-             th:data-label-overview-flow="#{admin.aiMonitor.dashboard.flow}"
-             th:data-label-overview-flow-desc="#{admin.aiMonitor.dashboard.flowDesc}"
-             th:data-label-hcad-contribution-title="#{admin.aiMonitor.hcadContribution.title}"
-             th:data-label-hcad-contribution-normal="#{admin.aiMonitor.hcadContribution.normal}"
-             th:data-label-hcad-contribution-normal-help="#{admin.aiMonitor.hcadContribution.normalHelp}"
-             th:data-label-hcad-contribution-none="#{admin.aiMonitor.hcadContribution.none}"
-             th:data-label-hcad-contribution-none-help="#{admin.aiMonitor.hcadContribution.noneHelp}"
-             th:data-label-hcad-contribution-no-data="#{admin.aiMonitor.hcadContribution.noData}"
-             th:data-label-hcad-contribution-no-data-help="#{admin.aiMonitor.hcadContribution.noDataHelp}"
-             th:data-label-hcad-contribution-candidate-only="#{admin.aiMonitor.hcadContribution.candidateOnly}"
-             th:data-label-hcad-contribution-candidate-only-help="#{admin.aiMonitor.hcadContribution.candidateOnlyHelp}"
-             th:data-label-overview-outcome="#{admin.aiMonitor.dashboard.outcome}"
-             th:data-label-overview-outcome-desc="#{admin.aiMonitor.dashboard.outcomeDesc}"
-             th:data-label-overview-readiness="#{admin.aiMonitor.dashboard.readiness}"
-             th:data-label-overview-readiness-desc="#{admin.aiMonitor.dashboard.readinessDesc}"
-             th:data-label-overview-reliability="#{admin.aiMonitor.dashboard.reliability}"
-             th:data-label-overview-reliability-desc="#{admin.aiMonitor.dashboard.reliabilityDesc}"
-             th:data-label-flow-observed-to-hcad="#{admin.aiMonitor.dashboard.flowObservedToHcad}"
-             th:data-label-flow-hcad-to-llm="#{admin.aiMonitor.dashboard.flowHcadToLlm}"
-             th:data-label-flow-llm-to-clear="#{admin.aiMonitor.dashboard.flowLlmToClear}"
-             th:data-label-flow-all-ai-decisions="#{admin.aiMonitor.dashboard.flowAllAiDecisions}"
-             th:data-label-flow-observed-to-ai="#{admin.aiMonitor.dashboard.flowObservedToAi}"
-             th:data-label-flow-base="#{admin.aiMonitor.dashboard.flowBase}"
-             th:data-label-sample-coverage="#{admin.aiMonitor.dashboard.sampleCoverage}"
-             th:data-label-analysis-coverage="#{admin.aiMonitor.dashboard.analysisCoverage}"
-             th:data-label-clear-outcome="#{admin.aiMonitor.dashboard.clearOutcome}"
-             th:data-label-unknown-pressure="#{admin.aiMonitor.dashboard.unknownPressure}"
-             th:data-label-failure-pressure="#{admin.aiMonitor.dashboard.failurePressure}"
-             th:data-label-timeout-pressure="#{admin.aiMonitor.dashboard.timeoutPressure}"
-             th:data-label-stable-signal="#{admin.aiMonitor.dashboard.stableSignal}"
-             th:data-label-attention-signal="#{admin.aiMonitor.dashboard.attentionSignal}"
-             th:data-label-decision-reason-intro="#{admin.aiMonitor.dashboard.decisionReasonIntro}"
-             th:data-label-no-major-blocker="#{admin.aiMonitor.dashboard.noMajorBlocker}"
-             th:data-label-no-major-blocker-desc="#{admin.aiMonitor.dashboard.noMajorBlockerDesc}"
-             th:data-label-matched="#{admin.aiMonitor.dashboard.matched}"
-             th:data-label-mismatched="#{admin.aiMonitor.dashboard.mismatched}"
-             th:data-label-match-rate="#{admin.aiMonitor.kpi.matchRate}"
-             th:data-label-match-rate-help="#{admin.aiMonitor.help.matchRate}"
-             th:data-label-mismatch-rate="#{admin.aiMonitor.kpi.mismatchRate}"
-             th:data-label-mismatch-rate-help="#{admin.aiMonitor.help.mismatchRate}"
-             th:data-label-false-positive-rate="#{admin.aiMonitor.kpi.falsePositiveRate}"
-             th:data-label-false-positive-rate-help="#{admin.aiMonitor.help.falsePositiveRate}"
-             th:data-label-timeouts-help="#{admin.aiMonitor.help.timeouts}"
-             th:data-label-parser-failures-help="#{admin.aiMonitor.help.parserFailures}"
-             th:data-label-model-unavailable-help="#{admin.aiMonitor.help.modelUnavailable}"
-             th:data-label-no-comparison-data="#{admin.aiMonitor.status.noComparisonData}"
-             th:data-label-blocker-sample="#{admin.aiMonitor.blocker.sample}"
-             th:data-label-blocker-precision="#{admin.aiMonitor.blocker.precision}"
-             th:data-label-blocker-fn="#{admin.aiMonitor.blocker.fn}"
-             th:data-label-blocker-unknown="#{admin.aiMonitor.blocker.unknown}"
-             th:data-label-blocker-failure="#{admin.aiMonitor.blocker.failure}"
-             th:data-label-blocker-no-llm-decision="#{admin.aiMonitor.blocker.noLlmDecision}"
-             th:data-label-blocker-timeout="#{admin.aiMonitor.blocker.timeout}"
-             th:data-label-blocker-parser-failure="#{admin.aiMonitor.blocker.parserFailure}"
-             th:data-label-blocker-model-unavailable="#{admin.aiMonitor.blocker.modelUnavailable}"
-             th:data-label-blocker-technical-fallback="#{admin.aiMonitor.blocker.technicalFallback}"
-             th:data-label-action-collect-more="#{admin.aiMonitor.action.collectMore}"
-             th:data-label-action-review-mismatch="#{admin.aiMonitor.action.reviewMismatch}"
-             th:data-label-action-review-missed="#{admin.aiMonitor.action.reviewMissed}"
-             th:data-label-action-fix-unknown="#{admin.aiMonitor.action.fixUnknown}"
-             th:data-label-action-fix-failures="#{admin.aiMonitor.action.fixFailures}"
-             th:data-label-action-no-llm-decision="#{admin.aiMonitor.action.noLlmDecision}"
-             th:data-label-action-timeout="#{admin.aiMonitor.action.timeout}"
-             th:data-label-action-parser-failure="#{admin.aiMonitor.action.parserFailure}"
-             th:data-label-action-model-unavailable="#{admin.aiMonitor.action.modelUnavailable}"
-             th:data-label-action-technical-fallback="#{admin.aiMonitor.action.technicalFallback}"
-             th:data-label-quality-failure-link="#{admin.aiMonitor.llm.qualityFailureLink}"
-             th:data-label-hcad-found-ai-risk="#{admin.aiMonitor.correlation.hcadFoundAiRisk}"
-             th:data-label-true-positive-meaning="#{admin.aiMonitor.correlation.truePositiveMeaning}"
-             th:data-label-hcad-found-ai-allow="#{admin.aiMonitor.correlation.hcadFoundAiAllow}"
-             th:data-label-false-positive-meaning="#{admin.aiMonitor.correlation.falsePositiveMeaning}"
-             th:data-label-hcad-missed-ai-risk="#{admin.aiMonitor.correlation.hcadMissedAiRisk}"
-             th:data-label-false-negative-meaning="#{admin.aiMonitor.correlation.falseNegativeMeaning}"
-             th:data-label-hcad-missed-ai-allow="#{admin.aiMonitor.correlation.hcadMissedAiAllow}"
-             th:data-label-true-negative-meaning="#{admin.aiMonitor.correlation.trueNegativeMeaning}"
-             th:data-label-confusion-matrix-help="#{admin.aiMonitor.correlation.confusionMatrixHelp}"
-             th:data-label-not-called-reason="#{admin.aiMonitor.correlation.notCalledReason}"
-             th:data-label-not-called-reason-help="#{admin.aiMonitor.correlation.notCalledReasonHelp}"
-             th:data-label-investigation-queue="#{admin.aiMonitor.correlation.investigationQueue}"
-             th:data-label-failure-trend="#{admin.aiMonitor.failures.trend}"
-             th:data-label-recent-failures="#{admin.aiMonitor.failures.recent}"
-             th:data-label-affected-requests="#{admin.aiMonitor.failures.affectedRequests}"
-             th:data-label-provider-unknown-help="#{admin.aiMonitor.failures.providerUnknownHelp}"
-             th:data-label-request="#{admin.aiMonitor.table.request}"
-              th:data-label-passed="#{admin.aiMonitor.readiness.passed}"
-              th:data-label-need-more-samples="#{admin.aiMonitor.readiness.needMoreSamples}"
-              th:data-label-or-more="#{admin.aiMonitor.readiness.orMore}"
-              th:data-label-or-less="#{admin.aiMonitor.readiness.orLess}"
-              th:data-label-gap="#{admin.aiMonitor.readiness.gap}"
-              th:data-label-readiness-score="#{admin.aiMonitor.readiness.score}"
-              th:data-label-current-monitoring-session="#{admin.aiMonitor.session.current}"
-              th:data-label-session-started-at="#{admin.aiMonitor.session.startedAt}"
-              th:data-label-session-observed="#{admin.aiMonitor.session.observed}"
-              th:data-label-session-hcad-candidates="#{admin.aiMonitor.session.hcadCandidates}"
-              th:data-label-session-llm-decisions="#{admin.aiMonitor.session.llmDecisions}"
-              th:data-label-session-recommendation="#{admin.aiMonitor.session.recommendation}"
-              th:data-label-monitoring-restart="#{admin.aiMonitor.session.restart}"
-              th:data-label-monitoring-restart-desc="#{admin.aiMonitor.session.restartDesc}"
-              th:data-label-monitoring-restart-button="#{admin.aiMonitor.session.restartButton}"
-              th:data-label-monitoring-restart-confirm="#{admin.aiMonitor.session.restartConfirm}"
-              th:data-label-monitoring-restart-deletes="#{admin.aiMonitor.session.restartDeletes}"
-              th:data-label-monitoring-restart-preserves="#{admin.aiMonitor.session.restartPreserves}"
-              th:data-label-monitoring-restart-type-confirm="#{admin.aiMonitor.session.restartTypeConfirm}"
-              th:data-label-monitoring-restart-confirmation-mismatch="#{admin.aiMonitor.session.restartConfirmationMismatch}"
-              th:data-label-monitoring-restart-reason="#{admin.aiMonitor.session.restartReason}"
-              th:data-label-monitoring-restart-failed="#{admin.aiMonitor.session.restartFailed}"
-              th:data-label-previous-monitoring-sessions="#{admin.aiMonitor.session.previous}"
-              th:data-label-no-previous-monitoring-session="#{admin.aiMonitor.session.noPrevious}"
-             th:data-label-key-metrics="#{admin.aiMonitor.section.keyMetrics}"
-            th:data-label-decision-path="#{admin.aiMonitor.section.decisionPath}"
-            th:data-label-decision-result="#{admin.aiMonitor.section.decisionResult}"
-            th:data-label-response-quality="#{admin.aiMonitor.section.responseQuality}"
-            th:data-label-comparison-result="#{admin.aiMonitor.section.comparisonResult}"
-            th:data-label-main-failure-cause="#{admin.aiMonitor.section.mainFailureCause}"
-            th:data-label-open-failure-page="#{admin.aiMonitor.action.openFailurePage}"
-            th:data-label-slow-requests="#{admin.aiMonitor.failures.slowRequests}"
-            th:data-label-slow-requests-help="#{admin.aiMonitor.failures.slowRequestsHelp}"
-            th:data-label-latency-breakdown="#{admin.aiMonitor.failures.latencyBreakdown}"
-            th:data-label-latency-breakdown-help="#{admin.aiMonitor.failures.latencyBreakdownHelp}"
-            th:data-label-no-data-no-ai-decision-data="#{admin.aiMonitor.status.noAiDecisionData}"
-            th:data-label-no-data-no-classified-comparison="#{admin.aiMonitor.status.noClassifiedComparison}"
-            th:data-label-no-data-no-hcad-risk-comparison="#{admin.aiMonitor.status.noHcadRiskComparison}"
-            th:data-label-no-data-no-ai-risk-comparison="#{admin.aiMonitor.status.noAiRiskComparison}"
-            th:data-label-no-data-no-comparison-data="#{admin.aiMonitor.status.noComparisonData}"
-            th:data-label-no-data-no-decision-data="#{admin.aiMonitor.status.noDecisionData}"
-            th:data-label-enum-insufficient-data="#{admin.aiMonitor.enum.insufficientData}"
-            th:data-label-enum-do-not-recommend="#{admin.aiMonitor.enum.doNotRecommend}"
-            th:data-label-enum-keep-monitoring="#{admin.aiMonitor.enum.keepMonitoring}"
-            th:data-label-enum-ready-for-limited-review="#{admin.aiMonitor.enum.readyForLimitedReview}"
-            th:data-label-enum-ready-for-enforce-review="#{admin.aiMonitor.enum.readyForEnforceReview}"
-            th:data-label-enum-insufficient-sample="#{admin.aiMonitor.enum.insufficientSample}"
-             th:data-label-enum-do-not-enforce="#{admin.aiMonitor.enum.doNotEnforce}"
-             th:data-label-enum-default-enforce-candidate="#{admin.aiMonitor.enum.defaultEnforceCandidate}"
-             th:data-label-enum-limited-enforce-candidate="#{admin.aiMonitor.enum.limitedEnforceCandidate}"
-             th:data-label-enum-shadow-stable="#{admin.aiMonitor.enum.shadowStable}"
-             th:data-label-enum-keep-shadow="#{admin.aiMonitor.enum.keepShadow}"
-             th:data-label-enum-protectable="#{admin.aiMonitor.enum.protectable}"
-             th:data-label-enum-hcad-pre-trigger="#{admin.aiMonitor.enum.hcadPreTrigger}"
-             th:data-label-enum-pending-redline="#{admin.aiMonitor.enum.pendingRedline}"
-             th:data-label-enum-pending-analysis="#{admin.aiMonitor.enum.pendingAnalysis}"
-             th:data-label-enum-shadow="#{admin.aiMonitor.enum.shadow}"
-             th:data-label-enum-enforce="#{admin.aiMonitor.enum.enforce}"
-             th:data-label-enum-observe="#{admin.aiMonitor.enum.observe}"
-             th:data-label-enum-disabled="#{admin.aiMonitor.enum.disabled}"
-             th:data-label-enum-allow="#{admin.aiMonitor.enum.allow}"
-             th:data-label-enum-block="#{admin.aiMonitor.enum.block}"
-             th:data-label-enum-deny="#{admin.aiMonitor.enum.deny}"
-             th:data-label-enum-challenge="#{admin.aiMonitor.enum.challenge}"
-             th:data-label-enum-unknown="#{admin.aiMonitor.enum.unknown}"
-             th:data-label-enum-none="#{admin.aiMonitor.enum.none}"
-             th:data-label-enum-tp="#{admin.aiMonitor.enum.tp}"
-             th:data-label-enum-fp="#{admin.aiMonitor.enum.fp}"
-             th:data-label-enum-fn="#{admin.aiMonitor.enum.fn}"
-             th:data-label-enum-tn="#{admin.aiMonitor.enum.tn}"
-             th:data-label-enum-unobserved="#{admin.aiMonitor.enum.unobserved}"
-             th:data-label-enum-parser-failure="#{admin.aiMonitor.enum.parserFailure}"
-             th:data-label-enum-technical-fallback="#{admin.aiMonitor.enum.technicalFallback}"
-             th:data-label-enum-model-unavailable="#{admin.aiMonitor.enum.modelUnavailable}"
-             th:data-label-enum-timeout="#{admin.aiMonitor.enum.timeout}"
-             th:data-label-enum-prompt-contract-violation="#{admin.aiMonitor.enum.promptContractViolation}"
-             th:data-label-enum-malformed-json="#{admin.aiMonitor.enum.malformedJson}"
-             th:data-label-enum-empty-response="#{admin.aiMonitor.enum.emptyResponse}"
-             th:data-label-enum-no-runtime-llm-client="#{admin.aiMonitor.enum.noRuntimeLlmClient}"
-             th:data-label-enum-no-pipeline-executor="#{admin.aiMonitor.enum.noPipelineExecutor}"
-             th:data-label-enum-rejected-backpressure="#{admin.aiMonitor.enum.rejectedBackpressure}"
-             th:data-label-enum-queue-wait-ms="#{admin.aiMonitor.enum.queueWaitMs}"
-             th:data-label-enum-prompt-build-ms="#{admin.aiMonitor.enum.promptBuildMs}"
-             th:data-label-enum-rag-vector-ms="#{admin.aiMonitor.enum.ragVectorMs}"
-             th:data-label-enum-provider-throttle-wait-ms="#{admin.aiMonitor.enum.providerThrottleWaitMs}"
-             th:data-label-enum-unattributed-latency-ms="#{admin.aiMonitor.enum.unattributedLatencyMs}"
-             th:data-label-enum-openai-call-ms="#{admin.aiMonitor.enum.openaiCallMs}"
-             th:data-label-enum-parse-ms="#{admin.aiMonitor.enum.parseMs}"
-             th:data-label-enum-persist-ms="#{admin.aiMonitor.enum.persistMs}"
-             th:data-label-enum-total-analysis-ms="#{admin.aiMonitor.enum.totalAnalysisMs}"
-             th:data-label-enum-securitydecisionstandard="#{admin.aiMonitor.enum.securityDecisionStandard}"
-             th:data-label-enum-minimum-sample="#{admin.aiMonitor.enum.minimumSample}"
-             th:data-label-enum-hcad-precision="#{admin.aiMonitor.enum.hcadPrecision}"
-             th:data-label-enum-observable-fn-rate="#{admin.aiMonitor.enum.observableFnRate}"
-             th:data-label-enum-unknown-rate="#{admin.aiMonitor.enum.unknownRate}"
-             th:data-label-enum-failure-rate="#{admin.aiMonitor.enum.failureRate}"
-             th:data-label-enum-parser-failure-rate="#{admin.aiMonitor.enum.parserFailureRate}"
-             th:data-label-enum-technical-fallback-rate="#{admin.aiMonitor.enum.technicalFallbackRate}"
-             th:data-label-enum-timeout-rate="#{admin.aiMonitor.enum.timeoutRate}"
-             th:data-label-enum-model-unavailable-rate="#{admin.aiMonitor.enum.modelUnavailableRate}"
-             th:data-label-enum-p95-latency="#{admin.aiMonitor.enum.p95Latency}"
-             th:data-label-enum-duplicate-suppressed="#{admin.aiMonitor.enum.duplicateSuppressed}"
-             th:data-label-enum-low-risk="#{admin.aiMonitor.enum.lowRisk}"
-             th:data-label-enum-rate-limited="#{admin.aiMonitor.enum.rateLimited}"
-             th:data-label-enum-policy-observe-only="#{admin.aiMonitor.enum.policyObserveOnly}"
-             th:data-label-feedback-learning="#{admin.aiMonitor.feedback.title}"
-             th:data-label-feedback-learning-help="#{admin.aiMonitor.feedback.help}"
-             th:data-label-normal-learning="#{admin.aiMonitor.feedback.normalLearning}"
-             th:data-label-normal-learning-help="#{admin.aiMonitor.feedback.normalLearningHelp}"
-             th:data-label-risk-learning="#{admin.aiMonitor.feedback.riskLearning}"
-             th:data-label-risk-learning-help="#{admin.aiMonitor.feedback.riskLearningHelp}"
-             th:data-label-learning-excluded="#{admin.aiMonitor.feedback.learningExcluded}"
-             th:data-label-learning-excluded-help="#{admin.aiMonitor.feedback.learningExcludedHelp}"
-             th:data-label-cache-hit="#{admin.aiMonitor.feedback.cacheHit}"
-             th:data-label-cache-hit-help="#{admin.aiMonitor.feedback.cacheHitHelp}"
-             th:data-label-cache-miss="#{admin.aiMonitor.feedback.cacheMiss}"
-             th:data-label-cache-miss-help="#{admin.aiMonitor.feedback.cacheMissHelp}"
-             th:data-label-cache-stale="#{admin.aiMonitor.feedback.cacheStale}"
-             th:data-label-cache-stale-help="#{admin.aiMonitor.feedback.cacheStaleHelp}"
-             th:data-label-normal-suppression="#{admin.aiMonitor.feedback.normalSuppression}"
-             th:data-label-risk-hit-llm="#{admin.aiMonitor.feedback.riskHitLlm}"
-             th:data-label-risk-hit-eligible="#{admin.aiMonitor.feedback.riskHitEligible}"
-             th:data-label-enum-not-triggered="#{admin.aiMonitor.enum.notTriggered}">
+             th:data-label-affected-requests="#{admin.aiMonitor.section.affectedRequests}"
+             th:data-label-recent-failures="#{admin.aiMonitor.section.recentFailures}"
+             th:data-label-slow-requests="#{admin.aiMonitor.section.slowRequests}"
+             th:data-label-readiness="#{admin.aiMonitor.section.readinessCriteria}"
+             th:data-label-current-session="#{admin.aiMonitor.session.current}"
+             th:data-label-previous-sessions="#{admin.aiMonitor.session.previous}"
+             th:data-label-no-previous="#{admin.aiMonitor.session.noPrevious}"
+             th:data-label-reset="#{admin.aiMonitor.session.restartButton}"
+             th:data-label-reset-confirm="#{admin.aiMonitor.session.restartConfirm}"
+             th:data-label-reset-reason="#{admin.aiMonitor.session.restartReason}"
+             th:data-label-reset-failed="#{admin.aiMonitor.session.restartFailed}"
+             th:data-label-id="#{admin.aiMonitor.table.id}"
+             th:data-label-from="#{admin.aiMonitor.table.from}"
+             th:data-label-to="#{admin.aiMonitor.table.to}"
+             th:data-label-ended-at="#{admin.aiMonitor.table.endedAt}">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                    <h1 class="text-2xl font-bold" style="color:#e2e8f0;" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
-                    <p class="text-sm mt-1" style="color:#94a3b8;" th:text="#{admin.aiMonitor.subtitle}">AI security decision quality overview</p>
+                    <h1 class="text-2xl font-bold" style="color:#e2e8f0" th:text="#{admin.aiMonitor.title}">AI Security Monitor</h1>
+                    <p class="text-sm mt-1" style="color:#94a3b8" th:text="#{admin.aiMonitor.subtitle}">AI decision quality and operations</p>
                 </div>
-                <span id="ai-monitor-range" class="text-xs" style="color:#64748b;"></span>
+                <span id="ai-monitor-range" class="text-xs" style="color:#64748b"></span>
             </div>
-
             <nav class="ai-monitor-tabs">
                 <a th:href="@{/contexa/admin/ai-monitor(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'overview'} ? ' active' : ''" th:text="#{menu.aiMonitor.overview}">Overview</a>
-                <a th:href="@{/contexa/admin/ai-monitor/hcad(period=${period})}" class="ai-monitor-tab" th:text="#{menu.aiMonitor.hcad}">HCAD</a>
-                <a th:href="@{/contexa/admin/ai-monitor/llm(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'llm'} ? ' active' : ''" th:text="#{menu.aiMonitor.llm}">LLM</a>
-                <a th:href="@{/contexa/admin/ai-monitor/correlation(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'correlation'} ? ' active' : ''" th:text="#{menu.aiMonitor.correlation}">Correlation</a>
+                <a th:href="@{/contexa/admin/ai-monitor/llm(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'llm'} ? ' active' : ''" th:text="#{menu.aiMonitor.llm}">AI Decisions</a>
                 <a th:href="@{/contexa/admin/ai-monitor/failures(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'failures'} ? ' active' : ''" th:text="#{menu.aiMonitor.failures}">Failures</a>
                 <a th:href="@{/contexa/admin/ai-monitor/readiness(period=${period})}" class="ai-monitor-tab" th:classappend="${section == 'readiness'} ? ' active' : ''" th:text="#{menu.aiMonitor.readiness}">Readiness</a>
             </nav>
-
             <div class="ai-monitor-toolbar">
-                <span class="text-sm" style="color:#94a3b8;" th:text="#{admin.security.hcad.period}">Period</span>
-                <a th:href="${pagePath + '?period=day'}" class="ai-monitor-tab" th:classappend="${period == 'day' or period == null} ? ' active' : ''" data-period-link="day" th:text="#{admin.security.hcad.period.day}">Day</a>
-                <a th:href="${pagePath + '?period=week'}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" data-period-link="week" th:text="#{admin.security.hcad.period.week}">Week</a>
-                <a th:href="${pagePath + '?period=month'}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" data-period-link="month" th:text="#{admin.security.hcad.period.month}">Month</a>
-                <a th:href="${pagePath + '?period=year'}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" data-period-link="year" th:text="#{admin.security.hcad.period.year}">Year</a>
+                <span class="ai-monitor-muted" th:text="#{admin.aiMonitor.period}">Period</span>
+                <a th:href="${pagePath + '?period=day'}" class="ai-monitor-tab" th:classappend="${period == 'day'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.day}">Day</a>
+                <a th:href="${pagePath + '?period=week'}" class="ai-monitor-tab" th:classappend="${period == 'week'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.week}">Week</a>
+                <a th:href="${pagePath + '?period=month'}" class="ai-monitor-tab" th:classappend="${period == 'month'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.month}">Month</a>
+                <a th:href="${pagePath + '?period=year'}" class="ai-monitor-tab" th:classappend="${period == 'year'} ? ' active' : ''" th:text="#{admin.aiMonitor.period.year}">Year</a>
+                <a class="ai-monitor-button" id="ai-monitor-export" href="#" th:text="#{admin.aiMonitor.export}">Export CSV</a>
             </div>
-
-            <div id="ai-monitor-status" class="ai-monitor-band">
-                <div class="ai-monitor-band-title" th:text="#{admin.aiMonitor.status.loading}">Loading AI security monitor metrics</div>
-            </div>
+            <div id="ai-monitor-status" class="ai-monitor-band"><div class="ai-monitor-band-title" th:text="#{admin.aiMonitor.status.loading}">Loading</div></div>
             <div class="ai-monitor-kpis" id="ai-monitor-kpis"></div>
             <div class="ai-monitor-grid" id="ai-monitor-details"></div>
         </div>
     </main>
 </div>
-
 <div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
-<script th:src="@{/contexa/js/admin/ai-monitor.js?v=20260622f}"></script>
+<script th:src="@{/contexa/js/admin/ai-monitor.js?v=20260729}"></script>
 </body>
 </html>
-
-

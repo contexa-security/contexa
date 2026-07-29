@@ -90,4 +90,23 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         assertThat(store.claimEventProcessing("event-rel"))
                 .isEqualTo(SecurityContextDataStore.EventProcessingClaim.ACQUIRED);
     }
+
+    @Test
+    @DisplayName("login failure context is counted by user and client IP without double-counting")
+    void loginFailureContext_isAvailableForPromptProjection() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("alice", "203.0.113.10", now - 2_000);
+        store.recordLoginFailure("alice", null, now - 1_000);
+
+        assertThat(store.getRecentLoginFailureCount(
+                "alice", "203.0.113.10", now - 5_000, now)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("MFA completion context is available after verification")
+    void mfaCompletionContext_isAvailableForPromptProjection() {
+        assertThat(store.isMfaVerified("alice")).isFalse();
+        store.markMfaVerified("alice");
+        assertThat(store.isMfaVerified("alice")).isTrue();
+    }
 }

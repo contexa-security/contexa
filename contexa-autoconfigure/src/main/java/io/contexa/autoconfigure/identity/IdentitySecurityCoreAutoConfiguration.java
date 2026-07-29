@@ -16,7 +16,6 @@
 package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
@@ -27,19 +26,10 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
-import io.contexa.contexacore.hcad.filter.HCADFilter;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
-import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceWarmupService;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerOrchestrator;
-import io.contexa.contexacore.hcad.trigger.window.HcadObservationWindowRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
@@ -100,7 +90,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter({CoreInfrastructureAutoConfiguration.class, CoreHCADAutoConfiguration.class})
+@AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
 @EnableConfigurationProperties({AuthContextProperties.class })
 @ConditionalOnProperty(prefix = "contexa.identity.security-core", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PlatformConfig.class)
@@ -324,10 +314,10 @@ public class IdentitySecurityCoreAutoConfiguration {
             IBlockedUserRecorder blockedUserRecorder,
             @Autowired(required = false) CentralAuditFacade centralAuditFacade,
             @Autowired(required = false) LoginPolicyHandler loginPolicyHandler,
-            @Autowired(required = false) HCADDataStore hcadDataStore) {
+            @Autowired(required = false) SecurityContextDataStore securityContextDataStore) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
                 mfaSessionRepository, actionRedisRepository, authContextProperties.getMfa(),
-                blockedUserRecorder, centralAuditFacade, loginPolicyHandler, hcadDataStore);
+                blockedUserRecorder, centralAuditFacade, loginPolicyHandler, securityContextDataStore);
     }
 
     @Bean
@@ -440,49 +430,6 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
         return new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter);
     }
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean({
-            TrustedHcadContextProjectionFactory.class,
-            HcadPreProtectablePromotionScorer.class,
-            HcadEvaluationWriter.class
-    })
-    public HCADFilter hcadFilter(
-            TrustedHcadContextProjectionFactory trustedHcadContextProjectionFactory,
-            HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer,
-            HcadProperties hcadProperties,
-            ObjectProvider<PendingAnomalyTriggerOrchestrator> pendingAnomalyTriggerOrchestratorProvider,
-            HcadEvaluationWriter hcadEvaluationWriter,
-            HcadObservationWindowRepository hcadObservationWindowRepository,
-            ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider,
-            ObjectProvider<HcadSemanticEvidenceWarmupService> semanticEvidenceWarmupServiceProvider) {
-        return new HCADFilter(
-                trustedHcadContextProjectionFactory,
-                hcadPreProtectablePromotionScorer,
-                hcadProperties,
-                pendingAnomalyTriggerOrchestratorProvider::getIfAvailable,
-                () -> hcadEvaluationWriter,
-                hcadObservationWindowRepository,
-                semanticEvidenceCacheProvider::getIfAvailable,
-                semanticEvidenceWarmupServiceProvider::getIfAvailable);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(HCADFilter.class)
-    public HCADFilterConfigurer hcadFilterConfigurer(HCADFilter hcadFilter) {
-        return new HCADFilterConfigurer(hcadFilter);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "hcadFilterRegistrationBean")
-    @ConditionalOnBean(HCADFilter.class)
-    public FilterRegistrationBean<HCADFilter> hcadFilterRegistrationBean(HCADFilter hcadFilter) {
-        FilterRegistrationBean<HCADFilter> registration = new FilterRegistrationBean<>(hcadFilter);
-        registration.setEnabled(false);
-        return registration;
-    }
-
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(name = "contexaJdbcTemplate")

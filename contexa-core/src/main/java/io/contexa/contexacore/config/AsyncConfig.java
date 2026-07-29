@@ -16,10 +16,8 @@
 package io.contexa.contexacore.config;
 
 import io.contexa.contexacore.autonomous.LlmAnalysisBackpressureMonitor;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -125,12 +123,10 @@ public class AsyncConfig {
 
     @Bean
     public LlmAnalysisBackpressureMonitor llmAnalysisBackpressureMonitor(
-            @Qualifier("llmAnalysisExecutor") ThreadPoolTaskExecutor llmAnalysisExecutor,
-            ObjectProvider<HcadProperties> hcadPropertiesProvider) {
+            @Qualifier("llmAnalysisExecutor") ThreadPoolTaskExecutor llmAnalysisExecutor) {
         return new LlmAnalysisBackpressureMonitor(
                 llmAnalysisExecutor,
-                securityPlaneProperties,
-                hcadPropertiesProvider.getIfAvailable());
+                securityPlaneProperties);
     }
 
     private static final class BlockingQueueRejectedExecutionHandler implements RejectedExecutionHandler {

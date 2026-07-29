@@ -31,8 +31,6 @@ io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration
 # Core Streaming
 io.contexa.autoconfigure.core.streaming.CoreStreamingAutoConfiguration
 
-# Core HCAD
-io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration
 
 # Core Autonomous
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration

@@ -93,11 +93,6 @@ public class OfficialVerificationAnalysisEventStore {
         }
 
         @Override
-        public void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
-            append(userId, "HCAD_ANALYSIS", "PIPELINE", "COMPLETED", null, text(hcadData, "requestPath"), null, null, hcadData);
-        }
-
-        @Override
         public void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {
             append(userId, "SESSION_CONTEXT_LOADED", "PIPELINE", "COMPLETED", null, text(sessionData, "requestPath"), null, null, sessionData);
         }

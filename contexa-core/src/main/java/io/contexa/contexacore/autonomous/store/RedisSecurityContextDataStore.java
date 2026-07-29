@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,6 +48,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration EVENT_PROCESSING_TTL = Duration.ofMinutes(30);
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
+    private static final Duration LOGIN_FAILURE_COUNTER_TTL = Duration.ofMinutes(10);
+    private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
+    private final AtomicLong authenticationEventSequence = new AtomicLong();
 
     @Override
     public void addSessionAction(String sessionId, String action) {
@@ -361,7 +365,58 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             return value != null ? value.toString() : null;
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to get previous path: userId={}", userId, e);
-            return null;
+        }
+        return null;
+    }
+
+    @Override
+    public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
+        if (hasText(userId)) {
+            recordLoginFailureCounter(
+                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), currentTimeMs);
+        }
+        if (hasText(clientIp)) {
+            recordLoginFailureCounter(
+                    ZeroTrustRedisKeys.authenticationLoginFailuresByIp(clientIp.trim()), currentTimeMs);
+        }
+    }
+
+    @Override
+    public int getRecentLoginFailureCount(
+            String userId, String clientIp, long windowStartMs, long currentTimeMs) {
+        int userCount = hasText(userId)
+                ? countLoginFailures(
+                        ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
+                        windowStartMs,
+                        currentTimeMs)
+                : 0;
+        int ipCount = hasText(clientIp)
+                ? countLoginFailures(
+                        ZeroTrustRedisKeys.authenticationLoginFailuresByIp(clientIp.trim()),
+                        windowStartMs,
+                        currentTimeMs)
+                : 0;
+        return Math.max(userCount, ipCount);
+    }
+
+    @Override
+    public boolean isMfaVerified(String userId) {
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(
+                    ZeroTrustRedisKeys.authenticationMfaVerified(userId)));
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to check MFA verification: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    @Override
+    public void markMfaVerified(String userId) {
+        try {
+            redisTemplate.opsForValue().set(
+                    ZeroTrustRedisKeys.authenticationMfaVerified(userId), "true", MFA_VERIFIED_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to mark MFA verified: userId={}", userId, e);
         }
     }
 
@@ -433,6 +488,32 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         if (size != null && size > maxSize) {
             redisTemplate.opsForList().leftPop(key);
         }
+    }
+
+    private void recordLoginFailureCounter(String key, long currentTimeMs) {
+        try {
+            String member = currentTimeMs + ":" + authenticationEventSequence.incrementAndGet();
+            redisTemplate.opsForZSet().add(key, member, currentTimeMs);
+            redisTemplate.opsForZSet().removeRangeByScore(
+                    key, 0, currentTimeMs - Duration.ofMinutes(5).toMillis());
+            redisTemplate.expire(key, LOGIN_FAILURE_COUNTER_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
+        }
+    }
+
+    private int countLoginFailures(String key, long windowStartMs, long currentTimeMs) {
+        try {
+            Long count = redisTemplate.opsForZSet().count(key, windowStartMs, currentTimeMs);
+            return count != null ? count.intValue() : 0;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to count login failures: key={}", key, e);
+            return 0;
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private List<String> readStringList(String key, int count) {

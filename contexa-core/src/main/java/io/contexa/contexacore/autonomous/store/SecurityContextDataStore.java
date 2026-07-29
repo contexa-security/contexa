@@ -79,6 +79,14 @@ public interface SecurityContextDataStore {
 
     String getPreviousPath(String userId);
 
+    void recordLoginFailure(String userId, String clientIp, long currentTimeMs);
+
+    int getRecentLoginFailureCount(String userId, String clientIp, long windowStartMs, long currentTimeMs);
+
+    boolean isMfaVerified(String userId);
+
+    void markMfaVerified(String userId);
+
     EventProcessingClaim claimEventProcessing(String eventId);
 
     void markEventProcessed(String eventId);

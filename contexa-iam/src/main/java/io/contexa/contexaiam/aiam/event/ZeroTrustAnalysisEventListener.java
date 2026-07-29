@@ -97,13 +97,6 @@ public class ZeroTrustAnalysisEventListener implements LlmAnalysisEventListener 
     }
 
     @Override
-    public void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
-        if (delegate != null) {
-            delegate.onHcadAnalysis(userId, hcadData);
-        }
-    }
-
-    @Override
     public void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {
         if (delegate != null) {
             delegate.onSessionContextLoaded(userId, sessionData);

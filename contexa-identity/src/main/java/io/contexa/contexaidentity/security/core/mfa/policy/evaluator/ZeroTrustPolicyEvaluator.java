@@ -18,7 +18,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.ZeroTrustAnalysisData;
-import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
@@ -37,16 +37,16 @@ import java.util.stream.Collectors;
 public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
     private final ZeroTrustActionRepository actionRedisRepository;
-    private final HcadProperties hcadProperties;
+    private final SecurityZeroTrustProperties zeroTrustProperties;
 
     public ZeroTrustPolicyEvaluator(
             UserRepository userRepository,
             ApplicationContext applicationContext,
             ZeroTrustActionRepository actionRedisRepository,
-            HcadProperties hcadProperties) {
+            SecurityZeroTrustProperties zeroTrustProperties) {
         super(userRepository, applicationContext);
         this.actionRedisRepository = actionRedisRepository;
-        this.hcadProperties = hcadProperties;
+        this.zeroTrustProperties = zeroTrustProperties;
     }
 
     @Override
@@ -246,9 +246,9 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         try {
-            long maxAgeMs = hcadProperties != null
-                    && hcadProperties.getAnalysis() != null
-                    ? hcadProperties.getAnalysis().getMaxAgeMs() : 3600000L;
+            long maxAgeMs = zeroTrustProperties != null
+                    && zeroTrustProperties.getAnalysis() != null
+                    ? zeroTrustProperties.getAnalysis().getMaxAgeMs() : 3_600_000L;
             Instant updatedInstant = Instant.parse(updatedAt);
             return Instant.now().toEpochMilli() - updatedInstant.toEpochMilli() > maxAgeMs;
         } catch (Exception e) {

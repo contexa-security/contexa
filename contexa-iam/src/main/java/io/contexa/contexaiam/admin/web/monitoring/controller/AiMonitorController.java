@@ -15,7 +15,6 @@
  */
 package io.contexa.contexaiam.admin.web.monitoring.controller;
 
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MonitoringResetRequest;
@@ -73,15 +72,6 @@ public class AiMonitorController {
         return page("llm", "ai-monitor-llm", "/contexa/admin/ai-monitor/llm", period, model);
     }
 
-    @GetMapping("/contexa/admin/ai-monitor/correlation")
-    public String correlationPage(
-            @RequestParam(required = false, defaultValue = "day") String period,
-            Model model,
-            Authentication authentication) {
-        requireAdmin(authentication);
-        return page("correlation", "ai-monitor-correlation", "/contexa/admin/ai-monitor/correlation", period, model);
-    }
-
     @GetMapping({
             "/contexa/admin/ai-monitor/failures",
             "/contexa/admin/ai-monitor/operations"
@@ -119,15 +109,6 @@ public class AiMonitorController {
             Authentication authentication) {
         requireAdmin(authentication);
         return aiSecurityDecisionMonitoringService.llm(period);
-    }
-
-    @ResponseBody
-    @GetMapping("/contexa/admin/api/ai-monitor/correlation")
-    public CorrelationSummary correlation(
-            @RequestParam(required = false, defaultValue = "day") String period,
-            Authentication authentication) {
-        requireAdmin(authentication);
-        return aiSecurityDecisionMonitoringService.correlation(period);
     }
 
     @ResponseBody

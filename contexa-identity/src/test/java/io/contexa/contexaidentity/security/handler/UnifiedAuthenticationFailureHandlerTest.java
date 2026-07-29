@@ -19,7 +19,7 @@ import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -65,7 +65,7 @@ class UnifiedAuthenticationFailureHandlerTest {
     private LoginPolicyHandler loginPolicyHandler;
 
     @Mock
-    private HCADDataStore hcadDataStore;
+    private SecurityContextDataStore securityContextDataStore;
 
     private UnifiedAuthenticationFailureHandler handler;
 
@@ -80,12 +80,12 @@ class UnifiedAuthenticationFailureHandlerTest {
                 blockedUserRecorder,
                 null,
                 loginPolicyHandler,
-                hcadDataStore
+                securityContextDataStore
         );
     }
 
     @Test
-    void primaryAuthenticationFailureRecordsOnlyHcadFailureCounter() throws Exception {
+    void primaryAuthenticationFailureRecordsAuthenticationContext() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
         request.setParameter("username", "admin");
         request.setRemoteAddr("203.0.113.10");
@@ -94,20 +94,20 @@ class UnifiedAuthenticationFailureHandlerTest {
 
         handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad credentials"));
 
-        verify(hcadDataStore).recordLoginFailure(eq("admin"), isNull(), anyLong());
+        verify(securityContextDataStore).recordLoginFailure(eq("admin"), isNull(), anyLong());
         verify(loginPolicyHandler).onLoginFailure("admin");
         assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
     }
 
     @Test
-    void primaryAuthenticationFailureWithoutSubmittedPrincipalDoesNotPoisonHcadCounter() throws Exception {
+    void primaryAuthenticationFailureWithoutSubmittedPrincipalDoesNotPoisonAuthenticationContext() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
         MockHttpServletResponse response = new MockHttpServletResponse();
         when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(null);
 
         handler.onAuthenticationFailure(request, response, new BadCredentialsException("bad credentials"));
 
-        verify(hcadDataStore, never()).recordLoginFailure(eq("UnknownUser"), isNull(), anyLong());
+        verify(securityContextDataStore, never()).recordLoginFailure(eq("UnknownUser"), isNull(), anyLong());
         verify(loginPolicyHandler, never()).onLoginFailure("UnknownUser");
         assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
     }

@@ -18,7 +18,6 @@ package io.contexa.autoconfigure.ai;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
-import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.BridgeResolutionConfigurer;
@@ -39,7 +38,6 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 import java.util.UUID;
 
@@ -79,12 +77,10 @@ public class AiSecurityConfiguration {
     @Bean
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(ApplicationContext applicationContext,
-                                            CustomDynamicAuthorizationManager customDynamicAuthorizationManager,
-                                            ObjectProvider<HCADFilter> hcadFilterProvider) throws Exception {
+                                               CustomDynamicAuthorizationManager customDynamicAuthorizationManager) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         SecurityMode securityMode = resolveSecurityMode();
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
-            hcadFilterProvider.ifAvailable(hcadFilter -> http.addFilterBefore(hcadFilter, AuthorizationFilter.class));
             http
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/contexa/css/**", "/contexa/js/**", "/images/**", "/favicon.ico").permitAll()
@@ -96,7 +92,6 @@ public class AiSecurityConfiguration {
         if (securityMode == SecurityMode.SANDBOX) {
             return registry
                     .global(http -> {
-                        hcadFilterProvider.ifAvailable(hcadFilter -> http.addFilterBefore(hcadFilter, AuthorizationFilter.class));
                         http.csrf(AbstractHttpConfigurer::disable);
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);

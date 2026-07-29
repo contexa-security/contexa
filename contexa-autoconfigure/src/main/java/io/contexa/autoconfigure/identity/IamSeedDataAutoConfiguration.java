@@ -88,13 +88,12 @@ public class IamSeedDataAutoConfiguration {
             "official_actual_prompt_problem_ledger",
             "official_verification_prompt_comparison",
             "pqa_sealed_evidence_resource_status",
-            "hcad_detection_evaluation",
-            "ai_security_decision_observation",
-            "hcad_llm_decision_correlation"
+            "ai_security_decision_observation"
     };
 
     static final String[] SEED_LOCATIONS = {
             "db/data.sql",
+            "db/data-hcad-removal.sql",
             "db/data-menu.sql",
             "db/data-system-settings.sql"
     };

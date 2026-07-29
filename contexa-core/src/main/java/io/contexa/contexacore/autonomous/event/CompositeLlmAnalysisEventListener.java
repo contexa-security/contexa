@@ -173,11 +173,6 @@ public class CompositeLlmAnalysisEventListener implements LlmAnalysisEventListen
     }
 
     @Override
-    public void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
-        observers.forEach(observer -> invoke(() -> observer.onHcadAnalysis(userId, hcadData)));
-    }
-
-    @Override
     public void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {
         observers.forEach(observer -> invoke(() -> observer.onSessionContextLoaded(userId, sessionData)));
     }

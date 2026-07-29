@@ -25,25 +25,12 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionRequestProjector;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
-import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
-import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
-import io.contexa.contexacore.hcad.trigger.HcadActorSessionKeyFactory;
-import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
-import io.contexa.contexacore.hcad.trigger.HcadRequestPathUtils;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyKeyFactory;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
-import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -76,21 +63,11 @@ public class ZeroTrustEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
+    private final SecurityContextDataStore securityContextDataStore;
+    private final SecurityPlaneProperties securityPlaneProperties;
 
     @Autowired(required = false)
     private ZeroTrustActionRepository actionRedisRepository;
-
-    @Autowired(required = false)
-    private TrustedHcadContextProjectionFactory trustedHcadContextProjectionFactory;
-
-    @Autowired(required = false)
-    private HcadPreProtectablePromotionScorer hcadPreProtectablePromotionScorer;
-
-    @Autowired(required = false)
-    private HcadEvaluationWriter hcadEvaluationWriter;
-
-    @Autowired(required = false)
-    private HcadProperties hcadProperties;
 
     @Autowired(required = false)
     private SecurityZeroTrustProperties securityZeroTrustProperties;
@@ -98,8 +75,20 @@ public class ZeroTrustEventPublisher {
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
             TieredStrategyProperties properties) {
+        this(eventPublisher, properties, null, new SecurityPlaneProperties());
+    }
+
+    public ZeroTrustEventPublisher(
+            ApplicationEventPublisher eventPublisher,
+            TieredStrategyProperties properties,
+            SecurityContextDataStore securityContextDataStore,
+            SecurityPlaneProperties securityPlaneProperties) {
         this.eventPublisher = eventPublisher;
         this.properties = properties;
+        this.securityContextDataStore = securityContextDataStore;
+        this.securityPlaneProperties = securityPlaneProperties != null
+                ? securityPlaneProperties
+                : new SecurityPlaneProperties();
     }
 
     public void publishAuthenticationSuccess(
@@ -122,62 +111,11 @@ public class ZeroTrustEventPublisher {
 
     }
 
-    public void publishPreProtectableThreat(String userId, Map<String, Object> payload) {
-        RequestInfo requestInfo = extractRequestInfoFromContext();
-        Map<String, Object> mergedPayload = new HashMap<>();
-        if (payload != null) {
-            mergedPayload.putAll(payload);
-        }
-        if (requestInfo != null) {
-            putIfAbsent(mergedPayload, "requestPath", requestInfo.getRequestUri());
-            putIfAbsent(mergedPayload, "requestUri", requestInfo.getRequestUri());
-            putIfAbsent(mergedPayload, "httpMethod", requestInfo.getMethod());
-            putIfAbsent(mergedPayload, "requestId", requestInfo.getRequestId());
-            putIfAbsent(mergedPayload, "correlationId", requestInfo.getRequestId());
-            putIfAbsent(mergedPayload, "clientIp", requestInfo.getClientIp());
-            putIfAbsent(mergedPayload, "userAgent", requestInfo.getUserAgent());
-            putIfAbsent(mergedPayload, "resourceSensitivity", requestInfo.getResourceSensitivity());
-            putIfAbsent(mergedPayload, "mfaVerified", requestInfo.getMfaVerified());
-            putIfAbsent(mergedPayload, "previousPath", requestInfo.getPreviousPath());
-            putIfAbsent(mergedPayload, "lastRequestIntervalMs", requestInfo.getLastRequestIntervalMs());
-            putIfAbsent(mergedPayload, "recentRequestCount", requestInfo.getRecentRequestCount());
-            putIfAbsent(mergedPayload, "failedLoginAttempts", requestInfo.getFailedLoginAttempts());
-            putIfAbsent(mergedPayload, "isNewDevice", requestInfo.getIsNewDevice());
-            putIfAbsent(mergedPayload, "impossibleTravel", requestInfo.getImpossibleTravel());
-            promoteOfficialContextFields(requestInfo, mergedPayload);
-            populateBridgePayload(requestInfo, mergedPayload);
-        }
-        populateHcadEvidenceRunMarker(mergedPayload);
-        if (actionRedisRepository != null && userId != null && !mergedPayload.containsKey("action")) {
-            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId);
-            if (currentAction != null) {
-                mergedPayload.put("action", currentAction.name());
-            }
-        }
-
-        publish(
-                ZeroTrustEventCategory.THREAT,
-                ZeroTrustSpringEvent.TYPE_PRE_PROTECTABLE_REDLINE,
-                userId,
-                requestInfo != null ? requestInfo.getSessionId() : null,
-                requestInfo != null ? requestInfo.getClientIp() : null,
-                requestInfo != null ? requestInfo.getUserAgent() : null,
-                requestInfo != null ? requestInfo.getRequestUri() : null,
-                mergedPayload
-        );
-    }
-
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
             String denialReason) {
-        if (shouldSuppressMethodAuthorizationEvent()) {
-            markSuppressedProtectableObservation(methodInvocation);
-            log.debug("[ZeroTrustEventPublisher] Suppressing same-request METHOD authorization event after pre-trigger analysis start");
-            return;
-        }
-        markProtectableAnalysisStarted();
         ZeroTrustSpringEvent event = buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
@@ -185,21 +123,6 @@ public class ZeroTrustEventPublisher {
                 denialReason
         );
         eventPublisher.publishEvent(event);
-    }
-
-    private void markSuppressedProtectableObservation(MethodInvocation methodInvocation) {
-        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs == null || attrs.getRequest() == null) {
-            return;
-        }
-        HttpServletRequest request = attrs.getRequest();
-        String requestPath = HcadRequestPathUtils.normalizedPath(request);
-        String method = request.getMethod();
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_OBSERVED, true);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_ID, requestPath);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_URL, requestPath);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_HTTP_METHOD, method);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_LLM_REUSED, false);
     }
 
     public ZeroTrustSpringEvent buildMethodAuthorizationEvent(
@@ -229,8 +152,10 @@ public class ZeroTrustEventPublisher {
             payload.put("protectableVerificationRequired", protectable.verificationRequired());
             payload.put("protectableMethod", methodInvocation.getMethod().getDeclaringClass().getName()
                     + "." + methodInvocation.getMethod().getName());
-            payload.put("protectableResourceId", methodInvocation.getMethod().getDeclaringClass().getName()
-                    + "#" + methodInvocation.getMethod().getName());
+            String protectableResourceId = methodInvocation.getMethod().getDeclaringClass().getName()
+                    + "#" + methodInvocation.getMethod().getName();
+            payload.put("protectableResourceId", protectableResourceId);
+            payload.put("resourceId", protectableResourceId);
             String resourceUrlTemplate = currentResourceUrlTemplate();
             if (StringUtils.hasText(resourceUrlTemplate)) {
                 payload.put("protectableResourceUrl", resourceUrlTemplate);
@@ -340,9 +265,7 @@ public class ZeroTrustEventPublisher {
             }
             populateBridgePayload(requestInfo, payload);
             populateRequestContextHints(requestInfo, payload);
-            ensureProtectableHcadObservation(authentication, payload);
-            populateHcadPreTriggerObservationPayload(payload);
-            populateHcadEvidenceRunMarker(payload);
+            populateTestRunMarker(payload);
 
             if (requestInfo.getGeoCountry() != null) {
                 payload.put("geoCountry", requestInfo.getGeoCountry());
@@ -366,6 +289,7 @@ public class ZeroTrustEventPublisher {
         }
 
         populateAuthenticationFallback(authentication, payload);
+        populateStoredSecurityContext(effectiveUserId, requestInfo, payload);
         reconcileAuthorizationDecision(granted, payload);
         putIfAbsent(payload, "decisionBoundaryMode", securityZeroTrustMode());
 
@@ -410,197 +334,6 @@ public class ZeroTrustEventPublisher {
             return null;
         }
         return securityZeroTrustProperties.getMode().name();
-    }
-
-    private void ensureProtectableHcadObservation(Authentication authentication, Map<String, Object> payload) {
-        if (!Boolean.TRUE.equals(payload.get("protectableDeclared"))) {
-            return;
-        }
-        if (trustedHcadContextProjectionFactory == null
-                || hcadPreProtectablePromotionScorer == null
-                || hcadEvaluationWriter == null) {
-            return;
-        }
-        HcadProperties effectiveHcadProperties = hcadProperties;
-        if (effectiveHcadProperties != null
-                && (!effectiveHcadProperties.isEnabled()
-                || !effectiveHcadProperties.getPreTrigger().shouldEvaluate())) {
-            return;
-        }
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                return;
-            }
-            HttpServletRequest request = attrs.getRequest();
-            if (request == null
-                    || HcadRequestPathUtils.isNonUserInteractionRequest(request)
-                    || HcadRequestPathUtils.isNonActionableMonitoringPath(HcadRequestPathUtils.normalizedPath(request))) {
-                return;
-            }
-            if (Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))
-                    && StringUtils.hasText(attributeText(
-                    request,
-                    PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID))) {
-                return;
-            }
-
-            TrustedHcadContextProjection projection =
-                    trustedHcadContextProjectionFactory.project(request, authentication);
-            HcadPreProtectablePromotionAssessment assessment = assessmentFromRequest(request);
-            if (assessment == null) {
-                assessment = hcadPreProtectablePromotionScorer.score(projection);
-            }
-            assessment = withProtectableWindowMetadata(projection, assessment, request);
-            HcadPreTriggerMode mode = effectiveHcadProperties == null
-                    ? HcadPreTriggerMode.SHADOW
-                    : effectiveHcadProperties.getPreTrigger().effectiveMode();
-            HcadPreProtectablePromotionRequestProjector.project(request, assessment, mode);
-            String evaluationId = recordProtectableObservation(request, projection, assessment, payload, mode);
-            if (StringUtils.hasText(evaluationId)) {
-                request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, evaluationId);
-            }
-        } catch (Exception ex) {
-            log.error("[ZeroTrustEventPublisher] Failed to attach HCAD observation evidence to Protectable event", ex);
-        }
-    }
-
-    private HcadPreProtectablePromotionAssessment assessmentFromRequest(HttpServletRequest request) {
-        if (request == null
-                || !Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))) {
-            return null;
-        }
-        HcadPreProtectablePromotionBand band = bandAttribute(request);
-        if (band == null) {
-            return null;
-        }
-        Map<String, Object> rawSignals = mapAttribute(
-                request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS));
-        return new HcadPreProtectablePromotionAssessment(
-                integerAttribute(request, HcadPreProtectablePromotionAttributes.REQUEST_SCORE, 0),
-                band,
-                booleanAttribute(request, HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false),
-                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS)),
-                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS)),
-                extractStringList(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES)),
-                attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY),
-                attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_VERSION),
-                rawSignals);
-    }
-
-    private HcadPreProtectablePromotionBand bandAttribute(HttpServletRequest request) {
-        String value = attributeText(request, HcadPreProtectablePromotionAttributes.REQUEST_BAND);
-        if (value == null) {
-            return null;
-        }
-        try {
-            return HcadPreProtectablePromotionBand.valueOf(value.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
-    private boolean booleanAttribute(HttpServletRequest request, String attributeName, boolean defaultValue) {
-        Object value = request == null || attributeName == null ? null : request.getAttribute(attributeName);
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        String text = textValue(value);
-        return text == null ? defaultValue : Boolean.parseBoolean(text);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> mapAttribute(Object value) {
-        if (!(value instanceof Map<?, ?> map)) {
-            return new HashMap<>();
-        }
-        return new HashMap<>((Map<String, Object>) map);
-    }
-    private HcadPreProtectablePromotionAssessment withProtectableWindowMetadata(
-            TrustedHcadContextProjection projection,
-            HcadPreProtectablePromotionAssessment assessment,
-            HttpServletRequest request) {
-        if (assessment == null) {
-            return HcadPreProtectablePromotionAssessment.unavailable("HCAD protectable observation is unavailable.");
-        }
-        Map<String, Object> rawSignals = new HashMap<>(assessment.rawSignalSnapshot());
-        String actorSessionKey = firstText(
-                attributeText(request, "hcad.actorSessionKey"),
-                projection != null ? HcadActorSessionKeyFactory.fromProjection(projection) : null);
-        rawSignals.put("actorSessionKey", actorSessionKey);
-        putIfPresent(rawSignals, "windowId", attributeText(request, "hcad.windowId"));
-        rawSignals.put("triggerScope", "PROTECTABLE_OBSERVATION");
-        rawSignals.put("requestCount", integerAttribute(request, "hcad.windowRequestCount", 1));
-        rawSignals.put("protectableObserved", true);
-        if (projection != null) {
-            rawSignals.put("tenantId", projection.tenantId());
-            rawSignals.put("organizationId", projection.organizationId());
-        }
-        return new HcadPreProtectablePromotionAssessment(
-                assessment.score(),
-                assessment.band(),
-                assessment.eligible(),
-                assessment.anchorSignals(),
-                assessment.corroboratingSignals(),
-                assessment.reasonCodes(),
-                assessment.summary(),
-                assessment.evaluationVersion(),
-                rawSignals);
-    }
-
-    private String recordProtectableObservation(
-            HttpServletRequest request,
-            TrustedHcadContextProjection projection,
-            HcadPreProtectablePromotionAssessment assessment,
-            Map<String, Object> payload,
-            HcadPreTriggerMode mode) {
-        if (projection == null || assessment == null || !assessment.eligible()) {
-            return null;
-        }
-        String actorSessionKey = firstText(
-                textValue(assessment.rawSignalSnapshot().get("actorSessionKey")),
-                HcadActorSessionKeyFactory.fromProjection(projection));
-        String riskSignature = PendingAnomalyKeyFactory.buildTrustedSignalSignature(
-                assessment.anchorSignals(),
-                assessment.corroboratingSignals());
-        String triggerStateKey = PendingAnomalyKeyFactory.buildActorSessionDedupKey(actorSessionKey, riskSignature);
-        PendingAnomalyEvidenceReport report = new PendingAnomalyEvidenceReport(
-                true,
-                projection.userId(),
-                projection.contextBindingHash(),
-                triggerStateKey,
-                firstText(payload == null ? null : payload.get("requestId"),
-                        payload == null ? null : payload.get("correlationId"),
-                        request != null ? request.getHeader("X-Request-Id") : null,
-                        textValue(request != null ? request.getAttribute("requestId") : null)),
-                projection.sessionId(),
-                projection.normalizedPath(),
-                projection.method(),
-                projection.clientIp(),
-                assessment.score(),
-                assessment.band().serializedValue(),
-                assessment.eligible(),
-                assessment.evaluationVersion(),
-                assessment.anchorSignals(),
-                assessment.corroboratingSignals(),
-                assessment.reasonCodes(),
-                assessment.summary(),
-                riskSignature,
-                assessment.rawSignalSnapshot());
-        String evaluationId = hcadEvaluationWriter.recordCandidate(mode, report);
-        if (StringUtils.hasText(evaluationId)) {
-            hcadEvaluationWriter.markProtectableObserved(
-                    evaluationId,
-                    firstText(payload == null ? null : payload.get("resourceId"),
-                            projection.normalizedPath()),
-                    firstText(payload == null ? null : payload.get("requestPath"),
-                            payload == null ? null : payload.get("requestUri"),
-                            projection.normalizedPath()),
-                    firstText(payload == null ? null : payload.get("httpMethod"),
-                            projection.method()),
-                    assessment.eligible());
-        }
-        return evaluationId;
     }
 
     public void publish(
@@ -659,100 +392,6 @@ public class ZeroTrustEventPublisher {
                 .eventTimestamp(eventTimestamp != null ? eventTimestamp : Instant.now())
                 .payload(effectivePayload)
                 .build();
-    }
-
-    private boolean shouldSuppressMethodAuthorizationEvent() {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                return false;
-            }
-            HttpServletRequest request = attrs.getRequest();
-            return Boolean.TRUE.equals(request.getAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED));
-        } catch (Exception e) {
-            log.error("Failed to resolve pre-trigger suppression state", e);
-            return false;
-        }
-    }
-
-    private void markProtectableAnalysisStarted() {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs != null) {
-                attrs.getRequest().setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_STARTED, true);
-            }
-        } catch (Exception e) {
-            log.error("Failed to mark Protectable analysis lifecycle state", e);
-        }
-    }
-
-    private void populateHcadPreTriggerObservationPayload(Map<String, Object> payload) {
-        try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs == null) {
-                return;
-            }
-            HttpServletRequest request = attrs.getRequest();
-            if (!Boolean.TRUE.equals(request.getAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED))) {
-                return;
-            }
-            payload.put(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_MODE,
-                    HcadPreProtectablePromotionAttributes.METADATA_MODE);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_SCORE,
-                    HcadPreProtectablePromotionAttributes.METADATA_SCORE);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE,
-                    HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_BAND,
-                    HcadPreProtectablePromotionAttributes.METADATA_BAND);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE,
-                    HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS,
-                    HcadPreProtectablePromotionAttributes.METADATA_ANCHOR_SIGNALS);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS,
-                    HcadPreProtectablePromotionAttributes.METADATA_CORROBORATING_SIGNALS);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES,
-                    HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY,
-                    HcadPreProtectablePromotionAttributes.METADATA_SUMMARY);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_VERSION,
-                    HcadPreProtectablePromotionAttributes.METADATA_VERSION);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS,
-                    HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_PROVENANCE,
-                    HcadPreProtectablePromotionAttributes.METADATA_PROVENANCE);
-            copyRequestAttribute(request, payload,
-                    HcadPreProtectablePromotionAttributes.REQUEST_IGNORED_INPUTS,
-                    HcadPreProtectablePromotionAttributes.METADATA_IGNORED_INPUTS);
-            copyRequestAttribute(request, payload,
-                    PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID,
-                    "hcadEvaluationId");
-        } catch (Exception e) {
-            log.error("Failed to copy HCAD pre-trigger observation metadata", e);
-        }
-    }
-
-    private void copyRequestAttribute(
-            HttpServletRequest request,
-            Map<String, Object> payload,
-            String requestAttributeName,
-            String metadataName) {
-        Object value = request.getAttribute(requestAttributeName);
-        if (value != null) {
-            payload.putIfAbsent(metadataName, value);
-        }
     }
 
     private String resolveEffectiveUserId(Authentication authentication) {
@@ -946,6 +585,37 @@ public class ZeroTrustEventPublisher {
 
         if (!hasNonNullPayload(payload, "authorities")) {
             payload.put("authorities", authorities);
+        }
+    }
+
+    private void populateStoredSecurityContext(
+            String userId,
+            RequestInfo requestInfo,
+            Map<String, Object> payload) {
+        if (securityContextDataStore == null || !StringUtils.hasText(userId) || payload == null) {
+            return;
+        }
+        try {
+            if (!hasNonNullPayload(payload, "mfaVerified")) {
+                payload.put("mfaVerified", securityContextDataStore.isMfaVerified(userId));
+            }
+            if (!hasNonNullPayload(payload, "failedLoginAttempts")) {
+                long now = System.currentTimeMillis();
+                int windowMinutes = Math.max(
+                        1,
+                        securityPlaneProperties.getContext().getLoginFailureWindowMinutes());
+                long windowStart = now - windowMinutes * 60_000L;
+                String clientIp = requestInfo != null ? requestInfo.getClientIp() : null;
+                payload.put(
+                        "failedLoginAttempts",
+                        securityContextDataStore.getRecentLoginFailureCount(
+                                userId,
+                                clientIp,
+                                windowStart,
+                                now));
+            }
+        } catch (RuntimeException exception) {
+            log.error("Failed to populate stored authentication context: userId={}", userId, exception);
         }
     }
 
@@ -1193,26 +863,6 @@ public class ZeroTrustEventPublisher {
         return null;
     }
 
-    private String attributeText(HttpServletRequest request, String attributeName) {
-        return request == null || attributeName == null ? null : textValue(request.getAttribute(attributeName));
-    }
-
-    private int integerAttribute(HttpServletRequest request, String attributeName, int defaultValue) {
-        Object value = request == null || attributeName == null ? null : request.getAttribute(attributeName);
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        String text = textValue(value);
-        if (text == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(text);
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
-
     private void putIfPresent(Map<String, Object> payload, String key, Object value) {
         if (value != null) {
             payload.put(key, value);
@@ -1225,14 +875,13 @@ public class ZeroTrustEventPublisher {
         }
     }
 
-    private void populateHcadEvidenceRunMarker(Map<String, Object> payload) {
+    private void populateTestRunMarker(Map<String, Object> payload) {
         if (payload == null) {
             return;
         }
         String runId = currentRequestHeader("X-Contexa-Test-Run-Id");
         if (StringUtils.hasText(runId)) {
             payload.putIfAbsent("testRunId", runId);
-            payload.putIfAbsent("hcadTestRunId", runId);
         }
     }
 

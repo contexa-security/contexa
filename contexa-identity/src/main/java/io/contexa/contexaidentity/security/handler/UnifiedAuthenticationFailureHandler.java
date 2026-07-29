@@ -23,7 +23,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -59,7 +59,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
     private final LoginPolicyHandler loginPolicyService;
-    private final HCADDataStore hcadDataStore;
+    private final SecurityContextDataStore securityContextDataStore;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -69,7 +69,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                IBlockedUserRecorder blockedUserRecorder,
                                                CentralAuditFacade centralAuditFacade,
                                                @Nullable LoginPolicyHandler loginPolicyService,
-                                               @Nullable HCADDataStore hcadDataStore) {
+                                               @Nullable SecurityContextDataStore securityContextDataStore) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
@@ -78,7 +78,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.blockedUserRecorder = blockedUserRecorder;
         this.centralAuditFacade = centralAuditFacade;
         this.loginPolicyService = loginPolicyService;
-        this.hcadDataStore = hcadDataStore;
+        this.securityContextDataStore = securityContextDataStore;
     }
 
     @Override
@@ -96,7 +96,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
         String usernameForLog = extractUsernameForLogging(request, factorContext);
         String sessionIdForLog = extractSessionIdForLogging(factorContext);
-        recordHcadAuthenticationFailure(request, usernameForLog);
+        recordAuthenticationFailureContext(usernameForLog);
 
         AuthType currentProcessingFactor = (factorContext != null) ? factorContext.getCurrentProcessingFactor() : null;
 
@@ -362,14 +362,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 currentState == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 
-    private void recordHcadAuthenticationFailure(HttpServletRequest request, String username) {
-        if (hcadDataStore == null || !isKnownUsername(username)) {
+    private void recordAuthenticationFailureContext(String username) {
+        if (securityContextDataStore == null || !isKnownUsername(username)) {
             return;
         }
         try {
-            hcadDataStore.recordLoginFailure(username.trim(), null, System.currentTimeMillis());
+            securityContextDataStore.recordLoginFailure(username.trim(), null, System.currentTimeMillis());
         } catch (Exception e) {
-            log.error("Failed to record HCAD authentication failure counter for user: {}", username, e);
+            log.error("Failed to record authentication failure context for user: {}", username, e);
         }
     }
 

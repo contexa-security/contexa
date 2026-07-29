@@ -46,17 +46,6 @@ class ContexaPropertiesTest {
         }
 
         @Test
-        @DisplayName("Should have HCAD enabled with default similarity thresholds")
-        void shouldHaveHcadDefaults() {
-            ContexaProperties properties = new ContexaProperties();
-
-            assertThat(properties.getHcad().isEnabled()).isTrue();
-            assertThat(properties.getHcad().getSimilarity().getHotPathThreshold()).isEqualTo(0.7);
-            assertThat(properties.getHcad().getBaseline().getMinSamples()).isEqualTo(10);
-            assertThat(properties.getHcad().getBaseline().getCacheTtl()).isEqualTo(3600);
-        }
-
-        @Test
         @DisplayName("Should have autonomous defaults")
         void shouldHaveAutonomousDefaults() {
             ContexaProperties properties = new ContexaProperties();
@@ -114,11 +103,9 @@ class ContexaPropertiesTest {
         void shouldDisableFeatures() {
             ContexaProperties properties = new ContexaProperties();
             properties.setEnabled(false);
-            properties.getHcad().setEnabled(false);
             properties.getAutonomous().setEnabled(false);
 
             assertThat(properties.isEnabled()).isFalse();
-            assertThat(properties.getHcad().isEnabled()).isFalse();
             assertThat(properties.getAutonomous().isEnabled()).isFalse();
         }
 

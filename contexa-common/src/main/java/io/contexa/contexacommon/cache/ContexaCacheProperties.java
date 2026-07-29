@@ -102,7 +102,6 @@ public class ContexaCacheProperties {
         private TtlConfig soar = new TtlConfig(900, 900);
 
         
-        private TtlConfig hcad = new TtlConfig(86400, 86400);
     }
 
     

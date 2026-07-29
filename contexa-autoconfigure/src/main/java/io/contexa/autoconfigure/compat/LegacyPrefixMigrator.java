@@ -53,7 +53,6 @@ public class LegacyPrefixMigrator implements EnvironmentPostProcessor {
 
     /** Order matters: more specific prefixes must come before their roots. */
     static {
-        PREFIX_MAP.put("hcad.", "contexa.hcad.");
         PREFIX_MAP.put("spring.auth.", "contexa.auth.");
         PREFIX_MAP.put("security.router.", "contexa.security.router.");
         PREFIX_MAP.put("security.coldpath.", "contexa.security.coldpath.");

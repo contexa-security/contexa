@@ -62,7 +62,6 @@ public final class VectorDocumentMetadata {
     public static final String TYPE_STANDARD = "standard";
     public static final String TYPE_BEHAVIOR_ANALYSIS = "behavior_analysis";
     public static final String TYPE_RISK_ASSESSMENT = "risk_assessment";
-    public static final String TYPE_HCAD_PATTERN = "hcad_pattern";
     public static final String TYPE_LAYER1_FEEDBACK = "layer1_feedback";
     public static final String TYPE_LAYER2_FEEDBACK = "layer2_feedback";
 

@@ -17,7 +17,6 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
-import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,14 +32,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SystemRuntimeSettingsService {
 
-    public static final int DEFAULT_HCAD_MEDIUM_RISK_SCORE = 30;
-    public static final int DEFAULT_HCAD_HIGH_RISK_SCORE = 50;
-    public static final int DEFAULT_HCAD_REDLINE_SCORE = 70;
-    public static final int DEFAULT_HCAD_FAILED_LOGIN_BURST_THRESHOLD = 3;
-    public static final int DEFAULT_HCAD_REQUEST_BURST_THRESHOLD = 12;
-    public static final double DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD = 0.80d;
-    public static final double DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD = 0.85d;
-    public static final HcadPreTriggerMode DEFAULT_HCAD_PRE_TRIGGER_MODE = HcadPreTriggerMode.SHADOW;
     public static final SecurityZeroTrustProperties.SecurityMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.SecurityMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
 
@@ -51,11 +42,6 @@ public class SystemRuntimeSettingsService {
         return repository.findAll().stream()
                 .findFirst()
                 .orElseGet(SystemRuntimeSettingsService::defaultSettings);
-    }
-
-    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public HcadRuntimeSettings getHcadRuntimeSettings() {
-        return HcadRuntimeSettings.from(getSettings());
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -75,25 +61,9 @@ public class SystemRuntimeSettingsService {
 
     public static SystemSettings defaultSettings() {
         return SystemSettings.builder()
-                .hcadMediumRiskScore(DEFAULT_HCAD_MEDIUM_RISK_SCORE)
-                .hcadHighRiskScore(DEFAULT_HCAD_HIGH_RISK_SCORE)
-                .hcadRedlineScore(DEFAULT_HCAD_REDLINE_SCORE)
-                .hcadFailedLoginBurstThreshold(DEFAULT_HCAD_FAILED_LOGIN_BURST_THRESHOLD)
-                .hcadRequestBurstThreshold(DEFAULT_HCAD_REQUEST_BURST_THRESHOLD)
-                .hcadSemanticRiskSimilarityThreshold(DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD)
-                .hcadSemanticNormalSimilarityThreshold(DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD)
-                .hcadPreTriggerMode(DEFAULT_HCAD_PRE_TRIGGER_MODE.name())
                 .securityZeroTrustMode(DEFAULT_SECURITY_ZEROTRUST_MODE.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
-    }
-
-    public static HcadPreTriggerMode normalizeHcadPreTriggerMode(String rawValue) {
-        return HcadPreTriggerMode.from(StringUtils.hasText(rawValue) ? rawValue : DEFAULT_HCAD_PRE_TRIGGER_MODE.name());
-    }
-
-    public static String normalizeHcadPreTriggerModeForStorage(String rawValue) {
-        return normalizeHcadPreTriggerMode(rawValue).name();
     }
 
     public static SecurityZeroTrustProperties.SecurityMode normalizeSecurityZeroTrustMode(String rawValue) {
@@ -130,27 +100,4 @@ public class SystemRuntimeSettingsService {
         return normalized.endsWith(".") ? normalized : normalized + ".";
     }
 
-    public record HcadRuntimeSettings(
-            int mediumRiskScore,
-            int highRiskScore,
-            int redlineScore,
-            int failedLoginBurstThreshold,
-            int requestBurstThreshold,
-            double semanticRiskSimilarityThreshold,
-            double semanticNormalSimilarityThreshold,
-            HcadPreTriggerMode preTriggerMode) {
-
-        public static HcadRuntimeSettings from(SystemSettings settings) {
-            SystemSettings source = settings == null ? defaultSettings() : settings;
-            return new HcadRuntimeSettings(
-                    source.getHcadMediumRiskScore(),
-                    source.getHcadHighRiskScore(),
-                    source.getHcadRedlineScore(),
-                    source.getHcadFailedLoginBurstThreshold(),
-                    source.getHcadRequestBurstThreshold(),
-                    source.getHcadSemanticRiskSimilarityThreshold(),
-                    source.getHcadSemanticNormalSimilarityThreshold(),
-                    normalizeHcadPreTriggerMode(source.getHcadPreTriggerMode()));
-        }
-    }
 }

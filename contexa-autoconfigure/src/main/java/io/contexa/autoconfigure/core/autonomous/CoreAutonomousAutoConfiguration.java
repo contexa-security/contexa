@@ -53,8 +53,10 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
+import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
+import io.contexa.contexacore.autonomous.baseline.store.RedisBaselineDataStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
@@ -114,7 +116,6 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
 
 @AutoConfiguration
 @AutoConfigureAfter(name = {
-        "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration",
         "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
         "io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration",
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
@@ -138,6 +139,14 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
 public class CoreAutonomousAutoConfiguration {
 
     public CoreAutonomousAutoConfiguration() {
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public BaselineLearningService baselineLearningService(
+            BaselineDataStore baselineDataStore,
+            SecurityZeroTrustProperties zeroTrustProperties) {
+        return new BaselineLearningService(baselineDataStore, zeroTrustProperties);
     }
 
     @Bean
@@ -479,16 +488,12 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustEventListener zeroTrustEventListener,
             SecurityPlaneAgent securityPlaneAgent,
-            ZeroTrustActionRepository actionRepository,
-            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
-            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider) {
+            ZeroTrustActionRepository actionRepository) {
         return new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
                 securityPlaneAgent,
-                actionRepository,
-                analysisTriggerStateRepositoryProvider.getIfAvailable(),
-                aiSecurityDecisionObservationWriterProvider::getIfAvailable);
+                actionRepository);
     }
     @Bean
     @ConditionalOnMissingBean
@@ -501,6 +506,13 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(RedisTemplate.class)
     static class DistributedRepositoryConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(BaselineDataStore.class)
+        public RedisBaselineDataStore baselineDataStore(
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+            return new RedisBaselineDataStore(redisTemplate);
+        }
 
         @Bean
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
@@ -542,9 +554,15 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
-    public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
-        return new InMemoryZeroTrustActionRepository();
-    }
+      public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
+          return new InMemoryZeroTrustActionRepository();
+      }
+
+      @Bean
+      @ConditionalOnMissingBean(BaselineDataStore.class)
+      public InMemoryBaselineDataStore baselineDataStore() {
+          return new InMemoryBaselineDataStore();
+      }
 
     @Bean
     @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)

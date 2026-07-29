@@ -72,8 +72,6 @@ services:
       SPRING_DATASOURCE_USERNAME: contexa
       SPRING_DATASOURCE_PASSWORD: contexa1234!@#
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
-      HCAD_GEOIP_ENABLED: "true"
-      HCAD_GEOIP_DB_PATH: data/GeoLite2-City.mmdb
     ports:
       - "8080:8080"
     volumes:

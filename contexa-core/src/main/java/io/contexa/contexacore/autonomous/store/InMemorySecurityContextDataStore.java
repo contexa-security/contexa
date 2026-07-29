@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemorySecurityContextDataStore implements SecurityContextDataStore {
 
@@ -41,6 +43,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration DEFAULT_EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
     private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
+    private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
 
     private final Duration eventProcessedTtl;
     private final Duration soarTtl;
@@ -81,6 +84,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
+    private final AtomicLong authenticationEventSequence = new AtomicLong();
     private final Object eventProcessingLock = new Object();
     private final Set<String> processingEvents = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Map<String, Instant> processedEventExpiry = Collections.synchronizedMap(
@@ -276,6 +283,46 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void recordLoginFailure(String userId, String clientIp, long currentTimeMs) {
+        if (hasText(userId)) {
+            recordLoginFailureCounter("user:" + userId.trim(), currentTimeMs);
+        }
+        if (hasText(clientIp)) {
+            recordLoginFailureCounter("ip:" + clientIp.trim(), currentTimeMs);
+        }
+    }
+
+    @Override
+    public int getRecentLoginFailureCount(
+            String userId, String clientIp, long windowStartMs, long currentTimeMs) {
+        int userCount = hasText(userId)
+                ? countLoginFailures("user:" + userId.trim(), windowStartMs, currentTimeMs)
+                : 0;
+        int ipCount = hasText(clientIp)
+                ? countLoginFailures("ip:" + clientIp.trim(), windowStartMs, currentTimeMs)
+                : 0;
+        return Math.max(userCount, ipCount);
+    }
+
+    @Override
+    public boolean isMfaVerified(String userId) {
+        Long expiresAt = mfaVerifiedExpiry.get(userId);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (clock.millis() >= expiresAt) {
+            mfaVerifiedExpiry.remove(userId, expiresAt);
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void markMfaVerified(String userId) {
+        mfaVerifiedExpiry.put(userId, clock.millis() + MFA_VERIFIED_TTL.toMillis());
+    }
+
+    @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
         synchronized (eventProcessingLock) {
             Instant expiresAt = processedEventExpiry.get(eventId);
@@ -361,6 +408,33 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return sequence;
         });
         evictIfOversized();
+    }
+
+    private void recordLoginFailureCounter(String key, long currentTimeMs) {
+        loginFailureCounters.compute(key, (ignored, counter) -> {
+            ConcurrentSkipListMap<Long, String> values = counter != null
+                    ? counter
+                    : new ConcurrentSkipListMap<>();
+            long sequence = authenticationEventSequence.incrementAndGet() % 1_000_000L;
+            values.put(currentTimeMs * 1_000_000L + sequence, Long.toString(currentTimeMs));
+            long cutoff = (currentTimeMs - Duration.ofMinutes(5).toMillis()) * 1_000_000L;
+            values.headMap(cutoff).clear();
+            return values;
+        });
+    }
+
+    private int countLoginFailures(String key, long windowStartMs, long currentTimeMs) {
+        ConcurrentSkipListMap<Long, String> counter = loginFailureCounters.get(key);
+        if (counter == null) {
+            return 0;
+        }
+        long from = windowStartMs * 1_000_000L;
+        long to = currentTimeMs * 1_000_000L + 999_999L;
+        return counter.subMap(from, true, to, true).size();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private List<String> recentStringSequence(List<String> sequence, int count) {

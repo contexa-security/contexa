@@ -50,6 +50,9 @@ public class SecurityPlaneProperties {
     @NestedConfigurationProperty
     private DeduplicationSettings deduplication = new DeduplicationSettings();
 
+    @NestedConfigurationProperty
+    private SecurityContextSettings context = new SecurityContextSettings();
+
     @Data
     public static class AgentSettings {
         private String name = "SecurityPlaneAgent-1";
@@ -131,6 +134,10 @@ public class SecurityPlaneProperties {
         private long queueTimeoutMs = 60000L;
 
         private boolean prestartCoreThreads = true;
+
+        private boolean backpressureEnabled = true;
+
+        private int backpressureQueueThreshold = 96;
     }
 
     @Data
@@ -167,6 +174,12 @@ public class SecurityPlaneProperties {
         private int windowMinutes = 5;
 
         private int cacheSize = 10000;
+    }
+
+    @Data
+    public static class SecurityContextSettings {
+
+        private int loginFailureWindowMinutes = 5;
     }
 }
 

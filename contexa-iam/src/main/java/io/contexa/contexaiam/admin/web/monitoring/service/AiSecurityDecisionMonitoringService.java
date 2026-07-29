@@ -17,16 +17,9 @@ package io.contexa.contexaiam.admin.web.monitoring.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationMatrixRow;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.CorrelationSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.AffectedRequest;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FailureSummary;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.FeedbackLearningSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LatencyBreakdownMetric;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.LlmDecisionSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.MetricValue;
@@ -39,13 +32,12 @@ import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.NamedCount;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OperationsSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.OverviewSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentFailure;
-import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RecentCorrelation;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessBlocker;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.ReadinessSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.RuntimeModeSummary;
 import io.contexa.contexaiam.admin.web.monitoring.dto.AiMonitorDtos.StandardMetrics;
-import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 import org.springframework.context.MessageSource;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,46 +107,26 @@ public class AiSecurityDecisionMonitoringService {
             )
             """;
 
-    private final HcadMonitoringService hcadMonitoringService;
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
-    private final HcadProperties hcadProperties;
     private final SecurityZeroTrustProperties zeroTrustProperties;
-    private final Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier;
-    private final Supplier<HCADDataStore> hcadDataStoreSupplier;
     private final MessageSource messageSource;
 
     public AiSecurityDecisionMonitoringService(
-            HcadMonitoringService hcadMonitoringService,
             Supplier<JdbcOperations> jdbcOperationsSupplier,
-            HcadProperties hcadProperties,
-            SecurityZeroTrustProperties zeroTrustProperties,
-            Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier,
-            Supplier<HCADDataStore> hcadDataStoreSupplier) {
+            SecurityZeroTrustProperties zeroTrustProperties) {
         this(
-                hcadMonitoringService,
                 jdbcOperationsSupplier,
-                hcadProperties,
                 zeroTrustProperties,
-                semanticEvidenceCacheSupplier,
-                hcadDataStoreSupplier,
-                HcadMonitoringService.defaultMessageSource());
+                new StaticMessageSource());
     }
 
     public AiSecurityDecisionMonitoringService(
-            HcadMonitoringService hcadMonitoringService,
             Supplier<JdbcOperations> jdbcOperationsSupplier,
-            HcadProperties hcadProperties,
             SecurityZeroTrustProperties zeroTrustProperties,
-            Supplier<HcadSemanticEvidenceCache> semanticEvidenceCacheSupplier,
-            Supplier<HCADDataStore> hcadDataStoreSupplier,
             MessageSource messageSource) {
-        this.hcadMonitoringService = hcadMonitoringService;
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
-        this.hcadProperties = hcadProperties;
         this.zeroTrustProperties = zeroTrustProperties;
-        this.semanticEvidenceCacheSupplier = semanticEvidenceCacheSupplier == null ? () -> null : semanticEvidenceCacheSupplier;
-        this.hcadDataStoreSupplier = hcadDataStoreSupplier == null ? () -> null : hcadDataStoreSupplier;
-        this.messageSource = messageSource == null ? HcadMonitoringService.defaultMessageSource() : messageSource;
+        this.messageSource = messageSource == null ? new StaticMessageSource() : messageSource;
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -167,11 +139,8 @@ public class AiSecurityDecisionMonitoringService {
                 data.snapshot().generatedAt(),
                 data.snapshot(),
                 data.metrics(),
-                data.hcad(),
                 withMetrics(data.llm(), data.snapshot(), data.metrics()),
-                withMetrics(data.correlation(), data.snapshot(), data.metrics()),
                 data.operations(),
-                data.feedbackLearning(),
                 data.readinessRecommendation());
     }
 
@@ -182,16 +151,10 @@ public class AiSecurityDecisionMonitoringService {
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public CorrelationSummary correlation(String period) {
-        TimeWindow window = window(period);
-        return withMetrics(correlationSummary(window.from(), window.to()), monitorSnapshot(window), null);
-    }
-
-    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public FailureSummary failures(String period) {
         TimeWindow window = window(period);
         MonitorSnapshot snapshot = monitorSnapshot(window);
-        OperationsSummary operations = operationsSummary(window.from(), window.to(), null);
+        OperationsSummary operations = operationsSummary(window.from(), window.to());
         List<NamedCount> canonicalFailures = explicitFailureBreakdown(window.from(), window.to());
         return new FailureSummary(
                 window.period(),
@@ -216,7 +179,6 @@ public class AiSecurityDecisionMonitoringService {
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
     public ReadinessSummary readiness(String period) {
         SnapshotData data = snapshotData(period);
-        HcadSummary hcad = data.hcad();
         LlmDecisionSummary llm = data.llm();
         OperationsSummary operations = data.operations();
         return new ReadinessSummary(
@@ -227,12 +189,7 @@ public class AiSecurityDecisionMonitoringService {
                 data.snapshot(),
                 data.metrics(),
                 data.readinessRecommendation(),
-                hcad.qualification().minimumSampleSize(),
-                hcad.candidateCount(),
                 llm.totalDecisionCount(),
-                metricNumber(data.metrics().hcadPrecision()),
-                metricNumber(data.metrics().observableFalseNegativeRate()),
-                metricNumber(data.metrics().unknownRate()),
                 metricNumber(data.metrics().failureRate()),
                 llm.parserFailureRate(),
                 llm.technicalFallbackRate(),
@@ -240,8 +197,6 @@ public class AiSecurityDecisionMonitoringService {
                 llm.modelUnavailableRate(),
                 operations.averageLatencyMs(),
                 p95Latency(data.window().from(), data.window().to()),
-                operations.estimatedWasteCostUsd(),
-                operations.estimatedSavedCostUsd(),
                 currentSession(data),
                 sessionSummaries(8),
                 readinessBlockers(data));
@@ -259,22 +214,8 @@ public class AiSecurityDecisionMonitoringService {
                         row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
                         row(message(locale, "monitoring.csv.totalLlmDecisions"),
                                 summary.totalDecisionCount()),
-                        row(message(locale, "monitoring.csv.hcadPreTriggerDecisions"), summary.hcadPreTriggerDecisionCount()),
                         row(message(locale, "monitoring.csv.protectableDecisions"),
                                 summary.protectableDecisionCount())));
-            }
-            case "correlation" -> {
-                CorrelationSummary summary = correlation(period);
-                yield csv(List.of(
-                        row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
-                        row(message(locale, "monitoring.csv.truePositiveTp"),
-                                summary.truePositiveCount()),
-                        row(message(locale, "monitoring.csv.falsePositiveFp"),
-                                summary.falsePositiveCount()),
-                        row(message(locale, "monitoring.csv.observableFalseNegativeFn"), summary.observableFalseNegativeCount()),
-                        row(message(locale, "monitoring.csv.trueNegativeTn"),
-                                summary.trueNegativeCount()),
-                        row(message(locale, "monitoring.csv.unknown"), summary.unknownCount())));
             }
             case "failures" -> {
                 FailureSummary summary = failures(period);
@@ -294,12 +235,6 @@ public class AiSecurityDecisionMonitoringService {
                 yield csv(List.of(
                         row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
                         row(message(locale, "monitoring.csv.readinessRecommendation"), summary.recommendation()),
-                        row(message(locale, "monitoring.csv.minimumSampleSize"),
-                                summary.minimumSampleSize()),
-                        row(message(locale, "monitoring.csv.hcadPrecision"),
-                                summary.hcadPrecision()),
-                        row(message(locale, "monitoring.csv.unknownRate"),
-                                summary.unknownRate()),
                         row(message(locale, "monitoring.csv.failureRate"),
                                 summary.failureRate())));
             }
@@ -307,12 +242,8 @@ public class AiSecurityDecisionMonitoringService {
                 OverviewSummary summary = overview(period);
                 yield csv(List.of(
                         row(message(locale, "monitoring.csv.metric"), message(locale, "monitoring.csv.value")),
-                        row(message(locale, "monitoring.csv.hcadCandidates"),
-                                summary.hcad().candidateCount()),
                         row(message(locale, "monitoring.csv.llmDecisions"),
                                 summary.llm().totalDecisionCount()),
-                        row(message(locale, "monitoring.csv.unknown"),
-                                summary.correlation().unknownCount()),
                         row(message(locale, "monitoring.csv.timeouts"),
                                 summary.operations().timeoutCount()),
                         row(message(locale, "monitoring.csv.readinessRecommendation"), summary.readinessRecommendation())));
@@ -344,13 +275,8 @@ public class AiSecurityDecisionMonitoringService {
             return jdbcOperations.queryForObject(
                     """
                             select session_id, started_at, ended_at, period, reset_by, reset_reason,
-                                   hcad_mode, llm_mode, llm_provider, llm_model,
-                                   embedding_provider, embedding_model, prompt_template_version, policy_version,
-                                   observed_request_count, hcad_candidate_count, hcad_triggered_llm_count,
-                                   llm_decision_count, hcad_trigger_ai_decision_count, non_hcad_ai_decision_count,
-                                   true_positive_count, false_positive_count, observable_false_negative_count,
-                                   true_negative_count, unknown_count, hcad_precision, hcad_false_positive_rate,
-                                   match_rate, mismatch_rate, observable_false_negative_rate, unknown_rate,
+                                   llm_mode, llm_provider, llm_model, prompt_template_version, policy_version,
+                                   llm_decision_count,
                                    failure_rate, timeout_rate, parser_failure_rate, model_unavailable_rate,
                                    average_latency_ms, p95_latency_ms, top_blockers_json, recommendation
                               from ai_security_monitoring_session_summary
@@ -371,31 +297,12 @@ public class AiSecurityDecisionMonitoringService {
                 rs.getString("period"),
                 rs.getString("reset_by"),
                 rs.getString("reset_reason"),
-                rs.getString("hcad_mode"),
                 rs.getString("llm_mode"),
                 rs.getString("llm_provider"),
                 rs.getString("llm_model"),
-                rs.getString("embedding_provider"),
-                rs.getString("embedding_model"),
                 rs.getString("prompt_template_version"),
                 rs.getString("policy_version"),
-                rs.getLong("observed_request_count"),
-                rs.getLong("hcad_candidate_count"),
-                rs.getLong("hcad_triggered_llm_count"),
                 rs.getLong("llm_decision_count"),
-                rs.getLong("hcad_trigger_ai_decision_count"),
-                rs.getLong("non_hcad_ai_decision_count"),
-                rs.getLong("true_positive_count"),
-                rs.getLong("false_positive_count"),
-                rs.getLong("observable_false_negative_count"),
-                rs.getLong("true_negative_count"),
-                rs.getLong("unknown_count"),
-                rs.getDouble("hcad_precision"),
-                rs.getDouble("hcad_false_positive_rate"),
-                rs.getDouble("match_rate"),
-                rs.getDouble("mismatch_rate"),
-                rs.getDouble("observable_false_negative_rate"),
-                rs.getDouble("unknown_rate"),
                 rs.getDouble("failure_rate"),
                 rs.getDouble("timeout_rate"),
                 rs.getDouble("parser_failure_rate"),
@@ -408,7 +315,6 @@ public class AiSecurityDecisionMonitoringService {
     @Transactional(transactionManager = "contexaTransactionManager")
     public MonitoringResetResponse resetMonitoring(MonitoringResetRequest request, String resetBy) {
         validateResetConfirmation(request);
-        boolean resetLearningEvidence = request != null && Boolean.TRUE.equals(request.resetLearningEvidence());
         JdbcOperations jdbcOperations = jdbcOperations();
         if (jdbcOperations == null) {
             throw new IllegalStateException("JdbcOperations is not available for AI monitor reset.");
@@ -423,46 +329,23 @@ public class AiSecurityDecisionMonitoringService {
                 : request.reason().trim();
         MonitoringSessionSummary archived = sessionSummary(sessionId, data, normalizedResetBy, reason);
         insertSessionSummary(jdbcOperations, archived, summaryJson(data));
-        clearHcadTransientCounters();
-        boolean learningEvidenceReset = clearLearningEvidenceCache(resetLearningEvidence);
-        long deletedSuppression = deleteTelemetryInBatches(
-                jdbcOperations,
-                "ai_security_llm_trigger_suppression",
-                "suppression_id");
-        long deletedCorrelation = deleteTelemetryInBatches(
-                jdbcOperations,
-                "hcad_llm_decision_correlation",
-                "correlation_id");
         long deletedAi = deleteTelemetryInBatches(
                 jdbcOperations,
                 "ai_security_decision_observation",
                 "observation_id");
-        long deletedHcad = deleteTelemetryInBatches(
-                jdbcOperations,
-                "hcad_detection_evaluation",
-                "evaluation_id");
-        writeResetAudit(jdbcOperations, normalizedResetBy, reason, sessionId, deletedHcad, deletedAi, deletedCorrelation, deletedSuppression);
+        writeResetAudit(jdbcOperations, normalizedResetBy, reason, sessionId, deletedAi);
         MonitoringSessionCurrent newSession = new MonitoringSessionCurrent(
                 "current",
                 format(endedAt),
                 format(endedAt),
                 format(endedAt),
                 0L,
-                0L,
-                0L,
-                0L,
-                0L,
-                0L,
                 "INSUFFICIENT_DATA");
         return new MonitoringResetResponse(
                 sessionId,
                 format(startedAt),
                 format(endedAt),
-                deletedHcad,
                 deletedAi,
-                deletedCorrelation,
-                deletedSuppression,
-                learningEvidenceReset,
                 archived,
                 newSession);
     }
@@ -491,52 +374,22 @@ public class AiSecurityDecisionMonitoringService {
         } while (deleted == TELEMETRY_DELETE_BATCH_SIZE);
         return total;
     }
-    private void clearHcadTransientCounters() {
-        if (hcadDataStoreSupplier == null) {
-            return;
-        }
-        HCADDataStore dataStore = hcadDataStoreSupplier.get();
-        if (dataStore != null) {
-            dataStore.clearTransientCounters();
-        }
-    }
-
-    private boolean clearLearningEvidenceCache(boolean requested) {
-        if (!requested) {
-            return false;
-        }
-        if (semanticEvidenceCacheSupplier == null) {
-            return false;
-        }
-        HcadSemanticEvidenceCache cache = semanticEvidenceCacheSupplier.get();
-        if (cache == null) {
-            return false;
-        }
-        cache.clear();
-        return true;
-    }
     private SnapshotData snapshotData(String period) {
         return snapshotData(window(period));
     }
 
     private SnapshotData snapshotData(TimeWindow window) {
         MonitorSnapshot snapshot = monitorSnapshot(window);
-        HcadSummary hcad = hcadMonitoringService.summarize(window.period(), window.from(), window.to());
         LlmDecisionSummary llm = llmSummary(window.from(), window.to());
-        CorrelationSummary correlation = correlationSummary(window.from(), window.to());
-        OperationsSummary operations = operationsSummary(window.from(), window.to(), hcad);
-        FeedbackLearningSummary feedbackLearning = feedbackLearningSummary(window.from(), window.to());
-        StandardMetrics metrics = standardMetrics(hcad, llm, correlation, operations);
+        OperationsSummary operations = operationsSummary(window.from(), window.to());
+        StandardMetrics metrics = standardMetrics(llm, operations);
         return new SnapshotData(
                 window,
                 snapshot,
-                hcad,
                 llm,
-                correlation,
                 operations,
-                feedbackLearning,
                 metrics,
-                readinessRecommendation(hcad, llm, correlation, operations));
+                readinessRecommendation(llm, operations));
     }
 
     private MonitorSnapshot monitorSnapshot(TimeWindow window) {
@@ -550,19 +403,12 @@ public class AiSecurityDecisionMonitoringService {
 
 
     private MonitoringSessionCurrent currentSession(SnapshotData data) {
-        long hcadAiDecisions = data.llm().hcadPreTriggerDecisionCount();
-        long nonHcadAiDecisions = Math.max(0L, data.llm().totalDecisionCount() - hcadAiDecisions);
         return new MonitoringSessionCurrent(
                 "current",
                 format(currentSessionStart(data.window().generatedAt())),
                 format(data.window().from()),
                 format(data.window().to()),
-                data.hcad().observedRequestCount(),
-                data.hcad().candidateCount(),
-                data.hcad().triggeredLlmCount(),
                 data.llm().totalDecisionCount(),
-                hcadAiDecisions,
-                nonHcadAiDecisions,
                 data.readinessRecommendation());
     }
 
@@ -574,13 +420,8 @@ public class AiSecurityDecisionMonitoringService {
         return jdbcOperations.query(
                 """
                         select session_id, started_at, ended_at, period, reset_by, reset_reason,
-                               hcad_mode, llm_mode, llm_provider, llm_model,
-                               embedding_provider, embedding_model, prompt_template_version, policy_version,
-                               observed_request_count, hcad_candidate_count, hcad_triggered_llm_count,
-                               llm_decision_count, hcad_trigger_ai_decision_count, non_hcad_ai_decision_count,
-                               true_positive_count, false_positive_count, observable_false_negative_count,
-                               true_negative_count, unknown_count, hcad_precision, hcad_false_positive_rate,
-                               match_rate, mismatch_rate, observable_false_negative_rate, unknown_rate,
+                               llm_mode, llm_provider, llm_model, prompt_template_version, policy_version,
+                               llm_decision_count,
                                failure_rate, timeout_rate, parser_failure_rate, model_unavailable_rate,
                                average_latency_ms, p95_latency_ms, top_blockers_json, recommendation
                           from ai_security_monitoring_session_summary
@@ -596,8 +437,6 @@ public class AiSecurityDecisionMonitoringService {
             SnapshotData data,
             String resetBy,
             String reason) {
-        long hcadAiDecisions = data.llm().hcadPreTriggerDecisionCount();
-        long nonHcadAiDecisions = Math.max(0L, data.llm().totalDecisionCount() - hcadAiDecisions);
         RuntimeModeSummary runtimeModes = data.snapshot().runtimeModes();
         return new MonitoringSessionSummary(
                 sessionId,
@@ -606,31 +445,12 @@ public class AiSecurityDecisionMonitoringService {
                 data.window().period(),
                 resetBy,
                 reason,
-                runtimeModes == null ? "UNKNOWN" : runtimeModes.hcadMode(),
                 runtimeModes == null ? "UNKNOWN" : runtimeModes.llmMode(),
                 firstBreakdownKey(data.llm().providerBreakdown()),
                 firstBreakdownKey(data.llm().modelBreakdown()),
-                "UNKNOWN",
-                "UNKNOWN",
                 firstBreakdownKey(data.llm().promptTemplateBreakdown()),
                 currentPolicyVersion(),
-                data.hcad().observedRequestCount(),
-                data.hcad().candidateCount(),
-                data.hcad().triggeredLlmCount(),
                 data.llm().totalDecisionCount(),
-                hcadAiDecisions,
-                nonHcadAiDecisions,
-                data.correlation().truePositiveCount(),
-                data.correlation().falsePositiveCount(),
-                data.correlation().observableFalseNegativeCount(),
-                data.correlation().trueNegativeCount(),
-                data.correlation().unknownCount(),
-                metricNumber(data.metrics().hcadPrecision()),
-                metricNumber(data.metrics().falsePositiveRate()),
-                metricNumber(data.metrics().matchRate()),
-                metricNumber(data.metrics().mismatchRate()),
-                metricNumber(data.metrics().observableFalseNegativeRate()),
-                metricNumber(data.metrics().unknownRate()),
                 metricNumber(data.metrics().failureRate()),
                 metricNumber(data.metrics().timeoutRate()),
                 data.llm().parserFailureRate(),
@@ -648,16 +468,11 @@ public class AiSecurityDecisionMonitoringService {
                 """
                         insert into ai_security_monitoring_session_summary (
                             session_id, started_at, ended_at, period, reset_by, reset_reason,
-                            hcad_mode, llm_mode, llm_provider, llm_model, embedding_provider, embedding_model,
-                            prompt_template_version, policy_version,
-                            observed_request_count, hcad_candidate_count, hcad_triggered_llm_count,
-                            llm_decision_count, hcad_trigger_ai_decision_count, non_hcad_ai_decision_count,
-                            true_positive_count, false_positive_count, observable_false_negative_count,
-                            true_negative_count, unknown_count, hcad_precision, hcad_false_positive_rate,
-                            match_rate, mismatch_rate, observable_false_negative_rate, unknown_rate, failure_rate,
+                            llm_mode, llm_provider, llm_model, prompt_template_version, policy_version,
+                            llm_decision_count, failure_rate,
                             timeout_rate, parser_failure_rate, model_unavailable_rate,
                             average_latency_ms, p95_latency_ms, recommendation, top_blockers_json, summary_json
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                 summary.sessionId(),
                 LocalDateTime.parse(summary.startedAt(), ISO),
@@ -665,31 +480,12 @@ public class AiSecurityDecisionMonitoringService {
                 summary.period(),
                 summary.resetBy(),
                 summary.resetReason(),
-                summary.hcadMode(),
                 summary.llmMode(),
                 summary.llmProvider(),
                 summary.llmModel(),
-                summary.embeddingProvider(),
-                summary.embeddingModel(),
                 summary.promptTemplateVersion(),
                 summary.policyVersion(),
-                summary.observedRequestCount(),
-                summary.hcadCandidateCount(),
-                summary.hcadTriggeredLlmCount(),
                 summary.llmDecisionCount(),
-                summary.hcadTriggerAiDecisionCount(),
-                summary.nonHcadAiDecisionCount(),
-                summary.truePositiveCount(),
-                summary.falsePositiveCount(),
-                summary.observableFalseNegativeCount(),
-                summary.trueNegativeCount(),
-                summary.unknownCount(),
-                summary.hcadPrecision(),
-                summary.hcadFalsePositiveRate(),
-                summary.matchRate(),
-                summary.mismatchRate(),
-                summary.observableFalseNegativeRate(),
-                summary.unknownRate(),
                 summary.failureRate(),
                 summary.timeoutRate(),
                 summary.parserFailureRate(),
@@ -744,21 +540,7 @@ public class AiSecurityDecisionMonitoringService {
         payload.put("promptTemplateVersion", firstBreakdownKey(data.llm().promptTemplateBreakdown()));
         payload.put("policyVersion", currentPolicyVersion());
         payload.put("topBlockers", readinessBlockers(data));
-        payload.put("observedRequestCount", data.hcad().observedRequestCount());
-        payload.put("hcadCandidateCount", data.hcad().candidateCount());
-        payload.put("hcadTriggeredLlmCount", data.hcad().triggeredLlmCount());
         payload.put("llmDecisionCount", data.llm().totalDecisionCount());
-        payload.put("truePositiveCount", data.correlation().truePositiveCount());
-        payload.put("falsePositiveCount", data.correlation().falsePositiveCount());
-        payload.put("observableFalseNegativeCount", data.correlation().observableFalseNegativeCount());
-        payload.put("trueNegativeCount", data.correlation().trueNegativeCount());
-        payload.put("unknownCount", data.correlation().unknownCount());
-        payload.put("hcadPrecision", metricNumber(data.metrics().hcadPrecision()));
-        payload.put("hcadFalsePositiveRate", metricNumber(data.metrics().falsePositiveRate()));
-        payload.put("matchRate", metricNumber(data.metrics().matchRate()));
-        payload.put("mismatchRate", metricNumber(data.metrics().mismatchRate()));
-        payload.put("observableFalseNegativeRate", metricNumber(data.metrics().observableFalseNegativeRate()));
-        payload.put("unknownRate", metricNumber(data.metrics().unknownRate()));
         payload.put("failureRate", metricNumber(data.metrics().failureRate()));
         payload.put("timeoutRate", metricNumber(data.metrics().timeoutRate()));
         payload.put("parserFailureRate", data.llm().parserFailureRate());
@@ -774,16 +556,6 @@ public class AiSecurityDecisionMonitoringService {
 
     private List<ReadinessBlocker> readinessBlockers(SnapshotData data) {
         List<ReadinessBlocker> blockers = new ArrayList<>();
-        long minimumSample = data.hcad().qualification().minimumSampleSize();
-        long candidateCount = data.hcad().candidateCount();
-        if (candidateCount < minimumSample) {
-            blockers.add(new ReadinessBlocker(
-                    "SAMPLE",
-                    "Sample size is not enough",
-                    numberText(candidateCount),
-                    numberText(minimumSample) + " or more",
-                    "Collect enough real request data, then review the recommendation again."));
-        }
         long llmDecisionCount = data.llm().totalDecisionCount();
         if (llmDecisionCount <= 0) {
             blockers.add(new ReadinessBlocker(
@@ -791,42 +563,12 @@ public class AiSecurityDecisionMonitoringService {
                     "No AI decision data",
                     "0",
                     "1 or more",
-                    "Verify that protectable resources or HCAD candidates reach AI decision logging."));
+                    "Verify that Protectable requests reach AI decision logging."));
             return blockers;
         }
-        MetricValue precisionMetric = data.metrics().hcadPrecision();
-        MetricValue falseNegativeMetric = data.metrics().observableFalseNegativeRate();
-        MetricValue unknownMetric = data.metrics().unknownRate();
         MetricValue failureMetric = data.metrics().failureRate();
-        double precision = metricNumber(precisionMetric);
-        double falseNegativeRate = metricNumber(falseNegativeMetric);
-        double unknownRate = metricNumber(unknownMetric);
         double failureRate = metricNumber(failureMetric);
-        if (metricHasData(precisionMetric) && precision < 0.80d) {
-            blockers.add(new ReadinessBlocker(
-                    "HCAD_PRECISION",
-                    "HCAD precision is below target",
-                    percentText(precision),
-                    "80% or more",
-                    "Review false positives against baseline, semantic evidence, and HCAD signals."));
-        }
-        if (metricHasData(falseNegativeMetric) && falseNegativeRate > 0.10d) {
-            blockers.add(new ReadinessBlocker(
-                    "OBSERVABLE_FN",
-                    "AI risk was found after HCAD missed it",
-                    percentText(falseNegativeRate),
-                    "10% or less",
-                    "Analyze protectable AI risk decisions that had no stored HCAD risk candidate."));
-        }
-        if (metricHasData(unknownMetric) && unknownRate > 0.40d) {
-            blockers.add(new ReadinessBlocker(
-                    "UNKNOWN",
-                    "Unknown comparison rate is high",
-                    percentText(unknownRate),
-                    "40% or less",
-                    "Reduce unknown outcomes so more decisions can be compared."));
-        }
-        if (metricHasData(failureMetric) && failureRate > 0.10d) {
+        if (failureMetric != null && failureMetric.value() != null && failureRate > 0.10d) {
             blockers.add(new ReadinessBlocker(
                     "FAILURE",
                     "AI analysis failure rate is high",
@@ -867,10 +609,6 @@ public class AiSecurityDecisionMonitoringService {
                 action));
     }
 
-    private boolean metricHasData(MetricValue metric) {
-        return metric != null && metric.value() != null;
-    }
-
     private LocalDateTime currentSessionStart(LocalDateTime fallbackNow) {
         LocalDateTime lastArchivedEnd = queryDateTime(
                 "select max(ended_at) from ai_security_monitoring_session_summary");
@@ -878,18 +616,7 @@ public class AiSecurityDecisionMonitoringService {
             return lastArchivedEnd.withNano(0);
         }
         LocalDateTime earliestTelemetry = queryDateTime(
-                """
-                        select min(created_at)
-                          from (
-                                select min(created_at) as created_at from hcad_detection_evaluation
-                                union all
-                                select min(created_at) as created_at from ai_security_decision_observation
-                                union all
-                                select min(created_at) as created_at from ai_security_llm_trigger_suppression
-                                union all
-                                select min(created_at) as created_at from hcad_llm_decision_correlation
-                               ) s
-                        """);
+                "select min(created_at) from ai_security_decision_observation");
         return earliestTelemetry == null ? fallbackNow : earliestTelemetry.withNano(0);
     }
 
@@ -910,15 +637,9 @@ public class AiSecurityDecisionMonitoringService {
             String resetBy,
             String reason,
             String sessionId,
-            long deletedHcad,
-            long deletedAi,
-            long deletedCorrelation,
-            long deletedSuppression) {
+            long deletedAi) {
         String details = "sessionId=" + sessionId
-                + ", deletedHcad=" + deletedHcad
-                + ", deletedAi=" + deletedAi
-                + ", deletedCorrelation=" + deletedCorrelation
-                + ", deletedSuppression=" + deletedSuppression;
+                + ", deletedAi=" + deletedAi;
         jdbcOperations.update(
                 """
                         insert into audit_log (
@@ -942,49 +663,17 @@ public class AiSecurityDecisionMonitoringService {
         return String.format(Locale.ROOT, "%.1f%%", value * 100.0d);
     }
 
-    private String numberText(long value) {
-        return Long.toString(value);
-    }
     private StandardMetrics standardMetrics(
-            HcadSummary hcad,
             LlmDecisionSummary llm,
-            CorrelationSummary correlation,
             OperationsSummary operations) {
-        long tp = correlation.truePositiveCount();
-        long fp = correlation.falsePositiveCount();
-        long fn = correlation.observableFalseNegativeCount();
-        long tn = correlation.trueNegativeCount();
-        long unknown = correlation.unknownCount();
-        long classified = tp + fp + fn + tn;
-        long comparisonTotal = classified + unknown;
         long failures = operations.parserFailureCount()
                 + operations.technicalFallbackCount()
                 + operations.timeoutCount()
                 + operations.modelUnavailableCount();
 
         return new StandardMetrics(
-                countMetric("observedRequests", "Stored HCAD candidate scope requests", "Requests represented by stored HCAD candidate windows; low-risk general traffic is not persisted.",
-                        hcad.observedRequestCount()),
-                countMetric("hcadEvaluations", "Stored HCAD candidates", "HCAD risk candidates or diagnostic windows persisted for monitoring.",
-                        hcad.candidateCount()),
-                countMetric("hcadAiConnected", "HCAD to AI", "HCAD candidates connected to AI analysis.",
-                        hcad.triggeredLlmCount()),
                 countMetric("totalAiDecisions", "AI decisions", "Requests analyzed by AI.",
                         llm.totalDecisionCount()),
-                countMetric("clearOutcomes", "Clear outcomes", "Comparable TP/FP/FN/TN outcomes.",
-                        classified),
-                ratioMetric("hcadPrecision", "HCAD precision", "Share of HCAD risk candidates also judged risky by AI.",
-                        tp, tp + fp, "NO_HCAD_RISK_COMPARISON"),
-                ratioMetric("matchRate", "Match rate", "Share of HCAD and AI decisions moving in the same direction.",
-                        tp + tn, classified, "NO_CLASSIFIED_COMPARISON"),
-                ratioMetric("mismatchRate", "Mismatch rate", "Share of HCAD and AI decisions that conflict.",
-                        fp + fn, classified, "NO_CLASSIFIED_COMPARISON"),
-                ratioMetric("falsePositiveRate", "False positive rate", "HCAD risk candidates that AI allowed.",
-                        fp, tp + fp, "NO_HCAD_RISK_COMPARISON"),
-                ratioMetric("observableFalseNegativeRate", "AI risk found after HCAD missed it", "AI risk decisions from an explicitly observed HCAD comparison that HCAD did not promote.",
-                        fn, tp + fn, "NO_AI_RISK_COMPARISON"),
-                ratioMetric("unknownRate", "Unknown rate", "Share of outcomes that cannot be compared reliably.",
-                        unknown, comparisonTotal, "NO_COMPARISON_DATA"),
                 ratioMetric("failureRate", "AI analysis failure rate", "Share of AI analyses that failed to complete normally.",
                         failures, llm.totalDecisionCount(), "NO_AI_DECISION_DATA"),
                 ratioMetric("timeoutRate", "Timeout rate", "Share of AI analyses that timed out.",
@@ -1039,9 +728,7 @@ public class AiSecurityDecisionMonitoringService {
                 snapshot,
                 metrics,
                 summary.totalDecisionCount(),
-                summary.hcadPreTriggerDecisionCount(),
                 summary.protectableDecisionCount(),
-                summary.hcadAndProtectableDecisionCount(),
                 summary.triggerSourceBreakdown(),
                 summary.actionBreakdown(),
                 summary.proposedActionBreakdown(),
@@ -1063,51 +750,17 @@ public class AiSecurityDecisionMonitoringService {
                 summary.confidenceDistribution());
     }
 
-    private CorrelationSummary withMetrics(
-            CorrelationSummary summary,
-            MonitorSnapshot snapshot,
-            StandardMetrics metrics) {
-        return new CorrelationSummary(
-                snapshot,
-                metrics,
-                summary.truePositiveCount(),
-                summary.falsePositiveCount(),
-                summary.observableFalseNegativeCount(),
-                summary.trueNegativeCount(),
-                summary.unknownCount(),
-                summary.unobservedCount(),
-                summary.triggerRelationBreakdown(),
-                summary.outcomeBreakdown(),
-                summary.matrixRows(),
-                summary.notCalledReasonBreakdown(),
-                summary.recentCorrelations());
-    }
-
     private double metricNumber(MetricValue metric) {
         return metric == null || metric.value() == null ? 0.0d : metric.value();
     }
 
     private RuntimeModeSummary runtimeModeSummary() {
-        HcadPreTriggerMode hcadMode = hcadProperties == null
-                ? HcadPreTriggerMode.SHADOW
-                : hcadProperties.getPreTrigger().effectiveMode();
         SecurityZeroTrustProperties.SecurityMode llmMode = zeroTrustProperties == null
                 ? SecurityZeroTrustProperties.SecurityMode.ENFORCE
                 : zeroTrustProperties.getMode();
         return new RuntimeModeSummary(
-                hcadMode.metadataValue(),
-                hcadEffectKey(hcadMode),
                 llmMode.name(),
                 llmEffectKey(llmMode));
-    }
-
-    private String hcadEffectKey(HcadPreTriggerMode mode) {
-        return switch (mode) {
-            case DISABLED -> "HCAD_DISABLED";
-            case OBSERVE -> "HCAD_OBSERVE_LOG_ONLY";
-            case SHADOW -> "HCAD_SHADOW_LOG_ONLY";
-            case ENFORCE -> "HCAD_ENFORCE_LLM_TRIGGER_ACTION_LOG";
-        };
     }
 
     private String llmEffectKey(SecurityZeroTrustProperties.SecurityMode mode) {
@@ -1134,15 +787,7 @@ public class AiSecurityDecisionMonitoringService {
                 null,
                 total,
                 countAi(
-                        "trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE') and created_at between ? and ?",
-                        from,
-                        to),
-                countAi(
-                        "trigger_relation in ('PROTECTABLE_ONLY', 'HCAD_AND_PROTECTABLE') and created_at between ? and ?",
-                        from,
-                        to),
-                countAi(
-                        "trigger_relation = 'HCAD_AND_PROTECTABLE' and created_at between ? and ?",
+                        "trigger_source = 'PROTECTABLE' and created_at between ? and ?",
                         from,
                         to),
                 breakdownAi("trigger_source", from, to),
@@ -1166,25 +811,7 @@ public class AiSecurityDecisionMonitoringService {
                 numericBucketBreakdownAi("llm_confidence", from, to));
     }
 
-    private CorrelationSummary correlationSummary(LocalDateTime from, LocalDateTime to) {
-        return new CorrelationSummary(
-                null,
-                null,
-                countHcadTriggeredCorrelationOutcome("TP", from, to),
-                countHcadTriggeredCorrelationOutcome("FP", from, to),
-                countHcadObservedCorrelationOutcome("FN", from, to),
-                countHcadObservedCorrelationOutcome("TN", from, to),
-                countHcadComparableCorrelationOutcome("UNKNOWN", from, to),
-                countUnobservedCorrelation(from, to),
-                breakdownCorrelation("c.trigger_relation", from, to),
-                breakdownCorrelation("c.outcome_class", from, to),
-                correlationMatrix(from, to),
-                notCalledReasonBreakdown(from, to),
-                recentCorrelations(from, to));
-    }
-
-    private OperationsSummary operationsSummary(LocalDateTime from, LocalDateTime to, HcadSummary hcad) {
-        double cost = hcadProperties.getPreTrigger().getQualification().getEstimatedLlmCallCostUsd();
+    private OperationsSummary operationsSummary(LocalDateTime from, LocalDateTime to) {
         long parserFailures = countAi(
                 "parser_failure = true and created_at between ? and ?", from, to);
         long technicalFallbacks = countAi(
@@ -1193,11 +820,6 @@ public class AiSecurityDecisionMonitoringService {
                 "timeout_failure = true and created_at between ? and ?", from, to);
         long modelUnavailable = countAi(
                 "model_unavailable = true and created_at between ? and ?", from, to);
-        long suppressedLlmTriggers = count(
-                "ai_security_llm_trigger_suppression",
-                "created_at between ? and ? and " + monitorablePath("request_path"),
-                from,
-                to);
         long providerThrottleWaits = countAi(
                 "provider_throttle_wait_ms is not null and provider_throttle_wait_ms > 0 and created_at between ? and ?", from, to);
         return new OperationsSummary(
@@ -1206,83 +828,8 @@ public class AiSecurityDecisionMonitoringService {
                 technicalFallbacks,
                 timeouts,
                 modelUnavailable,
-                hcad == null ? 0L : hcad.falsePositiveCount(),
-                suppressedLlmTriggers,
                 providerThrottleWaits,
-                hcad == null ? 0.0d : hcad.falsePositiveCount() * cost,
-                hcad == null ? 0.0d : hcad.duplicateSuppressedCount() * cost,
                 latencyBreakdown(from, to));
-    }
-
-
-    private FeedbackLearningSummary feedbackLearningSummary(LocalDateTime from, LocalDateTime to) {
-        long normalEvidence = countSemanticEvidence(from, to, "%normal_request_similarity%");
-        long riskEvidence = countSemanticEvidence(from, to, "%risk_request_similarity%")
-                + countSemanticEvidence(from, to, "%resource_llm_decision_summary%");
-        long learningExcluded = countAi("""
-                created_at between ? and ?
-                and (
-                    success = false
-                    or coalesce(failure_type, '') <> ''
-                    or upper(coalesce(nullif(final_action, ''), nullif(proposed_action, ''), 'UNKNOWN')) not in ('ALLOW', 'CHALLENGE', 'BLOCK')
-                )
-                """, from, to);
-        long cacheHits = countHcad("""
-                created_at between ? and ?
-                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                """, from, to, "%semanticevidencefreshhit%", "%true%");
-        long cacheMisses = countHcad("""
-                created_at between ? and ?
-                and (
-                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                )
-                """, from, to, "%cache_miss%", "%source_absent%");
-        long cacheStale = countHcad("""
-                created_at between ? and ?
-                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                """, from, to, "%stale_hit%");
-        long normalSuppressed = countHcad("""
-                created_at between ? and ?
-                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                and triggered_llm = false
-                """, from, to, "%normal_request_similarity%");
-        long riskHitLlmConnections = countHcad("""
-                created_at between ? and ?
-                and (
-                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                )
-                and triggered_llm = true
-                """, from, to, "%risk_request_similarity%", "%resource_llm_decision_summary%");
-        long riskHitEligible = countHcad("""
-                created_at between ? and ?
-                and (
-                    lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                    or lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                )
-                and eligible = true
-                """, from, to, "%risk_request_similarity%", "%resource_llm_decision_summary%");
-        return new FeedbackLearningSummary(
-                normalEvidence,
-                riskEvidence,
-                learningExcluded,
-                cacheHits,
-                cacheMisses,
-                cacheStale,
-                riskHitLlmConnections,
-                riskHitEligible,
-                ratio(normalSuppressed, normalEvidence),
-                ratio(riskHitLlmConnections, riskEvidence),
-                ratio(riskHitEligible, riskEvidence));
-    }
-
-    private long countSemanticEvidence(LocalDateTime from, LocalDateTime to, String pattern) {
-        return countHcad("""
-                created_at between ? and ?
-                and lower(coalesce(semantic_evidence_explanation_json, '')) like ?
-                """, from, to, pattern);
     }
     private List<NamedCount> explicitFailureBreakdown(LocalDateTime from, LocalDateTime to) {
         JdbcOperations jdbcOperations = jdbcOperations();
@@ -1515,240 +1062,25 @@ public class AiSecurityDecisionMonitoringService {
                 """;
     }
 
-    private List<CorrelationMatrixRow> correlationMatrix(LocalDateTime from, LocalDateTime to) {
-        MatrixCounts early = matrixCounts("""
-                c.trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE')
-                """, from, to);
-        MatrixCounts missed = matrixCounts("""
-                c.trigger_relation = 'OBSERVED_ONLY'
-                """, from, to);
-        MatrixCounts suppressed = matrixCounts("""
-                c.trigger_relation in ('PROTECTABLE_SUPPRESSED_BY_HCAD', 'HCAD_SUPPRESSED_BY_PROTECTABLE')
-                """, from, to);
-        MatrixCounts unevaluated = matrixCounts("""
-                c.trigger_relation = 'UNMATCHED_LLM'
-                """, from, to);
-
-        early = early.withNotCalled(countHcad(
-                "eligible = true and triggered_llm = false and decided_at is null and created_at between ? and ?",
-                from, to));
-        missed = missed.withNotCalled(countHcad(
-                "(eligible = false or eligible is null) and triggered_llm = false and duplicate_suppressed = false and decided_at is null and created_at between ? and ?",
-                from, to));
-        suppressed = suppressed.withNotCalled(countHcad(
-                "(duplicate_suppressed = true or coalesce(duplicate_suppressed_count, 0) > 0) and decided_at is null and created_at between ? and ?",
-                from, to));
-
-        return List.of(
-                new CorrelationMatrixRow("HCAD_EARLY_TRIGGER", early.risk(), early.allow(), early.unknown(), early.notCalled()),
-                new CorrelationMatrixRow("HCAD_MISSED_OBSERVED", missed.risk(), missed.allow(), missed.unknown(), missed.notCalled()),
-                new CorrelationMatrixRow("HCAD_DUPLICATE_SUPPRESSED", suppressed.risk(), suppressed.allow(), suppressed.unknown(), suppressed.notCalled()),
-                new CorrelationMatrixRow("HCAD_UNEVALUATED", unevaluated.risk(), unevaluated.allow(), unevaluated.unknown(), unevaluated.notCalled()));
-    }
-
-    private List<NamedCount> notCalledReasonBreakdown(LocalDateTime from, LocalDateTime to) {
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
-            return List.of();
-        }
-        String sql = """
-                        select reason_key, count(*) as reason_count
-                          from (
-                                select case
-                                         when duplicate_suppressed = true
-                                           or coalesce(duplicate_suppressed_count, 0) > 0
-                                           then 'DUPLICATE_SUPPRESSED'
-                                         when upper(coalesce(mode, '')) in ('OBSERVE', 'DISABLED')
-                                           then 'POLICY_OBSERVE_ONLY'
-                                         when reason_codes is not null
-                                           and upper(reason_codes) like '%RATE_LIMIT%'
-                                           then 'RATE_LIMITED'
-                                         when eligible = false or eligible is null
-                                           then 'LOW_RISK'
-                                         else 'NOT_TRIGGERED'
-                                       end as reason_key
-                                 from hcad_detection_evaluation
-                                 where created_at between ? and ?
-                                   and triggered_llm = false
-                                   and decided_at is null
-                                   and @MONITORABLE@
-                               ) reasons
-                         group by reason_key
-                         order by reason_count desc, reason_key asc
-                         limit ?
-                        """.replace("@MONITORABLE@", monitorablePath("request_path"));
-        return jdbcOperations.query(
-                sql,
-                (rs, rowNum) -> new NamedCount(rs.getString("reason_key"), rs.getLong("reason_count")),
-                from,
-                to,
-                BREAKDOWN_LIMIT);
-    }
-
-    private MatrixCounts matrixCounts(String relationClause, LocalDateTime from, LocalDateTime to) {
-        return new MatrixCounts(
-                countCorrelation(
-                        relationClause + " and c.outcome_class in ('TP', 'FN') and c.created_at between ? and ?",
-                        from, to),
-                countCorrelation(
-                        relationClause + " and c.outcome_class in ('FP', 'TN') and c.created_at between ? and ?",
-                        from, to),
-                countCorrelation(
-                        relationClause + " and c.outcome_class = 'UNKNOWN' and c.created_at between ? and ?",
-                        from, to),
-                countCorrelation(
-                        relationClause + " and c.outcome_class = 'UNOBSERVED' and c.created_at between ? and ?",
-                        from, to));
-    }
-
-    private List<RecentCorrelation> recentCorrelations(LocalDateTime from, LocalDateTime to) {
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
-            return List.of();
-        }
-        return jdbcOperations.query("""
-                        select c.correlation_id,
-                               c.hcad_evaluation_id,
-                               c.llm_observation_id,
-                               c.event_id,
-                               c.request_id,
-                               c.user_id,
-                               c.trigger_relation,
-                               c.outcome_class,
-                               c.hcad_score,
-                               c.hcad_band,
-                               c.hcad_eligible,
-                               c.llm_final_action,
-                               c.llm_proposed_action,
-                               c.llm_risk_score,
-                               c.llm_confidence,
-                               c.created_at,
-                               c.decided_at
-                          from hcad_llm_decision_correlation c
-                         where c.created_at between ? and ?
-                           and %s
-                         order by c.created_at desc
-                         limit 50
-                        """.formatted(correlationMonitorableCondition()),
-                (rs, rowNum) -> new RecentCorrelation(
-                        rs.getString("correlation_id"),
-                        rs.getString("hcad_evaluation_id"),
-                        rs.getString("llm_observation_id"),
-                        rs.getString("event_id"),
-                        rs.getString("request_id"),
-                        rs.getString("user_id"),
-                        rs.getString("trigger_relation"),
-                        rs.getString("outcome_class"),
-                        (Integer) rs.getObject("hcad_score"),
-                        rs.getString("hcad_band"),
-                        (Boolean) rs.getObject("hcad_eligible"),
-                        rs.getString("llm_final_action"),
-                        rs.getString("llm_proposed_action"),
-                        (Double) rs.getObject("llm_risk_score"),
-                        (Double) rs.getObject("llm_confidence"),
-                        format(rs.getObject("created_at", LocalDateTime.class)),
-                        format(rs.getObject("decided_at", LocalDateTime.class))),
-                from,
-                to);
-    }
-
     private String readinessRecommendation(
-            HcadSummary hcad,
             LlmDecisionSummary llm,
-            CorrelationSummary correlation,
             OperationsSummary operations) {
-        if (llm.totalDecisionCount() <= 0 || hcad.candidateCount() < hcad.qualification().minimumSampleSize()) {
+        if (llm.totalDecisionCount() <= 0) {
             return "INSUFFICIENT_DATA";
         }
-        long comparable = correlation.truePositiveCount()
-                + correlation.falsePositiveCount()
-                + correlation.observableFalseNegativeCount()
-                + correlation.trueNegativeCount();
-        long hcadRiskComparable = correlation.truePositiveCount() + correlation.falsePositiveCount();
-        if (comparable <= 0L || hcadRiskComparable <= 0L) {
-            return "INSUFFICIENT_DATA";
-        }
-        double precision = ratio(correlation.truePositiveCount(),
-                correlation.truePositiveCount() + correlation.falsePositiveCount());
-        double matchRate = ratio(correlation.truePositiveCount() + correlation.trueNegativeCount(), comparable);
         double failureRate = ratio(
                 operations.parserFailureCount()
                         + operations.technicalFallbackCount()
                         + operations.timeoutCount()
                         + operations.modelUnavailableCount(),
                 llm.totalDecisionCount());
-        double observableFnRate = ratio(correlation.observableFalseNegativeCount(),
-                correlation.truePositiveCount()
-                        + correlation.observableFalseNegativeCount());
-        double unknownRate = ratio(correlation.unknownCount(), comparable + correlation.unknownCount());
-        if (failureRate >= 0.10d || observableFnRate >= 0.10d || unknownRate >= 0.40d || precision < 0.80d) {
+        if (failureRate >= 0.10d) {
             return "DO_NOT_RECOMMEND";
-        }
-        if (precision >= 0.95d && matchRate >= 0.95d) {
-            return "READY_FOR_ENFORCE_REVIEW";
-        }
-        if (precision >= 0.90d && matchRate >= 0.90d) {
-            return "READY_FOR_LIMITED_REVIEW";
         }
         return "KEEP_MONITORING";
     }
-    private long countCorrelationOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
-        return countCorrelation("c.outcome_class = ? and c.created_at between ? and ?", outcome, from, to);
-    }
-    private long countHcadTriggeredCorrelationOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
-        return countCorrelation(
-                "c.outcome_class = ? and c.trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE') and c.created_at between ? and ?",
-                outcome,
-                from,
-                to);
-    }
-
-    private long countHcadObservedCorrelationOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
-        return countCorrelation(
-                "c.outcome_class = ? and c.trigger_relation = 'OBSERVED_ONLY' and c.created_at between ? and ?",
-                outcome,
-                from,
-                to);
-    }
-
-    private long countHcadComparableCorrelationOutcome(String outcome, LocalDateTime from, LocalDateTime to) {
-        return countCorrelation(
-                "c.outcome_class = ? and c.trigger_relation in ('HCAD_ONLY', 'HCAD_AND_PROTECTABLE', 'OBSERVED_ONLY') and c.created_at between ? and ?",
-                outcome,
-                from,
-                to);
-    }
-
-    private long countUnobservedCorrelation(LocalDateTime from, LocalDateTime to) {
-        return countCorrelation(
-                "c.trigger_relation in ('PROTECTABLE_ONLY', 'UNMATCHED_LLM') and c.created_at between ? and ?",
-                from,
-                to);
-    }
-
     private long countAi(String whereClause, Object... args) {
         return count("ai_security_decision_observation", whereClause + " and " + monitorablePath("request_path"), args);
-    }
-
-    private long countHcad(String whereClause, Object... args) {
-        return count("hcad_detection_evaluation", whereClause + " and " + monitorablePath("request_path"), args);
-    }
-
-    private long countCorrelation(String whereClause, Object... args) {
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
-            return 0L;
-        }
-        Long value = jdbcOperations.queryForObject(
-                """
-                        select count(*)
-                          from hcad_llm_decision_correlation c
-                         where %s
-                           and %s
-                        """.formatted(whereClause, correlationMonitorableCondition()),
-                Long.class,
-                args);
-        return value == null ? 0L : value;
     }
 
     private List<NamedCount> breakdownAi(String expression, LocalDateTime from, LocalDateTime to) {
@@ -1758,28 +1090,6 @@ public class AiSecurityDecisionMonitoringService {
                 "created_at between ? and ? and " + monitorablePath("request_path"),
                 from,
                 to);
-    }
-
-    private List<NamedCount> breakdownCorrelation(String expression, LocalDateTime from, LocalDateTime to) {
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
-            return List.of();
-        }
-        String sql = """
-                select %s as metric_key, count(*) as count
-                  from hcad_llm_decision_correlation c
-                 where c.created_at between ? and ?
-                   and %s
-                 group by %s
-                 order by count(*) desc, %s asc
-                 limit ?
-                """.formatted(expression, correlationMonitorableCondition(), expression, expression);
-        return jdbcOperations.query(
-                sql,
-                (rs, rowNum) -> new NamedCount(rs.getString("metric_key"), rs.getLong("count")),
-                from,
-                to,
-                BREAKDOWN_LIMIT);
     }
 
     private List<NamedCount> breakdownWhere(
@@ -2031,25 +1341,6 @@ public class AiSecurityDecisionMonitoringService {
         return MONITORABLE_PATH_CONDITION.replace("@PATH@", pathExpression);
     }
 
-    private String correlationMonitorableCondition() {
-        return """
-                (
-                    exists (
-                        select 1
-                          from ai_security_decision_observation a
-                         where a.observation_id = c.llm_observation_id
-                           and %1$s
-                    )
-                    or exists (
-                        select 1
-                          from hcad_detection_evaluation h
-                         where h.evaluation_id = c.hcad_evaluation_id
-                           and %2$s
-                    )
-                )
-                """.formatted(monitorablePath("a.request_path"), monitorablePath("h.request_path"));
-    }
-
     private String format(LocalDateTime value) {
         return value == null ? null : ISO.format(value);
     }
@@ -2093,7 +1384,7 @@ public class AiSecurityDecisionMonitoringService {
 
     private String message(Locale locale, String key) {
         Locale resolvedLocale = locale == null ? Locale.ENGLISH : locale;
-        return messageSource.getMessage(key, null, resolvedLocale);
+        return messageSource.getMessage(key, null, key, resolvedLocale);
     }
 
     private List<String> row(Object... values) {
@@ -2119,29 +1410,11 @@ public class AiSecurityDecisionMonitoringService {
     private record SnapshotData(
             TimeWindow window,
             MonitorSnapshot snapshot,
-            HcadSummary hcad,
             LlmDecisionSummary llm,
-            CorrelationSummary correlation,
             OperationsSummary operations,
-            FeedbackLearningSummary feedbackLearning,
             StandardMetrics metrics,
             String readinessRecommendation) {
     }
-
-    private record MatrixCounts(long risk, long allow, long unknown, long notCalled) {
-        private MatrixCounts withNotCalled(long additionalNotCalled) {
-            return new MatrixCounts(risk, allow, unknown, notCalled + additionalNotCalled);
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
 
 

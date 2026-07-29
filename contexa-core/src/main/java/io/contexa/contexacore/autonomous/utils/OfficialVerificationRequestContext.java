@@ -31,10 +31,6 @@ public final class OfficialVerificationRequestContext {
     public static final String SYNTHETIC_SESSION_ID = "officialVerification.sessionId";
 
     private static final String USER_ID_ATTRIBUTE = "contexa.userId";
-    private static final String HCAD_USER_ID = "hcad.user_id";
-    private static final String HCAD_USER_ID_CAMEL = "hcad.userId";
-    private static final String HCAD_SESSION_ID = "hcad.session_id";
-    private static final String HCAD_SESSION_ID_CAMEL = "hcad.sessionId";
 
     private OfficialVerificationRequestContext() {
     }
@@ -45,11 +41,7 @@ public final class OfficialVerificationRequestContext {
         }
         putIfText(request, REQUESTED_USER_ID, requestedUserId);
         putIfText(request, USER_ID_ATTRIBUTE, requestedUserId);
-        putIfText(request, HCAD_USER_ID, requestedUserId);
-        putIfText(request, HCAD_USER_ID_CAMEL, requestedUserId);
         putIfText(request, SYNTHETIC_SESSION_ID, syntheticSessionId);
-        putIfText(request, HCAD_SESSION_ID, syntheticSessionId);
-        putIfText(request, HCAD_SESSION_ID_CAMEL, syntheticSessionId);
     }
 
     public static String resolveUserId(HttpServletRequest request) {
@@ -60,9 +52,7 @@ public final class OfficialVerificationRequestContext {
         String attributeUserId = firstTextAttribute(
                 request,
                 REQUESTED_USER_ID,
-                USER_ID_ATTRIBUTE,
-                HCAD_USER_ID,
-                HCAD_USER_ID_CAMEL
+                USER_ID_ATTRIBUTE
         );
         if (StringUtils.hasText(attributeUserId)) {
             return attributeUserId;
@@ -82,9 +72,7 @@ public final class OfficialVerificationRequestContext {
 
         String override = firstTextAttribute(
                 request,
-                SYNTHETIC_SESSION_ID,
-                HCAD_SESSION_ID,
-                HCAD_SESSION_ID_CAMEL
+                SYNTHETIC_SESSION_ID
         );
         if (StringUtils.hasText(override)) {
             return override;

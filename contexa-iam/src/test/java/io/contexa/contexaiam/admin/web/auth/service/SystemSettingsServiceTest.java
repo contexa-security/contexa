@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -61,7 +60,6 @@ class SystemSettingsServiceTest {
 
             assertThat(settings).isNotNull();
             assertThat(settings.getDefaultRole()).isEqualTo("ROLE_USER");
-            assertThat(settings.getHcadRedlineScore()).isEqualTo(70);
             assertThat(settings.getMvcResourceScannerBasePackages()).isEqualTo("io.contexa.contexaiam.");
         }
 
@@ -107,9 +105,6 @@ class SystemSettingsServiceTest {
             assertThat(newSettings.getDefaultRole()).isEqualTo("ROLE_MEMBER");
             assertThat(newSettings.getPolicyCombiningAlgorithm()).isEqualTo("DENY_OVERRIDES");
             assertThat(newSettings.isRegistrationEnabled()).isTrue();
-            assertThat(newSettings.getHcadMediumRiskScore()).isEqualTo(35);
-            assertThat(newSettings.getHcadHighRiskScore()).isEqualTo(60);
-            assertThat(newSettings.getHcadRedlineScore()).isEqualTo(80);
             assertThat(newSettings.getMvcResourceScannerBasePackages()).isEqualTo("io.contexa.contexaiam.\nio.contexa.contexaiamenterprise.");
         }
 
@@ -135,21 +130,6 @@ class SystemSettingsServiceTest {
             assertThat(existing.getDefaultRole()).isEqualTo("ROLE_ADMIN");
             assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("PERMIT_OVERRIDES");
             assertThat(existing.isRegistrationEnabled()).isFalse();
-            assertThat(existing.getHcadRequestBurstThreshold()).isEqualTo(20);
-            assertThat(existing.getHcadSemanticRiskSimilarityThreshold()).isEqualTo(0.82d);
-        }
-
-        @Test
-        @DisplayName("should reject invalid score order")
-        void invalidScoreOrder() {
-            SystemSettingsForm form = validForm();
-            form.setHcadMediumRiskScore(80);
-            form.setHcadHighRiskScore(60);
-
-            assertThatThrownBy(() -> service.updateSettings(form))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("medium <= high <= redline");
-            verify(repository, never()).save(any());
         }
     }
 
@@ -159,13 +139,6 @@ class SystemSettingsServiceTest {
         form.setDefaultRole("ROLE_USER");
         form.setPolicyCombiningAlgorithm("FIRST_APPLICABLE");
         form.setRegistrationEnabled(false);
-        form.setHcadMediumRiskScore(35);
-        form.setHcadHighRiskScore(60);
-        form.setHcadRedlineScore(80);
-        form.setHcadFailedLoginBurstThreshold(4);
-        form.setHcadRequestBurstThreshold(20);
-        form.setHcadSemanticRiskSimilarityThreshold(0.82d);
-        form.setHcadSemanticNormalSimilarityThreshold(0.90d);
         form.setMvcResourceScannerBasePackages("io.contexa.contexaiam, io.contexa.contexaiamenterprise");
         return form;
     }

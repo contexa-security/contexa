@@ -18,7 +18,7 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.Executor;

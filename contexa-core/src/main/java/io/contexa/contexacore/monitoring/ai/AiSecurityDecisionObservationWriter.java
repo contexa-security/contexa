@@ -21,9 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
-import io.contexa.contexacore.hcad.evaluation.HcadOutcomeClassifier;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceRefreshService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -37,11 +34,14 @@ import java.util.function.Supplier;
 @Slf4j
 public class AiSecurityDecisionObservationWriter {
 
+    private static final String LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE = "UNKNOWN";
+    private static final String LEGACY_TRIGGER_RELATION_NOT_APPLICABLE = "NOT_APPLICABLE";
+    private static final String LEGACY_OUTCOME_NOT_APPLICABLE = "NOT_APPLICABLE";
+
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final ObjectMapper objectMapper;
     private final String defaultModelProvider;
     private final String defaultModelId;
-    private final HcadSemanticEvidenceRefreshService semanticEvidenceRefreshService;
 
     public AiSecurityDecisionObservationWriter(
             Supplier<JdbcOperations> jdbcOperationsSupplier,
@@ -54,20 +54,10 @@ public class AiSecurityDecisionObservationWriter {
             ObjectMapper objectMapper,
             String defaultModelProvider,
             String defaultModelId) {
-        this(jdbcOperationsSupplier, objectMapper, defaultModelProvider, defaultModelId, null);
-    }
-
-    public AiSecurityDecisionObservationWriter(
-            Supplier<JdbcOperations> jdbcOperationsSupplier,
-            ObjectMapper objectMapper,
-            String defaultModelProvider,
-            String defaultModelId,
-            HcadSemanticEvidenceRefreshService semanticEvidenceRefreshService) {
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.objectMapper = objectMapper;
         this.defaultModelProvider = text(defaultModelProvider);
         this.defaultModelId = text(defaultModelId);
-        this.semanticEvidenceRefreshService = semanticEvidenceRefreshService;
     }
 
     public String recordDecision(SecurityEvent event, ProcessingResult result, ZeroTrustAction finalAction) {
@@ -81,35 +71,8 @@ public class AiSecurityDecisionObservationWriter {
 
         Map<String, Object> metadata = event.getMetadata() == null ? Map.of() : event.getMetadata();
         String observationId = UUID.randomUUID().toString();
-        String hcadEvaluationId = firstText(metadata, "hcadEvaluationId");
         String testRunId = testRunId(metadata);
-        boolean hcadObserved = durableHcadObserved(jdbcOperations, hcadEvaluationId);
-        HcadEvaluationContext hcadContext = hcadObserved ? hcadEvaluationContext(jdbcOperations, hcadEvaluationId) : null;
-        Boolean durableHcadTriggered = hcadObserved ? durableHcadTriggered(jdbcOperations, hcadEvaluationId) : null;
-        boolean metadataHcadTriggered = isHcadTriggered(metadata);
-        boolean hcadTriggered = hcadObserved
-                && metadataHcadTriggered
-                && !Boolean.FALSE.equals(durableHcadTriggered);
         boolean protectable = isProtectable(metadata);
-        Boolean hcadEligible = hcadObserved
-                ? firstBoolean(
-                hcadEligible(metadata),
-                hcadContext != null ? hcadContext.eligible() : null,
-                durableHcadEligible(jdbcOperations, hcadEvaluationId))
-                : null;
-        boolean hcadCandidate = hcadObserved && Boolean.TRUE.equals(hcadEligible);
-        if (!protectable && hcadTriggered && hcadObserved
-                && isProtectableMergePending(jdbcOperations, hcadEvaluationId)) {
-            protectable = true;
-        }
-        if (protectable && hcadObserved) {
-            markProtectableObserved(
-                    jdbcOperations,
-                    hcadEvaluationId,
-                    firstText(metadata, "resourceId"),
-                    firstText(metadata, "requestPath", "requestUri", "httpUri"),
-                    firstText(metadata, "httpMethod", "method"));
-        }
         Boolean llmDecisionPresent = firstBoolean(
                 result != null ? result.getLlmDecisionPresent() : null,
                 metadata.get("llmDecisionPresent"));
@@ -122,9 +85,13 @@ public class AiSecurityDecisionObservationWriter {
                 || Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded")));
         String failureReason = failureReason(result, metadata);
         String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent, finalAction);
-        String triggerSource = triggerSource(metadata, hcadTriggered, hcadObserved, protectable);
-        String triggerRelation = triggerRelation(hcadTriggered, hcadCandidate, hcadObserved, protectable);
-        String outcomeClass = outcomeClass(result, finalAction, hcadTriggered, hcadCandidate, hcadObserved, protectable, failureType);
+        String triggerSource = protectable ? "PROTECTABLE" : firstText(metadata, "triggerSource");
+        if ("PENDING_REDLINE".equalsIgnoreCase(triggerSource)) {
+            triggerSource = LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE;
+        }
+        if (triggerSource == null) {
+            triggerSource = LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE;
+        }
         String modelId = firstTextWithFallback(metadata, defaultModelId,
                 "selectedModelId",
                 "modelId",
@@ -145,22 +112,11 @@ public class AiSecurityDecisionObservationWriter {
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
         Map<String, Object> latencyBreakdown = latencyBreakdownMetadata(storedMetadata);
         LocalDateTime now = LocalDateTime.now();
-        Integer hcadScore = hcadObserved ? integer(
-                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE),
-                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_SCORE),
-                metadata.get("earlyAnalysisScore"),
-                metadata.get("hcadEscalationScore"),
-                hcadContext != null ? hcadContext.earlyAnalysisScore() : null) : null;
-        String hcadBand = hcadObserved ? firstText(
-                firstText(metadata, HcadPreProtectablePromotionAttributes.METADATA_BAND, "hcadBand", "hcadEscalationBand"),
-                hcadContext != null ? hcadContext.band() : null) : null;
-        String requestId = firstText(
-                firstText(metadata, "requestId", "correlationId"),
-                hcadContext != null ? hcadContext.requestId() : null);
+        String requestId = firstText(metadata, "requestId", "correlationId");
         String correlationId = firstText(firstText(metadata, "correlationId", "requestId"), requestId);
-        String userId = firstText(event.getUserId(), text(metadata.get("userId")), hcadContext != null ? hcadContext.userId() : null);
-        String actorSessionKey = firstText(firstText(metadata, "actorSessionKey"), hcadContext != null ? hcadContext.actorSessionKey() : null);
-        String windowId = firstText(firstText(metadata, "windowId"), hcadContext != null ? hcadContext.windowId() : null);
+        String userId = firstText(event.getUserId(), text(metadata.get("userId")));
+        String actorSessionKey = firstText(metadata, "actorSessionKey");
+        String windowId = firstText(metadata, "windowId");
 
         long persistStart = System.currentTimeMillis();
         try {
@@ -176,14 +132,9 @@ public class AiSecurityDecisionObservationWriter {
                         context_binding_hash,
                         actor_session_key,
                         window_id,
-                        hcad_evaluation_id,
                         trigger_source,
                         trigger_relation,
                         decision_boundary_mode,
-                        hcad_mode,
-                        hcad_score,
-                        hcad_band,
-                        hcad_eligible,
                         http_method,
                         request_path,
                         resource_id,
@@ -216,7 +167,7 @@ public class AiSecurityDecisionObservationWriter {
                         created_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     observationId,
@@ -229,14 +180,9 @@ public class AiSecurityDecisionObservationWriter {
                     firstText(metadata, "contextBindingHash"),
                     actorSessionKey,
                     windowId,
-                    hcadObserved ? hcadEvaluationId : null,
                     triggerSource,
-                    triggerRelation,
+                    LEGACY_TRIGGER_RELATION_NOT_APPLICABLE,
                     firstText(metadata, "decisionBoundaryMode"),
-                    firstText(metadata, "hcadMode", HcadPreProtectablePromotionAttributes.METADATA_MODE),
-                    hcadScore,
-                    hcadBand,
-                    hcadEligible,
                     firstText(metadata, "httpMethod", "method"),
                     firstText(metadata, "requestPath", "requestUri", "httpUri"),
                     firstText(metadata, "resourceId"),
@@ -263,57 +209,17 @@ public class AiSecurityDecisionObservationWriter {
                     failureType,
                     result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
                     result != null ? summarize(SensitiveValueSanitizer.sanitizeText(result.getTechnicalFallbackReason()), 1024) : null,
-                    outcomeClass,
+                    LEGACY_OUTCOME_NOT_APPLICABLE,
                     writeJson(storedMetadata),
                     result != null && result.isSuccess() && failureType == null,
                     now,
                     now);
 
             long observationInsertMs = System.currentTimeMillis() - persistStart;
-            long correlationStart = System.currentTimeMillis();
-            recordCorrelation(
-                    jdbcOperations,
-                    observationId,
-                    event,
-                    metadata,
-                    hcadObserved ? hcadEvaluationId : null,
-                    triggerRelation,
-                    outcomeClass,
-                    hcadScore,
-                    hcadBand,
-                    hcadEligible,
-                    requestId,
-                    userId,
-                    actorSessionKey,
-                    windowId,
-                    result,
-                    finalAction,
-                    testRunId,
-                    now);
-            long correlationPersistMs = System.currentTimeMillis() - correlationStart;
-            long hcadSyncStart = System.currentTimeMillis();
-            syncHcadEvaluationOutcome(
-                    jdbcOperations,
-                    hcadObserved ? hcadEvaluationId : null,
-                    event,
-                    result,
-                    finalAction,
-                    parserFailure,
-                    technicalFallback,
-                    failureType,
-                    outcomeClass,
-                    now);
-            long hcadSyncPersistMs = System.currentTimeMillis() - hcadSyncStart;
-            long semanticRefreshStart = System.currentTimeMillis();
-            refreshSemanticEvidence(event, metadata, result, finalAction, failureType);
-            long semanticRefreshMs = System.currentTimeMillis() - semanticRefreshStart;
-            log.info("[AiSecurityDecisionObservationWriter.timing] eventId={} observationId={} insertMs={} correlationMs={} hcadSyncMs={} semanticRefreshMs={} totalPersistMs={}",
+            log.info("[AiSecurityDecisionObservationWriter.timing] eventId={} observationId={} insertMs={} totalPersistMs={}",
                     event.getEventId(),
                     observationId,
                     observationInsertMs,
-                    correlationPersistMs,
-                    hcadSyncPersistMs,
-                    semanticRefreshMs,
                     System.currentTimeMillis() - persistStart);
             return observationId;
         } catch (DataAccessException ex) {
@@ -461,432 +367,6 @@ public class AiSecurityDecisionObservationWriter {
             }
         }
     }
-    private void syncHcadEvaluationOutcome(
-            JdbcOperations jdbcOperations,
-            String hcadEvaluationId,
-            SecurityEvent event,
-            ProcessingResult result,
-            ZeroTrustAction finalAction,
-            boolean parserFailure,
-            boolean technicalFallback,
-            String failureType,
-            String outcomeClass,
-            LocalDateTime now) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return;
-        }
-        jdbcOperations.update("""
-                UPDATE hcad_detection_evaluation
-                   SET event_id = COALESCE(NULLIF(?, ''), event_id),
-                       llm_action = ?,
-                       llm_proposed_action = ?,
-                       llm_risk_score = ?,
-                       llm_confidence = ?,
-                       llm_latency_ms = ?,
-                       llm_reasoning_summary = ?,
-                       llm_parser_failure = ?,
-                       llm_technical_fallback = ?,
-                       llm_fallback_category = ?,
-                       llm_fallback_reason = ?,
-                       outcome_class = ?,
-                       decided_at = COALESCE(decided_at, ?)
-                 WHERE evaluation_id = ?
-                """,
-                event != null ? blankToEmpty(event.getEventId()) : "",
-                finalAction != null ? finalAction.name() : text(result != null ? result.getAction() : null),
-                result != null ? result.getProposedAction() : null,
-                result != null ? result.resolveAuditRiskScore() : null,
-                result != null ? result.resolveAuditConfidence() : null,
-                result != null && result.getProcessingTimeMs() > 0 ? result.getProcessingTimeMs() : null,
-                result != null ? summarize(result.getReasoning(), 1024) : null,
-                parserFailure,
-                technicalFallback,
-                result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
-                result != null ? summarize(SensitiveValueSanitizer.sanitizeText(firstText(result.getTechnicalFallbackReason(), failureType)), 1024) : null,
-                firstText(outcomeClass, HcadOutcomeClassifier.UNKNOWN),
-                now,
-                hcadEvaluationId);
-    }
-    private void refreshSemanticEvidence(
-            SecurityEvent event,
-            Map<String, Object> metadata,
-            ProcessingResult result,
-            ZeroTrustAction finalAction,
-            String failureType) {
-        if (semanticEvidenceRefreshService == null) {
-            return;
-        }
-        String learningAction = semanticEvidenceLearningAction(result, finalAction, failureType);
-        if (learningAction == null) {
-            return;
-        }
-        try {
-            semanticEvidenceRefreshService.refreshAfterDecision(event, metadata, learningAction);
-        } catch (RuntimeException ex) {
-            log.debug("[AiSecurityDecisionObservationWriter] Failed to refresh HCAD semantic evidence: eventId={}",
-                    event != null ? event.getEventId() : null, ex);
-        }
-    }
-
-    private String semanticEvidenceLearningAction(
-            ProcessingResult result,
-            ZeroTrustAction finalAction,
-            String failureType) {
-        if (failureType != null || result == null || !result.isSuccess()) {
-            return null;
-        }
-        if (result.resolveAuditRiskScore() == null || result.resolveAuditConfidence() == null) {
-            return null;
-        }
-        String resolved = learningAction(finalAction != null ? finalAction.name() : null);
-        if (resolved != null) {
-            return resolved;
-        }
-        resolved = learningAction(result.getAction());
-        if (resolved != null) {
-            return resolved;
-        }
-        return learningAction(result.getProposedAction());
-    }
-
-    private String learningAction(String action) {
-        String normalized = normalize(action);
-        if ("allow".equals(normalized)) {
-            return "ALLOW";
-        }
-        if ("challenge".equals(normalized)) {
-            return "CHALLENGE";
-        }
-        if ("block".equals(normalized)) {
-            return "BLOCK";
-        }
-        return null;
-    }
-    public boolean markProtectableMerged(
-            String hcadEvaluationId,
-            String resourceId,
-            String resourceUrl,
-            String httpMethod) {
-        if (hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return false;
-        }
-        JdbcOperations jdbcOperations = jdbcOperations();
-        if (jdbcOperations == null) {
-            return false;
-        }
-        boolean hcadMarked = jdbcOperations.update("""
-                UPDATE hcad_detection_evaluation
-                   SET protectable_observed = true,
-                       protectable_resource_id = COALESCE(NULLIF(protectable_resource_id, ''), NULLIF(?, '')),
-                       protectable_resource_url = COALESCE(NULLIF(protectable_resource_url, ''), NULLIF(?, ''), request_path),
-                       protectable_http_method = COALESCE(NULLIF(protectable_http_method, ''), NULLIF(?, ''), http_method)
-                 WHERE evaluation_id = ?
-                """,
-                blankToEmpty(resourceId),
-                blankToEmpty(resourceUrl),
-                blankToEmpty(httpMethod),
-                hcadEvaluationId) > 0;
-        int observations = jdbcOperations.update("""
-                UPDATE ai_security_decision_observation
-                   SET trigger_relation = 'HCAD_AND_PROTECTABLE',
-                       resource_id = COALESCE(NULLIF(resource_id, ''), NULLIF(?, '')),
-                       request_path = COALESCE(NULLIF(request_path, ''), NULLIF(?, ''), request_path),
-                       http_method = COALESCE(NULLIF(http_method, ''), NULLIF(?, ''), http_method)
-                 WHERE hcad_evaluation_id = ?
-                   AND trigger_relation = 'HCAD_ONLY'
-                """,
-                blankToEmpty(resourceId),
-                blankToEmpty(resourceUrl),
-                blankToEmpty(httpMethod),
-                hcadEvaluationId);
-        jdbcOperations.update("""
-                UPDATE hcad_llm_decision_correlation
-                   SET trigger_relation = 'HCAD_AND_PROTECTABLE'
-                 WHERE hcad_evaluation_id = ?
-                   AND trigger_relation = 'HCAD_ONLY'
-                """,
-                hcadEvaluationId);
-        return hcadMarked || observations > 0;
-    }
-
-    private boolean markProtectableObserved(
-            JdbcOperations jdbcOperations,
-            String hcadEvaluationId,
-            String resourceId,
-            String resourceUrl,
-            String httpMethod) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return false;
-        }
-        try {
-            return jdbcOperations.update("""
-                    UPDATE hcad_detection_evaluation
-                       SET protectable_observed = true,
-                           protectable_resource_id = COALESCE(NULLIF(protectable_resource_id, ''), NULLIF(?, '')),
-                           protectable_resource_url = COALESCE(NULLIF(protectable_resource_url, ''), NULLIF(?, ''), request_path),
-                           protectable_http_method = COALESCE(NULLIF(protectable_http_method, ''), NULLIF(?, ''), http_method)
-                     WHERE evaluation_id = ?
-                    """,
-                    blankToEmpty(resourceId),
-                    blankToEmpty(resourceUrl),
-                    blankToEmpty(httpMethod),
-                    hcadEvaluationId) > 0;
-        } catch (DataAccessException ex) {
-            log.warn("[AiSecurityDecisionObservationWriter] Failed to mark protectable observation: hcadEvaluationId={}",
-                    hcadEvaluationId, ex);
-            return false;
-        }
-    }
-
-    private void recordCorrelation(
-            JdbcOperations jdbcOperations,
-            String observationId,
-            SecurityEvent event,
-            Map<String, Object> metadata,
-            String hcadEvaluationId,
-            String triggerRelation,
-            String outcomeClass,
-            Integer hcadScore,
-            String hcadBand,
-            Boolean hcadEligible,
-            String requestId,
-            String userId,
-            String actorSessionKey,
-            String windowId,
-            ProcessingResult result,
-            ZeroTrustAction finalAction,
-            String testRunId,
-            LocalDateTime now) {
-        jdbcOperations.update("""
-                INSERT INTO hcad_llm_decision_correlation (
-                    correlation_id,
-                    hcad_evaluation_id,
-                    llm_observation_id,
-                    event_id,
-                    request_id,
-                    test_run_id,
-                    user_id,
-                    actor_session_key,
-                    window_id,
-                    trigger_relation,
-                    outcome_class,
-                    hcad_score,
-                    hcad_band,
-                    hcad_eligible,
-                    llm_final_action,
-                    llm_proposed_action,
-                    llm_risk_score,
-                    llm_confidence,
-                    created_at,
-                    decided_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
-                """,
-                UUID.randomUUID().toString(),
-                hcadEvaluationId,
-                observationId,
-                event.getEventId(),
-                requestId,
-                testRunId,
-                userId,
-                actorSessionKey,
-                windowId,
-                triggerRelation,
-                outcomeClass,
-                hcadScore,
-                hcadBand,
-                hcadEligible,
-                finalAction != null ? finalAction.name() : text(result != null ? result.getAction() : null),
-                result != null ? result.getProposedAction() : null,
-                result != null ? result.resolveAuditRiskScore() : null,
-                result != null ? result.resolveAuditConfidence() : null,
-                now,
-                now);
-    }
-
-    private String triggerSource(
-            Map<String, Object> metadata,
-            boolean hcadTriggered,
-            boolean hcadObserved,
-            boolean protectable) {
-        String explicit = firstText(metadata, "triggerSource");
-        if (explicit != null) {
-            boolean hcadPreTriggerExplicit = "HCAD_PRE_TRIGGER".equalsIgnoreCase(explicit)
-                    || "PENDING_REDLINE".equalsIgnoreCase(explicit);
-            boolean hcadObservedExplicit = "HCAD_OBSERVED".equalsIgnoreCase(explicit);
-            if (!hcadPreTriggerExplicit && !hcadObservedExplicit) {
-                return explicit;
-            }
-            if (hcadPreTriggerExplicit && hcadTriggered) {
-                return explicit;
-            }
-            if (hcadObservedExplicit && hcadObserved && !protectable) {
-                return explicit;
-            }
-        }
-        if (hcadTriggered) {
-            return "HCAD_PRE_TRIGGER";
-        }
-        if (protectable) {
-            return "PROTECTABLE";
-        }
-        return hcadObserved ? "HCAD_OBSERVED" : "UNKNOWN";
-    }
-
-    private String triggerRelation(boolean hcadTriggered, boolean hcadCandidate, boolean hcadObserved, boolean protectable) {
-        if ((hcadTriggered || hcadCandidate) && protectable) {
-            return "HCAD_AND_PROTECTABLE";
-        }
-        if (hcadTriggered) {
-            return "HCAD_ONLY";
-        }
-        if (protectable) {
-            return "PROTECTABLE_ONLY";
-        }
-        if (hcadCandidate || hcadObserved) {
-            return "OBSERVED_ONLY";
-        }
-        return "UNMATCHED_LLM";
-    }
-
-    private boolean isProtectableMergePending(JdbcOperations jdbcOperations, String hcadEvaluationId) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return false;
-        }
-        try {
-            Boolean pending = jdbcOperations.queryForObject("""
-                    SELECT COALESCE(protectable_observed, false)
-                      FROM hcad_detection_evaluation
-                     WHERE evaluation_id = ?
-                    """, Boolean.class, hcadEvaluationId);
-            return Boolean.TRUE.equals(pending);
-        } catch (DataAccessException ex) {
-            return false;
-        }
-    }
-
-    private String outcomeClass(
-            ProcessingResult result,
-            ZeroTrustAction finalAction,
-            boolean hcadTriggered,
-            boolean hcadCandidate,
-            boolean hcadObserved,
-            boolean protectable,
-            String failureType) {
-        if (failureType != null) {
-            return HcadOutcomeClassifier.UNKNOWN;
-        }
-        if (hcadTriggered || hcadCandidate) {
-            return HcadOutcomeClassifier.classifyHcadTriggered(result, finalAction);
-        }
-        if (hcadObserved || protectable) {
-            return HcadOutcomeClassifier.classifyHcadObservation(result, finalAction);
-        }
-        return "UNOBSERVED";
-    }
-
-    private boolean durableHcadObserved(JdbcOperations jdbcOperations, String hcadEvaluationId) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return false;
-        }
-        try {
-            Boolean exists = jdbcOperations.queryForObject("""
-                    SELECT EXISTS (
-                        SELECT 1
-                          FROM hcad_detection_evaluation
-                         WHERE evaluation_id = ?
-                    )
-                    """, Boolean.class, hcadEvaluationId);
-            return exists == null || Boolean.TRUE.equals(exists);
-        } catch (DataAccessException ex) {
-            return false;
-        }
-    }
-    private HcadEvaluationContext hcadEvaluationContext(JdbcOperations jdbcOperations, String hcadEvaluationId) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return null;
-        }
-        try {
-            return jdbcOperations.queryForObject("""
-                    SELECT user_id, actor_session_key, window_id, request_id, early_analysis_score, band, eligible
-                      FROM hcad_detection_evaluation
-                     WHERE evaluation_id = ?
-                    """, (rs, rowNum) -> new HcadEvaluationContext(
-                    text(rs.getString("user_id")),
-                    text(rs.getString("actor_session_key")),
-                    text(rs.getString("window_id")),
-                    text(rs.getString("request_id")),
-                    integer(rs.getObject("early_analysis_score")),
-                    text(rs.getString("band")),
-                    bool(rs.getObject("eligible"))),
-                    hcadEvaluationId);
-        } catch (DataAccessException ex) {
-            return null;
-        }
-    }
-
-    private record HcadEvaluationContext(
-            String userId,
-            String actorSessionKey,
-            String windowId,
-            String requestId,
-            Integer earlyAnalysisScore,
-            String band,
-            Boolean eligible) {
-    }
-
-    private boolean isHcadTriggered(Map<String, Object> metadata) {
-        String triggerSource = firstText(metadata, "triggerSource");
-        return "HCAD_PRE_TRIGGER".equalsIgnoreCase(triggerSource)
-                || "PENDING_REDLINE".equalsIgnoreCase(triggerSource);
-    }
-
-    private boolean isHcadObserved(Map<String, Object> metadata, String hcadEvaluationId) {
-        return hcadEvaluationId != null
-                || Boolean.TRUE.equals(metadata.get(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED))
-                || metadata.containsKey(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE)
-                || metadata.containsKey(HcadPreProtectablePromotionAttributes.METADATA_SCORE);
-    }
-
-    private Boolean hcadEligible(Map<String, Object> metadata) {
-        return bool(
-                metadata.get(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE),
-                metadata.get("hcadEscalationEligible"));
-    }
-
-    private Boolean durableHcadTriggered(JdbcOperations jdbcOperations, String hcadEvaluationId) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return null;
-        }
-        try {
-            return jdbcOperations.queryForObject("""
-                    SELECT COALESCE(triggered_llm, false)
-                            OR trigger_decision_reason IN ('TRIGGER_PUBLISHED', 'PROTECTABLE_LLM_REUSED')
-                      FROM hcad_detection_evaluation
-                     WHERE evaluation_id = ?
-                    """, Boolean.class, hcadEvaluationId);
-        } catch (DataAccessException ex) {
-            return null;
-        }
-    }
-
-    private Boolean durableHcadEligible(JdbcOperations jdbcOperations, String hcadEvaluationId) {
-        if (jdbcOperations == null || hcadEvaluationId == null || hcadEvaluationId.isBlank()) {
-            return null;
-        }
-        try {
-            return jdbcOperations.queryForObject("""
-                    SELECT COALESCE(eligible, false)
-                            OR trigger_decision_reason = 'PROTECTABLE_LLM_REUSED'
-                      FROM hcad_detection_evaluation
-                     WHERE evaluation_id = ?
-                    """, Boolean.class, hcadEvaluationId);
-        } catch (DataAccessException ex) {
-            return null;
-        }
-    }
-
     private boolean isProtectable(Map<String, Object> metadata) {
         return Boolean.TRUE.equals(metadata.get("protectableDeclared"))
                 || metadata.containsKey("protectableMethod");
@@ -1163,8 +643,6 @@ public class AiSecurityDecisionObservationWriter {
     private String testRunId(Map<String, Object> metadata) {
         String direct = firstText(metadata,
                 "testRunId",
-                "hcadTestRunId",
-                "hcadExtremeRunId",
                 "xContexaTestRunId");
         if (direct != null) {
             return direct;
@@ -1181,8 +659,6 @@ public class AiSecurityDecisionObservationWriter {
         Map<String, Object> typed = (Map<String, Object>) map;
         String direct = firstText(typed,
                 "testRunId",
-                "hcadTestRunId",
-                "hcadExtremeRunId",
                 "xContexaTestRunId");
         if (direct != null) {
             return direct;
@@ -1219,27 +695,6 @@ public class AiSecurityDecisionObservationWriter {
         }
         String text = value.toString().trim();
         return text.isBlank() ? null : text;
-    }
-
-    private Integer integer(Object... values) {
-        if (values == null) {
-            return null;
-        }
-        for (Object value : values) {
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-            String text = text(value);
-            if (text == null) {
-                continue;
-            }
-            try {
-                return Integer.parseInt(text);
-            } catch (NumberFormatException ignored) {
-                // Try the next value.
-            }
-        }
-        return null;
     }
 
     private Boolean bool(Object... values) {
@@ -1287,10 +742,6 @@ public class AiSecurityDecisionObservationWriter {
             return value;
         }
         return value.substring(0, maxLength);
-    }
-
-    private String blankToEmpty(String value) {
-        return value == null || value.isBlank() ? "" : value;
     }
 
     private String summarize(String value, int maxLength) {

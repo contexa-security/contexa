@@ -22,6 +22,8 @@ import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,17 +39,58 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RequestInfoExtractorTest {
 
     @Test
+    @DisplayName("canonical context should populate Protectable request facts")
+    void extractShouldUseCanonicalContext() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/summary");
+        OfficialContextRequestAttributes.applySnapshot(request, Map.of(
+                "tenantId", "tenant-canonical",
+                "organizationId", "org-canonical",
+                "mfaVerified", true,
+                "failedLoginAttempts", 2,
+                "country", "KR",
+                "deviceBrowser", "Firefox"), true);
+        RequestSecurityContextAttributes.write(
+                request,
+                RequestSecurityContextAttributes.Field.RESOURCE_ID,
+                "report-summary",
+                true);
+        RequestSecurityContextAttributes.write(
+                request,
+                RequestSecurityContextAttributes.Field.RESOURCE_SENSITIVITY,
+                "MEDIUM",
+                true);
+        RequestSecurityContextAttributes.write(
+                request,
+                RequestSecurityContextAttributes.Field.BASELINE_CONFIDENCE,
+                0.82d,
+                true);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getTenantId()).isEqualTo("tenant-canonical");
+        assertThat(requestInfo.getOrganizationId()).isEqualTo("org-canonical");
+        assertThat(requestInfo.getMfaVerified()).isTrue();
+        assertThat(requestInfo.getFailedLoginAttempts()).isEqualTo(2);
+        assertThat(requestInfo.getGeoCountry()).isEqualTo("KR");
+        assertThat(requestInfo.getDeviceBrowser()).isEqualTo("Firefox");
+        assertThat(requestInfo.getResourceId()).isEqualTo("report-summary");
+        assertThat(requestInfo.getResourceSensitivity()).isEqualTo("MEDIUM");
+        assertThat(requestInfo.getBaselineConfidence()).isEqualTo(0.82d);
+    }
+
+    @Test
     @DisplayName("request attributes previousPath and interval should seed session narrative metadata")
     void extractShouldIncludeAuthMethodAndResourceHintsFromRequestAttributes() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-001");
         request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-        request.setAttribute("hcad.auth_method", "mfa");
-        request.setAttribute("hcad.resource_sensitivity", "HIGH");
-        request.setAttribute("hcad.resource_business_label", "Sensitive Security Test Resource resource-001");
-        request.setAttribute("hcad.mfa_verified", true);
-        request.setAttribute("hcad.previous_path", "/admin/api/security-test/sensitive/resource-000");
-        request.setAttribute("hcad.last_request_interval_ms", 4_200L);
+        request.setAttribute("authenticationType", "mfa");
+        request.setAttribute("resourceSensitivity", "HIGH");
+        request.setAttribute("resourceBusinessLabel", "Sensitive Security Test Resource resource-001");
+        request.setAttribute("mfaVerified", true);
+        request.setAttribute("previousPath", "/admin/api/security-test/sensitive/resource-000");
+        request.setAttribute("lastRequestIntervalMs", 4_200L);
         request.setAttribute("currentResourceFamily", "SENSITIVE");
         request.setAttribute("currentActionFamily", "READ");
         request.setAttribute("expectedResourceFamilies", List.of("SENSITIVE"));

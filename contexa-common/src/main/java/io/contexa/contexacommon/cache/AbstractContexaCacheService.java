@@ -66,7 +66,6 @@ public abstract class AbstractContexaCacheService implements ContexaCacheService
             case "groups" -> domains.getGroups().getLocalTtlSeconds();
             case "policies" -> domains.getPolicies().getLocalTtlSeconds();
             case "soar" -> domains.getSoar().getLocalTtlSeconds();
-            case "hcad" -> domains.getHcad().getLocalTtlSeconds();
             default -> properties.getLocal().getDefaultTtlSeconds();
         };
     }

@@ -39,19 +39,6 @@ class LegacyPrefixMigratorTest {
     }
 
     @Test
-    @DisplayName("hcad.* 키가 contexa.hcad.* 로 alias 된다")
-    void aliasesHcad() {
-        MockEnvironment env = new MockEnvironment();
-        env.setProperty("hcad.enabled", "true");
-        env.setProperty("hcad.geoip.dbPath", "data/GeoLite2-City.mmdb");
-
-        migrator.postProcessEnvironment(env, new SpringApplication());
-
-        assertThat(env.getProperty("contexa.hcad.enabled")).isEqualTo("true");
-        assertThat(env.getProperty("contexa.hcad.geoip.dbPath")).isEqualTo("data/GeoLite2-City.mmdb");
-    }
-
-    @Test
     @DisplayName("spring.auth.* 가 contexa.auth.* 로 alias 된다")
     void aliasesSpringAuth() {
         MockEnvironment env = new MockEnvironment();

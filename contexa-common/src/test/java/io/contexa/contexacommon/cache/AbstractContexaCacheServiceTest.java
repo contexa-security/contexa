@@ -114,8 +114,7 @@ class AbstractContexaCacheServiceTest {
             "permissions, 28800",
             "groups, 14400",
             "policies, 30",
-            "soar, 900",
-            "hcad, 86400"
+            "soar, 900"
     })
     @DisplayName("getLocalTtl should return domain-specific TTL")
     void getLocalTtl_shouldReturnDomainSpecificTtl(String domain, int expectedTtl) {

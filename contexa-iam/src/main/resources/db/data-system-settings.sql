@@ -7,13 +7,6 @@ INSERT INTO system_settings (
     default_role,
     policy_combining_algorithm,
     registration_enabled,
-    hcad_medium_risk_score,
-    hcad_high_risk_score,
-    hcad_redline_score,
-    hcad_failed_login_burst_threshold,
-    hcad_request_burst_threshold,
-    hcad_semantic_risk_similarity_threshold,
-    hcad_semantic_normal_similarity_threshold,
     mvc_resource_scanner_base_packages,
     created_at)
 SELECT
@@ -21,13 +14,6 @@ SELECT
     'ROLE_USER',
     'FIRST_APPLICABLE',
     FALSE,
-    30,
-    50,
-    70,
-    3,
-    12,
-    0.80,
-    0.85,
     'io.contexa.contexaiam.',
     CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM system_settings);

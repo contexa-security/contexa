@@ -140,7 +140,7 @@ public class SecurityMonitorController {
         model.addAttribute("adminOverride", auditLogRepository.countAdminOverridesSince(since));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public String detail(@PathVariable Long id, Model model, RedirectAttributes ra) {
         model.addAttribute("activePage", "security-monitor");
 

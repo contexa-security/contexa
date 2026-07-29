@@ -15,7 +15,6 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
-import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -63,9 +62,6 @@ class SecurityConfigurerIntegrationTest {
     private BridgeResolutionFilter bridgeResolutionFilter;
 
     @Mock
-    private HCADFilter hcadFilter;
-
-    @Mock
     private AISessionSecurityContextRepository aiSessionSecurityContextRepository;
 
     @Mock
@@ -86,7 +82,6 @@ class SecurityConfigurerIntegrationTest {
     void verifyConfigurerOrdering() {
         List<SecurityConfigurer> configurers = new ArrayList<>();
         configurers.add(new BridgeResolutionConfigurer(bridgeResolutionFilter));
-        configurers.add(new HCADFilterConfigurer(hcadFilter));
         configurers.add(new SessionSecurityContextRepositoryConfigurer(aiSessionSecurityContextRepository));
         configurers.add(new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter));
 
@@ -98,43 +93,34 @@ class SecurityConfigurerIntegrationTest {
         // ZeroTrustAccessControlConfigurer: 45
         // SessionSecurityContextRepositoryConfigurer: HIGHEST_PRECEDENCE + 105 (HIGHEST_PRECEDENCE is Integer.MIN_VALUE, so it is -2147483543)
         // BridgeResolutionConfigurer: HIGHEST_PRECEDENCE + 100 (-2147483648 + 100 = -2147483548)
-        // HCADFilterConfigurer: 50
         // Wait, let's verify order of each:
         // BridgeResolutionConfigurer.ORDER = HIGHEST_PRECEDENCE + 100
         // SessionSecurityContextRepositoryConfigurer.ORDER = HIGHEST_PRECEDENCE + 105
         // ZeroTrustAccessControlConfigurer: 45
-        // HCADFilterConfigurer: 50
         // Sorted ascending:
         // 1. BridgeResolutionConfigurer (-2147483548)
         // 2. SessionSecurityContextRepositoryConfigurer (-2147483543)
         // 3. ZeroTrustAccessControlConfigurer (45)
-        // 4. HCADFilterConfigurer (50)
 
         assertThat(configurers.get(0)).isInstanceOf(SessionSecurityContextRepositoryConfigurer.class);
         assertThat(configurers.get(1)).isInstanceOf(BridgeResolutionConfigurer.class);
-        assertThat(configurers.get(2)).isInstanceOf(HCADFilterConfigurer.class);
-        assertThat(configurers.get(3)).isInstanceOf(ZeroTrustAccessControlConfigurer.class);
+        assertThat(configurers.get(2)).isInstanceOf(ZeroTrustAccessControlConfigurer.class);
     }
 
     @Test
     @DisplayName("Verify integrated configure execution registers all filters correctly")
     void verifyIntegratedConfigureExecution() throws Exception {
         BridgeResolutionConfigurer bridgeResolutionConfigurer = new BridgeResolutionConfigurer(bridgeResolutionFilter);
-        HCADFilterConfigurer hcadFilterConfigurer = new HCADFilterConfigurer(hcadFilter);
         SessionSecurityContextRepositoryConfigurer sessionRepositoryConfigurer = new SessionSecurityContextRepositoryConfigurer(aiSessionSecurityContextRepository);
         ZeroTrustAccessControlConfigurer zeroTrustConfigurer = new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter);
 
         // Run all configurers
         bridgeResolutionConfigurer.configure(flowContext);
-        hcadFilterConfigurer.configure(flowContext);
         sessionRepositoryConfigurer.configure(flowContext);
         zeroTrustConfigurer.configure(flowContext);
 
         // Verify BridgeResolutionFilter
         verify(httpSecurity).addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
-
-        // Verify HCADFilter
-        verify(httpSecurity).addFilterBefore(hcadFilter, AuthorizationFilter.class);
 
         // Verify SessionSecurityContextRepository
         verify(httpSecurity).setSharedObject(SecurityContextRepository.class, aiSessionSecurityContextRepository);

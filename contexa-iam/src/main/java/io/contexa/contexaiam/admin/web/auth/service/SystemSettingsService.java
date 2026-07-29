@@ -75,14 +75,6 @@ public class SystemSettingsService {
         existing.setDefaultRole(form.getDefaultRole());
         existing.setPolicyCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
         existing.setRegistrationEnabled(form.isRegistrationEnabled());
-        existing.setHcadMediumRiskScore(form.getHcadMediumRiskScore());
-        existing.setHcadHighRiskScore(form.getHcadHighRiskScore());
-        existing.setHcadRedlineScore(form.getHcadRedlineScore());
-        existing.setHcadFailedLoginBurstThreshold(form.getHcadFailedLoginBurstThreshold());
-        existing.setHcadRequestBurstThreshold(form.getHcadRequestBurstThreshold());
-        existing.setHcadSemanticRiskSimilarityThreshold(form.getHcadSemanticRiskSimilarityThreshold());
-        existing.setHcadSemanticNormalSimilarityThreshold(form.getHcadSemanticNormalSimilarityThreshold());
-        existing.setHcadPreTriggerMode(SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(form.getHcadPreTriggerMode()));
         existing.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
         existing.setMvcResourceScannerBasePackages(
                 SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages()));
@@ -94,18 +86,6 @@ public class SystemSettingsService {
             throw new IllegalArgumentException("Settings form is required.");
         }
         validateRange("auditLogRetentionDays", form.getAuditLogRetentionDays(), 0, 3650);
-        validateRange("hcadMediumRiskScore", form.getHcadMediumRiskScore(), 0, 100);
-        validateRange("hcadHighRiskScore", form.getHcadHighRiskScore(), 0, 100);
-        validateRange("hcadRedlineScore", form.getHcadRedlineScore(), 0, 100);
-        if (form.getHcadMediumRiskScore() > form.getHcadHighRiskScore()
-                || form.getHcadHighRiskScore() > form.getHcadRedlineScore()) {
-            throw new IllegalArgumentException("HCAD risk scores must satisfy medium <= high <= redline.");
-        }
-        validateRange("hcadFailedLoginBurstThreshold", form.getHcadFailedLoginBurstThreshold(), 1, 1000);
-        validateRange("hcadRequestBurstThreshold", form.getHcadRequestBurstThreshold(), 1, 10000);
-        validateRatio("hcadSemanticRiskSimilarityThreshold", form.getHcadSemanticRiskSimilarityThreshold());
-        validateRatio("hcadSemanticNormalSimilarityThreshold", form.getHcadSemanticNormalSimilarityThreshold());
-        SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(form.getHcadPreTriggerMode());
         SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());
     }
@@ -116,9 +96,4 @@ public class SystemSettingsService {
         }
     }
 
-    private void validateRatio(String field, double value) {
-        if (Double.isNaN(value) || value < 0.0d || value > 1.0d) {
-            throw new IllegalArgumentException(field + " must be between 0.0 and 1.0.");
-        }
-    }
 }

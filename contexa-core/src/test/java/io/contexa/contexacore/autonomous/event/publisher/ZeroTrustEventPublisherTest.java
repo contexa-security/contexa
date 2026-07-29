@@ -27,18 +27,8 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAssessment;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionAttributes;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionBand;
-import io.contexa.contexacore.hcad.promotion.HcadPreProtectablePromotionScorer;
-import io.contexa.contexacore.hcad.projection.HcadBaselineComparison;
-import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjection;
-import io.contexa.contexacore.hcad.projection.TrustedHcadContextProjectionFactory;
-import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyEvidenceReport;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
-import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
@@ -52,7 +42,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.HandlerMapping;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.List;
@@ -62,10 +51,10 @@ import java.util.Set;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -158,7 +147,42 @@ class ZeroTrustEventPublisherTest {
 
         assertThat(event.getPayload())
                 .containsEntry("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}")
-                .containsEntry("resourceUrlTemplate", "/api/security-test/sensitive/{resourceId}");
+                .containsEntry("resourceUrlTemplate", "/api/security-test/sensitive/{resourceId}")
+                .containsEntry(
+                        "resourceId",
+                        SampleService.class.getName() + "#protectableApprove");
+    }
+
+    @Test
+    @DisplayName("stored MFA and login failure context should reach a protectable event")
+    void shouldPopulateStoredAuthenticationContext() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setRemoteAddr("203.0.113.15");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(
+                SampleService.class.getDeclaredMethod("protectableApprove"));
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        when(dataStore.isMfaVerified("alice")).thenReturn(true);
+        when(dataStore.getRecentLoginFailureCount(
+                eq("alice"), eq("203.0.113.15"), anyLong(), anyLong()))
+                .thenReturn(3);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties(),
+                dataStore,
+                new SecurityPlaneProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .containsEntry("mfaVerified", true)
+                .containsEntry("failedLoginAttempts", 3);
     }
 
     @Test
@@ -232,10 +256,10 @@ class ZeroTrustEventPublisherTest {
         request.setRequestedSessionId("session-42");
         request.addHeader("User-Agent", "JUnit");
         request.setRemoteAddr("203.0.113.10");
-        request.setAttribute("hcad.auth_method", "mfa");
-        request.setAttribute("hcad.resource_sensitivity", "HIGH");
-        request.setAttribute("hcad.previous_path", "/admin/api/security-test/sensitive/resource-000");
-        request.setAttribute("hcad.last_request_interval_ms", 4_200L);
+        request.setAttribute("authenticationType", "mfa");
+        request.setAttribute("resourceSensitivity", "HIGH");
+        request.setAttribute("previousPath", "/admin/api/security-test/sensitive/resource-000");
+        request.setAttribute("lastRequestIntervalMs", 4_200L);
         request.setAttribute("currentResourceFamily", "SENSITIVE");
         request.setAttribute("currentActionFamily", "READ");
         request.setAttribute("expectedResourceFamilies", List.of("SENSITIVE"));
@@ -408,303 +432,6 @@ class ZeroTrustEventPublisherTest {
                         "disableOllamaThinking");
     }
 
-    @Test
-    @DisplayName("HCAD observation attributes should propagate without changing decision boundary")
-    void shouldPropagateHcadObservationMetadataIntoAuthorizationEventPayload() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
-        request.setRequestedSessionId("session-hcad-observation");
-        request.addHeader("User-Agent", "JUnit");
-        request.setRemoteAddr("203.0.113.15");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED, true);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_MODE, "SHADOW");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE, 45);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND, "HIGH");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES, List.of("REQUEST_BURST"));
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS, Map.of("requestBurst", 12));
-        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGER_EVALUATION_ID, "eval-rate-limited");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        MethodInvocation invocation = mock(MethodInvocation.class);
-        Method method = SampleService.class.getDeclaredMethod("approve");
-        when(invocation.getMethod()).thenReturn(method);
-
-        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
-        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
-                invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"),
-                true,
-                null
-        );
-
-        assertThat(event.getPayload())
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_MODE, "SHADOW")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 45)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "HIGH")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
-                .containsEntry("hcadEvaluationId", "eval-rate-limited");
-        assertThat(event.getPayload()).doesNotContainKey("decisionBoundaryMode");
-        assertThat((List<String>) event.getPayload().get(HcadPreProtectablePromotionAttributes.METADATA_REASON_CODES))
-                .containsExactly("REQUEST_BURST");
-        assertThat((Map<String, Object>) event.getPayload().get(HcadPreProtectablePromotionAttributes.METADATA_RAW_SIGNALS))
-                .containsEntry("requestBurst", 12);
-    }
-
-    @Test
-    @DisplayName("Protectable authorization should attach observed HCAD evidence when the request was not the window owner")
-    void shouldAttachProtectableHcadObservationWhenWindowWasAlreadyObserved() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
-        request.setRequestedSessionId("session-hcad-protectable-observed");
-        request.addHeader("User-Agent", "JUnit");
-        request.setRemoteAddr("203.0.113.20");
-        request.setAttribute("hcad.actorSessionKey", "actor-window-1");
-        request.setAttribute("hcad.windowId", "window-1");
-        request.setAttribute("hcad.windowRequestCount", 4);
-        request.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/admin/users/{userId}");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        TrustedHcadContextProjection projection = new TrustedHcadContextProjection(
-                "alice",
-                null,
-                null,
-                "session-hcad-protectable-observed",
-                "binding-1",
-                "GET",
-                "/admin/users",
-                "203.0.113.20",
-                "password",
-                null,
-                false,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                0,
-                0,
-                false,
-                "/admin/dashboard",
-                false,
-                0.95d,
-                true,
-                new HcadBaselineComparison(
-                        true,
-                        true,
-                        40L,
-                        20,
-                        4,
-                        0,
-                        1.0d,
-                        false,
-                        List.of("method", "path"),
-                        List.of(),
-                        List.of(),
-                        Map.of("path", "/admin/users"),
-                        Map.of("path", "/admin/users"),
-                        null),
-                "hcad-test",
-                Map.of(),
-                Map.of(),
-                Map.of());
-        HcadPreProtectablePromotionAssessment assessment = new HcadPreProtectablePromotionAssessment(
-                10,
-                HcadPreProtectablePromotionBand.LOW,
-                false,
-                List.of(),
-                List.of("BASELINE_MATCH"),
-                List.of("BASELINE_MATCH"),
-                "No trusted risk signal",
-                "hcad-test",
-                Map.of("baselineComparison", projection.baselineComparison()));
-        TrustedHcadContextProjectionFactory projectionFactory = mock(TrustedHcadContextProjectionFactory.class);
-        HcadPreProtectablePromotionScorer scorer = mock(HcadPreProtectablePromotionScorer.class);
-        HcadEvaluationWriter writer = mock(HcadEvaluationWriter.class);
-        when(projectionFactory.project(eq(request), any())).thenReturn(projection);
-        when(scorer.score(projection)).thenReturn(assessment);
-        when(writer.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class)))
-                .thenReturn("eval-protectable-observed");
-
-        MethodInvocation invocation = mock(MethodInvocation.class);
-        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
-        when(invocation.getMethod()).thenReturn(method);
-
-        ZeroTrustEventPublisher publisher =
-                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
-        setField(publisher, "trustedHcadContextProjectionFactory", projectionFactory);
-        setField(publisher, "hcadPreProtectablePromotionScorer", scorer);
-        setField(publisher, "hcadEvaluationWriter", writer);
-        setField(publisher, "hcadProperties", new HcadProperties());
-
-        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
-                invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"),
-                true,
-                null);
-
-        assertThat(event.getPayload())
-                .containsEntry("protectableDeclared", true)
-                .containsEntry("protectableResourceId",
-                        SampleService.class.getName() + "#protectableApprove")
-                .containsEntry("protectableResourceUrl", "/admin/users/{userId}")
-                .containsEntry("resourceUrlTemplate", "/admin/users/{userId}")
-                .containsEntry("protectableHttpMethod", "GET")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
-                .doesNotContainKey("hcadEvaluationId");
-        verify(writer, never()).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class));
-    }
-
-    @Test
-    @DisplayName("already evaluated ineligible Protectable request should not persist HCAD candidate")
-    void shouldNotPersistAlreadyEvaluatedIneligibleProtectableObservationBeforeMethodEvent() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/test/hcad/live/accounts/123");
-        request.setRemoteAddr("127.0.0.1");
-        request.addHeader("User-Agent", "JUnit");
-        request.setAttribute("hcad.actorSessionKey", "actor-window-existing");
-        request.setAttribute("hcad.windowId", "window-existing");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EVALUATED, true);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_MODE, "SHADOW");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SCORE, 10);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_EARLY_ANALYSIS_SCORE, 10);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_BAND, "LOW");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ELIGIBLE, false);
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_ANCHOR_SIGNALS, List.of());
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_CORROBORATING_SIGNALS, List.of("BASELINE_MATCH"));
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_REASON_CODES, List.of("BASELINE_MATCH"));
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_SUMMARY, "No trusted risk signal");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_VERSION, "hcad-test");
-        request.setAttribute(HcadPreProtectablePromotionAttributes.REQUEST_RAW_SIGNALS,
-                Map.of("baselineComparison", Map.of("available", true, "established", true)));
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        TrustedHcadContextProjection projection = new TrustedHcadContextProjection(
-                "alice",
-                "tenant-a",
-                "org-a",
-                "session-a",
-                "binding-a",
-                "GET",
-                "/contexa/test/hcad/live/accounts/123",
-                "127.0.0.1",
-                "password",
-                null,
-                false,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                0,
-                1,
-                false,
-                "/contexa/admin/dashboard",
-                false,
-                0.95d,
-                true,
-                new HcadBaselineComparison(
-                        true,
-                        true,
-                        40L,
-                        20,
-                        4,
-                        0,
-                        1.0d,
-                        false,
-                        List.of("method", "path"),
-                        List.of(),
-                        List.of(),
-                        Map.of("path", "/contexa/test/hcad/live/accounts/{accountId}"),
-                        Map.of("path", "/contexa/test/hcad/live/accounts/{accountId}"),
-                        null),
-                "hcad-test",
-                Map.of(),
-                Map.of(),
-                Map.of());
-        TrustedHcadContextProjectionFactory projectionFactory = mock(TrustedHcadContextProjectionFactory.class);
-        HcadPreProtectablePromotionScorer scorer = mock(HcadPreProtectablePromotionScorer.class);
-        HcadEvaluationWriter writer = mock(HcadEvaluationWriter.class);
-        when(projectionFactory.project(eq(request), any())).thenReturn(projection);
-        when(writer.recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class)))
-                .thenReturn("eval-existing-observation");
-
-        MethodInvocation invocation = mock(MethodInvocation.class);
-        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
-        when(invocation.getMethod()).thenReturn(method);
-
-        ZeroTrustEventPublisher publisher =
-                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
-        setField(publisher, "trustedHcadContextProjectionFactory", projectionFactory);
-        setField(publisher, "hcadPreProtectablePromotionScorer", scorer);
-        setField(publisher, "hcadEvaluationWriter", writer);
-        setField(publisher, "hcadProperties", new HcadProperties());
-
-        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
-                invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"),
-                true,
-                null);
-
-        assertThat(event.getPayload())
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EVALUATED, true)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_EARLY_ANALYSIS_SCORE, 10)
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_BAND, "LOW")
-                .containsEntry(HcadPreProtectablePromotionAttributes.METADATA_ELIGIBLE, false)
-                .doesNotContainKey("hcadEvaluationId");
-        verify(scorer, never()).score(any());
-        verify(writer, never()).recordCandidate(eq(HcadPreTriggerMode.SHADOW), any(PendingAnomalyEvidenceReport.class));
-    }
-    @Test
-    @DisplayName("pre-protectable threat publication should include bridge metadata when available")
-    void shouldIncludeBridgeMetadataInPreProtectableThreatPayload() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
-        request.setRequestedSessionId("session-pre-bridge");
-        request.addHeader("User-Agent", "JUnit");
-        request.setRemoteAddr("10.0.0.12");
-        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResult());
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
-        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(applicationEventPublisher, new TieredStrategyProperties());
-
-        publisher.publishPreProtectableThreat("alice", Map.of("reasonCodes", List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE")));
-
-        ArgumentCaptor<ZeroTrustSpringEvent> captor = ArgumentCaptor.forClass(ZeroTrustSpringEvent.class);
-        verify(applicationEventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().getPayload())
-                .containsEntry("bridgeCoverageLevel", BridgeCoverageLevel.DELEGATION_CONTEXT.name())
-                .containsEntry("bridgeAuthenticationSource", "HEADER")
-                .containsEntry("bridgeAuthorizationSource", "HEADER")
-                .containsEntry("bridgeDelegationSource", "HEADER");
-    }
-    @Test
-    @DisplayName("same-request pre-trigger marker should suppress method authorization publication")
-    void shouldSuppressMethodAuthorizationEventWhenPreTriggerMarkerExists() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/export/reports");
-        request.setRequestedSessionId("session-pre-trigger");
-        request.addHeader("User-Agent", "JUnit");
-        request.setRemoteAddr("203.0.113.11");
-        request.setAttribute(PendingAnomalyTriggerAttributes.PRE_TRIGGERED, true);
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
-        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(applicationEventPublisher, new TieredStrategyProperties());
-
-        MethodInvocation invocation = mock(MethodInvocation.class);
-        Method method = SampleService.class.getDeclaredMethod("approve");
-        when(invocation.getMethod()).thenReturn(method);
-
-        publisher.publishMethodAuthorization(
-                invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"),
-                true,
-                null
-        );
-
-        verify(applicationEventPublisher, never()).publishEvent(any());
-    }
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
@@ -795,12 +522,6 @@ class ZeroTrustEventPublisherTest {
                         "Bridge completeness reached authentication and authorization context, but delegated execution metadata is incomplete for this request.",
                         List.of("Populate explicit delegated execution metadata when the request is acting on behalf of another principal or scoped objective."))
         );
-    }
-
-    private void setField(Object target, String fieldName, Object value) throws Exception {
-        Field field = target.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        field.set(target, value);
     }
 
     private static class SampleService {

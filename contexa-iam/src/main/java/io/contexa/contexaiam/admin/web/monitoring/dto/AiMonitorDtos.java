@@ -1,21 +1,9 @@
 /*
  * Copyright 2026 The Contexa Project
  *
- * The Contexa Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * Licensed under the Apache License, Version 2.0.
  */
 package io.contexa.contexaiam.admin.web.monitoring.dto;
-
-import io.contexa.contexaiam.admin.web.monitoring.dto.HcadMonitorDtos.HcadSummary;
 
 import java.util.List;
 
@@ -29,16 +17,12 @@ public final class AiMonitorDtos {
             String from,
             String to,
             String generatedAt,
-            RuntimeModeSummary runtimeModes
-    ) {
+            RuntimeModeSummary runtimeModes) {
     }
 
     public record RuntimeModeSummary(
-            String hcadMode,
-            String hcadEffectKey,
             String llmMode,
-            String llmEffectKey
-    ) {
+            String llmEffectKey) {
     }
 
     public record MetricValue(
@@ -49,26 +33,14 @@ public final class AiMonitorDtos {
             Long numerator,
             Long denominator,
             String unit,
-            String noDataReason
-    ) {
+            String noDataReason) {
     }
 
     public record StandardMetrics(
-            MetricValue observedRequests,
-            MetricValue hcadEvaluations,
-            MetricValue hcadAiConnected,
             MetricValue totalAiDecisions,
-            MetricValue clearOutcomes,
-            MetricValue hcadPrecision,
-            MetricValue matchRate,
-            MetricValue mismatchRate,
-            MetricValue falsePositiveRate,
-            MetricValue observableFalseNegativeRate,
-            MetricValue unknownRate,
             MetricValue failureRate,
             MetricValue timeoutRate,
-            MetricValue averageLatencyMs
-    ) {
+            MetricValue averageLatencyMs) {
     }
 
     public record OverviewSummary(
@@ -78,22 +50,16 @@ public final class AiMonitorDtos {
             String generatedAt,
             MonitorSnapshot snapshot,
             StandardMetrics metrics,
-            HcadSummary hcad,
             LlmDecisionSummary llm,
-            CorrelationSummary correlation,
             OperationsSummary operations,
-            FeedbackLearningSummary feedbackLearning,
-            String readinessRecommendation
-    ) {
+            String readinessRecommendation) {
     }
 
     public record LlmDecisionSummary(
             MonitorSnapshot snapshot,
             StandardMetrics metrics,
             long totalDecisionCount,
-            long hcadPreTriggerDecisionCount,
             long protectableDecisionCount,
-            long hcadAndProtectableDecisionCount,
             List<NamedCount> triggerSourceBreakdown,
             List<NamedCount> actionBreakdown,
             List<NamedCount> proposedActionBreakdown,
@@ -112,33 +78,14 @@ public final class AiMonitorDtos {
             double averageLatencyMs,
             double p95LatencyMs,
             List<NamedCount> riskScoreDistribution,
-            List<NamedCount> confidenceDistribution
-    ) {
-    }
-
-    public record CorrelationSummary(
-            MonitorSnapshot snapshot,
-            StandardMetrics metrics,
-            long truePositiveCount,
-            long falsePositiveCount,
-            long observableFalseNegativeCount,
-            long trueNegativeCount,
-            long unknownCount,
-            long unobservedCount,
-            List<NamedCount> triggerRelationBreakdown,
-            List<NamedCount> outcomeBreakdown,
-            List<CorrelationMatrixRow> matrixRows,
-            List<NamedCount> notCalledReasonBreakdown,
-            List<RecentCorrelation> recentCorrelations
-    ) {
+            List<NamedCount> confidenceDistribution) {
     }
 
     public record LatencyBreakdownMetric(
             String key,
             double averageMs,
             double p95Ms,
-            double p99Ms
-    ) {
+            double p99Ms) {
     }
 
     public record OperationsSummary(
@@ -147,35 +94,13 @@ public final class AiMonitorDtos {
             long technicalFallbackCount,
             long timeoutCount,
             long modelUnavailableCount,
-            long estimatedWastedLlmCalls,
-            long suppressedLlmTriggerCount,
             long providerThrottleWaitCount,
-            double estimatedWasteCostUsd,
-            double estimatedSavedCostUsd,
-            List<LatencyBreakdownMetric> latencyBreakdown
-    ) {
-    }
-
-
-    public record FeedbackLearningSummary(
-            long normalPatternLearningCount,
-            long riskPatternLearningCount,
-            long learningExcludedCount,
-            long cacheHitCount,
-            long cacheMissCount,
-            long cacheStaleCount,
-            long riskHitLlmConnectionCount,
-            long riskHitEligibleCount,
-            double normalSuppressionRate,
-            double riskHitLlmConnectionRate,
-            double riskHitEligibleRate
-    ) {
+            List<LatencyBreakdownMetric> latencyBreakdown) {
     }
 
     public record NamedCount(
             String key,
-            long count
-    ) {
+            long count) {
     }
 
     public record FailureSummary(
@@ -195,8 +120,7 @@ public final class AiMonitorDtos {
             List<NamedCount> failureTrend,
             List<AffectedRequest> affectedRequests,
             List<RecentFailure> recentFailures,
-            List<RecentFailure> slowRequests
-    ) {
+            List<RecentFailure> slowRequests) {
     }
 
     public record ReadinessSummary(
@@ -207,12 +131,7 @@ public final class AiMonitorDtos {
             MonitorSnapshot snapshot,
             StandardMetrics metrics,
             String recommendation,
-            long minimumSampleSize,
-            long hcadCandidateCount,
             long llmDecisionCount,
-            double hcadPrecision,
-            double observableFalseNegativeRate,
-            double unknownRate,
             double failureRate,
             double parserFailureRate,
             double technicalFallbackRate,
@@ -220,12 +139,9 @@ public final class AiMonitorDtos {
             double modelUnavailableRate,
             double averageLatencyMs,
             double p95LatencyMs,
-            double estimatedWasteCostUsd,
-            double estimatedSavedCostUsd,
             MonitoringSessionCurrent currentSession,
             List<MonitoringSessionSummary> previousSessions,
-            List<ReadinessBlocker> blockers
-    ) {
+            List<ReadinessBlocker> blockers) {
     }
 
     public record MonitoringSessionCurrent(
@@ -233,14 +149,8 @@ public final class AiMonitorDtos {
             String startedAt,
             String from,
             String to,
-            long observedRequestCount,
-            long hcadCandidateCount,
-            long hcadTriggeredLlmCount,
             long llmDecisionCount,
-            long hcadTriggerAiDecisionCount,
-            long nonHcadAiDecisionCount,
-            String recommendation
-    ) {
+            String recommendation) {
     }
 
     public record MonitoringSessionSummary(
@@ -250,31 +160,12 @@ public final class AiMonitorDtos {
             String period,
             String resetBy,
             String resetReason,
-            String hcadMode,
             String llmMode,
             String llmProvider,
             String llmModel,
-            String embeddingProvider,
-            String embeddingModel,
             String promptTemplateVersion,
             String policyVersion,
-            long observedRequestCount,
-            long hcadCandidateCount,
-            long hcadTriggeredLlmCount,
             long llmDecisionCount,
-            long hcadTriggerAiDecisionCount,
-            long nonHcadAiDecisionCount,
-            long truePositiveCount,
-            long falsePositiveCount,
-            long observableFalseNegativeCount,
-            long trueNegativeCount,
-            long unknownCount,
-            double hcadPrecision,
-            double hcadFalsePositiveRate,
-            double matchRate,
-            double mismatchRate,
-            double observableFalseNegativeRate,
-            double unknownRate,
             double failureRate,
             double timeoutRate,
             double parserFailureRate,
@@ -282,74 +173,35 @@ public final class AiMonitorDtos {
             double averageLatencyMs,
             double p95LatencyMs,
             String topBlockersJson,
-            String recommendation
-    ) {
+            String recommendation) {
     }
+
     public record ReadinessBlocker(
             String key,
             String title,
             String current,
             String required,
-            String action
-    ) {
+            String action) {
     }
 
     public record MonitoringResetRequest(
             String reason,
-            Boolean resetLearningEvidence,
-            String confirmationText
-    ) {
+            String confirmationText) {
     }
 
     public record MonitoringResetResponse(
             String sessionId,
             String startedAt,
             String endedAt,
-            long deletedHcadEvaluationCount,
             long deletedLlmObservationCount,
-            long deletedCorrelationCount,
-            long deletedSuppressedTriggerCount,
-            boolean learningEvidenceReset,
             MonitoringSessionSummary archivedSummary,
-            MonitoringSessionCurrent newSession
-    ) {
-    }
-
-    public record CorrelationMatrixRow(
-            String key,
-            long llmRiskCount,
-            long llmAllowCount,
-            long llmUnknownCount,
-            long llmNotCalledCount
-    ) {
-    }
-
-    public record RecentCorrelation(
-            String correlationId,
-            String hcadEvaluationId,
-            String llmObservationId,
-            String eventId,
-            String requestId,
-            String userId,
-            String triggerRelation,
-            String outcomeClass,
-            Integer hcadScore,
-            String hcadBand,
-            Boolean hcadEligible,
-            String llmFinalAction,
-            String llmProposedAction,
-            Double llmRiskScore,
-            Double llmConfidence,
-            String createdAt,
-            String decidedAt
-    ) {
+            MonitoringSessionCurrent newSession) {
     }
 
     public record AffectedRequest(
             String method,
             String path,
-            long count
-    ) {
+            long count) {
     }
 
     public record RecentFailure(
@@ -361,8 +213,6 @@ public final class AiMonitorDtos {
             String failureType,
             String finalAction,
             Double latencyMs,
-            String createdAt
-    ) {
+            String createdAt) {
     }
 }
-

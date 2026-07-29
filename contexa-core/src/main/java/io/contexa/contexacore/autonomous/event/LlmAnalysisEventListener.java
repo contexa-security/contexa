@@ -48,7 +48,6 @@ public interface LlmAnalysisEventListener {
     void onLayer1Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs);
     default void onLayer1Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs, Map<String, Object> metadata) { onLayer1Complete(userId, action, reasoning, mitre, elapsedMs); }
 
-    default void onHcadAnalysis(String userId, Map<String, Object> hcadData) {}
     default void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {}
     default void onRagSearchComplete(String userId, int matchedCount, long ragSearchMs) {}
     default void onBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {}

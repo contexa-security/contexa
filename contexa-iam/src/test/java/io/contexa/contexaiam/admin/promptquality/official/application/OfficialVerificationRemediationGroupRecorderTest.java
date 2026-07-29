@@ -8,6 +8,7 @@ import io.contexa.contexaiam.admin.promptquality.official.model.RuntimeEvidenceM
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
 
 import java.util.List;
 
@@ -140,7 +141,7 @@ class OfficialVerificationRemediationGroupRecorderTest {
                 "threshold_failed", "Failed", 0, 1, List.of(check));
     }
 
-    private OfficialActualPromptProblem problem(org.mockito.invocation.InvocationOnMock invocation) {
+    private OfficialActualPromptProblem problem(InvocationOnMock invocation) {
         return invocation.getArgument(0);
     }
 }

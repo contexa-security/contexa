@@ -15,9 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.HcadRuntimeSettings;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -29,7 +27,6 @@ import org.springframework.context.ApplicationListener;
 public class SystemSettingsRuntimeApplier implements ApplicationListener<ApplicationReadyEvent> {
 
     private final SystemRuntimeSettingsService runtimeSettingsService;
-    private final ObjectProvider<HcadProperties> hcadPropertiesProvider;
     private final ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider;
 
     @Override
@@ -38,31 +35,10 @@ public class SystemSettingsRuntimeApplier implements ApplicationListener<Applica
     }
 
     public void apply() {
-        HcadRuntimeSettings settings = runtimeSettingsService.getHcadRuntimeSettings();
-        HcadProperties hcadProperties = hcadPropertiesProvider.getIfAvailable();
-        if (hcadProperties != null) {
-            applyHcadSettings(hcadProperties, settings);
-        }
         SecurityZeroTrustProperties zeroTrustProperties = zeroTrustPropertiesProvider.getIfAvailable();
         if (zeroTrustProperties != null) {
             applyZeroTrustSettings(zeroTrustProperties, runtimeSettingsService.getSecurityZeroTrustMode());
         }
-    }
-
-    public static void applyHcadSettings(HcadProperties hcadProperties, HcadRuntimeSettings settings) {
-        if (hcadProperties == null || settings == null) {
-            return;
-        }
-        hcadProperties.getPreTrigger().setMode(settings.preTriggerMode());
-        hcadProperties.getPreTrigger().setMediumRiskScore(settings.mediumRiskScore());
-        hcadProperties.getPreTrigger().setHighRiskScore(settings.highRiskScore());
-        hcadProperties.getPreTrigger().setRedlineScore(settings.redlineScore());
-        hcadProperties.getPreTrigger().setFailedLoginBurstThreshold(settings.failedLoginBurstThreshold());
-        hcadProperties.getPreTrigger().setRequestBurstThreshold(settings.requestBurstThreshold());
-        hcadProperties.getSemanticEvidence().setRiskSimilarityThreshold(settings.semanticRiskSimilarityThreshold());
-        hcadProperties.getSemanticEvidence().setNormalSimilarityThreshold(settings.semanticNormalSimilarityThreshold());
-        log.info("System runtime settings applied to HCAD: mode={}, medium={}, high={}, redline={}",
-                settings.preTriggerMode(), settings.mediumRiskScore(), settings.highRiskScore(), settings.redlineScore());
     }
 
     public static void applyZeroTrustSettings(

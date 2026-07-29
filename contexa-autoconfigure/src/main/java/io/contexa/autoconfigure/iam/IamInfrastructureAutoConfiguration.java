@@ -22,7 +22,6 @@ import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableLlmSuppressionWriter;
@@ -144,14 +143,12 @@ public class IamInfrastructureAutoConfiguration {
     public ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter(
             ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             ObjectProvider<ObjectMapper> objectMapperProvider,
-            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
             @Qualifier("contexaTransactionManager") PlatformTransactionManager transactionManager) {
         ObjectMapper objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
         return new ProtectableLlmSuppressionWriter(
                 jdbcOperationsProvider::getIfAvailable,
                 objectMapper,
-                transactionManager,
-                hcadEvaluationWriterProvider.getIfAvailable());
+                transactionManager);
     }
 
     private static Pointcut classOrMethod() {

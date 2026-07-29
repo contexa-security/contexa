@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,8 +22,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.HexFormat;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,45 +54,6 @@ public class SessionFingerprintUtil {
 
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
             String metadataHash = hashString(event.getMetadata().toString());
-            fingerprint.append("MD:").append(metadataHash).append("|");
-        }
-
-        return hashString(fingerprint.toString());
-    }
-
-    public static String generateFingerprint(HCADContext context) {
-        if (context == null) {
-            log.error("[SessionFingerprint] Context is null, returning default fingerprint");
-            return "UNKNOWN";
-        }
-
-        StringBuilder fingerprint = new StringBuilder();
-
-        if (context.getUserAgent() != null) {
-            fingerprint.append("UA:").append(hashString(context.getUserAgent())).append("|");
-        }
-
-        if (context.getRemoteIp() != null) {
-            fingerprint.append("IP:").append(hashString(context.getRemoteIp())).append("|");
-        }
-
-        if (context.getTimestamp() != null) {
-            LocalDateTime dateTime = LocalDateTime.ofInstant(context.getTimestamp(),
-                ZoneId.systemDefault());
-            int hourOfDay = dateTime.getHour();
-            fingerprint.append("TH:").append(hourOfDay).append("|");
-        }
-
-        if (context.getHttpMethod() != null && context.getRequestPath() != null) {
-            fingerprint.append("RT:")
-                .append(context.getHttpMethod())
-                .append(":")
-                .append(hashString(context.getRequestPath()))
-                .append("|");
-        }
-
-        if (context.getAdditionalAttributes() != null && !context.getAdditionalAttributes().isEmpty()) {
-            String metadataHash = hashString(context.getAdditionalAttributes().toString());
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 

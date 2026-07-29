@@ -157,7 +157,7 @@ public class SealedEvidencePackageAssembler {
                 // (set by P1-F01 hook in SecurityDecisionPromptSections.createBuildContext())
                 .canonicalContextJson(canonicalContextJson)
 
-                // Section 4: Baseline -- from SecurityEvent.metadata (set by HCADFilter/ZeroTrustEventPublisher)
+                // Section 4: Baseline -- from SecurityEvent.metadata (set by ZeroTrustEventPublisher)
                 .baselineSnapshotJson(baselineSnapshotJson)
 
                 // Section 5: RAG results -- from prompt snapshot's related documents + event metadata
@@ -319,7 +319,7 @@ public class SealedEvidencePackageAssembler {
 
     /**
      * Section 4: Behavioral baseline.
-     * Source: SecurityEvent.metadata (set by HCADFilter and behavior analysis)
+     * Source: SecurityEvent.metadata (set by request context and behavior analysis)
      */
     private String buildBaselineSnapshot(SecurityEvent event) {
         Map<String, Object> snapshot = new LinkedHashMap<>();

@@ -37,14 +37,6 @@ public final class SystemSettingsDtos {
         private String defaultRole = "ROLE_USER";
         private String policyCombiningAlgorithm = "FIRST_APPLICABLE";
         private boolean registrationEnabled = false;
-        private int hcadMediumRiskScore = SystemRuntimeSettingsService.DEFAULT_HCAD_MEDIUM_RISK_SCORE;
-        private int hcadHighRiskScore = SystemRuntimeSettingsService.DEFAULT_HCAD_HIGH_RISK_SCORE;
-        private int hcadRedlineScore = SystemRuntimeSettingsService.DEFAULT_HCAD_REDLINE_SCORE;
-        private int hcadFailedLoginBurstThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_FAILED_LOGIN_BURST_THRESHOLD;
-        private int hcadRequestBurstThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_REQUEST_BURST_THRESHOLD;
-        private double hcadSemanticRiskSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_RISK_SIMILARITY_THRESHOLD;
-        private double hcadSemanticNormalSimilarityThreshold = SystemRuntimeSettingsService.DEFAULT_HCAD_SEMANTIC_NORMAL_SIMILARITY_THRESHOLD;
-        private String hcadPreTriggerMode = SystemRuntimeSettingsService.DEFAULT_HCAD_PRE_TRIGGER_MODE.name();
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
@@ -55,14 +47,6 @@ public final class SystemSettingsDtos {
             form.setDefaultRole(source.getDefaultRole());
             form.setPolicyCombiningAlgorithm(source.getPolicyCombiningAlgorithm());
             form.setRegistrationEnabled(source.isRegistrationEnabled());
-            form.setHcadMediumRiskScore(source.getHcadMediumRiskScore());
-            form.setHcadHighRiskScore(source.getHcadHighRiskScore());
-            form.setHcadRedlineScore(source.getHcadRedlineScore());
-            form.setHcadFailedLoginBurstThreshold(source.getHcadFailedLoginBurstThreshold());
-            form.setHcadRequestBurstThreshold(source.getHcadRequestBurstThreshold());
-            form.setHcadSemanticRiskSimilarityThreshold(source.getHcadSemanticRiskSimilarityThreshold());
-            form.setHcadSemanticNormalSimilarityThreshold(source.getHcadSemanticNormalSimilarityThreshold());
-            form.setHcadPreTriggerMode(SystemRuntimeSettingsService.normalizeHcadPreTriggerModeForStorage(source.getHcadPreTriggerMode()));
             form.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(source.getSecurityZeroTrustMode()));
             form.setMvcResourceScannerBasePackages(
                     SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(source.getMvcResourceScannerBasePackages()));

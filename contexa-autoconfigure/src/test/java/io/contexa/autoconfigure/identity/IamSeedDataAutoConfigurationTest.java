@@ -152,12 +152,12 @@ class IamSeedDataAutoConfigurationTest {
                 alter table ai_security_monitoring_session_summary
                     add column if not exists reset_by varchar(160);
 
-                alter table hcad_detection_evaluation
+                alter table ai_security_decision_observation
                     add column if not exists actor_session_key varchar(128),
                     add column if not exists window_id varchar(64);
 
-                create index if not exists idx_hcad_eval_window
-                    on hcad_detection_evaluation (window_id);
+                create index if not exists idx_ai_decision_observation_window
+                    on ai_security_decision_observation (window_id);
 
                 insert into admin_menu (id, label) values (1, 'skip');
 
@@ -171,9 +171,9 @@ class IamSeedDataAutoConfigurationTest {
                 .contains("create table if not exists users")
                 .contains("create table if not exists ai_security_monitoring_session_summary")
                 .contains("alter table ai_security_monitoring_session_summary")
-                .contains("alter table hcad_detection_evaluation")
+                .contains("alter table ai_security_decision_observation")
                 .contains("add column if not exists actor_session_key")
-                .contains("create index if not exists idx_hcad_eval_window")
+                .contains("create index if not exists idx_ai_decision_observation_window")
                 .doesNotContain("insert into admin_menu")
                 .doesNotContain("owner to");
         assertThat(maintenanceSql.indexOf("create table if not exists ai_security_monitoring_session_summary"))
@@ -342,13 +342,6 @@ class IamSeedDataAutoConfigurationTest {
 
         assertThat(IamSeedDataAutoConfiguration.schemaInstallStateForMarkers(allMarkers))
                 .isEqualTo(IamSeedDataAutoConfiguration.SchemaInstallState.COMPLETE);
-    }
-
-    @Test
-    @DisplayName("IAM schema marker should include HCAD evaluation table in canonical schema")
-    void iamSchemaMarkerIncludesHcadEvaluationTable() {
-        assertThat(IamSeedDataAutoConfiguration.SCHEMA_MARKER_TABLES)
-                .contains("hcad_detection_evaluation");
     }
 
     @Test

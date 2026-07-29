@@ -18,8 +18,6 @@ package io.contexa.contexaiam.security.xacml.pep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
-import io.contexa.contexacore.hcad.trigger.PendingAnomalyTriggerAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
@@ -42,24 +40,14 @@ public class ProtectableLlmSuppressionWriter {
 
     private final Supplier<JdbcOperations> jdbcOperationsSupplier;
     private final ObjectMapper objectMapper;
-    private final HcadEvaluationWriter hcadEvaluationWriter;
     private final TransactionTemplate transactionTemplate;
 
     public ProtectableLlmSuppressionWriter(
             Supplier<JdbcOperations> jdbcOperationsSupplier,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager) {
-        this(jdbcOperationsSupplier, objectMapper, transactionManager, null);
-    }
-
-    public ProtectableLlmSuppressionWriter(
-            Supplier<JdbcOperations> jdbcOperationsSupplier,
-            ObjectMapper objectMapper,
-            PlatformTransactionManager transactionManager,
-            HcadEvaluationWriter hcadEvaluationWriter) {
         this.jdbcOperationsSupplier = jdbcOperationsSupplier == null ? () -> null : jdbcOperationsSupplier;
         this.objectMapper = objectMapper;
-        this.hcadEvaluationWriter = hcadEvaluationWriter;
         this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         if (this.transactionTemplate != null) {
             this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -159,24 +147,6 @@ public class ProtectableLlmSuppressionWriter {
                     suppressionReason,
                     ex);
         }
-        markHcadProtectableObservation(request, path, method);
-    }
-
-    private void markHcadProtectableObservation(HttpServletRequest request, String path, String method) {
-        if (request == null) {
-            return;
-        }
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_OBSERVED, true);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_TRIGGER_SUPPRESSED, true);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_ID, path);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_RESOURCE_URL, path);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_HTTP_METHOD, method);
-        request.setAttribute(PendingAnomalyTriggerAttributes.PROTECTABLE_LLM_REUSED, false);
-    }
-
-    private String attributeText(HttpServletRequest request, String attributeName) {
-        Object value = request == null || attributeName == null ? null : request.getAttribute(attributeName);
-        return value == null ? null : String.valueOf(value);
     }
 
     private HttpServletRequest currentRequest() {

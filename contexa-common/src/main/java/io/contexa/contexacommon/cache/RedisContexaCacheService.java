@@ -235,7 +235,6 @@ public class RedisContexaCacheService extends AbstractContexaCacheService {
             case "groups" -> domains.getGroups().getRedisTtlSeconds();
             case "policies" -> domains.getPolicies().getRedisTtlSeconds();
             case "soar" -> domains.getSoar().getRedisTtlSeconds();
-            case "hcad" -> domains.getHcad().getRedisTtlSeconds();
             default -> properties.getRedis().getDefaultTtlSeconds();
         };
     }

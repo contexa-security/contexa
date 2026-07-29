@@ -29,7 +29,7 @@ import io.contexa.contexacore.autonomous.saas.mapper.ThreatOutcomePayloadMapper;
 import io.contexa.contexacore.autonomous.saas.learning.release.LearningArtifactRuntimeConflictService;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
-import io.contexa.contexacore.hcad.store.BaselineDataStore;
+import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.*;
 import org.springframework.beans.factory.ObjectProvider;

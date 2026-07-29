@@ -101,6 +101,7 @@ class SystemSettingsControllerTest {
             assertThat(model.getAttribute("settings")).isNotNull();
             assertThat(model.getAttribute("roles")).isNotNull();
             assertThat(model.getAttribute("algorithms")).isEqualTo(CombiningAlgorithm.values());
+            assertThat(model.getAttribute("hcadModeOptions")).isNull();
         }
     }
 

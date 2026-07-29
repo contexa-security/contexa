@@ -32,7 +32,7 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
+
 @EnabledIf("io.contexa.contexacore.autonomous.repository.RedisZeroTrustActionRepositorySaveActionWithPreviousTest#isLocalRedisAvailable")
 class RedisZeroTrustActionRepositorySaveActionWithPreviousTest {
 
@@ -87,7 +87,7 @@ class RedisZeroTrustActionRepositorySaveActionWithPreviousTest {
     void firstCall_recordsPendingAsPrevious() {
         repository.saveActionWithPrevious("user-first", ZeroTrustAction.ALLOW);
 
-        String analysisKey = ZeroTrustRedisKeys.hcadAnalysis("user-first");
+        String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis("user-first");
         Object previous = redisTemplate.opsForHash().get(analysisKey, "previousAction");
         Object current = redisTemplate.opsForHash().get(analysisKey, "action");
 
@@ -101,11 +101,12 @@ class RedisZeroTrustActionRepositorySaveActionWithPreviousTest {
         repository.saveActionWithPrevious("user-rotate", ZeroTrustAction.ALLOW);
         repository.saveActionWithPrevious("user-rotate", ZeroTrustAction.CHALLENGE);
 
-        String analysisKey = ZeroTrustRedisKeys.hcadAnalysis("user-rotate");
+        String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis("user-rotate");
         Object previous = redisTemplate.opsForHash().get(analysisKey, "previousAction");
         Object current = redisTemplate.opsForHash().get(analysisKey, "action");
 
         assertThat(String.valueOf(previous)).isEqualTo(ZeroTrustAction.ALLOW.name());
         assertThat(String.valueOf(current)).isEqualTo(ZeroTrustAction.CHALLENGE.name());
     }
+
 }

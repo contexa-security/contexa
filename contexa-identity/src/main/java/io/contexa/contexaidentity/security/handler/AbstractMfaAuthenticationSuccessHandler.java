@@ -33,7 +33,6 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -670,8 +669,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void markMfaVerifiedOnChallengeSuccess(String userId) {
         try {
-            HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
-            hcadDataStore.markMfaVerified(userId);
+            SecurityContextDataStore dataStore = applicationContext.getBean(SecurityContextDataStore.class);
+            dataStore.markMfaVerified(userId);
         } catch (Exception e) {
             safeLogError("[MFA] Failed to mark MFA verified on challenge success: userId={}", e, userId);
         }

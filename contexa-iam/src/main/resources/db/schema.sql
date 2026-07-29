@@ -1251,14 +1251,6 @@ create table system_settings
     updated_at                 timestamp(6)
 );
 
-alter table system_settings add column if not exists hcad_medium_risk_score integer default 30 not null;
-alter table system_settings add column if not exists hcad_high_risk_score integer default 50 not null;
-alter table system_settings add column if not exists hcad_redline_score integer default 70 not null;
-alter table system_settings add column if not exists hcad_failed_login_burst_threshold integer default 3 not null;
-alter table system_settings add column if not exists hcad_request_burst_threshold integer default 12 not null;
-alter table system_settings add column if not exists hcad_semantic_risk_similarity_threshold double precision default 0.80 not null;
-alter table system_settings add column if not exists hcad_semantic_normal_similarity_threshold double precision default 0.85 not null;
-alter table system_settings add column if not exists hcad_pre_trigger_mode varchar(20) default 'SHADOW' not null;
 alter table system_settings add column if not exists security_zerotrust_mode varchar(20) default 'SHADOW' not null;
 alter table system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
 
@@ -1410,151 +1402,6 @@ create table login_attempt_ip
 create index idx_login_attempt_ip_window
     on login_attempt_ip (window_start_at);
 
-CREATE TABLE IF NOT EXISTS hcad_detection_evaluation (
-    evaluation_id VARCHAR(64) PRIMARY KEY,
-    event_id VARCHAR(128),
-    request_id VARCHAR(160),
-    correlation_id VARCHAR(160),
-    test_run_id VARCHAR(160),
-    user_id VARCHAR(160),
-    context_binding_hash VARCHAR(128),
-    actor_session_key VARCHAR(128),
-    window_id VARCHAR(64),
-    trigger_scope VARCHAR(32),
-    request_count INTEGER DEFAULT 1,
-    http_method VARCHAR(16),
-    request_path VARCHAR(2048),
-    normalized_path VARCHAR(2048),
-    resource_id VARCHAR(512),
-    client_ip VARCHAR(64),
-    mode VARCHAR(32) NOT NULL,
-    early_analysis_score INTEGER,
-    band VARCHAR(32),
-    eligible BOOLEAN,
-    triggered_llm BOOLEAN NOT NULL DEFAULT FALSE,
-    duplicate_suppressed BOOLEAN NOT NULL DEFAULT FALSE,
-    duplicate_suppressed_count INTEGER DEFAULT 0,
-    negative_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
-    negative_cache_hit_count INTEGER DEFAULT 0,
-    protectable_observed BOOLEAN NOT NULL DEFAULT FALSE,
-    protectable_resource_id VARCHAR(512),
-    protectable_resource_url VARCHAR(2048),
-    protectable_http_method VARCHAR(16),
-    resource_families TEXT,
-    sample_paths TEXT,
-    anchor_signals TEXT,
-    corroborating_signals TEXT,
-    reason_codes TEXT,
-    non_trigger_reason VARCHAR(64),
-    evidence_gap_codes TEXT,
-    baseline_available BOOLEAN,
-    baseline_established BOOLEAN,
-    baseline_update_count BIGINT,
-    baseline_min_samples INTEGER,
-    baseline_compared_dimensions INTEGER,
-    baseline_mismatch_count INTEGER,
-    baseline_match_ratio DOUBLE PRECISION,
-    baseline_mismatched_dimensions TEXT,
-    baseline_current_values_json TEXT,
-    baseline_reference_values_json TEXT,
-    trigger_decision_reason VARCHAR(128),
-    signal_snapshot_json TEXT,
-    signal_provenance_json TEXT,
-    score_breakdown_json TEXT,
-    signal_explanations_json TEXT,
-    context_explanation_json TEXT,
-    baseline_explanation_json TEXT,
-    semantic_evidence_explanation_json TEXT,
-    freshness_explanation_json TEXT,
-    trigger_explanation_json TEXT,
-    llm_action VARCHAR(64),
-    llm_proposed_action VARCHAR(64),
-    llm_risk_score DOUBLE PRECISION,
-    llm_confidence DOUBLE PRECISION,
-    llm_latency_ms BIGINT,
-    llm_reasoning_summary VARCHAR(1024),
-    llm_reasoning_hash VARCHAR(64),
-    llm_parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
-    llm_technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
-    llm_fallback_category VARCHAR(128),
-    llm_fallback_reason VARCHAR(1024),
-    outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    triggered_at TIMESTAMP(6),
-    decided_at TIMESTAMP(6)
-);
-
-ALTER TABLE hcad_detection_evaluation
-    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
-    ADD COLUMN IF NOT EXISTS test_run_id VARCHAR(160),
-    ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS trigger_scope VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS request_count INTEGER DEFAULT 1,
-    ADD COLUMN IF NOT EXISTS normalized_path VARCHAR(2048),
-    ADD COLUMN IF NOT EXISTS resource_id VARCHAR(512),
-    ADD COLUMN IF NOT EXISTS duplicate_suppressed_count INTEGER DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS negative_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS negative_cache_hit_count INTEGER DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS protectable_observed BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS protectable_resource_id VARCHAR(512),
-    ADD COLUMN IF NOT EXISTS protectable_resource_url VARCHAR(2048),
-    ADD COLUMN IF NOT EXISTS protectable_http_method VARCHAR(16),
-    ADD COLUMN IF NOT EXISTS resource_families TEXT,
-    ADD COLUMN IF NOT EXISTS sample_paths TEXT,
-    ADD COLUMN IF NOT EXISTS non_trigger_reason VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS evidence_gap_codes TEXT,
-    ADD COLUMN IF NOT EXISTS baseline_available BOOLEAN,
-    ADD COLUMN IF NOT EXISTS baseline_established BOOLEAN,
-    ADD COLUMN IF NOT EXISTS baseline_update_count BIGINT,
-    ADD COLUMN IF NOT EXISTS baseline_min_samples INTEGER,
-    ADD COLUMN IF NOT EXISTS baseline_compared_dimensions INTEGER,
-    ADD COLUMN IF NOT EXISTS baseline_mismatch_count INTEGER,
-    ADD COLUMN IF NOT EXISTS baseline_match_ratio DOUBLE PRECISION,
-    ADD COLUMN IF NOT EXISTS baseline_mismatched_dimensions TEXT,
-    ADD COLUMN IF NOT EXISTS baseline_current_values_json TEXT,
-    ADD COLUMN IF NOT EXISTS baseline_reference_values_json TEXT,
-    ADD COLUMN IF NOT EXISTS trigger_decision_reason VARCHAR(128),
-    ADD COLUMN IF NOT EXISTS score_breakdown_json TEXT,
-    ADD COLUMN IF NOT EXISTS signal_explanations_json TEXT,
-    ADD COLUMN IF NOT EXISTS context_explanation_json TEXT,
-    ADD COLUMN IF NOT EXISTS baseline_explanation_json TEXT,
-    ADD COLUMN IF NOT EXISTS semantic_evidence_explanation_json TEXT,
-    ADD COLUMN IF NOT EXISTS freshness_explanation_json TEXT,
-    ADD COLUMN IF NOT EXISTS trigger_explanation_json TEXT,
-    ADD COLUMN IF NOT EXISTS llm_reasoning_summary VARCHAR(1024),
-    ADD COLUMN IF NOT EXISTS llm_reasoning_hash VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS llm_parser_failure BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS llm_technical_fallback BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS llm_fallback_category VARCHAR(128),
-    ADD COLUMN IF NOT EXISTS llm_fallback_reason VARCHAR(1024);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_mode_created
-    ON hcad_detection_evaluation (mode, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_outcome_created
-    ON hcad_detection_evaluation (outcome_class, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_resource
-    ON hcad_detection_evaluation (request_path, http_method);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_normalized_resource
-    ON hcad_detection_evaluation (normalized_path, resource_id, http_method);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_request_id
-    ON hcad_detection_evaluation (request_id);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_event_id
-    ON hcad_detection_evaluation (event_id);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_actor_created
-    ON hcad_detection_evaluation (actor_session_key, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_window
-    ON hcad_detection_evaluation (window_id);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_eval_test_run
-    ON hcad_detection_evaluation (test_run_id, created_at);
-
 CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     observation_id VARCHAR(64) PRIMARY KEY,
     event_id VARCHAR(128),
@@ -1566,14 +1413,9 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     context_binding_hash VARCHAR(128),
     actor_session_key VARCHAR(128),
     window_id VARCHAR(64),
-    hcad_evaluation_id VARCHAR(64),
     trigger_source VARCHAR(64) NOT NULL DEFAULT 'UNKNOWN',
     trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
     decision_boundary_mode VARCHAR(32),
-    hcad_mode VARCHAR(32),
-    hcad_score INTEGER,
-    hcad_band VARCHAR(32),
-    hcad_eligible BOOLEAN,
     http_method VARCHAR(16),
     request_path VARCHAR(2048),
     resource_id VARCHAR(512),
@@ -1614,14 +1456,9 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
 );
 
 ALTER TABLE ai_security_decision_observation
-    ADD COLUMN IF NOT EXISTS hcad_evaluation_id VARCHAR(64),
     ADD COLUMN IF NOT EXISTS test_run_id VARCHAR(160),
     ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
     ADD COLUMN IF NOT EXISTS decision_boundary_mode VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS hcad_mode VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS hcad_score INTEGER,
-    ADD COLUMN IF NOT EXISTS hcad_band VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS hcad_eligible BOOLEAN,
     ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
     ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
     ADD COLUMN IF NOT EXISTS prompt_template_key VARCHAR(160),
@@ -1705,71 +1542,11 @@ CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_relation_created
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_outcome_created
     ON ai_security_decision_observation (outcome_class, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_hcad_eval
-    ON ai_security_decision_observation (hcad_evaluation_id);
-
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_event
     ON ai_security_decision_observation (event_id);
 
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_test_run
     ON ai_security_decision_observation (test_run_id, created_at);
-
-CREATE TABLE IF NOT EXISTS hcad_llm_decision_correlation (
-    correlation_id VARCHAR(64) PRIMARY KEY,
-    hcad_evaluation_id VARCHAR(64),
-    llm_observation_id VARCHAR(64),
-    event_id VARCHAR(128),
-    request_id VARCHAR(160),
-    test_run_id VARCHAR(160),
-    user_id VARCHAR(160),
-    actor_session_key VARCHAR(128),
-    window_id VARCHAR(64),
-    trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
-    outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
-    hcad_score INTEGER,
-    hcad_band VARCHAR(32),
-    hcad_eligible BOOLEAN,
-    llm_final_action VARCHAR(64),
-    llm_proposed_action VARCHAR(64),
-    llm_risk_score DOUBLE PRECISION,
-    llm_confidence DOUBLE PRECISION,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    decided_at TIMESTAMP(6)
-);
-
-ALTER TABLE hcad_llm_decision_correlation
-    ADD COLUMN IF NOT EXISTS hcad_evaluation_id VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS llm_observation_id VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS test_run_id VARCHAR(160),
-    ADD COLUMN IF NOT EXISTS actor_session_key VARCHAR(128),
-    ADD COLUMN IF NOT EXISTS window_id VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
-    ADD COLUMN IF NOT EXISTS outcome_class VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
-    ADD COLUMN IF NOT EXISTS hcad_score INTEGER,
-    ADD COLUMN IF NOT EXISTS hcad_band VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS hcad_eligible BOOLEAN,
-    ADD COLUMN IF NOT EXISTS llm_final_action VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS llm_proposed_action VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS llm_risk_score DOUBLE PRECISION,
-    ADD COLUMN IF NOT EXISTS llm_confidence DOUBLE PRECISION;
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_created
-    ON hcad_llm_decision_correlation (created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_relation_created
-    ON hcad_llm_decision_correlation (trigger_relation, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_outcome_created
-    ON hcad_llm_decision_correlation (outcome_class, created_at);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_hcad_eval
-    ON hcad_llm_decision_correlation (hcad_evaluation_id);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_llm_obs
-    ON hcad_llm_decision_correlation (llm_observation_id);
-
-CREATE INDEX IF NOT EXISTS idx_hcad_llm_corr_test_run
-    ON hcad_llm_decision_correlation (test_run_id, created_at);
 
 CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
     session_id VARCHAR(64) PRIMARY KEY,
@@ -1778,7 +1555,6 @@ CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
     period VARCHAR(32) NOT NULL DEFAULT 'current',
     reset_by VARCHAR(160),
     reset_reason VARCHAR(1024),
-    hcad_mode VARCHAR(32),
     llm_mode VARCHAR(32),
     llm_provider VARCHAR(128),
     llm_model VARCHAR(160),
@@ -1787,18 +1563,12 @@ CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
     prompt_template_version VARCHAR(160),
     policy_version VARCHAR(160),
     observed_request_count BIGINT NOT NULL DEFAULT 0,
-    hcad_candidate_count BIGINT NOT NULL DEFAULT 0,
-    hcad_triggered_llm_count BIGINT NOT NULL DEFAULT 0,
     llm_decision_count BIGINT NOT NULL DEFAULT 0,
-    hcad_trigger_ai_decision_count BIGINT NOT NULL DEFAULT 0,
-    non_hcad_ai_decision_count BIGINT NOT NULL DEFAULT 0,
     true_positive_count BIGINT NOT NULL DEFAULT 0,
     false_positive_count BIGINT NOT NULL DEFAULT 0,
     observable_false_negative_count BIGINT NOT NULL DEFAULT 0,
     true_negative_count BIGINT NOT NULL DEFAULT 0,
     unknown_count BIGINT NOT NULL DEFAULT 0,
-    hcad_precision DOUBLE PRECISION NOT NULL DEFAULT 0,
-    hcad_false_positive_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     match_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     mismatch_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     observable_false_negative_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -1818,7 +1588,6 @@ CREATE TABLE IF NOT EXISTS ai_security_monitoring_session_summary (
 ALTER TABLE ai_security_monitoring_session_summary
     ADD COLUMN IF NOT EXISTS reset_by VARCHAR(160),
     ADD COLUMN IF NOT EXISTS reset_reason VARCHAR(1024),
-    ADD COLUMN IF NOT EXISTS hcad_mode VARCHAR(32),
     ADD COLUMN IF NOT EXISTS llm_mode VARCHAR(32),
     ADD COLUMN IF NOT EXISTS llm_provider VARCHAR(128),
     ADD COLUMN IF NOT EXISTS llm_model VARCHAR(160),
@@ -1826,9 +1595,6 @@ ALTER TABLE ai_security_monitoring_session_summary
     ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(160),
     ADD COLUMN IF NOT EXISTS prompt_template_version VARCHAR(160),
     ADD COLUMN IF NOT EXISTS policy_version VARCHAR(160),
-    ADD COLUMN IF NOT EXISTS hcad_trigger_ai_decision_count BIGINT NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS non_hcad_ai_decision_count BIGINT NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS hcad_false_positive_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS mismatch_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS timeout_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS parser_failure_rate DOUBLE PRECISION NOT NULL DEFAULT 0,

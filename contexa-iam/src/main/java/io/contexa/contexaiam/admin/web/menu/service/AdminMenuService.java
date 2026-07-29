@@ -78,11 +78,9 @@ public class AdminMenuService {
             createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
             createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
             createMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
-            createMenu("menu.aiMonitor.hcad", "/contexa/admin/ai-monitor/hcad", "", aiMonitorId, 2, "CORE", "security-monitor-hcad");
-            createMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 3, "CORE", "ai-monitor-llm");
-            createMenu("menu.aiMonitor.correlation", "/contexa/admin/ai-monitor/correlation", "", aiMonitorId, 4, "CORE", "ai-monitor-correlation");
-            createMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 5, "CORE", "ai-monitor-failures");
-            createMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 6, "CORE", "ai-monitor-readiness");
+            createMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
+            createMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
+            createMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 4, "CORE", "ai-monitor-readiness");
             createMenu("menu.enterprise.zerotrust", "/contexa/admin/enterprise/zerotrust", "", securityId, 6, "ENTERPRISE", "enterprise-zerotrust");
             createMenu("menu.enterprise.incidents", "/contexa/admin/enterprise/incidents", "", securityId, 7, "ENTERPRISE", "enterprise-incidents");
             createMenu("menu.enterprise.home", "/contexa/admin/enterprise", "", enterpriseId, 1, "ENTERPRISE", "enterprise-home");
@@ -154,11 +152,9 @@ public class AdminMenuService {
     private void ensureAiMonitorMenus() {
         Long aiMonitorId = ensureMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 6, "CORE", "ai-monitor");
         ensureMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
-        ensureMenu("menu.aiMonitor.hcad", "/contexa/admin/ai-monitor/hcad", "", aiMonitorId, 2, "CORE", "security-monitor-hcad");
-        ensureMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 3, "CORE", "ai-monitor-llm");
-        ensureMenu("menu.aiMonitor.correlation", "/contexa/admin/ai-monitor/correlation", "", aiMonitorId, 4, "CORE", "ai-monitor-correlation");
-        ensureMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 5, "CORE", "ai-monitor-failures");
-        ensureMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 6, "CORE", "ai-monitor-readiness");
+        ensureMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
+        ensureMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
+        ensureMenu("menu.aiMonitor.readiness", "/contexa/admin/ai-monitor/readiness", "", aiMonitorId, 4, "CORE", "ai-monitor-readiness");
         disableMenu("ai-monitor-operations");
     }
 

@@ -90,9 +90,6 @@ public interface LlmAnalysisEventObserver {
         onEscalateProtectionTriggered(userId, requestPath, escalateCount, totalAnalysisCount);
     }
 
-    default void onHcadAnalysis(String userId, Map<String, Object> hcadData) {
-    }
-
     default void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {
     }
 

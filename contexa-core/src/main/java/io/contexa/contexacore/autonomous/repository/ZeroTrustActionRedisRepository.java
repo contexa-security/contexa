@@ -32,13 +32,12 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
+
 @Slf4j
 public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository {
 
     private static final Duration LAST_VERIFIED_ACTION_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
-
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration failCountTtl;
@@ -79,14 +78,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return ZeroTrustAction.BLOCK;
             }
 
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object actionValue = redisTemplate.opsForHash().get(analysisKey, "action");
+            Map<Object, Object> analysis = readAnalysis(userId);
+            Object actionValue = analysis.get("action");
             if (actionValue != null) {
                 return ZeroTrustAction.fromString(actionValue.toString());
             }
 
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            String lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
+            String lastAction = readLastVerifiedAction(userId);
             if (lastAction != null) {
                 return ZeroTrustAction.fromString(lastAction);
             }
@@ -109,14 +107,12 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return ZeroTrustAction.BLOCK;
             }
 
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            List<Object> values = redisTemplate.opsForHash()
-                    .multiGet(analysisKey, List.of("action", "contextBindingHash"));
-            if (values == null || values.size() < 2) {
+            Map<Object, Object> analysis = readAnalysis(userId);
+            if (analysis.isEmpty()) {
                 return ZeroTrustAction.PENDING_ANALYSIS;
             }
-            Object actionValue = values.get(0);
-            Object storedHash = values.get(1);
+            Object actionValue = analysis.get("action");
+            Object storedHash = analysis.get("contextBindingHash");
 
             if (actionValue != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
@@ -131,15 +127,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return action;
             }
 
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            String lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
+            String lastAction = readLastVerifiedAction(userId);
             if (lastAction != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
                 if (action != ZeroTrustAction.PENDING_ANALYSIS
                         && action != ZeroTrustAction.BLOCK
                         && contextBindingHash != null) {
-                    String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
-                    String lastContextHash = stringRedisTemplate.opsForValue().get(lastContextKey);
+                    String lastContextHash = readLastVerifiedActionContext(userId);
                     if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
                         log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
                         return ZeroTrustAction.PENDING_ANALYSIS;
@@ -161,8 +155,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Map<Object, Object> entries = redisTemplate.opsForHash().entries(analysisKey);
+            Map<Object, Object> entries = readAnalysis(userId);
 
             if (entries.isEmpty()) {
                 return ZeroTrustAnalysisData.pending();
@@ -198,8 +191,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object actionValue = redisTemplate.opsForHash().get(analysisKey, "action");
+            Object actionValue = readAnalysis(userId).get("action");
             if (actionValue != null) {
                 return ZeroTrustAction.fromString(actionValue.toString());
             }
@@ -216,8 +208,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object actionValue = redisTemplate.opsForHash().get(analysisKey, "previousAction");
+            Object actionValue = readAnalysis(userId).get("previousAction");
             if (actionValue != null) {
                 return ZeroTrustAction.fromString(actionValue.toString());
             }
@@ -234,8 +225,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object updatedAtValue = redisTemplate.opsForHash().get(analysisKey, "updatedAt");
+            Object updatedAtValue = readAnalysis(userId).get("updatedAt");
 
             if (updatedAtValue == null) {
                 return true;
@@ -311,9 +301,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
 
-            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            Object previousAction = readAnalysis(userId).get("action");
 
             Map<String, Object> fields = new HashMap<>();
             if (previousAction != null) {
@@ -332,10 +322,10 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 redisTemplate.expire(analysisKey, ttl);
             }
 
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+            String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, action.name(), LAST_VERIFIED_ACTION_TTL);
 
-            String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
+            String lastContextKey = ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId);
             if (additionalFields != null && additionalFields.containsKey("contextBindingHash")) {
                 stringRedisTemplate.opsForValue().set(lastContextKey,
                         additionalFields.get("contextBindingHash").toString(), LAST_VERIFIED_ACTION_TTL);
@@ -353,9 +343,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
 
-            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            Object previousAction = readAnalysis(userId).get("action");
             String previousActionStr = previousAction != null
                     ? previousAction.toString()
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
@@ -379,10 +369,10 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 }
             });
 
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+            String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
 
-            String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
+            String lastContextKey = ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId);
             stringRedisTemplate.delete(lastContextKey);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to save action with previous: userId={}, action={}", userId, newAction, e);
@@ -395,9 +385,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
 
-            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            Object previousAction = readAnalysis(userId).get("action");
             String previousActionStr = previousAction != null
                     ? previousAction.toString()
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
@@ -417,10 +407,10 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 redisTemplate.expire(analysisKey, ttl);
             }
 
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+            String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
 
-            String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
+            String lastContextKey = ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId);
             if (contextBindingHash != null) {
                 stringRedisTemplate.opsForValue().set(lastContextKey, contextBindingHash, LAST_VERIFIED_ACTION_TTL);
             } else {
@@ -450,8 +440,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            String lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
+            String lastAction = readLastVerifiedAction(userId);
             return lastAction != null ? ZeroTrustAction.fromString(lastAction) : null;
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to get last verified action: userId={}", userId, e);
@@ -521,11 +510,11 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
 
         try {
-            redisTemplate.delete(ZeroTrustRedisKeys.hcadAnalysis(userId));
+            redisTemplate.delete(ZeroTrustRedisKeys.autonomousActionAnalysis(userId));
 
             List<String> stringKeys = List.of(
-                    ZeroTrustRedisKeys.hcadLastVerifiedAction(userId),
-                    ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId),
+                    ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
+                    ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
                     ZeroTrustRedisKeys.userBlocked(userId),
                     ZeroTrustRedisKeys.blockMfaPending(userId),
                     ZeroTrustRedisKeys.blockMfaVerified(userId),
@@ -544,8 +533,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
         try {
             String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+            String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
+            String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
             Map<String, Object> fields = new HashMap<>();
             fields.put("action", newAction.name());
@@ -569,7 +558,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
 
-            String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
+            String lastContextKey = ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId);
             stringRedisTemplate.delete(lastContextKey);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed atomic override approval: userId={}, action={}",
@@ -597,6 +586,22 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private Map<Object, Object> readAnalysis(String userId) {
+        String canonicalKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
+        Map<Object, Object> canonical = redisTemplate.opsForHash().entries(canonicalKey);
+        return canonical != null ? canonical : Map.of();
+    }
+
+    private String readLastVerifiedAction(String userId) {
+        String canonicalKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
+        return stringRedisTemplate.opsForValue().get(canonicalKey);
+    }
+
+    private String readLastVerifiedActionContext(String userId) {
+        String canonicalKey = ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId);
+        return stringRedisTemplate.opsForValue().get(canonicalKey);
     }
 
 }

@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
         '/contexa/admin/users': 'iam', '/contexa/admin/groups': 'iam', '/contexa/admin/roles': 'iam',
         '/contexa/admin/permissions': 'iam', '/contexa/admin/role-hierarchies': 'iam', '/contexa/admin/password-policy': 'iam',
         '/contexa/admin/security-monitor': 'security',
-        '/contexa/admin/ai-monitor': 'ai-monitor', '/contexa/admin/security-monitor/hcad': 'ai-monitor',
+        '/contexa/admin/ai-monitor': 'ai-monitor',
         '/contexa/admin/blacklist': 'security', '/contexa/admin/session-management': 'security', '/contexa/admin/ip-management': 'security',
         '/contexa/admin/enterprise/zerotrust': 'security', '/contexa/admin/enterprise/incidents': 'security',
         '/contexa/admin/enterprise': 'enterprise',

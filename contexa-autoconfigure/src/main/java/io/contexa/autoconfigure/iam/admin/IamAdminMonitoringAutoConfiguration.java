@@ -15,14 +15,9 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.*;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceCache;
-import io.contexa.contexacore.hcad.store.HCADDataStore;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacore.repository.HcadDetectionEvaluationRepository;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.common.CsvExportService;
@@ -33,7 +28,6 @@ import io.contexa.contexaiam.admin.web.menu.service.AdminMenuService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.AiMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
-import io.contexa.contexaiam.admin.web.monitoring.controller.HcadSecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -70,37 +64,13 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HcadMonitoringService hcadMonitoringService(
-            HcadDetectionEvaluationRepository hcadDetectionEvaluationRepository,
-            HcadProperties hcadProperties,
-            ObjectMapper objectMapper,
-            SecurityZeroTrustProperties zeroTrustProperties,
-            MessageSource messageSource) {
-        return new HcadMonitoringService(
-                hcadDetectionEvaluationRepository,
-                hcadProperties,
-                objectMapper,
-                zeroTrustProperties,
-                messageSource);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService(
-            HcadMonitoringService hcadMonitoringService,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
-            HcadProperties hcadProperties,
             SecurityZeroTrustProperties zeroTrustProperties,
-            ObjectProvider<HcadSemanticEvidenceCache> semanticEvidenceCacheProvider,
-            ObjectProvider<HCADDataStore> hcadDataStoreProvider,
             MessageSource messageSource) {
         return new AiSecurityDecisionMonitoringService(
-                hcadMonitoringService,
                 jdbcOperationsProvider::getIfAvailable,
-                hcadProperties,
                 zeroTrustProperties,
-                semanticEvidenceCacheProvider::getIfAvailable,
-                hcadDataStoreProvider::getIfAvailable,
                 messageSource);
     }
 
@@ -109,12 +79,6 @@ public class IamAdminMonitoringAutoConfiguration {
     public AiMonitorController aiMonitorController(
             AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService) {
         return new AiMonitorController(aiSecurityDecisionMonitoringService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public HcadSecurityMonitorController hcadSecurityMonitorController(HcadMonitoringService hcadMonitoringService) {
-        return new HcadSecurityMonitorController(hcadMonitoringService);
     }
 
     @Bean
@@ -241,4 +205,3 @@ public class IamAdminMonitoringAutoConfiguration {
         return new AdminMenuController(adminMenuManagementService);
     }
 }
-

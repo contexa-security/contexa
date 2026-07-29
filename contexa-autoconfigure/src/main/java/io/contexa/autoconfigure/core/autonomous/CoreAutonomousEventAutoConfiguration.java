@@ -35,11 +35,9 @@ import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.hcad.evaluation.HcadEvaluationWriter;
-import io.contexa.contexacore.hcad.semantic.HcadSemanticEvidenceRefreshService;
-import io.contexa.contexacore.hcad.trigger.store.AnalysisTriggerStateRepository;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
@@ -72,7 +70,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration",
-        "io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
@@ -153,8 +150,14 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeroTrustEventPublisher zeroTrustEventPublisher(
             ApplicationEventPublisher applicationEventPublisher,
-            TieredStrategyProperties tieredStrategyProperties) {
-        return new ZeroTrustEventPublisher(applicationEventPublisher, tieredStrategyProperties);
+            TieredStrategyProperties tieredStrategyProperties,
+            SecurityContextDataStore securityContextDataStore,
+            SecurityPlaneProperties securityPlaneProperties) {
+        return new ZeroTrustEventPublisher(
+                applicationEventPublisher,
+                tieredStrategyProperties,
+                securityContextDataStore,
+                securityPlaneProperties);
     }
 
     @Bean
@@ -215,14 +218,12 @@ public class CoreAutonomousEventAutoConfiguration {
     public AiSecurityDecisionObservationWriter aiSecurityDecisionObservationWriter(
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperationsProvider,
             ObjectMapper objectMapper,
-            Environment environment,
-            ObjectProvider<HcadSemanticEvidenceRefreshService> semanticEvidenceRefreshServiceProvider) {
+            Environment environment) {
         return new AiSecurityDecisionObservationWriter(
                 jdbcOperationsProvider::getIfAvailable,
                 objectMapper,
                 defaultModelProvider(environment),
-                defaultModelId(environment),
-                semanticEvidenceRefreshServiceProvider.getIfAvailable());
+                defaultModelId(environment));
     }
 
     private static String defaultModelProvider(Environment environment) {
@@ -275,9 +276,7 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityLearningService securityLearningService,
             IBlockedUserRecorder blockedUserRecorder,
             BlockingSignalBroadcaster blockingSignalBroadcaster,
-            ObjectProvider<AnalysisTriggerStateRepository> analysisTriggerStateRepositoryProvider,
             @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
-            ObjectProvider<HcadEvaluationWriter> hcadEvaluationWriterProvider,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
@@ -285,10 +284,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 securityLearningService,
                 blockedUserRecorder,
                 blockingSignalBroadcaster,
-                analysisTriggerStateRepositoryProvider.getIfAvailable(),
                 securityZeroTrustProperties,
                 baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
-                hcadEvaluationWriterProvider.getIfAvailable(),
                 aiSecurityDecisionObservationWriterProvider::getIfAvailable);
     }
 

@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,21 +54,6 @@ class SessionFingerprintUtilTest {
     void testSecurityEventFingerprintNull() {
         String fp = SessionFingerprintUtil.generateFingerprint((SecurityEvent) null);
         assertThat(fp).isEqualTo("UNKNOWN");
-    }
-
-    @Test
-    @DisplayName("generateFingerprint for HCADContext should generate consistent hash")
-    void testHCADContextFingerprint() {
-        HCADContext context = mock(HCADContext.class);
-        when(context.getUserAgent()).thenReturn("Mozilla/5.0");
-        when(context.getRemoteIp()).thenReturn("192.168.0.1");
-        when(context.getTimestamp()).thenReturn(Instant.now());
-
-        String fp1 = SessionFingerprintUtil.generateFingerprint(context);
-        String fp2 = SessionFingerprintUtil.generateFingerprint(context);
-
-        assertThat(fp1).isEqualTo(fp2);
-        assertThat(fp1).isNotEqualTo("UNKNOWN");
     }
 
     @Test

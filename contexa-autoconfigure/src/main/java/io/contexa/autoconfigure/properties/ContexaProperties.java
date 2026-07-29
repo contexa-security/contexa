@@ -30,8 +30,6 @@ public class ContexaProperties {
     private Enterprise enterprise = new Enterprise();
 
     
-    private Hcad hcad = new Hcad();
-
     
     private Llm llm = new Llm();
 
@@ -55,32 +53,6 @@ public class ContexaProperties {
     
 
     
-    @Data
-    public static class Hcad {
-        
-        private boolean enabled = true;
-
-
-        private Similarity similarity = new Similarity();
-
-        
-        private Baseline baseline = new Baseline();
-
-        @Data
-        public static class Similarity {
-
-            private double hotPathThreshold = 0.7;
-        }
-
-        @Data
-        public static class Baseline {
-
-            private int minSamples = 10;
-
-            private int cacheTtl = 3600;
-        }
-    }
-
     
     @Data
     public static class Llm {

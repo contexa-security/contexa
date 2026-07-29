@@ -15,7 +15,6 @@
  */
 package io.contexa.contexacore.autonomous;
 
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -26,9 +25,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 @RequiredArgsConstructor
 public class LlmAnalysisBackpressureMonitor {
 
+    public static final String DEFERRED_REASON = "LLM_DEFERRED_BACKPRESSURE";
+
     private final ThreadPoolTaskExecutor executor;
     private final SecurityPlaneProperties securityPlaneProperties;
-    private final HcadProperties hcadProperties;
 
     public Snapshot snapshot() {
         ThreadPoolExecutor nativeExecutor = nativeExecutor();
@@ -40,9 +40,10 @@ public class LlmAnalysisBackpressureMonitor {
         int queueSize = queue == null ? 0 : queue.size();
         int remainingCapacity = queue == null ? 0 : queue.remainingCapacity();
         int queueCapacity = queueSize + remainingCapacity;
-        int configuredThreshold = Math.max(0, hcadProperties.getPreTrigger().getBackpressure().getMaxQueuedLlmTasks());
+        SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();
+        int configuredThreshold = Math.max(0, settings.getBackpressureQueueThreshold());
         boolean queueFull = queueCapacity > 0 && remainingCapacity <= 0;
-        boolean thresholdExceeded = hcadPreTriggerBackpressureEnabled()
+        boolean thresholdExceeded = settings.isBackpressureEnabled()
                 && (queueSize >= configuredThreshold || queueFull);
         return new Snapshot(
                 nativeExecutor.getActiveCount(),
@@ -54,26 +55,12 @@ public class LlmAnalysisBackpressureMonitor {
                 thresholdExceeded);
     }
 
-    public boolean hcadPreTriggerBackpressured() {
+    public boolean isBackpressured() {
         return snapshot().thresholdExceeded();
     }
 
-    public String hcadDeferredReason() {
-        if (hcadProperties == null
-                || hcadProperties.getPreTrigger() == null
-                || hcadProperties.getPreTrigger().getBackpressure() == null
-                || hcadProperties.getPreTrigger().getBackpressure().getDeferredReason() == null
-                || hcadProperties.getPreTrigger().getBackpressure().getDeferredReason().isBlank()) {
-            return "TRIGGER_DEFERRED_BACKPRESSURE";
-        }
-        return hcadProperties.getPreTrigger().getBackpressure().getDeferredReason().trim();
-    }
-
-    private boolean hcadPreTriggerBackpressureEnabled() {
-        return hcadProperties != null
-                && hcadProperties.getPreTrigger() != null
-                && hcadProperties.getPreTrigger().getBackpressure() != null
-                && hcadProperties.getPreTrigger().getBackpressure().isEnabled();
+    public String deferredReason() {
+        return DEFERRED_REASON;
     }
 
     private ThreadPoolExecutor nativeExecutor() {

@@ -39,19 +39,19 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:user:registered:%s", NAMESPACE, userId);
     }
 
-    public static String hcadAnalysis(String userId) {
+    public static String autonomousActionAnalysis(String userId) {
         validateUserId(userId);
-        return String.format("%s:hcad:analysis:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:analysis:%s", NAMESPACE, userId);
     }
 
-    public static String hcadLastVerifiedAction(String userId) {
+    public static String autonomousLastVerifiedAction(String userId) {
         validateUserId(userId);
-        return String.format("%s:hcad:lastAction:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:last-verified:%s", NAMESPACE, userId);
     }
 
-    public static String hcadLastVerifiedActionContext(String userId) {
+    public static String autonomousLastVerifiedActionContext(String userId) {
         validateUserId(userId);
-        return String.format("%s:hcad:lastActionContext:%s", NAMESPACE, userId);
+        return String.format("%s:autonomous:action:last-verified-context:%s", NAMESPACE, userId);
     }
 
     public static String userBlocked(String userId) {
@@ -74,37 +74,21 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:block:mfa:failCount:%s", NAMESPACE, userId);
     }
 
-    /**
-     * MFA verified key for HCAD/CHALLENGE flow.
-     * Intentionally distinct from {@link #blockMfaVerified(String)} which is reserved
-     * for the BLOCK MFA recovery flow. CHALLENGE MFA writes to this key so the LLM
-     * prompt can read MfaVerified independently of BLOCK state.
-     * Prefix is kept without NAMESPACE for backward compatibility with existing data.
-     */
-    public static String hcadMfaVerified(String userId) {
+    public static String authenticationMfaVerified(String userId) {
         validateUserId(userId);
-        return "security:mfa:verified:" + userId;
+        return String.format("%s:context:authentication:mfa:verified:%s", NAMESPACE, userId);
     }
 
-    /**
-     * Per-user request counter ZSet key (5-minute sliding window) used by HCAD.
-     * Prefix is kept without NAMESPACE for backward compatibility with existing data.
-     */
-    public static String userRequestCounter(String userId) {
+    public static String authenticationLoginFailuresByUser(String userId) {
         validateUserId(userId);
-        return "hcad:request:counter:" + userId;
+        return String.format("%s:context:authentication:failure:user:%s", NAMESPACE, userId);
     }
 
-    public static String hcadLoginFailuresByUser(String userId) {
-        validateUserId(userId);
-        return "hcad:login:failure:user:" + userId;
-    }
-
-    public static String hcadLoginFailuresByIp(String clientIp) {
+    public static String authenticationLoginFailuresByIp(String clientIp) {
         if (clientIp == null || clientIp.trim().isEmpty()) {
             throw new IllegalArgumentException("Client IP cannot be null or empty");
         }
-        return "hcad:login:failure:ip:" + clientIp;
+        return String.format("%s:context:authentication:failure:ip:%s", NAMESPACE, clientIp);
     }
 
     public static String soarExecution(String eventId) {
@@ -186,12 +170,12 @@ public class ZeroTrustRedisKeys {
 
     public static String userLastRequestTime(String userId) {
         validateUserId(userId);
-        return String.format("%s:hcad:last:request:%s", NAMESPACE, userId);
+        return String.format("%s:context:user:last-request:%s", NAMESPACE, userId);
     }
 
     public static String userPreviousPath(String userId) {
         validateUserId(userId);
-        return String.format("%s:hcad:previous:path:%s", NAMESPACE, userId);
+        return String.format("%s:context:user:previous-path:%s", NAMESPACE, userId);
     }
 
     public static String approvalWorkflow(Long proposalId) {
@@ -226,73 +210,6 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:processing:%s", NAMESPACE, eventId);
     }
 
-    public static String analysisTriggerInflight(String dedupKey) {
-        validateTriggerKey(dedupKey);
-        return String.format("%s:hcad:pretrigger:inflight:%s", NAMESPACE, dedupKey);
-    }
-
-    public static String analysisTriggerCooldown(String dedupKey) {
-        validateTriggerKey(dedupKey);
-        return String.format("%s:hcad:pretrigger:cooldown:%s", NAMESPACE, dedupKey);
-    }
-
-    public static String analysisTriggerNegative(String baseKey) {
-        validateTriggerKey(baseKey);
-        return String.format("%s:hcad:pretrigger:negative:%s", NAMESPACE, baseKey);
-    }
-
-    public static String analysisTriggerRateLimit(String rateKey) {
-        validateTriggerKey(rateKey);
-        return String.format("%s:hcad:pretrigger:rate:%s", NAMESPACE, rateKey);
-    }
-
-    public static String analysisTriggerEvaluation(String stateKey) {
-        validateTriggerKey(stateKey);
-        return String.format("%s:hcad:pretrigger:evaluation:%s", NAMESPACE, stateKey);
-    }
-
-    public static String hcadObservationWindow(String actorSessionKey) {
-        validateTriggerKey(actorSessionKey);
-        return String.format("%s:hcad:pretrigger:window:%s", NAMESPACE, actorSessionKey);
-    }
-
-    public static String hcadObservationWindowObservations(String actorSessionKey, String windowId) {
-        validateTriggerKey(actorSessionKey);
-        validateTriggerKey(windowId);
-        return String.format("%s:hcad:pretrigger:observations:%s:%s", NAMESPACE, actorSessionKey, windowId);
-    }
-
-    public static String hcadObservationWindowObservationsPrefix(String actorSessionKey) {
-        validateTriggerKey(actorSessionKey);
-        return String.format("%s:hcad:pretrigger:observations:%s:", NAMESPACE, actorSessionKey);
-    }
-
-    public static String hcadObservationWindowDeepEvaluation(String actorSessionKey, String windowId) {
-        validateTriggerKey(actorSessionKey);
-        validateTriggerKey(windowId);
-        return String.format("%s:hcad:pretrigger:window:evaluated:%s:%s", NAMESPACE, actorSessionKey, windowId);
-    }
-
-    public static String hcadObservationWindowAnchorSignatures(String actorSessionKey, String windowId) {
-        validateTriggerKey(actorSessionKey);
-        validateTriggerKey(windowId);
-        return String.format("%s:hcad:pretrigger:window:anchors:%s:%s", NAMESPACE, actorSessionKey, windowId);
-    }
-
-    public static String hcadActorSessionEvaluation(String actorSessionKey, String trustedContextSignature) {
-        validateTriggerKey(actorSessionKey);
-        validateTriggerKey(trustedContextSignature);
-        return String.format("%s:hcad:pretrigger:actor:evaluated:%s:%s",
-                NAMESPACE,
-                actorSessionKey,
-                trustedContextSignature);
-    }
-
-    private static void validateTriggerKey(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException("Trigger key cannot be null or empty");
-        }
-    }
     private static void validateUserId(String userId) {
         if (userId == null || userId.trim().isEmpty()) {
             throw new IllegalArgumentException("UserId is required for Zero Trust architecture");

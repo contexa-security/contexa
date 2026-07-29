@@ -15,9 +15,6 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
-import io.contexa.contexacore.hcad.trigger.HcadPreTriggerMode;
-import io.contexa.contexacore.properties.HcadProperties;
-import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.HcadRuntimeSettings;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,20 +45,4 @@ class SystemRuntimeSettingsServiceTest {
                 .isEqualTo("io.contexa.contexaiam.\nio.contexa.contexaiamenterprise.");
     }
 
-    @Test
-    @DisplayName("should apply HCAD runtime settings to mutable properties")
-    void applyHcadRuntimeSettings() {
-        HcadProperties properties = new HcadProperties();
-        HcadRuntimeSettings settings = new HcadRuntimeSettings(31, 52, 73, 4, 18, 0.81d, 0.91d, HcadPreTriggerMode.SHADOW);
-
-        SystemSettingsRuntimeApplier.applyHcadSettings(properties, settings);
-
-        assertThat(properties.getPreTrigger().getMediumRiskScore()).isEqualTo(31);
-        assertThat(properties.getPreTrigger().getHighRiskScore()).isEqualTo(52);
-        assertThat(properties.getPreTrigger().getRedlineScore()).isEqualTo(73);
-        assertThat(properties.getPreTrigger().getFailedLoginBurstThreshold()).isEqualTo(4);
-        assertThat(properties.getPreTrigger().getRequestBurstThreshold()).isEqualTo(18);
-        assertThat(properties.getSemanticEvidence().getRiskSimilarityThreshold()).isEqualTo(0.81d);
-        assertThat(properties.getSemanticEvidence().getNormalSimilarityThreshold()).isEqualTo(0.91d);
-    }
 }

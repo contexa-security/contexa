@@ -81,6 +81,12 @@ public class SecurityZeroTrustProperties {
     @NestedConfigurationProperty
     private ChallengeSettings challenge = new ChallengeSettings();
 
+    @NestedConfigurationProperty
+    private AnalysisSettings analysis = new AnalysisSettings();
+
+    @NestedConfigurationProperty
+    private BaselineSettings baseline = new BaselineSettings();
+
     @Data
     public static class ThreatSettings {
         private double initial = 0.3;
@@ -103,6 +109,31 @@ public class SecurityZeroTrustProperties {
         private Duration lockWaitTime = Duration.ZERO;
         private Duration lockLeaseTime = Duration.ofSeconds(30);
         private int busyRetryAfterSeconds = 3;
+    }
+
+    @Data
+    public static class AnalysisSettings {
+        private long maxAgeMs = 3_600_000L;
+    }
+
+    @Data
+    public static class BaselineSettings {
+        @NestedConfigurationProperty
+        private LearningSettings learning = new LearningSettings();
+
+        @NestedConfigurationProperty
+        private StatisticalSettings statistical = new StatisticalSettings();
+
+        @Data
+        public static class LearningSettings {
+            private boolean enabled = true;
+            private double alpha = 0.1;
+        }
+
+        @Data
+        public static class StatisticalSettings {
+            private int minSamples = 20;
+        }
     }
 
     @Data
