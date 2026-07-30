@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormali
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptSnapshot;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
@@ -25,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -296,7 +298,10 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(facts, event, "protectableCriticality");
         putFromMetadata(facts, event, "protectableVerificationRequired");
         putFromMetadata(facts, event, "protectableSync");
-        putFromMetadata(facts, event, "contextBindingHash");
+        putIfPresent(facts, "contextBindingHash", firstNonBlank(
+                resolveText(event.getMetadata(), "contextBindingHash"),
+                SessionFingerprintUtil.generateContextBindingHash(
+                        event.getSessionId(), event.getSourceIp(), event.getUserAgent())));
         normalizeActualResourceIdentity(facts, event);
         return toJson(facts);
     }
@@ -379,6 +384,7 @@ public class SealedEvidencePackageAssembler {
             rag.put("relatedDocuments", documents);
         }
         int relatedDocumentCount = documents.size();
+        rag.put("ragRelevance", ragRelevance(event, documents));
         if (faultScenarioApplied(promptSnapshot) && relatedDocumentCount > 0) {
             applyFaultRagRuntimeMetadata(rag, relatedDocumentCount, documents);
         }
@@ -424,6 +430,26 @@ public class SealedEvidencePackageAssembler {
         rag.put("ragAbsenceReason", ragAbsenceReason(rag, searchExecuted, retrievalFailed, permissionFiltered, zeroResults, relatedDocumentCount, projectedToFinalPrompt));
 
         return toJson(rag);
+    }
+
+    private String ragRelevance(
+            SecurityEvent event,
+            List<Map<String, Object>> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return "NO_DOCUMENTS";
+        }
+        String currentResourceId = firstNonBlank(
+                resolveText(event == null ? null : event.getMetadata(), "resourceId"),
+                resolveText(event == null ? null : event.getMetadata(), "requestedResourceId"),
+                resolveText(event == null ? null : event.getMetadata(), "protectableResourceId"),
+                resolveText(event == null ? null : event.getMetadata(), "protectedResourceId"));
+        if (!hasText(currentResourceId)) {
+            return "UNKNOWN";
+        }
+        boolean sameResource = documents.stream()
+                .filter(Objects::nonNull)
+                .allMatch(document -> currentResourceId.equals(objectText(document.get("resourceId"))));
+        return sameResource ? "SAME_RESOURCE" : "MIXED_OR_DIFFERENT_RESOURCE";
     }
 
     private void applyFaultRagRuntimeMetadata(
@@ -566,6 +592,7 @@ public class SealedEvidencePackageAssembler {
         Map<String, Object> metadata = document.getMetadata();
         if (metadata != null) {
             putIfPresent(summary, "id", metadata.get("id"));
+            putIfPresent(summary, "timestamp", metadata.get(VectorDocumentMetadata.TIMESTAMP));
             putIfPresent(summary, "documentType", metadata.get("documentType"));
             putIfPresent(summary, "userId", metadata.get("userId"));
             putIfPresent(summary, "tenantId", metadata.get("tenantId"));
@@ -1114,6 +1141,7 @@ public class SealedEvidencePackageAssembler {
         decision.put("riskScore", result.resolveAuditRiskScore());
         decision.put("confidence", result.resolveAuditConfidence());
         decision.put("reasoning", result.getReasoning());
+        decision.put("llmReasoning", result.getLlmReasoning());
         decision.put("processingPath", result.getProcessingPath() != null
                 ? result.getProcessingPath().name() : null);
         decision.put("llmProposedAction", result.getProposedAction());

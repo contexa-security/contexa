@@ -311,12 +311,12 @@ public record LearningContextEvidence(
             return 0;
         }
         return (int) personalRetrievedEvidence.stream()
-                .filter(candidate -> matches(representative.accessHour(), candidate.accessHour()))
-                .filter(candidate -> matches(representative.authenticationType(), candidate.authenticationType()))
-                .filter(candidate -> matches(representative.browser(), candidate.browser()))
-                .filter(candidate -> matches(representative.actionFamily(), candidate.actionFamily()))
-                .filter(candidate -> matches(representative.resourceFamily(), candidate.resourceFamily()))
-                .filter(candidate -> matches(representative.pathFamily(), candidate.pathFamily()))
+                .filter(candidate -> sameComparableValue(representative.accessHour(), candidate.accessHour()))
+                .filter(candidate -> sameComparableValue(representative.authenticationType(), candidate.authenticationType()))
+                .filter(candidate -> sameComparableValue(representative.browser(), candidate.browser()))
+                .filter(candidate -> sameComparableValue(representative.actionFamily(), candidate.actionFamily()))
+                .filter(candidate -> sameComparableValue(representative.resourceFamily(), candidate.resourceFamily()))
+                .filter(candidate -> sameComparableValue(representative.pathFamily(), candidate.pathFamily()))
                 .count();
     }
 
@@ -325,12 +325,20 @@ public record LearningContextEvidence(
             return null;
         }
         return joinDimensions(
-                matches(current.accessHour(), representative.accessHour()) ? null : "accessHour",
-                matches(current.authenticationType(), representative.authenticationType()) ? null : "authenticationType",
-                matches(current.browser(), representative.browser()) ? null : "browser",
-                matches(current.actionFamily(), representative.actionFamily()) ? null : "actionFamily",
-                matches(current.resourceFamily(), representative.resourceFamily()) ? null : "resourceFamily",
-                matches(current.pathFamily(), representative.pathFamily()) ? null : "pathFamily");
+                differsFromCurrent(current.accessHour(), representative.accessHour()) ? "accessHour" : null,
+                differsFromCurrent(current.authenticationType(), representative.authenticationType()) ? "authenticationType" : null,
+                differsFromCurrent(current.browser(), representative.browser()) ? "browser" : null,
+                differsFromCurrent(current.actionFamily(), representative.actionFamily()) ? "actionFamily" : null,
+                differsFromCurrent(current.resourceFamily(), representative.resourceFamily()) ? "resourceFamily" : null,
+                differsFromCurrent(current.pathFamily(), representative.pathFamily()) ? "pathFamily" : null);
+    }
+
+    private boolean differsFromCurrent(String currentValue, String observedValue) {
+        return hasText(currentValue) && !matches(currentValue, observedValue);
+    }
+
+    private boolean sameComparableValue(String left, String right) {
+        return (!hasText(left) && !hasText(right)) || matches(left, right);
     }
 
     private boolean matches(String left, String right) {

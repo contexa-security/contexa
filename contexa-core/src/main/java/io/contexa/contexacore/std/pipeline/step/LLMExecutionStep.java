@@ -30,6 +30,8 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvisor;
@@ -41,6 +43,9 @@ import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class LLMExecutionStep implements PipelineStep {
+
+    private final SecurityDecisionRawOutputContractInspector rawOutputContractInspector =
+            new SecurityDecisionRawOutputContractInspector();
 
     private static final List<String> EXECUTION_METADATA_KEYS = List.of(
             "requestedModelId",
@@ -141,7 +146,7 @@ public class LLMExecutionStep implements PipelineStep {
             context.addMetadata("structuredOutputPolicy", structuredOutputPolicy.name());
             context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
             return preparePrompt(context)
-                    .flatMap(prompt -> executeRaw(prompt, request, context)
+                    .flatMap(prompt -> executeSecurityDecisionRawGuarded(prompt, request, context)
                             .switchIfEmpty(Mono.error(new IllegalStateException("Security decision LLM raw execution returned empty Mono")))
                             .doOnSuccess(rawResponse -> {
                                 context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, rawResponse);
@@ -319,6 +324,69 @@ public class LLMExecutionStep implements PipelineStep {
         return llmClient.entity(prompt, targetType);
     }
 
+    private <T extends DomainContext> Mono<String> executeSecurityDecisionRawGuarded(
+            Prompt prompt,
+            AIRequest<T> request,
+            PipelineExecutionContext context) {
+        ExecutionContext executionContext = buildExecutionContext(
+                prompt,
+                request,
+                context,
+                null,
+                StructuredOutputMode.LEGACY_RAW,
+                StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+        return executeRaw(executionContext, context)
+                .flatMap(rawResponse -> {
+                    Inspection initialCheck = rawOutputContractInspector.inspect(
+                            rawResponse,
+                            prompt,
+                            request.getRequestId(),
+                            "initial");
+                    if (!initialCheck.requiresRetry()) {
+                        return Mono.just(rawResponse);
+                    }
+                    recordInitialSecurityDecisionFailure(context, initialCheck);
+                    context.addMetadata("securityDecisionOutputRetryAttempted", true);
+                    context.addMetadata("securityDecisionOutputRetryReason", initialCheck.retryReason());
+                    return executeRaw(executionContext, context)
+                            .map(retryResponse -> {
+                                Inspection retryCheck = rawOutputContractInspector.inspect(
+                                        retryResponse,
+                                        prompt,
+                                        request.getRequestId(),
+                                        "retry");
+                                boolean succeeded = !retryCheck.requiresRetry();
+                                context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
+                                if (!succeeded) {
+                                    context.addMetadata(
+                                            "securityDecisionOutputRetryFailureReason",
+                                            retryCheck.retryReason());
+                                    throw new StructuredOutputExecutionException(
+                                            StructuredOutputFailureCategory.VALIDATION_FAILED,
+                                            "Security decision output violated the response contract after retry: "
+                                                    + retryCheck.retryReason());
+                                }
+                                return retryResponse;
+                            })
+                            .doOnError(error -> context.addMetadata("securityDecisionOutputRetrySucceeded", false));
+                });
+    }
+
+    private void recordInitialSecurityDecisionFailure(
+            PipelineExecutionContext context,
+            Inspection check) {
+        context.addMetadata("securityDecisionInitialRawOutputHash", check.rawOutputHash());
+        context.addMetadata("securityDecisionInitialRawOutputLength", check.rawOutputLength());
+        context.addMetadata("securityDecisionInitialParseFailureCategory", check.parseFailureCategory());
+        if (check.parsingFallback()) {
+            context.addMetadata("securityDecisionInitialFallbackAction", check.response().getAction());
+            context.addMetadata("securityDecisionInitialFallbackReason", check.parseFailureCategory());
+        }
+        if (check.semanticViolation() != null) {
+            context.addMetadata("securityDecisionInitialSemanticViolation", check.semanticViolation());
+            context.addMetadata("securityDecisionInitialProposedAction", check.response().getAction());
+        }
+    }
     private <T extends DomainContext> Mono<String> executeRaw(
             Prompt prompt,
             AIRequest<T> request,
@@ -330,14 +398,19 @@ public class LLMExecutionStep implements PipelineStep {
                 null,
                 StructuredOutputMode.LEGACY_RAW,
                 StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+        return executeRaw(executionContext, context);
+    }
+
+    private Mono<String> executeRaw(
+            ExecutionContext executionContext,
+            PipelineExecutionContext context) {
         if (llmClient instanceof LLMOperations operations) {
             return operations.execute(executionContext)
                     .doOnSuccess(response -> syncExecutionMetadata(context, executionContext))
                     .doOnError(error -> syncExecutionMetadata(context, executionContext));
         }
-        return llmClient.call(prompt);
+        return llmClient.call(executionContext.getPrompt());
     }
-
     private <T extends DomainContext> Flux<String> executeStream(
             Prompt prompt,
             AIRequest<T> request,

@@ -109,6 +109,8 @@ class DefaultCanonicalSecurityContextProviderTest {
         event.addMetadata("intentLanguageMismatch", false);
         event.addMetadata("intentTlsFingerprintAltered", true);
         event.addMetadata("intentAbnormalHeaderOrder", true);
+        event.addMetadata("anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
+        event.addMetadata("anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL");
         event.addMetadata("sessionAgeMinutes", 24);
         event.addMetadata("previousPath", "/api/customer/list");
         event.addMetadata("previousActionFamily", "READ");
@@ -222,6 +224,8 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getIntent().getLanguageMismatch()).isFalse();
         assertThat(context.getIntent().getTlsFingerprintAltered()).isTrue();
         assertThat(context.getIntent().getAbnormalHeaderOrder()).isTrue();
+        assertThat(context.getIntent().getAnomalySignal()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
+        assertThat(context.getIntent().getAnomalySignalSource()).isEqualTo("OFFICIAL_VERIFICATION_INTERNAL");
         assertThat(context.getSessionNarrativeProfile()).isNotNull();
         assertThat(context.getSessionNarrativeProfile().getSessionAgeMinutes()).isEqualTo(24);
         assertThat(context.getSessionNarrativeProfile().getPreviousPath()).isEqualTo("/api/customer/list");
@@ -625,11 +629,13 @@ class DefaultCanonicalSecurityContextProviderTest {
         event.addMetadata("requestPath", "/api/customer/export");
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("isSensitiveResource", true);
+        event.addMetadata("protectableVerificationRequired", true);
 
         CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
 
         assertThat(context.getResource()).isNotNull();
         assertThat(context.getResource().getSensitiveResource()).isTrue();
+        assertThat(context.getResource().getVerificationRequired()).isTrue();
         assertThat(context.getResource().getSensitivity()).isEqualTo("HIGH");
     }
 
@@ -791,6 +797,41 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getReasoningMemoryProfile()).isNotNull();
         assertThat(context.getReasoningMemoryProfile().getRetentionTier()).isEqualTo("WARM");
     }
+    @Test
+    void resolveShouldReconcileFinalAuthorizationEffectIntoCanonicalBridgeCoverage() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-final-authorization")
+                .userId("alice")
+                .sessionId("session-final-authorization")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/view");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("resourceSensitivity", "MEDIUM");
+        event.addMetadata("authorizationEffect", "ALLOW");
+        event.addMetadata("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+        event.addMetadata("bridgeCoverageLevel", "AUTHORIZATION_CONTEXT");
+        event.addMetadata("bridgeMissingContexts", List.of("AUTHORIZATION_EFFECT", "DELEGATION"));
+        event.addMetadata("bridgeRemediationHints", List.of(
+                "Populate an explicit authorization effect such as ALLOW or DENY for the current request.",
+                "Propagate delegation metadata when delegated execution is used."));
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        assertThat(context.getAuthorization().getAuthorizationEffect()).isEqualTo("ALLOW");
+        assertThat(context.getBridge().getMissingContexts()).containsExactly("DELEGATION");
+        assertThat(context.getBridge().getRemediationHints())
+                .containsExactly("Propagate delegation metadata when delegated execution is used.");
+        assertThat(context.getCoverage().availableFacts())
+                .contains("Current request authorization effect is available.");
+        assertThat(context.getCoverage().missingCriticalFacts())
+                .doesNotContain(
+                        "Authorization scope is unavailable.",
+                        "Authorization effect is unavailable.",
+                        "Bridge missing context: AUTHORIZATION_EFFECT.");
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void resolveShouldRecordCanonicalAliasDiagnosticsWithoutChangingSelectedValues() {

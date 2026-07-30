@@ -106,6 +106,30 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
+    @DisplayName("evaluate should preserve LLM ALLOW and expose required-verification constraint audit")
+    void evaluate_requiredVerification_shouldExposeChallengeConstraintAudit() {
+        SecurityEvent event = buildTestEvent();
+        event.getMetadata().put("protectableVerificationRequired", true);
+        event.getMetadata().put("mfaVerified", false);
+        event.getMetadata().put("authorizationEffect", "ALLOW");
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("The model proposed ALLOW.");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        ThreatAssessment assessment = strategy.evaluate(event);
+
+        assertThat(assessment.getAction()).isEqualTo("ALLOW");
+        assertThat(assessment.getAutonomousAction()).isEqualTo("CHALLENGE");
+        assertThat(assessment.getAutonomyConstraintApplied()).isTrue();
+        assertThat(assessment.getAutonomyConstraintReasons()).containsExactly("FRESH_VERIFICATION_REQUIRED");
+        assertThat(assessment.getAutonomyConstraintPolicy()).isEqualTo("PROTECTABLE_REQUIRED_VERIFICATION");
+        assertThat(assessment.getAutonomyConstraintSource()).isEqualTo("Protectable.verificationRequired");
+        assertThat(assessment.getAutonomyConstraintVersion()).isEqualTo("1");
+    }
+
+    @Test
     @DisplayName("evaluate should return shouldEscalate=true when pipeline decides ESCALATE")
     void evaluate_escalateDecision_shouldEscalateTrue() {
         SecurityEvent event = buildTestEvent();

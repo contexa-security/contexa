@@ -294,6 +294,88 @@ class BaselineLearningServiceTest {
     }
 
     @Test
+    @DisplayName("Unparseable user agent should skip first baseline learning without storing null")
+    void shouldSkipFirstLearningWhenUserAgentCannotBeParsed() {
+        when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
+
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent("unparseable-client")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        boolean result = service.learnIfNormal("org1_user1", decision, event);
+
+        assertThat(result).isFalse();
+        verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("Explicit authentication method should take precedence over authentication token class")
+    void shouldPreferExplicitAuthenticationMethod() {
+        when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
+
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.now())
+                .build();
+        event.addMetadata("authMethod", "password");
+        event.addMetadata("authenticationType", "UsernamePasswordAuthenticationToken");
+
+        assertThat(service.learnIfNormal("org1_user1", decision, event)).isTrue();
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("org1_user1"), captor.capture());
+        assertThat(captor.getValue().getNormalAuthenticationTypes()).containsExactly("PASSWORD");
+    }
+
+    @Test
+    @DisplayName("Resource family learning should use semantic sensitivity instead of request path")
+    void shouldKeepPathAndResourceFamilyAsSeparateBaselineDimensions() {
+        BaselineVector legacyBaseline = BaselineVector.builder()
+                .userId("org1_user1")
+                .avgTrustScore(0.9)
+                .avgRequestCount(1L)
+                .updateCount(1L)
+                .frequentResourceFamilies(new String[]{"/contexa/admin/api/enterprise/verification/runtime/probe/normal/*"})
+                .build();
+        when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(legacyBaseline);
+
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.now())
+                .build();
+        event.addMetadata("requestPath", "/contexa/admin/api/enterprise/verification/runtime/probe/normal/resource-1");
+        event.addMetadata("resourceSensitivity", "MEDIUM");
+
+        assertThat(service.buildBaselineEvidenceSnapshot("org1_user1", event).resourceFamilies()).isEmpty();
+        assertThat(service.learnIfNormal("org1_user1", decision, event)).isTrue();
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("org1_user1"), captor.capture());
+        assertThat(captor.getValue().getFrequentPaths())
+                .containsExactly("/contexa/admin/api/enterprise/*");
+        assertThat(captor.getValue().getFrequentResourceFamilies()).containsExactly("NORMAL");
+    }
+
+    @Test
     @DisplayName("New user warning should preserve the full current IP and avoid broken guidance text")
     void shouldBuildReadableNewUserWarning() {
         when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);

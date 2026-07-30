@@ -130,6 +130,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
         } catch (AuthorizationDeniedException denied) {
             granted = false;
+            publishEvent = false;
             denialReason = denied.getMessage();
             if (denied instanceof RapidProtectableReentryDeniedException || denied instanceof ZeroTrustAccessDeniedException) {
                 publishEvent = false;

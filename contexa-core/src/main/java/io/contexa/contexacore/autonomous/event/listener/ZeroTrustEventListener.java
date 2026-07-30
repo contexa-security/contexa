@@ -94,6 +94,10 @@ public class ZeroTrustEventListener {
         if (event == null) {
             return null;
         }
+        Object existing = event.getPayloadValue("contextBindingHash");
+        if (existing != null && !existing.toString().isBlank()) {
+            return existing.toString();
+        }
         return SessionFingerprintUtil.generateContextBindingHash(
                 event.getSessionId(),
                 event.getClientIp(),

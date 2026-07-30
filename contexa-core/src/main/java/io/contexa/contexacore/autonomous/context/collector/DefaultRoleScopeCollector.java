@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -643,7 +644,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         }
 
         AuthorizationScopeState previousState = deserializeAuthorizationState(dataStore.getAuthorizationScopeState(tenantId, userId));
-        if (previousState != null && !previousState.fingerprint().equals(authorizationScopeState.fingerprint())) {
+        if (previousState != null && !hasSameAuthorizationScope(previousState, authorizationScopeState)) {
             detected.add(new PermissionChangeObservation(
                     stablePermissionChangeId("implicit:" + previousState.fingerprint() + "->" + authorizationScopeState.fingerprint()),
                     currentTimestampMs,
@@ -818,17 +819,20 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 && !StringUtils.hasText(policyVersion)) {
             return null;
         }
-        String fingerprintDescriptor = "roles=" + joinStrings(roles.values())
-                + "|scopes=" + joinStrings(scopeTags.values())
-                + "|permissions=" + joinStrings(permissions.values())
+        List<String> stableRoles = stableScopeValues(roles.values());
+        List<String> stableScopeTags = stableScopeValues(scopeTags.values());
+        List<String> stablePermissions = stableScopeValues(permissions.values());
+        String fingerprintDescriptor = "roles=" + joinStrings(stableRoles)
+                + "|scopes=" + joinStrings(stableScopeTags)
+                + "|permissions=" + joinStrings(stablePermissions)
                 + "|privileged=" + privileged.value()
                 + "|policyId=" + safeText(policyId)
                 + "|policyVersion=" + safeText(policyVersion);
         return new AuthorizationScopeState(
                 stableScopeId(fingerprintDescriptor),
-                List.copyOf(new LinkedHashSet<>(roles.values())),
-                List.copyOf(new LinkedHashSet<>(scopeTags.values())),
-                List.copyOf(new LinkedHashSet<>(permissions.values())),
+                stableRoles,
+                stableScopeTags,
+                stablePermissions,
                 privileged.value(),
                 policyId,
                 policyVersion,
@@ -1708,6 +1712,29 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return String.join(", ", values);
     }
 
+    private static List<String> stableScopeValues(Collection<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private boolean hasSameAuthorizationScope(
+            AuthorizationScopeState left,
+            AuthorizationScopeState right) {
+        return left.effectiveRoles().equals(right.effectiveRoles())
+                && left.scopeTags().equals(right.scopeTags())
+                && left.effectivePermissions().equals(right.effectivePermissions())
+                && Objects.equals(left.privileged(), right.privileged())
+                && Objects.equals(left.policyId(), right.policyId())
+                && Objects.equals(left.policyVersion(), right.policyVersion());
+    }
+
     private String joinCsv(Collection<String> values) {
         if (values == null || values.isEmpty()) {
             return null;
@@ -1783,9 +1810,9 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
             String privilegedSourceKey) {
 
         private AuthorizationScopeState {
-            effectiveRoles = effectiveRoles == null ? List.of() : List.copyOf(effectiveRoles);
-            scopeTags = scopeTags == null ? List.of() : List.copyOf(scopeTags);
-            effectivePermissions = effectivePermissions == null ? List.of() : List.copyOf(effectivePermissions);
+            effectiveRoles = stableScopeValues(effectiveRoles);
+            scopeTags = stableScopeValues(scopeTags);
+            effectivePermissions = stableScopeValues(effectivePermissions);
         }
 
         String scopeKey() {

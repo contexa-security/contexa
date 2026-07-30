@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -76,13 +77,17 @@ public class AiSecurityDecisionObservationWriter {
         Boolean llmDecisionPresent = firstBoolean(
                 result != null ? result.getLlmDecisionPresent() : null,
                 metadata.get("llmDecisionPresent"));
-        boolean parserFailure = isParserFailure(result) || isParserFailure(metadata);
-        boolean technicalFallback = (result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()))
+        boolean responseActionFallback = (result != null
+                && Boolean.TRUE.equals(result.getResponseActionFallbackApplied()))
+                || Boolean.TRUE.equals(bool(metadata.get("responseActionFallbackApplied")))
+                || Boolean.TRUE.equals(bool(metadata.get("securityDecisionParsingFallbackApplied")));
+        boolean parserFailure = responseActionFallback || isParserFailure(result) || isParserFailure(metadata);
+        boolean technicalFallback = !responseActionFallback
+                && ((result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()))
                 || Boolean.TRUE.equals(bool(metadata.get("technicalFallbackApplied")))
                 || Boolean.TRUE.equals(bool(metadata.get("securityDecisionFallbackApplied")))
-                || Boolean.TRUE.equals(bool(metadata.get("securityDecisionParsingFallbackApplied")))
                 || Boolean.TRUE.equals(bool(metadata.get("syntheticSecurityDecisionApplied")))
-                || Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded")));
+                || Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded"))));
         String failureReason = failureReason(result, metadata);
         String failureType = failureType(result, metadata, parserFailure, technicalFallback, failureReason, llmDecisionPresent, finalAction);
         String triggerSource = protectable ? "PROTECTABLE" : firstText(metadata, "triggerSource");
@@ -109,7 +114,15 @@ public class AiSecurityDecisionObservationWriter {
         if (isUnknown(modelProvider)) {
             modelProvider = firstText(defaultModelProvider, inferProviderFromModelId(modelId));
         }
+        String contextBindingHash = firstText(metadata, "contextBindingHash");
+        if (contextBindingHash == null) {
+            contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                    event.getSessionId(), event.getSourceIp(), event.getUserAgent());
+        }
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
+        if (contextBindingHash != null) {
+            storedMetadata.put("contextBindingHash", contextBindingHash);
+        }
         Map<String, Object> latencyBreakdown = latencyBreakdownMetadata(storedMetadata);
         LocalDateTime now = LocalDateTime.now();
         String requestId = firstText(metadata, "requestId", "correlationId");
@@ -177,7 +190,7 @@ public class AiSecurityDecisionObservationWriter {
                     testRunId,
                     userId,
                     event.getSessionId(),
-                    firstText(metadata, "contextBindingHash"),
+                    contextBindingHash,
                     actorSessionKey,
                     windowId,
                     triggerSource,
@@ -207,8 +220,8 @@ public class AiSecurityDecisionObservationWriter {
                     containsTimeout(failureReason) || "TIMEOUT".equals(failureType),
                     containsModelUnavailable(failureReason) || "MODEL_UNAVAILABLE".equals(failureType),
                     failureType,
-                    result != null ? truncate(result.getTechnicalFallbackCategory(), 128) : null,
-                    result != null ? summarize(SensitiveValueSanitizer.sanitizeText(result.getTechnicalFallbackReason()), 1024) : null,
+                    result != null ? truncate(firstText(result.getTechnicalFallbackCategory(), result.getResponseActionFallbackCategory()), 128) : null,
+                    result != null ? summarize(SensitiveValueSanitizer.sanitizeText(firstText(result.getTechnicalFallbackReason(), result.getResponseActionFallbackReason())), 1024) : null,
                     LEGACY_OUTCOME_NOT_APPLICABLE,
                     writeJson(storedMetadata),
                     result != null && result.isSuccess() && failureType == null,
@@ -376,8 +389,11 @@ public class AiSecurityDecisionObservationWriter {
         if (result == null) {
             return false;
         }
-        return containsParserFailure(result.getTechnicalFallbackCategory())
-                || containsParserFailure(result.getTechnicalFallbackReason());
+        return Boolean.TRUE.equals(result.getResponseActionFallbackApplied())
+                || containsParserFailure(result.getTechnicalFallbackCategory())
+                || containsParserFailure(result.getTechnicalFallbackReason())
+                || containsParserFailure(result.getResponseActionFallbackCategory())
+                || containsParserFailure(result.getResponseActionFallbackReason());
     }
 
     private String failureType(
@@ -460,6 +476,8 @@ public class AiSecurityDecisionObservationWriter {
                 result != null ? result.getMessage() : null,
                 result != null ? result.getTechnicalFallbackReason() : null,
                 result != null ? result.getTechnicalFallbackCategory() : null,
+                result != null ? result.getResponseActionFallbackReason() : null,
+                result != null ? result.getResponseActionFallbackCategory() : null,
                 firstText(metadata, "securityDecisionRawExecutionFailureMessage"),
                 firstText(metadata, "securityDecisionFallbackReason"),
                 firstText(metadata, "decisionFailureMessage"),
@@ -474,6 +492,9 @@ public class AiSecurityDecisionObservationWriter {
     }
 
     private boolean isParserFailure(Map<String, Object> metadata) {
+        if (Boolean.TRUE.equals(bool(metadata.get("securityDecisionParsingFallbackApplied")))) {
+            return true;
+        }
         String category = firstText(
                 metadata,
                 "structuredOutputFailureCategory",
@@ -485,6 +506,8 @@ public class AiSecurityDecisionObservationWriter {
                 || normalized.contains("parser")
                 || normalized.contains("parse")
                 || normalized.contains("missing_action")
+                || normalized.contains("action_format")
+                || normalized.contains("action_missing")
                 || normalized.contains("empty_response"));
     }
 

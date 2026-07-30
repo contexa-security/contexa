@@ -136,6 +136,8 @@ final class UserPromptEvidenceContract {
                     "CANONICAL_CONTEXT", List.of("resource.sensitivity"), PRODUCER_RESOURCE_CONTEXT, List.of("PRE")),
             p1("sensitiveResource", "Sensitive resource flag", List.of("SensitiveResource"),
                     "CANONICAL_CONTEXT", List.of("resource.sensitiveResource"), PRODUCER_RESOURCE_CONTEXT, List.of("PRE")),
+            p1("verificationRequired", "Protectable verification requirement", List.of("VerificationRequired"),
+                    "CANONICAL_CONTEXT", List.of("resource.verificationRequired"), PRODUCER_RESOURCE_CONTEXT, List.of("PRE")),
             p1("resourceType", "Resource type", List.of("ResourceType"),
                     "CANONICAL_CONTEXT", List.of("resource.resourceType"), PRODUCER_RESOURCE_CONTEXT, List.of("PRE", "CCR")),
             p1("currentPathFamily", "Current path family", List.of("CurrentPathFamily"),

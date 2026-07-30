@@ -34,7 +34,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
+
 /**
  * Tests CoreAutonomousAutoConfiguration conditional annotations and mode switching structure.
  */
@@ -96,16 +96,26 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should declare in-memory standalone fallback beans")
         void shouldDeclareStandaloneFallbackBeans() throws Exception {
             assertInMemoryFallback("inMemoryZeroTrustActionRepository");
+            assertInMemoryFallback("baselineDataStore");
             assertInMemoryFallback("inMemoryProtectableRapidReentryRepository");
             assertInMemoryFallback("inMemoryDistributedLockService");
+            assertInMemoryFallback("inMemoryThreatScoreUtil");
             assertInMemoryFallback("inMemorySecurityContextDataStore");
         }
 
         private void assertInMemoryFallback(String methodName) throws Exception {
-            Method method = CoreAutonomousAutoConfiguration.class.getDeclaredMethod(methodName);
+            Method method = Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+                    .filter(candidate -> candidate.getName().equals(methodName))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Method not found: " + methodName));
 
             assertThat(method.getReturnType().getSimpleName()).startsWith("InMemory");
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
+            ConditionalOnProperty modeCondition = method.getAnnotation(ConditionalOnProperty.class);
+            assertThat(modeCondition).isNotNull();
+            assertThat(modeCondition.name()).containsExactly("contexa.infrastructure.mode");
+            assertThat(modeCondition.havingValue()).isEqualTo("standalone");
+            assertThat(modeCondition.matchIfMissing()).isTrue();
         }
     }
 

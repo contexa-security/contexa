@@ -154,6 +154,8 @@ public class CanonicalSecurityContext {
         private Boolean tlsFingerprintAltered;
         private Boolean abnormalHeaderOrder;
         private Boolean impossibleTravel;
+        private String anomalySignal;
+        private String anomalySignalSource;
     }
 
     @Data
@@ -180,6 +182,7 @@ public class CanonicalSecurityContext {
         private String httpMethod;
         private String actionFamily;
         private Boolean sensitiveResource;
+        private Boolean verificationRequired;
         private Boolean privileged;
         private Boolean exportSensitive;
     }

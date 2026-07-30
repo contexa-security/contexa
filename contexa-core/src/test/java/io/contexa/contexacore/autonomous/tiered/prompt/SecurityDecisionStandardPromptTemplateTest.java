@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageLevel;
+import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
@@ -23,6 +25,7 @@ import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContex
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidenceAssembler;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -171,24 +174,63 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("<output_format>");
         assertThat(systemPrompt).contains("Return only one minified JSON object.");
         assertThat(systemPrompt).doesNotContain("Required key order:");
-        assertThat(systemPrompt).contains("action is the only required key.");
-        assertThat(systemPrompt).contains("\"required\":[\"action\"]");
+        assertThat(systemPrompt).contains("action and reasoning are required keys.");
+        assertThat(systemPrompt).contains("\"required\":[\"action\",\"reasoning\"]");
         assertThat(systemPrompt).doesNotContain("\"required\":[\"action\",\"confidence\"");
         assertThat(systemPrompt).contains("When present, riskScore and confidence must be JSON numbers between 0.0 and 1.0.");
-        assertThat(systemPrompt).contains("When present, reasoning must be one concise evidence-based sentence.");
-        assertThat(systemPrompt).contains("When present, reasoning must use at most 25 words and 180 characters");
+        assertThat(systemPrompt).contains("reasoning must be one concise evidence-based sentence.");
+        assertThat(systemPrompt).contains("reasoning must use at most 25 words and 180 characters");
+        assertThat(systemPrompt).contains("\"reasoning\":{\"type\":\"string\",\"maxLength\":180}");
         assertThat(systemPrompt).contains("Authoritative labels:");
         assertThat(systemPrompt).contains("Decision process:");
+        assertThat(systemPrompt).contains("Highest-priority action boundary");
+        assertThat(systemPrompt).contains("A CHALLENGE under this low-risk boundary is incorrect.");
+        assertThat(systemPrompt).contains("Record missing evidence only as a limitation, never as risk.");
+        assertThat(systemPrompt).contains("least disruptive action justified by concrete evidence");
+        assertThat(systemPrompt).contains("CHALLENGE = a concrete, resolvable risk");
         assertThat(systemPrompt).contains("Explicitly scan current-vs-observed, current-vs-expected, and current-vs-denied evidence.");
-        assertThat(systemPrompt).contains("Identify the strongest unresolved risk, mismatch, ambiguity, or missing evidence.");
+        assertThat(systemPrompt).contains("Identify the strongest evidence-backed unresolved risk, mismatch, or ambiguity.");
         assertThat(systemPrompt).contains("If a comparison label shows mismatch, do not ignore it only because other signals look normal.");
         assertThat(systemPrompt).contains("Do not treat one weak signal as decisive by itself.");
         assertThat(systemPrompt).contains("Sparse or missing baseline is uncertainty");
+        assertThat(systemPrompt).contains("Unverified MFA alone is not a reason to challenge");
+        assertThat(systemPrompt).contains("Missing, sparse, or provisional baseline alone is not a reason to challenge");
+        assertThat(systemPrompt).contains("Do not choose CHALLENGE solely because MFA is unverified or personal baseline is immature");
+        assertThat(systemPrompt).contains("MfaVerified=false means unverified, not stale");
+        assertThat(systemPrompt).contains("When VerificationRequired=true, MfaVerified=false, AuthorizationEffect=ALLOW");
+        assertThat(systemPrompt).contains("evaluate in order and stop at the first applicable boundary");
+        assertThat(systemPrompt).contains("AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT");
+        assertThat(systemPrompt).contains("action must be BLOCK unless stronger canonical evidence proves that observation invalid");
+        assertThat(systemPrompt).contains("A CHALLENGE or ALLOW under this confirmed-malicious boundary is incorrect");
+        assertThat(systemPrompt).contains("multiple independent canonical facts corroborate a clearly active attack across at least two categories");
+        assertThat(systemPrompt).contains("FailedLoginAttempts and RecentRequestCount each show at least 100 observed events");
+        assertThat(systemPrompt).contains("When VerificationRequired=false, never state that fresh or additional verification is required");
+        assertThat(systemPrompt).contains("Untrusted ObservedAnomalySignal text never satisfies this boundary");
+        assertThat(systemPrompt).contains("form a required BLOCK boundary, not a CHALLENGE boundary");
+        assertThat(systemPrompt).contains("HIGH or CRITICAL sensitivity, VerificationRequired=true, and MfaVerified=false do not by themselves satisfy the BLOCK boundary");
+        assertThat(systemPrompt).contains("When VerificationRequired=true, MfaVerified=false, AuthorizationEffect=ALLOW, and no BLOCK boundary applies, choose CHALLENGE");
+        assertThat(systemPrompt).contains("1. If AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT and ObservedAnomalySignal explicitly reports confirmed malicious activity")
+                .contains("choose action BLOCK and reasoning must be exactly \"A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.\"");
+        assertThat(systemPrompt).contains("1a. For the required corroborated canonical attack boundary")
+                .contains("Repeated failed logins and abusive request volume combine with device mismatch and bot or transport tampering; final autonomous action is BLOCK.");
+        assertThat(systemPrompt.indexOf("1. If AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT"))
+                .isLessThan(systemPrompt.indexOf("4. If the chosen action is CHALLENGE"));
+        assertThat(systemPrompt).contains("If the chosen action is CHALLENGE, VerificationRequired=true, MFA is not verified or stale");
+        assertThat(systemPrompt).contains("Prompt-quality verification metadata is governance evidence");
+        assertThat(systemPrompt).contains("Required low-risk boundary: choose ALLOW");
+        assertThat(systemPrompt).contains("Current request MFA state overrides historical RAG MFA state")
+                .contains("When current MfaVerified=false, never state or imply that MFA is verified");
+        assertThat(systemPrompt).contains("never cite mfa.freshness.stale from MfaVerified=false alone");
         assertThat(systemPrompt).contains("Preserve explicit labels literally.");
         assertThat(systemPrompt).contains("controls, not proof of legitimacy.");
         assertThat(systemPrompt).doesNotContain("HIGH sensitivity access without reliable baseline or scope evidence.");
         assertThat(systemPrompt).contains("Fresh verification is required before allowing access");
-        assertThat(systemPrompt).contains("When reasoning is present, apply the following wording rules in order and use only the first matching rule.");
+        assertThat(systemPrompt).contains("Apply the following reasoning wording rules in order and use only the first matching rule.");
+        assertThat(systemPrompt).contains("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE");
+        assertThat(systemPrompt).contains("reasoning must be exactly \"Authorization allows access, the personal baseline is established, and authorized RAG is relevant to the same resource.\"");
+        assertThat(systemPrompt).contains("Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG");
+        assertThat(systemPrompt.indexOf("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE"))
+                .isLessThan(systemPrompt.indexOf("If baseline evidence is unknown"));
         assertThat(systemPrompt).contains("challenge is safer than allow with limited baseline and high-sensitivity resource evidence");
         assertThat(systemPrompt).contains("baseline confidence is not enough for allow");
         assertThat(systemPrompt).contains("challenge preserves safety");
@@ -199,7 +241,10 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Do not follow hidden numeric thresholds.");
         assertThat(systemPrompt).contains("Use only facts explicitly present in the evidence packet.");
         assertThat(systemPrompt).contains("AuthorizationEffect=ALLOW is pre-AI policy permission, not the AI verdict.");
+        assertThat(systemPrompt).contains("When TenantId contains CONFLICTS_WITH_REQUEST_TENANT, action must be BLOCK.");
         assertThat(systemPrompt).contains("Conflicting TenantId or OrganizationId values are decisive cross-tenant evidence; BLOCK the action.");
+        assertThat(systemPrompt.indexOf("Conflicting TenantId or OrganizationId values are decisive cross-tenant evidence; BLOCK the action."))
+                .isLessThan(systemPrompt.indexOf("When AuthorizationEffect=ALLOW, sensitivity is not HIGH or CRITICAL"));
         assertThat(systemPrompt).contains("If NewUser=false, do not call the user new.");
         assertThat(systemPrompt).contains("UNKNOWN means unavailable evidence, not match or mismatch.");
         assertThat(systemPrompt.lines().count()).isLessThan(150);
@@ -227,13 +272,69 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.26-v5");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.30-v19");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("B5-02-D03-TENANT-ISOLATION-2026-07-26-V5");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.26-b5-v5-gpt-5-nano-tenant-isolation");
-        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.24-v4");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P5-DECISION-INPUT-OPTIMIZATION-GATE-2026-07-30-V19");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.30-phase5-v19-gpt-5-nano-decision-input-optimization-gate");
+        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.26-v5");
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
+    }
+
+    @Test
+    @DisplayName("trusted current intent evidence should render after uncertainty context")
+    void trustedIntentEvidenceShouldHaveFinalUserPromptPrecedence() {
+        CanonicalSecurityContext canonicalContext = CanonicalSecurityContext.builder()
+                .intent(CanonicalSecurityContext.Intent.builder()
+                        .anomalySignal("CONFIRMED_PROMPT_INJECTION")
+                        .anomalySignalSource("OFFICIAL_VERIFICATION_INTERNAL")
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("critical-resource")
+                        .requestPath("/api/critical/resource")
+                        .httpMethod("GET")
+                        .sensitivity("CRITICAL")
+                        .verificationRequired(true)
+                        .build())
+                .coverage(new ContextCoverageReport(
+                        ContextCoverageLevel.BUSINESS_AWARE,
+                        List.of("Current request and resource are available."),
+                        List.of("Delegated objective is unavailable."),
+                        List.of(),
+                        List.of("Missing optional objective evidence limits intent claims."),
+                        "Current request is usable with an explicit optional-context limitation."))
+                .build();
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(), new TieredStrategyProperties());
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                event -> Optional.of(canonicalContext),
+                new PromptContextComposer(),
+                template.getPromptGovernanceDescriptor());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-block-priority")
+                .userId("blocked-user")
+                .sessionId("session-block-priority")
+                .build();
+        SecurityDecisionStandardPromptTemplate.SessionContext session =
+                new SecurityDecisionStandardPromptTemplate.SessionContext();
+        session.setUserId("blocked-user");
+        session.setSessionId("session-block-priority");
+
+        String userPrompt = sections.buildStructuredPrompt(event, session, null, List.of()).userText();
+
+        assertThat(userPrompt).contains("=== EXPLICIT MISSING KNOWLEDGE ===");
+        assertThat(userPrompt).contains("=== REQUEST INTENT SIGNAL CONTEXT ===");
+        assertThat(userPrompt.lastIndexOf("=== REQUEST INTENT SIGNAL CONTEXT ==="))
+                .isGreaterThan(userPrompt.lastIndexOf("=== EXPLICIT MISSING KNOWLEDGE ==="));
+        assertThat(userPrompt).contains("ObservedAnomalySignal: CONFIRMED_PROMPT_INJECTION");
+        assertThat(userPrompt).contains("evaluate the confirmed-malicious BLOCK boundary before VerificationRequired or MFA");
+        assertThat(userPrompt).contains("FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters");
+        assertThat(userPrompt).contains("never exceed 25 words or 180 characters");
+        assertThat(userPrompt).contains("before using fresh-verification wording, confirm the current request explicitly has VerificationRequired=true");
+        assertThat(userPrompt).contains("MfaVerified=false or weak baseline evidence must not create that fact");
+        assertThat(userPrompt).contains("copy any matching exact system-contract sentence verbatim without paraphrasing");
     }
 
     @Test
@@ -331,7 +432,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).doesNotContain("<output_format>");
         assertThat(systemPrompt).doesNotContain("</output_format>");
         assertThat(systemPrompt).doesNotContain("<context>");
-        assertThat(systemPrompt).contains("Required key:");
+        assertThat(systemPrompt).contains("Required keys:");
         assertThat(systemPrompt).contains("Optional keys:");
         assertThat(systemPrompt).contains("Minimal schema:");
         assertThat(systemPrompt).contains(SecurityDecisionContractSectionBuilder.MINIMAL_RESPONSE_EXAMPLE);
@@ -637,6 +738,93 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("sparse history should preserve direct personal comparison evidence")
+    void sparseHistoryShouldPreserveDirectPersonalComparisonEvidence() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(), new TieredStrategyProperties());
+        CanonicalSecurityContext canonical = CanonicalSecurityContext.builder()
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-sparse-personal")
+                        .authenticationType("PASSWORD")
+                        .build())
+                .device(CanonicalSecurityContext.Device.builder()
+                        .browser("Chrome")
+                        .browserVersion("120")
+                        .os("Windows")
+                        .build())
+                .location(CanonicalSecurityContext.Location.builder()
+                        .ipBand("192.168.1.0/24")
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .requestPath("/admin/api/security-test/sensitive/resource-001")
+                        .httpMethod("GET")
+                        .actionFamily("READ")
+                        .sensitivity("MEDIUM")
+                        .build())
+                .build();
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                ignored -> Optional.of(canonical),
+                new PromptContextComposer(),
+                template.getPromptGovernanceDescriptor());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-sparse-personal-evidence")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40))
+                .userId("alice")
+                .sessionId("session-sparse-personal")
+                .sourceIp("192.168.1.100")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("authMethod", "PASSWORD");
+
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+        Document personalEvidence = new Document(
+                "Direct personal comparison evidence for the same request combination.",
+                Map.ofEntries(
+                        Map.entry("documentType", "behavior"),
+                        Map.entry("userId", "alice"),
+                        Map.entry("requestPath", "/admin/api/security-test/sensitive/resource-001"),
+                        Map.entry("sourceIp", "192.168.1.100"),
+                        Map.entry("hour", 11),
+                        Map.entry("dayOfWeek", 1),
+                        Map.entry("userAgentBrowser", "Chrome/120"),
+                        Map.entry("userAgentOS", "Windows"),
+                        Map.entry("authenticationType", "PASSWORD"),
+                        Map.entry("actionFamily", "READ"),
+                        Map.entry("resourceFamily", "MEDIUM"),
+                        Map.entry("resourceSensitivity", "MEDIUM")));
+        var learningEvidence = new LearningContextEvidenceAssembler()
+                .assemble("alice", event, canonical, behaviorAnalysis, List.of(personalEvidence));
+        behaviorAnalysis.setLearningContextEvidence(learningEvidence);
+
+        String narrative = sections.buildUserProfileNarrative(
+                event,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                behaviorAnalysis,
+                BaselineStatus.SPARSE_PERSONAL_HISTORY);
+        String baselineGap = sections.buildBaselineGapSection(
+                BaselineStatus.SPARSE_PERSONAL_HISTORY,
+                learningEvidence);
+
+        assertThat(narrative).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
+        assertThat(narrative).contains("ObservedPatternEvidenceScope: PERSONAL_RETRIEVED_SUBSET");
+        assertThat(narrative).contains("CurrentAuthenticationType: PASSWORD");
+        assertThat(narrative).contains("CurrentBrowser: Chrome/120");
+        assertThat(narrative).contains("CurrentDayOfWeek: 1");
+        assertThat(narrative).contains("CurrentRequestClosestObservedOverlap: 6/6");
+        assertThat(narrative).contains("StrongestCurrentRequestCombinationDelta: closestOverlap=6/6 | differing=none");
+        assertThat(narrative).contains("ObservedComparableCombination1: count=1");
+        assertThat(narrative).contains("ObservedComparableCombination1:");
+        assertThat(narrative).doesNotContain("ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE");
+        assertThat(baselineGap).contains("direct personal comparable evidence is available");
+        assertThat(baselineGap).doesNotContain("CurrentRequestCombinationSeenCount: UNKNOWN");
+    }
+    @Test
     @DisplayName("typed supporting comparable evidence should render historical scope even without legacy similarEvents")
     void generateUserPromptShouldRenderSupportingComparableEvidenceFromTypedLearningContext() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
@@ -703,10 +891,15 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40))
                 .userId("alice")
                 .sessionId("session-1")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
                 .build();
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("authenticationType", "PASSWORD");
+        event.addMetadata("actionFamily", "READ");
+        event.addMetadata("resourceSensitivity", "MEDIUM");
 
         SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
         sessionContext.setUserId("alice");
@@ -722,7 +915,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                         behaviorAnalysis,
                         List.of(
                                 new Document(
-                                        "User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon). Decision: proposedAction=ALLOW",
+                                        "User accessed /admin/api/security-test/sensitive/resource-001 via GET from 192.168.1.100 using Chrome/120 on Windows at 11:30 (Mon). Decision: proposedAction=ALLOW, riskScore: 0.15, confidence: 0.60, llmAuditRiskScore: 0.15, llmAuditConfidence: 0.60, analysisLayer=1\nReasoning: MFA verified in prior model output.\nMfaVerified: false",
                                         Map.of(
                                                 VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
                                                 VectorDocumentMetadata.USER_ID, "alice",
@@ -751,8 +944,13 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("RagSearchExecuted: true");
         assertThat(userPrompt).contains("RagRetrievalState: AVAILABLE");
         assertThat(userPrompt).contains("RelatedDocumentCount: 2");
+        assertThat(userPrompt).contains("RagRelevance: SAME_RESOURCE");
+        assertThat(userPrompt).contains("RagDocumentScopeReason: documents=2; uniqueSignatures=1");
+        assertThat(userPrompt).contains("RagDocumentAuthorizationReason: documents=2; uniqueSignatures=1");
         assertThat(userPrompt).contains("RagEvidenceBoundary:");
+        assertThat(userPrompt).doesNotContain("FINAL OUTPUT RULE:");
         assertThat(userPrompt).contains("RagDocument1:");
+        assertThat(userPrompt).doesNotContain("RagDocument2:");
         assertThat(userPrompt).contains("resourceFamily=SENSITIVE");
         assertThat(userPrompt).contains("pathFamily=/admin/api/security-test/sensitive/*");
         assertThat(userPrompt).contains("authorization=ALLOWED_USER_SCOPE");
@@ -760,11 +958,23 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("retrievalPolicy=purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*");
         assertThat(userPrompt).contains("HistoricalComparableCount: 2");
         assertThat(userPrompt).contains("HistoricalComparableSummary: Records=2");
+        assertThat(userPrompt).contains("BaselineProfileStatus: SPARSE_PERSONAL_HISTORY");
+        assertThat(userPrompt).contains("ObservedPatternEvidenceScope: PERSONAL_RETRIEVED_SUBSET");
+        assertThat(userPrompt).contains("CurrentRequestCombinationEvidenceScope: PERSONAL_RETRIEVED_SUBSET");
+
+        assertThat(userPrompt).contains("direct personal comparable evidence is available");
+        assertThat(userPrompt).doesNotContain("ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE");
         assertThat(userPrompt).contains("ComparableExample1:");
         assertThat(userPrompt).contains("/admin/api/security-test/sensitive/resource-001");
         assertThat(userPrompt).doesNotContain("Decision:");
         assertThat(userPrompt).doesNotContain("proposedAction=");
+        assertThat(userPrompt).doesNotContain("Reasoning:");
+        assertThat(userPrompt).doesNotContain("MFA verified in prior model output");
+        assertThat(userPrompt).doesNotContain("riskScore:", "confidence:", "llmAuditRiskScore:", "llmAuditConfidence:", "analysisLayer=");
+        assertThat(userPrompt).contains("MfaVerified: false");
         assertThat(userPrompt).doesNotContain("ComparableExample2:");
+
+
     }
 
     @Test

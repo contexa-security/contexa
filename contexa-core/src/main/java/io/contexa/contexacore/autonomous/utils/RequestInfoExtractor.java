@@ -63,6 +63,7 @@ public final class RequestInfoExtractor {
         Integer runtimeMaxTokens = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
         Boolean runtimeDisableRetries = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Retries", "disableRetries");
         Boolean runtimeDisableOllamaThinking = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
+        String anomalySignal = extractHeader(request, "X-Contexa-Anomaly-Signal");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
@@ -88,6 +89,7 @@ public final class RequestInfoExtractor {
                 .clientIp(extractClientIp(request, security))
                 .userAgent(extractUserAgent(request))
                 .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
+                .contextBindingHash(SessionFingerprintUtil.generateContextBindingHash(request))
                 .requestId(requestId)
                 .requestedModelId(requestedModelId)
                 .observedAt(extractObservedAt(request))
@@ -100,7 +102,10 @@ public final class RequestInfoExtractor {
                 .demoPhase(extractHeader(request, "X-Contexa-Demo-Phase"))
                 .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
-                .anomalySignal(extractHeader(request, "X-Contexa-Anomaly-Signal"))
+                .anomalySignal(anomalySignal)
+                .anomalySignalSource(anomalySignal != null
+                        ? runtimeOverrideHeadersAllowed ? "OFFICIAL_VERIFICATION_INTERNAL" : "UNTRUSTED_REQUEST_HEADER"
+                        : null)
                 .pqaPromptFaultScenario(extractAttributeText(request, "pqaPromptFaultScenario"))
                 .pqaPromptFaultRejected(Boolean.TRUE.equals(request.getAttribute("pqaPromptFaultRejected"))
                         || extractHeader(request, "X-PQA-Prompt-Fault") != null)
@@ -652,6 +657,7 @@ public final class RequestInfoExtractor {
         private final String clientIp;
         private final String userAgent;
         private final String sessionId;
+        private final String contextBindingHash;
         private final String requestId;
         private final String requestedModelId;
         private final Instant observedAt;
@@ -665,6 +671,7 @@ public final class RequestInfoExtractor {
         private final String roundKey;
         private final String behaviorPhase;
         private final String anomalySignal;
+        private final String anomalySignalSource;
         private final String pqaPromptFaultScenario;
         private final Boolean pqaPromptFaultRejected;
         private final String pqaPromptFaultRejectedSource;

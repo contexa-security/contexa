@@ -196,7 +196,7 @@ class AuthorizationManagerMethodInterceptorTest {
     class DenyHandlingTests {
 
         @Test
-        @DisplayName("Should handle AuthorizationDeniedException via handler and publish event")
+        @DisplayName("Should handle policy denial without triggering LLM event publication")
         void shouldHandleAuthorizationDenied() throws Throwable {
             when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
             AuthorizationDeniedException denied = new AuthorizationDeniedException("denied");
@@ -206,8 +206,8 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
                     .isInstanceOf(AuthorizationDeniedException.class);
 
-            verify(zeroTrustEventPublisher).publishMethodAuthorization(
-                    eq(methodInvocation), eq(authentication), eq(false), eq("denied"));
+            verify(zeroTrustEventPublisher, never())
+                    .publishMethodAuthorization(any(), any(), anyBoolean(), any());
         }
 
         @Test

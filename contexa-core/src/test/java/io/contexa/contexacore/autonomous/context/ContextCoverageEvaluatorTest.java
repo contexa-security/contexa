@@ -203,6 +203,42 @@ class ContextCoverageEvaluatorTest {
     }
 
     @Test
+    @DisplayName("evaluate should not report current authorization as missing when the final effect is resolved")
+    void evaluateShouldSeparateResolvedEffectFromMissingBroaderScopeMetadata() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder()
+                        .userId("alice")
+                        .build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-1")
+                        .mfaVerified(false)
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("ANALYST"))
+                        .authorizationEffect("ALLOW")
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/view")
+                        .sensitivity("MEDIUM")
+                        .build())
+                .bridge(CanonicalSecurityContext.Bridge.builder()
+                        .coverageLevel("AUTHORIZATION_CONTEXT")
+                        .missingContexts(List.of("AUTHORIZATION_EFFECT"))
+                        .remediationHints(List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request."))
+                        .build())
+                .build();
+
+        ContextCoverageReport report = new ContextCoverageEvaluator().evaluate(context);
+
+        assertThat(report.availableFacts())
+                .contains("Current request authorization effect is available.");
+        assertThat(report.missingCriticalFacts())
+                .doesNotContain("Authorization scope is unavailable.", "Authorization effect is unavailable.");
+        assertThat(report.confidenceWarnings())
+                .contains("Broader authorization scope metadata is unavailable; do not infer permissions beyond the current request authorization effect.");
+    }
+
+    @Test
     @DisplayName("evaluate should flag missing bridge context")
     void evaluateShouldFlagMissingBridgeContext() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()

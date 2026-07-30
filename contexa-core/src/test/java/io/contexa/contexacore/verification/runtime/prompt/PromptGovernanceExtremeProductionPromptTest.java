@@ -104,7 +104,8 @@ class PromptGovernanceExtremeProductionPromptTest {
             catch (IllegalStateException exception) {
                 assertThat(isOfficialPreflightGateCheck(check))
                         .as(scenario.scenarioId()
-                                + " may stop at official preflight only for an INTERNAL_EXECUTION_GATE check")
+                                + " may stop at official preflight only for an INTERNAL_EXECUTION_GATE check; actual="
+                                + exception.getMessage())
                         .isTrue();
                 assertThat(exception.getMessage()).contains("PREFLIGHT_FINAL_PROMPT_CONTRACT");
                 assertRepairedRunRestoresBaseline(scenario, baselinePackage, baselineResults, suite);

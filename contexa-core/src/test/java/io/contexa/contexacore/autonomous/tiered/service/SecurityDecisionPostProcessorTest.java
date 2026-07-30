@@ -126,6 +126,8 @@ class SecurityDecisionPostProcessorTest {
         event.addMetadata("httpMethod", "GET");
         event.addMetadata("tenantId", "demo");
         event.addMetadata("organizationId", "demo-org");
+        event.addMetadata("authMethod", "password");
+        event.addMetadata("authenticationType", "UsernamePasswordAuthenticationToken");
         event.addMetadata("mfaVerified", true);
         event.addMetadata("isSensitiveResource", true);
         event.addMetadata("recentRequestCount", 4);
@@ -153,11 +155,14 @@ class SecurityDecisionPostProcessorTest {
         assertThat(document.getText()).contains("confidence=0.70");
         assertThat(document.getText()).contains("llmAuditRiskScore=0.10");
         assertThat(document.getText()).contains("llmAuditConfidence=0.70");
+        assertThat(document.getText()).doesNotContain("Reasoning:");
+        assertThat(document.getText()).doesNotContain("Current context is consistent with recent allowed protectable access.");
         assertThat(document.getMetadata()).containsEntry("riskScore", 0.10);
         assertThat(document.getMetadata()).containsEntry("confidence", 0.70);
         assertThat(document.getMetadata()).containsEntry("llmAuditRiskScore", 0.10);
         assertThat(document.getMetadata()).containsEntry("llmAuditConfidence", 0.70);
         assertThat(document.getMetadata()).containsEntry("tenantId", "demo");
         assertThat(document.getMetadata()).containsEntry("organizationId", "demo-org");
+        assertThat(document.getMetadata()).containsEntry("authenticationType", "PASSWORD");
     }
 }

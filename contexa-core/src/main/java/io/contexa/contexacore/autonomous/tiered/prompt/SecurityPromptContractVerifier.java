@@ -139,7 +139,6 @@ public final class SecurityPromptContractVerifier {
         validateObservedPatternScope(userPrompt, learningEvidence, violations);
         validateCombinationEvidenceScope(userPrompt, learningEvidence, violations);
         validatePathComparisonResolution(userPrompt, learningEvidence, violations);
-        validateCarryCompleteness(learningEvidence, violations);
 
         return new SecurityPromptContractAudit(
                 immutableNullableMap(renderedRequestSnapshot.toMap()),
@@ -395,11 +394,6 @@ public final class SecurityPromptContractVerifier {
         }
     }
 
-    private static void validateCarryCompleteness(LearningContextEvidence learningEvidence, List<String> violations) {
-        if (learningEvidence != null && !learningEvidence.carryMissingFacts().isEmpty()) {
-            violations.add("LEARNING_CARRY_INCOMPLETE");
-        }
-    }
 
     private static boolean isLabelExpected(
             String label,

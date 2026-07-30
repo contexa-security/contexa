@@ -18,10 +18,10 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 public class SecurityDecisionContractSectionBuilder implements SecurityPromptSectionBuilder {
 
     static final String MINIMAL_RESPONSE_EXAMPLE =
-            "{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\"}";
+            "{\"action\":\"ALLOW|CHALLENGE|ESCALATE|BLOCK\",\"reasoning\":\"one concise evidence-based sentence\"}";
 
     private static final String JSON_SCHEMA = """
-            {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"action":{"type":"string","enum":["ALLOW","CHALLENGE","ESCALATE","BLOCK"]},"reasoning":{"type":"string"},"mitre":{"type":"string"},"riskScore":{"type":"number","minimum":0.0,"maximum":1.0},"confidence":{"type":"number","minimum":0.0,"maximum":1.0},"evidenceRefs":{"type":"array","items":{"type":"string"}}},"required":["action"],"additionalProperties":false}
+            {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"action":{"type":"string","enum":["ALLOW","CHALLENGE","ESCALATE","BLOCK"]},"reasoning":{"type":"string","maxLength":180},"mitre":{"type":"string"},"riskScore":{"type":"number","minimum":0.0,"maximum":1.0},"confidence":{"type":"number","minimum":0.0,"maximum":1.0},"evidenceRefs":{"type":"array","items":{"type":"string"}}},"required":["action","reasoning"],"additionalProperties":false}
             """.trim();
 
     static String formatInstructions() {
@@ -30,7 +30,16 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
                 Return one RFC8259 compliant JSON object without explanations or markdown.
                 The response must satisfy this JSON Schema:
                 ```%s```
+                Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG, copy the matching exact system-contract sentence for the current PersonalBaselineEstablished value; never assert an established baseline when it is false or absent.
                 """.formatted(JSON_SCHEMA);
+    }
+
+    static String runtimeReasoningGate() {
+        return "FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters; "
+                + "never exceed 25 words or 180 characters; "
+                + "before using fresh-verification wording, confirm the current request explicitly has VerificationRequired=true; "
+                + "MfaVerified=false or weak baseline evidence must not create that fact; "
+                + "copy any matching exact system-contract sentence verbatim without paraphrasing.";
     }
 
     @Override

@@ -85,7 +85,7 @@ class ResponseParsingStepTest {
         assertThat(result).isInstanceOf(SecurityDecisionResponseLite.class);
         SecurityDecisionResponseLite parsed = (SecurityDecisionResponseLite) result;
         assertThat(parsed.getAction()).isEqualTo("CHALLENGE");
-        assertThat(parsed.getReasoning()).isEqualTo("Model output was incomplete; challenge is required.");
+        assertThat(parsed.getReasoning()).isNull();
         assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("EMPTY_RESPONSE");
         assertThat(context.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
     }

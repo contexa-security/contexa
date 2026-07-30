@@ -67,6 +67,9 @@ public class BaselineLearningService {
         try {
             BaselineVector currentBaseline = getBaseline(userId);
             BaselineVector newBaseline = updateWithEMAFromSecurityEvent(currentBaseline, userId, decision, event);
+            if (newBaseline == null) {
+                return false;
+            }
             baselineDataStore.saveUserBaseline(userId, newBaseline);
             updateOrganizationBaseline(userId, event, newBaseline);
             return true;
@@ -94,7 +97,7 @@ public class BaselineLearningService {
         String currentBrowser = extractBrowser(event);
         String currentIpBand = SecuritySemanticNormalizer.normalizeNetwork(currentIp, extractMetadataText(event, "ipBand"));
         String currentAuthenticationType = SecuritySemanticNormalizer.normalizeAuthenticationType(
-                extractMetadataText(event, "authenticationType", "authMethod"));
+                extractMetadataText(event, "authMethod", "authenticationType"));
         String currentActionFamily = extractActionFamily(event);
         String currentResourceFamily = extractResourceFamily(event);
 
@@ -477,11 +480,12 @@ public class BaselineLearningService {
     }
 
     private String[] updateFrequentResourceFamilies(String[] current, String newResourceFamily, Map<String, Long> frequencies) {
+        String[] normalizedCurrent = semanticResourceFamilies(current).toArray(String[]::new);
         if (!StringUtils.hasText(newResourceFamily)) {
-            return current;
+            return normalizedCurrent;
         }
         frequencies.merge(FREQ_PREFIX_RESOURCE + newResourceFamily, 1L, Long::sum);
-        return mergeFrequentStringDimension(current, newResourceFamily, frequencies, FREQ_PREFIX_RESOURCE, 8);
+        return mergeFrequentStringDimension(normalizedCurrent, newResourceFamily, frequencies, FREQ_PREFIX_RESOURCE, 8);
     }
 
     private String[] mergeFrequentStringDimension(
@@ -709,7 +713,7 @@ public class BaselineLearningService {
                 strings(personalBaseline.getFrequentPaths()),
                 strings(personalBaseline.getNormalAuthenticationTypes()),
                 strings(personalBaseline.getFrequentActionFamilies()),
-                strings(personalBaseline.getFrequentResourceFamilies()),
+                semanticResourceFamilies(personalBaseline.getFrequentResourceFamilies()),
                 buildBaselineEvidenceSummary(
                         maturity.personalBaselineEstablished(),
                         personalBaseline),
@@ -777,7 +781,7 @@ public class BaselineLearningService {
                 strings(organizationBaseline.getFrequentPaths()),
                 strings(organizationBaseline.getNormalAuthenticationTypes()),
                 strings(organizationBaseline.getFrequentActionFamilies()),
-                strings(organizationBaseline.getFrequentResourceFamilies()),
+                semanticResourceFamilies(organizationBaseline.getFrequentResourceFamilies()),
                 summary.toString(),
                 BaselineEvidenceStatus.AVAILABLE,
                 "");
@@ -799,7 +803,7 @@ public class BaselineLearningService {
         addSummaryPart(parts, "paths", strings(baseline.getFrequentPaths()));
         addSummaryPart(parts, "auth", strings(baseline.getNormalAuthenticationTypes()));
         addSummaryPart(parts, "actions", strings(baseline.getFrequentActionFamilies()));
-        addSummaryPart(parts, "resources", strings(baseline.getFrequentResourceFamilies()));
+        addSummaryPart(parts, "resources", semanticResourceFamilies(baseline.getFrequentResourceFamilies()));
         return String.join(" | ", parts);
     }
 
@@ -1173,11 +1177,14 @@ public class BaselineLearningService {
     }
 
     private String extractResourceFamily(SecurityEvent event) {
-        String explicit = extractMetadataText(event, "resourceFamily", "resourceType", "resourceCategory");
-        if (StringUtils.hasText(explicit)) {
-            return SecuritySemanticNormalizer.normalizeResourceFamily(explicit);
-        }
-        return SecuritySemanticNormalizer.normalizePathFamily(extractPath(event));
+        String explicit = extractMetadataText(
+                event,
+                "resourceFamily",
+                "resourceType",
+                "resourceCategory",
+                "resourceSensitivity",
+                "sensitivity");
+        return SecuritySemanticNormalizer.normalizeResourceFamily(explicit);
     }
 
     private String extractPathFamily(SecurityEvent event) {
@@ -1225,6 +1232,18 @@ public class BaselineLearningService {
             return List.of();
         }
         return Arrays.stream(values)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private List<String> semanticResourceFamilies(String[] values) {
+        if (values == null || values.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(values)
+                .filter(value -> StringUtils.hasText(value) && !value.contains("/"))
+                .map(SecuritySemanticNormalizer::normalizeResourceFamily)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();

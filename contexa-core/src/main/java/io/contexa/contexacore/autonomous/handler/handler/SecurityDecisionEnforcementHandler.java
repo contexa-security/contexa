@@ -289,6 +289,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 .iocIndicators(indicators)
                 .mitigationActions(mitigationActions)
                 .reasoning(reasoningPrefix + firstNonBlank(result.getReasoning(), "No additional reasoning"))
+                .llmReasoning(result.getLlmReasoning())
                 .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(result.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(result.getAutonomyConstraintSummary())

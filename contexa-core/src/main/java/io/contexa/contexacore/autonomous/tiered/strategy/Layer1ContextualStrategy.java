@@ -22,7 +22,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
-import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditRecorder;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
@@ -84,7 +84,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasThreatIntelligenceService threatIntelligenceService,
                                     SaasThreatKnowledgePackService threatKnowledgePackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
-                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PromptContextAuditRecorder promptContextAuditRecorder,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties) {
         this(
@@ -100,7 +100,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 null,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 pipelineOrchestrator,
                 tieredStrategyProperties);
     }
@@ -117,7 +117,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasThreatKnowledgePackService threatKnowledgePackService,
                                     SaasDetectionStrategyPackService detectionStrategyPackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
-                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PromptContextAuditRecorder promptContextAuditRecorder,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties) {
         this(
@@ -133,7 +133,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 detectionStrategyPackService,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 pipelineOrchestrator,
                 tieredStrategyProperties,
                 null);
@@ -151,7 +151,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasThreatKnowledgePackService threatKnowledgePackService,
                                     SaasDetectionStrategyPackService detectionStrategyPackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
-                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PromptContextAuditRecorder promptContextAuditRecorder,
                                      PipelineOrchestrator pipelineOrchestrator,
                                      TieredStrategyProperties tieredStrategyProperties,
                                      StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
@@ -168,7 +168,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 detectionStrategyPackService,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 pipelineOrchestrator,
                 tieredStrategyProperties,
                 structuredOutputCapabilityRegistry,
@@ -187,14 +187,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasThreatKnowledgePackService threatKnowledgePackService,
                                     SaasDetectionStrategyPackService detectionStrategyPackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
-                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PromptContextAuditRecorder promptContextAuditRecorder,
                                     PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties,
                                     StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
                                     ExecutorService ragRetrievalExecutor) {
         super(eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
-                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties,
+                promptContextAuthorizationService, promptContextAuditRecorder, tieredStrategyProperties,
                 structuredOutputCapabilityRegistry);
         this.dataStore = dataStore;
         this.securityLearningService = securityLearningService;
@@ -239,10 +239,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .technicalFallbackCategory(decision.getTechnicalFallbackCategory())
                 .technicalFallbackReason(decision.getTechnicalFallbackReason())
                 .technicalFallbackAction(decision.getTechnicalFallbackAction())
+                .responseActionFallbackApplied(decision.getResponseActionFallbackApplied())
+                .responseActionFallbackCategory(decision.getResponseActionFallbackCategory())
+                .responseActionFallbackReason(decision.getResponseActionFallbackReason())
+                .responseActionFallbackAction(decision.getResponseActionFallbackAction())
                 .reasoning(decision.getReasoning())
+                .llmReasoning(decision.getLlmReasoning())
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())
+                .autonomyConstraintPolicy(decision.getAutonomyConstraintPolicy())
+                .autonomyConstraintSource(decision.getAutonomyConstraintSource())
+                .autonomyConstraintVersion(decision.getAutonomyConstraintVersion())
                 .fieldProvenance(decision.getFieldProvenance())
                 .build();
     }
@@ -328,6 +336,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setLlmDecisionPresent(true);
             decision.setTechnicalFallbackApplied(false);
             applySecurityDecisionRuntimeTelemetry(decision, pipelineResponse);
+            applyTrustedConfirmedMaliciousConstraint(decision, event);
+            applyRequiredVerificationConstraint(decision, event);
+            applyCanonicalDecisionReasoning(decision, event, relatedDocuments);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
             runtimeTelemetryMs = System.currentTimeMillis() - runtimeTelemetryStart;

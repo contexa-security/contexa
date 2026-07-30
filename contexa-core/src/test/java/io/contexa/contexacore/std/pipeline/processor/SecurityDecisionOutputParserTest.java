@@ -137,6 +137,42 @@ class SecurityDecisionOutputParserTest {
     }
 
     @Test
+    void parseShouldNormalizeOneDecoratedCanonicalAction() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-decorated-action");
+
+        SecurityDecisionResponseLite result = parser.parse("""
+                {
+                  "action": "ALLOW_WITH_ADDITIONAL_CONTEXT",
+                  "reasoning": "Current authorization and resource facts support access."
+                }
+                """, context);
+
+        assertThat(result.getAction()).isEqualTo("ALLOW");
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionOutputRepairApplied", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionActionCandidate", String.class))
+                .isEqualTo("ALLOW_WITH_ADDITIONAL_CONTEXT");
+    }
+
+    @Test
+    void parseShouldFailClosedForAmbiguousDecoratedActions() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-ambiguous-action");
+
+        SecurityDecisionResponseLite result = parser.parse("""
+                {
+                  "action": "ALLOW_OR_CHALLENGE",
+                  "reasoning": "The model returned more than one action."
+                }
+                """, context);
+
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
+                .isEqualTo("ACTION_FORMAT_INVALID");
+    }
+
+    @Test
     void parseShouldFailClosedForEmptyResponse() {
         PipelineExecutionContext context = new PipelineExecutionContext("parse-empty");
 

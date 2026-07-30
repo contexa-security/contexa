@@ -65,6 +65,46 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
     }
 
     @Test
+    void notApplicablePurposeEvidenceUsesTheContractNotApplicableMessage() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        FinalPromptMetricContractCatalog contracts = FinalPromptMetricContractCatalog.load(objectMapper);
+        OfficialRunMetricContractView contractView = new OfficialRunMetricContractView(
+                mock(PromptQualityOfficialMetricCatalog.class), contracts);
+        OfficialVerificationOperatorSnapshotService.OperatorSnapshot base = operatorSnapshot();
+        OfficialVerificationOperatorSnapshotService.OperatorPurposeEvidence storedEvidence =
+                new OfficialVerificationOperatorSnapshotService.OperatorPurposeEvidence(
+                        "agg-001", "pkg-001", "COR",
+                        "COR_NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE",
+                        "final-user-prompt.v1", "no_rag_context_no_contamination_surface",
+                        "internalGate.ragEvidence.absence", "persisted failure text",
+                        "evidence-hash", "RAG branch applicability", "NOT_APPLICABLE",
+                        false, "INTERNAL_REFERENCE", List.of(), List.of(),
+                        Instant.parse("2026-07-30T00:00:00Z"));
+        OfficialVerificationOperatorSnapshotService.OperatorSnapshot snapshot =
+                new OfficialVerificationOperatorSnapshotService.OperatorSnapshot(
+                        base.batch(), base.metrics(), base.findings(), base.remediationGroups(),
+                        base.actualPromptProblems(), List.of(storedEvidence), base.auditSnapshots());
+
+        List<OfficialMetricPurposeEvidence> evidence = contractView.purposeEvidenceForMetric(snapshot, "COR");
+        String expected = contracts.check(
+                "COR", "COR_NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE").notApplicableMessage();
+
+        assertThat(evidence).singleElement()
+                .extracting(OfficialMetricPurposeEvidence::evidenceValue)
+                .isEqualTo(expected);
+
+        OfficialRunMetricEvidenceMapper mapper = new OfficialRunMetricEvidenceMapper(
+                contractView, new OfficialRunDetailPresentation(PromptQualityTestResolvers.koreanBundle()));
+        assertThat(mapper.mergePurposeEvidenceChecks("COR", List.of(), evidence))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.evaluationState()).isEqualTo(OfficialVerificationCheckState.NOT_APPLICABLE);
+                    assertThat(check.pass()).isFalse();
+                    assertThat(check.actualValue()).isEqualTo(expected);
+                });
+    }
+
+    @Test
     void llmDecisionQualityCheckRemainsVisibleForPreviouslyPersistedPurposeEvidence() {
         PromptQualityMessageResolver messages = PromptQualityTestResolvers.koreanBundle();
         OfficialRunMetricEvidenceMapper mapper = new OfficialRunMetricEvidenceMapper(
@@ -85,6 +125,16 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
 
         assertThat(mapper.customerVisibleChecks("D03", List.of(check), List.of(legacyEvidence)))
                 .containsExactly(check);
+    }
+
+    @Test
+    void officialCertificateStateUsesItsOwnPresentationContract() {
+        OfficialRunDetailPresentation presentation =
+                new OfficialRunDetailPresentation(PromptQualityTestResolvers.koreanBundle());
+
+        assertThat(presentation.officialStateLabel("CERTIFIABLE")).isEqualTo("공식검사 통과");
+        assertThat(presentation.officialStateLabel("BLOCKED")).isEqualTo("공식검사 차단");
+        assertThat(presentation.officialStateLabel("INELIGIBLE")).isEqualTo("검토 필요");
     }
 
     private DefaultPromptQualityOfficialRunDetailService service(
@@ -578,8 +628,8 @@ class DefaultPromptQualityOfficialRunDetailServiceTest {
             assertThat(consistency.checkCountMatched()).isTrue();
         });
         assertThat(detail.runs()).singleElement().satisfies(run -> {
-            assertThat(run.totalChecks()).isEqualTo(2);
-            assertThat(run.passedChecks()).isEqualTo(2);
+            assertThat(run.totalChecks()).isEqualTo(1);
+            assertThat(run.passedChecks()).isEqualTo(1);
             assertThat(run.checks()).extracting("checkCode")
                     .containsExactly("RAG_APPLICABILITY_DECLARED", "NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE");
             assertThat(run.checks()).filteredOn(check -> !check.customerVisible())

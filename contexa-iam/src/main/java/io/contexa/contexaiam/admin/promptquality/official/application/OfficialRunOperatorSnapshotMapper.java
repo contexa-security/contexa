@@ -37,7 +37,7 @@ final class OfficialRunOperatorSnapshotMapper {
     }
 
     String stateLabel(String state) {
-        return presentation.stateLabel(state);
+        return presentation.officialStateLabel(state);
     }
 
     OfficialRunPackageListItem listItem(OperatorRunBatch batch) {
@@ -59,7 +59,7 @@ final class OfficialRunOperatorSnapshotMapper {
                 batch.packageId(), batch.aggregateRunId(), batch.finalDecision(), batch.blocked(),
                 batch.blockReasonSummary(), batch.expectedMetricCount(), batch.actualMetricCount(),
                 batch.passedMetricCount(), batch.failedMetricCount(), batch.certificateId(), batch.caseId(),
-                batch.finalDecision(), presentation.stateLabel(batch.finalDecision()),
+                batch.finalDecision(), presentation.officialStateLabel(batch.finalDecision()),
                 StringUtils.hasText(batch.certificateId()) && !batch.blocked(), batch.blockReasonSummary(),
                 batch.promptHash(), batch.contextHash(), batch.contextHashState(), batch.templateResourceId(),
                 batch.actualResourceId(), batch.resourceUrlTemplate(), batch.actualRequestPath(), batch.httpMethod(),
@@ -72,7 +72,7 @@ final class OfficialRunOperatorSnapshotMapper {
                         batch.createdAt() == null ? "" : batch.createdAt().toString(),
                         batch.createdAt() == null ? "" : batch.createdAt().toString(),
                         batch.actualMetricCount(), batch.passedMetricCount(), batch.failedMetricCount(),
-                        batch.finalDecision(), presentation.stateLabel(batch.finalDecision()), true)));
+                        batch.finalDecision(), presentation.officialStateLabel(batch.finalDecision()), true)));
     }
 
     List<OfficialRunFailureCause> failureCauses(OperatorSnapshot snapshot) {

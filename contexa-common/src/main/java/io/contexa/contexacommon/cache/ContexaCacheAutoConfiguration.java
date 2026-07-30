@@ -103,6 +103,7 @@ public class ContexaCacheAutoConfiguration {
 
     @Configuration
     @ConditionalOnMissingBean(ContexaCacheService.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     static class FallbackCacheConfig {
 
         @Bean

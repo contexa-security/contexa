@@ -144,6 +144,31 @@ class DefaultRoleScopeCollectorTest {
         assertThat(snapshot.getElevationWindowSummary()).contains("0");
     }
 
+    @Test
+    @DisplayName("collect treats reordered authorization scope values as the same scope")
+    void collect_treatsReorderedAuthorizationScopeValuesAsSameScope() {
+        collector.collect(event(
+                LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ANALYST", "ROLE_REVIEWER"),
+                List.of("customer_data", "reporting"),
+                List.of("report.read", "report.review"),
+                "READ",
+                "REPORT",
+                true));
+
+        RoleScopeSnapshot snapshot = collector.collect(event(
+                LocalDateTime.of(2026, 3, 26, 9, 20),
+                List.of("ROLE_REVIEWER", "ROLE_ANALYST"),
+                List.of("reporting", "customer_data"),
+                List.of("report.review", "report.read"),
+                "READ",
+                "REPORT",
+                true)).orElseThrow();
+
+        assertThat(snapshot.getRecentPermissionChanges()).isEmpty();
+        assertThat(snapshot.getTemporaryElevation()).isNull();
+        assertThat(snapshot.getElevatedPrivilegeWindowActive()).isFalse();
+    }
     private SecurityEvent event(
             LocalDateTime timestamp,
             List<String> effectiveRoles,

@@ -28,7 +28,7 @@ import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightDecision;
-import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditRecorder;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
@@ -81,6 +81,24 @@ import reactor.core.publisher.Mono;
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
     private static final ExecutorService RAG_EXECUTOR = createRagExecutor();
+    private static final String REQUIRED_VERIFICATION_POLICY = "PROTECTABLE_REQUIRED_VERIFICATION";
+    private static final String REQUIRED_VERIFICATION_POLICY_SOURCE = "Protectable.verificationRequired";
+    private static final String REQUIRED_VERIFICATION_POLICY_VERSION = "1";
+    private static final String CONFIRMED_MALICIOUS_POLICY = "TRUSTED_CONFIRMED_MALICIOUS_SIGNAL";
+    private static final String CONFIRMED_MALICIOUS_POLICY_SOURCE = "anomalySignalSource";
+    private static final String CONFIRMED_MALICIOUS_POLICY_VERSION = "1";
+    private static final String SAME_RESOURCE_RAG_ALLOW_REASONING =
+            "Authorization allows access, and authorized RAG is relevant to the same resource.";
+    private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
+            "Authorization allows access, the personal baseline is established, "
+                    + "and authorized RAG is relevant to the same resource.";
+    private static final String REQUIRED_VERIFICATION_CHALLENGE_REASONING =
+            "Fresh verification is required before allowing access because the high-sensitivity resource "
+                    + "requires verification and MFA is not verified.";
+    private static final String CONFIRMED_MALICIOUS_BLOCK_REASONING =
+            "A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.";
+    private static final Set<String> CONFIRMED_MALICIOUS_MARKERS = Set.of(
+            "ATTACK", "MALICIOUS", "EXFILTRATION", "INJECTION", "COMPROMISE", "FORGERY");
 
     private static ExecutorService createRagExecutor() {
         return new ThreadPoolExecutor(
@@ -112,7 +130,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
-    protected final PromptContextAuditForwardingService promptContextAuditForwardingService;
+    protected final PromptContextAuditRecorder promptContextAuditRecorder;
     protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
     private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
@@ -139,7 +157,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             UnifiedVectorService unifiedVectorService,
             BaselineLearningService baselineLearningService,
             PromptContextAuthorizationService promptContextAuthorizationService,
-            PromptContextAuditForwardingService promptContextAuditForwardingService,
+            PromptContextAuditRecorder promptContextAuditRecorder,
             TieredStrategyProperties tieredStrategyProperties) {
         this(
                 eventEnricher,
@@ -148,7 +166,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 unifiedVectorService,
                 baselineLearningService,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 tieredStrategyProperties,
                 StructuredOutputCapabilityRegistry.defaultRegistry());
     }
@@ -160,7 +178,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             UnifiedVectorService unifiedVectorService,
             BaselineLearningService baselineLearningService,
             PromptContextAuthorizationService promptContextAuthorizationService,
-            PromptContextAuditForwardingService promptContextAuditForwardingService,
+            PromptContextAuditRecorder promptContextAuditRecorder,
             TieredStrategyProperties tieredStrategyProperties,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
@@ -173,7 +191,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         this.promptContextAuthorizationService = promptContextAuthorizationService != null
                 ? promptContextAuthorizationService
                 : new PromptContextAuthorizationService();
-        this.promptContextAuditForwardingService = promptContextAuditForwardingService;
+        this.promptContextAuditRecorder = promptContextAuditRecorder;
         this.structuredOutputCapabilityRegistry = structuredOutputCapabilityRegistry != null
                 ? structuredOutputCapabilityRegistry
                 : StructuredOutputCapabilityRegistry.defaultRegistry();
@@ -760,6 +778,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         try {
             String targetResource = eventEnricher.getTargetResource(event).orElse(null);
+            String resourceId = firstTextMetadata(event.getMetadata(),
+                    "resourceId", "requestedResourceId", "protectableResourceId", "protectedResourceId");
+            String resourceScope = StringUtils.hasText(resourceId) ? resourceId : targetResource;
             String query = buildRelatedContextQuery(event, targetResource);
             if (query.isEmpty()) {
                 capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
@@ -780,7 +801,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             if (isLayer1SingleUserRagSearchEnabled()) {
                 List<Document> documents = searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
-                        buildBehaviorFilterForUser(userId, retrievalPurpose));
+                        buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope));
                 annotateRagSearchPlan(event, "LAYER1_SINGLE_USER_QUERY", 1,
                         List.of("BROAD_QUERY", "BASELINE_QUERY", "SUPPORTING_QUERY"));
 
@@ -800,7 +821,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             // 1. Search behavior documents scoped to the current user.
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
-                            buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR);
+                            buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR);
 
             // 2. Search broader related context when it differs from the personal query.
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
@@ -809,7 +830,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             CompletableFuture<List<Document>> broadFuture = runBroad
                     ? CompletableFuture.supplyAsync(() ->
                             searchBehaviorDocuments(broadQuery, requestedTopK, broadThreshold,
-                                    buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
             // 3. Search the user baseline context when it adds another signal.
@@ -820,7 +841,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             CompletableFuture<List<Document>> baselineFuture = runBaseline
                     ? CompletableFuture.supplyAsync(() ->
                             searchBehaviorDocuments(userBaselineQuery, requestedTopK, 0.0d,
-                                    buildBehaviorFilterForUser(userId, retrievalPurpose)), RAG_EXECUTOR)
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
             // 4. Search supporting organization documents when the personal baseline is not established.
@@ -1237,13 +1258,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .toList();
     }
 
-    private Filter.Expression buildBehaviorFilterForUser(String userId, String retrievalPurpose) {
+    private Filter.Expression buildBehaviorFilterForUser(
+            String userId,
+            String retrievalPurpose,
+            String resourceId) {
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
         predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
         predicates.add(filterBuilder.eq(VectorDocumentMetadata.USER_ID, userId));
         if (StringUtils.hasText(retrievalPurpose)) {
             predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
+        }
+        if (StringUtils.hasText(resourceId)) {
+            predicates.add(filterBuilder.eq("resourceId", resourceId));
         }
         return combinePredicates(filterBuilder, predicates);
     }
@@ -1371,11 +1398,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             SecurityEvent event,
             String retrievalPurpose,
             AuthorizedPromptContext authorizedPromptContext) {
-        if (promptContextAuditForwardingService == null || event == null || authorizedPromptContext == null) {
+        if (promptContextAuditRecorder == null || event == null || authorizedPromptContext == null) {
             return;
         }
         try {
-            promptContextAuditForwardingService.capture(event, retrievalPurpose, authorizedPromptContext);
+            promptContextAuditRecorder.capture(event, retrievalPurpose, authorizedPromptContext);
         } catch (Exception captureException) {
             log.error("[{}] Prompt context audit capture failed", getLayerName(), captureException);
         }
@@ -1702,9 +1729,203 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
         decision.setLlmDecisionPresent(true);
+        preserveModelReasoning(decision);
         decision.setTechnicalFallbackApplied(false);
     }
 
+    /**
+     * Applies the mandatory fresh-verification boundary without replacing the
+     * LLM-proposed action. The proposed action remains available through
+     * {@link SecurityDecision#getAction()} for quality auditing, while the
+     * autonomous action is constrained to CHALLENGE for enforcement.
+     */
+    protected void applyRequiredVerificationConstraint(SecurityDecision decision, SecurityEvent event) {
+        if (decision == null || event == null || event.getMetadata() == null
+                || decision.resolveAutonomousAction() != ZeroTrustAction.ALLOW) {
+            return;
+        }
+
+        Map<String, Object> metadata = event.getMetadata();
+        boolean verificationRequired = Boolean.TRUE.equals(booleanValue(metadata.get("protectableVerificationRequired")))
+                || Boolean.TRUE.equals(booleanValue(metadata.get("verificationRequired")));
+        boolean mfaNotVerified = Boolean.FALSE.equals(booleanValue(metadata.get("mfaVerified")));
+        String authorizationEffect = firstNonBlank(metadata.get("authorizationEffect"));
+        if (!verificationRequired || !mfaNotVerified || !"ALLOW".equalsIgnoreCase(authorizationEffect)) {
+            return;
+        }
+
+        preserveModelReasoning(decision);
+        decision.setAutonomousAction(ZeroTrustAction.CHALLENGE);
+        decision.setAutonomyConstraintApplied(true);
+        List<String> reasons = decision.getAutonomyConstraintReasons() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(decision.getAutonomyConstraintReasons());
+        if (!reasons.contains("FRESH_VERIFICATION_REQUIRED")) {
+            reasons.add("FRESH_VERIFICATION_REQUIRED");
+        }
+        decision.setAutonomyConstraintReasons(reasons);
+        decision.setAutonomyConstraintPolicy(REQUIRED_VERIFICATION_POLICY);
+        decision.setAutonomyConstraintSource(REQUIRED_VERIFICATION_POLICY_SOURCE);
+        decision.setAutonomyConstraintVersion(REQUIRED_VERIFICATION_POLICY_VERSION);
+        String summary = "Protectable verification is required and MFA is not verified; "
+                + "final autonomous action was constrained from ALLOW to CHALLENGE.";
+        decision.setAutonomyConstraintSummary(summary);
+        String reasoning = decision.getReasoning();
+        if (reasoning == null || reasoning.isBlank()) {
+            decision.setReasoning(summary);
+        } else if (!reasoning.contains(summary)) {
+            decision.setReasoning(reasoning + "\n" + summary);
+        }
+    }
+
+
+    /**
+     * Produces the final operator-facing explanation from the same canonical
+     * evidence that constrains enforcement. Historical RAG facts remain model
+     * input, but cannot be restated as current request facts.
+     */
+    protected void applyCanonicalDecisionReasoning(
+            SecurityDecision decision,
+            SecurityEvent event,
+            List<Document> relatedDocuments) {
+        if (decision == null || event == null || event.getMetadata() == null) {
+            return;
+        }
+
+        Map<String, Object> metadata = event.getMetadata();
+        ZeroTrustAction finalAction = decision.resolveAutonomousAction();
+        String anomalySource = firstNonBlank(metadata.get("anomalySignalSource"));
+        String anomalySignal = firstNonBlank(metadata.get("anomalySignal"));
+        if (finalAction == ZeroTrustAction.BLOCK
+                && "OFFICIAL_VERIFICATION_INTERNAL".equalsIgnoreCase(anomalySource)
+                && isConfirmedMaliciousSignal(anomalySignal)) {
+            setCanonicalReasoning(decision, CONFIRMED_MALICIOUS_BLOCK_REASONING);
+            return;
+        }
+
+        boolean verificationRequired = Boolean.TRUE.equals(booleanValue(metadata.get("protectableVerificationRequired")))
+                || Boolean.TRUE.equals(booleanValue(metadata.get("verificationRequired")));
+        boolean mfaNotVerified = Boolean.FALSE.equals(booleanValue(metadata.get("mfaVerified")));
+        String sensitivity = firstNonBlank(metadata.get("resourceSensitivity"), metadata.get("sensitivity"));
+        if (finalAction == ZeroTrustAction.CHALLENGE
+                && verificationRequired
+                && mfaNotVerified
+                && ("HIGH".equalsIgnoreCase(sensitivity) || "CRITICAL".equalsIgnoreCase(sensitivity))) {
+            setCanonicalReasoning(decision, REQUIRED_VERIFICATION_CHALLENGE_REASONING);
+            return;
+        }
+
+        if (finalAction == ZeroTrustAction.ALLOW && hasSameResourceAuthorizedRag(metadata, relatedDocuments)) {
+            boolean personalBaselineEstablished = Boolean.TRUE.equals(
+                    booleanValue(metadata.get("personalBaselineEstablished")))
+                    || Boolean.TRUE.equals(booleanValue(metadata.get("learningPersonalBaselineEstablished")));
+            setCanonicalReasoning(
+                    decision,
+                    personalBaselineEstablished
+                            ? SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING
+                            : SAME_RESOURCE_RAG_ALLOW_REASONING);
+        }
+    }
+
+    private void setCanonicalReasoning(SecurityDecision decision, String canonicalReasoning) {
+        preserveModelReasoning(decision);
+        Map<String, String> provenance = decision.getFieldProvenance() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(decision.getFieldProvenance());
+        decision.setReasoning(canonicalReasoning);
+        provenance.put("reasoning", "PLATFORM_CANONICAL");
+        decision.setFieldProvenance(Map.copyOf(provenance));
+    }
+
+    private void preserveModelReasoning(SecurityDecision decision) {
+        Map<String, String> provenance = decision.getFieldProvenance() == null
+                ? Map.of()
+                : decision.getFieldProvenance();
+        boolean modelReasoning = "MODEL".equalsIgnoreCase(provenance.get("reasoning"))
+                || (provenance.get("reasoning") == null
+                        && Boolean.TRUE.equals(decision.getLlmDecisionPresent()));
+        if (modelReasoning && !StringUtils.hasText(decision.getLlmReasoning())) {
+            decision.setLlmReasoning(decision.getReasoning());
+        }
+    }
+
+    private boolean hasSameResourceAuthorizedRag(
+            Map<String, Object> metadata,
+            List<Document> relatedDocuments) {
+        if (!Boolean.TRUE.equals(booleanValue(metadata.get("ragProjectedToFinalPrompt")))
+                || relatedDocuments == null
+                || relatedDocuments.isEmpty()) {
+            return false;
+        }
+        String currentResource = firstNonBlank(
+                metadata.get("resourceId"),
+                metadata.get("managedResourceId"),
+                metadata.get("requestedResourceId"),
+                metadata.get("requestPath"));
+        if (!StringUtils.hasText(currentResource)) {
+            return false;
+        }
+        return relatedDocuments.stream().allMatch(document -> {
+            Map<String, Object> documentMetadata = document != null && document.getMetadata() != null
+                    ? document.getMetadata()
+                    : Map.of();
+            String documentResource = firstNonBlank(
+                    documentMetadata.get("resourceId"),
+                    documentMetadata.get("managedResourceId"),
+                    documentMetadata.get("requestPath"),
+                    documentMetadata.get("resourcePath"));
+            return StringUtils.hasText(documentResource)
+                    && currentResource.trim().equalsIgnoreCase(documentResource.trim());
+        });
+    }
+
+    protected void applyTrustedConfirmedMaliciousConstraint(SecurityDecision decision, SecurityEvent event) {
+        if (decision == null || event == null || event.getMetadata() == null
+                || decision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {
+            return;
+        }
+
+        Map<String, Object> metadata = event.getMetadata();
+        String source = firstNonBlank(metadata.get("anomalySignalSource"));
+        String signal = firstNonBlank(metadata.get("anomalySignal"));
+        if (!"OFFICIAL_VERIFICATION_INTERNAL".equalsIgnoreCase(source)
+                || !isConfirmedMaliciousSignal(signal)) {
+            return;
+        }
+
+        ZeroTrustAction previousAction = decision.resolveAutonomousAction();
+        preserveModelReasoning(decision);
+        decision.setAutonomousAction(ZeroTrustAction.BLOCK);
+        decision.setAutonomyConstraintApplied(true);
+        List<String> reasons = decision.getAutonomyConstraintReasons() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(decision.getAutonomyConstraintReasons());
+        if (!reasons.contains("CONFIRMED_MALICIOUS_ACTIVITY")) {
+            reasons.add("CONFIRMED_MALICIOUS_ACTIVITY");
+        }
+        decision.setAutonomyConstraintReasons(reasons);
+        decision.setAutonomyConstraintPolicy(CONFIRMED_MALICIOUS_POLICY);
+        decision.setAutonomyConstraintSource(CONFIRMED_MALICIOUS_POLICY_SOURCE);
+        decision.setAutonomyConstraintVersion(CONFIRMED_MALICIOUS_POLICY_VERSION);
+        String summary = "A trusted internal security signal confirmed malicious activity; final autonomous action was constrained from "
+                + previousAction + " to BLOCK.";
+        decision.setAutonomyConstraintSummary(summary);
+        String reasoning = decision.getReasoning();
+        if (reasoning == null || reasoning.isBlank()) {
+            decision.setReasoning(summary);
+        } else if (!reasoning.contains(summary)) {
+            decision.setReasoning(reasoning + "\n" + summary);
+        }
+    }
+
+    private boolean isConfirmedMaliciousSignal(String signal) {
+        if (signal == null || signal.isBlank()) {
+            return false;
+        }
+        String normalized = signal.trim().toUpperCase(Locale.ROOT);
+        return normalized.startsWith("CONFIRMED_")
+                && CONFIRMED_MALICIOUS_MARKERS.stream().anyMatch(normalized::contains);
+    }
     private Boolean booleanValue(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -1924,8 +2145,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         copyPromptTextIfPresent(responseMetadata, metadata, "userPrompt");
         copyPromptTextIfPresent(responseMetadata, metadata, "rawSystemPrompt");
         copyPromptTextIfPresent(responseMetadata, metadata, "rawUserPrompt");
-        if (promptContextAuditForwardingService != null && hasPromptLineage(metadata)) {
-            promptContextAuditForwardingService.enrich(event);
+        if (promptContextAuditRecorder != null && hasPromptLineage(metadata)) {
+            promptContextAuditRecorder.enrich(event);
         }
     }
 

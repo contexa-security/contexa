@@ -21,14 +21,24 @@ import java.util.stream.Collectors;
 final class OfficialRunMetricSummaryCalculator {
 
     int detailTotalChecks(List<OfficialRunCheckDetail> checks, int fallback) {
-        return checks != null && !checks.isEmpty() ? checks.size() : Math.max(fallback, 0);
+        return checks != null && !checks.isEmpty()
+                ? evaluatedDetailChecks(checks).size()
+                : Math.max(fallback, 0);
     }
 
     int detailPassedChecks(List<OfficialRunCheckDetail> checks, int fallback) {
         if (checks != null && !checks.isEmpty()) {
-            return (int) checks.stream().filter(Objects::nonNull).filter(OfficialRunCheckDetail::pass).count();
+            return (int) evaluatedDetailChecks(checks).stream().filter(OfficialRunCheckDetail::pass).count();
         }
         return Math.max(fallback, 0);
+    }
+
+    private List<OfficialRunCheckDetail> evaluatedDetailChecks(List<OfficialRunCheckDetail> checks) {
+        return checks.stream()
+                .filter(Objects::nonNull)
+                .filter(check -> !"INTERNAL_REFERENCE".equals(normalize(check.readinessScope()))
+                        || "NOT_APPLICABLE".equals(normalize(check.purposeResult())))
+                .toList();
     }
 
     List<OfficialActualPromptProblem> actualPromptProblems(OperatorSnapshot snapshot) {

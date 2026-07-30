@@ -15,11 +15,13 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,7 @@ import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -38,6 +41,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     private static final Duration LAST_VERIFIED_ACTION_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
+    private static final ObjectMapper LEGACY_HASH_VALUE_READER = new ObjectMapper();
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration failCountTtl;
@@ -315,12 +319,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 fields.putAll(additionalFields);
             }
 
-            redisTemplate.opsForHash().putAll(analysisKey, fields);
-
             Duration ttl = action.getDefaultTtl();
-            if (ttl != null) {
-                redisTemplate.expire(analysisKey, ttl);
-            }
+            replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, action.name(), LAST_VERIFIED_ACTION_TTL);
@@ -350,24 +350,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ? previousAction.toString()
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
 
-            Map<String, Object> fields = new HashMap<>();
+            Map<String, Object> fields = mutableAnalysis(userId);
             fields.put("previousAction", previousActionStr);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
             Duration ttl = newAction.getDefaultTtl();
-
-            redisTemplate.execute(new SessionCallback<>() {
-                @Override
-                public Object execute(RedisOperations operations) throws DataAccessException {
-                    operations.multi();
-                    operations.opsForHash().putAll(analysisKey, fields);
-                    if (ttl != null) {
-                        operations.expire(analysisKey, ttl);
-                    }
-                    return operations.exec();
-                }
-            });
+            replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
@@ -392,7 +381,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ? previousAction.toString()
                     : ZeroTrustAction.PENDING_ANALYSIS.name();
 
-            Map<String, Object> fields = new HashMap<>();
+            Map<String, Object> fields = mutableAnalysis(userId);
             fields.put("previousAction", previousActionStr);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
@@ -400,12 +389,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 fields.put("contextBindingHash", contextBindingHash);
             }
 
-            redisTemplate.opsForHash().putAll(analysisKey, fields);
-
             Duration ttl = newAction.getDefaultTtl();
-            if (ttl != null) {
-                redisTemplate.expire(analysisKey, ttl);
-            }
+            replaceAnalysisAtomically(analysisKey, fields, ttl);
 
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
@@ -536,18 +521,19 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
             String lastActionKey = ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId);
 
-            Map<String, Object> fields = new HashMap<>();
+            Map<String, Object> fields = mutableAnalysis(userId);
             fields.put("action", newAction.name());
             fields.put("updatedAt", Instant.now().toString());
 
+            Duration ttl = newAction.getDefaultTtl();
             redisTemplate.execute(new SessionCallback<List<Object>>() {
                 @Override
                 public List<Object> execute(RedisOperations operations) throws DataAccessException {
                     operations.multi();
                     operations.delete(blockKey);
+                    operations.delete(analysisKey);
                     operations.opsForHash().putAll(analysisKey, fields);
 
-                    Duration ttl = newAction.getDefaultTtl();
                     if (ttl != null) {
                         operations.expire(analysisKey, ttl);
                     }
@@ -590,8 +576,71 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
     private Map<Object, Object> readAnalysis(String userId) {
         String canonicalKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
-        Map<Object, Object> canonical = redisTemplate.opsForHash().entries(canonicalKey);
-        return canonical != null ? canonical : Map.of();
+        try {
+            Map<Object, Object> canonical = redisTemplate.opsForHash().entries(canonicalKey);
+            return canonical != null ? canonical : Map.of();
+        } catch (SerializationException ex) {
+            Map<Object, Object> legacy = stringRedisTemplate.opsForHash().entries(canonicalKey);
+            if (legacy == null || legacy.isEmpty()) {
+                throw ex;
+            }
+            Map<Object, Object> decoded = new HashMap<>();
+            legacy.forEach((key, value) -> decoded.put(key, decodeLegacyHashValue(value)));
+            log.warn("[ZeroTrustActionRedisRepository] Read legacy action hash for compatible migration: key={}",
+                    canonicalKey);
+            return decoded;
+        }
+    }
+
+    private Object decodeLegacyHashValue(Object value) {
+        if (!(value instanceof String serialized)) {
+            return value;
+        }
+        try {
+            return LEGACY_HASH_VALUE_READER.readValue(serialized, Object.class);
+        } catch (Exception ignored) {
+            return serialized;
+        }
+    }
+
+    private Map<String, Object> mutableAnalysis(String userId) {
+        Map<String, Object> result = new HashMap<>();
+        readAnalysis(userId).forEach((key, value) -> result.put(key.toString(), value));
+        return result;
+    }
+
+    private void replaceAnalysisAtomically(String analysisKey,
+                                           Map<String, Object> fields,
+                                           Duration ttl) {
+        Map<String, Object> canonicalFields = new HashMap<>();
+        fields.forEach((key, value) -> canonicalFields.put(key, canonicalizeRedisValue(value)));
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            public List<Object> execute(RedisOperations operations) throws DataAccessException {
+                operations.multi();
+                operations.delete(analysisKey);
+                operations.opsForHash().putAll(analysisKey, canonicalFields);
+                if (ttl != null) {
+                    operations.expire(analysisKey, ttl);
+                }
+                return operations.exec();
+            }
+        });
+    }
+
+    private Object canonicalizeRedisValue(Object value) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<String, Object> canonical = new HashMap<>();
+            mapValue.forEach((key, nestedValue) ->
+                    canonical.put(key.toString(), canonicalizeRedisValue(nestedValue)));
+            return canonical;
+        }
+        if (value instanceof Iterable<?> iterableValue) {
+            List<Object> canonical = new ArrayList<>();
+            iterableValue.forEach(item -> canonical.add(canonicalizeRedisValue(item)));
+            return canonical;
+        }
+        return value;
     }
 
     private String readLastVerifiedAction(String userId) {

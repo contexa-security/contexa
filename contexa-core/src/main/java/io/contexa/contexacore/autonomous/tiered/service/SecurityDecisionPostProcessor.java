@@ -172,9 +172,6 @@ public class SecurityDecisionPostProcessor {
         }
         sb.append("\n");
 
-        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
-            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 300)).append("\n");
-        }
         if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
             sb.append("AutonomyConstraint: ")
                     .append(truncate(decision.getAutonomyConstraintSummary(), 220))
@@ -525,8 +522,8 @@ public class SecurityDecisionPostProcessor {
         }
 
         String normalizedAuthenticationType = SecuritySemanticNormalizer.normalizeAuthenticationType(
-                metadata.get("authenticationType"),
-                eventMeta != null ? eventMeta.get("authMethod") : null);
+                eventMeta != null ? eventMeta.get("authMethod") : null,
+                metadata.get("authenticationType"));
         if (normalizedAuthenticationType != null) {
             metadata.put("authenticationType", normalizedAuthenticationType);
         }

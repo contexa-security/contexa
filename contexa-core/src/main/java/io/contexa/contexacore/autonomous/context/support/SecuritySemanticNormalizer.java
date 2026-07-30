@@ -98,7 +98,7 @@ public final class SecuritySemanticNormalizer {
             if (containsAny(candidate, "SENSITIVE", "HIGH")) {
                 return "SENSITIVE";
             }
-            if (containsAny(candidate, "NORMAL", "INTERNAL", "STANDARD")) {
+            if (containsAny(candidate, "NORMAL", "MEDIUM", "INTERNAL", "STANDARD")) {
                 return "NORMAL";
             }
             if (containsAny(candidate, "PUBLIC", "LOW")) {

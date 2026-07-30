@@ -56,6 +56,11 @@ public class SecurityDecision {
     private String threatCategory;
     private List<String> mitigationActions;
     private String reasoning;
+    /**
+     * Raw reasoning emitted by the LLM before platform canonicalization or
+     * autonomy constraints replace the operator-facing explanation.
+     */
+    private String llmReasoning;
 
     private List<String> iocIndicators;
     private Map<String, String> mitreMapping;

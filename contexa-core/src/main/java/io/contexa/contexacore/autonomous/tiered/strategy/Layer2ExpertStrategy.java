@@ -19,7 +19,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
 import io.contexa.contexacore.ThreatAssessment;
-import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditRecorder;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
@@ -83,7 +83,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 SaasThreatIntelligenceService threatIntelligenceService,
                                 SaasThreatKnowledgePackService threatKnowledgePackService,
                                 PromptContextAuthorizationService promptContextAuthorizationService,
-                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PromptContextAuditRecorder promptContextAuditRecorder,
                                 PipelineOrchestrator pipelineOrchestrator) {
         this(
                 approvalService,
@@ -100,7 +100,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 null,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 pipelineOrchestrator);
     }
 
@@ -118,7 +118,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 SaasThreatKnowledgePackService threatKnowledgePackService,
                                 SaasDetectionStrategyPackService detectionStrategyPackService,
                                 PromptContextAuthorizationService promptContextAuthorizationService,
-                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PromptContextAuditRecorder promptContextAuditRecorder,
                                 PipelineOrchestrator pipelineOrchestrator) {
         this(
                 approvalService,
@@ -135,7 +135,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 detectionStrategyPackService,
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService,
+                promptContextAuditRecorder,
                 pipelineOrchestrator,
                 null);
     }
@@ -154,12 +154,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 SaasThreatKnowledgePackService threatKnowledgePackService,
                                 SaasDetectionStrategyPackService detectionStrategyPackService,
                                 PromptContextAuthorizationService promptContextAuthorizationService,
-                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PromptContextAuditRecorder promptContextAuditRecorder,
                                 PipelineOrchestrator pipelineOrchestrator,
                                 StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
         super(eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
-              promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties,
+              promptContextAuthorizationService, promptContextAuditRecorder, tieredStrategyProperties,
               structuredOutputCapabilityRegistry);
 
         this.approvalService = approvalService;
@@ -200,6 +200,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .responseActionFallbackReason(expertDecision.getResponseActionFallbackReason())
                 .responseActionFallbackAction(expertDecision.getResponseActionFallbackAction())
                 .reasoning(expertDecision.getReasoning())
+                .llmReasoning(expertDecision.getLlmReasoning())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
@@ -279,7 +280,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             expertDecision.setTechnicalFallbackApplied(false);
             applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
             applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
+            applyTrustedConfirmedMaliciousConstraint(expertDecision, event);
+            applyRequiredVerificationConstraint(expertDecision, event);
             terminalizeLayer2EscalateDecision(expertDecision);
+            applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar()
                     && expertDecision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {

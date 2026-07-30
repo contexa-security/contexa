@@ -8082,6 +8082,18 @@
         "failureType": "FINAL_PROMPT_RAG_NOT_APPLICABLE",
         "customerVisible": false,
         "readinessScope": "INTERNAL_REFERENCE",
+        "applicabilityRule": {
+          "operator": "RAG_ABSENCE_DECLARED",
+          "sections": [
+            "RAG",
+            "RAG EVIDENCE",
+            "RETRIEVED CONTEXT",
+            "RELATED DOCUMENTS",
+            "LEARNING SEARCH",
+            "KNOWLEDGE CONTEXT",
+            "THREAT MEMORY"
+          ]
+        },
         "rule": {
           "operator": "RAG_ABSENCE_DECLARED",
           "sections": [
@@ -8100,7 +8112,7 @@
         "expectedMessage": "RAG를 쓰지 않은 요청에는 검색 문서 오염 검사를 적용하지 않아야 합니다.",
         "passMessage": "RAG 미사용 요청은 오염 검사 대상에서 제외됩니다.",
         "failureMessage": "RAG 미사용 요청에 오염 검사가 잘못 적용되었습니다.",
-        "notApplicableMessage": "검색된 검색 문서가 없어서 RAG 오염 검사는 적용하지 않습니다.",
+        "notApplicableMessage": "RAG 문서가 사용되어 미사용 분기 검사는 적용하지 않습니다.",
         "whyItMatters": "RAG를 쓰지 않은 요청은 RAG 오염 검사를 적용하지 않습니다를 확인합니다.",
         "nextAction": "RAG 미사용 사유를 내부 참고로 기록해야 합니다.",
         "reverifyCriterion": "다시 검사했을 때 RAG를 쓰지 않은 요청은 RAG 오염 검사를 적용하지 않습니다.",

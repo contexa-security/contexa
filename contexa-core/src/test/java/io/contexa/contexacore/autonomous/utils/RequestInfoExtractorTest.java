@@ -199,6 +199,7 @@ class RequestInfoExtractorTest {
         request.addHeader("X-Contexa-Max-Tokens", "96");
         request.addHeader("X-Contexa-Disable-Retries", "true");
         request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
+        request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
@@ -211,6 +212,8 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getRuntimeMaxTokens()).isNull();
         assertThat(requestInfo.getRuntimeDisableRetries()).isNull();
         assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isNull();
+        assertThat(requestInfo.getAnomalySignal()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
+        assertThat(requestInfo.getAnomalySignalSource()).isEqualTo("UNTRUSTED_REQUEST_HEADER");
     }
 
     @Test
@@ -225,6 +228,7 @@ class RequestInfoExtractorTest {
         request.addHeader("X-Contexa-Max-Tokens", "96");
         request.addHeader("X-Contexa-Disable-Retries", "true");
         request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
+        request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
@@ -237,6 +241,8 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getRuntimeMaxTokens()).isEqualTo(96);
         assertThat(requestInfo.getRuntimeDisableRetries()).isTrue();
         assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isTrue();
+        assertThat(requestInfo.getAnomalySignal()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
+        assertThat(requestInfo.getAnomalySignalSource()).isEqualTo("OFFICIAL_VERIFICATION_INTERNAL");
     }
 
     @Test

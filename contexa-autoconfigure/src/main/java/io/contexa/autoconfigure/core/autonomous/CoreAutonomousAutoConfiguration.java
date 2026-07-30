@@ -379,7 +379,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
-            ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            ObjectProvider<PromptContextAuditRecorder> promptContextAuditRecorder,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
@@ -398,7 +398,7 @@ public class CoreAutonomousAutoConfiguration {
                 threatKnowledgePackService.getIfAvailable(),
                 detectionStrategyPackService.getIfAvailable(),
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService.getIfAvailable(),
+                promptContextAuditRecorder.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
                 tieredStrategyProperties,
                 structuredOutputCapabilityRegistry,
@@ -431,7 +431,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<SaasDetectionStrategyPackService> detectionStrategyPackService,
-            ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            ObjectProvider<PromptContextAuditRecorder> promptContextAuditRecorder,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
@@ -450,7 +450,7 @@ public class CoreAutonomousAutoConfiguration {
                 threatKnowledgePackService.getIfAvailable(),
                 detectionStrategyPackService.getIfAvailable(),
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService.getIfAvailable(),
+                promptContextAuditRecorder.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
                 structuredOutputCapabilityRegistry);
     }
@@ -554,30 +554,35 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
+      @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
       public InMemoryZeroTrustActionRepository inMemoryZeroTrustActionRepository() {
           return new InMemoryZeroTrustActionRepository();
       }
 
       @Bean
       @ConditionalOnMissingBean(BaselineDataStore.class)
+      @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
       public InMemoryBaselineDataStore baselineDataStore() {
           return new InMemoryBaselineDataStore();
       }
 
     @Bean
     @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {
         return new InMemoryProtectableRapidReentryRepository();
     }
 
     @Bean
     @ConditionalOnMissingBean(DistributedLockService.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryDistributedLockService inMemoryDistributedLockService() {
         return new InMemoryDistributedLockService();
     }
 
     @Bean
     @ConditionalOnMissingBean(ThreatScoreUtil.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryThreatScoreUtil inMemoryThreatScoreUtil(
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new InMemoryThreatScoreUtil(securityZeroTrustProperties);
@@ -585,6 +590,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(SecurityContextDataStore.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemorySecurityContextDataStore inMemorySecurityContextDataStore() {
         return new InMemorySecurityContextDataStore();
     }

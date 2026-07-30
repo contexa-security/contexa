@@ -192,10 +192,23 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         context.addMetadata("structuredOutputMode", "SECURITY_DECISION_RAW_GUARDED");
         context.addMetadata("securityDecisionParsingMode", "RAW_GUARDED");
         return execute(context)
-                .map(rawResponse -> {
+                .flatMap(rawResponse -> {
                     context.addMetadata("rawExecutionSucceeded", true);
                     context.addMetadata("structuredOutputComplete", true);
-                    return targetType.cast(parseSecurityDecisionRawResponse(rawResponse, context));
+                    T parsed = targetType.cast(parseSecurityDecisionRawResponse(rawResponse, context));
+                    if (!securityDecisionParsingFallbackApplied(context) || isRetryDisabled(context)) {
+                        return Mono.just(parsed);
+                    }
+                    preserveInitialSecurityDecisionParseFailure(context);
+                    resetSecurityDecisionParseFailure(context);
+                    context.addMetadata("securityDecisionOutputRetryAttempted", true);
+                    return execute(context).map(retryRawResponse -> {
+                        T retryParsed = targetType.cast(parseSecurityDecisionRawResponse(retryRawResponse, context));
+                        context.addMetadata(
+                                "securityDecisionOutputRetrySucceeded",
+                                !securityDecisionParsingFallbackApplied(context));
+                        return retryParsed;
+                    });
                 })
                 .onErrorResume(error -> {
                     log.error("LLM security decision raw guarded execution failed - RequestId: {}",
@@ -210,6 +223,36 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     context.addMetadata("structuredOutputComplete", true);
                     return Mono.just(targetType.cast(parseSecurityDecisionRawResponse("", context)));
                 });
+    }
+
+    private boolean securityDecisionParsingFallbackApplied(ExecutionContext context) {
+        return context != null
+                && Boolean.TRUE.equals(context.getMetadata().get("securityDecisionParsingFallbackApplied"));
+    }
+
+    private void preserveInitialSecurityDecisionParseFailure(ExecutionContext context) {
+        context.addMetadata(
+                "securityDecisionInitialRawOutputHash",
+                context.getMetadata().get("securityDecisionRawOutputHash"));
+        context.addMetadata(
+                "securityDecisionInitialRawOutputLength",
+                context.getMetadata().get("securityDecisionRawOutputLength"));
+        context.addMetadata(
+                "securityDecisionInitialParseFailureCategory",
+                context.getMetadata().get("securityDecisionParseFailureCategory"));
+        context.addMetadata(
+                "securityDecisionInitialFallbackAction",
+                context.getMetadata().get("securityDecisionFallbackAction"));
+        context.addMetadata(
+                "securityDecisionInitialFallbackReason",
+                context.getMetadata().get("securityDecisionFallbackReason"));
+    }
+
+    private void resetSecurityDecisionParseFailure(ExecutionContext context) {
+        context.addMetadata("securityDecisionParseFailureCategory", "NONE");
+        context.addMetadata("structuredOutputFailureCategory", "NONE");
+        context.addMetadata("securityDecisionFallbackAction", null);
+        context.addMetadata("securityDecisionFallbackReason", null);
     }
 
     private SecurityDecisionResponseLite parseSecurityDecisionRawResponse(String rawResponse, ExecutionContext context) {

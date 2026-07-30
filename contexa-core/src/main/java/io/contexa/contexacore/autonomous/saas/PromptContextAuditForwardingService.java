@@ -28,7 +28,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.concurrent.Executor;
 
-public class PromptContextAuditForwardingService {
+public class PromptContextAuditForwardingService implements PromptContextAuditRecorder {
 
     private final PromptContextAuditForwardingOutboxRepository repository;
     private final PromptContextAuditPayloadMapper payloadMapper;
@@ -49,6 +49,7 @@ public class PromptContextAuditForwardingService {
         this.executor = executor;
     }
 
+    @Override
     public void capture(SecurityEvent event, String retrievalPurpose, AuthorizedPromptContext authorizedPromptContext) {
         PromptContextAuditPayload payload = payloadMapper.map(event, retrievalPurpose, authorizedPromptContext);
         repository.findByAuditId(payload.getAuditId()).ifPresentOrElse(
@@ -56,6 +57,7 @@ public class PromptContextAuditForwardingService {
                 () -> saveAndDispatch(event, payload));
     }
 
+    @Override
     public void enrich(SecurityEvent event) {
         if (event == null) {
             return;

@@ -72,6 +72,8 @@ public class ProcessingResult {
 
     private String reasoning;
 
+    private String llmReasoning;
+
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();
 

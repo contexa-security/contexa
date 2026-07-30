@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeW
 import io.contexa.contexacore.autonomous.saas.learning.cohort.CohortSeedRuntimeWeightState;
 import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
 import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -673,6 +674,9 @@ class AbstractTieredStrategyTest {
                 .doesNotContain("Chrome/148")
                 .doesNotContain("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(fallbackRequest.getSimilarityThreshold()).isEqualTo(0.0d);
+        assertThat(String.valueOf(fallbackRequest.getFilterExpression()))
+                .contains("resourceId", "resource-001")
+                .doesNotContain("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(event.getMetadata())
                 .containsEntry("ragRetrievalState", "AVAILABLE")
                 .containsEntry("relatedDocumentCount", 1)
@@ -773,6 +777,217 @@ class AbstractTieredStrategyTest {
                 .isEqualTo(BaselineEvidenceStatus.MISSING_USER_ID);
     }
 
+    @Test
+    @DisplayName("successful LLM telemetry should preserve the raw model reasoning")
+    void applySecurityDecisionRuntimeTelemetry_shouldPreserveRawModelReasoning() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.CHALLENGE)
+                .reasoning("Raw model explanation.")
+                .build();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setFieldProvenance(Map.of("reasoning", "MODEL"));
+        response.withMetadata("llmDecisionPresent", true);
+
+        strategy.applySecurityDecisionRuntimeTelemetryForTest(decision, response);
+
+        assertThat(decision.getLlmDecisionPresent()).isTrue();
+        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
+        assertThat(decision.getLlmReasoning()).isEqualTo("Raw model explanation.");
+    }
+
+    @Test
+    @DisplayName("required verification should preserve LLM ALLOW and constrain final action to CHALLENGE")
+    void applyRequiredVerificationConstraint_shouldPreserveProposedActionAndChallengeFinalAction() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("The model proposed ALLOW.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "protectableVerificationRequired", true,
+                        "mfaVerified", false,
+                        "authorizationEffect", "ALLOW")))
+                .build();
+
+        strategy.applyRequiredVerificationConstraintForTest(decision, event);
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
+        assertThat(decision.getAutonomyConstraintReasons()).containsExactly("FRESH_VERIFICATION_REQUIRED");
+        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("PROTECTABLE_REQUIRED_VERIFICATION");
+        assertThat(decision.getAutonomyConstraintSource()).isEqualTo("Protectable.verificationRequired");
+        assertThat(decision.getAutonomyConstraintVersion()).isEqualTo("1");
+        assertThat(decision.getReasoning()).contains("final autonomous action was constrained from ALLOW to CHALLENGE");
+        assertThat(decision.getLlmReasoning()).isEqualTo("The model proposed ALLOW.");
+    }
+
+    @Test
+    @DisplayName("required verification constraint should not alter non-required resources")
+    void applyRequiredVerificationConstraint_shouldLeaveNonRequiredAllowUnchanged() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "protectableVerificationRequired", false,
+                        "mfaVerified", false,
+                        "authorizationEffect", "ALLOW")))
+                .build();
+
+        strategy.applyRequiredVerificationConstraintForTest(decision, event);
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(decision.getAutonomyConstraintApplied()).isNotEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    @DisplayName("trusted confirmed malicious signal should constrain final action to block")
+    void applyTrustedConfirmedMaliciousConstraint_shouldBlockWithoutReplacingModelProposal() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.CHALLENGE)
+                .reasoning("Model requested additional verification.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION_AND_PROMPT_INJECTION_ATTACK",
+                        "anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")))
+                .build();
+
+        strategy.applyTrustedConfirmedMaliciousConstraintForTest(decision, event);
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
+        assertThat(decision.getAutonomyConstraintReasons()).containsExactly("CONFIRMED_MALICIOUS_ACTIVITY");
+        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("TRUSTED_CONFIRMED_MALICIOUS_SIGNAL");
+        assertThat(decision.getAutonomyConstraintSource()).isEqualTo("anomalySignalSource");
+        assertThat(decision.getAutonomyConstraintVersion()).isEqualTo("1");
+        assertThat(decision.getReasoning()).contains("constrained from CHALLENGE to BLOCK");
+        assertThat(decision.getLlmReasoning()).isEqualTo("Model requested additional verification.");
+    }
+
+    @Test
+    @DisplayName("untrusted request anomaly should not constrain final action")
+    void applyTrustedConfirmedMaliciousConstraint_shouldIgnoreUntrustedHeader() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.CHALLENGE)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION_ATTACK",
+                        "anomalySignalSource", "UNTRUSTED_REQUEST_HEADER")))
+                .build();
+
+        strategy.applyTrustedConfirmedMaliciousConstraintForTest(decision, event);
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintApplied()).isNotEqualTo(Boolean.TRUE);
+    }
+
+
+    @Test
+    @DisplayName("same-resource authorized RAG should produce the canonical ALLOW explanation")
+    void applyCanonicalDecisionReasoning_shouldUseSameResourceAllowExplanation() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("MFA verified in historical signals.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "resourceId", "resource-001",
+                        "ragProjectedToFinalPrompt", true,
+                        "personalBaselineEstablished", true)))
+                .build();
+        Document document = new Document("historical evidence", Map.of("resourceId", "resource-001"));
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
+
+        assertThat(decision.getReasoning())
+                .isEqualTo("Authorization allows access, the personal baseline is established, "
+                        + "and authorized RAG is relevant to the same resource.");
+        assertThat(decision.getLlmReasoning()).isEqualTo("MFA verified in historical signals.");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+    }
+
+    @Test
+    @DisplayName("same-resource authorized RAG must not invent an absent baseline")
+    void applyCanonicalDecisionReasoning_shouldNotInventAbsentBaseline() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Model explanation.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "resourceId", "resource-001",
+                        "ragProjectedToFinalPrompt", true,
+                        "personalBaselineEstablished", false)))
+                .build();
+        Document document = new Document("historical evidence", Map.of("resourceId", "resource-001"));
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
+
+        assertThat(decision.getReasoning())
+                .isEqualTo("Authorization allows access, and authorized RAG is relevant to the same resource.");
+        assertThat(decision.getReasoning()).doesNotContain("baseline");
+    }
+    @Test
+    @DisplayName("required high-sensitivity verification should produce a current-fact CHALLENGE explanation")
+    void applyCanonicalDecisionReasoning_shouldUseRequiredVerificationChallengeExplanation() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.CHALLENGE)
+                .reasoning("MFA is verified.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "protectableVerificationRequired", true,
+                        "mfaVerified", false,
+                        "resourceSensitivity", "HIGH")))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
+
+        assertThat(decision.getReasoning())
+                .isEqualTo("Fresh verification is required before allowing access because the high-sensitivity resource "
+                        + "requires verification and MFA is not verified.");
+        assertThat(decision.getLlmReasoning()).isEqualTo("MFA is verified.");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+    }
+
+    @Test
+    @DisplayName("trusted confirmed malicious evidence should produce the canonical BLOCK explanation")
+    void applyCanonicalDecisionReasoning_shouldUseConfirmedMaliciousBlockExplanation() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.BLOCK)
+                .reasoning("No anomaly exists.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "anomalySignal", "CONFIRMED_PROMPT_INJECTION",
+                        "anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
+
+        assertThat(decision.getReasoning())
+                .isEqualTo("A trusted internal security signal confirmed malicious activity; "
+                        + "final autonomous action is BLOCK.");
+        assertThat(decision.getLlmReasoning()).isEqualTo("No anomaly exists.");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+    }
+
     // -- Concrete test implementation of the abstract class --
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
@@ -826,6 +1041,27 @@ class AbstractTieredStrategyTest {
 
         void capturePromptRuntimeTelemetryForTest(SecurityEvent event, SecurityDecisionResponse response) {
             capturePromptRuntimeTelemetry(event, response);
+        }
+
+        void applySecurityDecisionRuntimeTelemetryForTest(
+                SecurityDecision decision,
+                SecurityDecisionResponse response) {
+            applySecurityDecisionRuntimeTelemetry(decision, response);
+        }
+
+        void applyRequiredVerificationConstraintForTest(SecurityDecision decision, SecurityEvent event) {
+            applyRequiredVerificationConstraint(decision, event);
+        }
+
+        void applyTrustedConfirmedMaliciousConstraintForTest(SecurityDecision decision, SecurityEvent event) {
+            applyTrustedConfirmedMaliciousConstraint(decision, event);
+        }
+
+        void applyCanonicalDecisionReasoningForTest(
+                SecurityDecision decision,
+                SecurityEvent event,
+                List<Document> relatedDocuments) {
+            applyCanonicalDecisionReasoning(decision, event, relatedDocuments);
         }
 
         void clearPromptRuntimeTelemetryForTest(SecurityEvent event) {

@@ -173,12 +173,28 @@ class FinalPromptMetricEvaluationSuiteTest {
         assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "TlsFingerprintAltered")).isTrue();
         assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "AbnormalHeaderOrder")).isTrue();
         assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "ImpossibleTravel")).isTrue();
+        assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "ObservedAnomalySignal")).isTrue();
+        assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "AnomalySignalSource")).isTrue();
+        assertThat(catalog.isKnownPromptFact("REQUEST INTENT SIGNAL CONTEXT", "AnomalySignalTrust")).isTrue();
+        assertThat(catalog.promptSignalContracts()).anySatisfy(signal -> {
+            assertThat(signal.label()).isEqualTo("ObservedAnomalySignal");
+            assertThat(signal.promptLocation()).isEqualTo("finalUserPrompt.signal.observedAnomalySignal");
+        });
+        assertThat(catalog.promptSignalContracts()).anySatisfy(signal -> {
+            assertThat(signal.label()).isEqualTo("AnomalySignalSource");
+            assertThat(signal.promptLocation()).isEqualTo("finalUserPrompt.signal.anomalySignalSource");
+        });
+        assertThat(catalog.promptSignalContracts()).anySatisfy(signal -> {
+            assertThat(signal.label()).isEqualTo("AnomalySignalTrust");
+            assertThat(signal.promptLocation()).isEqualTo("finalUserPrompt.signal.anomalySignalTrust");
+        });
     }
 
     @Test
     void ragReasonFieldsAreRegisteredPromptSignals() {
         FinalPromptMetricContractCatalog catalog = FinalPromptMetricContractCatalog.load(objectMapper);
         List<String> ragReasonLabels = List.of(
+                "RagRelevance",
                 "RagScopeReason",
                 "RagAuthorizationReason",
                 "RagDocumentScopeReason",
@@ -192,6 +208,7 @@ class FinalPromptMetricEvaluationSuiteTest {
 
         String userPrompt = """
                 === RAG EVIDENCE ===
+                RagRelevance: SAME_RESOURCE
                 RagScopeReason: tenant demo, resource resource-001, purpose security_investigation.
                 RagAuthorizationReason: user persona_fin_lead is authorized for retrieved evidence.
                 RagDocumentScopeReason: each document is bound to tenant demo and request purpose.
@@ -466,6 +483,19 @@ class FinalPromptMetricEvaluationSuiteTest {
             assertThat(check.detectedSignalsJson()).doesNotContain("unmappedPromptFact=");
             assertThat(check.detectedSignalsJson()).doesNotContain("UnexpectedRuntimeLabel");
         });
+    }
+
+    @Test
+    void protectableVerificationRequirementIsMappedByThePromptContract() {
+        String userPrompt = validFinalUserPrompt() + "\nVerificationRequired: false\n";
+
+        Map<String, OfficialMetricEvaluationResult> results =
+                new FinalPromptMetricEvaluationSuite(objectMapper, PromptGovernanceExtremeTestHarness.messages())
+                        .evaluatePromptQuality(packageFor(outputContractSystemPrompt(), userPrompt));
+
+        assertThat(results.get("MTR").checks())
+                .filteredOn(check -> "MTR_UNMAPPED_PROMPT_FACTS_ABSENT".equals(check.checkCode()))
+                .allSatisfy(check -> assertThat(check.passed()).isTrue());
     }
 
     @Test
@@ -1313,6 +1343,13 @@ class FinalPromptMetricEvaluationSuiteTest {
                 new FinalPromptMetricEvaluationSuite(objectMapper, PromptGovernanceExtremeTestHarness.messages()).evaluatePromptQuality(evidencePackage);
 
         assertThat(results.get("COR").state()).as("COR checks: %s", results.get("COR").checks()).isEqualTo("success");
+        assertThat(results.get("COR").checks())
+                .filteredOn(check -> check.checkCode().equals("COR_NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE"))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.purposeResult()).isEqualTo("NOT_APPLICABLE");
+                    assertThat(check.actualValue()).isEqualTo("RAG 문서가 사용되어 미사용 분기 검사는 적용하지 않습니다.");
+                });
         assertThat(results.get("RAP").state()).as("RAP checks: %s", results.get("RAP").checks()).isEqualTo("success");
         assertThat(results.get("RAP").totalChecks()).isEqualTo(6);
         assertThat(results.get("RAP").passedChecks()).isEqualTo(6);
@@ -1353,6 +1390,13 @@ class FinalPromptMetricEvaluationSuiteTest {
                 new FinalPromptMetricEvaluationSuite(objectMapper, PromptGovernanceExtremeTestHarness.messages()).evaluatePromptQuality(evidencePackage);
 
         assertThat(results.get("COR").state()).as("COR checks: %s", results.get("COR").checks()).isEqualTo("success");
+        assertThat(results.get("COR").checks())
+                .filteredOn(check -> check.checkCode().equals("COR_NO_RAG_CONTEXT_NO_CONTAMINATION_SURFACE"))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.purposeResult()).isEqualTo("NOT_APPLICABLE");
+                    assertThat(check.actualValue()).isEqualTo("RAG 문서가 사용되어 미사용 분기 검사는 적용하지 않습니다.");
+                });
         assertThat(results.get("RAP").state()).as("RAP checks: %s", results.get("RAP").checks()).isEqualTo("success");
         assertThat(results.get("RAP").checks())
                 .filteredOn(check -> check.customerVisible() && "PURPOSE_PASSED".equals(check.purposeResult()))
@@ -1879,7 +1923,7 @@ class FinalPromptMetricEvaluationSuiteTest {
     private void assertCustomerRuntimeFactUnitsDoNotRepeatAcrossChecks(OfficialMetricEvaluationResult result) {
         Map<String, String> ownerByUnit = new LinkedHashMap<>();
         result.checks().stream()
-                .filter(OfficialMetricCheckObservation::customerVisible)
+                .filter(check -> check.customerVisible() && "READY".equals(check.inputReadinessState()))
                 .forEach(check -> {
                     try {
                         List<Object> signals = objectMapper.readValue(check.detectedSignalsJson(), new TypeReference<>() {});

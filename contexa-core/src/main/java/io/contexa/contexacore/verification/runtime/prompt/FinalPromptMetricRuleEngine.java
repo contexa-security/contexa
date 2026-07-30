@@ -598,6 +598,9 @@ final class FinalPromptMetricRuleEngine {
     private static boolean ragAbsenceDeclared(FinalPromptMetricEvaluationContext context, FinalPromptMetricRule rule) {
         Map<String, Object> rag = ragResults(context);
         FinalPromptSnapshot prompt = context == null ? null : context.prompt();
+        if (retrievedDocumentCount(rag) > 0) {
+            return false;
+        }
         if (StringUtils.hasText(ragText(context, rule)) && promptRagStateDeclared(prompt)) {
             return true;
         }

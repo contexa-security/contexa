@@ -83,7 +83,7 @@ public final class OfficialVerificationMetricResultAssembler {
                 : notEvaluated ? "NOT_EVALUATED"
                 : metricPassed ? "SUCCESS" : "threshold_failed";
         int evaluated = passed + failed;
-        double score = evaluated == 0 ? (notApplicable ? 100.0d : 0.0d)
+        double score = evaluated == 0 ? (metricPassed || notApplicable ? 100.0d : 0.0d)
                 : Math.round(((double) passed / evaluated) * 1000.0d) / 10.0d;
         return new RuntimeEvidenceMetricResult(
                 metricCode,

@@ -30,10 +30,37 @@ import reactor.core.publisher.Mono;
 
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
+
+    @Test
+    void executeEntityShouldRetryOnceWhenRequiredActionIsMissing() {
+        AtomicInteger calls = new AtomicInteger();
+        UnifiedLLMOrchestrator orchestrator = orchestratorReturning(calls,
+                "{\"reasoning\":\"Authorization allows this medium-sensitivity request.\"}",
+                "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this medium-sensitivity request.\"}");
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setRequestId("security-raw-retry");
+
+        SecurityDecisionResponseLite result = orchestrator
+                .executeEntity(context, SecurityDecisionResponseLite.class)
+                .block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAction()).isEqualTo("ALLOW");
+        assertThat(calls).hasValue(2);
+        assertThat(context.getMetadata())
+                .containsEntry("securityDecisionOutputRetryAttempted", true)
+                .containsEntry("securityDecisionOutputRetrySucceeded", true)
+                .containsEntry("securityDecisionInitialParseFailureCategory", "ACTION_MISSING")
+                .containsEntry("securityDecisionInitialFallbackAction", "CHALLENGE")
+                .containsEntry("securityDecisionParseFailureCategory", "NONE")
+                .containsEntry("securityDecisionParsingFallbackApplied", false)
+                .containsEntry("llmDecisionPresent", true);
+    }
 
     @Test
     void executeEntityShouldUseRawGuardedParserForSecurityDecisionLite() {
@@ -55,7 +82,7 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
         assertThat(result).isNotNull();
         assertThat(result.getAction()).isEqualTo("ALLOW");
         assertThat(result.getReasoning()).isEqualTo("The request has a known user and read-only scope.");
-        assertThat(result.getRiskScore()).isEqualTo(0.20d);
+        assertThat(result.getRiskScore()).isNull();
         assertThat(context.getMetadata())
                 .containsEntry("entityExecutionAttempted", false)
                 .containsEntry("entityExecutionSucceeded", false)
@@ -96,7 +123,7 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
 
         assertThat(result).isNotNull();
         assertThat(result.getAction()).isEqualTo("CHALLENGE");
-        assertThat(result.getReasoning()).isEqualTo("Model output was incomplete; challenge is required.");
+        assertThat(result.getReasoning()).isNull();
         assertThat(context.getMetadata())
                 .containsEntry("rawExecutionSucceeded", false)
                 .containsEntry("securityDecisionParseFailureCategory", "MODEL_UNAVAILABLE")
@@ -109,6 +136,15 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
             @Override
             public Mono<String> execute(ExecutionContext context) {
                 return Mono.just(rawResponse);
+            }
+        };
+    }
+
+    private UnifiedLLMOrchestrator orchestratorReturning(AtomicInteger calls, String first, String second) {
+        return new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(), new TieredLLMProperties(), new AdvisorRegistry(), new SecurityPlaneProperties()) {
+            @Override
+            public Mono<String> execute(ExecutionContext context) {
+                return Mono.just(calls.getAndIncrement() == 0 ? first : second);
             }
         };
     }

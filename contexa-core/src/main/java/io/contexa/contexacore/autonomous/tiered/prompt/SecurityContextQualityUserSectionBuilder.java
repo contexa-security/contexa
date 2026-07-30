@@ -35,6 +35,8 @@ public class SecurityContextQualityUserSectionBuilder implements SecurityPromptS
 
         template.appendIfPresent(section, missingKnowledgeSection);
         template.appendIfPresent(section, baselineGapSupport);
+
         return section.toString();
     }
+
 }

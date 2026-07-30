@@ -46,6 +46,13 @@ class LearningContextEvidenceAssemblerTest {
         assertThat(evidence.personalBaseline().status()).isEqualTo(BaselineEvidenceStatus.NO_DATA);
         assertThat(evidence.personalBaseline().summary()).isEmpty();
         assertThat(evidence.personalBaseline().diagnostic()).isEmpty();
+        assertThat(evidence.carryRequiredFacts())
+                .doesNotContain(
+                        "HistoricalComparableScope",
+                        "HistoricalComparableCount",
+                        "HistoricalComparableSummary",
+                        "ComparableExample1",
+                        "CurrentRequestClosestObservedOverlap");
     }
 
     @Test

@@ -28,6 +28,7 @@ import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.aopalliance.intercept.MethodInvocation;
@@ -71,6 +72,7 @@ class ZeroTrustEventPublisherTest {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
         request.setRequestedSessionId("session-1");
         request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Simulated-User-Agent", "JUnit /ato");
         request.setRemoteAddr("10.0.0.10");
         request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResult());
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
@@ -87,6 +89,7 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
+        assertThat(event.getUserAgent()).isEqualTo("JUnit /ato");
         assertThat(event.getPayload())
                 .containsEntry("principalType", "USER")
                 .containsEntry("authenticationType", "JWT")
@@ -110,12 +113,19 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("authorizationEffectFallbackFrom", "UNKNOWN")
                 .containsEntry("methodAuthorizationGranted", true)
                 .containsEntry("policyId", "policy-1")
+                .containsEntry("contextBindingHash", SessionFingerprintUtil.generateContextBindingHash(
+                        "session-1", "10.0.0.10", "JUnit"))
                 .doesNotContainKeys("credentials", "credential", "accessToken", "token", "secret");
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeMissingContexts", List.of()))
                 .contains(MissingBridgeContext.AUTHORIZATION_EFFECT.name());
         assertThat((List<String>) event.getPayload().getOrDefault("bridgeRemediationHints", List.of()))
                 .anyMatch(hint -> hint.contains("authorization effect"));
-        assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
+        assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("USER");
+        assertThat((List<String>) event.getPayload().get("effectivePermissions"))
+                .contains("report.export")
+                .doesNotContain("role.pending.analysis");
+        assertThat((List<String>) event.getPayload().get("authorities"))
+                .doesNotContain("ROLE_PENDING_ANALYSIS");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
     }
 
@@ -131,6 +141,7 @@ class ZeroTrustEventPublisherTest {
         request.setAttribute(
                 "officialVerification.protectableResourceUrl",
                 "/api/security-test/sensitive/{resourceId}");
+        request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -148,6 +159,8 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getPayload())
                 .containsEntry("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}")
                 .containsEntry("resourceUrlTemplate", "/api/security-test/sensitive/{resourceId}")
+                .containsEntry("anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION")
+                .containsEntry("anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")
                 .containsEntry(
                         "resourceId",
                         SampleService.class.getName() + "#protectableApprove");
@@ -283,6 +296,7 @@ class ZeroTrustEventPublisherTest {
                 "n/a",
                 List.of(
                         new SimpleGrantedAuthority("ROLE_ANALYST"),
+                        new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"),
                         new SimpleGrantedAuthority("report.export"),
                         new SimpleGrantedAuthority("MFA_VERIFIED"))
         );
@@ -311,8 +325,35 @@ class ZeroTrustEventPublisherTest {
         assertThat((List<String>) event.getPayload().get("expectedActionFamilies")).containsExactly("READ");
         assertThat((List<String>) event.getPayload().get("recentPermissionChanges")).containsExactly("NONE_RECORDED");
         assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
-        assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("report.export");
+        assertThat((List<String>) event.getPayload().get("effectivePermissions"))
+                .contains("report.export")
+                .doesNotContain("role.pending.analysis");
         assertThat((List<String>) event.getPayload().get("authorities")).contains("ROLE_ANALYST", "report.export", "MFA_VERIFIED");
+        assertThat((List<String>) event.getPayload().get("authorities")).doesNotContain("ROLE_PENDING_ANALYSIS");
+    }
+
+    @Test
+    @DisplayName("runtime action and role authorities should not be projected as permissions")
+    void shouldNotProjectRoleAuthoritiesAsPermissions() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/view");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "alice",
+                "n/a",
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_ANALYST"),
+                        new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS")));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(invocation, authentication, true, null);
+
+        assertThat((List<String>) event.getPayload().get("effectiveRoles")).containsExactly("ANALYST");
+        assertThat(event.getPayload()).doesNotContainKey("effectivePermissions");
+        assertThat((List<String>) event.getPayload().get("authorities"))
+                .containsExactly("ROLE_ANALYST");
     }
 
     @Test
@@ -435,7 +476,7 @@ class ZeroTrustEventPublisherTest {
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
-                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER"), Map.of(
+                new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER", "ROLE_PENDING_ANALYSIS"), Map.of(
                         "tenantId", "tenant-a",
                         "organizationId", "org-a",
                         "credentials", "must-not-leak",
@@ -452,10 +493,11 @@ class ZeroTrustEventPublisherTest {
                         null,
                         "HEADER",
                         Instant.now(),
-                        List.of("ROLE_USER"),
+                        List.of("ROLE_USER", "ROLE_PENDING_ANALYSIS"),
                         List.of(
                                 "PermissionAuthority{authority='REPORT_EXPORT', permissionId=7}",
                                 "RoleAuthority{authority='ROLE_USER', roleId=1}",
+                                "ROLE_PENDING_ANALYSIS",
                                 "/reports/export"),
                         Map.of("token", "must-not-leak", "secret", "must-not-leak")),
                 new DelegationStamp("alice", "agent-1", true, "objective-1", "REPORT_EXPORT", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, false, null, Map.of(

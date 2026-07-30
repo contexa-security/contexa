@@ -86,7 +86,7 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("estimatedSystemTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("estimatedUserTokens", Integer.class)).isPositive();
         assertThat(context.getMetadata("estimatedTotalTokens", Integer.class)).isPositive();
-        assertThat(context.getMetadata("promptBudgetEnforcementMode", String.class)).isEqualTo("LOSSLESS_OPTIMIZED");
+        assertThat(context.getMetadata("promptBudgetEnforcementMode", String.class)).isEqualTo("OBSERVE_ONLY");
         assertThat(context.getMetadata("promptTransformationMode", String.class)).isIn("IDENTITY", "NORMALIZE_ONLY", "NORMALIZE_AND_COMPACT", "NORMALIZE_AND_FUSE");
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isNotNull();
         assertThat(context.getMetadata("rawPromptHash", String.class)).startsWith("sha256:");
@@ -283,8 +283,8 @@ class PromptGenerationStepTest {
         PromptGenerationResult promptResult = (PromptGenerationResult) result;
         assertThat(promptResult.getRawSystemPrompt()).isNotBlank();
         assertThat(promptResult.getRawUserPrompt()).isNotBlank();
-        assertThat(context.getMetadata("promptTransformationMode", String.class)).isEqualTo("NORMALIZE_ONLY");
-        assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("promptTransformationMode", String.class)).isEqualTo("IDENTITY");
+        assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isTrue();
         assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isZero();
         assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
         assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isEqualTo("FINAL_USER_PROMPT");

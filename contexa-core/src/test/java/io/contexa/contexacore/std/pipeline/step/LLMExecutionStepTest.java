@@ -158,8 +158,114 @@ class LLMExecutionStepTest {
     }
 
     @Test
+    void securityDecisionShouldRetryActualRawPipelineWhenActionIsMissing() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"reasoning\":\"Authorization allows this request.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-parser-retry",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        Object response = step.execute(securityRequest(), context).block();
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionInitialParseFailureCategory", String.class))
+                .isEqualTo("ACTION_MISSING");
+        assertThat(context.getMetadata("securityDecisionInitialFallbackAction", String.class))
+                .isEqualTo("CHALLENGE");
+    }
+
+    @Test
+    void securityDecisionShouldRetryActualRawPipelineOnFalseVerificationClaim() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification is required before allowing access.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization and same-resource RAG support access.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-semantic-retry",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        Object response = step.execute(securityRequest(), context).block();
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionInitialSemanticViolation", String.class))
+                .isEqualTo("FALSE_VERIFICATION_REQUIRED_CLAIM");
+        assertThat(context.getMetadata("securityDecisionInitialProposedAction", String.class))
+                .isEqualTo("CHALLENGE");
+    }
+
+    @Test
+    void securityDecisionShouldRetryBlockWithoutDecisiveEvidence() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"BLOCK\",\"reasoning\":\"Weak MFA and provisional baseline justify blocking.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization and same-resource RAG support access.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-low-risk-boundary-retry",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+
+        Object response = step.execute(securityRequest(), context).block();
+
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionInitialSemanticViolation", String.class))
+                .isEqualTo("BLOCK_WITHOUT_DECISIVE_EVIDENCE");
+        assertThat(context.getMetadata("securityDecisionInitialProposedAction", String.class))
+                .isEqualTo("BLOCK");
+    }
+    @Test
+    void securityDecisionShouldNotRetryLegitimateVerificationChallenge() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification is required before allowing access.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Unexpected second response.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-legitimate-challenge",
+                "VerificationRequired: true\nMfaVerified: false\nSensitivity: HIGH\nAuthorizationEffect: ALLOW");
+        Object response = step.execute(securityRequest(), context).block();
+        assertThat(response).isEqualTo(llmClient.rawResponse);
+        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isNull();
+    }
+
+    @Test
+    void securityDecisionShouldFailTheRetryAuditWhenContradictionPersists() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification is required before allowing access.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification required for this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-persistent-contradiction",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        Object response = step.execute(securityRequest(), context).block();
+        assertThat(response).isEqualTo("");
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
+                .isEqualTo("FALSE_VERIFICATION_REQUIRED_CLAIM");
+    }
+
+    private PipelineExecutionContext securityDecisionContext(String requestId, String promptText) {
+        PipelineExecutionContext context = new PipelineExecutionContext(requestId);
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt(promptText), "system", promptText, Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
+        return context;
+    }
+
+    private AIRequest<TestContext> securityRequest() {
+        return new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
+    }
+    @Test
     void securityDecisionShouldIgnoreRuntimeOptionsAndApplyPlatformOutputLimit() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-runtime-override-blocked");
         context.addStepResult(
@@ -184,7 +290,7 @@ class LLMExecutionStepTest {
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isEqualTo("raw-response");
+        assertThat(response).isEqualTo(llmClient.rawResponse);
         assertThat(llmClient.lastExecutionContext).isNotNull();
         assertThat(llmClient.lastExecutionContext.getPreferredModel()).isNull();
         assertThat(llmClient.lastExecutionContext.getTemperature()).isNull();
@@ -207,6 +313,7 @@ class LLMExecutionStepTest {
     @Test
     void securityDecisionShouldAllowOfficialVerificationPinnedModelAndOutputLimit() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
         PipelineExecutionContext context = new PipelineExecutionContext("exec-security-official-pinned-model");
         context.addStepResult(
@@ -223,7 +330,7 @@ class LLMExecutionStepTest {
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isEqualTo("raw-response");
+        assertThat(response).isEqualTo(llmClient.rawResponse);
         assertThat(llmClient.lastExecutionContext).isNotNull();
         assertThat(llmClient.lastExecutionContext.getPreferredModel()).isEqualTo("gpt-5-nano");
         assertThat(llmClient.lastExecutionContext.getMaxTokens()).isEqualTo(128);
@@ -333,6 +440,7 @@ class LLMExecutionStepTest {
     @Test
     void executeShouldUseValidatedConverterWhenNativeStructuredOutputIsDisabled() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
         SecurityDecisionResponseLite lite = new SecurityDecisionResponseLite();
         lite.setAction("ALLOW");
         lite.setConfidence(0.77d);
@@ -355,7 +463,7 @@ class LLMExecutionStepTest {
 
         Object response = step.execute(request, context).block();
 
-        assertThat(response).isEqualTo("raw-response");
+        assertThat(response).isEqualTo(llmClient.rawResponse);
         assertThat(context.getMetadata("structuredOutputMode", String.class))
                 .isEqualTo("SECURITY_DECISION_RAW_GUARDED");
         assertThat(llmClient.lastExecutionContext.getAdvisors()).isEmpty();
@@ -393,6 +501,7 @@ class LLMExecutionStepTest {
         private int rawExecutions;
         private int entityExecutions;
         private String rawResponse = "raw-response";
+        private String secondRawResponse;
         private Throwable rawError;
         private SecurityDecisionResponseLite entityResponse;
         private Throwable entityError;
@@ -409,7 +518,8 @@ class LLMExecutionStepTest {
             if (rawError != null) {
                 return Mono.error(rawError);
             }
-            return Mono.just(rawResponse);
+            String response = rawExecutions > 1 && secondRawResponse != null ? secondRawResponse : rawResponse;
+            return Mono.just(response);
         }
 
         @Override

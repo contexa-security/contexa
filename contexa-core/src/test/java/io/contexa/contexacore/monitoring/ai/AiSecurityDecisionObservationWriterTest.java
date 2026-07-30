@@ -50,6 +50,8 @@ class AiSecurityDecisionObservationWriterTest {
                 .eventId("event-protectable")
                 .userId("user-1")
                 .sessionId("session-1")
+                .sourceIp("192.0.2.10")
+                .userAgent("Contexa-Test-Agent")
                 .metadata(Map.of(
                         "protectableDeclared", true,
                         "requestId", "request-1",
@@ -72,6 +74,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(observationId).isNotBlank();
         Object[] args = firstInsertArgs(jdbcOperations);
         assertThat(args[10]).isEqualTo("PROTECTABLE");
+        assertThat(args[7]).asString().isNotBlank();
         assertThat(args[11]).isEqualTo("NOT_APPLICABLE");
         assertThat(args[12]).isNull();
         assertThat(args[16]).isEqualTo("openai");
@@ -80,6 +83,7 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[21]).isEqualTo(0.32d);
         assertThat(args[22]).isEqualTo(0.82d);
         assertThat(args[23]).isEqualTo(123L);
+        assertThat(args[40]).asString().contains("\"contextBindingHash\"");
         assertThat(args[39]).isEqualTo("NOT_APPLICABLE");
         assertThat(args[41]).isEqualTo(true);
         verify(jdbcOperations, times(1)).update(anyString(), any(Object[].class));
@@ -117,6 +121,41 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args[41]).isEqualTo(false);
     }
 
+    @Test
+    @DisplayName("Response-action fallback should be recorded as parser failure, not technical fallback")
+    void recordDecision_responseActionFallback_shouldClassifyParserFailure() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-response-fallback")
+                .userId("user-response-fallback")
+                .metadata(Map.of("requestId", "request-response-fallback"))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .proposedAction(ZeroTrustAction.CHALLENGE.name())
+                .llmDecisionPresent(false)
+                .technicalFallbackApplied(false)
+                .responseActionFallbackApplied(true)
+                .responseActionFallbackCategory("ACTION_FORMAT_INVALID")
+                .responseActionFallbackReason("Security decision response action was repaired")
+                .responseActionFallbackAction(ZeroTrustAction.CHALLENGE.name())
+                .processingTimeMs(19L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        Object[] args = firstInsertArgs(jdbcOperations);
+        assertThat(args[31]).isEqualTo(false);
+        assertThat(args[32]).isEqualTo(true);
+        assertThat(args[33]).isEqualTo(false);
+        assertThat(args[36]).isEqualTo("PARSER_FAILURE");
+        assertThat(args[37]).isEqualTo("ACTION_FORMAT_INVALID");
+        assertThat(args[38]).asString().contains("response action was repaired");
+        assertThat(args[41]).isEqualTo(false);
+    }
     @Test
     @DisplayName("Missing JDBC should leave the application flow unchanged")
     void recordDecision_withoutJdbc_shouldReturnNull() {

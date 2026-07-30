@@ -653,6 +653,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .tlsFingerprintAltered(resolveBoolean(metadata.get("intentTlsFingerprintAltered"), metadata.get("tlsFingerprintAltered")))
                 .abnormalHeaderOrder(resolveBoolean(metadata.get("intentAbnormalHeaderOrder"), metadata.get("abnormalHeaderOrder")))
                 .impossibleTravel(resolveBoolean(metadata.get("intentImpossibleTravel"), metadata.get("impossibleTravel"), metadata.get("isImpossibleTravel")))
+                .anomalySignal(firstText(metadata.get("anomalySignal")))
+                .anomalySignalSource(firstText(metadata.get("anomalySignalSource")))
                 .build();
         return hasIntentData(intent) ? intent : null;
     }
@@ -672,6 +674,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         String resourceId = firstText(metadata.get("resourceId"), metadata.get("requestPath"), metadata.get("httpUri"), event.getDescription());
         String httpMethod = firstText(metadata.get("httpMethod"), metadata.get("method"));
         Boolean sensitiveResource = resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource"));
+        Boolean verificationRequired = resolveBoolean(
+                metadata.get("protectableVerificationRequired"), metadata.get("verificationRequired"));
         Boolean privileged = resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged"));
         Boolean exportSensitive = resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive"));
         return CanonicalSecurityContext.Resource.builder()
@@ -683,6 +687,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .httpMethod(httpMethod)
                 .actionFamily(resolveActionFamily(httpMethod, metadata))
                 .sensitiveResource(sensitiveResource)
+                .verificationRequired(verificationRequired)
                 .privileged(privileged)
                 .exportSensitive(exportSensitive)
                 .build();
@@ -706,7 +711,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 || intent.getLanguageMismatch() != null
                 || intent.getTlsFingerprintAltered() != null
                 || intent.getAbnormalHeaderOrder() != null
-                || intent.getImpossibleTravel() != null);
+                || intent.getImpossibleTravel() != null
+                || StringUtils.hasText(intent.getAnomalySignal())
+                || StringUtils.hasText(intent.getAnomalySignalSource()));
     }
 
     private boolean hasLocationData(CanonicalSecurityContext.Location location) {
@@ -809,6 +816,18 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         List<String> missingContexts = normalizeStrings(metadata.get("bridgeMissingContexts"));
         String summary = firstText(metadata.get("bridgeCoverageSummary"));
         List<String> remediationHints = normalizeStrings(metadata.get("bridgeRemediationHints"));
+        String finalAuthorizationEffect = firstText(metadata.get("authorizationEffect"));
+        boolean authorizationEffectResolved = StringUtils.hasText(finalAuthorizationEffect)
+                && !"UNKNOWN".equalsIgnoreCase(finalAuthorizationEffect);
+        if (authorizationEffectResolved) {
+            missingContexts = missingContexts.stream()
+                    .filter(value -> !"AUTHORIZATION_EFFECT".equalsIgnoreCase(value))
+                    .toList();
+            remediationHints = remediationHints.stream()
+                    .filter(value -> value == null
+                            || !value.toLowerCase(Locale.ROOT).contains("authorization effect"))
+                    .toList();
+        }
         String authenticationSource = firstText(metadata.get("bridgeAuthenticationSource"));
         String authorizationSource = firstText(metadata.get("bridgeAuthorizationSource"));
         String delegationSource = firstText(metadata.get("bridgeDelegationSource"));

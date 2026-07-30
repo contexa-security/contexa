@@ -21,6 +21,7 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.testsupport.RedisTestTemplates;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,6 +108,40 @@ class RedisZeroTrustActionRepositorySaveActionWithPreviousTest {
 
         assertThat(String.valueOf(previous)).isEqualTo(ZeroTrustAction.ALLOW.name());
         assertThat(String.valueOf(current)).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+    }
+
+    @Test
+    @DisplayName("Legacy untyped JSON action hashes remain readable and migrate on the next save")
+    void legacyUntypedJsonHash_isReadAndMigratedOnSave() {
+        String userId = "user-legacy-json";
+        String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
+        stringRedisTemplate.opsForHash().put(analysisKey, "action", "\"CHALLENGE\"");
+        stringRedisTemplate.opsForHash().put(analysisKey, "fieldProvenance", "{\"reasoning\":\"MODEL\"}");
+
+        assertThat(repository.getCurrentAction(userId)).isEqualTo(ZeroTrustAction.CHALLENGE);
+
+        repository.saveAction(userId, ZeroTrustAction.BLOCK,
+                Map.of("fieldProvenance", Map.of("reasoning", "MODEL")));
+
+        assertThat(repository.getCurrentAction(userId)).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(redisTemplate.opsForHash().get(analysisKey, "fieldProvenance"))
+                .isEqualTo(Map.of("reasoning", "MODEL"));
+    }
+
+    @Test
+    @DisplayName("A new decision replaces stale constraint metadata from the previous decision")
+    void saveAction_replacesStaleConstraintMetadata() {
+        String userId = "user-stale-constraint";
+        String analysisKey = ZeroTrustRedisKeys.autonomousActionAnalysis(userId);
+        repository.saveAction(userId, ZeroTrustAction.BLOCK,
+                Map.of("autonomyConstraintApplied", true,
+                        "autonomyConstraintPolicy", "TRUSTED_CONFIRMED_MALICIOUS_SIGNAL"));
+
+        repository.saveAction(userId, ZeroTrustAction.ALLOW, Map.of("requestId", "next-request"));
+
+        assertThat(repository.getCurrentAction(userId)).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(redisTemplate.opsForHash().hasKey(analysisKey, "autonomyConstraintApplied")).isFalse();
+        assertThat(redisTemplate.opsForHash().hasKey(analysisKey, "autonomyConstraintPolicy")).isFalse();
     }
 
 }

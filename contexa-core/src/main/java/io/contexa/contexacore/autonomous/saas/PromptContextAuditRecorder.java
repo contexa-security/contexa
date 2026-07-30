@@ -13,16 +13,14 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package io.contexa.contexacore.autonomous.tiered.prompt;
+package io.contexa.contexacore.autonomous.saas;
 
-public class SecurityIntentUserSectionBuilder implements SecurityPromptSectionBuilder {
+import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 
-    @Override
-    public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
-        String intentSection = template.buildIntentSignalContextSection(context.getCanonicalSecurityContext());
-        if (intentSection == null || intentSection.isBlank()) {
-            return intentSection;
-        }
-        return intentSection + System.lineSeparator() + SecurityDecisionContractSectionBuilder.runtimeReasoningGate();
-    }
+public interface PromptContextAuditRecorder {
+
+    void capture(SecurityEvent event, String retrievalPurpose, AuthorizedPromptContext authorizedPromptContext);
+
+    void enrich(SecurityEvent event);
 }

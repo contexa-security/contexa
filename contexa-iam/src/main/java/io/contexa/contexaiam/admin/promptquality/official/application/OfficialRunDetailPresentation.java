@@ -39,6 +39,14 @@ final class OfficialRunDetailPresentation {
                 : message("enterprise.pqa.runtimeVerification.metric.state.blocked");
     }
 
+    String officialStateLabel(String state) {
+        return switch (normalize(state)) {
+            case "CERTIFIABLE" -> message("enterprise.pqa.runtimeVerification.runDetail.state.certifiable");
+            case "BLOCKED" -> message("enterprise.pqa.runtimeVerification.runDetail.state.blocked");
+            default -> message("enterprise.pqa.runtimeVerification.runDetail.state.review");
+        };
+    }
+
     String sourceMeaning(String source) {
         String normalized = normalize(source);
         if (!StringUtils.hasText(source) || "MISSING_SOURCE".equals(normalized)) {

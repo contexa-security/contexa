@@ -186,8 +186,8 @@ class SecurityPromptContractVerifierTest {
                 "HISTORICAL_COMPARABLE_SCOPE_INCORRECT",
                 "HISTORICAL_COMPARABLE_SUMMARY_PROVENANCE_MISSING",
                 "PATH_COMPARISON_UNRESOLVED_WITH_PERSONAL_EVIDENCE",
-                "LEARNING_CARRY_INCOMPLETE",
                 "LEARNING_CARRY_MISSING:CurrentActionFamilyPresentInExpectedRoleScope");
+        assertThat(audit.violations()).doesNotContain("LEARNING_CARRY_INCOMPLETE");
         assertThat(audit.renderedRequestSnapshot())
                 .containsEntry("currentAccessHour", "10")
                 .containsEntry("authenticationType", "UsernamePasswordAuthenticationToken");

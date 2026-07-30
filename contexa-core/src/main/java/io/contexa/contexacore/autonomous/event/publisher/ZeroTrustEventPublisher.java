@@ -173,6 +173,7 @@ public class ZeroTrustEventPublisher {
             payload.put("httpMethod", requestInfo.getMethod());
             payload.put("requestId", requestInfo.getRequestId());
             payload.put("correlationId", requestInfo.getRequestId());
+            payload.put("contextBindingHash", requestInfo.getContextBindingHash());
             payload.put("clientIp", requestInfo.getClientIp());
             payload.put("userAgent", requestInfo.getUserAgent());
             payload.put("scenario", requestInfo.getScenario());
@@ -186,6 +187,7 @@ public class ZeroTrustEventPublisher {
             }
             if (requestInfo.getAnomalySignal() != null) {
                 payload.put("anomalySignal", requestInfo.getAnomalySignal());
+                payload.put("anomalySignalSource", requestInfo.getAnomalySignalSource());
             }
             if (requestInfo.getPqaPromptFaultScenario() != null) {
                 OfficialVerificationProbeHeaders.authorizeFaultMetadata(
@@ -448,7 +450,9 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
             putIfAbsent(payload, "mfaVerified", authenticationStamp.mfaCompleted());
             if (!authenticationStamp.authorities().isEmpty()) {
-                payload.put("authorities", mergeDistinctStringLists(payload.get("authorities"), authenticationStamp.authorities()));
+                payload.put("authorities", mergeDistinctStringLists(
+                        payload.get("authorities"),
+                        sanitizeEvidenceAuthorities(authenticationStamp.authorities())));
             }
             Object tenantId = authenticationStamp.attributes().get("tenantId");
             Object organizationId = firstNonNull(
@@ -532,11 +536,10 @@ public class ZeroTrustEventPublisher {
         if (authentication == null) {
             return;
         }
-        List<String> authorities = authentication.getAuthorities().stream()
+        List<String> authorities = sanitizeEvidenceAuthorities(authentication.getAuthorities().stream()
                 .map(grantedAuthority -> grantedAuthority != null ? grantedAuthority.getAuthority() : null)
                 .filter(authority -> authority != null && !authority.isBlank())
-                .distinct()
-                .toList();
+                .toList());
         if (authorities.isEmpty()) {
             return;
         }
@@ -572,12 +575,7 @@ public class ZeroTrustEventPublisher {
                     .filter(authority -> !authority.startsWith("ROLE_"))
                     .distinct()
                     .toList());
-            if (effectivePermissions.isEmpty()) {
-                effectivePermissions.addAll(authorities.stream()
-                        .filter(authority -> !authority.toUpperCase().contains("MFA"))
-                        .distinct()
-                        .toList());
-            }
+
             if (!effectivePermissions.isEmpty()) {
                 payload.put("effectivePermissions", effectivePermissions);
             }
@@ -684,6 +682,9 @@ public class ZeroTrustEventPublisher {
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
+            if (isRuntimeActionAuthority(normalized)) {
+                continue;
+            }
             if (isPermissionAuthorityArtifact(rawValue)) {
                 continue;
             }
@@ -705,17 +706,19 @@ public class ZeroTrustEventPublisher {
     private List<String> sanitizePermissionTokens(List<String> rawValues) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         for (String rawValue : rawValues) {
+            String authorityValue = normalizeAuthorityValue(rawValue);
+            if (!StringUtils.hasText(authorityValue)
+                    || authorityValue.startsWith("ROLE_")
+                    || isRoleAuthorityArtifact(rawValue)) {
+                continue;
+            }
             String normalized = normalizePermissionValue(rawValue);
             if (!StringUtils.hasText(normalized)) {
                 continue;
             }
-            if (normalized.startsWith("ROLE_")
-                    || normalized.startsWith("/")
+            if (normalized.startsWith("/")
                     || normalized.contains("=")
                     || normalized.contains(" ")) {
-                continue;
-            }
-            if (isRoleAuthorityArtifact(rawValue)) {
                 continue;
             }
             values.add(normalized);
@@ -739,6 +742,31 @@ public class ZeroTrustEventPublisher {
             values.add(normalized);
         }
         return List.copyOf(values);
+    }
+
+    private List<String> sanitizeEvidenceAuthorities(List<String> rawValues) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String rawValue : rawValues) {
+            String normalized = normalizeAuthorityValue(rawValue);
+            if (StringUtils.hasText(normalized) && !isRuntimeActionAuthority(normalized)) {
+                values.add(normalized);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private boolean isRuntimeActionAuthority(String rawValue) {
+        String normalized = normalizeAuthorityValue(rawValue);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        for (ZeroTrustAction action : ZeroTrustAction.values()) {
+            if (StringUtils.hasText(action.getGrantedAuthority())
+                    && action.getGrantedAuthority().equalsIgnoreCase(normalized)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> mergeDistinctStringLists(Object existing, List<String> additions) {

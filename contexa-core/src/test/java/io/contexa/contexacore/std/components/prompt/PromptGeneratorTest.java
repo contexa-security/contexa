@@ -124,14 +124,20 @@ class PromptGeneratorTest {
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
         assertThat(executionMetadata).isNotNull();
-        assertThat(executionMetadata.governanceDescriptor().promptVersion()).isEqualTo("2026.07.24-v4");
+        assertThat(executionMetadata.governanceDescriptor().promptVersion())
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion());
         assertThat(executionMetadata.governanceDescriptor().contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(executionMetadata.governanceDescriptor().releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference()).isEqualTo("B2-10-OFFICIAL-VERIFICATION-2026-07-24-V4");
-        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference()).isEqualTo("2026.07.24-b2-v4-gpt-5-nano-certifiable");
-        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion()).isEqualTo("2026.07.24-v3");
-        assertThat(executionMetadata.budgetProfile().profileKey()).isEqualTo("CORTEX_L1_INTERACTIVE_STRICT");
-        assertThat(executionMetadata.budgetProfile().maxInputTokens()).isEqualTo(4200);
+        assertThat(executionMetadata.governanceDescriptor().releaseApprovalReference())
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.releaseApprovalReference());
+        assertThat(executionMetadata.governanceDescriptor().evaluationBaselineReference())
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.evaluationBaselineReference());
+        assertThat(executionMetadata.governanceDescriptor().rollbackPromptVersion())
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.rollbackPromptVersion());
+        assertThat(executionMetadata.budgetProfile().profileKey())
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
+        assertThat(executionMetadata.budgetProfile().maxInputTokens())
+                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.maxInputTokens());
         assertThat(executionMetadata.promptTokenEstimate().estimatorKey()).isEqualTo("MODEL_AWARE_TOKEN_COUNTING_V1");
         assertThat(executionMetadata.promptTokenEstimate().budgetEnforcementMode()).isEqualTo("OBSERVE_ONLY");
         assertThat(executionMetadata.promptTokenEstimate().estimatedTotalTokens()).isPositive();
@@ -276,7 +282,7 @@ class PromptGeneratorTest {
 
         PromptExecutionMetadata executionMetadata = result.getPromptExecutionMetadata();
         assertThat(result.getRawUserPrompt()).contains("AvailableFacts:");
-        assertThat(result.getRawUserPrompt()).contains("RemediationHints:");
+        assertThat(result.getRawUserPrompt()).doesNotContain("RemediationHints:");
         assertThat(result.getUserPrompt()).contains("AuthorizationEffectProvenance: METHOD_INVOCATION_RESULT");
         assertThat(result.getUserPrompt()).contains("AuthorizationEffectStageNote: Bridge stamp omitted AuthorizationEffect; final AuthorizationEffect was resolved later from METHOD_INVOCATION_RESULT.");
         assertThat(result.getUserPrompt()).contains("RequestPath: /admin/api/security-test/sensitive/resource-001");
@@ -285,7 +291,7 @@ class PromptGeneratorTest {
         assertThat(result.getUserPrompt()).contains("BaselineGapSupport:");
         assertThat(result.getUserPrompt()).contains("CoverageLevel: BUSINESS_AWARE");
         assertThat(result.getUserPrompt()).contains("AvailableFacts:\n-");
-        assertThat(result.getUserPrompt()).contains("RemediationHints:\n-");
+        assertThat(result.getUserPrompt()).doesNotContain("RemediationHints:\n-");
         assertThat(result.getUserPrompt()).doesNotContain("CompactedLineCategories");
         assertThat(result.getUserPrompt()).doesNotContain("additional lines compacted");
         assertThat(result.getUserPrompt()).doesNotContain("AdditionalConfidenceWarningsCompacted");
@@ -405,7 +411,7 @@ class PromptGeneratorTest {
         assertThat(result.getUserPrompt()).isEqualTo(result.getRawUserPrompt());
         assertThat(countOccurrences(result.getUserPrompt(), "=== PERSONAL WORK PROFILE ==="))
                 .isEqualTo(1);
-        assertThat(countOccurrences(result.getUserPrompt(), "ObservedPatternEvidenceScope: INSUFFICIENT_PERSONAL_BASELINE"))
+        assertThat(countOccurrences(result.getUserPrompt(), "ObservedPatternEvidenceScope: NO_PERSONAL_OBSERVED_PATTERN"))
                 .isEqualTo(1);
     }
 

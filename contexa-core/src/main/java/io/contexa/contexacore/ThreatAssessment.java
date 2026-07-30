@@ -63,6 +63,7 @@ public class ThreatAssessment {
     private String responseActionFallbackReason;
     private String responseActionFallbackAction;
     private String reasoning;
+    private String llmReasoning;
     private Boolean autonomyConstraintApplied;
     private List<String> autonomyConstraintReasons;
     private String autonomyConstraintSummary;

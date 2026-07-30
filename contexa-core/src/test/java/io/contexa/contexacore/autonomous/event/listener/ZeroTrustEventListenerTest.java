@@ -30,6 +30,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -143,6 +145,23 @@ class ZeroTrustEventListenerTest {
 
         // then
         assertThat(shouldPublish).isFalse();
+    }
+
+    @Test
+    @DisplayName("authorization context binding should reuse the ingress request hash")
+    void authorizationContextBindingHash_shouldPreferIngressPayload() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-ingress")
+                .sessionId("analysis-session")
+                .clientIp("198.51.100.9")
+                .userAgent("simulated-agent")
+                .payload(Map.of("contextBindingHash", "ingress-context-hash"))
+                .build();
+
+        assertThat(listener.generateAuthorizationContextBindingHash(event))
+                .isEqualTo("ingress-context-hash");
     }
 
     @Test

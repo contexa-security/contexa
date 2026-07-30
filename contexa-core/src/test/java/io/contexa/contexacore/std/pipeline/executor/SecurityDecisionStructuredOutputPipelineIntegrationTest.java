@@ -117,7 +117,7 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
         assertThat(response.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isTrue();
         assertThat(response.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
         assertThat(llmClient.entityExecutions).isZero();
-        assertThat(llmClient.rawExecutions).isEqualTo(1);
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
     }
 
     private UniversalPipelineExecutor buildExecutor(RecordingLlmClient llmClient) {

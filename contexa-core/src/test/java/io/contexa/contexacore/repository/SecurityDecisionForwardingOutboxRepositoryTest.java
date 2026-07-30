@@ -18,10 +18,12 @@ package io.contexa.contexacore.repository;
 import io.contexa.contexacore.domain.entity.SecurityDecisionForwardingOutboxRecord;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -31,15 +33,37 @@ import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
+@DataJpaTest(properties = {
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.sql.init.mode=never"
+})
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@EnabledIfEnvironmentVariable(named = "CONTEXA_TEST_DB_URL", matches = ".+")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class SecurityDecisionForwardingOutboxRepositoryTest {
+
+    @DynamicPropertySource
+    static void postgresProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", () -> requiredEnvironment("CONTEXA_TEST_DB_URL"));
+        registry.add("spring.datasource.username", () -> requiredEnvironment("CONTEXA_TEST_DB_USERNAME"));
+        registry.add("spring.datasource.password", () -> requiredEnvironment("CONTEXA_TEST_DB_PASSWORD"));
+    }
+
+    private static String requiredEnvironment(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(name + " is required for the PostgreSQL repository test.");
+        }
+        return value;
+    }
 
     @Autowired
     private SecurityDecisionForwardingOutboxRepository repository;

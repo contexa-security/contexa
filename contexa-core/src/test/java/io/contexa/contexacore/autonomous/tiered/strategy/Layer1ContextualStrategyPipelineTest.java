@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -142,5 +143,60 @@ class Layer1ContextualStrategyPipelineTest {
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
         assertThat(decision.getProcessingLayer()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Layer1 response-action fallback audit fields must survive ThreatAssessment conversion")
+    void evaluate_responseActionFallback_shouldPreserveAuditFields() {
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("CHALLENGE");
+        response.setReasoning("Fresh verification is required.");
+        response.withMetadata("llmDecisionPresent", false);
+        response.withMetadata("rawExecutionSucceeded", true);
+        response.withMetadata("securityDecisionParsingFallbackApplied", true);
+        response.withMetadata("securityDecisionFallbackApplied", true);
+        response.withMetadata("securityDecisionParseFailureCategory", "ACTION_FORMAT_INVALID");
+        response.withMetadata("securityDecisionFallbackAction", "CHALLENGE");
+
+        when(pipelineOrchestrator.execute(
+                any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
+                null,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-layer1-response-fallback")
+                .timestamp(LocalDateTime.of(2026, 7, 30, 4, 48))
+                .userId("alice")
+                .sessionId("session-response-fallback")
+                .sourceIp("203.0.113.10")
+                .description("GET /api/protected")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/api/protected");
+
+        ThreatAssessment assessment = strategy.evaluate(event);
+
+        assertThat(assessment.getLlmDecisionPresent()).isFalse();
+        assertThat(assessment.getTechnicalFallbackApplied()).isFalse();
+        assertThat(assessment.getResponseActionFallbackApplied()).isTrue();
+        assertThat(assessment.getResponseActionFallbackCategory()).isEqualTo("ACTION_FORMAT_INVALID");
+        assertThat(assessment.getResponseActionFallbackAction()).isEqualTo("CHALLENGE");
     }
 }

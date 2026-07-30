@@ -77,6 +77,11 @@ public class ContextCoverageEvaluator {
             remediationHints.add("Propagate a resolved authorization effect such as ALLOW, DENY, CHALLENGE, or ESCALATE for the current request.");
             confidenceWarnings.add("Authorization scope exists without a resolved authorization effect; privilege conclusions should remain conservative.");
         }
+        else if (CanonicalContextFieldPolicy.hasAuthorizationEffect(context)) {
+            availableFacts.add("Current request authorization effect is available.");
+            remediationHints.add("Propagate effective permissions or scope tags for broader authorization-scope analysis when they exist.");
+            confidenceWarnings.add("Broader authorization scope metadata is unavailable; do not infer permissions beyond the current request authorization effect.");
+        }
         else {
             missingCriticalFacts.add("Authorization scope is unavailable.");
             remediationHints.add("Propagate effective permissions or scope tags for the current request.");
@@ -278,6 +283,10 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Bridge summary: " + bridge.getSummary());
         }
         for (String missingContext : bridge.getMissingContexts()) {
+            if ("AUTHORIZATION_EFFECT".equalsIgnoreCase(missingContext)
+                    && CanonicalContextFieldPolicy.hasAuthorizationEffect(context)) {
+                continue;
+            }
             missingCriticalFacts.add("Bridge missing context: " + missingContext + ".");
         }
         for (String remediationHint : bridge.getRemediationHints()) {

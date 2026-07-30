@@ -90,9 +90,9 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             boolean failOnEmailError = true;
             try {
                 Environment environment = applicationContext.getBean(Environment.class);
-                failOnEmailError = environment.getProperty("contexa.identity.ott.fail-on-email-error", Boolean.class, true);
+                failOnEmailError = environment.getProperty("contexa.auth.ott.fail-on-email-error", Boolean.class, true);
             } catch (Exception e) {
-                log.warn("Failed to resolve contexa.identity.ott.fail-on-email-error. Defaulting to true.");
+                log.warn("Failed to resolve contexa.auth.ott.fail-on-email-error. Defaulting to true.");
             }
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(

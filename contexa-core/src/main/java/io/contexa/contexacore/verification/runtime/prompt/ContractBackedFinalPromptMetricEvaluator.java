@@ -89,8 +89,25 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
         if (optionalFieldValuesConsistentCheck(checkContract)) {
             return true;
         }
-        String runtimeFacts = contractRuntimeFacts(checkContract, true, context);
-        return customerRuntimeFactsUsable(checkContract, true, context, runtimeFacts);
+        try {
+            String runtimeFacts = contractRuntimeFacts(checkContract, true, context);
+            return customerRuntimeFactsUsable(checkContract, true, context, runtimeFacts);
+        }
+        catch (IllegalStateException exception) {
+            if (missingRuntimeEvidence(exception)) {
+                return false;
+            }
+            throw exception;
+        }
+    }
+
+    private boolean missingRuntimeEvidence(IllegalStateException exception) {
+        String message = exception == null ? null : exception.getMessage();
+        return StringUtils.hasText(message)
+                && message.startsWith("ENGINE_CONTRACT_ERROR:")
+                && (message.contains("binding has no prompt value")
+                || message.contains("binding has no present term")
+                || message.contains("binding has missing section"));
     }
 
     private boolean optionalFieldValuesConsistentCheck(FinalPromptMetricCheckContract checkContract) {
@@ -361,7 +378,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 nextAction,
                 reverify,
                 internalInputSource(checkCode),
-                checkContract.customerVisible(),
+                false,
                 "METRIC_INPUT_READINESS",
                 metricContract.version(),
                 "INPUT_NOT_READY",
@@ -814,19 +831,19 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
             return rulePurposeEvidence(checkContract, passed, context);
         }
         if ("SECTION_LIST".equals(source)) {
-            return renderSectionListBinding(checkContract, binding, prompt);
+            return renderSectionListBinding(checkContract, binding, passed, prompt);
         }
         if ("TERM_LIST_PRESENT".equals(source)) {
-            return renderTermListBinding(checkContract, binding, prompt);
+            return renderTermListBinding(checkContract, binding, passed, prompt);
         }
         if ("FIRST_FIELD_VALUE".equals(source)) {
-            return renderFirstFieldBinding(checkContract, binding, prompt);
+            return renderFirstFieldBinding(checkContract, binding, passed, prompt);
         }
         if ("FIELD_GROUP".equals(source)) {
-            return renderFieldGroupBinding(checkContract, binding, prompt);
+            return renderFieldGroupBinding(checkContract, binding, passed, prompt);
         }
         if ("TRUNCATED_FACT_DETAILS".equals(source)) {
-            return renderTruncatedFactBinding(checkContract, binding, prompt);
+            return renderTruncatedFactBinding(checkContract, binding, passed, prompt);
         }
         if ("RAG_RUNTIME_STATE".equals(source)) {
             return ragRuntimeStateEvidence(checkContract, binding, prompt, context);
@@ -844,6 +861,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     private String renderSectionListBinding(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
+            boolean passed,
             FinalPromptSnapshot prompt) {
         List<String> sections = splitContractList(binding.get("sections"));
         if (sections.isEmpty()) {
@@ -853,7 +871,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     + ", binding=" + binding.get("id"));
         }
         List<String> present = sections.stream().filter(prompt::hasSection).toList();
-        if (present.size() != sections.size() && contractBindingRequired(binding)) {
+        if (passed && present.size() != sections.size() && contractBindingRequired(binding)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: SECTION_LIST binding has missing section. "
                     + "metric=" + metricCode()
                     + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
@@ -867,6 +885,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     private String renderTermListBinding(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
+            boolean passed,
             FinalPromptSnapshot prompt) {
         List<String> terms = splitContractList(binding.get("terms"));
         if (terms.isEmpty()) {
@@ -881,7 +900,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();
-        if (present.isEmpty() && contractBindingRequired(binding)) {
+        if (passed && present.isEmpty() && contractBindingRequired(binding)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TERM_LIST_PRESENT binding has no present term. "
                     + "metric=" + metricCode()
                     + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
@@ -895,6 +914,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     private String renderFirstFieldBinding(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
+            boolean passed,
             FinalPromptSnapshot prompt) {
         List<String> labels = splitContractList(binding.get("labels"));
         if (labels.isEmpty()) {
@@ -909,7 +929,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                 return renderContractBindingValue(checkContract, binding, value);
             }
         }
-        if (contractBindingRequired(binding)) {
+        if (passed && contractBindingRequired(binding)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIRST_FIELD_VALUE binding has no prompt value. "
                     + "metric=" + metricCode()
                     + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
@@ -921,6 +941,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     private String renderFieldGroupBinding(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
+            boolean passed,
             FinalPromptSnapshot prompt) {
         List<String> labels = splitContractList(binding.get("labels"));
         if (labels.isEmpty()) {
@@ -945,7 +966,7 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
                     .distinct()
                     .toList();
         }
-        if (values.isEmpty() && contractBindingRequired(binding)) {
+        if (passed && values.isEmpty() && contractBindingRequired(binding)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: FIELD_GROUP binding has no prompt value. "
                     + "metric=" + metricCode()
                     + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")
@@ -957,9 +978,10 @@ final class ContractBackedFinalPromptMetricEvaluator implements FinalPromptMetri
     private String renderTruncatedFactBinding(
             FinalPromptMetricCheckContract checkContract,
             Map<String, String> binding,
+            boolean passed,
             FinalPromptSnapshot prompt) {
         String details = truncatedFactDetails(checkContract, prompt);
-        if (!StringUtils.hasText(details) && contractBindingRequired(binding)) {
+        if (passed && !StringUtils.hasText(details) && contractBindingRequired(binding)) {
             throw new IllegalStateException("ENGINE_CONTRACT_ERROR: TRUNCATED_FACT_DETAILS binding has no prompt value. "
                     + "metric=" + metricCode()
                     + ", check=" + FinalPromptDisplayValues.firstNonBlank(checkContract == null ? null : checkContract.checkName(), "UNKNOWN_CHECK")

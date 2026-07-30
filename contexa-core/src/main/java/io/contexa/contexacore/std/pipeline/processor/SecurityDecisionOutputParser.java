@@ -41,6 +41,8 @@ public class SecurityDecisionOutputParser {
     private static final Pattern MITRE_LINE = Pattern.compile("(?im)^\\s*mitre\\s*[:=]\\s*(.+?)\\s*$");
     private static final Pattern RISK_LINE = Pattern.compile("(?im)^\\s*riskScore\\s*[:=]\\s*([0-9.]+)\\s*$");
     private static final Pattern CONFIDENCE_LINE = Pattern.compile("(?im)^\\s*confidence\\s*[:=]\\s*([0-9.]+)\\s*$");
+    private static final Pattern CANONICAL_ACTION_TOKEN =
+            Pattern.compile("(?i)(?<![A-Z])(?:ALLOW|CHALLENGE|BLOCK|ESCALATE)(?![A-Z])");
     private static final String FALLBACK_ACTION = "CHALLENGE";
 
     public SecurityDecisionResponseLite parse(String rawResponse, PipelineExecutionContext context) {
@@ -90,6 +92,7 @@ public class SecurityDecisionOutputParser {
                 asString(getCaseInsensitive(fields, "action")),
                 extractQuotedField(raw, "action"),
                 extractLine(ACTION_LINE, raw));
+        addMetadata(context, "securityDecisionActionCandidate", summarizeActionCandidate(extractedAction));
         ActionResult actionResult = normalizeAction(extractedAction);
         if (actionResult.repaired()) {
             fallbackActionApplied = actionResult.fallbackApplied();
@@ -424,8 +427,28 @@ public class SecurityDecisionOutputParser {
             case "DENY", "DENIED", "REJECT", "REJECTED" ->
                     new ActionResult("BLOCK", true, false, null);
             case "REVIEW" -> new ActionResult("ESCALATE", true, false, null);
-            default -> new ActionResult(FALLBACK_ACTION, true, true, "ACTION_FORMAT_INVALID");
+            default -> normalizeDecoratedAction(normalized);
         };
+    }
+
+    private ActionResult normalizeDecoratedAction(String action) {
+        Matcher matcher = CANONICAL_ACTION_TOKEN.matcher(action);
+        Set<String> candidates = new LinkedHashSet<>();
+        while (matcher.find()) {
+            candidates.add(matcher.group().toUpperCase(Locale.ROOT));
+        }
+        if (candidates.size() == 1) {
+            return new ActionResult(candidates.iterator().next(), true, false, null);
+        }
+        return new ActionResult(FALLBACK_ACTION, true, true, "ACTION_FORMAT_INVALID");
+    }
+
+    private String summarizeActionCandidate(String action) {
+        String normalized = normalizeReasoning(action);
+        if (normalized == null || normalized.length() <= 64) {
+            return normalized;
+        }
+        return normalized.substring(0, 64);
     }
 
     private Double asDouble(Object value) {

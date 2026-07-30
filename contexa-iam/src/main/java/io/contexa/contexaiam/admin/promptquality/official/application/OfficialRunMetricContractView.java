@@ -74,6 +74,7 @@ public final class OfficialRunMetricContractView {
     private OfficialMetricPurposeEvidence purposeEvidence(OperatorPurposeEvidence evidence) {
         FinalPromptMetricCheckContract contract = metricCheckContract(evidence.metricCode(), evidence.checkCode());
         boolean passed = purposeEvidencePassed(evidence.purposeResult());
+        boolean notApplicable = "NOT_APPLICABLE".equals(normalize(evidence.purposeResult()));
         return new OfficialMetricPurposeEvidence(
                 valueOrEmpty(evidence.metricCode()),
                 valueOrEmpty(evidence.checkCode()),
@@ -81,7 +82,8 @@ public final class OfficialRunMetricContractView {
                 firstNonBlank(contract == null ? null : contract.qualityQuestion(), evidence.signalKey()),
                 valueOrEmpty(evidence.promptLocation()),
                 firstNonBlank(
-                        passed ? contract == null ? null : contract.passMessage()
+                        notApplicable ? contract == null ? null : contract.notApplicableMessage()
+                                : passed ? contract == null ? null : contract.passMessage()
                                 : contract == null ? null : contract.failureMessage(),
                         evidence.evidenceValue()),
                 valueOrEmpty(evidence.evidenceHash()),

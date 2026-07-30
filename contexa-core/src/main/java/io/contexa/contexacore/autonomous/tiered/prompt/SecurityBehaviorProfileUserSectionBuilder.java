@@ -22,9 +22,7 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
         StringBuilder section = new StringBuilder();
         String observedWorkPatternSection = template.buildObservedWorkPatternContextSection(context.getCanonicalSecurityContext());
         String personalWorkProfileSection = template.buildPersonalWorkProfileContextSection(context);
-        String historicalBaselineSupport = hasCanonicalBaselineGapSection(context)
-                ? null
-                : template.buildSupportingPromptBlock(
+        String historicalBaselineSupport = template.buildSupportingPromptBlock(
                         "HistoricalBaselineSupport",
                         template.buildUserProfileNarrative(
                                 context.getEvent(),
@@ -43,10 +41,6 @@ public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPrompt
         return section.toString();
     }
 
-    private boolean hasCanonicalBaselineGapSection(SecurityPromptBuildContext context) {
-        return context.getBaselineStatus() == BaselineStatus.NEW_USER
-                || context.getBaselineStatus() == BaselineStatus.SPARSE_PERSONAL_HISTORY;
-    }
 }
 
 

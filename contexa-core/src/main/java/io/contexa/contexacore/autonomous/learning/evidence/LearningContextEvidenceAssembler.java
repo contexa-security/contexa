@@ -62,7 +62,7 @@ public class LearningContextEvidenceAssembler {
 
         ObservedPatternSnapshot observed = buildObservedPatterns(personalBaseline, personalEvidence);
         List<CurrentVsObservedDeltaSnapshot> deltas = buildCurrentVsObservedDeltas(current, observed);
-        List<String> carryRequiredFacts = buildCarryRequiredFacts(current);
+        List<String> carryRequiredFacts = buildCarryRequiredFacts(current, personalEvidence);
         List<String> carryMissingFacts = buildCarryMissingFacts(current, observed, personalBaseline, personalEvidence);
 
         return assemble(
@@ -85,7 +85,7 @@ public class LearningContextEvidenceAssembler {
             List<RetrievedBehaviorEvidence> supportingEvidence) {
         ObservedPatternSnapshot observed = buildObservedPatterns(personalBaseline, personalEvidence);
         List<CurrentVsObservedDeltaSnapshot> deltas = buildCurrentVsObservedDeltas(current, observed);
-        List<String> carryRequiredFacts = buildCarryRequiredFacts(current);
+        List<String> carryRequiredFacts = buildCarryRequiredFacts(current, personalEvidence);
         List<String> carryMissingFacts = buildCarryMissingFacts(current, observed, personalBaseline, personalEvidence);
         return assemble(
                 current,
@@ -344,22 +344,29 @@ public class LearningContextEvidenceAssembler {
         return deltas;
     }
 
-    private List<String> buildCarryRequiredFacts(CurrentLearningContextSnapshot current) {
+    private List<String> buildCarryRequiredFacts(
+            CurrentLearningContextSnapshot current,
+            List<RetrievedBehaviorEvidence> personalEvidence) {
         List<String> facts = new ArrayList<>(List.of(
                 "WorkProfileEvidenceState",
                 "ObservedPatternEvidenceScope",
-                "HistoricalComparableScope",
                 "CurrentVsObservedDeltaCount",
                 "StrongestCurrentVsObservedDelta",
-                "CurrentVsObservedDeltaSummary",
-                "HistoricalComparableCount",
-                "HistoricalComparableSummary",
-                "ComparableExample1"));
+                "CurrentVsObservedDeltaSummary"));
+        boolean personalComparableEvidenceAvailable = personalEvidence != null && !personalEvidence.isEmpty();
+        if (personalComparableEvidenceAvailable) {
+            facts.add("HistoricalComparableScope");
+            facts.add("HistoricalComparableCount");
+            facts.add("HistoricalComparableSummary");
+            facts.add("ComparableExample1");
+        }
         if (hasAnyCombinationSignal(current)) {
             facts.add("CurrentRequestCombinationEvidenceScope");
             facts.add("CurrentRequestCombinationSeenCount");
             facts.add("CurrentRequestCombinationComparedDimensions");
-            facts.add("CurrentRequestClosestObservedOverlap");
+            if (personalComparableEvidenceAvailable) {
+                facts.add("CurrentRequestClosestObservedOverlap");
+            }
             facts.add("StrongestCurrentRequestCombinationDelta");
             facts.add("CurrentRequestCombinationSummary");
             facts.add("ObservedComparableCombination1");

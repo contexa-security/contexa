@@ -199,8 +199,9 @@ final class OfficialRunMetricEvidenceMapper {
 
     private OfficialRunCheckDetail purposeEvidenceCheck(int sequence, OfficialMetricPurposeEvidence evidence) {
         boolean passed = purposeEvidencePassed(evidence.purposeResult());
+        boolean notApplicable = "NOT_APPLICABLE".equals(normalize(evidence.purposeResult()));
         OfficialVerificationCheckState evaluationState = OfficialVerificationCheckState.resolve(
-                "NOT_APPLICABLE".equals(normalize(evidence.purposeResult()))
+                notApplicable
                         ? "NOT_APPLICABLE" : "READY",
                 evidence.purposeResult(),
                 passed);
@@ -210,7 +211,8 @@ final class OfficialRunMetricEvidenceMapper {
                 contract == null ? null : contract.qualityQuestion(), evidence.signalKey(), evidence.checkCode());
         String expected = firstNonBlank(contract == null ? null : contract.expectedMessage(), label);
         String actual = firstNonBlank(
-                passed ? contract == null ? null : contract.passMessage()
+                notApplicable ? contract == null ? null : contract.notApplicableMessage()
+                        : passed ? contract == null ? null : contract.passMessage()
                         : contract == null ? null : contract.failureMessage(),
                 evidence.evidenceValue(), String.join(" ", evidence.runtimeFacts()));
         String source = firstNonBlank(evidence.promptLocation(), evidence.readinessScope(), "purposeEvidence");
