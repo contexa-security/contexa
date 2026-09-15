@@ -191,6 +191,7 @@ public final class OfficialVerificationExecutionLedger extends AbstractPromptQua
         SealedEvidencePackage evidencePackage = evidence.evidencePackage();
         Map<String, String> components = new LinkedHashMap<>();
         components.put("packageId", safe(evidencePackage.getPackageId()));
+        components.put("tenantId", safe(evidencePackage.getTenantId()));
         components.put("sealedEvidenceHash", safe(evidencePackage.getPackageHash()));
         components.put("promptHash", safe(firstNonBlank(
                 evidencePackage.getPromptHash(), text(evidence.promptMetadata(), "promptHash"))));

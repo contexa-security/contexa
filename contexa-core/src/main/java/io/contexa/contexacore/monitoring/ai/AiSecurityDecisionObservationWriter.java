@@ -28,6 +28,7 @@ import org.springframework.jdbc.core.JdbcOperations;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -43,6 +44,16 @@ public class AiSecurityDecisionObservationWriter {
     private final ObjectMapper objectMapper;
     private final String defaultModelProvider;
     private final String defaultModelId;
+
+    public record PersistedFinalDecision(
+            String observationId,
+            String tenantId,
+            String userId,
+            String finalAction,
+            String contextBindingHash,
+            String processingGeneration,
+            String requestId) {
+    }
 
     public AiSecurityDecisionObservationWriter(
             Supplier<JdbcOperations> jdbcOperationsSupplier,
@@ -131,11 +142,18 @@ public class AiSecurityDecisionObservationWriter {
         String actorSessionKey = firstText(metadata, "actorSessionKey");
         String windowId = firstText(metadata, "windowId");
 
+        String tenantId = firstText(metadata, "tenantId", "tenant_id");
+        String idempotencyKey = firstText(metadata, "eventProcessingIdentity");
+        String processingGeneration = firstText(metadata, "eventProcessingOwnerToken");
+
         long persistStart = System.currentTimeMillis();
         try {
             jdbcOperations.update("""
                     INSERT INTO ai_security_decision_observation (
                         observation_id,
+                        tenant_id,
+                        idempotency_key,
+                        processing_generation,
                         event_id,
                         request_id,
                         correlation_id,
@@ -180,10 +198,13 @@ public class AiSecurityDecisionObservationWriter {
                         created_at,
                         decided_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     observationId,
+                    tenantId,
+                    idempotencyKey,
+                    processingGeneration,
                     event.getEventId(),
                     requestId,
                     correlationId,
@@ -238,6 +259,45 @@ public class AiSecurityDecisionObservationWriter {
         } catch (DataAccessException ex) {
             log.error("[AiSecurityDecisionObservationWriter] Failed to record AI security decision observation: eventId={}",
                     event.getEventId(), ex);
+            return null;
+        }
+    }
+
+    public PersistedFinalDecision findFinalDecision(String idempotencyKey) {
+        String normalizedKey = text(idempotencyKey);
+        JdbcOperations jdbcOperations = jdbcOperations();
+        if (normalizedKey == null || jdbcOperations == null) {
+            return null;
+        }
+        try {
+            List<PersistedFinalDecision> decisions = jdbcOperations.query("""
+                    SELECT observation_id,
+                           tenant_id,
+                           user_id,
+                           final_action,
+                           context_binding_hash,
+                           processing_generation,
+                           request_id
+                      FROM ai_security_decision_observation
+                     WHERE idempotency_key = ?
+                       AND success = TRUE
+                       AND final_action IS NOT NULL
+                     ORDER BY decided_at DESC
+                     LIMIT 1
+                    """,
+                    (resultSet, rowNumber) -> new PersistedFinalDecision(
+                            resultSet.getString("observation_id"),
+                            resultSet.getString("tenant_id"),
+                            resultSet.getString("user_id"),
+                            resultSet.getString("final_action"),
+                            resultSet.getString("context_binding_hash"),
+                            resultSet.getString("processing_generation"),
+                            resultSet.getString("request_id")),
+                    normalizedKey);
+            return decisions.isEmpty() ? null : decisions.get(0);
+        } catch (DataAccessException exception) {
+            log.error("[AiSecurityDecisionObservationWriter] Failed to read final decision: idempotencyKey={}",
+                    normalizedKey, exception);
             return null;
         }
     }

@@ -473,12 +473,14 @@ public class CoreAutonomousAutoConfiguration {
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties,
             @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor,
-            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider
+            ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
+            ZeroTrustActionRepository zeroTrustActionRepository
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
+        agent.setZeroTrustActionRepository(zeroTrustActionRepository);
         return agent;
     }
 

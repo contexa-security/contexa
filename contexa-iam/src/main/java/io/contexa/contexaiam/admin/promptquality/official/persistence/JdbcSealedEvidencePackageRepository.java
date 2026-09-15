@@ -19,7 +19,7 @@ import java.util.Optional;
 public final class JdbcSealedEvidencePackageRepository implements SealedEvidencePackageRepository {
 
     private static final String SELECT_COLUMNS = """
-            select id, package_id, correlation_id, tenant_id, user_id, captured_at,
+            select id, package_id, correlation_id, idempotency_key, tenant_id, user_id, captured_at,
                    request_facts_json, auth_state_json, canonical_context_json,
                    baseline_snapshot_json, rag_results_json,
                    raw_system_prompt, raw_user_prompt, system_prompt_text, user_prompt_text,
@@ -32,7 +32,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
             """;
     private static final String INSERT_SQL = """
             insert into sealed_evidence_package (
-                package_id, correlation_id, tenant_id, user_id, captured_at,
+                package_id, correlation_id, idempotency_key, tenant_id, user_id, captured_at,
                 request_facts_json, auth_state_json, canonical_context_json,
                 baseline_snapshot_json, rag_results_json,
                 raw_system_prompt, raw_user_prompt, system_prompt_text, user_prompt_text,
@@ -44,13 +44,13 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
             ) values (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             returning id
             """;
     private static final String UPDATE_SQL = """
             update sealed_evidence_package
-               set package_id = ?, correlation_id = ?, tenant_id = ?, user_id = ?, captured_at = ?,
+               set package_id = ?, correlation_id = ?, idempotency_key = ?, tenant_id = ?, user_id = ?, captured_at = ?,
                    request_facts_json = ?, auth_state_json = ?, canonical_context_json = ?,
                    baseline_snapshot_json = ?, rag_results_json = ?,
                    raw_system_prompt = ?, raw_user_prompt = ?, system_prompt_text = ?, user_prompt_text = ?,
@@ -77,8 +77,8 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
         if (evidencePackage.isSealed()) {
             throw new IllegalStateException("Sealed evidence package cannot be modified after persistence");
         }
-        Object[] updateArguments = Arrays.copyOf(mutableArguments(evidencePackage), 29);
-        updateArguments[28] = evidencePackage.getId();
+        Object[] updateArguments = Arrays.copyOf(mutableArguments(evidencePackage), 30);
+        updateArguments[29] = evidencePackage.getId();
         int updated = jdbcOperations.update(UPDATE_SQL, updateArguments);
         if (updated != 1) {
             throw new IllegalStateException("Sealed evidence package does not exist: " + evidencePackage.getId());
@@ -93,7 +93,12 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
 
     @Override
     public Optional<SealedEvidencePackage> findByCorrelationId(String correlationId) {
-        return first(SELECT_COLUMNS + " where correlation_id = ?", correlationId);
+        return first(SELECT_COLUMNS + " where correlation_id = ? order by captured_at desc limit 1", correlationId);
+    }
+
+    @Override
+    public Optional<SealedEvidencePackage> findByIdempotencyKey(String idempotencyKey) {
+        return first(SELECT_COLUMNS + " where idempotency_key = ?", idempotencyKey);
     }
 
     @Override
@@ -138,8 +143,8 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                 ? Instant.now()
                 : evidencePackage.getCreatedAt();
         Object[] mutable = mutableArguments(evidencePackage);
-        Object[] insertArguments = Arrays.copyOf(mutable, 29);
-        insertArguments[28] = timestamp(createdAt);
+        Object[] insertArguments = Arrays.copyOf(mutable, 30);
+        insertArguments[29] = timestamp(createdAt);
         Long id = jdbcOperations.queryForObject(INSERT_SQL, Long.class, insertArguments);
         if (id == null) {
             throw new IllegalStateException("Sealed evidence package insert did not return an identifier.");
@@ -175,7 +180,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
     private Object[] mutableArguments(SealedEvidencePackage evidencePackage) {
         return new Object[] {
                 evidencePackage.getPackageId(), evidencePackage.getCorrelationId(),
-                evidencePackage.getTenantId(), evidencePackage.getUserId(),
+                evidencePackage.getIdempotencyKey(), evidencePackage.getTenantId(), evidencePackage.getUserId(),
                 timestamp(evidencePackage.getCapturedAt()), evidencePackage.getRequestFactsJson(),
                 evidencePackage.getAuthStateJson(), evidencePackage.getCanonicalContextJson(),
                 evidencePackage.getBaselineSnapshotJson(), evidencePackage.getRagResultsJson(),
@@ -196,6 +201,7 @@ public final class JdbcSealedEvidencePackageRepository implements SealedEvidence
                 .id(resultSet.getLong("id"))
                 .packageId(resultSet.getString("package_id"))
                 .correlationId(resultSet.getString("correlation_id"))
+                .idempotencyKey(resultSet.getString("idempotency_key"))
                 .tenantId(resultSet.getString("tenant_id"))
                 .userId(resultSet.getString("user_id"))
                 .capturedAt(instant(resultSet.getTimestamp("captured_at")))

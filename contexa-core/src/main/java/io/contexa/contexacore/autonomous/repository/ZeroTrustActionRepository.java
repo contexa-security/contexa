@@ -55,6 +55,14 @@ public interface ZeroTrustActionRepository {
 
     void saveAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields);
 
+    default boolean saveFinalAction(
+            String userId,
+            ZeroTrustAction action,
+            Map<String, Object> additionalFields) {
+        saveAction(userId, action, additionalFields);
+        return true;
+    }
+
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction);
 
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction, String contextBindingHash);

@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
@@ -80,7 +81,9 @@ public class SealedEvidencePackageAssembler {
         String correlationId = resolveCorrelationId(event);
 
         // Source 1: Prompt trace store -- captured by AOP at PromptGenerator.generatePrompt()
-        SealedEvidencePromptSnapshot promptSnapshot = promptTraceStore.consume(correlationId);
+        SealedEvidencePromptSnapshot promptSnapshot = promptTraceStore.consume(
+                resolvePromptTraceKey(event, correlationId),
+                correlationId);
         if (promptSnapshot == null) {
             log.error("[SealedEvidence] Prompt snapshot missing. Sealed package rejected: correlationId={}", correlationId);
             return null;
@@ -145,6 +148,7 @@ public class SealedEvidencePackageAssembler {
         SealedEvidencePackage pkg = SealedEvidencePackage.builder()
                 .packageId(UUID.randomUUID().toString())
                 .correlationId(correlationId)
+                .idempotencyKey(resolveText(event.getMetadata(), SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY))
                 .tenantId(resolveText(event.getMetadata(), "tenantId", "tenant_id"))
                 .userId(event.getUserId())
                 .capturedAt(Instant.now())
@@ -251,6 +255,16 @@ public class SealedEvidencePackageAssembler {
         }
         Object ctx = metadata.get("sealedEvidence.canonicalContext");
         return ctx instanceof CanonicalSecurityContext csc ? csc : null;
+    }
+
+    private String resolvePromptTraceKey(SecurityEvent event, String correlationId) {
+        if (event != null && event.getMetadata() != null) {
+            Object identity = event.getMetadata().get(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
+            if (identity != null && hasText(identity.toString())) {
+                return identity.toString().trim();
+            }
+        }
+        return correlationId;
     }
 
     private String resolveCorrelationId(SecurityEvent event) {

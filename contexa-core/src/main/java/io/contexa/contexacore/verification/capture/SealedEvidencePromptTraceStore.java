@@ -1,6 +1,7 @@
 package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import java.time.Clock;
 import java.time.Instant;
@@ -114,7 +115,7 @@ public class SealedEvidencePromptTraceStore {
                 promptResult.getPromptExecutionMetadata()
         );
 
-        pendingByEventId.put(event.getEventId(), snapshot);
+        pendingByEventId.put(resolveTraceKey(event), snapshot);
         pruneSnapshots();
     }
 
@@ -128,7 +129,7 @@ public class SealedEvidencePromptTraceStore {
         }
 
         pruneSnapshots();
-        SealedEvidencePromptSnapshot pending = pendingByEventId.remove(event.getEventId());
+        SealedEvidencePromptSnapshot pending = pendingByEventId.remove(resolveTraceKey(event));
         if (pending == null) {
             return;
         }
@@ -150,7 +151,7 @@ public class SealedEvidencePromptTraceStore {
                 pending.promptExecutionMetadata()
         );
 
-        completedByRequestId.put(requestId, completed);
+        completedByRequestId.put(resolveTraceKey(event), completed);
         latestCompleted.set(completed);
         pruneSnapshots();
     }
@@ -160,16 +161,20 @@ public class SealedEvidencePromptTraceStore {
      * Single-use: once consumed, the snapshot is removed from the store.
      */
     public SealedEvidencePromptSnapshot consume(String requestId) {
-        if (requestId == null || requestId.isBlank()) {
+        return consume(requestId, requestId);
+    }
+
+    public SealedEvidencePromptSnapshot consume(String traceKey, String requestId) {
+        if (!StringUtils.hasText(traceKey) || !StringUtils.hasText(requestId)) {
             return null;
         }
         pruneSnapshots();
-        SealedEvidencePromptSnapshot snapshot = completedByRequestId.remove(requestId);
+        SealedEvidencePromptSnapshot snapshot = completedByRequestId.remove(traceKey);
         if (snapshot != null) {
             latestCompleted.compareAndSet(snapshot, null);
             return snapshot;
         }
-        snapshot = consumePending(requestId);
+        snapshot = consumePending(traceKey, requestId);
         if (snapshot != null) {
             log.error("[SealedEvidence] Consumed pending prompt snapshot before Layer1 completion: requestId={}, eventId={}",
                     requestId,
@@ -186,13 +191,23 @@ public class SealedEvidencePromptTraceStore {
             return null;
         }
         pruneSnapshots();
-        return completedByRequestId.get(requestId);
-    }
-
-    private SealedEvidencePromptSnapshot consumePending(String requestId) {
-        SealedEvidencePromptSnapshot direct = pendingByEventId.remove(requestId);
+        SealedEvidencePromptSnapshot direct = completedByRequestId.get(requestId);
         if (direct != null) {
             return direct;
+        }
+        return completedByRequestId.values().stream()
+                .filter(snapshot -> requestId.equals(snapshot.requestId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private SealedEvidencePromptSnapshot consumePending(String traceKey, String requestId) {
+        SealedEvidencePromptSnapshot direct = pendingByEventId.remove(traceKey);
+        if (direct != null) {
+            return direct;
+        }
+        if (!traceKey.equals(requestId)) {
+            return null;
         }
         for (var entry : pendingByEventId.entrySet()) {
             SealedEvidencePromptSnapshot candidate = entry.getValue();
@@ -203,11 +218,21 @@ public class SealedEvidencePromptTraceStore {
         }
         SealedEvidencePromptSnapshot latest = latestCompleted.get();
         if (latest != null && requestId.equals(latest.requestId())) {
-            completedByRequestId.remove(requestId, latest);
+            completedByRequestId.remove(traceKey, latest);
             latestCompleted.compareAndSet(latest, null);
             return latest;
         }
         return null;
+    }
+
+    private String resolveTraceKey(SecurityEvent event) {
+        if (event != null && event.getMetadata() != null) {
+            Object identity = event.getMetadata().get(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
+            if (identity != null && StringUtils.hasText(identity.toString())) {
+                return identity.toString().trim();
+            }
+        }
+        return resolveRequestId(event);
     }
 
     private String resolveRequestId(SecurityEvent event) {
@@ -307,7 +332,7 @@ public class SealedEvidencePromptTraceStore {
         pruneMap(completedByRequestId, cutoff, options.maxCompleted());
 SealedEvidencePromptSnapshot latest = latestCompleted.get();
         if (latest != null && (latest.capturedAt().isBefore(cutoff)
-                || completedByRequestId.get(latest.requestId()) != latest)) {
+                || !completedByRequestId.containsValue(latest))) {
             latestCompleted.compareAndSet(latest, null);
         }
     }

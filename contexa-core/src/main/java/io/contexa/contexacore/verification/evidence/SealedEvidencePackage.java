@@ -28,6 +28,8 @@ public class SealedEvidencePackage {
 
     private String correlationId;
 
+    private String idempotencyKey;
+
     private String tenantId;
 
     private String userId;

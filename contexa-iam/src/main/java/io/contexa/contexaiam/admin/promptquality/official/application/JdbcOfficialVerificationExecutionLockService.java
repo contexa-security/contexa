@@ -57,11 +57,15 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         if (request == null || !StringUtils.hasText(request.idempotencyKey())
                 || !StringUtils.hasText(request.baseIdempotencyKey())
                 || !StringUtils.hasText(request.packageId())
-                || !StringUtils.hasText(request.tenantId())) {
+                || !StringUtils.hasText(request.tenantId())
+                || !StringUtils.hasText(request.executionScope())) {
             throw new IllegalArgumentException("Official verification idempotency request is incomplete.");
         }
-        recoverStaleExecution(request.tenantId(), request.packageId());
-        Optional<ExecutionRecord> running = queryRepository.findRunningByPackageId(request.tenantId(), request.packageId());
+        recoverStaleExecution(request.tenantId(), request.packageId(), request.executionScope());
+        Optional<ExecutionRecord> running = queryRepository.findRunningByPackageId(
+                request.tenantId(),
+                request.packageId(),
+                request.executionScope());
         if (running.isPresent()
                 && !request.idempotencyKey().equals(running.get().idempotencyKey())) {
             return queryRepository.acquired(running.get(), false);
@@ -105,6 +109,12 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
     public void transition(ExecutionRecord record, String state, int progressPercent, String message) {
         progressStore.transition(record, state, progressPercent, message);
     }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.SUPPORTS, readOnly = true)
+    public boolean isCurrentOwner(ExecutionRecord record) {
+        return queryRepository.isCurrentOwner(record);
+    }
     @Override
     @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markMetricsRunning(ExecutionRecord record, String aggregateRunId, List<String> metricCodes) {
@@ -135,7 +145,20 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         if (record == null || record.id() < 0) {
             return;
         }
-        jdbcTemplate.update("""
+        complete(record, aggregateRunId, writeResult(result));
+    }
+
+    @Override
+    @Transactional(transactionManager = "contexaTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markCompleted(ExecutionRecord record, String aggregateRunId) {
+        if (record == null || record.id() < 0) {
+            return;
+        }
+        complete(record, aggregateRunId, null);
+    }
+
+    private void complete(ExecutionRecord record, String aggregateRunId, String resultJson) {
+        int updated = jdbcTemplate.update("""
                         update official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
@@ -149,11 +172,12 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                                failure_stage = ?
                          where id = ?
                            and tenant_id = ?
+                           and attempt_no = ?
                          """,
                 STATE_COMPLETED,
                 COMPLETED_PROGRESS,
                 trim(aggregateRunId),
-                writeResult(result),
+                resultJson,
                 nowTimestamp(),
                 nowTimestamp(),
                 false,
@@ -161,7 +185,11 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                 null,
                 null,
                 record.id(),
-                record.tenantId());
+                record.tenantId(),
+                record.attemptNo());
+        if (updated != 1) {
+            return;
+        }
         progressStore.recordState(queryRepository.latestRecord(record), STATE_COMPLETED, COMPLETED_PROGRESS,
                 "Official verification completed and stored.", false, null, null);
     }
@@ -172,6 +200,9 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         if (record == null || record.id() < 0) {
             return;
         }
+        if (!queryRepository.isCurrentOwner(record)) {
+            return;
+        }
         ExecutionRecord latest = queryRepository.latestRecord(record);
         String failedStage = latest.state();
         String failureState = STATE_PREFLIGHT_FINAL_PROMPT_CONTRACT.equals(failedStage)
@@ -179,7 +210,7 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                 : recoverable ? STATE_FAILED_RECOVERABLE : STATE_FAILED_TERMINAL;
         int failedProgress = OfficialVerificationProgressPolicy.failureProgress(latest.progressPercent());
         String reason = progressStore.failureMessage(failure);
-        jdbcTemplate.update("""
+        int updated = jdbcTemplate.update("""
                         update official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
@@ -191,6 +222,7 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                                failure_stage = ?
                          where id = ?
                            and tenant_id = ?
+                           and attempt_no = ?
                           """,
                 failureState,
                 failedProgress,
@@ -201,7 +233,11 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
                 reason,
                 trim(failedStage),
                 record.id(),
-                record.tenantId());
+                record.tenantId(),
+                record.attemptNo());
+        if (updated != 1) {
+            return;
+        }
         progressStore.markIncompleteMetricsFailed(record, null, failure, recoverable, retryInstruction, failedProgress);
         progressStore.recordState(queryRepository.latestRecord(record), failureState, failedProgress,
                 recoverable
@@ -281,8 +317,11 @@ public class JdbcOfficialVerificationExecutionLockService implements OfficialVer
         return queryRepository.metricStatuses(record);
     }
 
-    private void recoverStaleExecution(String tenantId, String packageId) {
-        Optional<ExecutionRecord> candidate = queryRepository.findRunningByPackageId(tenantId, packageId);
+    private void recoverStaleExecution(String tenantId, String packageId, String executionScope) {
+        Optional<ExecutionRecord> candidate = queryRepository.findRunningByPackageId(
+                tenantId,
+                packageId,
+                executionScope);
         if (candidate.isEmpty() || candidate.get().updatedAt() == null) {
             return;
         }

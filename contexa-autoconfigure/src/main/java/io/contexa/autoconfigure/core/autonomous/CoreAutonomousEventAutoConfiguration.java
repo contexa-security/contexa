@@ -278,6 +278,7 @@ public class CoreAutonomousEventAutoConfiguration {
             BlockingSignalBroadcaster blockingSignalBroadcaster,
             @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
+            SecurityContextDataStore securityContextDataStore,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
@@ -286,7 +287,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 blockingSignalBroadcaster,
                 securityZeroTrustProperties,
                 baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
-                aiSecurityDecisionObservationWriterProvider::getIfAvailable);
+                aiSecurityDecisionObservationWriterProvider::getIfAvailable,
+                securityContextDataStore);
     }
 
     @Bean

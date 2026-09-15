@@ -22,14 +22,19 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -44,6 +49,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -64,6 +70,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityPlaneProperties securityPlaneProperties;
     private final Executor llmAnalysisExecutor;
     private Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier = () -> null;
+    private ZeroTrustActionRepository zeroTrustActionRepository;
 
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -79,12 +86,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final String LATE_PROCESSING_RESULT_DISCARDED_AT = "lateProcessingResultDiscardedAt";
     private static final String TIMEOUT_OBSERVATION_RECORDED = "timeoutObservationRecorded";
     private static final String TIMEOUT_OBSERVATION_ID = "timeoutObservationId";
+    public static final String EVENT_PROCESSING_IDENTITY = "eventProcessingIdentity";
+    public static final String EVENT_PROCESSING_OWNER_TOKEN = "eventProcessingOwnerToken";
 
     public void setAiSecurityDecisionObservationWriterSupplier(
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
         this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
                 ? aiSecurityDecisionObservationWriterSupplier
                 : () -> null;
+    }
+
+    public void setZeroTrustActionRepository(ZeroTrustActionRepository zeroTrustActionRepository) {
+        this.zeroTrustActionRepository = zeroTrustActionRepository;
     }
 
     @PostConstruct
@@ -195,7 +208,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     public SecurityEventContext processSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
-        SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
+        SecurityContextDataStore.EventProcessingLease lease = claimEventProcessing(event);
+        SecurityContextDataStore.EventProcessingClaim claim = lease.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
             log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
@@ -213,23 +227,32 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             skippedContext.addMetadata("skipReason", "event_processing_in_flight");
             return skippedContext;
         }
-        return processClaimedSecurityEvent(event, startTime);
+        SecurityEventContext reconciledContext = reconcilePersistedFinalDecision(event);
+        return reconciledContext != null ? reconciledContext : processClaimedSecurityEvent(event, startTime);
     }
 
     private SecurityEventContext processClaimedSecurityEvent(SecurityEvent event, long startTime) {
         try {
             SecurityEventContext context = securityEventProcessor.process(event);
+            if (context == null
+                    || context.getProcessingStatus() == SecurityEventContext.ProcessingStatus.FAILED) {
+                throw new IllegalStateException("Security event pipeline did not produce a final result");
+            }
             if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
                 event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED, true);
                 event.addMetadata(LATE_PROCESSING_RESULT_DISCARDED_AT, System.currentTimeMillis());
                 recordTimeoutObservation(event, "Event processing timeout: deadline exceeded after result completion");
                 throw new EventProcessingDeadlineExceededException(event.getEventId());
             }
-            markEventProcessed(event.getEventId());
+            if (!markEventProcessed(event)) {
+                event.addMetadata("staleProcessingResultDiscarded", true);
+                event.addMetadata("staleProcessingResultDiscardedAt", System.currentTimeMillis());
+                throw new StaleEventProcessingOwnerException(event.getEventId());
+            }
             return context;
 
         } catch (Exception e) {
-            releaseEventProcessing(event.getEventId());
+            releaseEventProcessing(event);
             if (e instanceof EventProcessingDeadlineExceededException) {
                 log.warn("[SecurityPlaneAgent] Discarded late processing result after event deadline: eventId={}", event.getEventId());
             } else {
@@ -247,6 +270,64 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
         }
     }
+    private SecurityEventContext reconcilePersistedFinalDecision(SecurityEvent event) {
+        AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
+        if (writer == null || zeroTrustActionRepository == null) {
+            return null;
+        }
+        String identity = metadataText(event.getMetadata(), EVENT_PROCESSING_IDENTITY);
+        AiSecurityDecisionObservationWriter.PersistedFinalDecision persisted =
+                writer.findFinalDecision(identity);
+        if (persisted == null) {
+            return null;
+        }
+
+        String eventUserId = firstText(event.getUserId(), metadataText(event.getMetadata(), "userId"));
+        if (persisted.userId() != null && !persisted.userId().equals(eventUserId)) {
+            throw new IllegalStateException("Persisted final decision user does not match processing identity");
+        }
+        String eventContextBindingHash = firstText(
+                metadataText(event.getMetadata(), "contextBindingHash"),
+                SessionFingerprintUtil.generateContextBindingHash(
+                        event.getSessionId(), event.getSourceIp(), event.getUserAgent()));
+        if (persisted.contextBindingHash() != null
+                && !persisted.contextBindingHash().equals(eventContextBindingHash)) {
+            throw new IllegalStateException("Persisted final decision context does not match processing identity");
+        }
+        if (persisted.observationId() == null || persisted.observationId().isBlank()
+                || persisted.processingGeneration() == null || persisted.processingGeneration().isBlank()) {
+            return null;
+        }
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("observationId", persisted.observationId());
+        fields.put("processingGeneration", persisted.processingGeneration());
+        fields.put("persistedFinalReused", true);
+        if (persisted.requestId() != null) {
+            fields.put("requestId", persisted.requestId());
+        }
+        if (persisted.contextBindingHash() != null) {
+            fields.put("contextBindingHash", persisted.contextBindingHash());
+        }
+        ZeroTrustAction finalAction = ZeroTrustAction.fromString(persisted.finalAction());
+        if (!zeroTrustActionRepository.saveFinalAction(eventUserId, finalAction, fields)) {
+            throw new IllegalStateException("Persisted final decision did not converge to runtime action");
+        }
+        if (!markEventProcessed(event)) {
+            throw new StaleEventProcessingOwnerException(event.getEventId());
+        }
+
+        event.addMetadata("persistedFinalDecisionReused", true);
+        event.addMetadata("persistedFinalObservationId", persisted.observationId());
+        SecurityEventContext reconciled = SecurityEventContext.builder()
+                .securityEvent(event)
+                .processingStatus(SecurityEventContext.ProcessingStatus.COMPLETED)
+                .build();
+        reconciled.addMetadata("persistedFinalDecisionReused", true);
+        reconciled.addMetadata("finalAction", finalAction.name());
+        return reconciled;
+    }
+
     private void auditError(String component, String operation, Exception exception,
                             Map<String, Object> errorContext) {
         try {
@@ -284,16 +365,79 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    private SecurityContextDataStore.EventProcessingClaim claimEventProcessing(String eventId) {
-        return dataStore.claimEventProcessing(eventId);
+    private SecurityContextDataStore.EventProcessingLease claimEventProcessing(SecurityEvent event) {
+        String identity = eventProcessingIdentity(event);
+        SecurityContextDataStore.EventProcessingLease lease = dataStore.claimEventProcessingLease(identity);
+        if (lease.claim() == SecurityContextDataStore.EventProcessingClaim.ACQUIRED) {
+            event.addMetadata(EVENT_PROCESSING_IDENTITY, identity);
+            event.addMetadata(EVENT_PROCESSING_OWNER_TOKEN, lease.ownerToken());
+        }
+        return lease;
     }
 
-    private void markEventProcessed(String eventId) {
-        dataStore.markEventProcessed(eventId);
+    private boolean markEventProcessed(SecurityEvent event) {
+        return dataStore.markEventProcessed(
+                metadataText(event.getMetadata(), EVENT_PROCESSING_IDENTITY),
+                metadataText(event.getMetadata(), EVENT_PROCESSING_OWNER_TOKEN));
     }
 
-    private void releaseEventProcessing(String eventId) {
-        dataStore.releaseEventProcessing(eventId);
+    private boolean releaseEventProcessing(SecurityEvent event) {
+        return dataStore.releaseEventProcessing(
+                metadataText(event.getMetadata(), EVENT_PROCESSING_IDENTITY),
+                metadataText(event.getMetadata(), EVENT_PROCESSING_OWNER_TOKEN));
+    }
+
+    private String eventProcessingIdentity(SecurityEvent event) {
+        if (event == null) {
+            return sha256("tenant-unspecified|user-unspecified|context-unspecified|event-unspecified|resource-unspecified|method-unspecified");
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        String tenantId = firstText(metadataText(metadata, "tenantId"), metadataText(metadata, "tenant_id"), "tenant-unspecified");
+        String userId = firstText(event.getUserId(), metadataText(metadata, "userId"), "user-unspecified");
+        String contextBindingHash = firstText(
+                metadataText(metadata, "contextBindingHash"),
+                SessionFingerprintUtil.generateContextBindingHash(
+                        event.getSessionId(), event.getSourceIp(), event.getUserAgent()),
+                "context-unspecified");
+        String eventReference = firstText(event.getEventId(), metadataText(metadata, "requestId"),
+                metadataText(metadata, "correlationId"), "event-unspecified");
+        String resource = firstText(metadataText(metadata, "protectableResourceId"),
+                metadataText(metadata, "resourceId"), metadataText(metadata, "requestPath"),
+                "resource-unspecified");
+        String method = firstText(metadataText(metadata, "protectableHttpMethod"),
+                metadataText(metadata, "httpMethod"), metadataText(metadata, "method"), "method-unspecified");
+        return sha256(String.join("|", tenantId, userId, contextBindingHash, eventReference, resource, method));
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required", exception);
+        }
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private String metadataText(Map<String, Object> metadata, String key) {
+        if (metadata == null) {
+            return null;
+        }
+        Object value = metadata.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
     }
 
     private void initializeStripedExecutors() {
@@ -344,7 +488,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     private SecurityEventContext processSecurityEventWithinBudget(SecurityEvent event) throws Exception {
         long timeoutMs = Math.max(1000L, securityPlaneProperties.getAgent().getEventTimeoutMs());
-        SecurityContextDataStore.EventProcessingClaim claim = claimEventProcessing(event.getEventId());
+        SecurityContextDataStore.EventProcessingLease lease = claimEventProcessing(event);
+        SecurityContextDataStore.EventProcessingClaim claim = lease.claim();
         if (claim == SecurityContextDataStore.EventProcessingClaim.PROCESSED) {
             log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
             SecurityEventContext skippedContext = SecurityEventContext.builder()
@@ -356,6 +501,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
         if (claim == SecurityContextDataStore.EventProcessingClaim.IN_FLIGHT) {
             throw new EventProcessingInFlightException(event.getEventId());
+        }
+        SecurityEventContext reconciledContext = reconcilePersistedFinalDecision(event);
+        if (reconciledContext != null) {
+            return reconciledContext;
         }
 
         CompletableFuture<SecurityEventContext> processingFuture = new CompletableFuture<>();
@@ -380,7 +529,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     event.addMetadata(PROCESSING_QUEUE_TIMEOUT_AT, executionStartedAt);
                     recordTimeoutObservation(event, "LLM executor queue timeout: waited "
                             + executorQueueWaitMs + "ms > " + queueTimeoutMs + "ms");
-                    releaseEventProcessing(event.getEventId());
+                    releaseEventProcessing(event);
                     processingFuture.completeExceptionally(new TimeoutException("LLM executor queue timeout"));
                     return;
                 }
@@ -399,7 +548,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata("llmExecutorRejectedAt", System.currentTimeMillis());
             event.addMetadata("decisionFailureCategory", "REJECTED_BACKPRESSURE");
             recordRejectedObservation(event);
-            releaseEventProcessing(event.getEventId());
+            releaseEventProcessing(event);
             throw rejectedExecutionException;
         }
 
@@ -422,6 +571,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             event.addMetadata(PROCESSING_TIMEOUT_AT, System.currentTimeMillis());
             event.addMetadata(PROCESSING_TIMEOUT_CANCELLATION_REQUESTED, true);
             recordTimeoutObservation(event, "Event processing timeout: budget exceeded");
+            releaseEventProcessing(event);
             throw timeoutException;
         }
     }
@@ -623,6 +773,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final class EventProcessingDeadlineExceededException extends RuntimeException {
         private EventProcessingDeadlineExceededException(String eventId) {
             super("Event processing deadline exceeded: " + eventId);
+        }
+    }
+
+    private static final class StaleEventProcessingOwnerException extends RuntimeException {
+        private StaleEventProcessingOwnerException(String eventId) {
+            super("Event processing ownership is stale: " + eventId);
         }
     }
 }

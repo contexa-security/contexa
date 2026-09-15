@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -89,11 +90,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
     private final AtomicLong authenticationEventSequence = new AtomicLong();
     private final Object eventProcessingLock = new Object();
-    private final Set<String> processingEvents = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Map<String, Instant> processedEventExpiry = Collections.synchronizedMap(
+    private final Map<String, String> processingEventOwners = new LinkedHashMap<>();
+    private final Map<String, EventProcessingEntry> processedEvents = Collections.synchronizedMap(
             new LinkedHashMap<>(16, 0.75f, false) {
                 @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Instant> eldest) {
+                protected boolean removeEldestEntry(Map.Entry<String, EventProcessingEntry> eldest) {
                     return size() > MAX_PROCESSED_EVENTS;
                 }
             });
@@ -106,6 +107,9 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             });
     private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> userSessionsExpiry = new ConcurrentHashMap<>();
+
+    private record EventProcessingEntry(String ownerToken, Instant expiresAt) {
+    }
 
     private static final class SoarEntry {
         final Object data;
@@ -324,33 +328,88 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
+        return claimEventProcessingLease(eventId).claim();
+    }
+
+    @Override
+    public EventProcessingLease claimEventProcessingLease(String eventId) {
         synchronized (eventProcessingLock) {
-            Instant expiresAt = processedEventExpiry.get(eventId);
-            if (expiresAt != null) {
-                if (clock.instant().isBefore(expiresAt)) {
-                    return EventProcessingClaim.PROCESSED;
+            EventProcessingEntry processed = processedEvents.get(eventId);
+            if (processed != null) {
+                if (clock.instant().isBefore(processed.expiresAt())) {
+                    return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
                 }
-                processedEventExpiry.remove(eventId);
+                processedEvents.remove(eventId);
             }
-            if (!processingEvents.add(eventId)) {
-                return EventProcessingClaim.IN_FLIGHT;
+            if (processingEventOwners.containsKey(eventId)) {
+                return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
             }
-            return EventProcessingClaim.ACQUIRED;
+            String ownerToken = UUID.randomUUID().toString();
+            processingEventOwners.put(eventId, ownerToken);
+            return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
+        }
+    }
+
+    @Override
+    public boolean isEventProcessingOwner(String eventId, String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return false;
+        }
+        synchronized (eventProcessingLock) {
+            if (ownerToken.equals(processingEventOwners.get(eventId))) {
+                return true;
+            }
+            EventProcessingEntry processed = processedEvents.get(eventId);
+            if (processed == null) {
+                return false;
+            }
+            if (!clock.instant().isBefore(processed.expiresAt())) {
+                processedEvents.remove(eventId);
+                return false;
+            }
+            return ownerToken.equals(processed.ownerToken());
         }
     }
 
     @Override
     public void markEventProcessed(String eventId) {
         synchronized (eventProcessingLock) {
-            processingEvents.remove(eventId);
-            processedEventExpiry.put(eventId, clock.instant().plus(eventProcessedTtl));
+            String ownerToken = processingEventOwners.remove(eventId);
+            processedEvents.put(
+                    eventId,
+                    new EventProcessingEntry(ownerToken != null ? ownerToken : "legacy", clock.instant().plus(eventProcessedTtl)));
+        }
+    }
+
+    @Override
+    public boolean markEventProcessed(String eventId, String ownerToken) {
+        synchronized (eventProcessingLock) {
+            if (ownerToken == null || !ownerToken.equals(processingEventOwners.get(eventId))) {
+                return false;
+            }
+            processingEventOwners.remove(eventId);
+            processedEvents.put(
+                    eventId,
+                    new EventProcessingEntry(ownerToken, clock.instant().plus(eventProcessedTtl)));
+            return true;
         }
     }
 
     @Override
     public void releaseEventProcessing(String eventId) {
         synchronized (eventProcessingLock) {
-            processingEvents.remove(eventId);
+            processingEventOwners.remove(eventId);
+        }
+    }
+
+    @Override
+    public boolean releaseEventProcessing(String eventId, String ownerToken) {
+        synchronized (eventProcessingLock) {
+            if (ownerToken == null || !ownerToken.equals(processingEventOwners.get(eventId))) {
+                return false;
+            }
+            processingEventOwners.remove(eventId);
+            return true;
         }
     }
 

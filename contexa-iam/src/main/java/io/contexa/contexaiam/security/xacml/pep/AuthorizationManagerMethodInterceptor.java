@@ -88,7 +88,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 log.debug("[ZeroTrust] AI decision analysis is disabled for Protectable invocation. mode={}",
                         securityZeroTrustMode());
             } else {
-                rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi);
+                rapidReentryAllowed = rapidReentryGuard.tryAcquire(authentication, mi, securityZeroTrustMode());
                 if (!rapidReentryAllowed && (protectable == null || !protectable.sync())) {
                     publishEvent = false;
                     recordSuppressedProtectable(authentication, mi, "RAPID_REENTRY_ACTOR_SESSION");

@@ -35,32 +35,40 @@ final class OfficialVerificationExecutionProgressStore {
                 packageId, tenantId
         );
     }
-    void transition(ExecutionRecord record, String state, int progressPercent, String message) {
+    boolean transition(ExecutionRecord record, String state, int progressPercent, String message) {
         if (record == null || record.id() < 0 || !StringUtils.hasText(state)) {
-            return;
+            return false;
         }
         int boundedProgress = OfficialVerificationProgressPolicy.bound(progressPercent);
-        jdbcTemplate.update("""
+        int updated = jdbcTemplate.update("""
                         update official_verification_execution_lock
                            set state = ?,
                                progress_percent = ?,
                                updated_at = ?
                          where id = ?
                            and tenant_id = ?
+                           and attempt_no = ?
                         """,
                 trim(state),
                 boundedProgress,
                 nowTimestamp(),
                 record.id(),
-                record.tenantId());
+                record.tenantId(),
+                record.attemptNo());
+        if (updated != 1) {
+            return false;
+        }
         recordState(record, state, boundedProgress, message, null, null, null);
+        return true;
     }
 
     void markMetricsRunning(ExecutionRecord record, String aggregateRunId, List<String> metricCodes) {
         if (record == null || record.id() < 0) {
             return;
         }
-        transition(record, STATE_METRICS_RUNNING, METRICS_PROGRESS, "Official prompt quality metrics started.");
+        if (!transition(record, STATE_METRICS_RUNNING, METRICS_PROGRESS, "Official prompt quality metrics started.")) {
+            return;
+        }
         List<String> normalized = metricCodes == null ? List.of() : metricCodes.stream()
                 .filter(StringUtils::hasText)
                 .map(value -> value.trim().toUpperCase())
@@ -119,6 +127,9 @@ final class OfficialVerificationExecutionProgressStore {
         if (record == null || record.id() < 0 || !StringUtils.hasText(metricCode)) {
             return;
         }
+        if (!queryRepository.isCurrentOwner(record)) {
+            return;
+        }
         int boundedProgress = OfficialVerificationProgressPolicy.bound(progressPercent);
         int updated = jdbcTemplate.update("""
                         update official_verification_metric_execution_ledger
@@ -163,6 +174,9 @@ final class OfficialVerificationExecutionProgressStore {
             boolean recoverable,
             String retryInstruction) {
         if (record == null || record.id() < 0 || !StringUtils.hasText(metricCode)) {
+            return;
+        }
+        if (!queryRepository.isCurrentOwner(record)) {
             return;
         }
         String reason = failureMessage(failure);
@@ -239,6 +253,9 @@ final class OfficialVerificationExecutionProgressStore {
             String retryInstruction,
             Instant startedAt,
             Instant completedAt) {
+        if (!queryRepository.isCurrentOwner(record)) {
+            return false;
+        }
         String sql = """
                             insert into official_verification_metric_execution_ledger (
                                 execution_lock_id, package_id, tenant_id, aggregate_run_id, attempt_no,
@@ -322,13 +339,15 @@ final class OfficialVerificationExecutionProgressStore {
                                updated_at = ?
                          where id = ?
                            and tenant_id = ?
+                           and attempt_no = ?
                         """,
                 boundedProgress,
                 boundedProgress,
                 trim(aggregateRunId),
                 nowTimestamp(),
                 record.id(),
-                record.tenantId());
+                record.tenantId(),
+                record.attemptNo());
     }
 
     void recordState(
@@ -340,6 +359,9 @@ final class OfficialVerificationExecutionProgressStore {
             String failureReason,
             String retryInstruction) {
         if (record == null || record.id() < 0 || !StringUtils.hasText(state)) {
+            return;
+        }
+        if (!queryRepository.isCurrentOwner(record)) {
             return;
         }
         jdbcTemplate.update("""

@@ -337,6 +337,42 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         }
     }
 
+    @Override
+    public boolean saveFinalAction(
+            String userId,
+            ZeroTrustAction action,
+            Map<String, Object> additionalFields) {
+        if (userId == null || userId.isBlank() || action == null || additionalFields == null) {
+            return false;
+        }
+        Object observationId = additionalFields.get("observationId");
+        Object processingGeneration = additionalFields.get("processingGeneration");
+        if (observationId == null || observationId.toString().isBlank()
+                || processingGeneration == null || processingGeneration.toString().isBlank()) {
+            return false;
+        }
+
+        saveAction(userId, action, additionalFields);
+        try {
+            Map<Object, Object> analysis = readAnalysis(userId);
+            if (!action.name().equals(String.valueOf(analysis.get("action")))
+                    || !observationId.toString().equals(String.valueOf(analysis.get("observationId")))
+                    || !processingGeneration.toString().equals(String.valueOf(analysis.get("processingGeneration")))) {
+                return false;
+            }
+            if (!action.name().equals(readLastVerifiedAction(userId))) {
+                return false;
+            }
+            Object contextBindingHash = additionalFields.get("contextBindingHash");
+            return contextBindingHash == null
+                    || contextBindingHash.toString().equals(readLastVerifiedActionContext(userId));
+        } catch (Exception exception) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to verify final action write: userId={}, action={}",
+                    userId, action, exception);
+            return false;
+        }
+    }
+
     public void saveActionWithPrevious(String userId, ZeroTrustAction newAction) {
         if (userId == null || userId.isBlank() || newAction == null) {
             return;

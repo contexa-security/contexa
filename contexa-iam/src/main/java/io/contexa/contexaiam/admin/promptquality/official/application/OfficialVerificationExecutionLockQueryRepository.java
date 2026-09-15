@@ -37,10 +37,12 @@ final class OfficialVerificationExecutionLockQueryRepository {
         try {
             return jdbcTemplate.query(
                     "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
-                            + " where tenant_id = ? and package_id = ? order by updated_at desc, id desc limit 1",
+                            + " where tenant_id = ? and package_id = ? and execution_scope = ?"
+                            + " order by updated_at desc, id desc limit 1",
                     this::record,
                     trim(tenantId),
-                    trim(packageId)
+                    trim(packageId),
+                    SCOPE_OFFICIAL_VERIFICATION
             ).stream().findFirst();
         }
         catch (DataAccessException ignored) {
@@ -58,11 +60,13 @@ final class OfficialVerificationExecutionLockQueryRepository {
             return jdbcTemplate.query(
                     "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
                             + " where tenant_id = ? and package_id = ? and aggregate_run_id = ?"
+                            + " and execution_scope = ?"
                             + " order by updated_at desc, id desc limit 1",
                     this::record,
                     trim(tenantId),
                     trim(packageId),
-                    trim(aggregateRunId)
+                    trim(aggregateRunId),
+                    SCOPE_OFFICIAL_VERIFICATION
             ).stream().findFirst();
         }
         catch (DataAccessException ignored) {
@@ -128,11 +132,69 @@ final class OfficialVerificationExecutionLockQueryRepository {
         ).stream().findFirst();
     }
 
+    Optional<ExecutionRecord> findRunningByPackageId(
+            String tenantId,
+            String packageId,
+            String executionScope
+    ) {
+        if (!StringUtils.hasText(tenantId)
+                || !StringUtils.hasText(packageId)
+                || !StringUtils.hasText(executionScope)) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query(
+                "select " + EXECUTION_COLUMNS + " from official_verification_execution_lock"
+                        + " where tenant_id = ? and package_id = ? and execution_scope = ?"
+                        + " and state in (?, ?, ?, ?, ?, ?, ?) order by created_at desc, id desc limit 1",
+                this::record,
+                trim(tenantId), trim(packageId), trim(executionScope),
+                STATE_LOCK_ACQUIRED, STATE_EVIDENCE_LOADED, STATE_CONSISTENCY_CHECKED,
+                STATE_PREFLIGHT_FINAL_PROMPT_CONTRACT, STATE_METRICS_RUNNING,
+                STATE_METRIC_FAILED, STATE_SNAPSHOT_WRITING
+        ).stream().findFirst();
+    }
+
     ExecutionRecord latestRecord(ExecutionRecord record) {
         if (record == null || !StringUtils.hasText(record.idempotencyKey())) {
             return record;
         }
         return queryByKey(record.tenantId(), record.idempotencyKey()).orElse(record);
+    }
+
+    boolean isCurrentOwner(ExecutionRecord record) {
+        if (record == null || record.id() < 0 || !StringUtils.hasText(record.tenantId())) {
+            return false;
+        }
+        Integer count = jdbcTemplate.queryForObject("""
+                        select count(*)
+                          from official_verification_execution_lock
+                         where id = ?
+                           and tenant_id = ?
+                           and attempt_no = ?
+                        """,
+                Integer.class,
+                record.id(),
+                record.tenantId(),
+                record.attemptNo());
+        return count != null && count == 1;
+    }
+
+    boolean hasExecutionScope(ExecutionRecord record, String executionScope) {
+        if (record == null || record.id() < 0 || !StringUtils.hasText(executionScope)) {
+            return false;
+        }
+        Integer count = jdbcTemplate.queryForObject("""
+                        select count(*)
+                          from official_verification_execution_lock
+                         where id = ?
+                           and tenant_id = ?
+                           and execution_scope = ?
+                        """,
+                Integer.class,
+                record.id(),
+                record.tenantId(),
+                trim(executionScope));
+        return count != null && count == 1;
     }
 
     ExecutionRecord acquired(ExecutionRecord record, boolean acquired) {

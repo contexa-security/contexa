@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface OfficialVerificationExecutionLockService {
 
+    String SCOPE_OFFICIAL_VERIFICATION = "OFFICIAL_VERIFICATION";
     String STATE_REQUESTED = "REQUESTED";
     String STATE_LOCK_ACQUIRED = "LOCK_ACQUIRED";
     String STATE_EVIDENCE_LOADED = "EVIDENCE_LOADED";
@@ -27,6 +28,8 @@ public interface OfficialVerificationExecutionLockService {
 
     ExecutionRecord start(ExecutionRequest request);
 
+    boolean isCurrentOwner(ExecutionRecord record);
+
     void transition(ExecutionRecord record, String state, int progressPercent, String message);
 
     void markMetricsRunning(ExecutionRecord record, String aggregateRunId, List<String> metricCodes);
@@ -42,6 +45,8 @@ public interface OfficialVerificationExecutionLockService {
             String retryInstruction);
 
     void markCompleted(ExecutionRecord record, String aggregateRunId, RuntimeEvidenceVerificationRun result);
+
+    void markCompleted(ExecutionRecord record, String aggregateRunId);
 
     void markFailed(ExecutionRecord record, Throwable failure, boolean recoverable, String retryInstruction);
 
@@ -98,7 +103,36 @@ public interface OfficialVerificationExecutionLockService {
             String requestedBy,
             boolean forceReverification,
             String reverificationReason,
-            String requestFingerprintJson) {
+            String requestFingerprintJson,
+            String executionScope) {
+
+        public ExecutionRequest(
+                String idempotencyKey,
+                String baseIdempotencyKey,
+                String packageId,
+                String tenantId,
+                String requestedBy,
+                boolean forceReverification,
+                String reverificationReason,
+                String requestFingerprintJson
+        ) {
+            this(
+                    idempotencyKey,
+                    baseIdempotencyKey,
+                    packageId,
+                    tenantId,
+                    requestedBy,
+                    forceReverification,
+                    reverificationReason,
+                    requestFingerprintJson,
+                    SCOPE_OFFICIAL_VERIFICATION);
+        }
+
+        public ExecutionRequest {
+            executionScope = executionScope == null || executionScope.isBlank()
+                    ? SCOPE_OFFICIAL_VERIFICATION
+                    : executionScope.trim();
+        }
     }
 
     record ExecutionRecord(

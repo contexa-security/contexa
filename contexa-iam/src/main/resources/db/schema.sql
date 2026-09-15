@@ -1341,6 +1341,7 @@ CREATE TABLE IF NOT EXISTS sealed_evidence_package (
     id BIGSERIAL PRIMARY KEY,
     package_id VARCHAR(256) NOT NULL,
     correlation_id VARCHAR(160) NOT NULL,
+    idempotency_key VARCHAR(128),
     tenant_id VARCHAR(120),
     user_id VARCHAR(160),
     captured_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
@@ -1372,8 +1373,17 @@ CREATE TABLE IF NOT EXISTS sealed_evidence_package (
 );
 
 
-create unique index if not exists idx_sep_correlation_id
+alter table sealed_evidence_package
+    add column if not exists idempotency_key VARCHAR(128);
+
+drop index if exists idx_sep_correlation_id;
+
+create index if not exists idx_sep_correlation_id
     on sealed_evidence_package (correlation_id);
+
+create unique index if not exists uq_sep_idempotency_key
+    on sealed_evidence_package (idempotency_key)
+    where idempotency_key is not null;
 
 create index if not exists idx_sep_user_id_captured_at
     on sealed_evidence_package (user_id, captured_at);
@@ -1404,6 +1414,9 @@ create index idx_login_attempt_ip_window
 
 CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
     observation_id VARCHAR(64) PRIMARY KEY,
+    tenant_id VARCHAR(160),
+    idempotency_key VARCHAR(128),
+    processing_generation VARCHAR(128),
     event_id VARCHAR(128),
     request_id VARCHAR(160),
     correlation_id VARCHAR(160),
@@ -1456,6 +1469,9 @@ CREATE TABLE IF NOT EXISTS ai_security_decision_observation (
 );
 
 ALTER TABLE ai_security_decision_observation
+    ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS processing_generation VARCHAR(128),
     ADD COLUMN IF NOT EXISTS test_run_id VARCHAR(160),
     ADD COLUMN IF NOT EXISTS trigger_relation VARCHAR(64) NOT NULL DEFAULT 'UNMATCHED_LLM',
     ADD COLUMN IF NOT EXISTS decision_boundary_mode VARCHAR(32),
@@ -1530,6 +1546,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_reason_created
 
 CREATE INDEX IF NOT EXISTS idx_ai_sec_suppression_user_created
     ON ai_security_llm_trigger_suppression (user_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_sec_decision_idempotency
+    ON ai_security_decision_observation (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_ai_sec_decision_created
     ON ai_security_decision_observation (created_at);
 
@@ -2464,6 +2484,7 @@ CREATE TABLE IF NOT EXISTS official_verification_execution_lock (
     base_idempotency_key VARCHAR(256) NOT NULL,
     package_id VARCHAR(256) NOT NULL,
     tenant_id VARCHAR(120) NOT NULL,
+    execution_scope VARCHAR(128) NOT NULL DEFAULT 'OFFICIAL_VERIFICATION',
     aggregate_run_id VARCHAR(256),
     revision_no INTEGER NOT NULL DEFAULT 1,
     state VARCHAR(64) NOT NULL,
@@ -2488,6 +2509,13 @@ CREATE TABLE IF NOT EXISTS official_verification_execution_lock (
 ALTER TABLE official_verification_execution_lock
     ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(120);
 
+ALTER TABLE official_verification_execution_lock
+    ADD COLUMN IF NOT EXISTS execution_scope VARCHAR(128) NOT NULL DEFAULT 'OFFICIAL_VERIFICATION';
+
+UPDATE official_verification_execution_lock
+   SET execution_scope = 'OFFICIAL_VERIFICATION'
+ WHERE execution_scope IS NULL OR BTRIM(execution_scope) = '';
+
 UPDATE official_verification_execution_lock execution
    SET tenant_id = sealed.tenant_id
   FROM sealed_evidence_package sealed
@@ -2499,6 +2527,9 @@ CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_package
 
 CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_tenant_package
     ON official_verification_execution_lock(tenant_id, package_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_scope
+    ON official_verification_execution_lock(tenant_id, package_id, execution_scope, state, updated_at);
 
 CREATE INDEX IF NOT EXISTS idx_official_verification_execution_lock_state
     ON official_verification_execution_lock(state, updated_at);

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.store;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface SecurityContextDataStore {
 
@@ -23,6 +24,18 @@ public interface SecurityContextDataStore {
         ACQUIRED,
         IN_FLIGHT,
         PROCESSED
+    }
+
+    record EventProcessingLease(EventProcessingClaim claim, String ownerToken) {
+        public EventProcessingLease {
+            if (claim == null) {
+                throw new IllegalArgumentException("claim is required");
+            }
+            if (claim == EventProcessingClaim.ACQUIRED
+                    && (ownerToken == null || ownerToken.isBlank())) {
+                throw new IllegalArgumentException("ownerToken is required for an acquired claim");
+            }
+        }
     }
 
     void addSessionAction(String sessionId, String action);
@@ -89,9 +102,36 @@ public interface SecurityContextDataStore {
 
     EventProcessingClaim claimEventProcessing(String eventId);
 
+    default EventProcessingLease claimEventProcessingLease(String eventId) {
+        EventProcessingClaim claim = claimEventProcessing(eventId);
+        return new EventProcessingLease(
+                claim,
+                claim == EventProcessingClaim.ACQUIRED ? UUID.randomUUID().toString() : null);
+    }
+
+    default boolean isEventProcessingOwner(String eventId, String ownerToken) {
+        return ownerToken != null && !ownerToken.isBlank();
+    }
+
     void markEventProcessed(String eventId);
 
+    default boolean markEventProcessed(String eventId, String ownerToken) {
+        if (!isEventProcessingOwner(eventId, ownerToken)) {
+            return false;
+        }
+        markEventProcessed(eventId);
+        return true;
+    }
+
     void releaseEventProcessing(String eventId);
+
+    default boolean releaseEventProcessing(String eventId, String ownerToken) {
+        if (!isEventProcessingOwner(eventId, ownerToken)) {
+            return false;
+        }
+        releaseEventProcessing(eventId);
+        return true;
+    }
 
     default boolean tryMarkEventAsProcessed(String eventId) {
         EventProcessingClaim claim = claimEventProcessing(eventId);

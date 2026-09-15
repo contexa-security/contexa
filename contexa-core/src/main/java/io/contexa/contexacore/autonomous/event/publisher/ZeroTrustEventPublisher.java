@@ -171,6 +171,7 @@ public class ZeroTrustEventPublisher {
             payload.put("requestPath", requestInfo.getRequestUri());
             payload.put("requestUri", requestInfo.getRequestUri());
             payload.put("httpMethod", requestInfo.getMethod());
+            payload.put("eventId", requestInfo.getRequestId());
             payload.put("requestId", requestInfo.getRequestId());
             payload.put("correlationId", requestInfo.getRequestId());
             payload.put("contextBindingHash", requestInfo.getContextBindingHash());

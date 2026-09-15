@@ -17,7 +17,9 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
@@ -26,6 +28,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
+import java.util.Map;
 
 @Slf4j
 public class ProtectableRapidReentryGuard {
@@ -47,7 +50,7 @@ public class ProtectableRapidReentryGuard {
 
     public void check(Authentication authentication, MethodInvocation methodInvocation) {
         if (!tryAcquire(authentication, methodInvocation)) {
-            String scopeKey = buildActorSessionScopeKey();
+            String scopeKey = buildRequestScopeKey(resolveCurrentRequest(), methodInvocation, "UNSPECIFIED");
             log.error("[ProtectableRapidReentryGuard] Rapid protected re-entry denied: userId={}, scope={}",
                     authentication != null ? authentication.getName() : null,
                     scopeKey);
@@ -56,6 +59,13 @@ public class ProtectableRapidReentryGuard {
     }
 
     public boolean tryAcquire(Authentication authentication, MethodInvocation methodInvocation) {
+        return tryAcquire(authentication, methodInvocation, "UNSPECIFIED");
+    }
+
+    public boolean tryAcquire(
+            Authentication authentication,
+            MethodInvocation methodInvocation,
+            String decisionBoundaryMode) {
         if (window.isZero() || window.isNegative()) {
             return true;
         }
@@ -79,7 +89,7 @@ public class ProtectableRapidReentryGuard {
             return true;
         }
 
-        String scopeKey = buildActorSessionScopeKey();
+        String scopeKey = buildRequestScopeKey(request, methodInvocation, decisionBoundaryMode);
         return repository.tryAcquire(userId, contextBindingHash, scopeKey, window);
     }
 
@@ -91,7 +101,40 @@ public class ProtectableRapidReentryGuard {
             return null;
         }
     }
-    private String buildActorSessionScopeKey() {
-        return "PROTECTABLE_ACTOR_SESSION";
+    private String buildRequestScopeKey(
+            HttpServletRequest request,
+            MethodInvocation methodInvocation,
+            String decisionBoundaryMode) {
+        Map<String, Object> officialContext = OfficialContextRequestAttributes.extractSnapshot(request);
+        String tenantId = firstText(officialContext.get("tenantId"), officialContext.get("tenant_id"));
+        String requestId = RequestInfoExtractor.extractRequestId(request);
+        String httpMethod = normalize(request.getMethod(), "METHOD_UNSPECIFIED");
+        String requestUri = normalize(request.getRequestURI(), "URI_UNSPECIFIED");
+        String methodResource = methodInvocation == null || methodInvocation.getMethod() == null
+                ? "RESOURCE_UNSPECIFIED"
+                : methodInvocation.getMethod().getDeclaringClass().getName()
+                        + "." + methodInvocation.getMethod().getName();
+        return normalize(tenantId, "TENANT_UNSPECIFIED")
+                + "|" + normalize(requestId, "REQUEST_UNSPECIFIED")
+                + "|" + httpMethod
+                + "|" + requestUri
+                + "|" + methodResource
+                + "|" + normalize(decisionBoundaryMode, "BOUNDARY_UNSPECIFIED");
+    }
+
+    private String firstText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
+    }
+
+    private String normalize(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 }

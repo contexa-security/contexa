@@ -65,17 +65,9 @@ final class OfficialVerificationExecutionLockLifecycleStore {
         if (!record.completed() && !record.failed()) {
             return queryRepository.acquired(record, false);
         }
-        jdbcTemplate.update(
-                "delete from official_verification_execution_state_history where execution_lock_id = ? and tenant_id = ?",
-                record.id(),
-                record.tenantId());
-        jdbcTemplate.update(
-                "delete from official_verification_metric_execution_ledger where execution_lock_id = ? and tenant_id = ?",
-                record.id(),
-                record.tenantId());
         int updated = jdbcTemplate.update("""
                         update official_verification_execution_lock
-                           set attempt_no = 1,
+                           set attempt_no = attempt_no + 1,
                                state = ?,
                                progress_percent = ?,
                                aggregate_run_id = ?,
@@ -90,6 +82,7 @@ final class OfficialVerificationExecutionLockLifecycleStore {
                                updated_at = ?
                          where id = ?
                            and tenant_id = ?
+                           and state = ?
                         """,
                 STATE_LOCK_ACQUIRED,
                 LOCK_PROGRESS,
@@ -104,11 +97,22 @@ final class OfficialVerificationExecutionLockLifecycleStore {
                 null,
                 nowTimestamp(),
                 record.id(),
-                record.tenantId());
+                record.tenantId(),
+                record.state());
         if (updated != 1) {
             return queryRepository.queryByKey(record.tenantId(), record.idempotencyKey())
                     .map(existing -> queryRepository.acquired(existing, false))
                     .orElseGet(() -> queryRepository.acquired(record, false));
+        }
+        if (queryRepository.hasExecutionScope(record, SCOPE_OFFICIAL_VERIFICATION)) {
+            jdbcTemplate.update(
+                    "delete from official_verification_execution_state_history where execution_lock_id = ? and tenant_id = ?",
+                    record.id(),
+                    record.tenantId());
+            jdbcTemplate.update(
+                    "delete from official_verification_metric_execution_ledger where execution_lock_id = ? and tenant_id = ?",
+                    record.id(),
+                    record.tenantId());
         }
         ExecutionRecord retry = queryRepository.queryByKey(record.tenantId(), record.idempotencyKey())
                 .orElse(record);
@@ -128,10 +132,10 @@ final class OfficialVerificationExecutionLockLifecycleStore {
     boolean insertExecutionLock(ExecutionRequest request, String idempotencyKey, int revision) {
         String sql = """
                         insert into official_verification_execution_lock (
-                            idempotency_key, base_idempotency_key, package_id, tenant_id, revision_no,
+                            idempotency_key, base_idempotency_key, package_id, tenant_id, execution_scope, revision_no,
                             attempt_no, state, progress_percent, requested_by, reverification_reason,
                             request_fingerprint_json, started_at, created_at, updated_at
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """ + postgresqlConflictClause("idempotency_key");
         try {
             int inserted = jdbcTemplate.update(
@@ -140,6 +144,7 @@ final class OfficialVerificationExecutionLockLifecycleStore {
                     trim(request.baseIdempotencyKey()),
                     trim(request.packageId()),
                     trim(request.tenantId()),
+                    trim(request.executionScope()),
                     revision,
                     1,
                     STATE_LOCK_ACQUIRED,

@@ -24,6 +24,8 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
@@ -48,6 +50,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final Executor baselineLearningExecutor;
     private final Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier;
+    private final SecurityContextDataStore securityContextDataStore;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -76,7 +79,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             SecurityZeroTrustProperties securityZeroTrustProperties,
             Executor baselineLearningExecutor) {
         this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry,
-                securityZeroTrustProperties, baselineLearningExecutor, () -> null);
+                securityZeroTrustProperties, baselineLearningExecutor, () -> null, null);
     }
 
     public SecurityDecisionEnforcementHandler(
@@ -87,6 +90,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             SecurityZeroTrustProperties securityZeroTrustProperties,
             Executor baselineLearningExecutor,
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
+        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry,
+                securityZeroTrustProperties, baselineLearningExecutor,
+                aiSecurityDecisionObservationWriterSupplier, null);
+    }
+
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor,
+            Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier,
+            SecurityContextDataStore securityContextDataStore) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
@@ -96,6 +113,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.aiSecurityDecisionObservationWriterSupplier = aiSecurityDecisionObservationWriterSupplier != null
                 ? aiSecurityDecisionObservationWriterSupplier
                 : () -> null;
+        this.securityContextDataStore = securityContextDataStore;
     }
 
     private boolean isEnforcementDisabled() {
@@ -104,14 +122,17 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     @Override
     public boolean handle(SecurityEventContext context) {
+        SecurityEvent event = context.getSecurityEvent();
+        if (!isCurrentProcessingOwner(event)) {
+            markStaleResultDiscarded(event);
+            return true;
+        }
         Object resultObj = context.getMetadata().get("processingResult");
         if (!(resultObj instanceof ProcessingResult result) || !result.isSuccess()) {
             ProcessingResult failedResult = resultObj instanceof ProcessingResult value ? value : null;
             recordAiSecurityDecisionObservation(context.getSecurityEvent(), failedResult, ZeroTrustAction.PENDING_ANALYSIS);
             return true;
         }
-
-        SecurityEvent event = context.getSecurityEvent();
         String userId = event.getUserId();
         if (userId == null || userId.isBlank()) {
             recordAiSecurityDecisionObservation(event, result, ZeroTrustAction.fromString(result.getAction()));
@@ -140,6 +161,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private void enforceDecision(String userId, SecurityEvent event, ProcessingResult result, boolean sideEffectsEnabled) {
+        if (!isCurrentProcessingOwner(event)) {
+            markStaleResultDiscarded(event);
+            return;
+        }
         String action = result.getAction();
         ZeroTrustAction ztAction;
         if (action == null || action.isBlank()) {
@@ -186,7 +211,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             additionalFields.put("contextBindingHash", contextBindingHash);
         }
 
-        recordAiSecurityDecisionObservation(event, result, ztAction);
+        String observationId = recordAiSecurityDecisionObservation(event, result, ztAction);
 
         if (!sideEffectsEnabled) {
             additionalFields.put("shadowMode", true);
@@ -196,7 +221,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return;
         }
 
-        actionRedisRepository.saveAction(userId, ztAction, additionalFields);
+        if (observationId == null || observationId.isBlank()) {
+            throw new IllegalStateException("Final observation must be persisted before runtime action");
+        }
+        additionalFields.put("observationId", observationId);
+        putIfPresent(additionalFields, "processingGeneration",
+                metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN));
+
+        if (!isCurrentProcessingOwner(event)) {
+            markStaleResultDiscarded(event);
+            return;
+        }
+        if (!actionRedisRepository.saveFinalAction(userId, ztAction, additionalFields)) {
+            throw new IllegalStateException("Runtime action did not converge with persisted final observation");
+        }
 
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
@@ -365,22 +403,42 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         return "NONE";
     }
 
-    private void recordAiSecurityDecisionObservation(
+    private String recordAiSecurityDecisionObservation(
             SecurityEvent event,
             ProcessingResult result,
             ZeroTrustAction enforcedAction) {
         if (event == null) {
-            return;
+            return null;
         }
         try {
             AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
             if (writer == null) {
-                return;
+                return null;
             }
-            writer.recordDecision(event, result, enforcedAction);
+            return writer.recordDecision(event, result, enforcedAction);
         } catch (Exception ex) {
             log.error("[SecurityDecisionEnforcementHandler] Failed to record AI security decision observation: eventId={}",
                     event.getEventId(), ex);
+            return null;
+        }
+    }
+
+    private boolean isCurrentProcessingOwner(SecurityEvent event) {
+        String identity = metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
+        String ownerToken = metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN);
+        if (identity == null && ownerToken == null) {
+            return true;
+        }
+        return securityContextDataStore != null
+                && identity != null
+                && ownerToken != null
+                && securityContextDataStore.isEventProcessingOwner(identity, ownerToken);
+    }
+
+    private void markStaleResultDiscarded(SecurityEvent event) {
+        if (event != null) {
+            event.addMetadata("staleProcessingResultDiscarded", true);
+            event.addMetadata("staleProcessingResultDiscardedAt", System.currentTimeMillis());
         }
     }
 

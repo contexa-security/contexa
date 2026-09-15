@@ -19,11 +19,13 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -46,6 +48,22 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
     private static final Duration EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration EVENT_PROCESSING_TTL = Duration.ofMinutes(30);
+    private static final DefaultRedisScript<Long> MARK_EVENT_PROCESSED_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "redis.call('psetex', KEYS[2], " + EVENT_PROCESSED_TTL.toMillis() + ", ARGV[1]); "
+                    + "redis.call('del', KEYS[1]); return 1 else return 0 end",
+            Long.class);
+    private static final DefaultRedisScript<Long> RELEASE_EVENT_PROCESSING_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
+    private static final DefaultRedisScript<Long> TAKE_OVER_ORPHAN_PROCESSING_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "redis.call('psetex', KEYS[1], " + EVENT_PROCESSING_TTL.toMillis() + ", ARGV[2]); "
+                    + "return 1 else return 0 end",
+            Long.class);
+    private static final String PROCESS_NODE_ID = resolveProcessNodeId();
+    private static final long PROCESS_PID = ProcessHandle.current().pid();
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration LOGIN_FAILURE_COUNTER_TTL = Duration.ofMinutes(10);
@@ -422,31 +440,88 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
+        return claimEventProcessingLease(eventId).claim();
+    }
+
+    @Override
+    public EventProcessingLease claimEventProcessingLease(String eventId) {
         try {
             String processedKey = ZeroTrustRedisKeys.eventProcessed(eventId);
             if (redisTemplate.opsForValue().get(processedKey) != null) {
-                return EventProcessingClaim.PROCESSED;
+                return new EventProcessingLease(EventProcessingClaim.PROCESSED, null);
             }
-
+            String ownerToken = newOwnerToken();
             String processingKey = ZeroTrustRedisKeys.eventProcessing(eventId);
-            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(processingKey, "1", EVENT_PROCESSING_TTL);
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                    processingKey, ownerToken, EVENT_PROCESSING_TTL);
             if (Boolean.TRUE.equals(acquired)) {
-                return EventProcessingClaim.ACQUIRED;
+                return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
             }
-            return EventProcessingClaim.IN_FLIGHT;
+            Object existingOwner = redisTemplate.opsForValue().get(processingKey);
+            if (existingOwner != null && isLocalOrphanOwner(existingOwner.toString())) {
+                Long replaced = redisTemplate.execute(
+                        TAKE_OVER_ORPHAN_PROCESSING_SCRIPT,
+                        List.of(processingKey),
+                        existingOwner.toString(),
+                        ownerToken);
+                if (replaced != null && replaced == 1L) {
+                    log.warn("[SecurityContextDataStore] Reclaimed orphan processing lease: eventId={}", eventId);
+                    return new EventProcessingLease(EventProcessingClaim.ACQUIRED, ownerToken);
+                }
+            }
+            return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to claim event processing: eventId={}", eventId, e);
-            return EventProcessingClaim.IN_FLIGHT;
+            return new EventProcessingLease(EventProcessingClaim.IN_FLIGHT, null);
+        }
+    }
+
+    @Override
+    public boolean isEventProcessingOwner(String eventId, String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return false;
+        }
+        try {
+            Object activeOwner = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.eventProcessing(eventId));
+            if (ownerToken.equals(activeOwner != null ? activeOwner.toString() : null)) {
+                return true;
+            }
+            Object completedOwner = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.eventProcessed(eventId));
+            return ownerToken.equals(completedOwner != null ? completedOwner.toString() : null);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to verify event processing owner: eventId={}", eventId, e);
+            return false;
         }
     }
 
     @Override
     public void markEventProcessed(String eventId) {
         try {
-            redisTemplate.opsForValue().set(ZeroTrustRedisKeys.eventProcessed(eventId), "1", EVENT_PROCESSED_TTL);
-            redisTemplate.delete(ZeroTrustRedisKeys.eventProcessing(eventId));
+            Object owner = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.eventProcessing(eventId));
+            if (owner != null) {
+                markEventProcessed(eventId, owner.toString());
+                return;
+            }
+            redisTemplate.opsForValue().set(ZeroTrustRedisKeys.eventProcessed(eventId), "legacy", EVENT_PROCESSED_TTL);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to mark event as processed: eventId={}", eventId, e);
+        }
+    }
+
+    @Override
+    public boolean markEventProcessed(String eventId, String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return false;
+        }
+        try {
+            Long updated = redisTemplate.execute(
+                    MARK_EVENT_PROCESSED_SCRIPT,
+                    List.of(ZeroTrustRedisKeys.eventProcessing(eventId), ZeroTrustRedisKeys.eventProcessed(eventId)),
+                    ownerToken);
+            return updated != null && updated == 1L;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to mark owned event: eventId={}", eventId, e);
+            return false;
         }
     }
 
@@ -457,6 +532,55 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to release event processing claim: eventId={}", eventId, e);
         }
+    }
+
+    @Override
+    public boolean releaseEventProcessing(String eventId, String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return false;
+        }
+        try {
+            Long deleted = redisTemplate.execute(
+                    RELEASE_EVENT_PROCESSING_SCRIPT,
+                    List.of(ZeroTrustRedisKeys.eventProcessing(eventId)),
+                    ownerToken);
+            return deleted != null && deleted == 1L;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to release owned event: eventId={}", eventId, e);
+            return false;
+        }
+    }
+
+    private String newOwnerToken() {
+        return PROCESS_NODE_ID + ":" + PROCESS_PID + ":" + UUID.randomUUID();
+    }
+
+    private boolean isLocalOrphanOwner(String ownerToken) {
+        if (ownerToken == null || ownerToken.isBlank()) {
+            return false;
+        }
+        String[] parts = ownerToken.split(":", 3);
+        if (parts.length != 3 || !PROCESS_NODE_ID.equals(parts[0])) {
+            return false;
+        }
+        try {
+            long ownerPid = Long.parseLong(parts[1]);
+            if (ownerPid == PROCESS_PID) {
+                return false;
+            }
+            return ProcessHandle.of(ownerPid).map(processHandle -> !processHandle.isAlive()).orElse(true);
+        } catch (NumberFormatException exception) {
+            return false;
+        }
+    }
+
+    private static String resolveProcessNodeId() {
+        String configured = System.getenv("HOSTNAME");
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv("COMPUTERNAME");
+        }
+        String normalized = configured == null ? "local" : configured.trim();
+        return normalized.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 
     @Override

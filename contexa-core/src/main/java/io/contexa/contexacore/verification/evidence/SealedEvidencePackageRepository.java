@@ -18,6 +18,8 @@ public interface SealedEvidencePackageRepository {
 
     Optional<SealedEvidencePackage> findByCorrelationId(String correlationId);
 
+    Optional<SealedEvidencePackage> findByIdempotencyKey(String idempotencyKey);
+
     Page<SealedEvidencePackage> findByUserIdAndCapturedAtBetweenOrderByCapturedAtDesc(
             String userId, Instant from, Instant to, Pageable pageable);
 
