@@ -30,6 +30,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
@@ -474,13 +475,15 @@ public class CoreAutonomousAutoConfiguration {
             SecurityPlaneProperties securityPlaneProperties,
             @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
-            ZeroTrustActionRepository zeroTrustActionRepository
+            ZeroTrustActionRepository zeroTrustActionRepository,
+            ObjectProvider<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerProvider
     ) {
         SecurityPlaneAgent agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
         agent.setAiSecurityDecisionObservationWriterSupplier(aiSecurityDecisionObservationWriterProvider::getIfAvailable);
         agent.setZeroTrustActionRepository(zeroTrustActionRepository);
+        agent.setDecisionEnforcementHandlerSupplier(decisionEnforcementHandlerProvider::getIfAvailable);
         return agent;
     }
 

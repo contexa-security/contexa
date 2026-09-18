@@ -102,7 +102,7 @@ public class SecurityEventProcessor {
         return true;
     }
 
-    static boolean hasProcessingDeadlineExceeded(SecurityEvent event) {
+    public static boolean hasProcessingDeadlineExceeded(SecurityEvent event) {
         if (event == null || event.getMetadata() == null) {
             return false;
         }

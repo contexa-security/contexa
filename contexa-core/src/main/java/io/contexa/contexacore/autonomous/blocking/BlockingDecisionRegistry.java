@@ -79,6 +79,23 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
     }
 
     @Override
+    public void registerBlockAndAwait(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        blockedUsers.put(userId, "BLOCK");
+        publishRequestedCount.incrementAndGet();
+        try {
+            topic.publish(BLOCK_PREFIX + userId + ":BLOCK");
+            publishConfirmedCount.incrementAndGet();
+        } catch (RuntimeException exception) {
+            publishFailedCount.incrementAndGet();
+            log.error("[BlockingDecisionRegistry] Required block signal publication failed: userId={}", userId, exception);
+            throw exception;
+        }
+    }
+
+    @Override
     public void registerUnblock(String userId) {
         if (userId == null || userId.isBlank()) {
             return;

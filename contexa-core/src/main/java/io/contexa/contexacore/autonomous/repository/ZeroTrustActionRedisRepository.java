@@ -20,6 +20,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,7 +33,9 @@ import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.SerializationException;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -452,6 +455,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             stringRedisTemplate.opsForValue().set(userBlockedKey, "true");
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to set blocked flag: userId={}", userId, e);
+            throw new IllegalStateException("Required BLOCK flag could not be stored", e);
         }
     }
 
@@ -523,6 +527,35 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
         }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void removeLogoutData(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        String serializedBlock = new String(
+                ((RedisSerializer<Object>) redisTemplate.getHashValueSerializer()).serialize(ZeroTrustAction.BLOCK.name()),
+                StandardCharsets.UTF_8);
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>("""
+                local action = redis.call('HGET', KEYS[1], 'action')
+                if redis.call('GET', KEYS[4]) == 'true'
+                    or action == ARGV[1] or action == ARGV[2]
+                    or redis.call('GET', KEYS[2]) == ARGV[1] then
+                    return 0
+                end
+                return redis.call('DEL', unpack(KEYS))
+                """, Long.class);
+        stringRedisTemplate.execute(script, List.of(
+                ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
+                ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
+                ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId),
+                ZeroTrustRedisKeys.userBlocked(userId),
+                ZeroTrustRedisKeys.blockMfaPending(userId),
+                ZeroTrustRedisKeys.blockMfaVerified(userId),
+                ZeroTrustRedisKeys.blockMfaFailCount(userId)),
+                ZeroTrustAction.BLOCK.name(), serializedBlock);
     }
 
     public void removeAllUserData(String userId) {

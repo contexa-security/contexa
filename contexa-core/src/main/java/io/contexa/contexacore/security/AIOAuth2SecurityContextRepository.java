@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /**
  * OAuth2 token-based Zero Trust repository.
@@ -52,17 +54,25 @@ public class AIOAuth2SecurityContextRepository implements AISecurityContextRepos
         SecurityContext context = SecurityContextHolder.getContext();
         Authentication auth = context.getAuthentication();
 
-        if (!support.isEnabled() || !support.isActuallyAuthenticated(auth)) {
+        if (!(auth instanceof JwtAuthenticationToken jwtAuth)
+                || !support.isEnabled() || !support.isActuallyAuthenticated(auth)) {
             return;
         }
 
         String userId = auth.getName();
         String identifier = support.resolveIdentifier(request, auth);
 
-        try {
-            support.applyZeroTrust(context, userId, identifier, request);
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to apply Zero Trust for OAuth2 user: {}", userId, e);
+        if (identifier != null && support.isSessionInvalidated(identifier)) {
+            throw new InvalidBearerTokenException("The token context has been invalidated");
+        }
+
+        support.applyZeroTrust(context, userId, identifier, request);
+        Authentication adjusted = context.getAuthentication();
+        if (adjusted != auth && adjusted != null) {
+            JwtAuthenticationToken adjustedJwt = new JwtAuthenticationToken(
+                    jwtAuth.getToken(), adjusted.getAuthorities(), jwtAuth.getName());
+            adjustedJwt.setDetails(jwtAuth.getDetails());
+            context.setAuthentication(adjustedJwt);
         }
     }
 

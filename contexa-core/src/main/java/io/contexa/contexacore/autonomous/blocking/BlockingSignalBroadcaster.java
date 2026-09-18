@@ -27,6 +27,13 @@ public interface BlockingSignalBroadcaster {
 
     void registerBlock(String userId, String action);
 
+    default void registerBlockAndAwait(String userId) {
+        registerBlock(userId);
+        if (!isBlocked(userId)) {
+            throw new IllegalStateException("Block signal was not registered");
+        }
+    }
+
     void registerUnblock(String userId);
 
     boolean isBlocked(String userId);

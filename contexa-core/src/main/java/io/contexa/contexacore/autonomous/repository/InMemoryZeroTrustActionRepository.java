@@ -27,7 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-
+
+
 /**
  * In-memory implementation of ZeroTrustActionRepository for standalone mode.
  * Uses ConcurrentHashMap instead of Redis Hash/String operations.
@@ -265,65 +266,71 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return;
         }
 
-        AnalysisEntry existing = analysisStore.get(userId);
-        String previousAction = existing != null ? existing.action : null;
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            AnalysisEntry existing = analysisStore.get(userId);
+            String previousAction = existing != null ? existing.action : null;
 
-        AnalysisEntry entry = new AnalysisEntry();
-        entry.action = action.name();
-        entry.previousAction = previousAction;
-        entry.updatedAt = Instant.now().toString();
+            AnalysisEntry entry = new AnalysisEntry();
+            entry.action = action.name();
+            entry.previousAction = previousAction;
+            entry.updatedAt = Instant.now().toString();
 
-        if (additionalFields != null) {
-            Object threatEvidence = additionalFields.get("threatEvidence");
-            if (threatEvidence != null) {
-                entry.threatEvidence = threatEvidence.toString();
+            if (additionalFields != null) {
+                Object threatEvidence = additionalFields.get("threatEvidence");
+                if (threatEvidence != null) {
+                    entry.threatEvidence = threatEvidence.toString();
+                }
+                Object riskScore = additionalFields.get("riskScore");
+                if (riskScore instanceof Number num) {
+                    entry.riskScore = num.doubleValue();
+                }
+                Object confidence = additionalFields.get("confidence");
+                if (confidence instanceof Number num) {
+                    entry.confidence = num.doubleValue();
+                }
+                Object analysisDepth = additionalFields.get("analysisDepth");
+                if (analysisDepth instanceof Number num) {
+                    entry.analysisDepth = num.intValue();
+                }
+                Object reasoning = additionalFields.get("reasoning");
+                if (reasoning != null) {
+                    entry.reasoning = reasoning.toString();
+                }
+                Object reasoningSummary = additionalFields.get("reasoningSummary");
+                if (reasoningSummary != null) {
+                    entry.reasoningSummary = reasoningSummary.toString();
+                }
+                Object requestId = additionalFields.get("requestId");
+                if (requestId != null) {
+                    entry.requestId = requestId.toString();
+                }
+                Object contextBindingHash = additionalFields.get("contextBindingHash");
+                if (contextBindingHash != null) {
+                    entry.contextBindingHash = contextBindingHash.toString();
+                }
+                Object llmProposedAction = additionalFields.get("llmProposedAction");
+                if (llmProposedAction != null) {
+                    entry.llmProposedAction = llmProposedAction.toString();
+                }
             }
-            Object riskScore = additionalFields.get("riskScore");
-            if (riskScore instanceof Number num) {
-                entry.riskScore = num.doubleValue();
+
+            ZeroTrustAction ztAction = action;
+            if (ztAction.getDefaultTtl() != null) {
+                entry.expiresAt = Instant.now().plus(ztAction.getDefaultTtl());
             }
-            Object confidence = additionalFields.get("confidence");
-            if (confidence instanceof Number num) {
-                entry.confidence = num.doubleValue();
-            }
-            Object analysisDepth = additionalFields.get("analysisDepth");
-            if (analysisDepth instanceof Number num) {
-                entry.analysisDepth = num.intValue();
-            }
-            Object reasoning = additionalFields.get("reasoning");
-            if (reasoning != null) {
-                entry.reasoning = reasoning.toString();
-            }
-            Object reasoningSummary = additionalFields.get("reasoningSummary");
-            if (reasoningSummary != null) {
-                entry.reasoningSummary = reasoningSummary.toString();
-            }
-            Object requestId = additionalFields.get("requestId");
-            if (requestId != null) {
-                entry.requestId = requestId.toString();
-            }
-            Object contextBindingHash = additionalFields.get("contextBindingHash");
-            if (contextBindingHash != null) {
-                entry.contextBindingHash = contextBindingHash.toString();
-            }
-            Object llmProposedAction = additionalFields.get("llmProposedAction");
-            if (llmProposedAction != null) {
-                entry.llmProposedAction = llmProposedAction.toString();
-            }
+
+            analysisStore.put(userId, entry);
+
+            ActionEntry lastEntry = new ActionEntry();
+            lastEntry.action = action.name();
+            lastEntry.contextBindingHash = entry.contextBindingHash;
+            lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+            lastVerifiedStore.put(userId, lastEntry);
+        } finally {
+            lock.unlock();
         }
-
-        ZeroTrustAction ztAction = action;
-        if (ztAction.getDefaultTtl() != null) {
-            entry.expiresAt = Instant.now().plus(ztAction.getDefaultTtl());
-        }
-
-        analysisStore.put(userId, entry);
-
-        ActionEntry lastEntry = new ActionEntry();
-        lastEntry.action = action.name();
-        lastEntry.contextBindingHash = entry.contextBindingHash;
-        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
-        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override
@@ -332,29 +339,35 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return;
         }
 
-        AnalysisEntry existing = analysisStore.get(userId);
-        AnalysisEntry entry = new AnalysisEntry();
-        entry.action = newAction.name();
-        entry.previousAction = existing != null ? existing.action : null;
-        entry.updatedAt = Instant.now().toString();
-        entry.contextBindingHash = null;
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            AnalysisEntry existing = analysisStore.get(userId);
+            AnalysisEntry entry = new AnalysisEntry();
+            entry.action = newAction.name();
+            entry.previousAction = existing != null ? existing.action : null;
+            entry.updatedAt = Instant.now().toString();
+            entry.contextBindingHash = null;
 
-        if (existing != null) {
-            entry.threatEvidence = existing.threatEvidence;
-            entry.analysisDepth = existing.analysisDepth;
+            if (existing != null) {
+                entry.threatEvidence = existing.threatEvidence;
+                entry.analysisDepth = existing.analysisDepth;
+            }
+
+            if (newAction.getDefaultTtl() != null) {
+                entry.expiresAt = Instant.now().plus(newAction.getDefaultTtl());
+            }
+
+            analysisStore.put(userId, entry);
+
+            ActionEntry lastEntry = new ActionEntry();
+            lastEntry.action = newAction.name();
+            lastEntry.contextBindingHash = null;
+            lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+            lastVerifiedStore.put(userId, lastEntry);
+        } finally {
+            lock.unlock();
         }
-
-        if (newAction.getDefaultTtl() != null) {
-            entry.expiresAt = Instant.now().plus(newAction.getDefaultTtl());
-        }
-
-        analysisStore.put(userId, entry);
-
-        ActionEntry lastEntry = new ActionEntry();
-        lastEntry.action = newAction.name();
-        lastEntry.contextBindingHash = null;
-        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
-        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override
@@ -363,35 +376,47 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return;
         }
 
-        AnalysisEntry existing = analysisStore.get(userId);
-        AnalysisEntry entry = new AnalysisEntry();
-        entry.action = newAction.name();
-        entry.previousAction = existing != null ? existing.action : null;
-        entry.updatedAt = Instant.now().toString();
-        entry.contextBindingHash = contextBindingHash;
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            AnalysisEntry existing = analysisStore.get(userId);
+            AnalysisEntry entry = new AnalysisEntry();
+            entry.action = newAction.name();
+            entry.previousAction = existing != null ? existing.action : null;
+            entry.updatedAt = Instant.now().toString();
+            entry.contextBindingHash = contextBindingHash;
 
-        if (existing != null) {
-            entry.threatEvidence = existing.threatEvidence;
-            entry.analysisDepth = existing.analysisDepth;
+            if (existing != null) {
+                entry.threatEvidence = existing.threatEvidence;
+                entry.analysisDepth = existing.analysisDepth;
+            }
+
+            if (newAction.getDefaultTtl() != null) {
+                entry.expiresAt = Instant.now().plus(newAction.getDefaultTtl());
+            }
+
+            analysisStore.put(userId, entry);
+
+            ActionEntry lastEntry = new ActionEntry();
+            lastEntry.action = newAction.name();
+            lastEntry.contextBindingHash = contextBindingHash;
+            lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+            lastVerifiedStore.put(userId, lastEntry);
+        } finally {
+            lock.unlock();
         }
-
-        if (newAction.getDefaultTtl() != null) {
-            entry.expiresAt = Instant.now().plus(newAction.getDefaultTtl());
-        }
-
-        analysisStore.put(userId, entry);
-
-        ActionEntry lastEntry = new ActionEntry();
-        lastEntry.action = newAction.name();
-        lastEntry.contextBindingHash = contextBindingHash;
-        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
-        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override
     public void setBlockedFlag(String userId) {
         if (userId != null) {
-            blockedUsers.add(userId);
+            ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+            lock.lock();
+            try {
+                blockedUsers.add(userId);
+            } finally {
+                lock.unlock();
+            }
         }
     }
 
@@ -422,6 +447,22 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return v;
         });
         return entry.count.get();
+    }
+
+    @Override
+    public void removeLogoutData(String userId) {
+        if (userId == null) {
+            return;
+        }
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            if (getCurrentAction(userId) != ZeroTrustAction.BLOCK) {
+                removeAllUserData(userId);
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,20 +73,20 @@ class AiSecurityDecisionObservationWriterTest {
         String observationId = writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
 
         assertThat(observationId).isNotBlank();
-        Object[] args = firstInsertArgs(jdbcOperations);
-        assertThat(args[10]).isEqualTo("PROTECTABLE");
-        assertThat(args[7]).asString().isNotBlank();
-        assertThat(args[11]).isEqualTo("NOT_APPLICABLE");
-        assertThat(args[12]).isNull();
-        assertThat(args[16]).isEqualTo("openai");
-        assertThat(args[17]).isEqualTo("gpt-5-nano");
-        assertThat(args[19]).isEqualTo("CHALLENGE");
-        assertThat(args[21]).isEqualTo(0.32d);
-        assertThat(args[22]).isEqualTo(0.82d);
-        assertThat(args[23]).isEqualTo(123L);
-        assertThat(args[40]).asString().contains("\"contextBindingHash\"");
-        assertThat(args[39]).isEqualTo("NOT_APPLICABLE");
-        assertThat(args[41]).isEqualTo(true);
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("trigger_source")).isEqualTo("PROTECTABLE");
+        assertThat(args.get("context_binding_hash")).asString().isNotBlank();
+        assertThat(args.get("trigger_relation")).isEqualTo("NOT_APPLICABLE");
+        assertThat(args.get("decision_boundary_mode")).isNull();
+        assertThat(args.get("model_provider")).isEqualTo("openai");
+        assertThat(args.get("model_id")).isEqualTo("gpt-5-nano");
+        assertThat(args.get("final_action")).isEqualTo("CHALLENGE");
+        assertThat(args.get("llm_risk_score")).isEqualTo(0.32d);
+        assertThat(args.get("llm_confidence")).isEqualTo(0.82d);
+        assertThat(args.get("llm_latency_ms")).isEqualTo(123L);
+        assertThat(args.get("metadata_json")).asString().contains("\"contextBindingHash\"");
+        assertThat(args.get("outcome_class")).isEqualTo("NOT_APPLICABLE");
+        assertThat(args.get("success")).isEqualTo(true);
         verify(jdbcOperations, times(1)).update(anyString(), any(Object[].class));
     }
 
@@ -112,13 +113,13 @@ class AiSecurityDecisionObservationWriterTest {
 
         writer.recordDecision(event, result, ZeroTrustAction.PENDING_ANALYSIS);
 
-        Object[] args = firstInsertArgs(jdbcOperations);
-        assertThat(args[19]).isEqualTo("PENDING_ANALYSIS");
-        assertThat(args[23]).isEqualTo(17L);
-        assertThat(args[36]).isEqualTo("PARSER_FAILURE");
-        assertThat(args[37]).isEqualTo("JSON_PARSE_ERROR");
-        assertThat(args[39]).isEqualTo("NOT_APPLICABLE");
-        assertThat(args[41]).isEqualTo(false);
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("final_action")).isEqualTo("PENDING_ANALYSIS");
+        assertThat(args.get("llm_latency_ms")).isEqualTo(17L);
+        assertThat(args.get("failure_type")).isEqualTo("PARSER_FAILURE");
+        assertThat(args.get("fallback_category")).isEqualTo("JSON_PARSE_ERROR");
+        assertThat(args.get("outcome_class")).isEqualTo("NOT_APPLICABLE");
+        assertThat(args.get("success")).isEqualTo(false);
     }
 
     @Test
@@ -147,14 +148,14 @@ class AiSecurityDecisionObservationWriterTest {
 
         writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
 
-        Object[] args = firstInsertArgs(jdbcOperations);
-        assertThat(args[31]).isEqualTo(false);
-        assertThat(args[32]).isEqualTo(true);
-        assertThat(args[33]).isEqualTo(false);
-        assertThat(args[36]).isEqualTo("PARSER_FAILURE");
-        assertThat(args[37]).isEqualTo("ACTION_FORMAT_INVALID");
-        assertThat(args[38]).asString().contains("response action was repaired");
-        assertThat(args[41]).isEqualTo(false);
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("llm_decision_present")).isEqualTo(false);
+        assertThat(args.get("parser_failure")).isEqualTo(true);
+        assertThat(args.get("technical_fallback")).isEqualTo(false);
+        assertThat(args.get("failure_type")).isEqualTo("PARSER_FAILURE");
+        assertThat(args.get("fallback_category")).isEqualTo("ACTION_FORMAT_INVALID");
+        assertThat(args.get("fallback_reason")).asString().contains("response action was repaired");
+        assertThat(args.get("success")).isEqualTo(false);
     }
     @Test
     @DisplayName("Missing JDBC should leave the application flow unchanged")
@@ -172,7 +173,7 @@ class AiSecurityDecisionObservationWriterTest {
         return jdbcOperations;
     }
 
-    private Object[] firstInsertArgs(JdbcOperations jdbcOperations) {
+    private Map<String, Object> firstInsertArgs(JdbcOperations jdbcOperations) {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcOperations, times(1)).update(sqlCaptor.capture(), argsCaptor.capture());
@@ -180,7 +181,15 @@ class AiSecurityDecisionObservationWriterTest {
         List<Object[]> argValues = argsCaptor.getAllValues();
         for (int i = 0; i < sqlValues.size(); i++) {
             if (sqlValues.get(i).contains("INSERT INTO ai_security_decision_observation")) {
-                return argValues.get(i);
+                String sql = sqlValues.get(i);
+                String[] columns = sql.substring(sql.indexOf('(') + 1, sql.indexOf(')')).split(",");
+                Object[] values = argValues.get(i);
+                assertThat(values).hasSize(columns.length);
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int column = 0; column < columns.length; column++) {
+                    row.put(columns[column].trim(), values[column]);
+                }
+                return row;
             }
         }
         throw new AssertionError("No AI security decision observation insert captured");

@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
@@ -211,6 +212,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             additionalFields.put("contextBindingHash", contextBindingHash);
         }
 
+        event.addMetadata("runtimeEnforcementMode", sideEffectsEnabled ? "ENFORCE" : "SHADOW");
         String observationId = recordAiSecurityDecisionObservation(event, result, ztAction);
 
         if (!sideEffectsEnabled) {
@@ -241,16 +243,59 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
     }
 
+    public void restoreFinalDecision(
+            SecurityEvent event, AiSecurityDecisionObservationWriter.PersistedFinalDecision persisted) {
+        requireCurrentProcessingOwner(event);
+        if (isEnforcementSuppressed(event)
+                || "SHADOW".equalsIgnoreCase(persisted.decisionBoundaryMode())
+                || "SHADOW".equalsIgnoreCase(persisted.runtimeEnforcementMode())) {
+            return;
+        }
+
+        // Legacy records without a mode retain the current global/event boundary.
+        String userId = event.getUserId();
+        if (userId == null || userId.isBlank()) {
+            userId = metadataText(event, "userId");
+        }
+        ZeroTrustAction action = ZeroTrustAction.fromString(persisted.finalAction());
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("observationId", persisted.observationId());
+        fields.put("processingGeneration", persisted.processingGeneration());
+        fields.put("persistedFinalReused", true);
+        putIfPresent(fields, "requestId", persisted.requestId());
+        putIfPresent(fields, "contextBindingHash", persisted.contextBindingHash());
+        putIfPresent(fields, "reasoning", persisted.reasoning());
+        requireCurrentProcessingOwner(event);
+        if (!actionRedisRepository.saveFinalAction(userId, action, fields)) {
+            throw new IllegalStateException("Persisted final decision did not converge to runtime action");
+        }
+        if (action == ZeroTrustAction.BLOCK) {
+            ProcessingResult result = ProcessingResult.builder()
+                    .success(true).action(action.name()).reasoning(persisted.reasoning()).build();
+            handleBlockDecision(userId, event, result);
+        }
+    }
+
+    private void requireCurrentProcessingOwner(SecurityEvent event) {
+        if (!isCurrentProcessingOwner(event)) {
+            markStaleResultDiscarded(event);
+            throw new IllegalStateException("Security decision processing ownership is stale or expired");
+        }
+    }
+
     private void handleBlockDecision(String userId, SecurityEvent event, ProcessingResult result) {
         String requestId = resolveRequestId(event);
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
+        requireCurrentProcessingOwner(event);
         actionRedisRepository.setBlockedFlag(userId);
 
+        requireCurrentProcessingOwner(event);
         if (blockingDecisionRegistry != null) {
-            blockingDecisionRegistry.registerBlock(userId);
+            blockingDecisionRegistry.registerBlockAndAwait(userId);
         }
 
+        requireCurrentProcessingOwner(event);
         if (blockedUserRecorder != null) {
             try {
                 blockedUserRecorder.recordBlock(
@@ -424,6 +469,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private boolean isCurrentProcessingOwner(SecurityEvent event) {
+        if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
+            return false;
+        }
         String identity = metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
         String ownerToken = metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN);
         if (identity == null && ownerToken == null) {

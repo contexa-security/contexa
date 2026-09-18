@@ -109,11 +109,12 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
 
         try {
-            actionRepository.removeAllUserData(userId);
-            if (blockingSignalBroadcaster != null) {
-                blockingSignalBroadcaster.registerUnblock(userId);
-            }
+            actionRepository.removeLogoutData(userId);
+        } catch (Exception e) {
+            log.error("[ZeroTrust] Failed to cleanup logout action data: userId={}", userId, e);
+        }
 
+        try {
             decisionCache.invalidate(userId);
             if (sessionId != null) {
                 registeredSessions.remove(sessionId);

@@ -502,6 +502,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 copyRagRetrievalMetadata(retrievalEvent, event);
             }
             annotateRagInteractiveBudget(event, ragWaitMs, ragTimeoutMs, false);
+            if (event != null && event.getMetadata() != null
+                    && Boolean.TRUE.equals(event.getMetadata().get("ragTimedOut"))) {
+                // Preserve a timeout already recorded by the underlying vector lookup.
+                return outcome;
+            }
             if (!hasRagUnavailableMetadata(event)) {
                 annotateRagRetrievalResult(event, outcome.relatedDocuments(), false, null, false);
             } else if (isRagBudgetInterrupted(event) || retrievalElapsedMs >= Math.max(1L, ragWaitMs - 25L)) {

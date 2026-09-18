@@ -15,7 +15,9 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
-import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.token.validator.OAuth2AuthorizationValidator;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -37,17 +39,27 @@ import java.util.stream.Stream;
 public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final UserDetailsService userDetailsService;
+    private final OAuth2AuthorizationValidator authorizationValidator;
     private final JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
     private final Converter<Jwt, Collection<GrantedAuthority>> rolesConverter = new RolesClaimConverter();
 
     public OAuth2JwtAuthenticationConverter(HttpSecurity httpSecurity) {
         ApplicationContext applicationContext = httpSecurity.getSharedObject(ApplicationContext.class);
         this.userDetailsService = applicationContext.getBean(UserDetailsService.class);
+        AuthContextProperties properties = applicationContext.getBeanProvider(AuthContextProperties.class)
+                .getIfAvailable();
+        this.authorizationValidator = properties != null
+                && properties.getOauth2ServerMode().includesAuthorizationServer()
+                ? new OAuth2AuthorizationValidator(applicationContext.getBean(OAuth2AuthorizationService.class))
+                : null;
     }
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Assert.notNull(jwt.getSubject(), "Subject cannot be null");
+        if (authorizationValidator != null) {
+            authorizationValidator.validateAccessToken(jwt);
+        }
         UserDetails userDetails = userDetailsService.loadUserByUsername(jwt.getSubject());
         Collection<? extends GrantedAuthority> userDetailsAuthorities = userDetails.getAuthorities();
         Collection<GrantedAuthority> scopeAuthorities = scopeConverter.convert(jwt);

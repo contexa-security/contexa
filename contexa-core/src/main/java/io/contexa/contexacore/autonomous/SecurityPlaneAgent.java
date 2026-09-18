@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -36,8 +37,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -71,6 +74,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final Executor llmAnalysisExecutor;
     private Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier = () -> null;
     private ZeroTrustActionRepository zeroTrustActionRepository;
+    private Supplier<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerSupplier = () -> null;
 
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -98,6 +102,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     public void setZeroTrustActionRepository(ZeroTrustActionRepository zeroTrustActionRepository) {
         this.zeroTrustActionRepository = zeroTrustActionRepository;
+    }
+
+    public void setDecisionEnforcementHandlerSupplier(
+            Supplier<SecurityDecisionEnforcementHandler> decisionEnforcementHandlerSupplier) {
+        this.decisionEnforcementHandlerSupplier = decisionEnforcementHandlerSupplier != null
+                ? decisionEnforcementHandlerSupplier : () -> null;
     }
 
     @PostConstruct
@@ -207,6 +217,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     public SecurityEventContext processSecurityEvent(SecurityEvent event) {
+        SecurityEvent attempt = newProcessingAttempt(event);
+        try {
+            return processSecurityEventAttempt(attempt);
+        } finally {
+            copyAttemptOutcome(event, attempt);
+        }
+    }
+
+    private SecurityEventContext processSecurityEventAttempt(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         SecurityContextDataStore.EventProcessingLease lease = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = lease.claim();
@@ -271,8 +290,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     private SecurityEventContext reconcilePersistedFinalDecision(SecurityEvent event) {
+        try {
+            return restorePersistedFinalDecision(event);
+        } catch (RuntimeException exception) {
+            releaseEventProcessing(event);
+            throw exception;
+        }
+    }
+
+    private SecurityEventContext restorePersistedFinalDecision(SecurityEvent event) {
         AiSecurityDecisionObservationWriter writer = aiSecurityDecisionObservationWriterSupplier.get();
-        if (writer == null || zeroTrustActionRepository == null) {
+        SecurityDecisionEnforcementHandler enforcementHandler = decisionEnforcementHandlerSupplier.get();
+        if (writer == null || zeroTrustActionRepository == null || enforcementHandler == null) {
             return null;
         }
         String identity = metadataText(event.getMetadata(), EVENT_PROCESSING_IDENTITY);
@@ -299,20 +328,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return null;
         }
 
-        Map<String, Object> fields = new HashMap<>();
-        fields.put("observationId", persisted.observationId());
-        fields.put("processingGeneration", persisted.processingGeneration());
-        fields.put("persistedFinalReused", true);
-        if (persisted.requestId() != null) {
-            fields.put("requestId", persisted.requestId());
-        }
-        if (persisted.contextBindingHash() != null) {
-            fields.put("contextBindingHash", persisted.contextBindingHash());
-        }
         ZeroTrustAction finalAction = ZeroTrustAction.fromString(persisted.finalAction());
-        if (!zeroTrustActionRepository.saveFinalAction(eventUserId, finalAction, fields)) {
-            throw new IllegalStateException("Persisted final decision did not converge to runtime action");
-        }
+        enforcementHandler.restoreFinalDecision(event, persisted);
         if (!markEventProcessed(event)) {
             throw new StaleEventProcessingOwnerException(event.getEventId());
         }
@@ -487,6 +504,52 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private SecurityEventContext processSecurityEventWithinBudget(SecurityEvent event) throws Exception {
+        SecurityEvent attempt = newProcessingAttempt(event);
+        try {
+            return processAttemptWithinBudget(attempt);
+        } finally {
+            copyAttemptOutcome(event, attempt);
+        }
+    }
+
+    private SecurityEvent newProcessingAttempt(SecurityEvent event) {
+        Map<String, Object> metadata = new HashMap<>();
+        if (event.getMetadata() != null) {
+            metadata.putAll(event.getMetadata());
+        }
+        if (Boolean.TRUE.equals(metadata.get(TIMEOUT_OBSERVATION_RECORDED))) {
+            metadata.remove("llmDecisionPresent");
+        }
+        for (String key : List.of(
+                EVENT_PROCESSING_IDENTITY, EVENT_PROCESSING_OWNER_TOKEN,
+                SecurityEventProcessor.PROCESSING_TIMED_OUT, SecurityEventProcessor.PROCESSING_DEADLINE_AT,
+                PROCESSING_BUDGET_MS, PROCESSING_TIMEOUT_MS, PROCESSING_TIMEOUT_AT,
+                PROCESSING_QUEUE_TIMEOUT_MS, PROCESSING_QUEUE_TIMEOUT_AT,
+                PROCESSING_TIMEOUT_CANCELLATION_REQUESTED, LATE_PROCESSING_RESULT_DISCARDED,
+                LATE_PROCESSING_RESULT_DISCARDED_AT, TIMEOUT_OBSERVATION_RECORDED, TIMEOUT_OBSERVATION_ID,
+                "timeoutObservationAction", "backpressureObservationAction", "decisionFailureCategory",
+                "llmExecutorRejected", "llmExecutorRejectedAt", "analysisSubmittedAt",
+                "analysisExecutionStartedAt", "analysisExecutionFinishedAt", "analysisCompletedAt",
+                "executorQueueWaitMs", "staleProcessingResultDiscarded", "staleProcessingResultDiscardedAt")) {
+            metadata.remove(key);
+        }
+        return SecurityEvent.builder()
+                .eventId(event.getEventId()).source(event.getSource()).timestamp(event.getTimestamp())
+                .severity(event.getSeverity()).description(event.getDescription())
+                .sourceIp(event.getSourceIp()).userId(event.getUserId()).userName(event.getUserName())
+                .sessionId(event.getSessionId()).userAgent(event.getUserAgent())
+                .blocked(event.isBlocked()).metadata(Collections.synchronizedMap(metadata)).build();
+    }
+
+    private void copyAttemptOutcome(SecurityEvent original, SecurityEvent attempt) {
+        // Late workers retain their own metadata and ownership token.
+        synchronized (attempt.getMetadata()) {
+            original.setMetadata(new HashMap<>(attempt.getMetadata()));
+        }
+        original.setBlocked(attempt.isBlocked());
+    }
+
+    private SecurityEventContext processAttemptWithinBudget(SecurityEvent event) throws Exception {
         long timeoutMs = Math.max(1000L, securityPlaneProperties.getAgent().getEventTimeoutMs());
         SecurityContextDataStore.EventProcessingLease lease = claimEventProcessing(event);
         SecurityContextDataStore.EventProcessingClaim claim = lease.claim();
@@ -698,7 +761,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         private void execute(String key, Runnable task) {
             String queueKey = key == null || key.isBlank() ? "unknown" : key;
-            queues.computeIfAbsent(queueKey, SerialTaskQueue::new).submit(task);
+            queues.compute(queueKey, (keyValue, existing) -> {
+                SerialTaskQueue queue = existing != null ? existing : new SerialTaskQueue(keyValue);
+                queue.submit(task);
+                return queue;
+            });
         }
 
         private void shutdown() {
@@ -739,17 +806,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             @Override
             public void run() {
                 while (true) {
-                    Runnable next;
-                    synchronized (this) {
-                        next = tasks.poll();
-                        if (next == null) {
-                            running = false;
-                            queues.remove(key, this);
-                            return;
+                    AtomicReference<Runnable> next = new AtomicReference<>();
+                    queues.computeIfPresent(key, (queueKey, current) -> {
+                        if (current != this) {
+                            return current;
                         }
+                        next.set(tasks.poll());
+                        if (next.get() == null) {
+                            running = false;
+                            return null;
+                        }
+                        return this;
+                    });
+                    if (next.get() == null) {
+                        return;
                     }
                     try {
-                        next.run();
+                        next.get().run();
                     } catch (Throwable throwable) {
                         log.error("[SecurityPlaneAgent] Actor serial task failed: key={}", key, throwable);
                     }

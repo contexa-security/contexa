@@ -20,6 +20,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 
 import java.io.IOException;
 
@@ -49,7 +52,13 @@ public class AIOAuth2ZeroTrustFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                      FilterChain filterChain) throws ServletException, IOException {
-        oAuth2SecurityContextRepository.applyZeroTrustToCurrentContext(request);
+        try {
+            oAuth2SecurityContextRepository.applyZeroTrustToCurrentContext(request);
+        } catch (AuthenticationException exception) {
+            SecurityContextHolder.clearContext();
+            new BearerTokenAuthenticationEntryPoint().commence(request, response, exception);
+            return;
+        }
         filterChain.doFilter(request, response);
     }
 }

@@ -24,6 +24,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.rag.service.VectorOperations;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -514,6 +515,74 @@ class Layer1ContextualStrategyTest {
             assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 50L);
             assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
             assertThat(interrupted.get()).isTrue();
+            verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+        } finally {
+            ragExecutor.shutdownNow();
+        }
+    }
+    @Test
+    @DisplayName("Inner vector timeout must retain its recorded budget-expired state")
+    void analyzeWithContext_innerVectorTimeoutPreservesRecordedBudgetExpiry() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getTimeout().setRagMs(8000);
+        properties.getLayer1().getTimeout().setInteractiveRagWaitMs(10);
+
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class)))
+                .thenThrow(new VectorOperations.VectorStoreException("Vector store similarity search timed out after 4000ms"));
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.18);
+        response.setConfidence(0.82);
+        response.setAction("ALLOW");
+        response.setReasoning("Official verification keeps full timeout semantics");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        ExecutorService ragExecutor = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>());
+        try {
+            Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
+                    vectorService,
+                    null,
+                    new SecurityEventEnricher(),
+                    new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    authorizationService,
+                    null,
+                    pipelineOrchestrator,
+                    properties,
+                    null,
+                    ragExecutor
+            );
+
+            SecurityEvent event = buildTestEvent();
+            event.getMetadata().put("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
+            event.getMetadata().put("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
+
+            ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
+
+            assertThat(assessment).isNotNull();
+            assertThat(assessment.getAction()).isEqualTo("ALLOW");
+            assertThat(event.getMetadata()).containsEntry("ragUnavailable", false);
+            assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
+            assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 8000L);
+            assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 8000L);
+            assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 8000L);
+            assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
+            assertThat(event.getMetadata()).containsEntry("ragRetrievalState", "BUDGET_EXPIRED");
+            assertThat(event.getMetadata()).containsEntry("ragProjectionState", "BUDGET_EXPIRED_DECLARED");
+            assertThat(event.getMetadata()).containsEntry("ragAbsenceReason", "BUDGET_EXPIRED");
             verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
         } finally {
             ragExecutor.shutdownNow();

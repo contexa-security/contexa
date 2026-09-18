@@ -248,6 +248,10 @@ public class IdentityOAuth2AutoConfiguration {
                 new JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper(registeredClientRepository);
         rowMapper.setObjectMapper(authorizationObjectMapper);
         jdbcService.setAuthorizationRowMapper(rowMapper);
+        JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper parametersMapper =
+                new JdbcOAuth2AuthorizationService.OAuth2AuthorizationParametersMapper();
+        parametersMapper.setObjectMapper(authorizationObjectMapper);
+        jdbcService.setAuthorizationParametersMapper(parametersMapper);
 
         return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties, transactionTemplate);
     }

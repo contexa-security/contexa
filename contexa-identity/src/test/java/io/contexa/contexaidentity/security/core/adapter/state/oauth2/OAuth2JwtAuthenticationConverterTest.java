@@ -23,6 +23,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.ObjectProvider;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
@@ -38,6 +40,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -58,6 +61,8 @@ class OAuth2JwtAuthenticationConverterTest {
     void setUp() {
         when(httpSecurity.getSharedObject(ApplicationContext.class)).thenReturn(applicationContext);
         when(applicationContext.getBean(UserDetailsService.class)).thenReturn(userDetailsService);
+        ObjectProvider<AuthContextProperties> provider = mock(ObjectProvider.class);
+        when(applicationContext.getBeanProvider(AuthContextProperties.class)).thenReturn(provider);
 
         converter = new OAuth2JwtAuthenticationConverter(httpSecurity);
     }

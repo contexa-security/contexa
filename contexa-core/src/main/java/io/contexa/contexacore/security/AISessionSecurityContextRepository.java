@@ -22,11 +22,13 @@ import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.DeferredSecurityContext;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 import java.time.Instant;
@@ -204,6 +206,7 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
         private final HttpServletRequest request;
         private SecurityContext cachedContext;
         private boolean loaded = false;
+        private boolean generated = false;
 
         public ZeroTrustDeferredSecurityContext(DeferredSecurityContext parentContext, HttpServletRequest request) {
             this.parentContext = parentContext;
@@ -216,6 +219,28 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
                 SecurityContext context = parentContext.get();
                 Authentication auth = context.getAuthentication();
                 String identifier = support.resolveIdentifier(request, auth);
+
+                if (identifier != null && (Boolean.TRUE.equals(invalidatedSessionsCache.getIfPresent(identifier))
+                        || support.isSessionInvalidated(identifier))) {
+                    invalidatedSessionsCache.put(identifier, true);
+                    lastRedisUpdateCache.invalidate(identifier);
+                    previousAuthCache.invalidate(identifier);
+                    if (auth != null) {
+                        removeAsyncAuthenticationContext(auth.getName(), identifier);
+                    }
+                    HttpSession session = request.getSession(false);
+                    if (session != null) {
+                        try {
+                            session.invalidate();
+                        } catch (IllegalStateException ignored) {
+                            // Another request may have already invalidated this session.
+                        }
+                    }
+                    cachedContext = SecurityContextHolder.createEmptyContext();
+                    generated = true;
+                    loaded = true;
+                    return cachedContext;
+                }
 
                 if (auth != null && support.getTrustResolver().isAuthenticated(auth)) {
                     String userId = auth.getName();
@@ -230,7 +255,8 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
         @Override
         public boolean isGenerated() {
-            return parentContext.isGenerated();
+            get();
+            return generated || parentContext.isGenerated();
         }
     }
 }

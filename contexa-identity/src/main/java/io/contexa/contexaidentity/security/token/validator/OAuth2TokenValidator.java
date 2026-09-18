@@ -34,13 +34,15 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-
+
+
 @Slf4j
 public class OAuth2TokenValidator implements TokenValidator {
 
     private final JwtDecoder jwtDecoder;
     private final OAuth2AuthorizationService authorizationService;
     private final long rotationThresholdMillis;
+    private final OAuth2AuthorizationValidator authorizationValidator;
 
     public OAuth2TokenValidator(JwtDecoder jwtDecoder,
                                 OAuth2AuthorizationService authorizationService,
@@ -48,14 +50,15 @@ public class OAuth2TokenValidator implements TokenValidator {
         this.jwtDecoder = jwtDecoder;
         this.authorizationService = authorizationService;
         this.rotationThresholdMillis = rotateThresholdMillis;
+        this.authorizationValidator = new OAuth2AuthorizationValidator(authorizationService);
     }
 
     @Override
     public boolean validateAccessToken(String token) {
         try {
-            jwtDecoder.decode(token);
+            authorizationValidator.validateAccessToken(jwtDecoder.decode(token));
             return true;
-        } catch (JwtException ex) {
+        } catch (JwtException | OAuth2AuthenticationException ex) {
             return false;
         }
     }
@@ -155,6 +158,7 @@ public class OAuth2TokenValidator implements TokenValidator {
     public Authentication getAuthentication(String token) {
         try {
             Jwt jwt = jwtDecoder.decode(token);
+            authorizationValidator.validateAccessToken(jwt);
             Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
             return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
 

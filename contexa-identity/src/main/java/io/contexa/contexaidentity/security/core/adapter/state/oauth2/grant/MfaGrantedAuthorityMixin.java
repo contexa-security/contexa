@@ -26,6 +26,6 @@ import com.fasterxml.jackson.annotation.*;
 public abstract class MfaGrantedAuthorityMixin {
 
     @JsonCreator
-    MfaGrantedAuthorityMixin(@JsonProperty("role") String role) {
+    MfaGrantedAuthorityMixin(@JsonProperty("role") @JsonAlias("authority") String role) {
     }
 }

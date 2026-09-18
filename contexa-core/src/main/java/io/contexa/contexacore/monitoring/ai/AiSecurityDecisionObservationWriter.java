@@ -52,7 +52,16 @@ public class AiSecurityDecisionObservationWriter {
             String finalAction,
             String contextBindingHash,
             String processingGeneration,
-            String requestId) {
+            String requestId,
+            String decisionBoundaryMode,
+            String runtimeEnforcementMode,
+            String reasoning) {
+        public PersistedFinalDecision(String observationId, String tenantId, String userId,
+                                      String finalAction, String contextBindingHash,
+                                      String processingGeneration, String requestId) {
+            this(observationId, tenantId, userId, finalAction, contextBindingHash,
+                    processingGeneration, requestId, null, null, null);
+        }
     }
 
     public AiSecurityDecisionObservationWriter(
@@ -131,6 +140,9 @@ public class AiSecurityDecisionObservationWriter {
                     event.getSessionId(), event.getSourceIp(), event.getUserAgent());
         }
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
+        if (result != null && result.getReasoning() != null) {
+            storedMetadata.put("finalDecisionReasoning", SensitiveValueSanitizer.sanitizeText(result.getReasoning()));
+        }
         if (contextBindingHash != null) {
             storedMetadata.put("contextBindingHash", contextBindingHash);
         }
@@ -143,11 +155,23 @@ public class AiSecurityDecisionObservationWriter {
         String windowId = firstText(metadata, "windowId");
 
         String tenantId = firstText(metadata, "tenantId", "tenant_id");
-        String idempotencyKey = firstText(metadata, "eventProcessingIdentity");
+        boolean successfulFinal = result != null && result.isSuccess() && failureType == null;
+        String eventProcessingIdentity = firstText(metadata, "eventProcessingIdentity");
+        String idempotencyKey = successfulFinal ? eventProcessingIdentity : null;
         String processingGeneration = firstText(metadata, "eventProcessingOwnerToken");
 
         long persistStart = System.currentTimeMillis();
         try {
+            if (idempotencyKey != null) {
+                // Retain legacy failed observations while releasing their final-decision slot.
+                // Their event identity and attempt generation remain in the original metadata.
+                jdbcOperations.update("""
+                        UPDATE ai_security_decision_observation
+                           SET idempotency_key = NULL
+                         WHERE idempotency_key = ?
+                           AND success = FALSE
+                        """, idempotencyKey);
+            }
             jdbcOperations.update("""
                     INSERT INTO ai_security_decision_observation (
                         observation_id,
@@ -245,7 +269,7 @@ public class AiSecurityDecisionObservationWriter {
                     result != null ? summarize(SensitiveValueSanitizer.sanitizeText(firstText(result.getTechnicalFallbackReason(), result.getResponseActionFallbackReason())), 1024) : null,
                     LEGACY_OUTCOME_NOT_APPLICABLE,
                     writeJson(storedMetadata),
-                    result != null && result.isSuccess() && failureType == null,
+                    successfulFinal,
                     now,
                     now);
 
@@ -277,7 +301,9 @@ public class AiSecurityDecisionObservationWriter {
                            final_action,
                            context_binding_hash,
                            processing_generation,
-                           request_id
+                           request_id,
+                           decision_boundary_mode,
+                           metadata_json
                       FROM ai_security_decision_observation
                      WHERE idempotency_key = ?
                        AND success = TRUE
@@ -292,13 +318,28 @@ public class AiSecurityDecisionObservationWriter {
                             resultSet.getString("final_action"),
                             resultSet.getString("context_binding_hash"),
                             resultSet.getString("processing_generation"),
-                            resultSet.getString("request_id")),
+                            resultSet.getString("request_id"),
+                            resultSet.getString("decision_boundary_mode"),
+                            persistedMetadataText(resultSet.getString("metadata_json"), "runtimeEnforcementMode"),
+                            persistedMetadataText(resultSet.getString("metadata_json"), "finalDecisionReasoning")),
                     normalizedKey);
             return decisions.isEmpty() ? null : decisions.get(0);
         } catch (DataAccessException exception) {
             log.error("[AiSecurityDecisionObservationWriter] Failed to read final decision: idempotencyKey={}",
                     normalizedKey, exception);
             return null;
+        }
+    }
+
+    private String persistedMetadataText(String json, String field) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            var value = objectMapper.readTree(json).get(field);
+            return value != null && value.isTextual() ? text(value.asText()) : null;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Persisted final decision metadata cannot be read", exception);
         }
     }
 

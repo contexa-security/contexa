@@ -78,6 +78,14 @@ public interface ZeroTrustActionRepository {
 
     void removeAllUserData(String userId);
 
+    /**
+     * Clears logout state only when no actor BLOCK is present.
+     * Custom repositories retain actor state until they implement this contract.
+     * Explicit resets continue to use removeAllUserData.
+     */
+    default void removeLogoutData(String userId) {
+    }
+
 
     void approveOverrideAtomically(String userId, ZeroTrustAction newAction);
 

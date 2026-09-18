@@ -22,6 +22,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
+import org.springframework.util.ClassUtils;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -37,6 +38,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
  */
 @Slf4j
 public class AISecurityContextSupport {
+
+    private static final boolean JWT_AUTHENTICATION_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken",
+            AISecurityContextSupport.class.getClassLoader());
 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final ZeroTrustSecurityService zeroTrustSecurityService;
@@ -96,28 +101,18 @@ public class AISecurityContextSupport {
 
     /**
      * Resolve identifier from request and authentication context.
-     * Priority: SessionIdResolver -> HttpSession -> JWT jti -> userId fallback.
+     * Prefer the authenticated JWT or actual HTTP session over request-carried identifiers.
      */
     public String resolveIdentifier(HttpServletRequest request, @Nullable Authentication auth) {
-        if (sessionIdResolver != null) {
-            String resolved = sessionIdResolver.resolve(request);
-            if (resolved != null) {
-                return resolved;
-            }
-        }
-
-        if (auth instanceof JwtAuthenticationToken jwtAuth) {
-            String jti = jwtAuth.getToken().getId();
-            if (jti != null) {
-                return jti;
-            }
+        if (JWT_AUTHENTICATION_PRESENT && auth instanceof JwtAuthenticationToken jwtAuth) {
+            return jwtAuth.getToken().getId();
         }
 
         HttpSession session = request.getSession(false);
         if (session != null) {
             return session.getId();
         }
-        return null;
+        return sessionIdResolver != null ? sessionIdResolver.resolve(request) : null;
     }
 
     public AuthenticationTrustResolver getTrustResolver() {
