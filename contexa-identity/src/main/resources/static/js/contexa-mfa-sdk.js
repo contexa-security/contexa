@@ -697,18 +697,26 @@
         /**
          * Select factor
          * Legacy: mfa-select-factor.js:119-159
+         * @param {string} factorType - Factor to select
+         * @param {Object} [options] - Selection options
+         * @param {boolean} [options.registerPasskeyAfterMfa] - Ask to be sent to passkey registration
+         *        once the MFA flow completes (honored together with the email OTT factor only)
          */
-        async selectFactor(factorType) {
+        async selectFactor(factorType, options = {}) {
             await this.init();
             const normalizedFactorType = factorType === 'OTT' ? 'MFA_OTT' : factorType;
+            const body = {
+                factorType: normalizedFactorType,
+                username: sessionStorage.getItem('mfaUsername')
+            };
+            if (options && options.registerPasskeyAfterMfa === true) {
+                body.registerPasskeyAfterMfa = true;
+            }
 
             const response = await fetch(this.endpoints.api.selectFactor, {
                 method: 'POST',
                 headers: ContexaMFAUtils.createHeaders(),
-                body: JSON.stringify({
-                    factorType: normalizedFactorType,
-                    username: sessionStorage.getItem('mfaUsername')
-                })
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {
@@ -986,9 +994,9 @@
          * Note: autoRedirect logic removed (prevents race condition)
          * Caller must inspect result and redirect explicitly
          */
-        async selectFactor(factorType) {
+        async selectFactor(factorType, options = {}) {
             try {
-                const result = await this.apiClient.selectFactor(factorType);
+                const result = await this.apiClient.selectFactor(factorType, options);
                 this.stateTracker.updateFromServerResponse(result);
 
                 if (result.nextStepId) {

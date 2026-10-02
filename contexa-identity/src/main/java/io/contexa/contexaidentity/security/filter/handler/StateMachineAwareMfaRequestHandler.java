@@ -25,6 +25,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
@@ -48,6 +49,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
@@ -259,7 +261,8 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             }
         }
 
-        String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
+        JsonNode jsonBody = readJsonBody(request);
+        String selectedFactor = extractAndValidateSelectedFactor(request, response, context, jsonBody);
         if (selectedFactor == null) return;
 
         if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
@@ -270,6 +273,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
 
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
+            recordPasskeyRegistrationIntent(request, context, selectedFactor, jsonBody);
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {
             handleFactorSelectionFailure(request, response, context);
@@ -397,26 +401,33 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
+    @Nullable
+    private JsonNode readJsonBody(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        if (contentType == null || !contentType.contains("application/json")) {
+            return null;
+        }
+        try {
+            String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            return body.isBlank() ? null : new ObjectMapper().readTree(body);
+        } catch (Exception e) {
+            log.error("Failed to parse JSON body for factor selection", e);
+            return null;
+        }
+    }
+
     private String extractAndValidateSelectedFactor(HttpServletRequest request, HttpServletResponse response,
-                                                    FactorContext context) throws IOException {
+                                                    FactorContext context, @Nullable JsonNode jsonBody) throws IOException {
         String selectedFactor = request.getParameter("factor");
         if (selectedFactor == null || selectedFactor.trim().isEmpty()) {
             selectedFactor = request.getParameter("factorType");
         }
 
-        if ((selectedFactor == null || selectedFactor.trim().isEmpty())
-                && request.getContentType() != null
-                && request.getContentType().contains("application/json")) {
-            try {
-                String body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                JsonNode json = new ObjectMapper().readTree(body);
-                if (json.has("factorType")) {
-                    selectedFactor = json.get("factorType").asText();
-                } else if (json.has("factor")) {
-                    selectedFactor = json.get("factor").asText();
-                }
-            } catch (Exception e) {
-                log.error("Failed to parse JSON body for factor selection", e);
+        if ((selectedFactor == null || selectedFactor.trim().isEmpty()) && jsonBody != null) {
+            if (jsonBody.has("factorType")) {
+                selectedFactor = jsonBody.get("factorType").asText();
+            } else if (jsonBody.has("factor")) {
+                selectedFactor = jsonBody.get("factor").asText();
             }
         }
 
@@ -459,6 +470,29 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             log.error("Failed to send factor selection event", e);
             return false;
         }
+    }
+
+    /**
+     * Records that the user asked to register a passkey once the MFA flow completes. The intent is
+     * accepted only together with an accepted selection of the email OTT factor, which verifies the
+     * identity before a passkey can be registered, and is bound to the current MFA session. It does
+     * not grant access to the passkey registration endpoints, which stay denied until MFA completes.
+     */
+    private void recordPasskeyRegistrationIntent(HttpServletRequest request, FactorContext context,
+                                                 String selectedFactor, @Nullable JsonNode jsonBody) {
+        if (!AuthType.MFA_OTT.name().equalsIgnoreCase(selectedFactor)
+                || !isPasskeyRegistrationRequested(request, jsonBody)) {
+            return;
+        }
+        MfaPasskeyRegistrationIntent.record(request, context.getMfaSessionId());
+    }
+
+    private boolean isPasskeyRegistrationRequested(HttpServletRequest request, @Nullable JsonNode jsonBody) {
+        if (Boolean.parseBoolean(request.getParameter(MfaPasskeyRegistrationIntent.REQUEST_PARAMETER))) {
+            return true;
+        }
+        return jsonBody != null
+                && jsonBody.path(MfaPasskeyRegistrationIntent.REQUEST_PARAMETER).asBoolean(false);
     }
 
     private void handleFactorSelectionSuccess(HttpServletRequest request, HttpServletResponse response,
