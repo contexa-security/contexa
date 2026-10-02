@@ -43,6 +43,8 @@ import io.contexa.contexaiam.security.xacml.pap.dto.PolicyImpactReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyValidationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationTestCase;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.UnsafePolicyExpressionException;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -141,6 +143,7 @@ public class DefaultPolicyService implements PolicyService {
 
     @Override
     public void updatePolicy(PolicyDto policyDto) {
+        validateConditionExpressions(policyDto);
         Policy existingPolicy = findById(policyDto.getId());
         policyVersionService.createVersion(existingPolicy,
                 PolicyVersion.ChangeType.UPDATED, policyDto.getChangeReason());
@@ -328,6 +331,7 @@ public class DefaultPolicyService implements PolicyService {
         if (policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED) {
             throw new IllegalStateException(i18n("msg.policy.already.approved"));
         }
+        validateConditionExpressions(policy);
 
         if (policy.isAIGenerated()) {
             AIPolicyValidationReport validationReport = aiPolicyValidator.validate(policy);
@@ -380,6 +384,7 @@ public class DefaultPolicyService implements PolicyService {
         PolicyDto snapshotDto = policyVersionService.deserializeSnapshot(version)
                 .orElseThrow(() -> new IllegalStateException(
                         i18n("msg.policy.version.deserialize.failed", versionNumber)));
+        validateConditionExpressions(snapshotDto);
 
         String rollbackReason = i18n("msg.policy.version.rollback.reason",
                 versionNumber, reason != null ? ": " + reason : "");
@@ -449,6 +454,37 @@ public class DefaultPolicyService implements PolicyService {
         }
         if (dto.getTargets() == null || dto.getTargets().isEmpty()) {
             throw new IllegalArgumentException(i18n("msg.policy.validation.target.required"));
+        }
+        validateConditionExpressions(dto);
+    }
+
+    private void validateConditionExpressions(PolicyDto dto) {
+        if (dto.getRules() == null) {
+            return;
+        }
+        for (RuleDto rule : dto.getRules()) {
+            if (rule == null || rule.getConditions() == null) {
+                continue;
+            }
+            for (ConditionDto condition : rule.getConditions()) {
+                if (condition != null) {
+                    validateConditionExpression(condition.getExpression());
+                }
+            }
+        }
+    }
+
+    private void validateConditionExpressions(Policy policy) {
+        policy.getRules().stream()
+                .flatMap(rule -> rule.getConditions().stream())
+                .forEach(condition -> validateConditionExpression(condition.getExpression()));
+    }
+
+    private void validateConditionExpression(String expression) {
+        try {
+            PolicyExpressionValidator.validate(expression);
+        } catch (UnsafePolicyExpressionException e) {
+            throw new IllegalArgumentException(i18n(e.getMessageKey(), e.getReason()), e);
         }
     }
 

@@ -48,6 +48,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyVersionService;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -252,6 +253,7 @@ public class PolicyCenterCommandService {
                             .map(c -> String.format("hasAuthority('%s')", c))
                             .collect(Collectors.joining(" or "));
                     String spelExpr = "(" + roleCondition + ") and (" + crudCondition + ")";
+                    PolicyExpressionValidator.validate(spelExpr);
 
                     String crud = new TreeSet<>(item.getCrudPermissions()).stream()
                             .collect(Collectors.joining("_"));

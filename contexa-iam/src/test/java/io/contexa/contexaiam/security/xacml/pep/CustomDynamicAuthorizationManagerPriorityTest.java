@@ -25,6 +25,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.junit.jupiter.api.BeforeEach;
@@ -227,20 +228,48 @@ class CustomDynamicAuthorizationManagerPriorityTest {
         }
 
         @Test
-        @DisplayName("조건 없는 DENY 정책 -> denyAll")
+        @DisplayName("조건 없는 DENY 정책 -> 항상 적용되는 조건 permitAll")
         void noConditionsDeny() {
             Policy policy = buildPolicy(1L, "empty-deny", Policy.Effect.DENY, 100);
+            String expr = manager.getExpressionFromPolicy(policy);
+            assertThat(expr).isEqualTo("permitAll");
+        }
+
+        @Test
+        @DisplayName("DENY 정책은 expression을 부정하지 않고 적용 조건으로 사용함")
+        void denyPolicyIsNotNegated() {
+            Policy policy = buildPolicy(1L, "deny-admin", Policy.Effect.DENY, 100);
+            addCondition(policy, "hasAuthority('ROLE_ADMIN')");
+            String expr = manager.getExpressionFromPolicy(policy);
+            assertThat(expr).isEqualTo("hasAuthority('ROLE_ADMIN')");
+        }
+
+        @Test
+        @DisplayName("hasPermission만 있는 DENY 정책은 URL에서 항상 적용(permitAll)되어 파싱 가능한 식이 됨")
+        void denyPolicyWithOnlyPermissionCheckFailsClosed() {
+            Policy policy = buildPolicy(1L, "deny-permission", Policy.Effect.DENY, 100);
+            addCondition(policy, "hasPermission(#id, 'DOCUMENT', 'DELETE')");
+            String expr = manager.getExpressionFromPolicy(policy);
+            assertThat(expr).isEqualTo("permitAll");
+        }
+
+        @Test
+        @DisplayName("hasPermission만 있는 ALLOW 정책은 URL에서 denyAll 유지")
+        void allowPolicyWithOnlyPermissionCheckFailsClosed() {
+            Policy policy = buildPolicy(1L, "allow-permission", Policy.Effect.ALLOW, 100);
+            addCondition(policy, "hasPermission(#id, 'DOCUMENT', 'READ')");
             String expr = manager.getExpressionFromPolicy(policy);
             assertThat(expr).isEqualTo("denyAll");
         }
 
         @Test
-        @DisplayName("DENY 정책은 expression을 부정(negation)으로 감쌈")
-        void denyPolicyNegation() {
-            Policy policy = buildPolicy(1L, "deny-admin", Policy.Effect.DENY, 100);
-            addCondition(policy, "hasAuthority('ROLE_ADMIN')");
+        @DisplayName("DENY 정책의 hasPermission 제거 후 남은 조건은 그대로 유지됨")
+        void denyPolicyKeepsRemainingConditionAfterPermissionStrip() {
+            Policy policy = buildPolicy(1L, "deny-mixed", Policy.Effect.DENY, 100);
+            addCondition(policy, "hasAuthority('ROLE_GUEST') and hasPermission(#id, 'DOCUMENT', 'DELETE')");
             String expr = manager.getExpressionFromPolicy(policy);
-            assertThat(expr).isEqualTo("!(hasAuthority('ROLE_ADMIN'))");
+            assertThat(expr).contains("hasAuthority('ROLE_GUEST')").doesNotContain("hasPermission");
+            assertThat(PolicyExpressionValidator.findViolation(expr)).isEmpty();
         }
 
         @Test

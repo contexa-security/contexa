@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -130,6 +131,47 @@ class SystemSettingsServiceTest {
             assertThat(existing.getDefaultRole()).isEqualTo("ROLE_ADMIN");
             assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("PERMIT_OVERRIDES");
             assertThat(existing.isRegistrationEnabled()).isFalse();
+            assertThat(existing.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+            assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("should store no-matching URL and missing method decisions")
+        void storesNoPolicyDecisions() {
+            SystemSettings existing = SystemSettings.builder().build();
+            when(repository.findAll()).thenReturn(List.of(existing));
+
+            SystemSettingsForm form = validForm();
+            form.setPolicyCombiningAlgorithm("DENY_UNLESS_PERMIT");
+            form.setNoMatchingUrlPolicyDecision("DENY");
+            form.setMissingMethodPolicyDecision("DENY");
+
+            service.updateSettings(form);
+
+            verify(repository).save(existing);
+            assertThat(existing.getPolicyCombiningAlgorithm()).isEqualTo("DENY_UNLESS_PERMIT");
+            assertThat(existing.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
+            assertThat(existing.getMissingMethodPolicyDecision()).isEqualTo("DENY");
+        }
+
+        @Test
+        @DisplayName("should reject values that are not enum constants without saving")
+        void rejectsNonEnumValues() {
+            SystemSettingsForm invalidUrlDecision = validForm();
+            invalidUrlDecision.setNoMatchingUrlPolicyDecision("MAYBE");
+            SystemSettingsForm lowerCaseMethodDecision = validForm();
+            lowerCaseMethodDecision.setMissingMethodPolicyDecision("deny");
+            SystemSettingsForm invalidAlgorithm = validForm();
+            invalidAlgorithm.setPolicyCombiningAlgorithm("INVALID");
+            SystemSettingsForm blankAlgorithm = validForm();
+            blankAlgorithm.setPolicyCombiningAlgorithm(" ");
+
+            for (SystemSettingsForm form : List.of(invalidUrlDecision, lowerCaseMethodDecision,
+                    invalidAlgorithm, blankAlgorithm)) {
+                assertThatThrownBy(() -> service.updateSettings(form))
+                        .isInstanceOf(IllegalArgumentException.class);
+            }
+            verify(repository, never()).save(any(SystemSettings.class));
         }
     }
 

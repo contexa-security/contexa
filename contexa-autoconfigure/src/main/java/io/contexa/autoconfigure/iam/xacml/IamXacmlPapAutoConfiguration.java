@@ -25,6 +25,7 @@ import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -173,8 +174,10 @@ public class IamXacmlPapAutoConfiguration {
         public PolicyReloadBroadcaster policyReloadBroadcaster(
                 RedissonClient redissonClient,
                 PolicyRetrievalPoint policyRetrievalPoint,
-                CustomDynamicAuthorizationManager authorizationManager) {
+                CustomDynamicAuthorizationManager authorizationManager,
+                ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
             return new PolicyReloadBroadcaster(redissonClient, () -> {
+                runtimeApplierProvider.ifAvailable(SystemSettingsRuntimeApplier::applyPolicyDecisionSettings);
                 policyRetrievalPoint.clearUrlPoliciesCache();
                 policyRetrievalPoint.clearMethodPoliciesCache();
                 authorizationManager.reload();

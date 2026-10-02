@@ -236,6 +236,29 @@ class PolicyCenterCommandServiceTest {
             assertThat(res.results().get(0).status()).isEqualTo("CREATED");
             assertThat(res.results().get(1).status()).isEqualTo("SKIPPED");
         }
+
+        @Test
+        @DisplayName("should reject a CRUD permission that injects SpEL and never save the policy")
+        void rejectsInjectedPermission() {
+            BatchCreateRequest.BatchItem item = new BatchCreateRequest.BatchItem();
+            item.setResourceIdentifier("/api/test");
+            item.setCrudPermissions(Set.of("READ') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasAuthority('X"));
+
+            BatchCreateRequest request = new BatchCreateRequest();
+            request.setItems(List.of(item));
+            request.setRoleIds(Set.of(10L));
+            request.setEffect(Policy.Effect.ALLOW);
+
+            when(roleService.getRole(10L)).thenReturn(Role.builder().id(10L).roleName("USER").build());
+            when(policyRepository.findAllWithDetails()).thenReturn(new ArrayList<>());
+
+            PolicyBatchCreateResponse res = service.batchCreatePolicies(request);
+
+            assertThat(res.created()).isZero();
+            assertThat(res.results()).hasSize(1);
+            assertThat(res.results().get(0).status()).isEqualTo("ERROR");
+            verify(policyRepository, never()).save(any());
+        }
     }
 
     @Nested

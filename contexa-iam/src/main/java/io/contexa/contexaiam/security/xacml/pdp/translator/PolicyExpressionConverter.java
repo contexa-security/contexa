@@ -26,6 +26,11 @@ import java.util.stream.Collectors;
 /**
  * Converts policy conditions to valid SpEL expressions.
  * Handles plain authority names, mixed expressions, and permission stripping for URL policies.
+ *
+ * <p>The produced expression is the policy condition. Its meaning depends on the policy effect:
+ * for an ALLOW policy a satisfied condition is Permit and an unsatisfied one is Deny; for a DENY
+ * policy a satisfied condition is Deny and an unsatisfied one is NotApplicable. A policy without
+ * conditions always applies, so its condition is {@code permitAll} for both effects.</p>
  */
 public class PolicyExpressionConverter {
 
@@ -34,7 +39,8 @@ public class PolicyExpressionConverter {
             Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
 
     /**
-     * Converts a Policy entity's conditions into a single SpEL expression string.
+     * Converts a Policy entity's conditions into a single SpEL condition expression string.
+     * The expression is never negated for DENY policies; the caller applies the effect.
      */
     public String toExpression(Policy policy) {
         List<String> conditionExpressions = policy.getRules().stream()
@@ -44,7 +50,7 @@ public class PolicyExpressionConverter {
                 .toList();
 
         if (conditionExpressions.isEmpty()) {
-            return (policy.getEffect() == Policy.Effect.ALLOW) ? "permitAll" : "denyAll";
+            return "permitAll";
         }
 
         String finalExpression;
@@ -66,10 +72,13 @@ public class PolicyExpressionConverter {
             }
         }
 
-        if (policy.getEffect() == Policy.Effect.DENY) {
-            finalExpression = "!(" + finalExpression + ")";
+        String stripped = removePermissionChecks(finalExpression);
+        if (stripped.isEmpty()) {
+            // Object-level permission checks cannot be evaluated for a URL. Fail closed for both
+            // effects: an ALLOW policy never permits and a DENY policy always applies.
+            return policy.getEffect() == Policy.Effect.DENY ? "permitAll" : "denyAll";
         }
-        return stripHasPermission(finalExpression);
+        return stripped;
     }
 
     /**
@@ -119,11 +128,15 @@ public class PolicyExpressionConverter {
      * Strips hasPermission() calls from URL-type policy expressions.
      */
     public static String stripHasPermission(String expression) {
+        String cleaned = removePermissionChecks(expression);
+        return cleaned.isEmpty() ? "denyAll" : cleaned;
+    }
+
+    private static String removePermissionChecks(String expression) {
         String cleaned = HAS_PERMISSION_PATTERN.matcher(expression).replaceAll(" ");
         cleaned = cleaned.replaceAll("\\s+and\\s+and\\s+", " and ");
         cleaned = cleaned.replaceAll("^\\s*and\\s+", "");
         cleaned = cleaned.replaceAll("\\s+and\\s*$", "");
-        cleaned = cleaned.trim();
-        return cleaned.isEmpty() ? "denyAll" : cleaned;
+        return cleaned.trim();
     }
 }

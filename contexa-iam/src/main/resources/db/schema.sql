@@ -1253,6 +1253,8 @@ create table system_settings
 
 alter table system_settings add column if not exists security_zerotrust_mode varchar(20) default 'SHADOW' not null;
 alter table system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
+alter table system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'PERMIT' not null;
+alter table system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
 
 
 create table learning_artifact_registry

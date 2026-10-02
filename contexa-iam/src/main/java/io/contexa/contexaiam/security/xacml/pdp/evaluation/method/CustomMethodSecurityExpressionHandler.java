@@ -12,9 +12,11 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
@@ -32,16 +34,23 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurityExpressionHandler {
+
+    private static final String ALWAYS_SATISFIED = "true";
+    private static final String NEVER_SATISFIED = "false";
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ContextHandler contextHandler;
     private final AuditLogRepository auditLogRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final PolicyCombiningProperties policyCombiningProperties;
+    private final Set<String> reportedRejections = ConcurrentHashMap.newKeySet();
 
     public CustomMethodSecurityExpressionHandler(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -138,9 +147,8 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                         .thenComparing(Policy::getId, Comparator.nullsLast(Long::compareTo)))
                 .toList();
         List<Expression> expressions = executablePolicies.stream()
-                .map(this::buildPolicyExpression)
-.map(getExpressionParser()::parseExpression)
-.toList();
+                .map(this::parsePolicyExpression)
+                .toList();
         List<MethodPolicyMetadata> metadata = executablePolicies.stream()
                 .map(policy -> new MethodPolicyMetadata(
                         policy.getId(), policy.getEffect(), policy.getPriority()))
@@ -168,15 +176,45 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 .orElse(Integer.MAX_VALUE);
     }
 
+    /**
+     * Parses the condition of a policy. A condition rejected by {@link PolicyExpressionValidator}
+     * is replaced by a constant that yields Deny for the policy effect (an ALLOW condition that never
+     * holds, or a DENY condition that always holds), because dropping the policy could fall back to
+     * the missing-policy decision.
+     */
+    private Expression parsePolicyExpression(Policy policy) {
+        String violation;
+        try {
+            Expression expression = getExpressionParser().parseExpression(buildPolicyExpression(policy));
+            violation = PolicyExpressionValidator.findViolation(expression).orElse(null);
+            if (violation == null) {
+                return expression;
+            }
+        } catch (RuntimeException e) {
+            violation = "Policy expression cannot be parsed: " + e.getMessage();
+        }
+        reportRejectedPolicy(policy, violation);
+        return getExpressionParser().parseExpression(
+                policy.getEffect() == Policy.Effect.DENY ? ALWAYS_SATISFIED : NEVER_SATISFIED);
+    }
+
+    private void reportRejectedPolicy(Policy policy, String violation) {
+        if (reportedRejections.add(policy.getId() + ":" + violation)) {
+            log.error("Method policy rejected while building the policy plan, it is evaluated as deny. "
+                    + "policyId={}, name={}, reason={}", policy.getId(), policy.getName(), violation);
+        }
+    }
+
+    /**
+     * Builds the policy condition. The effect is applied by the enforcement point: ALLOW turns the
+     * condition into Permit or Deny, DENY turns a satisfied condition into Deny and an unsatisfied
+     * one into NotApplicable. A policy without conditions always applies.
+     */
     private String buildPolicyExpression(Policy policy) {
         String conditionExpression = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
                 .map(condition -> "(" + condition.getExpression() + ")")
                 .collect(Collectors.joining(" and "));
-        if (conditionExpression.isEmpty()) {
-            return policy.getEffect() == Policy.Effect.ALLOW ? "true" : "false";
-        }
-        return policy.getEffect() == Policy.Effect.DENY
-                ? "!(" + conditionExpression + ")" : conditionExpression;
+        return conditionExpression.isEmpty() ? ALWAYS_SATISFIED : conditionExpression;
     }
 }

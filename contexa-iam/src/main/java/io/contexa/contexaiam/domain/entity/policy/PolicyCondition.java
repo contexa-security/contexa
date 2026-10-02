@@ -16,6 +16,7 @@
 package io.contexa.contexaiam.domain.entity.policy;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,6 +43,16 @@ public class PolicyCondition implements Serializable {
     private AuthorizationPhase authorizationPhase = AuthorizationPhase.PRE_AUTHORIZE;
 
     private String description;
+
+    /**
+     * Last line of defence for every persistence path: a condition expression that cannot be
+     * parsed or uses a construct forbidden in policy expressions is never written.
+     */
+    @PrePersist
+    @PreUpdate
+    void validateExpression() {
+        PolicyExpressionValidator.validate(expression);
+    }
 
     public enum AuthorizationPhase {
         PRE_AUTHORIZE,

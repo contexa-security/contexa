@@ -24,6 +24,7 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -212,6 +213,14 @@ public class AutoConditionTemplateService {
 
         List<ConditionTemplate> newTemplates = templates.stream()
                 .filter(template -> {
+
+                    Optional<String> violation =
+                            PolicyExpressionValidator.findTemplateViolation(template.getSpelTemplate());
+                    if (violation.isPresent()) {
+                        log.error("Condition template rejected: name={}, reason={}",
+                                template.getName(), violation.get());
+                        return false;
+                    }
 
                     if (existingSpelTemplates.contains(template.getSpelTemplate())) {
                         return false;

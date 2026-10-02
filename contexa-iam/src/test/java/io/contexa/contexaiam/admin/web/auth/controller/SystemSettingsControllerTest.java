@@ -16,11 +16,13 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import org.junit.jupiter.api.BeforeEach;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
@@ -28,6 +30,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -66,6 +69,9 @@ class SystemSettingsControllerTest {
     @Mock
     private SystemSettingsRuntimeApplier runtimeApplier;
 
+    @Mock
+    private PolicyReloadBroadcaster policyReloadBroadcaster;
+
     private SystemSettingsController controller;
 
     @BeforeEach
@@ -75,6 +81,7 @@ class SystemSettingsControllerTest {
 
         controller = new SystemSettingsController(systemSettingsService, policyCombiningProperties,
                 messageSource, authorizationManager, runtimeApplier);
+        controller.setPolicyReloadBroadcaster(policyReloadBroadcaster);
     }
 
     @Nested
@@ -101,7 +108,26 @@ class SystemSettingsControllerTest {
             assertThat(model.getAttribute("settings")).isNotNull();
             assertThat(model.getAttribute("roles")).isNotNull();
             assertThat(model.getAttribute("algorithms")).isEqualTo(CombiningAlgorithm.values());
+            assertThat(model.getAttribute("noPolicyDecisionOptions")).isEqualTo(NoPolicyDecision.values());
             assertThat(model.getAttribute("hcadModeOptions")).isNull();
+        }
+
+        @Test
+        @DisplayName("should expose stored no-matching policy decisions on the form")
+        void exposesStoredNoPolicyDecisions() {
+            SystemSettings settings = SystemSettings.builder()
+                    .noMatchingUrlPolicyDecision("DENY")
+                    .missingMethodPolicyDecision("PERMIT")
+                    .build();
+            when(systemSettingsService.getSettings()).thenReturn(settings);
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
+            assertThat(form.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         }
     }
 
@@ -110,37 +136,63 @@ class SystemSettingsControllerTest {
     class UpdateSettings {
 
         @Test
-        @DisplayName("should update settings, apply runtime settings and reload authorizationManager CombiningAlgorithm")
+        @DisplayName("should save, apply stored settings, reload URL policies and broadcast to other instances")
         void success() {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             SystemSettingsForm form = new SystemSettingsForm();
             form.setPolicyCombiningAlgorithm("DENY_OVERRIDES");
+            form.setNoMatchingUrlPolicyDecision("DENY");
+            form.setMissingMethodPolicyDecision("DENY");
 
             String view = controller.updateSettings(form, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
             assertThat(ra.getFlashAttributes().get("message")).asString().contains("admin.system.settings.saved");
 
-            verify(systemSettingsService).updateSettings(form);
-            verify(runtimeApplier).apply();
-            verify(authorizationManager).setCombiningAlgorithm(CombiningAlgorithm.DENY_OVERRIDES);
-            verify(authorizationManager).reload();
+            InOrder order = inOrder(systemSettingsService, runtimeApplier, authorizationManager, policyReloadBroadcaster);
+            order.verify(systemSettingsService).updateSettings(form);
+            order.verify(runtimeApplier).apply();
+            order.verify(authorizationManager).reload();
+            order.verify(policyReloadBroadcaster).broadcastReload();
         }
 
         @Test
-        @DisplayName("should handle IllegalArgumentException when combining algorithm is invalid")
-        void invalidAlgorithm() {
+        @DisplayName("should not apply or broadcast when the service rejects a non-enum value")
+        void invalidValueIsRejected() {
             RedirectAttributes ra = new RedirectAttributesModelMap();
             SystemSettingsForm form = new SystemSettingsForm();
-            form.setPolicyCombiningAlgorithm("INVALID");
+            form.setNoMatchingUrlPolicyDecision("MAYBE");
+            doThrow(new IllegalArgumentException("noMatchingUrlPolicyDecision has an unsupported value: MAYBE"))
+                    .when(systemSettingsService).updateSettings(form);
 
             String view = controller.updateSettings(form, ra);
 
             assertThat(view).isEqualTo("redirect:/contexa/admin/system-settings");
-            verify(systemSettingsService).updateSettings(form);
-            verify(runtimeApplier).apply();
-            verify(authorizationManager, never()).setCombiningAlgorithm(any());
+            assertThat(ra.getFlashAttributes().get("errorMessage")).asString().contains("MAYBE");
+            verify(runtimeApplier, never()).apply();
             verify(authorizationManager, never()).reload();
+            verify(policyReloadBroadcaster, never()).broadcastReload();
+        }
+
+        @Test
+        @DisplayName("should apply submitted values directly when no runtime applier is registered")
+        void appliesSubmittedValuesWithoutRuntimeApplier() {
+            PolicyCombiningProperties properties = new PolicyCombiningProperties();
+            SystemSettingsController fallbackController = new SystemSettingsController(systemSettingsService,
+                    properties, messageSource, authorizationManager, null);
+            SystemSettingsForm form = new SystemSettingsForm();
+            form.setPolicyCombiningAlgorithm("PERMIT_OVERRIDES");
+            form.setNoMatchingUrlPolicyDecision("DENY");
+            form.setMissingMethodPolicyDecision("DENY");
+
+            fallbackController.updateSettings(form, new RedirectAttributesModelMap());
+
+            assertThat(properties.getCombiningAlgorithm()).isEqualTo(CombiningAlgorithm.PERMIT_OVERRIDES);
+            assertThat(properties.getNoMatchingUrlPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
+            assertThat(properties.getMissingMethodPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
+            verify(authorizationManager).setCombiningAlgorithm(CombiningAlgorithm.PERMIT_OVERRIDES);
+            verify(authorizationManager).setNoMatchingUrlPolicyDecision(NoPolicyDecision.DENY);
+            verify(authorizationManager).reload();
         }
 
         @Test

@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionSandbox;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,11 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 
 import java.util.function.Supplier;
 
+/**
+ * Expression handler for database-stored URL policies. Every evaluation context is restricted by
+ * {@link PolicyExpressionSandbox}: no type references beyond {@code java.time} value types, no
+ * constructors, no bean references and no access to reflection or process APIs.
+ */
 @Slf4j
 public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpressionHandler {
 
@@ -67,7 +73,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
         root.setDefaultRolePrefix("ROLE_");
 
         StandardEvaluationContext ctx = new StandardEvaluationContext(root);
-        ctx.setBeanResolver(getBeanResolver());
+        PolicyExpressionSandbox.apply(ctx);
 
         ctx.setVariable("ai", root);
 

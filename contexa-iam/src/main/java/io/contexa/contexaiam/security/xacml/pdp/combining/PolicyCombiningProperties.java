@@ -22,17 +22,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Configuration properties for policy combining algorithm.
  * Default: FIRST_APPLICABLE (priority-ordered, first matching policy decides).
+ *
+ * <p>The values are the startup defaults. The system settings screen stores operator overrides
+ * in {@code system_settings}; they are applied to this bean at startup and immediately after
+ * every save, so the fields are volatile for safe publication to request threads.</p>
  */
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "contexa.policy")
 public class PolicyCombiningProperties {
 
-    private CombiningAlgorithm combiningAlgorithm = CombiningAlgorithm.FIRST_APPLICABLE;
+    private volatile CombiningAlgorithm combiningAlgorithm = CombiningAlgorithm.FIRST_APPLICABLE;
 
-    private NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
+    private volatile NoPolicyDecision noMatchingUrlPolicyDecision = NoPolicyDecision.PERMIT;
 
-    private NoPolicyDecision missingMethodPolicyDecision = NoPolicyDecision.PERMIT;
+    private volatile NoPolicyDecision missingMethodPolicyDecision = NoPolicyDecision.PERMIT;
 
     public enum NoPolicyDecision {
         PERMIT,

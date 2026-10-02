@@ -500,6 +500,64 @@ class DefaultPolicyServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("Condition expression validation")
+    class ConditionExpressionValidation {
+
+        @Test
+        @DisplayName("should reject a dangerous condition on create without saving or reloading")
+        void shouldRejectDangerousConditionOnCreate() {
+            PolicyDto dto = createPolicyDtoWithCondition("rce-policy",
+                    "T(java.lang.Runtime).getRuntime().exec('calc') != null");
+
+            assertThatThrownBy(() -> policyService.createPolicy(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("msg.policy.spel.dangerous");
+            verify(policyRepository, never()).save(any(Policy.class));
+            verify(authorizationManager, never()).reload();
+        }
+
+        @Test
+        @DisplayName("should reject reflection on update before creating a version")
+        void shouldRejectDangerousConditionOnUpdate() {
+            PolicyDto dto = createPolicyDtoWithCondition("rce-policy",
+                    "''.getClass().forName('java.lang.Runtime') != null");
+            dto.setId(7L);
+
+            assertThatThrownBy(() -> policyService.updatePolicy(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("msg.policy.spel.dangerous");
+            verify(policyVersionService, never()).createVersion(any(), any(), any());
+            verify(policyRepository, never()).save(any(Policy.class));
+        }
+
+        @Test
+        @DisplayName("should reject an unparseable condition as invalid")
+        void shouldRejectUnparseableCondition() {
+            PolicyDto dto = createPolicyDtoWithCondition("broken-policy", "hasRole('ADMIN') and");
+
+            assertThatThrownBy(() -> policyService.createPolicy(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("msg.policy.spel.invalid");
+            verify(policyRepository, never()).save(any(Policy.class));
+        }
+
+        @Test
+        @DisplayName("should refuse to approve an AI policy whose stored condition is dangerous")
+        void shouldRejectApprovalOfDangerousAiPolicy() {
+            Policy policy = createPolicyWithCondition(9L, "ai-policy", "@systemSettingsService != null");
+            policy.setSource(Policy.PolicySource.AI_GENERATED);
+            policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
+            when(policyRepository.findByIdWithDetails(9L)).thenReturn(Optional.of(policy));
+
+            assertThatThrownBy(() -> policyService.approvePolicy(9L, "admin"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("msg.policy.spel.dangerous");
+            verify(policyRepository, never()).save(any(Policy.class));
+            assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.PENDING);
+        }
+    }
+
     // -- helper methods --
 
     private PolicyDto createSimplePolicyDto(String name, String description) {

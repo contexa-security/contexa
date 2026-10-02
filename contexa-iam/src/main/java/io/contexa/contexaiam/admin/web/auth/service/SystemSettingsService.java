@@ -73,7 +73,12 @@ public class SystemSettingsService {
                 .orElseGet(() -> repository.save(SystemRuntimeSettingsService.defaultSettings()));
         existing.setAuditLogRetentionDays(form.getAuditLogRetentionDays());
         existing.setDefaultRole(form.getDefaultRole());
-        existing.setPolicyCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
+        existing.setPolicyCombiningAlgorithm(
+                SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm()).name());
+        existing.setNoMatchingUrlPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
+                "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision()).name());
+        existing.setMissingMethodPolicyDecision(SystemRuntimeSettingsService.parseNoPolicyDecision(
+                "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision()).name());
         existing.setRegistrationEnabled(form.isRegistrationEnabled());
         existing.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode()));
         existing.setMvcResourceScannerBasePackages(
@@ -86,6 +91,11 @@ public class SystemSettingsService {
             throw new IllegalArgumentException("Settings form is required.");
         }
         validateRange("auditLogRetentionDays", form.getAuditLogRetentionDays(), 0, 3650);
+        SystemRuntimeSettingsService.parseCombiningAlgorithm(form.getPolicyCombiningAlgorithm());
+        SystemRuntimeSettingsService.parseNoPolicyDecision(
+                "noMatchingUrlPolicyDecision", form.getNoMatchingUrlPolicyDecision());
+        SystemRuntimeSettingsService.parseNoPolicyDecision(
+                "missingMethodPolicyDecision", form.getMissingMethodPolicyDecision());
         SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(form.getSecurityZeroTrustMode());
         SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(form.getMvcResourceScannerBasePackages());
     }

@@ -173,14 +173,14 @@ class CustomDynamicAuthorizationManagerTest {
         }
 
         @Test
-        @DisplayName("Should return denyAll for DENY policy without conditions")
-        void shouldReturnDenyAllForDenyWithoutConditions() {
+        @DisplayName("Should return an always-applicable condition for DENY policy without conditions")
+        void shouldReturnPermitAllConditionForDenyWithoutConditions() {
             Policy policy = Policy.builder().effect(Policy.Effect.DENY).build();
             policy.setRules(new HashSet<>());
 
             String expression = authorizationManager.getExpressionFromPolicy(policy);
 
-            assertThat(expression).isEqualTo("denyAll");
+            assertThat(expression).isEqualTo("permitAll");
         }
 
         @Test
@@ -199,8 +199,8 @@ class CustomDynamicAuthorizationManagerTest {
         }
 
         @Test
-        @DisplayName("Should negate expression for DENY effect")
-        void shouldNegateForDenyEffect() {
+        @DisplayName("Should keep the DENY condition without negation")
+        void shouldNotNegateForDenyEffect() {
             Policy policy = Policy.builder().effect(Policy.Effect.DENY).build();
             PolicyRule rule = PolicyRule.builder().build();
             PolicyCondition condition = PolicyCondition.builder()
@@ -210,8 +210,7 @@ class CustomDynamicAuthorizationManagerTest {
 
             String expression = authorizationManager.getExpressionFromPolicy(policy);
 
-            assertThat(expression).startsWith("!(");
-            assertThat(expression).contains("hasAuthority('ROLE_BLOCKED')");
+            assertThat(expression).isEqualTo("hasAuthority('ROLE_BLOCKED')");
         }
 
         @Test

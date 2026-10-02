@@ -353,6 +353,52 @@ class BusinessPolicyServiceImplTest {
     }
 
     @Nested
+    @DisplayName("Common policy expression validation")
+    class CommonExpressionValidation {
+
+        @Test
+        @DisplayName("Should reject a condition template parameter that breaks out of its quotes")
+        void shouldRejectTemplateParameterInjection() {
+            BusinessPolicyDto dto = createBasicDto();
+            ConditionTemplate template = ConditionTemplate.builder()
+                    .id(5L).name("ip").spelTemplate("hasIpAddress(%s)").build();
+            dto.setConditions(Map.of(5L, List.of(
+                    "10.0.0.1') or T(java.lang.Runtime).getRuntime().exec('calc') != null or hasIpAddress('10.0.0.2")));
+            Role role = createRole("ROLE_USER");
+            Permission perm = createPermission();
+
+            when(conditionTemplateRepository.findById(5L)).thenReturn(Optional.of(template));
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("msg.policy.spel.dangerous");
+            verify(policyRepository, never()).save(any());
+            verify(authorizationManager, never()).reload();
+        }
+
+        @Test
+        @DisplayName("Should accept a business-hours condition using java.time value types")
+        void shouldAcceptJavaTimeCondition() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setCustomConditionSpel("T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18");
+            Role role = createRole("ROLE_USER");
+            Permission perm = createPermission();
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result.getRules()).hasSize(1);
+        }
+    }
+
+    @Nested
     @DisplayName("authorizationManager.reload() called")
     class ReloadTests {
 

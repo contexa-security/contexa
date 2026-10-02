@@ -35,7 +35,9 @@ public final class SystemSettingsDtos {
     public static class SystemSettingsForm {
         private int auditLogRetentionDays = 90;
         private String defaultRole = "ROLE_USER";
-        private String policyCombiningAlgorithm = "FIRST_APPLICABLE";
+        private String policyCombiningAlgorithm = SystemRuntimeSettingsService.DEFAULT_POLICY_COMBINING_ALGORITHM.name();
+        private String noMatchingUrlPolicyDecision = SystemRuntimeSettingsService.DEFAULT_NO_POLICY_DECISION.name();
+        private String missingMethodPolicyDecision = SystemRuntimeSettingsService.DEFAULT_NO_POLICY_DECISION.name();
         private boolean registrationEnabled = false;
         private String securityZeroTrustMode = SystemRuntimeSettingsService.DEFAULT_SECURITY_ZEROTRUST_MODE.name();
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
@@ -46,11 +48,19 @@ public final class SystemSettingsDtos {
             form.setAuditLogRetentionDays(source.getAuditLogRetentionDays());
             form.setDefaultRole(source.getDefaultRole());
             form.setPolicyCombiningAlgorithm(source.getPolicyCombiningAlgorithm());
+            form.setNoMatchingUrlPolicyDecision(valueOrDefault(source.getNoMatchingUrlPolicyDecision(),
+                    SystemRuntimeSettingsService.DEFAULT_NO_POLICY_DECISION.name()));
+            form.setMissingMethodPolicyDecision(valueOrDefault(source.getMissingMethodPolicyDecision(),
+                    SystemRuntimeSettingsService.DEFAULT_NO_POLICY_DECISION.name()));
             form.setRegistrationEnabled(source.isRegistrationEnabled());
             form.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(source.getSecurityZeroTrustMode()));
             form.setMvcResourceScannerBasePackages(
                     SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(source.getMvcResourceScannerBasePackages()));
             return form;
+        }
+
+        private static String valueOrDefault(String value, String defaultValue) {
+            return value == null || value.isBlank() ? defaultValue : value;
         }
     }
 

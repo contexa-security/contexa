@@ -90,6 +90,24 @@
                             </select>
                             <p th:text="#{admin.system.settings.combining.algorithm.desc}">Policy combining algorithm.</p>
                         </div>
+                        <div class="system-settings-field">
+                            <label for="noMatchingUrlPolicyDecision" th:text="#{admin.system.settings.no.matching.url.decision}">Decision when no URL policy applies</label>
+                            <select id="noMatchingUrlPolicyDecision" th:field="*{noMatchingUrlPolicyDecision}" class="system-settings-input" required>
+                                <option th:each="decision : ${noPolicyDecisionOptions}"
+                                        th:value="${decision.name()}"
+                                        th:text="#{${'admin.system.settings.no.policy.decision.' + #strings.toLowerCase(decision.name())}}"></option>
+                            </select>
+                            <p th:text="#{admin.system.settings.no.matching.url.decision.desc}">Applied when no URL policy applies.</p>
+                        </div>
+                        <div class="system-settings-field">
+                            <label for="missingMethodPolicyDecision" th:text="#{admin.system.settings.missing.method.decision}">Decision when no method policy applies</label>
+                            <select id="missingMethodPolicyDecision" th:field="*{missingMethodPolicyDecision}" class="system-settings-input" required>
+                                <option th:each="decision : ${noPolicyDecisionOptions}"
+                                        th:value="${decision.name()}"
+                                        th:text="#{${'admin.system.settings.no.policy.decision.' + #strings.toLowerCase(decision.name())}}"></option>
+                            </select>
+                            <p th:text="#{admin.system.settings.missing.method.decision.desc}">Applied when no method policy applies.</p>
+                        </div>
                     </div>
                 </section>
 

@@ -21,6 +21,7 @@ import io.contexa.contexacommon.repository.PasswordPolicyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordChangeController;
 import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
@@ -86,8 +87,11 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     @ConditionalOnMissingBean
     public SystemSettingsRuntimeApplier systemSettingsRuntimeApplier(
             SystemRuntimeSettingsService systemRuntimeSettingsService,
-            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
-        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, zeroTrustPropertiesProvider);
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider,
+            ObjectProvider<PolicyCombiningProperties> policyCombiningPropertiesProvider,
+            ObjectProvider<CustomDynamicAuthorizationManager> authorizationManagerProvider) {
+        return new SystemSettingsRuntimeApplier(systemRuntimeSettingsService, zeroTrustPropertiesProvider,
+                policyCombiningPropertiesProvider, authorizationManagerProvider);
     }
 
     @Bean
@@ -105,9 +109,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             SystemSettingsService systemSettingsService,
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider,
-            ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
-        return new SystemSettingsController(systemSettingsService, policyCombiningProperties,
-                messageSource, authManagerProvider.getIfAvailable(), runtimeApplierProvider.getIfAvailable());
+            ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider,
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+        SystemSettingsController controller = new SystemSettingsController(systemSettingsService,
+                policyCombiningProperties, messageSource, authManagerProvider.getIfAvailable(),
+                runtimeApplierProvider.getIfAvailable());
+        policyReloadBroadcasterProvider.ifAvailable(controller::setPolicyReloadBroadcaster);
+        return controller;
     }
 
     @Bean

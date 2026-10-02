@@ -58,6 +58,14 @@ public class SystemSettings {
     @Builder.Default
     private String securityZeroTrustMode = "SHADOW";
 
+    @Column(name = "no_matching_url_policy_decision", nullable = false, length = 20)
+    @Builder.Default
+    private String noMatchingUrlPolicyDecision = "PERMIT";
+
+    @Column(name = "missing_method_policy_decision", nullable = false, length = 20)
+    @Builder.Default
+    private String missingMethodPolicyDecision = "PERMIT";
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

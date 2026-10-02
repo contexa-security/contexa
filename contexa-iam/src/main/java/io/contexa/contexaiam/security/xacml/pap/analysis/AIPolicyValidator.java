@@ -160,7 +160,7 @@ public class AIPolicyValidator {
                 if ("permitAll".equals(expr.trim()) && policy.getEffect() == Policy.Effect.ALLOW) {
                     dangers.add(i18n("msg.policy.ai.check.danger.permitall"));
                 }
-                if ("denyAll".equals(expr.trim()) && policy.getEffect() == Policy.Effect.DENY) {
+                if ("permitAll".equals(expr.trim()) && policy.getEffect() == Policy.Effect.DENY) {
                     dangers.add(i18n("msg.policy.ai.check.danger.denyall"));
                 }
                 if (expr.contains("isAuthenticated()") && !expr.contains("hasAuthority")
