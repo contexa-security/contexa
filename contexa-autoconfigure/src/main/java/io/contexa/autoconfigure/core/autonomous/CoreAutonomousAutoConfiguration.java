@@ -53,6 +53,7 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
@@ -69,6 +70,7 @@ import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -81,6 +83,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -140,6 +143,19 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
 public class CoreAutonomousAutoConfiguration {
 
     public CoreAutonomousAutoConfiguration() {
+    }
+
+    /**
+     * Binds the trusted proxy settings to the context binding hash so that filters, handlers and
+     * repositories resolve the client IP exactly as the security event publisher does. The binding
+     * is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaClientIpResolutionBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaClientIpResolutionBinding")
+    public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
+        SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
+        return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
     }
 
     @Bean

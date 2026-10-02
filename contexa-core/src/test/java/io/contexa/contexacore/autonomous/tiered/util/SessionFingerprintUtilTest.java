@@ -17,15 +17,31 @@ package io.contexa.contexacore.autonomous.tiered.util;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SessionFingerprintUtilTest {
+
+    private final TieredStrategyProperties trustedLoopbackProxy = trustedProxy("127.0.0.1");
+
+    @AfterEach
+    void unbindClientIpResolution() {
+        SessionFingerprintUtil.unbindClientIpResolution(trustedLoopbackProxy);
+    }
+
+    private static TieredStrategyProperties trustedProxy(String proxy) {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getSecurity().setTrustedProxies(List.of(proxy));
+        return properties;
+    }
 
     @Test
     @DisplayName("Same input produces same hash (deterministic)")
@@ -138,9 +154,25 @@ class SessionFingerprintUtilTest {
     }
 
     @Test
-    @DisplayName("extractClientIp prefers X-Forwarded-For header")
+    @DisplayName("extractClientIp ignores X-Forwarded-For from a peer that is not a trusted proxy")
+    void extractClientIp_untrustedPeer_returnsRemoteAddr() {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Forwarded-For", "203.0.113.1, 70.41.3.18");
+        request.setRemoteAddr("127.0.0.1");
+
+        // when
+        String clientIp = SessionFingerprintUtil.extractClientIp(request);
+
+        // then
+        assertThat(clientIp).isEqualTo("127.0.0.1");
+    }
+
+    @Test
+    @DisplayName("extractClientIp prefers X-Forwarded-For header from a trusted proxy")
     void extractClientIp_xForwardedFor_returnsFirstIp() {
         // given
+        SessionFingerprintUtil.bindClientIpResolution(trustedLoopbackProxy);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Forwarded-For", "203.0.113.1, 70.41.3.18");
         request.setRemoteAddr("127.0.0.1");
@@ -156,6 +188,7 @@ class SessionFingerprintUtilTest {
     @DisplayName("extractClientIp falls back to X-Real-IP when X-Forwarded-For absent")
     void extractClientIp_xRealIp_returnsIp() {
         // given
+        SessionFingerprintUtil.bindClientIpResolution(trustedLoopbackProxy);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Real-IP", "203.0.113.5");
         request.setRemoteAddr("127.0.0.1");
@@ -185,6 +218,7 @@ class SessionFingerprintUtilTest {
     @DisplayName("extractClientIp ignores 'unknown' header values")
     void extractClientIp_unknownHeader_skipsToNext() {
         // given
+        SessionFingerprintUtil.bindClientIpResolution(trustedLoopbackProxy);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Forwarded-For", "unknown");
         request.addHeader("X-Real-IP", "10.0.0.5");
