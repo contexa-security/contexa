@@ -23,12 +23,11 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
-import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyEvaluationOrder;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
@@ -40,19 +39,15 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcherEntry;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -97,11 +92,11 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private void initialize() {
         List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> loadedMappings = new ArrayList<>();
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies().stream()
-                .sorted(Comparator.comparingInt(Policy::getPriority))
+                .sorted(PolicyEvaluationOrder.urlOrder())
                 .toList();
 
         for (Policy policy : urlPolicies) {
-            if (!isExecutable(policy)) {
+            if (!PolicyEvaluationOrder.isExecutable(policy)) {
                 continue;
             }
             List<PolicyTarget> urlTargets = policy.getTargets().stream()
@@ -112,14 +107,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             }
             AuthorizationManager<RequestAuthorizationContext> policyManager = createPolicyManager(policy);
             for (PolicyTarget target : urlTargets) {
-                String httpMethod = target.getHttpMethod();
-                RequestMatcher matcher;
-                if (httpMethod != null && !"ANY".equals(httpMethod) && !"ALL".equals(httpMethod)) {
-                    matcher = PathPatternRequestMatcher.withDefaults()
-                            .matcher(HttpMethod.valueOf(httpMethod), target.getTargetIdentifier());
-                } else {
-                    matcher = PathPatternRequestMatcher.withDefaults().matcher(target.getTargetIdentifier());
-                }
+                RequestMatcher matcher = UrlPolicyTargetMatcher.requestMatcher(target);
                 loadedMappings.add(new RequestMatcherEntry<>(matcher, policyManager));
             }
         }
@@ -130,7 +118,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         String violation;
         try {
             String expression = getExpressionFromPolicy(policy);
-            violation = findLoadViolation(policy, expression);
+            violation = expressionConverter.findLoadViolation(policy, expression);
             if (violation == null) {
                 AuthorizationManager<RequestAuthorizationContext> conditionManager = managerResolver.resolve(expression);
                 return policy.getEffect() == Policy.Effect.DENY
@@ -143,30 +131,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         log.error("URL policy rejected while loading, its targets are denied. policyId={}, name={}, reason={}",
                 policy.getId(), policy.getName(), violation);
         return REJECTED_POLICY_MANAGER;
-    }
-
-    private String findLoadViolation(Policy policy, String expression) {
-        for (PolicyRule rule : policy.getRules()) {
-            for (PolicyCondition condition : rule.getConditions()) {
-                String rawExpression = condition.getExpression();
-                if (rawExpression == null || rawExpression.isBlank()) {
-                    continue;
-                }
-                Optional<String> violation = PolicyExpressionValidator.findViolation(rawExpression);
-                if (violation.isPresent()) {
-                    return violation.get();
-                }
-            }
-        }
-        return PolicyExpressionValidator.findViolation(expression).orElse(null);
-    }
-
-    private boolean isExecutable(Policy policy) {
-        if (policy == null || !Boolean.TRUE.equals(policy.getIsActive())) {
-            return false;
-        }
-        Policy.ApprovalStatus status = policy.getApprovalStatus();
-        return status == Policy.ApprovalStatus.APPROVED || status == Policy.ApprovalStatus.NOT_REQUIRED;
     }
 
     @Override
@@ -300,9 +264,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         public AuthorizationDecision check(Supplier<Authentication> authentication,
                                            RequestAuthorizationContext context) {
             AuthorizationDecision conditionResult = condition.check(authentication, context);
-            return conditionResult != null && conditionResult.isGranted()
-                    ? new AuthorizationDecision(false)
-                    : null;
+            return PolicyCombiningEvaluator.applyEffect(
+                    Policy.Effect.DENY, conditionResult != null && conditionResult.isGranted());
         }
     }
 }

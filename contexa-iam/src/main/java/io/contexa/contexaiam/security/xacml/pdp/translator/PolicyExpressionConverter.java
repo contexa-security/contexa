@@ -17,9 +17,12 @@ package io.contexa.contexaiam.security.xacml.pdp.translator;
 
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -79,6 +82,30 @@ public class PolicyExpressionConverter {
             return policy.getEffect() == Policy.Effect.DENY ? "permitAll" : "denyAll";
         }
         return stripped;
+    }
+
+    /**
+     * Returns why the URL condition of a policy must not be compiled, or {@code null} when it is
+     * acceptable. Every stored condition and the converted expression are checked, so a forbidden
+     * construct is rejected even when the conversion would have removed it.
+     *
+     * @param policy     the policy whose stored conditions are checked
+     * @param expression the expression produced by {@link #toExpression(Policy)} for the policy
+     */
+    public String findLoadViolation(Policy policy, String expression) {
+        for (PolicyRule rule : policy.getRules()) {
+            for (PolicyCondition condition : rule.getConditions()) {
+                String rawExpression = condition.getExpression();
+                if (rawExpression == null || rawExpression.isBlank()) {
+                    continue;
+                }
+                Optional<String> violation = PolicyExpressionValidator.findViolation(rawExpression);
+                if (violation.isPresent()) {
+                    return violation.get();
+                }
+            }
+        }
+        return PolicyExpressionValidator.findViolation(expression).orElse(null);
     }
 
     /**

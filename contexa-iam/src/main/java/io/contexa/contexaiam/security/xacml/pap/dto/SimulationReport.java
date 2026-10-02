@@ -30,12 +30,27 @@ public record SimulationReport(
             String changeType) {
     }
 
+    /**
+     * Simulated decision of one test case.
+     *
+     * @param decision                ALLOW or DENY as the enforcement point would decide
+     * @param matchedPolicyId         the policy whose decision was returned, {@code null} when none
+     * @param matchedPolicyName       name of that policy
+     * @param matchedExpression       condition expression of that policy as the enforcement point builds it
+     * @param userAuthorities         authorities of the simulated user
+     * @param combiningAlgorithm      the combining algorithm that was applied
+     * @param noPolicyDecision        the no-matching-policy decision configured for the target type
+     * @param noPolicyDecisionApplied whether the decision is that no-matching-policy decision
+     */
     public record DecisionDetail(
             String decision,
             Long matchedPolicyId,
             String matchedPolicyName,
             String matchedExpression,
-            List<String> userAuthorities) {
+            List<String> userAuthorities,
+            String combiningAlgorithm,
+            String noPolicyDecision,
+            boolean noPolicyDecisionApplied) {
     }
 
     public record SimulationSummary(

@@ -58,7 +58,7 @@ public class ProtectableMethodAuthorizationManager {
         for (int index = 0; index < plan.policyExpressions().size(); index++) {
             boolean conditionSatisfied = ExpressionUtils.evaluateAsBoolean(
                     plan.policyExpressions().get(index), context);
-            AuthorizationDecision decision = toDecision(effectOf(plan, index), conditionSatisfied);
+            AuthorizationDecision decision = PolicyCombiningEvaluator.applyEffect(effectOf(plan, index), conditionSatisfied);
             decisions.add(decision);
             trace.add(toEvaluation(plan, index, decision));
         }
@@ -88,13 +88,6 @@ public class ProtectableMethodAuthorizationManager {
 
     private Policy.Effect effectOf(MethodPolicyPlan plan, int index) {
         return plan.policyMetadata().isEmpty() ? null : plan.policyMetadata().get(index).effect();
-    }
-
-    private AuthorizationDecision toDecision(Policy.Effect effect, boolean conditionSatisfied) {
-        if (effect == Policy.Effect.DENY) {
-            return conditionSatisfied ? new AuthorizationDecision(false) : null;
-        }
-        return new AuthorizationDecision(conditionSatisfied);
     }
 
     private MethodPolicyEvaluation toEvaluation(MethodPolicyPlan plan, int index,

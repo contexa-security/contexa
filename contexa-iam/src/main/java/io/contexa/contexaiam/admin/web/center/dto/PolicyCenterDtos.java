@@ -356,7 +356,10 @@ public final class PolicyCenterDtos {
                 Long matchedPolicyId,
                 String matchedPolicyName,
                 String matchedExpression,
-                List<String> userAuthorities
+                List<String> userAuthorities,
+                String combiningAlgorithm,
+                String noPolicyDecision,
+                boolean noPolicyDecisionApplied
         ) {
             public static DecisionDetail from(SimulationReport.DecisionDetail detail) {
                 if (detail == null) {
@@ -367,7 +370,10 @@ public final class PolicyCenterDtos {
                         detail.matchedPolicyId(),
                         detail.matchedPolicyName(),
                         detail.matchedExpression(),
-                        detail.userAuthorities()
+                        detail.userAuthorities(),
+                        detail.combiningAlgorithm(),
+                        detail.noPolicyDecision(),
+                        detail.noPolicyDecisionApplied()
                 );
             }
         }

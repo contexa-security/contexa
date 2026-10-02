@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pdp.combining;
 
+import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.springframework.security.authorization.AuthorizationDecision;
 
@@ -56,18 +57,55 @@ public class PolicyCombiningEvaluator {
      */
     public AuthorizationDecision evaluate(List<AuthorizationDecision> decisions, CombiningAlgorithm algorithm,
                                           NoPolicyDecision noPolicyDecision) {
+        return combine(decisions, algorithm, noPolicyDecision).decision();
+    }
+
+    /**
+     * Combines decisions like {@link #evaluate(List, CombiningAlgorithm, NoPolicyDecision)} and also
+     * reports the algorithm and no-matching-policy decision that were applied, and whether the result
+     * is that no-matching-policy decision.
+     */
+    public CombinedDecision combine(List<AuthorizationDecision> decisions, CombiningAlgorithm algorithm,
+                                    NoPolicyDecision noPolicyDecision) {
         NoPolicyDecision fallback = noPolicyDecision != null ? noPolicyDecision : NoPolicyDecision.PERMIT;
-        if (decisions == null || decisions.isEmpty()) {
-            return new AuthorizationDecision(fallback.isGranted());
-        }
         CombiningAlgorithm effectiveAlgorithm = algorithm != null ? algorithm : CombiningAlgorithm.FIRST_APPLICABLE;
+        if (decisions == null || decisions.isEmpty()) {
+            return new CombinedDecision(new AuthorizationDecision(fallback.isGranted()), effectiveAlgorithm, fallback, true);
+        }
         AuthorizationDecision combined = switch (effectiveAlgorithm) {
             case DENY_OVERRIDES -> evaluateDenyOverrides(decisions);
             case PERMIT_OVERRIDES -> evaluatePermitOverrides(decisions);
             case FIRST_APPLICABLE -> evaluateFirstApplicable(decisions);
             case DENY_UNLESS_PERMIT -> evaluateDenyUnlessPermit(decisions);
         };
-        return combined != null ? combined : new AuthorizationDecision(fallback.isGranted());
+        return combined != null
+                ? new CombinedDecision(combined, effectiveAlgorithm, fallback, false)
+                : new CombinedDecision(new AuthorizationDecision(fallback.isGranted()), effectiveAlgorithm, fallback, true);
+    }
+
+    /**
+     * Applies a policy effect to its condition result. An ALLOW policy is Permit when the condition
+     * holds and Deny otherwise. A DENY policy is Deny when the condition holds and NotApplicable
+     * ({@code null}) otherwise. A missing effect is treated like ALLOW.
+     */
+    public static AuthorizationDecision applyEffect(Policy.Effect effect, boolean conditionSatisfied) {
+        if (effect == Policy.Effect.DENY) {
+            return conditionSatisfied ? new AuthorizationDecision(false) : null;
+        }
+        return new AuthorizationDecision(conditionSatisfied);
+    }
+
+    /**
+     * Result of combining policy decisions.
+     *
+     * @param decision                the combined decision
+     * @param algorithm               the combining algorithm that was applied
+     * @param noPolicyDecision        the no-matching-policy decision that was in effect
+     * @param noPolicyDecisionApplied whether the decision is the no-matching-policy decision because
+     *                                no policy matched or no matching policy applied
+     */
+    public record CombinedDecision(AuthorizationDecision decision, CombiningAlgorithm algorithm,
+                                   NoPolicyDecision noPolicyDecision, boolean noPolicyDecisionApplied) {
     }
 
     private AuthorizationDecision evaluateDenyOverrides(List<AuthorizationDecision> decisions) {

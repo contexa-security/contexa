@@ -2762,18 +2762,28 @@ PolicyCenter.SimulatorUI = {
         var resultsDiv = document.getElementById('sim-results');
         resultsDiv.classList.remove('hidden');
 
-        var allowCount = 0, denyCount = 0, noneCount = 0;
+        var allowCount = 0, denyCount = 0, defaultCount = 0;
+        var combiningAlgorithm = null, noPolicyDecisions = {};
         report.results.forEach(function(r) {
             var dec = r.currentResult.decision;
             if (dec === 'ALLOW') allowCount++;
             else if (dec === 'DENY') denyCount++;
-            else noneCount++;
+            if (r.currentResult.noPolicyDecisionApplied) defaultCount++;
+            if (r.currentResult.combiningAlgorithm) combiningAlgorithm = r.currentResult.combiningAlgorithm;
+            if (r.currentResult.noPolicyDecision) noPolicyDecisions[r.testCase.targetType || 'URL'] = r.currentResult.noPolicyDecision;
+        });
+        var settingsText = combiningAlgorithm
+            ? PolicyCenter._i18n('simCombiningAlgorithm', 'Combining algorithm') + ': ' + combiningAlgorithm
+            : '';
+        Object.keys(noPolicyDecisions).forEach(function(type) {
+            settingsText += ' / ' + PolicyCenter._i18n('simNoPolicyDecision', 'No matching policy') + ' (' + type + '): ' + noPolicyDecisions[type];
         });
         document.getElementById('sim-summary').innerHTML =
             '<div class="rounded-xl p-4 text-center" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);"><div class="text-2xl font-bold" style="color:#4ade80;">' + allowCount + '</div><div class="text-xs mt-1" style="color:#64748b;">ALLOW</div></div>'
             + '<div class="rounded-xl p-4 text-center" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);"><div class="text-2xl font-bold" style="color:#f87171;">' + denyCount + '</div><div class="text-xs mt-1" style="color:#64748b;">DENY</div></div>'
-            + '<div class="rounded-xl p-4 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-2xl font-bold" style="color:#94a3b8;">' + noneCount + '</div><div class="text-xs mt-1" style="color:#64748b;">NONE</div></div>'
-            + '<div class="rounded-xl p-4 text-center" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);"><div class="text-2xl font-bold" style="color:#a78bfa;">' + report.results.length + '</div><div class="text-xs mt-1" style="color:#64748b;">Total</div></div>';
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.3);"><div class="text-2xl font-bold" style="color:#94a3b8;">' + defaultCount + '</div><div class="text-xs mt-1" style="color:#64748b;">' + PolicyCenter.escapeHtml(PolicyCenter._i18n('simDefaultApplied', 'DEFAULT')) + '</div></div>'
+            + '<div class="rounded-xl p-4 text-center" style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);"><div class="text-2xl font-bold" style="color:#a78bfa;">' + report.results.length + '</div><div class="text-xs mt-1" style="color:#64748b;">Total</div></div>'
+            + (settingsText ? '<div class="col-span-4 text-xs font-mono" style="color:#94a3b8;">' + PolicyCenter.escapeHtml(settingsText) + '</div>' : '');
 
         var tbody = document.getElementById('sim-results-body');
         var html = '';
@@ -2788,7 +2798,9 @@ PolicyCenter.SimulatorUI = {
                 + '<td class="py-3 px-4" style="color:#e2e8f0;">' + PolicyCenter.escapeHtml(r.username || String(r.testCase.userId)) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#cbd5e1;">' + PolicyCenter.escapeHtml(r.testCase.path) + '</td>'
                 + '<td class="py-3 px-4"><span class="status-badge ' + (r.testCase.httpMethod ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border-purple-500/30') + ' text-xs">' + (r.testCase.httpMethod || 'METHOD') + '</span></td>'
-                + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + dec + '</span></td>'
+                + '<td class="py-3 px-4"><span style="color:' + decColor + ';font-weight:600;">' + dec + '</span>'
+                + (r.currentResult.noPolicyDecisionApplied ? ' <span class="text-xs" style="color:#94a3b8;">(' + PolicyCenter.escapeHtml(PolicyCenter._i18n('simDefaultApplied', 'DEFAULT')) + ')</span>' : '')
+                + '</td>'
                 + '<td class="py-3 px-4 text-xs" style="color:#c4b5fd;">' + PolicyCenter.escapeHtml(matchedPolicy) + '</td>'
                 + '<td class="py-3 px-4 font-mono text-xs" style="color:#94a3b8;max-width:300px;overflow:hidden;text-overflow:ellipsis;" title="' + PolicyCenter.escapeHtml(matchedExpr) + '">' + PolicyCenter.escapeHtml(matchedExpr || '-') + '</td>'
                 + '</tr>';

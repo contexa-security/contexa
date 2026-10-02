@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyEvaluationOrder;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -32,7 +33,6 @@ import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -117,7 +117,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 method.getDeclaringClass().getName(), method.getName(), params);
 
         List<Policy> policies = policyRetrievalPoint.findMethodPolicies(methodIdentifier);
-        ctx.setVariable("methodPolicyPlan", buildPolicyPlan(policies));
+        ctx.setVariable("methodPolicyPlan", buildPolicyPlan(policies, methodIdentifier));
         return ctx;
     }
 
@@ -137,14 +137,12 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 ? protectable.ownerField() : null;
     }
 
-    private MethodPolicyPlan buildPolicyPlan(List<Policy> policies) {
+    private MethodPolicyPlan buildPolicyPlan(List<Policy> policies, String methodIdentifier) {
         List<Policy> executablePolicies = CollectionUtils.isEmpty(policies)
                 ? List.of()
                 : policies.stream()
-                .filter(this::isExecutable)
-.sorted(Comparator.comparingInt(this::targetOrder)
-                        .thenComparingInt(Policy::getPriority)
-                        .thenComparing(Policy::getId, Comparator.nullsLast(Long::compareTo)))
+                .filter(PolicyEvaluationOrder::isExecutable)
+                .sorted(PolicyEvaluationOrder.methodOrder(methodIdentifier))
                 .toList();
         List<Expression> expressions = executablePolicies.stream()
                 .map(this::parsePolicyExpression)
@@ -160,22 +158,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 metadata);
     }
 
-    private boolean isExecutable(Policy policy) {
-        if (policy == null || !policy.getIsActive()) {
-            return false;
-        }
-        return policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED
-                || policy.getApprovalStatus() == Policy.ApprovalStatus.NOT_REQUIRED;
-    }
-
-    private int targetOrder(Policy policy) {
-        return policy.getTargets().stream()
-                .filter(target -> "METHOD".equals(target.getTargetType()))
-                .mapToInt(target -> target.getTargetOrder())
-                .min()
-                .orElse(Integer.MAX_VALUE);
-    }
-
     /**
      * Parses the condition of a policy. A condition rejected by {@link PolicyExpressionValidator}
      * is replaced by a constant that yields Deny for the policy effect (an ALLOW condition that never
@@ -185,7 +167,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private Expression parsePolicyExpression(Policy policy) {
         String violation;
         try {
-            Expression expression = getExpressionParser().parseExpression(buildPolicyExpression(policy));
+            Expression expression = getExpressionParser().parseExpression(buildPolicyCondition(policy));
             violation = PolicyExpressionValidator.findViolation(expression).orElse(null);
             if (violation == null) {
                 return expression;
@@ -194,8 +176,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             violation = "Policy expression cannot be parsed: " + e.getMessage();
         }
         reportRejectedPolicy(policy, violation);
-        return getExpressionParser().parseExpression(
-                policy.getEffect() == Policy.Effect.DENY ? ALWAYS_SATISFIED : NEVER_SATISFIED);
+        return getExpressionParser().parseExpression(rejectedPolicyCondition(policy));
     }
 
     private void reportRejectedPolicy(Policy policy, String violation) {
@@ -210,11 +191,19 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
      * condition into Permit or Deny, DENY turns a satisfied condition into Deny and an unsatisfied
      * one into NotApplicable. A policy without conditions always applies.
      */
-    private String buildPolicyExpression(Policy policy) {
+    public static String buildPolicyCondition(Policy policy) {
         String conditionExpression = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
                 .map(condition -> "(" + condition.getExpression() + ")")
                 .collect(Collectors.joining(" and "));
         return conditionExpression.isEmpty() ? ALWAYS_SATISFIED : conditionExpression;
+    }
+
+    /**
+     * Condition that replaces a rejected policy condition: it yields Deny for the policy effect,
+     * an ALLOW condition that never holds or a DENY condition that always holds.
+     */
+    public static String rejectedPolicyCondition(Policy policy) {
+        return policy.getEffect() == Policy.Effect.DENY ? ALWAYS_SATISFIED : NEVER_SATISFIED;
     }
 }

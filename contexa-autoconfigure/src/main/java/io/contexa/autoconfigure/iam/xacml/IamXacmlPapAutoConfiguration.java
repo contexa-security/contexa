@@ -47,6 +47,8 @@ import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -131,8 +133,12 @@ public class IamXacmlPapAutoConfiguration {
     public PolicySimulator policySimulator(
             UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy) {
-        return new PolicySimulator(userRepository, policyRepository, roleHierarchy);
+            RoleHierarchy roleHierarchy,
+            ObjectProvider<PolicyCombiningEvaluator> policyCombiningEvaluator,
+            ObjectProvider<PolicyCombiningProperties> policyCombiningProperties) {
+        return new PolicySimulator(userRepository, policyRepository, roleHierarchy,
+                policyCombiningEvaluator.getIfAvailable(PolicyCombiningEvaluator::new),
+                policyCombiningProperties.getIfAvailable(PolicyCombiningProperties::new));
     }
 
     @Bean
