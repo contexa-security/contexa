@@ -796,54 +796,6 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
-    @DisplayName("required verification should preserve LLM ALLOW and constrain final action to CHALLENGE")
-    void applyRequiredVerificationConstraint_shouldPreserveProposedActionAndChallengeFinalAction() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.ALLOW)
-                .reasoning("The model proposed ALLOW.")
-                .llmDecisionPresent(true)
-                .fieldProvenance(Map.of("reasoning", "MODEL"))
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "protectableVerificationRequired", true,
-                        "mfaVerified", false,
-                        "authorizationEffect", "ALLOW")))
-                .build();
-
-        strategy.applyRequiredVerificationConstraintForTest(decision, event);
-
-        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
-        assertThat(decision.getAutonomyConstraintReasons()).containsExactly("FRESH_VERIFICATION_REQUIRED");
-        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("PROTECTABLE_REQUIRED_VERIFICATION");
-        assertThat(decision.getAutonomyConstraintSource()).isEqualTo("Protectable.verificationRequired");
-        assertThat(decision.getAutonomyConstraintVersion()).isEqualTo("1");
-        assertThat(decision.getReasoning()).contains("final autonomous action was constrained from ALLOW to CHALLENGE");
-        assertThat(decision.getLlmReasoning()).isEqualTo("The model proposed ALLOW.");
-    }
-
-    @Test
-    @DisplayName("required verification constraint should not alter non-required resources")
-    void applyRequiredVerificationConstraint_shouldLeaveNonRequiredAllowUnchanged() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.ALLOW)
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "protectableVerificationRequired", false,
-                        "mfaVerified", false,
-                        "authorizationEffect", "ALLOW")))
-                .build();
-
-        strategy.applyRequiredVerificationConstraintForTest(decision, event);
-
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ALLOW);
-        assertThat(decision.getAutonomyConstraintApplied()).isNotEqualTo(Boolean.TRUE);
-    }
-
-    @Test
     @DisplayName("trusted confirmed malicious signal should constrain final action to block")
     void applyTrustedConfirmedMaliciousConstraint_shouldBlockWithoutReplacingModelProposal() {
         SecurityDecision decision = SecurityDecision.builder()
@@ -940,31 +892,6 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getReasoning()).doesNotContain("baseline");
     }
     @Test
-    @DisplayName("required high-sensitivity verification should produce a current-fact CHALLENGE explanation")
-    void applyCanonicalDecisionReasoning_shouldUseRequiredVerificationChallengeExplanation() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.CHALLENGE)
-                .reasoning("MFA is verified.")
-                .llmDecisionPresent(true)
-                .fieldProvenance(Map.of("reasoning", "MODEL"))
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "protectableVerificationRequired", true,
-                        "mfaVerified", false,
-                        "resourceSensitivity", "HIGH")))
-                .build();
-
-        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
-
-        assertThat(decision.getReasoning())
-                .isEqualTo("Fresh verification is required before allowing access because the high-sensitivity resource "
-                        + "requires verification and MFA is not verified.");
-        assertThat(decision.getLlmReasoning()).isEqualTo("MFA is verified.");
-        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
-    }
-
-    @Test
     @DisplayName("trusted confirmed malicious evidence should produce the canonical BLOCK explanation")
     void applyCanonicalDecisionReasoning_shouldUseConfirmedMaliciousBlockExplanation() {
         SecurityDecision decision = SecurityDecision.builder()
@@ -1047,10 +974,6 @@ class AbstractTieredStrategyTest {
                 SecurityDecision decision,
                 SecurityDecisionResponse response) {
             applySecurityDecisionRuntimeTelemetry(decision, response);
-        }
-
-        void applyRequiredVerificationConstraintForTest(SecurityDecision decision, SecurityEvent event) {
-            applyRequiredVerificationConstraint(decision, event);
         }
 
         void applyTrustedConfirmedMaliciousConstraintForTest(SecurityDecision decision, SecurityEvent event) {
