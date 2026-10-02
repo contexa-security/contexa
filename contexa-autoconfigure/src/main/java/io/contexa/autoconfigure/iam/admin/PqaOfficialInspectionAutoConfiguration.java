@@ -157,7 +157,6 @@ import io.contexa.contexaiam.admin.promptquality.official.web.PromptQualityAssur
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -168,7 +167,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.MessageSource;
-import org.springframework.core.Ordered;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import java.util.List;
@@ -1119,31 +1117,5 @@ public class PqaOfficialInspectionAutoConfiguration {
     public PromptQualityAssurancePageController pqaPromptQualityAssurancePageController(
             PromptQualityMessageResolver messageResolver) {
         return new PromptQualityAssurancePageController(messageResolver);
-    }
-
-    @Bean(name = "pqaOssOfficialSealedEvidenceCaptureService")
-    @ConditionalOnMissingBean(OssOfficialSealedEvidenceCaptureService.class)
-    @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence", name = "capture-enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
-    public OssOfficialSealedEvidenceCaptureService pqaOssOfficialSealedEvidenceCaptureService(
-            SealedEvidencePackageRepository repository,
-            SealedEvidencePackageIntegrity integrity,
-            ObjectMapper objectMapper) {
-        return new OssOfficialSealedEvidenceCaptureService(repository, integrity, objectMapper);
-    }
-
-    @Bean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
-    @ConditionalOnMissingBean(name = "pqaOssOfficialSealedEvidenceCaptureFilter")
-    @ConditionalOnBean(OssOfficialSealedEvidenceCaptureService.class)
-    @ConditionalOnProperty(prefix = "contexa.pqa.oss.sealed-evidence", name = "capture-enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "false", matchIfMissing = true)
-    public FilterRegistrationBean<OssOfficialSealedEvidenceCaptureFilter> pqaOssOfficialSealedEvidenceCaptureFilter(
-            OssOfficialSealedEvidenceCaptureService captureService) {
-        FilterRegistrationBean<OssOfficialSealedEvidenceCaptureFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new OssOfficialSealedEvidenceCaptureFilter(captureService));
-        registration.setName("pqaOssOfficialSealedEvidenceCaptureFilter");
-        registration.addUrlPatterns("/api/*");
-        registration.setOrder(Ordered.LOWEST_PRECEDENCE - 20);
-        return registration;
     }
 }
