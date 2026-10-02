@@ -209,6 +209,7 @@
   {"label":"Scope reason","promptLocation":"finalUserPrompt.signal.ragScopeReason"},
   {"label":"SensitiveResource","promptLocation":"finalUserPrompt.signal.sensitiveResource"},
   {"label":"Sensitivity","promptLocation":"finalUserPrompt.signal.sensitivity"},
+  {"label":"PromptQualityVerificationRequired","promptLocation":"finalUserPrompt.signal.verificationRequired"},
   {"label":"VerificationRequired","promptLocation":"finalUserPrompt.signal.verificationRequired"},
   {"label":"SessionActionSequence","promptLocation":"finalUserPrompt.signal.sessionActionSequence"},
   {"label":"SessionAgeMinutes","promptLocation":"finalUserPrompt.signal.sessionAgeMinutes"},

@@ -35,6 +35,21 @@ class FinalPromptMetricContractSnapshotTest {
             Map.entry("BSR", "ATTACK_DETECTION"), Map.entry("PRE", "INTERNAL_GATE"));
 
     @Test
+    void promptQualityVerificationRequiredLabelIsContractedNotUnmapped() {
+        FinalPromptMetricContractCatalog catalog = FinalPromptMetricContractCatalog.load(new ObjectMapper());
+
+        for (String label : List.of("PromptQualityVerificationRequired", "VerificationRequired")) {
+            assertThat(catalog.isKnownPromptFact("RESOURCE", label)).as(label).isTrue();
+            assertThat(catalog.attackSignalRole("RESOURCE", label, "true"))
+                    .as(label)
+                    .isNotEqualTo("UNMAPPED_PROMPT_FACT");
+            assertThat(catalog.promptLocation("RESOURCE", label))
+                    .as(label)
+                    .isEqualTo("finalUserPrompt.signal.verificationRequired");
+        }
+    }
+
+    @Test
     void ossOwnsTheCanonicalTwelveMetricContractSnapshot() throws Exception {
         try (InputStream input = getClass().getResourceAsStream(
                 "/pqa/final-prompt-metric-contracts.json")) {
