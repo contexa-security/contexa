@@ -15,15 +15,35 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-public class InMemoryProtectableRapidReentryRepository implements ProtectableRapidReentryRepository {
+public class InMemoryProtectableRapidReentryRepository implements ProtectableRapidReentryRepository, AutoCloseable {
 
     private static final String KEY_PART_SEPARATOR = Character.toString(0);
 
     private final ConcurrentHashMap<String, Instant> reentryWindows = new ConcurrentHashMap<>();
+    private final Clock clock;
+    private final ScheduledExecutorService cleanupExecutor;
+
+    public InMemoryProtectableRapidReentryRepository() {
+        this(Clock.systemUTC(), Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "contexa-protectable-reentry-cleanup");
+            thread.setDaemon(true);
+            return thread;
+        }));
+    }
+
+    InMemoryProtectableRapidReentryRepository(Clock clock, ScheduledExecutorService cleanupExecutor) {
+        this.clock = clock;
+        this.cleanupExecutor = cleanupExecutor;
+        cleanupExecutor.scheduleWithFixedDelay(this::removeExpiredEntries, 1, 1, TimeUnit.SECONDS);
+    }
 
     @Override
     public boolean tryAcquire(String userId, String contextBindingHash, String resourceKey, Duration window) {
@@ -31,7 +51,7 @@ public class InMemoryProtectableRapidReentryRepository implements ProtectableRap
             return true;
         }
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant expiresAt = now.plus(window);
         String key = buildKey(userId, contextBindingHash, resourceKey);
 
@@ -55,6 +75,21 @@ public class InMemoryProtectableRapidReentryRepository implements ProtectableRap
             }
             reentryWindows.remove(key, previous);
         }
+    }
+
+    void removeExpiredEntries() {
+        Instant now = clock.instant();
+        reentryWindows.forEach((key, expiresAt) -> {
+            if (!expiresAt.isAfter(now)) {
+                reentryWindows.remove(key, expiresAt);
+            }
+        });
+    }
+
+    @Override
+    public void close() {
+        cleanupExecutor.shutdownNow();
+        reentryWindows.clear();
     }
 
     private String buildKey(String userId, String contextBindingHash, String resourceKey) {

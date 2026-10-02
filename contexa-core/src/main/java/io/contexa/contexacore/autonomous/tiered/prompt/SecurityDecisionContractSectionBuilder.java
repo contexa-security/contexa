@@ -37,7 +37,7 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
     static String runtimeReasoningGate() {
         return "FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters; "
                 + "never exceed 25 words or 180 characters; "
-                + "before using fresh-verification wording, confirm the current request explicitly has VerificationRequired=true; "
+                + "before using fresh-verification wording, require explicit current-request security evidence; PromptQualityVerificationRequired is only a prerequisite for LLM analysis, never user-MFA evidence; "
                 + "MfaVerified=false or weak baseline evidence must not create that fact; "
                 + "copy any matching exact system-contract sentence verbatim without paraphrasing.";
     }

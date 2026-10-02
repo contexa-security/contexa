@@ -61,10 +61,6 @@ public final class SecurityDecisionRawOutputContractInspector {
                 : "";
         String reasoning = response.getReasoning().toLowerCase(Locale.ROOT);
 
-        if (hasPromptFact(promptText, "verificationrequired", "false")
-                && claimsFreshVerificationRequired(reasoning)) {
-            return "FALSE_VERIFICATION_REQUIRED_CLAIM";
-        }
         if (hasPromptFact(promptText, "mfaverified", "false")
                 && claimsMfaVerified(reasoning)
                 && !claimsMfaUnverified(reasoning)) {
@@ -88,6 +84,11 @@ public final class SecurityDecisionRawOutputContractInspector {
         if (hasPromptFact(promptText, "authorizationeffect", "allow")
                 && claimsAuthorizationDenied(reasoning)) {
             return "FALSE_AUTHORIZATION_DENIED_CLAIM";
+        }
+        if (hasPromptFact(promptText, "ragrelevance", "no_documents")
+                && hasPromptFact(promptText, "ragauthorizeddocumentcount", "0")
+                && claimsAuthorizedSameResourceRag(reasoning)) {
+            return "FALSE_AUTHORIZED_RAG_CLAIM";
         }
         String actionViolation = findActionBoundaryViolation(promptText, response.getAction());
         if (actionViolation != null) {
@@ -126,12 +127,6 @@ public final class SecurityDecisionRawOutputContractInspector {
         }
 
         boolean authorizationAllows = "allow".equals(authorizationEffect);
-        boolean verificationRequired = hasPromptFact(promptText, "verificationrequired", "true");
-        boolean mfaUnverified = hasPromptFact(promptText, "mfaverified", "false");
-        if (authorizationAllows && verificationRequired && mfaUnverified && !supportedBlockEvidence
-                && !"CHALLENGE".equals(action)) {
-            return "REQUIRED_VERIFICATION_BOUNDARY_ACTION_MISMATCH";
-        }
 
         boolean nonHighSensitivity = hasPromptFact(promptText, "sensitivity", "public")
                 || hasPromptFact(promptText, "sensitivity", "low")
@@ -157,7 +152,6 @@ public final class SecurityDecisionRawOutputContractInspector {
                     && !"none".equals(anomalySignal)
                     && !"unknown".equals(anomalySignal));
         if (authorizationAllows
-                && !verificationRequired
                 && nonHighSensitivity
                 && !explicitAdverseEvidence
                 && !"ALLOW".equals(action)) {
@@ -261,18 +255,6 @@ public final class SecurityDecisionRawOutputContractInspector {
         }
     }
 
-    private boolean claimsFreshVerificationRequired(String reasoning) {
-        if (reasoning.contains("verification is not required")
-                || reasoning.contains("verification not required")
-                || reasoning.contains("no fresh verification")) {
-            return false;
-        }
-        return reasoning.contains("fresh verification is required")
-                || reasoning.contains("fresh verification required")
-                || reasoning.contains("requires fresh verification")
-                || reasoning.contains("verification is required before");
-    }
-
     private boolean claimsMfaVerified(String reasoning) {
         return reasoning.contains("mfa is verified")
                 || reasoning.contains("mfa verified")
@@ -309,6 +291,13 @@ public final class SecurityDecisionRawOutputContractInspector {
                 || reasoning.contains("authorization is denied")
                 || reasoning.contains("authorizationeffect=deny")
                 || reasoning.contains("authorizationeffect = deny");
+    }
+
+    private boolean claimsAuthorizedSameResourceRag(String reasoning) {
+        String normalized = reasoning.replaceAll("\\s+", " ").trim();
+        return normalized.equals("authorization allows access, and authorized rag is relevant to the same resource.")
+                || normalized.equals("authorization allows access, the personal baseline is established, "
+                        + "and authorized rag is relevant to the same resource.");
     }
 
     private String firstNonBlank(String value, String fallback) {

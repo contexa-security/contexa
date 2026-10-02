@@ -281,7 +281,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
             applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
             applyTrustedConfirmedMaliciousConstraint(expertDecision, event);
-            applyRequiredVerificationConstraint(expertDecision, event);
             terminalizeLayer2EscalateDecision(expertDecision);
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
 

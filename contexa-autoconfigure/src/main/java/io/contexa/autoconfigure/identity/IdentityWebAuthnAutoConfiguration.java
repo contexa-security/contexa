@@ -16,17 +16,22 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
+import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
+import io.contexa.contexaidentity.security.webauthn.repository.SerializablePasskeyCreationOptionsRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
+import org.springframework.security.web.webauthn.registration.PublicKeyCredentialCreationOptionsRepository;
 
 @Slf4j
 @AutoConfiguration
@@ -49,6 +54,21 @@ public class IdentityWebAuthnAutoConfiguration {
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcUserCredentialRepository(jdbcOperations);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PasskeyCreationOptionsCodec.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    public PasskeyCreationOptionsCodec passkeyCreationOptionsCodec() {
+        return new DefaultPasskeyCreationOptionsCodec();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PublicKeyCredentialCreationOptionsRepository.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    public PublicKeyCredentialCreationOptionsRepository publicKeyCredentialCreationOptionsRepository(
+            PasskeyCreationOptionsCodec codec) {
+        return new SerializablePasskeyCreationOptionsRepository(codec);
     }
 
     public IdentityWebAuthnAutoConfiguration() {

@@ -75,6 +75,27 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     }
 
     @Override
+    public StoredRoleScopeHistory inspectStoredHistory(String tenantId, String userId) {
+        if (!StringUtils.hasText(userId)) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        String raw = dataStore.peekAuthorizationScopeState(tenantId, userId);
+        if (raw == null) {
+            return new StoredRoleScopeHistory("NO_STORED_SCOPE_RETURNED", null, null, List.of(), HISTORY_SCAN_LIMIT);
+        }
+        AuthorizationScopeState state = deserializeAuthorizationState(raw);
+        if (state == null) {
+            return new StoredRoleScopeHistory("UNRECOGNIZED_STORED_FORMAT", raw, null, List.of(), HISTORY_SCAN_LIMIT);
+        }
+        String scopeKey = state.scopeKey();
+        List<String> history = dataStore.getRecentRoleScopeObservations(tenantId, scopeKey, HISTORY_SCAN_LIMIT);
+        if (history == null) {
+            return new StoredRoleScopeHistory("HISTORY_UNAVAILABLE", raw, scopeKey, List.of(), HISTORY_SCAN_LIMIT);
+        }
+        return new StoredRoleScopeHistory("API_RETURN_OBSERVED", raw, scopeKey, history, HISTORY_SCAN_LIMIT);
+    }
+
+    @Override
     public Optional<RoleScopeSnapshot> collect(SecurityEvent event) {
         if (event == null || !StringUtils.hasText(event.getUserId())) {
             return Optional.empty();

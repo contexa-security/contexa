@@ -22,4 +22,9 @@ import java.util.Optional;
 public interface RoleScopeCollector {
 
     Optional<RoleScopeSnapshot> collect(SecurityEvent event);
+
+    /** Reads the last stored scope and its bounded history without collecting a new event. */
+    default StoredRoleScopeHistory inspectStoredHistory(String tenantId, String userId) {
+        throw new UnsupportedOperationException("Stored role scope inspection is not supported");
+    }
 }

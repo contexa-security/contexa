@@ -33,6 +33,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -72,10 +73,10 @@ class IdentityOAuth2AutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Internal client registration should reuse stored noop secret when property is blank")
-    void clientRegistrationUsesStoredNoopSecretWhenPropertyBlank() {
+    @DisplayName("Internal client registration should preserve the configured unique secret and scopes")
+    void clientRegistrationUsesConfiguredUniqueSecret() {
         AuthContextProperties properties = new AuthContextProperties();
-        properties.getOauth2().setClientSecret("");
+        properties.getOauth2().setClientSecret("existing-secret");
         properties.getOauth2().setScope("read,write");
 
         IdentityOAuth2AutoConfiguration configuration = configuration(properties);
@@ -99,21 +100,16 @@ class IdentityOAuth2AutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Internal client registration should generate a secret when property and stored client are blank")
-    void clientRegistrationGeneratesInternalSecretWhenPropertyAndStoredClientAreBlank() {
+    @DisplayName("Internal client registration requires a persistent configured secret")
+    void clientRegistrationRejectsMissingSecret() {
         AuthContextProperties properties = new AuthContextProperties();
         properties.getOauth2().setClientSecret("");
         IdentityOAuth2AutoConfiguration configuration = configuration(properties);
 
         RegisteredClientRepository registeredClientRepository = mock(RegisteredClientRepository.class);
-        when(registeredClientRepository.findByClientId(properties.getOauth2().getClientId()))
-                .thenReturn(null);
-
-        ClientRegistrationRepository repository =
-                configuration.clientRegistrationRepository(registeredClientRepository);
-
-        ClientRegistration registration = repository.findByRegistrationId("aidc-internal");
-        assertThat(registration.getClientSecret()).isNotBlank();
+        assertThatThrownBy(() -> configuration.clientRegistrationRepository(registeredClientRepository))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("contexa.auth.oauth2.client-secret is required");
     }
 
     private IdentityOAuth2AutoConfiguration configuration(AuthContextProperties properties) {

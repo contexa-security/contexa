@@ -26,6 +26,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -38,6 +39,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 
 @AutoConfiguration
+@AutoConfigureBefore(name = "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration")
 @AutoConfigureAfter(name = {
         "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
         "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration"

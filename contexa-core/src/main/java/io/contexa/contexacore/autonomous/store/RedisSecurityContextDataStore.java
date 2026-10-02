@@ -342,6 +342,13 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public String peekAuthorizationScopeState(String tenantId, String userId) {
+        Object value = redisTemplate.opsForValue().get(
+                ZeroTrustRedisKeys.userAuthorizationScopeState(composeTenantScopedKey(tenantId, userId)));
+        return value == null ? null : value.toString();
+    }
+
+    @Override
     public void setLastRequestTime(String userId, long timestamp) {
         try {
             String key = ZeroTrustRedisKeys.userLastRequestTime(userId);

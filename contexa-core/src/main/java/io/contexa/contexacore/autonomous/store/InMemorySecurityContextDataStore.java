@@ -267,6 +267,11 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public String peekAuthorizationScopeState(String tenantId, String userId) {
+        return authorizationScopeStates.get(composeTenantScopedKey(tenantId, userId));
+    }
+
+    @Override
     public void setLastRequestTime(String userId, long timestamp) {
         lastRequestTimes.put(userId, timestamp);
     }

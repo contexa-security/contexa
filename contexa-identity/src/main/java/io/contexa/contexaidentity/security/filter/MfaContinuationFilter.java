@@ -34,6 +34,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -57,6 +59,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final AuthUrlProvider authUrlProvider;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private volatile String flowTypeName;
+    private volatile AuthUrlProvider flowUrlProvider;
 
     public MfaContinuationFilter(AuthContextProperties authContextProperties,
                                  AuthResponseWriter responseWriter,
@@ -91,6 +94,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                     "MFA service is initializing. Please try again in a moment.");
             return;
         }
+
+//        restorePrimaryProofForMfaRequest(request);
 
         if (!urlMatcher.isMfaRequest(request)) {
             filterChain.doFilter(request, response);
@@ -167,13 +172,48 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     }
 
     public void initializeUrlMatchers() {
+        this.flowUrlProvider = authUrlProvider;
         urlMatcher.initializeMatchers();
         initialized = true;
     }
 
     public void initializeUrlMatchers(AuthUrlProvider flowUrlProvider) {
+        this.flowUrlProvider = flowUrlProvider;
         this.urlMatcher.initializeMatchers(flowUrlProvider);
         initialized = true;
+    }
+
+
+    /**
+     * Expose primary proof only for the current, configured MFA request. It is never
+     * persisted as a completed login; ordinary application requests remain unauthenticated.
+     */
+    private void restorePrimaryProofForMfaRequest(HttpServletRequest request) {
+        AuthUrlProvider provider = this.flowUrlProvider;
+        if (provider == null) {
+            return;
+        }
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        if ("/".equals(path) || !(provider.getAllMfaRelatedUrls().contains(path)
+                || provider.getPasskeyRegistrationPage().equals(path))) {
+            return;
+        }
+        var existing = SecurityContextHolder.getContext().getAuthentication();
+        if (existing != null && !(existing instanceof AnonymousAuthenticationToken)) {
+            return;
+        }
+        FactorContext context = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (context == null || MfaContextValidator.validateMfaContext(context).hasErrors()
+                || (flowTypeName != null && !flowTypeName.equalsIgnoreCase(context.getFlowTypeName()))) {
+            return;
+        }
+        var primary = context.getPrimaryAuthentication();
+        if (primary == null || !primary.isAuthenticated()) {
+            return;
+        }
+        var requestContext = SecurityContextHolder.createEmptyContext();
+        requestContext.setAuthentication(primary);
+        SecurityContextHolder.setContext(requestContext);
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request) {

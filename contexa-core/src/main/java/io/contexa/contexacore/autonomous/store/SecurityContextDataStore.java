@@ -84,6 +84,11 @@ public interface SecurityContextDataStore {
 
     String getAuthorizationScopeState(String tenantId, String userId);
 
+    /** Reads stored scope without extending its lifetime. Custom stores must opt in. */
+    default String peekAuthorizationScopeState(String tenantId, String userId) {
+        throw new UnsupportedOperationException("Non-touching authorization scope read is not supported");
+    }
+
     void setLastRequestTime(String userId, long timestamp);
 
     Long getLastRequestTime(String userId);

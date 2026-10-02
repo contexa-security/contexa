@@ -15,11 +15,18 @@
  */
 package io.contexa.contexacore.autonomous.repository;
 
+import org.junit.jupiter.api.AfterEach;
+
 class InMemoryProtectableRapidReentryRepositoryContractTest
         extends AbstractProtectableRapidReentryRepositoryContractTest {
 
     @Override
     protected ProtectableRapidReentryRepository createRepository() {
         return new InMemoryProtectableRapidReentryRepository();
+    }
+
+    @AfterEach
+    void closeRepository() {
+        ((InMemoryProtectableRapidReentryRepository) repository).close();
     }
 }

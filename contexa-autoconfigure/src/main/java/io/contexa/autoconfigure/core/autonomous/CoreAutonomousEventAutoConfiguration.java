@@ -70,6 +70,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @AutoConfiguration
 @AutoConfigureAfter(name = {
         "io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration",
+        "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration"
 })
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({

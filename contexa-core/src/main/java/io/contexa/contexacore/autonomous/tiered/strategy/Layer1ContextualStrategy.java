@@ -337,7 +337,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setTechnicalFallbackApplied(false);
             applySecurityDecisionRuntimeTelemetry(decision, pipelineResponse);
             applyTrustedConfirmedMaliciousConstraint(decision, event);
-            applyRequiredVerificationConstraint(decision, event);
             applyCanonicalDecisionReasoning(decision, event, relatedDocuments);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);

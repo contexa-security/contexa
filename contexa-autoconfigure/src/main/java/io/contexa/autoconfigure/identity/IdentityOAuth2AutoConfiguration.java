@@ -24,6 +24,7 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.OAuth2TokenSettings;
 import io.contexa.contexacore.security.session.SessionIdResolver;
@@ -71,6 +72,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -84,6 +86,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -129,16 +132,27 @@ public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
-    private volatile String generatedInternalClientSecret;
+    private final ObjectProvider<PlatformConfig> platformConfigProvider;
+    private volatile String unusedInternalClientSecret;
 
     private static final String NOOP_SECRET_PREFIX = "{noop}";
+    private static final String LEGACY_DEFAULT_CLIENT_SECRET = "173f8245-5f7d-4623-a612-aa0c68f6da4a";
     private static final String DEFAULT_SCOPE = "read";
 
     public IdentityOAuth2AutoConfiguration(
             @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
+        this(transactionTemplate, authContextProperties, null);
+    }
+
+    @Autowired
+    public IdentityOAuth2AutoConfiguration(
+            @Qualifier("contexaTransactionTemplate") TransactionTemplate transactionTemplate,
+            AuthContextProperties authContextProperties,
+            ObjectProvider<PlatformConfig> platformConfigProvider) {
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
+        this.platformConfigProvider = platformConfigProvider;
     }
 
     @Bean
@@ -264,7 +278,7 @@ public class IdentityOAuth2AutoConfiguration {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
         String clientId = oauth2.getClientId();
 
-        String clientSecret = resolveConfiguredOrInternalClientSecret(oauth2);
+        String clientSecret = requireConfiguredClientSecret(oauth2);
 
         String redirectUri = oauth2.getRedirectUri();
         String authorizedUri = oauth2.getAuthorizedUri();
@@ -274,6 +288,9 @@ public class IdentityOAuth2AutoConfiguration {
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
         RegisteredClient existingClient = repository.findByClientId(clientId);
+        if (existingClient != null) {
+            rejectLegacyStoredClientSecret(existingClient.getClientSecret());
+        }
 
         if (existingClient == null) {
 
@@ -492,45 +509,74 @@ public class IdentityOAuth2AutoConfiguration {
         return new InMemoryClientRegistrationRepository(registration);
     }
 
-    private String resolveConfiguredOrInternalClientSecret(OAuth2TokenSettings oauth2) {
+    private String requireConfiguredClientSecret(OAuth2TokenSettings oauth2) {
         String clientSecret = oauth2.getClientSecret();
-        if (StringUtils.hasText(clientSecret)) {
-            if ("173f8245-5f7d-4623-a612-aa0c68f6da4a".equals(clientSecret)) {
-                log.warn("[SECURITY WARNING] Internal OAuth2 Client Secret is using the default value. Please configure a unique, secure client secret using 'contexa.auth.oauth2.client-secret' in application.yml for production deployments.");
+        if (!usesOAuth2Issuance()) {
+            if (StringUtils.hasText(clientSecret)) {
+                return clientSecret;
             }
-            return clientSecret;
-        }
-        if (generatedInternalClientSecret == null) {
             synchronized (this) {
-                if (generatedInternalClientSecret == null) {
-                    generatedInternalClientSecret = UUID.randomUUID().toString();
-                    log.warn("[OAuth2] Client secret not configured (spring.auth.oauth2.client-secret) - generated an in-memory "
-                            + "internal client secret. Configure explicitly if external clients call the token endpoint or "
-                            + "client authentication must remain stable across restarts.");
+                if (unusedInternalClientSecret == null) {
+                    unusedInternalClientSecret = UUID.randomUUID().toString();
                 }
+                return unusedInternalClientSecret;
             }
         }
-        return generatedInternalClientSecret;
+        rejectLegacyClientSecret(clientSecret, "contexa.auth.oauth2.client-secret");
+        if (!StringUtils.hasText(clientSecret)) {
+            throw new IllegalStateException("[OAuth2] contexa.auth.oauth2.client-secret is required. "
+                    + "Configure a unique client secret that remains available across restarts.");
+        }
+        return clientSecret;
     }
 
     private String resolveClientRegistrationSecret(
             OAuth2TokenSettings oauth2,
             RegisteredClientRepository registeredClientRepository) {
 
-        if (StringUtils.hasText(oauth2.getClientSecret())) {
-            return oauth2.getClientSecret();
-        }
-
+        String clientSecret = requireConfiguredClientSecret(oauth2);
         RegisteredClient registeredClient = registeredClientRepository.findByClientId(oauth2.getClientId());
-        if (registeredClient != null && StringUtils.hasText(registeredClient.getClientSecret())) {
-            String storedSecret = registeredClient.getClientSecret();
-            if (storedSecret.startsWith(NOOP_SECRET_PREFIX)) {
-                return storedSecret.substring(NOOP_SECRET_PREFIX.length());
-            }
-            throw new IllegalStateException("[OAuth2] spring.auth.oauth2.client-secret is required because the stored client secret is encoded and cannot be reused for the internal client registration");
+        if (registeredClient != null) {
+            rejectLegacyStoredClientSecret(registeredClient.getClientSecret());
         }
+        return clientSecret;
+    }
 
-        return resolveConfiguredOrInternalClientSecret(oauth2);
+    private void rejectLegacyStoredClientSecret(String clientSecret) {
+        if (!usesOAuth2Issuance()) {
+            return;
+        }
+        rejectLegacyClientSecret(clientSecret, "stored OAuth2 client");
+        // Spring upgrades the auto-registered {noop} secret to {bcrypt} on authentication.
+        if (clientSecret != null && clientSecret.startsWith("{bcrypt}")
+                && PasswordEncoderFactories.createDelegatingPasswordEncoder()
+                        .matches(LEGACY_DEFAULT_CLIENT_SECRET, clientSecret)) {
+            rejectLegacyClientSecret(LEGACY_DEFAULT_CLIENT_SECRET, "stored OAuth2 client");
+        }
+    }
+
+    private boolean usesOAuth2Issuance() {
+        if (authContextProperties.getOauth2ServerMode() != null
+                && !authContextProperties.getOauth2ServerMode().includesAuthorizationServer()) {
+            return false;
+        }
+        PlatformConfig platformConfig = platformConfigProvider != null ? platformConfigProvider.getIfAvailable() : null;
+        if (platformConfig == null || platformConfig.getFlows().isEmpty()) {
+            return authContextProperties.getStateType() == StateType.OAUTH2;
+        }
+        return platformConfig.getFlows().stream().anyMatch(flow -> {
+            StateType stateType = flow.getStateConfig() != null ? flow.getStateConfig().stateType() : null;
+            return (stateType != null ? stateType : authContextProperties.getStateType()) == StateType.OAUTH2;
+        });
+    }
+
+    private void rejectLegacyClientSecret(String clientSecret, String source) {
+        if (LEGACY_DEFAULT_CLIENT_SECRET.equals(clientSecret)
+                || (NOOP_SECRET_PREFIX + LEGACY_DEFAULT_CLIENT_SECRET).equals(clientSecret)) {
+            throw new IllegalStateException("[OAuth2] The known legacy default client secret is not allowed in "
+                    + source + ". Replace the stored client secret and configure the matching unique "
+                    + "contexa.auth.oauth2.client-secret before starting the authorization server.");
+        }
     }
 
     private String resolveTokenUri(OAuth2TokenSettings oauth2) {

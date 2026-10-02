@@ -23,6 +23,7 @@ import io.contexa.contexacore.properties.SecurityPlaneProperties.LlmProviderThro
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
+import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
@@ -819,6 +820,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         boolean advisorEnabled = isAdvisorEnabled(context);
+        if (advisorEnabled && context.getMetadata() != null
+                && context.getMetadata().get(LlmObservationContext.CONTEXT_KEY)
+                        instanceof LlmObservationContext observation) {
+            promptSpec = promptSpec.advisors(spec -> spec.param(LlmObservationContext.CONTEXT_KEY, observation));
+        }
         boolean nativeStructuredOutput = resolveStructuredOutputMode(context) == StructuredOutputMode.NATIVE_STRUCTURED;
         String eventUserId = context.getUserId();
         String eventSessionId = context.getSessionId();

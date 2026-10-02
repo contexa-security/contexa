@@ -571,7 +571,7 @@ public class CoreAutonomousAutoConfiguration {
           return new InMemoryBaselineDataStore();
       }
 
-    @Bean
+    @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {

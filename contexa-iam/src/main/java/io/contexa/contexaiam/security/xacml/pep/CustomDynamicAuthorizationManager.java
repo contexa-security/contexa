@@ -18,7 +18,6 @@ package io.contexa.contexaiam.security.xacml.pep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.TrustAssessment;
-import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -166,8 +165,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context,
                                          AuthorizationDecision decision, HttpServletRequest request) {
-        String principal = authentication != null && authentication.getPrincipal() instanceof UserDto userDto
-                ? userDto.getName() : "anonymousUser";
+        String principal = authentication != null ? authentication.getName() : "anonymousUser";
         String resource = context.resource().identifier();
         String action = context.action();
         String result = decision.isGranted() ? "ALLOW" : "DENY";

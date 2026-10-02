@@ -81,9 +81,6 @@ import reactor.core.publisher.Mono;
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
     private static final ExecutorService RAG_EXECUTOR = createRagExecutor();
-    private static final String REQUIRED_VERIFICATION_POLICY = "PROTECTABLE_REQUIRED_VERIFICATION";
-    private static final String REQUIRED_VERIFICATION_POLICY_SOURCE = "Protectable.verificationRequired";
-    private static final String REQUIRED_VERIFICATION_POLICY_VERSION = "1";
     private static final String CONFIRMED_MALICIOUS_POLICY = "TRUSTED_CONFIRMED_MALICIOUS_SIGNAL";
     private static final String CONFIRMED_MALICIOUS_POLICY_SOURCE = "anomalySignalSource";
     private static final String CONFIRMED_MALICIOUS_POLICY_VERSION = "1";
@@ -92,9 +89,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
             "Authorization allows access, the personal baseline is established, "
                     + "and authorized RAG is relevant to the same resource.";
-    private static final String REQUIRED_VERIFICATION_CHALLENGE_REASONING =
-            "Fresh verification is required before allowing access because the high-sensitivity resource "
-                    + "requires verification and MFA is not verified.";
     private static final String CONFIRMED_MALICIOUS_BLOCK_REASONING =
             "A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.";
     private static final Set<String> CONFIRMED_MALICIOUS_MARKERS = Set.of(
@@ -1734,52 +1728,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     /**
-     * Applies the mandatory fresh-verification boundary without replacing the
-     * LLM-proposed action. The proposed action remains available through
-     * {@link SecurityDecision#getAction()} for quality auditing, while the
-     * autonomous action is constrained to CHALLENGE for enforcement.
-     */
-    protected void applyRequiredVerificationConstraint(SecurityDecision decision, SecurityEvent event) {
-        if (decision == null || event == null || event.getMetadata() == null
-                || decision.resolveAutonomousAction() != ZeroTrustAction.ALLOW) {
-            return;
-        }
-
-        Map<String, Object> metadata = event.getMetadata();
-        boolean verificationRequired = Boolean.TRUE.equals(booleanValue(metadata.get("protectableVerificationRequired")))
-                || Boolean.TRUE.equals(booleanValue(metadata.get("verificationRequired")));
-        boolean mfaNotVerified = Boolean.FALSE.equals(booleanValue(metadata.get("mfaVerified")));
-        String authorizationEffect = firstNonBlank(metadata.get("authorizationEffect"));
-        if (!verificationRequired || !mfaNotVerified || !"ALLOW".equalsIgnoreCase(authorizationEffect)) {
-            return;
-        }
-
-        preserveModelReasoning(decision);
-        decision.setAutonomousAction(ZeroTrustAction.CHALLENGE);
-        decision.setAutonomyConstraintApplied(true);
-        List<String> reasons = decision.getAutonomyConstraintReasons() == null
-                ? new ArrayList<>()
-                : new ArrayList<>(decision.getAutonomyConstraintReasons());
-        if (!reasons.contains("FRESH_VERIFICATION_REQUIRED")) {
-            reasons.add("FRESH_VERIFICATION_REQUIRED");
-        }
-        decision.setAutonomyConstraintReasons(reasons);
-        decision.setAutonomyConstraintPolicy(REQUIRED_VERIFICATION_POLICY);
-        decision.setAutonomyConstraintSource(REQUIRED_VERIFICATION_POLICY_SOURCE);
-        decision.setAutonomyConstraintVersion(REQUIRED_VERIFICATION_POLICY_VERSION);
-        String summary = "Protectable verification is required and MFA is not verified; "
-                + "final autonomous action was constrained from ALLOW to CHALLENGE.";
-        decision.setAutonomyConstraintSummary(summary);
-        String reasoning = decision.getReasoning();
-        if (reasoning == null || reasoning.isBlank()) {
-            decision.setReasoning(summary);
-        } else if (!reasoning.contains(summary)) {
-            decision.setReasoning(reasoning + "\n" + summary);
-        }
-    }
-
-
-    /**
      * Produces the final operator-facing explanation from the same canonical
      * evidence that constrains enforcement. Historical RAG facts remain model
      * input, but cannot be restated as current request facts.
@@ -1800,18 +1748,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 && "OFFICIAL_VERIFICATION_INTERNAL".equalsIgnoreCase(anomalySource)
                 && isConfirmedMaliciousSignal(anomalySignal)) {
             setCanonicalReasoning(decision, CONFIRMED_MALICIOUS_BLOCK_REASONING);
-            return;
-        }
-
-        boolean verificationRequired = Boolean.TRUE.equals(booleanValue(metadata.get("protectableVerificationRequired")))
-                || Boolean.TRUE.equals(booleanValue(metadata.get("verificationRequired")));
-        boolean mfaNotVerified = Boolean.FALSE.equals(booleanValue(metadata.get("mfaVerified")));
-        String sensitivity = firstNonBlank(metadata.get("resourceSensitivity"), metadata.get("sensitivity"));
-        if (finalAction == ZeroTrustAction.CHALLENGE
-                && verificationRequired
-                && mfaNotVerified
-                && ("HIGH".equalsIgnoreCase(sensitivity) || "CRITICAL".equalsIgnoreCase(sensitivity))) {
-            setCanonicalReasoning(decision, REQUIRED_VERIFICATION_CHALLENGE_REASONING);
             return;
         }
 

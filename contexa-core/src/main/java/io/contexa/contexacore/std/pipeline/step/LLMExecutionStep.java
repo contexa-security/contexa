@@ -24,12 +24,14 @@ import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
+import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservationContextResolver;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 import lombok.extern.slf4j.Slf4j;
@@ -439,6 +441,10 @@ public class LLMExecutionStep implements PipelineStep {
             StructuredOutputPolicy structuredOutputPolicy) {
         ExecutionContext executionContext = ExecutionContext.from(prompt);
         executionContext.setRequestId(request != null ? request.getRequestId() : null);
+        LlmObservationContext observation = SecurityDecisionObservationContextResolver.resolve(request);
+        if (observation != null) {
+            executionContext.addMetadata(LlmObservationContext.CONTEXT_KEY, observation);
+        }
         boolean securityDecisionTarget = isSecurityDecisionTarget(request, context, targetType);
 
         ResolvedValue<String> requestedModel = resolveStringParameter(request, context,
