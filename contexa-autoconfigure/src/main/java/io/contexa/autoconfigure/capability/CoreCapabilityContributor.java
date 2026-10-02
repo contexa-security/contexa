@@ -29,6 +29,14 @@ import java.util.List;
 
 public class CoreCapabilityContributor implements CapabilityContributor {
 
+    static final String PROCESSING_STRATEGY_TYPE =
+            "io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy";
+    static final String DECISION_OBSERVATION_STORE_BEAN = "contexaJdbcTemplate";
+    private static final List<String> COLD_PATH_STRATEGY_CHAIN = List.of(
+            "io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor",
+            "io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy",
+            "io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy");
+
     private final ListableBeanFactory beanFactory;
     private final CapabilityRequirementResolver requirementResolver;
 
@@ -71,14 +79,25 @@ public class CoreCapabilityContributor implements CapabilityContributor {
                 check(ContexaCapability.SECURITY_LEARNING, List.of(
                         "io.contexa.contexacore.autonomous.service.SecurityLearningService",
                         "io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor")),
+                // The decision plane only produces decisions when a processing strategy exists, and
+                // only enforces them after they are written to the decision observation store.
                 check(ContexaCapability.AUTONOMOUS_DECISION, List.of(
                         "io.contexa.contexacore.autonomous.SecurityPlaneAgent",
-                        "io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService")),
+                        "io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService",
+                        PROCESSING_STRATEGY_TYPE),
+                        List.of(DECISION_OBSERVATION_STORE_BEAN)),
                 check(ContexaCapability.BRIDGE, List.of(
                         "io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter")));
     }
 
     private CapabilityCheckResult check(ContexaCapability capability, List<String> requiredBeanTypes) {
+        return check(capability, requiredBeanTypes, List.of());
+    }
+
+    private CapabilityCheckResult check(
+            ContexaCapability capability,
+            List<String> requiredBeanTypes,
+            List<String> requiredBeanNames) {
         CapabilityRequirement requirement = requirementResolver.requirement(capability);
         if (!requirement.enabled()) {
             return new CapabilityCheckResult(
@@ -98,6 +117,20 @@ public class CoreCapabilityContributor implements CapabilityContributor {
                 presentBeans.add(beanType);
             } else {
                 missingBeans.add(beanType);
+            }
+        }
+        for (String beanName : requiredBeanNames) {
+            if (beanFactory.containsBean(beanName)) {
+                presentBeans.add(beanName);
+            } else {
+                missingBeans.add(beanName);
+            }
+        }
+        if (missingBeans.contains(PROCESSING_STRATEGY_TYPE)) {
+            for (String beanType : COLD_PATH_STRATEGY_CHAIN) {
+                if (!hasBean(beanType)) {
+                    missingBeans.add(beanType);
+                }
             }
         }
 

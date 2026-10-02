@@ -19,6 +19,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.nio.charset.StandardCharsets;
+
 
 @Data
 @ConfigurationProperties(prefix = "contexa")
@@ -195,6 +197,14 @@ public class ContexaProperties {
         public static final String PERFORMANCE_TELEMETRY_INGEST_SCOPE = "saas.telemetry.ingest";
         public static final String PROMPT_CONTEXT_AUDIT_INGEST_SCOPE = "saas.prompt-context-audit.ingest";
 
+        public static final String DEFAULT_DEV_PSEUDONYMIZATION_SECRET = "default-dev-secret-change-in-prod";
+        public static final String DEFAULT_DEV_GLOBAL_CORRELATION_SECRET = "default-dev-correlation-secret";
+        /**
+         * Both secrets are HMAC-SHA256 keys. RFC 2104 section 3 discourages keys shorter than
+         * the hash output length (32 bytes for SHA-256), so shorter keys are rejected.
+         */
+        public static final int MIN_HMAC_SECRET_BYTES = 32;
+
         private boolean enabled = false;
 
         private String endpoint = "https://saas.ctxa.ai";
@@ -213,9 +223,9 @@ public class ContexaProperties {
 
         private long dispatchIntervalMs = 30_000L;
 
-        private String pseudonymizationSecret = "default-dev-secret-change-in-prod";
+        private String pseudonymizationSecret = DEFAULT_DEV_PSEUDONYMIZATION_SECRET;
 
-        private String globalCorrelationSecret = "default-dev-correlation-secret";
+        private String globalCorrelationSecret = DEFAULT_DEV_GLOBAL_CORRELATION_SECRET;
 
         @NestedConfigurationProperty
         private Oauth2 oauth2 = new Oauth2();
@@ -331,12 +341,7 @@ public class ContexaProperties {
             if (endpoint == null || endpoint.isBlank()) {
                 throw new IllegalStateException("contexa.saas.endpoint must be configured when SaaS forwarding is enabled");
             }
-            if (pseudonymizationSecret == null || pseudonymizationSecret.isBlank()) {
-                throw new IllegalStateException("contexa.saas.pseudonymization-secret must be configured when SaaS forwarding is enabled");
-            }
-            if (globalCorrelationSecret == null || globalCorrelationSecret.isBlank()) {
-                throw new IllegalStateException("contexa.saas.global-correlation-secret must be configured when SaaS forwarding is enabled");
-            }
+            validateSecrets();
             if (!oauth2.enabled) {
                 throw new IllegalStateException("contexa.saas.oauth2.enabled must be true when SaaS forwarding is enabled");
             }
@@ -350,6 +355,48 @@ public class ContexaProperties {
             detectionStrategy.validate(oauth2.scope);
             performanceTelemetry.validate(oauth2.scope);
             promptContextAudit.validate(oauth2.scope);
+        }
+
+        /**
+         * Rejects missing, default development or too short HMAC secrets while SaaS forwarding
+         * is enabled, because pseudonymized identifiers leave the application with them.
+         */
+        public void validateSecrets() {
+            if (!enabled) {
+                return;
+            }
+            requireStrongSecret("contexa.saas.pseudonymization-secret", pseudonymizationSecret);
+            requireStrongSecret("contexa.saas.global-correlation-secret", globalCorrelationSecret);
+        }
+
+        private void requireStrongSecret(String propertyName, String secret) {
+            if (secret == null || secret.isBlank()) {
+                throw new IllegalStateException(propertyName + " must be configured when SaaS forwarding is enabled");
+            }
+            if (isUnresolvedPlaceholder(secret)) {
+                throw new IllegalStateException(propertyName
+                        + " is an unresolved placeholder; define the referenced environment variable or property"
+                        + " when SaaS forwarding is enabled");
+            }
+            if (DEFAULT_DEV_PSEUDONYMIZATION_SECRET.equals(secret.trim())
+                    || DEFAULT_DEV_GLOBAL_CORRELATION_SECRET.equals(secret.trim())) {
+                throw new IllegalStateException(propertyName
+                        + " still uses the built-in development value; configure a secret unique to this deployment"
+                        + " when SaaS forwarding is enabled");
+            }
+            if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_HMAC_SECRET_BYTES) {
+                throw new IllegalStateException(propertyName + " must be at least " + MIN_HMAC_SECRET_BYTES
+                        + " bytes (UTF-8) because it is used as an HMAC-SHA256 key");
+            }
+        }
+
+        /**
+         * A reference such as ${CONTEXA_SAAS_PSEUDONYMIZATION_SECRET} without a default stays as
+         * literal text when the variable is missing, which would otherwise pass the length check.
+         */
+        private boolean isUnresolvedPlaceholder(String secret) {
+            String value = secret.trim();
+            return value.startsWith("${") && value.endsWith("}") && value.indexOf('}') == value.length() - 1;
         }
 
         private void requireScope(String requiredScope, String message) {

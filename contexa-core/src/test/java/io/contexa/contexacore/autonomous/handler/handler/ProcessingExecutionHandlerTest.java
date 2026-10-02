@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.handler.handler;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
@@ -33,6 +34,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -206,5 +208,53 @@ class ProcessingExecutionHandlerTest {
 
         // then
         assertThat(order).isEqualTo(50);
+    }
+
+    @Test
+    @DisplayName("Decision retained for an unpersisted observation should be reused without running the strategy")
+    void auditPendingDecision_shouldBeReusedWithoutRunningStrategy() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-audit-pending")
+                .build();
+        ProcessingResult retained = ProcessingResult.builder()
+                .success(true)
+                .action("BLOCK")
+                .build();
+        event.addMetadata(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT, retained);
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+
+        boolean result = handler.handle(context);
+
+        assertThat(result).isTrue();
+        verify(aiAnalysisStrategy, never()).process(any(SecurityEventContext.class));
+        assertThat(context.getMetadata().get("processingResult")).isSameAs(retained);
+        assertThat(event.getMetadata())
+                .doesNotContainKey(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT)
+                .containsEntry("auditPendingDecisionReused", true);
+    }
+
+    @Test
+    @DisplayName("Missing strategy should be reported once as a configuration failure that retries cannot fix")
+    void missingStrategy_shouldMarkConfigurationFailure() {
+        ProcessingExecutionHandler handlerWithoutStrategies = new ProcessingExecutionHandler(List.of());
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("user-no-strategy-" + attempt)
+                    .build();
+            SecurityEventContext context = SecurityEventContext.builder()
+                    .securityEvent(event)
+                    .build();
+
+            boolean result = handlerWithoutStrategies.handle(context);
+
+            assertThat(result).isFalse();
+            assertThat(context.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+            assertThat(event.getMetadata())
+                    .containsEntry(SecurityPlaneAgent.PROCESSING_STRATEGY_UNAVAILABLE, true)
+                    .containsEntry(SecurityPlaneAgent.PROCESSING_FAILURE_REPORTED, true);
+        }
     }
 }

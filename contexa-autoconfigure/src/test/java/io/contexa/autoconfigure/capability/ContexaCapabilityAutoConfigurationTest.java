@@ -18,6 +18,9 @@ package io.contexa.autoconfigure.capability;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityStatus;
 import io.contexa.contexacommon.autoconfigure.capability.CapabilityRequirement;
 import io.contexa.contexacommon.autoconfigure.capability.ContexaCapability;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
+import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -26,6 +29,7 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.JdbcOperations;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -213,6 +217,102 @@ class ContexaCapabilityAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).doesNotHaveBean("capabilityDiagnosticsEndpoint");
+                });
+    }
+
+    @Test
+    @DisplayName("autonomous decision is reported when no decision strategy or observation store exists")
+    void autonomousDecisionReportsMissingStrategyAndObservationStore() {
+        contextRunner
+                .withBean(SecurityPlaneAgent.class, () -> mock(SecurityPlaneAgent.class))
+                .withBean(SynchronousProtectableDecisionService.class, () -> mock(SynchronousProtectableDecisionService.class))
+                .withPropertyValues(
+                        "spring.application.name=contexa-site",
+                        "contexa.capability.mode=warn")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    ContexaCapabilityRegistry registry = context.getBean(ContexaCapabilityRegistry.class);
+
+                    assertThat(registry.lastResults())
+                            .filteredOn(result -> result.capability() == ContexaCapability.AUTONOMOUS_DECISION)
+                            .singleElement()
+                            .satisfies(result -> {
+                                assertThat(result.status()).isEqualTo(CapabilityStatus.INACTIVE_UNEXPECTED);
+                                assertThat(result.required()).isTrue();
+                                assertThat(result.presentBeans()).contains(
+                                        "io.contexa.contexacore.autonomous.SecurityPlaneAgent");
+                                assertThat(result.missingBeans()).contains(
+                                        "io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy",
+                                        "contexaJdbcTemplate",
+                                        "io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor",
+                                        "io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy",
+                                        "io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy");
+                                assertThat(String.join("\n", result.recommendations()))
+                                        .contains("ChatModel and a VectorStore")
+                                        .contains("contexaJdbcTemplate");
+                            });
+                });
+    }
+
+    @Test
+    @DisplayName("fails fast when the required autonomous decision plane has no decision strategy")
+    void failsFastWhenAutonomousDecisionHasNoStrategy() {
+        contextRunner
+                .withBean(SecurityPlaneAgent.class, () -> mock(SecurityPlaneAgent.class))
+                .withBean(SynchronousProtectableDecisionService.class, () -> mock(SynchronousProtectableDecisionService.class))
+                .withBean("contexaJdbcTemplate", JdbcOperations.class, () -> mock(JdbcOperations.class))
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=fail-fast",
+                        "contexa.capability.required.autonomous-decision=true")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("autonomous-decision")
+                            .hasMessageContaining("io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy")
+                            .hasMessageContaining("ChatModel and a VectorStore");
+                });
+    }
+
+    @Test
+    @DisplayName("customer applications see the missing decision strategy as an error in WARN mode")
+    void customerApplicationsSeeMissingDecisionStrategy(CapturedOutput output) {
+        contextRunner
+                .withBean(SecurityPlaneAgent.class, () -> mock(SecurityPlaneAgent.class))
+                .withBean(SynchronousProtectableDecisionService.class, () -> mock(SynchronousProtectableDecisionService.class))
+                .withBean("contexaJdbcTemplate", JdbcOperations.class, () -> mock(JdbcOperations.class))
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=warn",
+                        "contexa.capability.required.autonomous-decision=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(output.getOut())
+                            .contains("[ContexaCapability] autonomous-decision")
+                            .contains("io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy")
+                            .contains("ChatModel and a VectorStore")
+                            .doesNotContain("io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy");
+                });
+    }
+
+    @Test
+    @DisplayName("autonomous decision is active when a decision strategy and the observation store exist")
+    void autonomousDecisionIsActiveWithStrategyAndObservationStore() {
+        contextRunner
+                .withBean(SecurityPlaneAgent.class, () -> mock(SecurityPlaneAgent.class))
+                .withBean(SynchronousProtectableDecisionService.class, () -> mock(SynchronousProtectableDecisionService.class))
+                .withBean(ProcessingStrategy.class, () -> mock(ProcessingStrategy.class))
+                .withBean("contexaJdbcTemplate", JdbcOperations.class, () -> mock(JdbcOperations.class))
+                .withPropertyValues(
+                        "spring.application.name=legacy-customer-app",
+                        "contexa.capability.mode=fail-fast",
+                        "contexa.capability.required.autonomous-decision=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(ContexaCapabilityRegistry.class).lastResults())
+                            .filteredOn(result -> result.capability() == ContexaCapability.AUTONOMOUS_DECISION)
+                            .singleElement()
+                            .satisfies(result -> assertThat(result.status()).isEqualTo(CapabilityStatus.ACTIVE));
                 });
     }
 }

@@ -86,6 +86,22 @@ public interface ZeroTrustActionRepository {
     default void removeLogoutData(String userId) {
     }
 
+    /**
+     * Records that a final decision for the actor context was produced but could not be
+     * written to the decision observation store, so no runtime action was applied.
+     * While the marker is present, new analysis for the same actor context is not requested.
+     * Custom repositories that do not implement this contract keep requesting analysis.
+     */
+    default void markDecisionAuditPending(String userId, String contextBindingHash, Duration ttl) {
+    }
+
+    default boolean isDecisionAuditPending(String userId, String contextBindingHash) {
+        return false;
+    }
+
+    default void clearDecisionAuditPending(String userId, String contextBindingHash) {
+    }
+
 
     void approveOverrideAtomically(String userId, ZeroTrustAction newAction);
 

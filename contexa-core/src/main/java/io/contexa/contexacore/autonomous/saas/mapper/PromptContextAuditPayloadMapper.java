@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
+import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.security.AuthorizedPromptContextItem;
@@ -36,6 +37,26 @@ import java.util.stream.Collectors;
 
 public class PromptContextAuditPayloadMapper {
 
+    private static final String DEFAULT_TENANT_SCOPE = "default";
+
+    private final TenantScopedPseudonymizationService pseudonymizationService;
+
+    /**
+     * Creates a mapper without a pseudonymization service. Context item user identifiers are
+     * then omitted from the payload instead of being sent in plain text.
+     */
+    public PromptContextAuditPayloadMapper() {
+        this(null);
+    }
+
+    /**
+     * Creates a mapper that pseudonymizes context item user identifiers with the same
+     * tenant-scoped HMAC as the security decision forwarding payload.
+     */
+    public PromptContextAuditPayloadMapper(TenantScopedPseudonymizationService pseudonymizationService) {
+        this.pseudonymizationService = pseudonymizationService;
+    }
+
     public PromptContextAuditPayload map(
             SecurityEvent event,
             String retrievalPurpose,
@@ -54,7 +75,8 @@ public class PromptContextAuditPayloadMapper {
         String tenantExternalRef = resolveTenantExternalRef(event);
         List<String> deniedReasons = resolveDeniedReasons(authorizedPromptContext);
 
-        List<PromptContextAuditPayload.ContextItem> contexts = resolveContextItems(authorizedPromptContext, resolvedPurpose);
+        List<PromptContextAuditPayload.ContextItem> contexts = resolveContextItems(
+                authorizedPromptContext, resolvedPurpose, resolvePseudonymizationScope(event));
         String contextFingerprint = resolveContextFingerprint(authorizedPromptContext, deniedReasons, contexts);
         String auditId = resolveAuditId(event, correlationId, resolvedPurpose, contextFingerprint);
 
@@ -211,18 +233,45 @@ public class PromptContextAuditPayloadMapper {
     }
     private List<PromptContextAuditPayload.ContextItem> resolveContextItems(
             AuthorizedPromptContext authorizedPromptContext,
-            String retrievalPurpose) {
+            String retrievalPurpose,
+            String pseudonymizationScope) {
         if (authorizedPromptContext.contextItems() != null && !authorizedPromptContext.contextItems().isEmpty()) {
             return authorizedPromptContext.contextItems().stream()
-                    .map(item -> mapContextItem(item, retrievalPurpose))
+                    .map(item -> mapContextItem(item, retrievalPurpose, pseudonymizationScope))
                     .toList();
         }
         return authorizedPromptContext.documents().stream()
-                .map(document -> mapContextItem(document, retrievalPurpose))
+                .map(document -> mapContextItem(document, retrievalPurpose, pseudonymizationScope))
                 .toList();
     }
 
-    private PromptContextAuditPayload.ContextItem mapContextItem(Document document, String retrievalPurpose) {
+    private String pseudonymizeUserId(String pseudonymizationScope, String userId) {
+        if (pseudonymizationService == null || !StringUtils.hasText(userId)) {
+            return null;
+        }
+        return pseudonymizationService.hash(pseudonymizationScope, userId);
+    }
+
+    // Matches the tenant scope of SecurityDecisionForwardingPayloadMapper so that the same user
+    // receives the same pseudonym in decision and prompt context audit payloads.
+    private String resolvePseudonymizationScope(SecurityEvent event) {
+        Map<String, Object> metadata = metadata(event);
+        for (String key : List.of("tenantId", "organizationId")) {
+            Object value = metadata.get(key);
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isBlank()) {
+                    return text;
+                }
+            }
+        }
+        return DEFAULT_TENANT_SCOPE;
+    }
+
+    private PromptContextAuditPayload.ContextItem mapContextItem(
+            Document document,
+            String retrievalPurpose,
+            String pseudonymizationScope) {
         Map<String, Object> metadata = document.getMetadata() != null ? document.getMetadata() : Map.of();
         return PromptContextAuditPayload.ContextItem.builder()
                 .contextType(resolveText(metadata,
@@ -242,9 +291,9 @@ public class PromptContextAuditPayloadMapper {
                 .artifactVersion(resolveText(metadata,
                         VectorDocumentMetadata.ARTIFACT_VERSION,
                         VectorDocumentMetadata.VERSION))
-                .userId(resolveText(metadata,
+                .userId(pseudonymizeUserId(pseudonymizationScope, resolveText(metadata,
                         VectorDocumentMetadata.USER_ID,
-                        "userId"))
+                        "userId")))
                 .retrievalPurpose(resolveText(metadata,
                         VectorDocumentMetadata.RETRIEVAL_PURPOSE,
                         "retrievalPurpose",
@@ -274,13 +323,14 @@ public class PromptContextAuditPayloadMapper {
 
     private PromptContextAuditPayload.ContextItem mapContextItem(
             AuthorizedPromptContextItem item,
-            String retrievalPurpose) {
+            String retrievalPurpose,
+            String pseudonymizationScope) {
         return PromptContextAuditPayload.ContextItem.builder()
                 .contextType(item.contextType())
                 .sourceType(item.sourceType())
                 .artifactId(item.artifactId())
                 .artifactVersion(item.artifactVersion())
-                .userId(item.userId())
+                .userId(pseudonymizeUserId(pseudonymizationScope, item.userId()))
                 .retrievalPurpose(StringUtils.hasText(item.retrievalPurpose()) ? item.retrievalPurpose() : retrievalPurpose)
                 .authorizationDecision(item.authorizationDecision())
                 .purposeMatch(item.purposeMatch())

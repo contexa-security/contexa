@@ -46,6 +46,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, Instant> mfaPendingExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> escalateRetries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, Instant>> decisionAuditPending = new ConcurrentHashMap<>();
+    private static final String DECISION_AUDIT_NO_CONTEXT = "no-context";
 
     private final Duration failCountTtl;
     private final Clock clock;
@@ -476,6 +478,55 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaFailCounts.remove(userId);
         mfaPendingExpiry.remove(userId);
         escalateRetries.remove(userId);
+        decisionAuditPending.remove(userId);
+    }
+
+    @Override
+    public void markDecisionAuditPending(String userId, String contextBindingHash, Duration ttl) {
+        if (userId == null || userId.isBlank() || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        decisionAuditPending
+                .computeIfAbsent(userId, key -> new ConcurrentHashMap<>())
+                .put(decisionAuditContextKey(contextBindingHash), clock.instant().plus(ttl));
+    }
+
+    @Override
+    public boolean isDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        Map<String, Instant> contexts = decisionAuditPending.get(userId);
+        if (contexts == null) {
+            return false;
+        }
+        String contextKey = decisionAuditContextKey(contextBindingHash);
+        Instant expiresAt = contexts.get(contextKey);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (clock.instant().isBefore(expiresAt)) {
+            return true;
+        }
+        contexts.remove(contextKey, expiresAt);
+        return false;
+    }
+
+    @Override
+    public void clearDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        Map<String, Instant> contexts = decisionAuditPending.get(userId);
+        if (contexts != null) {
+            contexts.remove(decisionAuditContextKey(contextBindingHash));
+        }
+    }
+
+    private String decisionAuditContextKey(String contextBindingHash) {
+        return contextBindingHash == null || contextBindingHash.isBlank()
+                ? DECISION_AUDIT_NO_CONTEXT
+                : contextBindingHash;
     }
 
     @Override

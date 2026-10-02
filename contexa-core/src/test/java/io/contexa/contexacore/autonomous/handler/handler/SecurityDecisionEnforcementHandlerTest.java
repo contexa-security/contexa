@@ -18,10 +18,12 @@ package io.contexa.contexacore.autonomous.handler.handler;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -34,6 +36,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +50,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -68,11 +73,17 @@ class SecurityDecisionEnforcementHandlerTest {
 
     @BeforeEach
     void setUp() {
+        when(aiSecurityDecisionObservationWriter.recordDecision(any(), any(), any())).thenReturn("observation-1");
+        when(aiSecurityDecisionObservationWriter.isStoreConfigured()).thenReturn(true);
+        when(actionRepository.saveFinalAction(anyString(), any(ZeroTrustAction.class), anyMap())).thenReturn(true);
         handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
                 blockedUserRecorder,
-                blockingSignalBroadcaster);
+                blockingSignalBroadcaster,
+                null,
+                Runnable::run,
+                () -> aiSecurityDecisionObservationWriter);
     }
 
     @Test
@@ -102,9 +113,9 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).saveFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-1");
-        verify(blockingSignalBroadcaster).registerBlock("user-1");
+        verify(blockingSignalBroadcaster).registerBlockAndAwait("user-1");
     }
 
     @Test
@@ -133,7 +144,7 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveAction(eq("user-2"), eq(ZeroTrustAction.ALLOW), anyMap());
+        verify(actionRepository).saveFinalAction(eq("user-2"), eq(ZeroTrustAction.ALLOW), anyMap());
         verify(actionRepository, never()).setBlockedFlag(anyString());
     }
 
@@ -148,7 +159,8 @@ class SecurityDecisionEnforcementHandlerTest {
                 blockedUserRecorder,
                 blockingSignalBroadcaster,
                 null,
-                capturingExecutor);
+                capturingExecutor,
+                () -> aiSecurityDecisionObservationWriter);
 
         SecurityEvent event = SecurityEvent.builder()
                 .userId("user-executor")
@@ -298,7 +310,9 @@ class SecurityDecisionEnforcementHandlerTest {
                 securityLearningService,
                 blockedUserRecorder,
                 blockingSignalBroadcaster,
-                enforceProperties);
+                enforceProperties,
+                Runnable::run,
+                () -> aiSecurityDecisionObservationWriter);
 
         SecurityEvent event = SecurityEvent.builder()
                 .userId("user-enforce-block")
@@ -323,9 +337,9 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).saveFinalAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-enforce-block");
-        verify(blockingSignalBroadcaster).registerBlock("user-enforce-block");
+        verify(blockingSignalBroadcaster).registerBlockAndAwait("user-enforce-block");
     }
 
     @Test
@@ -348,7 +362,7 @@ class SecurityDecisionEnforcementHandlerTest {
                 .userId("user-shadow")
                 .sourceIp("10.0.0.30")
                 .userAgent("ShadowAgent")
-                .metadata(Map.of("decisionBoundaryMode", "SHADOW"))
+                .metadata(new HashMap<>(Map.of("decisionBoundaryMode", "SHADOW")))
                 .build();
         SecurityEventContext context = SecurityEventContext.builder()
                 .securityEvent(event)
@@ -372,5 +386,86 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(blockingSignalBroadcaster, never()).registerBlock(anyString());
         verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
         verify(aiSecurityDecisionObservationWriter).recordDecision(event, processingResult, ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("unpersisted observation keeps the decision unenforced, retained for retry and re-analysis suspended")
+    void unpersistedObservation_shouldRetainDecisionWithoutEnforcement() {
+        SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+        properties.getAnalysis().setAuditFailureCooldownMs(45_000L);
+        when(aiSecurityDecisionObservationWriter.recordDecision(any(), any(), any())).thenReturn(null);
+        when(aiSecurityDecisionObservationWriter.isStoreConfigured()).thenReturn(false);
+        List<Runnable> learningTasks = new ArrayList<>();
+        SecurityDecisionEnforcementHandler auditedHandler = new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                properties,
+                learningTasks::add,
+                () -> aiSecurityDecisionObservationWriter);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-unaudited")
+                .userId("user-unaudited")
+                .sessionId("session-unaudited")
+                .sourceIp("10.0.0.40")
+                .userAgent("AuditAgent")
+                .build();
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.BLOCK.name())
+                .reasoning("Decision without audit record")
+                .build();
+        context.addMetadata("processingResult", processingResult);
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                "session-unaudited", "10.0.0.40", "AuditAgent");
+
+        boolean result = auditedHandler.handle(context);
+
+        assertThat(result).isFalse();
+        assertThat(context.getProcessingStatus()).isEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
+        verify(actionRepository, never()).saveFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).saveAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).setBlockedFlag(anyString());
+        verify(blockingSignalBroadcaster, never()).registerBlockAndAwait(anyString());
+        verify(actionRepository).markDecisionAuditPending(
+                "user-unaudited", contextBindingHash, Duration.ofMillis(45_000L));
+        assertThat(learningTasks).isEmpty();
+        assertThat(event.getMetadata())
+                .containsEntry(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT, processingResult)
+                .containsEntry(SecurityPlaneAgent.PROCESSING_FAILURE_REPORTED, true);
+    }
+
+    @Test
+    @DisplayName("persisted observation of a retained decision enforces it and releases the audit pending marker")
+    void persistedRetainedDecision_shouldEnforceAndReleaseMarker() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-recovered")
+                .userId("user-recovered")
+                .sessionId("session-recovered")
+                .sourceIp("10.0.0.41")
+                .userAgent("AuditAgent")
+                .build();
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .build();
+        event.addMetadata(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT, processingResult);
+        SecurityEventContext context = SecurityEventContext.builder()
+                .securityEvent(event)
+                .build();
+        context.addMetadata("processingResult", processingResult);
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                "session-recovered", "10.0.0.41", "AuditAgent");
+
+        boolean result = handler.handle(context);
+
+        assertThat(result).isTrue();
+        verify(actionRepository).saveFinalAction(eq("user-recovered"), eq(ZeroTrustAction.CHALLENGE), anyMap());
+        verify(actionRepository).clearDecisionAuditPending("user-recovered", contextBindingHash);
+        assertThat(event.getMetadata()).doesNotContainKey(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT);
     }
 }

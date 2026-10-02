@@ -31,8 +31,10 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,6 +46,17 @@ import java.util.function.Supplier;
 
 @Slf4j
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
+    /**
+     * Event metadata key holding a successful decision whose observation could not be
+     * persisted. A retry of the same event reuses it instead of running the analysis again.
+     */
+    public static final String AUDIT_PENDING_PROCESSING_RESULT = "auditPendingProcessingResult";
+    private static final String DECISION_AUDIT_PENDING = "decisionAuditPending";
+    private static final String DECISION_AUDIT_PENDING_AT = "decisionAuditPendingAt";
+    private static final Duration DEFAULT_AUDIT_FAILURE_COOLDOWN = Duration.ofSeconds(30);
+    private static final Duration OBSERVATION_FAILURE_LOG_INTERVAL = Duration.ofMinutes(1);
+
+    private final ErrorLogThrottle observationFailureLogThrottle = new ErrorLogThrottle(OBSERVATION_FAILURE_LOG_INTERVAL);
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
     private final IBlockedUserRecorder blockedUserRecorder;
@@ -144,6 +157,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         try {
             enforceDecision(userId, event, result, sideEffectsEnabled);
+        } catch (UnauditedFinalDecisionException e) {
+            // Already reported through the throttled observation failure log.
+            context.markAsFailed(e.getMessage());
+            return false;
         } catch (Exception e) {
             log.error("[SecurityDecisionEnforcementHandler] Error enforcing decision: eventId={}", event.getEventId(), e);
             context.markAsFailed("Security decision enforcement failed: " + e.getMessage());
@@ -223,8 +240,12 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return;
         }
 
+        // The persisted observation is both the audit record of the decision and the idempotency
+        // record that lets a retry restore it without another analysis, so no runtime action is
+        // applied without it.
         if (observationId == null || observationId.isBlank()) {
-            throw new IllegalStateException("Final observation must be persisted before runtime action");
+            retainUnauditedDecision(userId, event, result, ztAction, contextBindingHash);
+            throw new UnauditedFinalDecisionException();
         }
         additionalFields.put("observationId", observationId);
         putIfPresent(additionalFields, "processingGeneration",
@@ -237,6 +258,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (!actionRedisRepository.saveFinalAction(userId, ztAction, additionalFields)) {
             throw new IllegalStateException("Runtime action did not converge with persisted final observation");
         }
+        releaseDecisionAuditPending(userId, contextBindingHash, event);
 
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
@@ -269,6 +291,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (!actionRedisRepository.saveFinalAction(userId, action, fields)) {
             throw new IllegalStateException("Persisted final decision did not converge to runtime action");
         }
+        releaseDecisionAuditPending(userId,
+                persisted.contextBindingHash() != null ? persisted.contextBindingHash() : resolveContextBindingHash(event),
+                event);
         if (action == ZeroTrustAction.BLOCK) {
             ProcessingResult result = ProcessingResult.builder()
                     .success(true).action(action.name()).reasoning(persisted.reasoning()).build();
@@ -468,6 +493,67 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
     }
 
+    private void retainUnauditedDecision(
+            String userId,
+            SecurityEvent event,
+            ProcessingResult result,
+            ZeroTrustAction ztAction,
+            String contextBindingHash) {
+        Duration cooldown = auditFailureCooldown();
+        event.addMetadata(AUDIT_PENDING_PROCESSING_RESULT, result);
+        event.addMetadata(DECISION_AUDIT_PENDING, true);
+        event.addMetadata(DECISION_AUDIT_PENDING_AT, System.currentTimeMillis());
+        event.addMetadata(SecurityPlaneAgent.PROCESSING_FAILURE_REPORTED, true);
+        try {
+            actionRedisRepository.markDecisionAuditPending(userId, contextBindingHash, cooldown);
+        } catch (Exception ex) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to mark decision audit pending: userId={}", userId, ex);
+        }
+        long suppressed = observationFailureLogThrottle.tryAcquire();
+        if (suppressed != ErrorLogThrottle.SUPPRESSED) {
+            log.error("[SecurityDecisionEnforcementHandler] Final decision was not enforced because its observation "
+                            + "could not be persisted ({}). The runtime action stays PENDING_ANALYSIS, the decision is kept "
+                            + "for retries of the same event and new analysis for the actor context is suspended for {}ms. "
+                            + "userId={}, eventId={}, action={}, similarFailuresSinceLastReport={}",
+                    observationFailureCause(), cooldown.toMillis(), userId, event.getEventId(), ztAction, suppressed);
+        }
+    }
+
+    private void releaseDecisionAuditPending(String userId, String contextBindingHash, SecurityEvent event) {
+        if (event != null && event.getMetadata() != null && event.getMetadata().containsKey(AUDIT_PENDING_PROCESSING_RESULT)) {
+            event.getMetadata().remove(AUDIT_PENDING_PROCESSING_RESULT);
+            event.addMetadata(DECISION_AUDIT_PENDING, false);
+        }
+        try {
+            actionRedisRepository.clearDecisionAuditPending(userId, contextBindingHash);
+        } catch (Exception ex) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to clear decision audit pending marker: userId={}", userId, ex);
+        }
+    }
+
+    private String observationFailureCause() {
+        AiSecurityDecisionObservationWriter writer;
+        try {
+            writer = aiSecurityDecisionObservationWriterSupplier.get();
+        } catch (Exception ex) {
+            return "decision observation writer is unavailable: " + ex.getMessage();
+        }
+        if (writer == null) {
+            return "no AiSecurityDecisionObservationWriter bean is available";
+        }
+        if (!writer.isStoreConfigured()) {
+            return "the contexaJdbcTemplate decision observation store is not configured";
+        }
+        return "writing to ai_security_decision_observation failed";
+    }
+
+    private Duration auditFailureCooldown() {
+        if (securityZeroTrustProperties == null || securityZeroTrustProperties.getAnalysis() == null) {
+            return DEFAULT_AUDIT_FAILURE_COOLDOWN;
+        }
+        return Duration.ofMillis(Math.max(0L, securityZeroTrustProperties.getAnalysis().getAuditFailureCooldownMs()));
+    }
+
     private boolean isCurrentProcessingOwner(SecurityEvent event) {
         if (SecurityEventProcessor.hasProcessingDeadlineExceeded(event)) {
             return false;
@@ -520,5 +606,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     @Override
     public int getOrder() {
         return 55;
+    }
+
+    private static final class UnauditedFinalDecisionException extends IllegalStateException {
+        private UnauditedFinalDecisionException() {
+            super("Final observation must be persisted before runtime action");
+        }
     }
 }

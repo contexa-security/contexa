@@ -81,6 +81,14 @@ public class AiSecurityDecisionObservationWriter {
         this.defaultModelId = text(defaultModelId);
     }
 
+    /**
+     * Whether a decision observation store (the Contexa JDBC template) is configured.
+     * Without it every recordDecision call returns null and no final decision can be enforced.
+     */
+    public boolean isStoreConfigured() {
+        return jdbcOperations() != null;
+    }
+
     public String recordDecision(SecurityEvent event, ProcessingResult result, ZeroTrustAction finalAction) {
         if (event == null) {
             return null;

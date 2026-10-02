@@ -54,6 +54,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:autonomous:action:last-verified-context:%s", NAMESPACE, userId);
     }
 
+    public static String autonomousDecisionAuditPending(String userId) {
+        validateUserId(userId);
+        return String.format("%s:autonomous:action:audit-pending:%s", NAMESPACE, userId);
+    }
+
     public static String userBlocked(String userId) {
         validateUserId(userId);
         return String.format("security:blocked:users:%s", userId);

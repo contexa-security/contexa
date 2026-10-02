@@ -19,7 +19,11 @@ import io.contexa.contexacore.autonomous.blocking.BlockableServletOutputStream;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
+import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
+import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
+import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -449,6 +453,60 @@ class CoreBacklogRegressionTest {
         verifyNoInteractions(h.recorder);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ALLOW", "BLOCK"})
+    void unpersistedFinalDecisionIsNotEnforcedAndIsRetriedWithoutAnotherAnalysis(String action) {
+        Harness h = new Harness(Runnable::run, true);
+        h.resultAction = action;
+        h.rejectObservations.set(1);
+        SecurityEvent event = event();
+        String context = SessionFingerprintUtil.generateContextBindingHash(
+                event.getSessionId(), event.getSourceIp(), event.getUserAgent());
+
+        assertThatThrownBy(() -> h.agent.processSecurityEvent(event)).isInstanceOf(RuntimeException.class);
+        assertThat(h.analysisCount).hasValue(1);
+        assertThat(h.actions.getCurrentAction(event.getUserId())).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(h.signals.isBlocked(event.getUserId())).isFalse();
+        verifyNoInteractions(h.recorder);
+        assertThat(h.actions.isDecisionAuditPending(event.getUserId(), context)).isTrue();
+
+        assertThat(h.agent.processSecurityEvent(event).getProcessingStatus())
+                .isEqualTo(SecurityEventContext.ProcessingStatus.COMPLETED);
+        assertThat(h.analysisCount).hasValue(1);
+        assertThat(h.actions.getCurrentAction(event.getUserId())).isEqualTo(ZeroTrustAction.valueOf(action));
+        assertThat(h.signals.isBlocked(event.getUserId())).isEqualTo("BLOCK".equals(action));
+        assertThat(h.actions.isDecisionAuditPending(event.getUserId(), context)).isFalse();
+        verify(h.writer, times(2)).recordDecision(any(), argThat(r -> r != null && r.isSuccess()),
+                eq(ZeroTrustAction.valueOf(action)));
+    }
+
+    @Test
+    void pendingAuditSuspendsNewAnalysisForTheSameActorContextOnly() {
+        Harness h = new Harness(Runnable::run, true);
+        h.rejectObservations.set(1);
+        SecurityEvent event = event();
+        assertThatThrownBy(() -> h.agent.processSecurityEvent(event)).isInstanceOf(RuntimeException.class);
+
+        ZeroTrustEventListener listener = new ZeroTrustEventListener(
+                mock(SecurityEventPublisher.class), h.actions, h.mode);
+        ZeroTrustSpringEvent sameContext = ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(event.getUserId()).sessionId(event.getSessionId())
+                .clientIp(event.getSourceIp()).userAgent(event.getUserAgent())
+                .resource("/regression/protected").build();
+        ZeroTrustSpringEvent otherContext = ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(event.getUserId()).sessionId(UUID.randomUUID().toString())
+                .clientIp(event.getSourceIp()).userAgent(event.getUserAgent())
+                .resource("/regression/protected").build();
+
+        assertThat(listener.shouldPublishAuthorizationEvent(sameContext)).isFalse();
+        assertThat(listener.shouldPublishAuthorizationEvent(otherContext)).isTrue();
+        assertThat(h.analysisCount).hasValue(1);
+    }
+
     @Test
     void retryExhaustionKeepsTheExistingRequeueLimit() {
         Harness h = new Harness(Runnable::run);
@@ -521,14 +579,22 @@ class CoreBacklogRegressionTest {
         final IBlockedUserRecorder recorder = mock(IBlockedUserRecorder.class);
         final AtomicReference<PersistedFinalDecision> saved = new AtomicReference<>();
         final AtomicInteger analysisCount = new AtomicInteger();
+        final AtomicInteger rejectObservations = new AtomicInteger();
         Consumer<SecurityEvent> beforeAnalysis = e -> {};
         String resultAction = "ALLOW";
         final SecurityPlaneAgent agent;
 
         Harness(Executor executor) {
+            this(executor, false);
+        }
+
+        Harness(Executor executor, boolean processingExecutionHandler) {
             mode.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
             when(writer.findFinalDecision(anyString())).thenAnswer(i -> saved.get());
             when(writer.recordDecision(any(), any(), any())).thenAnswer(i -> {
+                if (rejectObservations.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+                    return null;
+                }
                 SecurityEvent event = i.getArgument(0);
                 ProcessingResult result = i.getArgument(1);
                 String id = UUID.randomUUID().toString();
@@ -542,18 +608,32 @@ class CoreBacklogRegressionTest {
             });
             SecurityDecisionEnforcementHandler enforcement = new SecurityDecisionEnforcementHandler(
                     actions, null, recorder, signals, mode, Runnable::run, () -> writer, store);
-            SecurityEventHandler analysis = mock(SecurityEventHandler.class);
-            when(analysis.getOrder()).thenReturn(0);
-            when(analysis.getName()).thenReturn("ControlledAnalysis");
-            when(analysis.canHandle(any())).thenReturn(true);
-            when(analysis.handle(any())).thenAnswer(i -> {
-                SecurityEventContext context = i.getArgument(0);
-                analysisCount.incrementAndGet();
-                beforeAnalysis.accept(context.getSecurityEvent());
-                context.addMetadata("processingResult", ProcessingResult.builder().success(true)
-                        .action(resultAction).reasoning("Controlled regression decision").build());
-                return true;
-            });
+            SecurityEventHandler analysis;
+            if (processingExecutionHandler) {
+                ProcessingStrategy strategy = mock(ProcessingStrategy.class);
+                when(strategy.supports(ProcessingMode.AI_ANALYSIS)).thenReturn(true);
+                when(strategy.process(any())).thenAnswer(i -> {
+                    SecurityEventContext context = i.getArgument(0);
+                    analysisCount.incrementAndGet();
+                    beforeAnalysis.accept(context.getSecurityEvent());
+                    return ProcessingResult.builder().success(true)
+                            .action(resultAction).reasoning("Controlled regression decision").build();
+                });
+                analysis = new ProcessingExecutionHandler(List.of(strategy));
+            } else {
+                analysis = mock(SecurityEventHandler.class);
+                when(analysis.getOrder()).thenReturn(0);
+                when(analysis.getName()).thenReturn("ControlledAnalysis");
+                when(analysis.canHandle(any())).thenReturn(true);
+                when(analysis.handle(any())).thenAnswer(i -> {
+                    SecurityEventContext context = i.getArgument(0);
+                    analysisCount.incrementAndGet();
+                    beforeAnalysis.accept(context.getSecurityEvent());
+                    context.addMetadata("processingResult", ProcessingResult.builder().success(true)
+                            .action(resultAction).reasoning("Controlled regression decision").build());
+                    return true;
+                });
+            }
             properties.getAgent().setAutoStart(false);
             properties.getAgent().setAnalysisStripes(2);
             properties.getAgent().setEventTimeoutMs(5000);

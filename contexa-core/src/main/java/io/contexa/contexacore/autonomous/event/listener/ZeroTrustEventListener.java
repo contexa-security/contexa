@@ -151,7 +151,12 @@ public class ZeroTrustEventListener {
 
         try {
             ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
-            return currentAction != ZeroTrustAction.PENDING_ANALYSIS;
+            if (currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
+                return true;
+            }
+            // A decision for this actor context is waiting for its audit record; a new analysis
+            // would only repeat the LLM call while the observation store keeps rejecting writes.
+            return actionRepository.isDecisionAuditPending(userId, contextBindingHash);
         } catch (Exception e) {
             log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", userId, e);
             return false;

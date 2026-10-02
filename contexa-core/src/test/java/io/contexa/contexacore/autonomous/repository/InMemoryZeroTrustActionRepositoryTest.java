@@ -21,6 +21,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -221,5 +226,66 @@ class InMemoryZeroTrustActionRepositoryTest {
         ZeroTrustAction lastVerified = repository.getLastVerifiedAction("user1");
 
         assertThat(lastVerified).isEqualTo(ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("decision audit pending marker is scoped to the actor context and expires")
+    void decisionAuditPending_isContextScopedAndExpires() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-10-02T00:00:00Z"));
+        InMemoryZeroTrustActionRepository clocked = new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+
+        clocked.markDecisionAuditPending("user1", "context-a", Duration.ofSeconds(30));
+
+        assertThat(clocked.isDecisionAuditPending("user1", "context-a")).isTrue();
+        assertThat(clocked.isDecisionAuditPending("user1", "context-b")).isFalse();
+        assertThat(clocked.isDecisionAuditPending("user2", "context-a")).isFalse();
+        assertThat(clocked.getCurrentAction("user1", "context-a")).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+
+        clock.advance(Duration.ofSeconds(31));
+
+        assertThat(clocked.isDecisionAuditPending("user1", "context-a")).isFalse();
+    }
+
+    @Test
+    @DisplayName("decision audit pending marker is released explicitly and by a full user reset")
+    void decisionAuditPending_isReleasedByClearAndReset() {
+        repository.markDecisionAuditPending("user1", "context-a", Duration.ofMinutes(1));
+        repository.markDecisionAuditPending("user1", null, Duration.ofMinutes(1));
+
+        repository.clearDecisionAuditPending("user1", "context-a");
+
+        assertThat(repository.isDecisionAuditPending("user1", "context-a")).isFalse();
+        assertThat(repository.isDecisionAuditPending("user1", null)).isTrue();
+
+        repository.removeAllUserData("user1");
+
+        assertThat(repository.isDecisionAuditPending("user1", null)).isFalse();
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        private MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        private void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public ZoneOffset getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }

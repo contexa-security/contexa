@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisOperations;
@@ -572,12 +573,68 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ZeroTrustRedisKeys.userBlocked(userId),
                     ZeroTrustRedisKeys.blockMfaPending(userId),
                     ZeroTrustRedisKeys.blockMfaVerified(userId),
-                    ZeroTrustRedisKeys.blockMfaFailCount(userId)
+                    ZeroTrustRedisKeys.blockMfaFailCount(userId),
+                    ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId)
             );
             stringRedisTemplate.delete(stringKeys);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove all user data: userId={}", userId, e);
         }
+    }
+
+    @Override
+    public void markDecisionAuditPending(String userId, String contextBindingHash, Duration ttl) {
+        if (userId == null || userId.isBlank() || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId);
+            long expiresAtMs = System.currentTimeMillis() + ttl.toMillis();
+            stringRedisTemplate.opsForHash().put(key, decisionAuditContextKey(contextBindingHash), Long.toString(expiresAtMs));
+            Long remainingMs = stringRedisTemplate.getExpire(key, TimeUnit.MILLISECONDS);
+            if (remainingMs == null || remainingMs < ttl.toMillis()) {
+                stringRedisTemplate.expire(key, ttl);
+            }
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to mark decision audit pending: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public boolean isDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        try {
+            Object expiresAt = stringRedisTemplate.opsForHash().get(
+                    ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId),
+                    decisionAuditContextKey(contextBindingHash));
+            if (expiresAt == null) {
+                return false;
+            }
+            return System.currentTimeMillis() < Long.parseLong(expiresAt.toString().trim());
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to read decision audit pending marker: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    @Override
+    public void clearDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            stringRedisTemplate.opsForHash().delete(
+                    ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId),
+                    decisionAuditContextKey(contextBindingHash));
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to clear decision audit pending marker: userId={}", userId, e);
+        }
+    }
+
+    private String decisionAuditContextKey(String contextBindingHash) {
+        return contextBindingHash == null || contextBindingHash.isBlank() ? "no-context" : contextBindingHash;
     }
 
     public void approveOverrideAtomically(String userId, ZeroTrustAction newAction) {

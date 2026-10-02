@@ -92,6 +92,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private static final String TIMEOUT_OBSERVATION_ID = "timeoutObservationId";
     public static final String EVENT_PROCESSING_IDENTITY = "eventProcessingIdentity";
     public static final String EVENT_PROCESSING_OWNER_TOKEN = "eventProcessingOwnerToken";
+    /**
+     * Set by a handler that already reported the failure of the current attempt through a
+     * throttled error log, so the agent does not log the same failure again for every event.
+     */
+    public static final String PROCESSING_FAILURE_REPORTED = "processingFailureReported";
+    /**
+     * Set when no processing strategy can analyze the event. The condition comes from the
+     * application configuration, so deferring the event cannot change the outcome.
+     */
+    public static final String PROCESSING_STRATEGY_UNAVAILABLE = "processingStrategyUnavailable";
 
     public void setAiSecurityDecisionObservationWriterSupplier(
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier) {
@@ -141,12 +151,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
                 } catch (Exception e) {
                     event.addMetadata("analysisFinishedAt", System.currentTimeMillis());
-                    if (deferForRetry(event, classifyDeferReason(e), e)) {
+                    if (!isProcessingStrategyUnavailable(event)
+                            && deferForRetry(event, classifyDeferReason(e), e)) {
                         log.warn("[SecurityPlaneAgent] Deferred event {} after transient processing failure: {}",
                                 event.getEventId(), e.getMessage());
                         return;
                     }
-                    log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+                    if (!isProcessingFailureReported(event)) {
+                        log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+                    }
                     if (centralAuditFacade != null) {
                         auditError("SecurityPlaneAgent", "processBatch", e, Map.of(
                                 "eventId", event.getEventId(),
@@ -274,7 +287,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             releaseEventProcessing(event);
             if (e instanceof EventProcessingDeadlineExceededException) {
                 log.warn("[SecurityPlaneAgent] Discarded late processing result after event deadline: eventId={}", event.getEventId());
-            } else {
+            } else if (!isProcessingFailureReported(event)) {
                 log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
             }
 
@@ -530,7 +543,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 "timeoutObservationAction", "backpressureObservationAction", "decisionFailureCategory",
                 "llmExecutorRejected", "llmExecutorRejectedAt", "analysisSubmittedAt",
                 "analysisExecutionStartedAt", "analysisExecutionFinishedAt", "analysisCompletedAt",
-                "executorQueueWaitMs", "staleProcessingResultDiscarded", "staleProcessingResultDiscardedAt")) {
+                "executorQueueWaitMs", "staleProcessingResultDiscarded", "staleProcessingResultDiscardedAt",
+                PROCESSING_FAILURE_REPORTED, PROCESSING_STRATEGY_UNAVAILABLE)) {
             metadata.remove(key);
         }
         return SecurityEvent.builder()
@@ -717,6 +731,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
         securityMonitor.deferEvent(event, reason);
         return true;
+    }
+
+    private boolean isProcessingFailureReported(SecurityEvent event) {
+        return event != null && event.getMetadata() != null
+                && Boolean.TRUE.equals(event.getMetadata().get(PROCESSING_FAILURE_REPORTED));
+    }
+
+    private boolean isProcessingStrategyUnavailable(SecurityEvent event) {
+        return event != null && event.getMetadata() != null
+                && Boolean.TRUE.equals(event.getMetadata().get(PROCESSING_STRATEGY_UNAVAILABLE));
     }
 
     private int getIntegerMetadata(SecurityEvent event, String key) {

@@ -97,6 +97,8 @@ public class CoreSaasForwardingAutoConfiguration {
     @ConditionalOnMissingBean
     public SaasForwardingProperties saasForwardingProperties(ContexaProperties properties) {
         ContexaProperties.Saas source = properties.getSaas();
+        // Also enforced here so that a custom saasClientRegistrationRepository cannot bypass it.
+        source.validateSecrets();
         return SaasForwardingProperties.builder()
                 .enabled(source.isEnabled())
                 .endpoint(source.getEndpoint())
@@ -224,8 +226,9 @@ public class CoreSaasForwardingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptContextAuditPayloadMapper promptContextAuditPayloadMapper() {
-        return new PromptContextAuditPayloadMapper();
+    public PromptContextAuditPayloadMapper promptContextAuditPayloadMapper(
+            TenantScopedPseudonymizationService pseudonymizationService) {
+        return new PromptContextAuditPayloadMapper(pseudonymizationService);
     }
 
     @Bean
