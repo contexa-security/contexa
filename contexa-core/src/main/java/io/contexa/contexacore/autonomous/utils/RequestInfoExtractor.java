@@ -28,6 +28,7 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
@@ -38,7 +39,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -52,7 +52,7 @@ public final class RequestInfoExtractor {
         }
 
         String requestId = extractRequestId(request);
-        boolean runtimeOverrideHeadersAllowed = isOfficialVerificationRequest(request);
+        boolean runtimeOverrideHeadersAllowed = hasRuntimeOverrideCapability(request);
         String requestedModelId = firstNonBlankText(
                 extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Model-Id", "requestedModelId"),
                 extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Preferred-Model", "preferredModel"),
@@ -121,7 +121,9 @@ public final class RequestInfoExtractor {
                 .runtimeMaxTokens(runtimeMaxTokens)
                 .runtimeDisableRetries(runtimeDisableRetries)
                 .runtimeDisableOllamaThinking(runtimeDisableOllamaThinking)
-                .simulatedUserAgentLabel(extractHeader(request, "X-Simulated-User-Agent-Label"))
+                .simulatedUserAgentLabel(runtimeOverrideHeadersAllowed
+                        ? extractHeader(request, "X-Simulated-User-Agent-Label")
+                        : null)
                 .secure(request.isSecure())
                 .isNewSession(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_SESSION)))
                 .isNewUser(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_USER)))
@@ -269,6 +271,10 @@ public final class RequestInfoExtractor {
             return fromAttribute;
         }
 
+        if (!hasRuntimeOverrideCapability(request)) {
+            return null;
+        }
+
         Instant fromPrimaryHeader = parseObservedAt(request.getHeader("X-Contexa-Observed-At"));
         if (fromPrimaryHeader != null) {
             return fromPrimaryHeader;
@@ -278,7 +284,7 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
-        if (isOfficialVerificationRequest(request)) {
+        if (hasRuntimeOverrideCapability(request)) {
             return ClientIpResolver.resolveLegacy(request);
         }
 
@@ -292,22 +298,21 @@ public final class RequestInfoExtractor {
         ));
     }
 
-    private static boolean isOfficialVerificationRequest(HttpServletRequest request) {
-        if (request == null) {
-            return false;
-        }
-        String scenario = extractScenario(request);
-        if (scenario != null && scenario.trim().toUpperCase(Locale.ROOT).startsWith("OFFICIAL_VERIFICATION")) {
-            return true;
-        }
-        String path = request.getRequestURI();
-        return path != null && path.contains("/admin/api/enterprise/verification/runtime/probe/");
+    /**
+     * Runtime override and simulation headers are honored only for probes issued by this
+     * server. Scenario markers and request paths are client controlled and never qualify.
+     */
+    private static boolean hasRuntimeOverrideCapability(HttpServletRequest request) {
+        return request != null && OfficialVerificationProbeHeaders.isAuthorizedRuntimeOverride(
+                request.getHeader(OfficialVerificationProbeHeaders.RUNTIME_OVERRIDE_CAPABILITY));
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
-        String simulated = request.getHeader("X-Simulated-User-Agent");
-        if (simulated != null && !simulated.isEmpty()) {
-            return simulated;
+        if (hasRuntimeOverrideCapability(request)) {
+            String simulated = request.getHeader("X-Simulated-User-Agent");
+            if (simulated != null && !simulated.isEmpty()) {
+                return simulated;
+            }
         }
         String userAgent = request.getHeader("User-Agent");
         return userAgent != null ? userAgent : "unknown";
@@ -327,6 +332,11 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractScenario(HttpServletRequest request) {
+        // The scenario drives official verification classification and escalation protection
+        // scoping downstream, so a client supplied value must not reach the event payload.
+        if (!hasRuntimeOverrideCapability(request)) {
+            return null;
+        }
         String scenario = request.getHeader("X-Contexa-Scenario");
         return (scenario != null && !scenario.isBlank()) ? scenario.trim() : null;
     }
