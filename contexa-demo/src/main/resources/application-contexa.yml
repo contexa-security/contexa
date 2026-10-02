@@ -1,0 +1,60 @@
+lab:
+  role: contexa
+spring:
+  datasource:
+    url: ${LAB_DB_URL:jdbc:postgresql://localhost:15432/lab_contexa}
+  ai:
+    model:
+      chat: ${LAB_CHAT_PROVIDER:none}
+      embedding: ${LAB_EMBEDDING_PROVIDER:none}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${LAB_CHAT_MODEL:}
+      embedding:
+        options:
+          model: ${LAB_EMBEDDING_MODEL:}
+          dimensions: ${LAB_EMBEDDING_DIMENSIONS:0}
+    ollama:
+      base-url: ${LAB_OLLAMA_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${LAB_CHAT_MODEL:}
+          num-ctx: ${LAB_OLLAMA_CONTEXT_SIZE:16384}
+      embedding:
+        options:
+          model: ${LAB_EMBEDDING_MODEL:}
+contexa:
+  enabled: true
+  infrastructure:
+    mode: standalone
+  datasource:
+    url: ${LAB_SECURITY_DB_URL:jdbc:postgresql://localhost:15432/lab_security}
+    username: ${LAB_DB_USER:lab}
+    password: ${LAB_DB_PASSWORD:}
+    isolation:
+      contexa-owned-application: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+  auth:
+    state-type: SESSION
+    cookie-secure: false
+  llm:
+    selection:
+      chat:
+        priority: ${LAB_CHAT_PROVIDER:}
+      embedding:
+        priority: ${LAB_EMBEDDING_PROVIDER:}
+  vectorstore:
+    pgvector:
+      dimensions: ${LAB_EMBEDDING_DIMENSIONS:0}
+  saas:
+    enabled: false
+server:
+  port: ${LAB_PORT:18082}
+  servlet:
+    session:
+      cookie:
+        name: LAB_CONTEXA_SESSION

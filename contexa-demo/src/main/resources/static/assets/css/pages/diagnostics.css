@@ -1,0 +1,31 @@
+.diagnostic-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 32px; align-items: start; }
+.chart-panel { padding: 28px 24px; }
+.chart-panel h2 { font-size: 15px; margin-bottom: 24px; }
+.chart-wrap { position: relative; height: 180px; }
+.chart-panel .small { margin: 20px 0 0; }
+.check-group { margin-bottom: 24px; }
+.check-group h2 { font-size: 16px; margin: 0; }
+.check-list { margin: 0; padding: 0; list-style: none; }
+.check-row { padding: 18px 24px; border-bottom: 1px solid var(--line); }
+.check-row:last-child { border-bottom: 0; }
+.check-label { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.check-row p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.check-row details { margin-top: 12px; padding-bottom: 0; }
+.connection-summary { display: flex; gap: 16px; align-items: center; padding: 24px 28px; }
+.connection-summary .icon { width: 28px; height: 28px; color: var(--accent); }
+.connection-summary p { margin: 4px 0 0; }
+.account-table .actions { margin: 0; }
+.role-list { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+    .diagnostic-layout { grid-template-columns: 1fr; }
+    .chart-panel { display: grid; grid-template-columns: 1fr 140px; gap: 12px; align-items: center; }
+    .chart-panel h2 { margin: 0; }
+    .chart-panel .small { margin: 0; grid-column: 1; }
+    .chart-wrap { height: 140px; grid-column: 2; grid-row: 1 / 3; }
+    .check-label { align-items: flex-start; }
+    .check-row { padding: 16px 20px; }
+    .account-table thead { display: none; }
+    .account-table tr { display: grid; grid-template-columns: 1fr 1fr; padding: 16px 20px; gap: 12px; border-bottom: 1px solid var(--line); }
+    .account-table td { border: 0; padding: 0; }
+    .account-table td:last-child { text-align: right; }
+}

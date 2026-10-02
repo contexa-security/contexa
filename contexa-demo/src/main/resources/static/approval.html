@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/work.css">
+    <script type="module" src="/assets/js/pages/approval.js"></script>
+</head>
+<body data-title="approval.detail">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/session.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page work-page" tabindex="-1">
+        <div class="work-environment"><span data-i18n="work.environment"></span><span id="environment"></span><span id="work-username" class="mono"></span></div>
+
+        <nav class="work-navigation" aria-label="Business navigation"><a href="/projects.html" data-i18n="work.projects"></a><a href="/customers.html" data-i18n="customer.list"></a><a href="/approvals.html" data-i18n="approval.list" aria-current="page"></a></nav>
+        <div class="page-heading"><p class="eyebrow">BUSINESS WORKSPACE</p><h1 id="page-title" data-i18n="approval.detail"></h1><p id="page-description" class="lead" data-i18n="approval.lead"></p></div>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div id="recovery" class="actions" hidden><a id="native-verification" class="button" data-i18n="work.mfa.continue" hidden></a><a class="button secondary" href="/session.html" data-i18n="work.account"></a><a id="connect-link" href="/connect.html" data-i18n="work.reconnect"></a></div>
+        <section class="surface" aria-labelledby="approval-detail-title">
+            <div class="surface-head"><h2 id="approval-detail-title" data-i18n="approval.detail"></h2><span id="approval-status"></span></div>
+            <div class="surface-body"><dl id="approval-facts" class="definition"></dl><h3 class="approval-section-title" data-i18n="approval.targets"></h3><ul id="approval-targets" class="approval-target-summary"></ul><p class="hint" data-i18n="approval.business.note"></p><div id="approval-work-return" class="actions" hidden><a id="approval-export" class="button secondary" data-i18n="approval.export.return"></a><span id="approval-return-note" class="small muted"></span></div></div>
+        </section>
+        <section class="surface evidence-section" aria-labelledby="approval-history-title">
+            <div class="surface-head"><h2 id="approval-history-title" data-i18n="approval.history"></h2></div><div class="surface-body"><ol id="approval-history" class="activity-list"></ol><p id="expiry-note" class="notice warning" data-i18n="approval.expiry.note" hidden></p></div>
+        </section>
+        <section id="review-panel" class="surface" aria-labelledby="review-title" hidden>
+            <div class="surface-head"><h2 id="review-title" data-i18n="approval.review"></h2></div><form id="review-form" class="surface-body approval-form"><p class="hint" data-i18n="approval.review.note"></p><div class="field"><label for="verdict" data-i18n="approval.verdict"></label><select id="verdict"><option value="APPROVED" data-i18n="approval.approve"></option><option value="REJECTED" data-i18n="approval.reject"></option></select></div><div class="field"><label for="review-reason" data-i18n="approval.review.reason"></label><textarea id="review-reason" rows="3" maxlength="1000" required></textarea></div><button id="review-submit" class="button" type="submit" data-i18n="approval.review.submit"></button></form>
+        </section>
+        <div class="actions"><button id="refresh" class="button secondary" type="button" data-i18n="work.refresh"></button><a id="approval-request-evidence" class="button secondary" data-i18n="work.evidence" hidden></a><a href="/approvals.html" data-i18n="approval.return"></a></div>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

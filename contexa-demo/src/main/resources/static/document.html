@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/work.css">
+    <script type="module" src="/assets/js/pages/document.js"></script>
+</head>
+<body data-title="work.document">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/session.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page work-page" tabindex="-1">
+        <div class="work-environment"><span data-i18n="work.environment"></span><span id="environment"></span><span id="work-username" class="mono"></span></div>
+        <nav id="breadcrumb" class="breadcrumb" aria-label="Breadcrumb"><a href="/projects.html" data-i18n="work.projects"></a></nav>
+        <nav class="work-navigation" aria-label="Business navigation"><a href="/projects.html" data-i18n="work.projects" aria-current="page"></a><a href="/customers.html" data-i18n="customer.list"></a><a href="/approvals.html" data-i18n="approval.list"></a></nav>
+        <div class="page-heading"><p class="eyebrow">BUSINESS WORKSPACE</p><h1 id="page-title" data-i18n="work.document"></h1><p id="page-description" class="lead" data-i18n="work.document.lead"></p></div>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div id="recovery" class="actions" hidden><a id="native-verification" class="button" data-i18n="work.mfa.continue" hidden></a><a class="button secondary" href="/session.html" data-i18n="work.account"></a><a id="connect-link" href="/connect.html" data-i18n="work.reconnect"></a></div>
+        <section id="document-meta" class="document-meta" aria-label="Document information"></section>
+        <section class="surface" aria-labelledby="content-title">
+            <div class="surface-head"><h2 id="content-title" data-i18n="work.content"></h2><span id="document-classification"></span></div>
+            <div class="surface-body">
+                <form id="read-form" class="read-form">
+                    <div class="field"><label for="purpose" data-i18n="work.purpose"></label><select id="purpose" name="purpose" aria-describedby="purpose-hint">
+                        <option value="PROJECT_REVIEW" data-i18n="work.purpose.PROJECT_REVIEW"></option>
+                        <option value="CUSTOMER_SUPPORT" data-i18n="work.purpose.CUSTOMER_SUPPORT"></option>
+                        <option value="CROSS_PROJECT_REVIEW" data-i18n="work.purpose.CROSS_PROJECT_REVIEW"></option>
+                        <option value="APPROVED_BULK_DELIVERY" data-i18n="approval.purpose.APPROVED_BULK_DELIVERY"></option>
+                        <option value="EMERGENCY_MAINTENANCE" data-i18n="approval.purpose.EMERGENCY_MAINTENANCE"></option>
+                        <option value="UNDECLARED" data-i18n="work.purpose.UNDECLARED"></option>
+                    </select><span id="purpose-hint" class="hint" data-i18n="work.purpose.note"></span></div>
+                    <div class="field approval-selection"><label for="work-approval" data-i18n="approval.link.label"></label><select id="work-approval" aria-describedby="work-approval-hint"></select><span id="work-approval-hint" class="hint"></span><div class="inline-links"><a id="work-approval-detail" data-i18n="approval.detail" hidden></a><a data-work-approval-new href="/approval-request.html?new=true" data-i18n="approval.new"></a></div></div>
+
+                    <button id="read" class="button" type="submit" disabled data-i18n="work.read" disabled></button>
+                </form>
+                <div id="content-empty" class="document-closed"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#lock"></use></svg><p data-i18n="work.closed"></p></div>
+                <article id="document-content" class="document-content" hidden></article>
+                <div id="read-result" class="feedback" role="status" aria-live="polite"></div>
+                <div class="actions"><a id="evidence-link" class="button secondary" hidden data-i18n="work.evidence"></a><a id="download-link" data-i18n="download.title"></a><a id="compare-link" data-i18n="compare.link"></a><a id="back-documents" data-i18n="work.return"></a></div>
+            </div>
+        </section>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

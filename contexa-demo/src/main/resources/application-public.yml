@@ -1,0 +1,64 @@
+# One fixed, exclusive worker pair per installation. No Docker control from the application.
+spring:
+  config:
+    import: optional:configtree:/run/secrets/
+  data:
+    redis:
+      host: ${LAB_REDIS_HOST:redis}
+      port: ${LAB_REDIS_PORT:6379}
+      database: 1
+  kafka:
+    bootstrap-servers: ${LAB_KAFKA_BOOTSTRAP:kafka:9093}
+    consumer:
+      group-id: lab-${LAB_WORKSPACE_GENERATION}
+  session:
+    redis:
+      namespace: lab:${LAB_WORKSPACE_GENERATION}:${lab.role}:session
+server:
+  address: 0.0.0.0
+  ssl:
+    enabled: true
+    key-store: ${LAB_TLS_KEYSTORE:file:/run/tls/lab.p12}
+    key-store-type: PKCS12
+    key-store-password: ${LAB_TLS_PASSWORD}
+  servlet:
+    session:
+      cookie:
+        name: LAB_${LAB_WORKSPACE_GENERATION}_${lab.role}
+        secure: true
+        http-only: true
+        same-site: lax
+lab:
+  identity:
+    usernames: user
+  entry:
+    secure-cookie: true
+    verified-lifetime: 24h
+  workspace:
+    enabled: true
+    lifetime: ${LAB_WORKSPACE_LIFETIME:30m}
+    comparisons: 3
+    chat-transmissions: 24
+    embedding-transmissions: 48
+    work-requests: 60
+    max-provider-request-bytes: 131072
+    worker-slot-id: public-one
+    worker-generation: ${LAB_WORKSPACE_GENERATION}
+    slots:
+      - id: public-one
+        generation: ${LAB_WORKSPACE_GENERATION}
+        baseline: ${LAB_BASELINE_URL}
+        contexa: ${LAB_CONTEXA_URL}
+contexa:
+  auth:
+    cookie-secure: true
+    urls:
+      factors:
+        passkey:
+          rp-id: ${LAB_RP_ID}
+          rp-name: Contexa Runtime Lab
+          allowed-origins: ${LAB_CONTEXA_URL}
+security:
+  plane:
+    kafka:
+      group-id: lab-${LAB_WORKSPACE_GENERATION}

@@ -1,0 +1,3 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+io.contexa.demo.bootstrap.environment.LocalEnvironmentPostProcessor,\
+io.contexa.demo.bootstrap.environment.DatabasePasswordEnvironmentPostProcessor

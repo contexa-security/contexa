@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/factors.css">
+    <script defer src="/assets/js/vendor/chart.umd.min.js"></script>
+    <script type="module" src="/assets/js/pages/factors.js"></script>
+</head>
+<body data-title="factor.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/experience.html" data-i18n="about"></a><button id="language" class="language" type="button">EN</button></nav>
+    </div></header>
+    <main id="main" class="page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/explore.html" data-i18n="explore.title"></a></nav>
+        <div class="page-heading"><p class="eyebrow">COMPARE · OBSERVED CONDITIONS</p><h1 data-i18n="factor.title"></h1><p class="lead" data-i18n="factor.lead"></p></div>
+        <section id="factor-setup" class="surface" hidden><div class="surface-head"><h2 data-i18n="factor.plan"></h2></div><form id="factor-form" class="surface-body">
+            <div class="field"><label for="factor-kind" data-i18n="factor.choose"></label><select id="factor-kind"><option value="BASELINE" data-i18n="factor.BASELINE"></option><option value="RAG" data-i18n="factor.RAG"></option><option value="BUSINESS_CONTEXT" data-i18n="factor.BUSINESS_CONTEXT"></option></select></div>
+            <p id="factor-purpose" class="notice"></p><div id="factor-pickers" class="factor-pickers"></div>
+            <div class="actions"><button id="factor-compare" class="button" type="submit" data-i18n="factor.compare"></button><a class="button secondary" href="/experience.html" data-i18n="journey.start"></a></div>
+        </form></section>
+        <div id="factor-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <section id="factor-result" hidden><p class="notice" data-i18n="factor.boundary"></p><div id="factor-pairs"></div><section id="factor-chart-panel" class="surface" hidden><div class="surface-body"><h2 data-i18n="factor.bytes"></h2><div class="factor-chart"><canvas id="factor-chart" role="img" aria-label="Response bytes by comparison"></canvas></div><p class="small muted" data-i18n="report.bytes.note"></p></div></section><a id="factor-export" class="button secondary" download="contexa-factor-comparison.json" data-i18n="factor.export"></a></section>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/memory.html" data-i18n="memory.source"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

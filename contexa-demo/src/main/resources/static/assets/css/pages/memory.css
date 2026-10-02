@@ -1,0 +1,9 @@
+.memory-direct { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin: 0 0 2rem; }
+.memory-direct p { max-width: 46rem; margin-bottom: 0; }
+.memory-direct .button { flex-shrink: 0; }
+#memory-run { display: block; width: 100%; min-height: 46px; margin: .5rem 0 1rem; padding: 10px 12px; border: 1px solid var(--control-border); border-radius: 8px; color: var(--ink); background: var(--paper); }
+#memory-result { margin: 1.5rem 0; }
+.memory-chart { height: 11rem; margin: 1.3rem 0; }
+#memory-details { margin-top: 1.5rem; }
+#memory-source { max-height: 28rem; }
+@media (max-width: 640px) { .memory-direct { align-items: stretch; flex-direction: column; gap: 1rem; } }

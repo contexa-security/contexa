@@ -1,0 +1,39 @@
+package io.contexa.demo.comparison.dispatch.http;
+
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
+import java.io.ByteArrayInputStream;
+
+public class BufferedRequestBody extends ServletInputStream {
+
+    private final ByteArrayInputStream input;
+
+    public BufferedRequestBody(byte[] body) {
+        this.input = new ByteArrayInputStream(body);
+    }
+
+    @Override
+    public int read() {
+        return input.read();
+    }
+
+    @Override
+    public int read(byte[] bytes, int offset, int length) {
+        return input.read(bytes, offset, length);
+    }
+
+    @Override
+    public boolean isFinished() {
+        return input.available() == 0;
+    }
+
+    @Override
+    public boolean isReady() {
+        return true;
+    }
+
+    @Override
+    public void setReadListener(ReadListener listener) {
+        throw new IllegalStateException("This comparison plan uses synchronous JSON requests");
+    }
+}

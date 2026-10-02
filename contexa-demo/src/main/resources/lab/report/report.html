@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="{{language}}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+    <title>{{title}} · Contexa Runtime Lab</title>
+    <style>{{style}}</style>
+</head>
+<body>
+    <main>
+        <p class="brand">contexa <span>RUNTIME LAB</span></p>
+        <h1>{{title}}</h1>
+        <p class="lead">{{description}}</p>
+        <dl><dt>{{captured}}</dt><dd>{{time}}</dd><dt>Run</dt><dd>{{run}}</dd><dt>SHA-256</dt><dd>{{hash}}</dd></dl>
+        <p class="state">{{state}}</p>
+        <div class="scroll"><table><thead><tr><th>{{environment}}</th><th>{{response}}</th><th>HTTP</th><th>{{decision}}</th><th>{{failure}}</th></tr></thead><tbody>{{rows}}</tbody></table></div>
+        <p class="note">{{note}}</p>
+        <p>{{reproduce}}</p>
+        <details><summary>{{original}}</summary><pre id="report-record">{{json}}</pre></details>
+    </main>
+</body>
+</html>

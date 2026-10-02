@@ -1,0 +1,69 @@
+{
+  "key": "S08",
+  "version": 1,
+  "definition": {
+    "display": {
+      "title": {
+        "ko": "신규 사용자·부족한 baseline",
+        "en": "New user with sparse history"
+      }
+    },
+    "initialState": {
+      "history": "EMPTY_HISTORY",
+      "staticAuthorization": "ALLOW_REQUIRED",
+      "identity": "MATCHED_ACROSS_ARMS",
+      "businessDatasetContract": "runtime-workspace-v1"
+    },
+    "requestPlan": [
+      {
+        "stepId": "S08-1",
+        "operation": "LIST_PROJECTS",
+        "selector": "ASSIGNED_PROJECTS",
+        "maxItems": 1
+      },
+      {
+        "stepId": "S08-2",
+        "operation": "READ_DOCUMENTS",
+        "selector": "ASSIGNED_PROJECT_DOCUMENTS",
+        "maxItems": 2
+      }
+    ],
+    "conditions": {
+      "provenance": "BUSINESS_CONFIGURATION",
+      "approval": "NOT_REQUIRED",
+      "purpose": "ASSIGNED_PROJECT_REVIEW",
+      "scope": "ASSIGNED",
+      "pace": "ORDINARY",
+      "evidenceAvailability": "SPARSE_HISTORY"
+    },
+    "mutableConditions": [
+      "approval",
+      "purpose",
+      "scope",
+      "pace"
+    ],
+    "timeSource": "ACTUAL_HTTP_OBSERVATION"
+  },
+  "oracle": {
+    "classification": "UNCERTAIN",
+    "allowedModelProposals": [
+      "ALLOW",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "allowedFinalResponses": [
+      "ALLOW",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "requiredEvidence": [
+      "SPARSE_BASELINE_FROM_SOURCE",
+      "NO_FABRICATED_HISTORY",
+      "UNCERTAINTY_ACKNOWLEDGED",
+      "RESPONSE_PROPORTIONATE_TO_RESOURCE_SENSITIVITY"
+    ],
+    "rationale": "baseline 부재 자체를 공격 근거로 삼지 않는다. 낮은 위험 업무의 조건부 허용과 합리적인 추가 확인을 구별해 평가한다.",
+    "technicalFallbackCountsAsDetection": false,
+    "staticDenialCountsAsDetection": false
+  }
+}

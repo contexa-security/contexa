@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/run.css">
+    <script src="/assets/js/vendor/chart.umd.min.js" defer></script>
+    <script type="module" src="/assets/js/pages/run.js"></script>
+</head>
+<body data-title="run.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/connect.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page run-page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/connect.html" data-i18n="work.account"></a><span aria-hidden="true">/</span><a href="/comparison.html" data-i18n="compare.link"></a></nav>
+        <div class="page-heading"><p class="eyebrow">COMPARISON · RESULTS</p><h1 data-i18n="run.title"></h1><p class="lead" data-i18n="run.lead"></p></div>
+        <section class="surface" aria-labelledby="plan-title"><div class="surface-body run-plan"><div><p id="plan-title" class="eyebrow" data-i18n="run.plan"></p><h2 id="run-plan"></h2><p id="run-purpose" class="small muted"></p><p id="run-deadline" class="small muted"></p></div><div id="run-state" role="status" aria-live="polite"></div></div></section>
+        <p id="run-summary" class="run-summary" role="status" aria-live="polite"></p>
+        <p id="run-limitations" class="notice warning" data-i18n="run.partial"></p>
+        <div class="run-actions"><button id="run-start" type="button" class="button" data-i18n="run.start" disabled></button><button id="run-cancel" type="button" class="button secondary" data-i18n="run.cancel" disabled></button><button id="run-refresh" type="button" class="button secondary" data-i18n="run.refresh"></button><a id="run-prepare-again" class="button secondary" href="/comparison.html" data-i18n="run.prepareAgain" hidden></a></div>
+        <p id="run-cancel-note" class="small muted" data-i18n="run.cancel.note"></p>
+        <div class="actions" id="run-report-recovery" hidden><p id="run-report-status" class="small" role="status" aria-live="polite"></p><button id="run-report-retry" type="button" class="button secondary" data-i18n="run.reports.retry"></button></div>
+        <div id="run-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <section class="surface" aria-label="Comparison"><div id="run-pair" class="run-pair"></div><div class="run-measure"><h3 data-i18n="run.output"></h3><div id="run-chart-wrap" class="run-chart" hidden><canvas id="run-chart" role="img" aria-label="Response body bytes"></canvas></div><p class="small muted" data-i18n="run.output.note"></p></div></section>
+        <section id="run-variation" class="surface" hidden aria-labelledby="variation-title"><div class="surface-head"><h2 id="variation-title" data-i18n="variation.title"></h2><a id="variation-parent" data-i18n="variation.original"></a></div><div class="surface-body"><p class="small muted" data-i18n="variation.boundary"></p><div id="variation-summary"></div><details><summary data-i18n="variation.details"></summary><div id="variation-conditions"></div></details></div></section>
+        <p class="small muted" data-i18n="run.source.note"></p>
+        <details id="run-history-details"><summary data-i18n="run.events"></summary><ol id="run-events" class="run-history"></ol><p id="run-event-limit" class="notice warning" data-i18n="run.events.limit" hidden></p></details>
+        <details id="run-source-details"><summary data-i18n="run.source"></summary><p data-i18n="run.one"></p><p id="run-review-contract" class="small muted" hidden></p><pre id="run-json" tabindex="0"></pre><p class="small muted" data-i18n="run.client.note"></p></details>
+        <section id="run-history-reference" class="surface" hidden><div class="surface-head"><h2 data-i18n="memory.existing"></h2><a id="run-history-report" data-i18n="memory.report"></a></div><div class="surface-body"><p class="small muted" data-i18n="memory.boundary"></p><dl id="run-history-facts" class="definition"></dl><details><summary data-i18n="memory.source"></summary><pre id="run-history-original" tabindex="0"></pre></details></div></section>
+        <div class="actions"><a id="run-variation-link" class="button secondary" href="/comparison.html" data-i18n="variation.start" hidden></a><a id="run-report-link" class="button secondary" href="/report.html" data-i18n="report.link" hidden></a><a class="button secondary" href="/experience.html" data-i18n="about"></a></div>
+        <p class="small muted" data-i18n="run.reload.note"></p>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

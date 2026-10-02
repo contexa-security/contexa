@@ -1,0 +1,20 @@
+export const securityFeedbackMessages = {
+    'security.label': ['로그인 이후의 보안 확인', 'Security after sign-in'],
+    'security.verify.title': ['본인 확인 후 계속하세요', 'Verify your identity to continue'],
+    'security.blockVerify.title': ['제한 해제를 위한 본인 확인', 'Identity check for restricted access'],
+    'security.blocked.title': ['업무 접근이 제한되었습니다', 'Work access is restricted'],
+    'security.review.title': ['보안 검토가 진행 중입니다', 'Security review in progress'],
+    'security.pending.title': ['분석이 아직 완료되지 않았습니다', 'Analysis is not complete yet'],
+    'security.pending.body': ['보안 확인이 끝나지 않아 이 요청을 진행하지 않았습니다.', 'This request did not proceed because its security check is incomplete.'],
+    'security.recheck': ['현재 접근 상태 확인', 'Check current access status'],
+    'security.recheck.next': ['업무 화면을 다시 열어 Contexa의 안내를 확인하세요. 파일 요청은 자동으로 다시 보내지 않습니다.', 'Reopen the work page to follow Contexa’s guidance. The file request will not be sent again automatically.'],
+    'security.verify.body': ['현재 활동을 계속하려면 추가 인증이 필요합니다.', 'Additional verification is required to continue this activity.'],
+    'security.blockVerify.body': ['Contexa가 업무를 제한하고 본인 확인 절차를 제공했습니다.', 'Contexa has restricted work access and provided an identity verification step.'],
+    'security.blocked.body': ['현재 보안 상태에 따라 이 업무 요청을 진행할 수 없습니다.', 'The current security state prevents this work request from proceeding.'],
+    'security.review.body': ['현재 활동을 추가로 확인하는 동안 이 요청을 진행할 수 없습니다.', 'This request cannot proceed while the activity is under further review.'],
+    'security.verify.next': ['추가 인증은 Contexa 인증 화면에서 진행합니다. 완료 후 업무 화면으로 돌아와 요청을 직접 이어가세요.', 'Complete the additional check on the Contexa authentication page, then return to work and continue your request.'],
+    'security.blockVerify.next': ['본인 확인만으로 해제가 보장되지는 않습니다. Contexa의 확인 결과와 안내에 따라 진행하세요.', 'Identity verification does not guarantee access will be restored. Follow the result and guidance from Contexa.'],
+    'security.blocked.next': ['보안 안내에서 해제 요청 절차를 확인하세요. 이미 받은 자료와 이전 요청의 결과는 그대로 보존됩니다.', 'Open the security notice for the review process. Previously received data and earlier request results remain unchanged.'],
+    'security.review.next': ['진행 상태를 확인한 뒤 업무 화면으로 돌아오세요. 이 화면은 업무 요청을 자동으로 다시 보내지 않습니다.', 'Check the review status before returning to work. This page does not automatically resend your work request.'],
+    'security.link.unavailable': ['서버가 사용할 수 있는 안내 경로를 제공하지 않았습니다. 운영자에게 문의해 주세요.', 'The server did not provide a supported continuation link. Contact the operator.']
+};

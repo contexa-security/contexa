@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/diagnostics.css">
+    <script src="/assets/js/vendor/chart.umd.min.js" defer></script>
+    <script type="module" src="/assets/js/pages/operator.js"></script>
+</head>
+<body data-title="operator.title">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab">
+                <svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>
+                contexa
+            </a>
+            <span class="brand-caption">RUNTIME LAB</span>
+            <nav class="header-actions" aria-label="Navigation">
+                <a class="header-link" href="/index.html" data-i18n="about">체험 안내</a>
+                <button id="language" class="language" type="button" aria-label="Switch to English">EN</button>
+            </nav>
+        </div>
+    </header>
+    <main id="main" class="page " tabindex="-1">
+<div class="page-heading"><p class="eyebrow">OPERATIONS</p><h1 data-i18n="operator.title"></h1><p class="lead" data-i18n="operator.description"></p></div>
+<div id="authorization" class="notice" hidden><p id="authorization-message"></p><a id="operator-login" class="button compact" href="/login" data-i18n="operator.signin"></a></div>
+<div id="diagnostic-content" hidden>
+    <div class="diagnostic-layout">
+        <aside class="surface chart-panel"><h2 data-i18n="operator.chart"></h2><div class="chart-wrap"><canvas id="check-chart" role="img" aria-label="Diagnostic check counts"></canvas></div><p id="chart-summary" class="small muted"></p><p class="small muted" data-i18n="operator.chart.note"></p></aside>
+        <section id="checks" aria-label="Component checks"></section>
+    </div>
+    <div class="actions"><button id="refresh" class="button secondary" type="button" data-i18n="refresh"></button><button id="capture" class="button" type="button" data-i18n="operator.capture"></button><a href="/history.html" data-i18n="operator.history"></a></div>
+</div>
+<div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <span data-i18n="footer">인증 이후에도, 업무의 맥락을 확인합니다.</span>
+            <span><a href="/status.html" data-i18n="status">준비 상태</a> · <a href="/operator.html" data-i18n="operator">운영 진단</a></span>
+        </div>
+    </footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required for this experience.</noscript>
+</body>
+</html>

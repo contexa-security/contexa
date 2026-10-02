@@ -1,0 +1,24 @@
+# Opt-in verification profile. The default remains standalone.
+contexa:
+  infrastructure:
+    mode: distributed
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 16379
+      database: 0
+      timeout: 3s
+  kafka:
+    bootstrap-servers: localhost:19092
+    consumer:
+      group-id: contexa-runtime-lab-security
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+  session:
+    redis:
+      namespace: contexa:lab:${lab.role}:session
+security:
+  plane:
+    kafka:
+      group-id: contexa-runtime-lab-security

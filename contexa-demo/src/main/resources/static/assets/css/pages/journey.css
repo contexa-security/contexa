@@ -1,0 +1,24 @@
+.journey-steps { display: flex; flex-wrap: wrap; gap: .65rem; margin: 1.75rem 0; }
+.journey-steps button { display: flex; align-items: center; gap: .6rem; border: 1px solid var(--line); border-radius: .7rem; padding: .8rem 1rem; background: var(--paper); color: var(--ink); }
+.journey-steps button[aria-current="step"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.journey-steps .step-number { border: 1px solid currentColor; border-radius: 50%; width: 1.8rem; height: 1.8rem; flex: 0 0 1.8rem; padding: 0; display: grid; place-items: center; line-height: 1; }
+#journey-active > .surface { margin-top: 1.3rem; }
+.journey-targets { display: grid; gap: .65rem; margin-top: 1.3rem; }
+.journey-target { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.journey-target p { margin: .2rem 0; }
+.journey-catalog { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.journey-catalog > section { border: 1px solid var(--line); padding: 1rem; border-radius: .75rem; }
+.journey-catalog li { padding: .3rem 0; }
+#journey-start-panel { max-width: 42rem; }
+#journey-start-form label { display: block; margin-bottom: .5rem; font-weight: 650; }
+#journey-start-form select { width: 100%; }
+#journey-source { max-height: 30rem; }
+.journey-control { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.journey-control summary { cursor: pointer; font-weight: 600; }
+.journey-control p { margin: 1rem 0; }
+@media (max-width: 640px) {
+    .journey-catalog { grid-template-columns: 1fr; }
+    .journey-target { align-items: stretch; flex-direction: column; }
+    .journey-steps { flex-direction: column; }
+    .journey-steps button { text-align: left; }
+}

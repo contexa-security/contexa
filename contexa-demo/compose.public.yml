@@ -1,0 +1,149 @@
+name: contexa-runtime-lab-public
+x-app: &app
+  image: contexa-runtime-lab:public
+  build: .
+  volumes:
+    - ${LAB_TLS_DIRECTORY:?Set private TLS directory}:/run/tls:ro
+  secrets:
+    - LAB_DB_PASSWORD
+    - LAB_TLS_PASSWORD
+    - LAB_ACCOUNT_PASSWORD
+    - SPRING_MAIL_PASSWORD
+  healthcheck:
+    test: ["CMD-SHELL", "curl --fail --silent --insecure https://localhost:8080/actuator/health > /dev/null"]
+    interval: 10s
+    timeout: 5s
+    retries: 18
+    start_period: 90s
+  restart: unless-stopped
+x-environment: &environment
+  LAB_DB_USER: lab
+  LAB_PORT: 8080
+  LAB_PORTAL_DB_URL: jdbc:postgresql://postgres:5432/lab_portal
+  LAB_BASELINE_DB_URL: jdbc:postgresql://postgres:5432/lab_${LAB_GENERATION_HEX}_baseline
+  LAB_CONTEXA_DB_URL: jdbc:postgresql://postgres:5432/lab_${LAB_GENERATION_HEX}_contexa
+  LAB_SECURITY_DB_URL: jdbc:postgresql://postgres:5432/lab_${LAB_GENERATION_HEX}_security
+  LAB_WORKSPACE_GENERATION: ${LAB_WORKSPACE_GENERATION:?Set a new generation UUID}
+  LAB_RP_ID: ${LAB_RP_ID:?Set RP host matching the origins}
+  LAB_WORKSPACE_LIFETIME: ${LAB_WORKSPACE_LIFETIME:-30m}
+  LAB_PORTAL_URL: ${LAB_PORTAL_URL:?Set HTTPS portal origin}
+  LAB_BASELINE_URL: ${LAB_BASELINE_URL:?Set HTTPS baseline origin}
+  LAB_CONTEXA_URL: ${LAB_CONTEXA_URL:?Set HTTPS Contexa origin}
+  LAB_CHAT_PROVIDER: ${LAB_CHAT_PROVIDER:-openai}
+  LAB_CHAT_MODEL: ${LAB_CHAT_MODEL:-gpt-5-nano}
+  LAB_EMBEDDING_PROVIDER: ollama
+  LAB_EMBEDDING_MODEL: mxbai-embed-large:latest
+  LAB_EMBEDDING_DIMENSIONS: 1024
+  LAB_OLLAMA_URL: ${LAB_OLLAMA_URL:-http://host.docker.internal:11434}
+  SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:?Set mail host}
+  SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+  SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+  LAB_EMAIL_FROM: ${LAB_EMAIL_FROM:?Set sender}
+  LAB_MAIL_STARTTLS: ${LAB_MAIL_STARTTLS:-true}
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: lab_portal
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD_FILE: /run/secrets/LAB_DB_PASSWORD
+    secrets: [LAB_DB_PASSWORD]
+    volumes: [public-postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab_portal"]
+      interval: 5s
+      retries: 12
+    restart: unless-stopped
+  databases:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      LAB_GENERATION_HEX: ${LAB_GENERATION_HEX:?Set generation UUID without hyphens}
+    secrets: [LAB_DB_PASSWORD]
+    volumes: [./infra/prepare-public-databases.sh:/prepare.sh:ro]
+    entrypoint: ["/bin/sh", "/prepare.sh"]
+    restart: "no"
+  redis:
+    image: redis:7.2-alpine
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy noeviction
+    volumes: [public-redis:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 12
+    restart: unless-stopped
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment: {ZOOKEEPER_CLIENT_PORT: 2181, ZOOKEEPER_TICK_TIME: 2000}
+    volumes: [public-zookeeper-data:/var/lib/zookeeper/data, public-zookeeper-logs:/var/lib/zookeeper/log]
+    restart: unless-stopped
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on: [zookeeper]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes: [public-kafka:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9093"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+  portal:
+    <<: *app
+    environment:
+      <<: *environment
+      SPRING_PROFILES_ACTIVE: portal,persistent,public
+      LAB_DB_URL: jdbc:postgresql://postgres:5432/lab_portal
+    ports: ["127.0.0.1:${LAB_PORTAL_PORT:-19080}:8080"]
+    depends_on:
+      databases: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  baseline:
+    <<: *app
+    environment:
+      <<: *environment
+      SPRING_PROFILES_ACTIVE: baseline,persistent,public
+      LAB_DB_URL: jdbc:postgresql://postgres:5432/lab_${LAB_GENERATION_HEX}_baseline
+    ports: ["127.0.0.1:${LAB_BASELINE_PORT:-19081}:8080"]
+    depends_on:
+      portal: {condition: service_healthy}
+  contexa:
+    <<: *app
+    environment:
+      <<: *environment
+      SPRING_PROFILES_ACTIVE: contexa,persistent,public
+      LAB_DB_URL: jdbc:postgresql://postgres:5432/lab_${LAB_GENERATION_HEX}_contexa
+    ports: ["127.0.0.1:${LAB_CONTEXA_PORT:-19082}:8080"]
+    secrets:
+      - LAB_DB_PASSWORD
+      - LAB_TLS_PASSWORD
+      - LAB_ACCOUNT_PASSWORD
+      - SPRING_MAIL_PASSWORD
+      - OPENAI_API_KEY
+    depends_on:
+      portal: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+volumes:
+  public-postgres:
+  public-redis: {name: "${COMPOSE_PROJECT_NAME:-contexa-runtime-lab-public}-redis-${LAB_GENERATION_HEX}"}
+  public-zookeeper-data: {name: "${COMPOSE_PROJECT_NAME:-contexa-runtime-lab-public}-zk-data-${LAB_GENERATION_HEX}"}
+  public-zookeeper-logs: {name: "${COMPOSE_PROJECT_NAME:-contexa-runtime-lab-public}-zk-logs-${LAB_GENERATION_HEX}"}
+  public-kafka: {name: "${COMPOSE_PROJECT_NAME:-contexa-runtime-lab-public}-kafka-${LAB_GENERATION_HEX}"}
+secrets:
+  LAB_DB_PASSWORD: {file: "${LAB_SECRET_DIRECTORY:?Set private secret directory}/LAB_DB_PASSWORD"}
+  LAB_TLS_PASSWORD: {file: "${LAB_SECRET_DIRECTORY}/LAB_TLS_PASSWORD"}
+  LAB_ACCOUNT_PASSWORD: {file: "${LAB_SECRET_DIRECTORY}/LAB_ACCOUNT_PASSWORD"}
+  SPRING_MAIL_PASSWORD: {file: "${LAB_SECRET_DIRECTORY}/SPRING_MAIL_PASSWORD"}
+  OPENAI_API_KEY: {file: "${LAB_SECRET_DIRECTORY}/OPENAI_API_KEY"}

@@ -1,0 +1,6 @@
+*
+!build/
+!build/libs/
+!build/libs/contexa-demo-0.1.0.jar
+!infra/
+!infra/logback-public.xml

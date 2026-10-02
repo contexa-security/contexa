@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/report.css">
+    <script src="/assets/js/vendor/chart.umd.min.js" defer></script>
+    <script type="module" src="/assets/js/pages/report.js"></script>
+</head>
+<body data-title="report.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/experience.html" data-i18n="about"></a><button id="language" class="language" type="button">EN</button></nav>
+    </div></header>
+    <main id="main" class="page report-page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a id="report-run" href="/comparison.html" data-i18n="report.run"></a></nav>
+        <div class="page-heading"><p class="eyebrow">EXPERIENCE · REPORT</p><h1 data-i18n="report.title"></h1><p class="lead" data-i18n="report.lead"></p></div>
+        <div class="report-toolbar"><button id="report-capture" class="button" type="button" disabled data-i18n="report.capture"></button><p class="small muted" data-i18n="report.capture.note"></p></div>
+        <div id="report-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <p id="report-empty" class="empty" role="status" data-i18n="loading"></p>
+        <section id="report-content" hidden>
+            <div class="report-stamp"><div><span class="small muted" data-i18n="report.saved"></span><p id="report-time"></p></div><div class="actions"><a id="report-json" class="button secondary compact" data-i18n="report.json"></a><a id="report-html" class="button secondary compact" data-i18n="report.html"></a></div></div>
+            <section class="surface" aria-labelledby="report-scope"><div class="surface-head"><h2 id="report-scope" data-i18n="report.scope"></h2><span id="report-state"></span></div><div id="report-arms" class="report-arms"></div><div id="report-chart-section" class="surface-body" hidden><h3 data-i18n="report.bytes"></h3><div class="report-chart"><canvas id="report-chart" role="img" aria-label="Server response bytes"></canvas></div><p class="small muted" data-i18n="report.bytes.note"></p></div></section>
+            <section id="report-scenario" class="surface" hidden><div class="surface-head"><h2 data-i18n="review.scenario"></h2><a id="report-scenario-link" data-i18n="journey.return"></a></div><div class="surface-body"><h3 id="report-scenario-name"></h3><p class="small muted" data-i18n="review.allowed"></p><div id="report-scenario-actions" class="actions"></div><p data-i18n="review.note"></p><ul id="report-scenario-evidence"></ul></div></section>
+            <section class="report-limits" aria-labelledby="limits-title"><h2 id="limits-title" data-i18n="report.limits"></h2><ul id="report-limit-list"></ul><p class="small muted" data-i18n="report.review.note"></p></section>
+            <section class="surface" aria-labelledby="review-title"><div class="surface-head"><h2 id="review-title" data-i18n="report.review"></h2></div><form id="review-form" class="surface-body">
+                <div class="report-fields"><div class="field"><label for="review-position" data-i18n="report.position"></label><select id="review-position" required><option value="UNSURE" data-i18n="report.UNSURE"></option><option value="AGREE" data-i18n="report.AGREE"></option><option value="DISAGREE" data-i18n="report.DISAGREE"></option></select></div><div class="field"><label for="review-request" data-i18n="report.reference"></label><select id="review-request"></select></div></div>
+                <div class="field"><label for="review-comment" data-i18n="report.comment"></label><textarea id="review-comment" rows="4" maxlength="1600" required aria-describedby="review-hint"></textarea><span id="review-hint" class="hint" data-i18n="report.comment.hint"></span></div>
+                <button id="review-submit" class="button" type="submit" data-i18n="report.submit"></button><div id="review-feedback" class="feedback" role="status" aria-live="polite"></div>
+            </form></section>
+            <details><summary data-i18n="report.reviews"></summary><div id="report-reviews"></div></details>
+            <details><summary data-i18n="report.versions"></summary><ol id="report-versions"></ol></details>
+            <details><summary data-i18n="report.original"></summary><p id="report-hash" class="mono"></p><p data-i18n="report.reproduce"></p><pre id="report-original" tabindex="0"></pre></details>
+        </section>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/experience.html" data-i18n="about"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

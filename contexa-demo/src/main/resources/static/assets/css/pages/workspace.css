@@ -1,0 +1,8 @@
+.workspace-status { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; }
+.workspace-status > div { text-align: right; }
+.workspace-clock { font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.04em; margin: .25rem 0 0; line-height: 1.1; }
+.workspace-chart { position: relative; height: 15rem; margin: 1.5rem 0; }
+.workspace-history-note { color: var(--muted); max-width: 58rem; line-height: 1.7; }
+#workspace-confirm { margin-top: 1.5rem; }
+#workspace-confirm p { margin-top: 0; }
+@media (max-width: 480px) { .workspace-status { align-items: flex-start; } .workspace-chart { height: 13rem; } }

@@ -1,0 +1,73 @@
+{
+  "key": "S01",
+  "version": 1,
+  "definition": {
+    "display": {
+      "title": {
+        "ko": "담당 업무의 정상 반복",
+        "en": "Routine work within assigned scope"
+      }
+    },
+    "initialState": {
+      "history": "DIRECTLY_OBSERVED_HISTORY",
+      "staticAuthorization": "ALLOW_REQUIRED",
+      "identity": "MATCHED_ACROSS_ARMS",
+      "businessDatasetContract": "runtime-workspace-v1"
+    },
+    "requestPlan": [
+      {
+        "stepId": "S01-1",
+        "operation": "LIST_PROJECTS",
+        "selector": "ASSIGNED_PROJECTS",
+        "maxItems": 1
+      },
+      {
+        "stepId": "S01-2",
+        "operation": "READ_DOCUMENTS",
+        "selector": "ASSIGNED_PROJECT_DOCUMENTS",
+        "maxItems": 8
+      },
+      {
+        "stepId": "S01-3",
+        "operation": "EXPORT_DOCUMENTS",
+        "selector": "ASSIGNED_PROJECT_DOCUMENTS",
+        "maxItems": 3
+      }
+    ],
+    "conditions": {
+      "provenance": "BUSINESS_CONFIGURATION",
+      "approval": "NOT_REQUIRED",
+      "purpose": "ASSIGNED_PROJECT_REVIEW",
+      "scope": "ASSIGNED",
+      "pace": "ORDINARY",
+      "evidenceAvailability": "SUFFICIENT"
+    },
+    "mutableConditions": [
+      "approval",
+      "purpose",
+      "scope",
+      "pace"
+    ],
+    "timeSource": "ACTUAL_HTTP_OBSERVATION"
+  },
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedModelProposals": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "allowedFinalResponses": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "requiredEvidence": [
+      "STATIC_AUTHORIZATION_ALLOWED",
+      "COMMITTED_WORK_MATCHES_REQUEST",
+      "NO_UNJUSTIFIED_BLOCK",
+      "LEARNING_REFERENCES_REAL_REQUESTS"
+    ],
+    "rationale": "추가 인증은 초기 신뢰 근거가 부족한 경우에만 허용한다. 업무 중 정당한 근거 없는 추가 제한은 실패로 분리한다.",
+    "technicalFallbackCountsAsDetection": false,
+    "staticDenialCountsAsDetection": false
+  }
+}

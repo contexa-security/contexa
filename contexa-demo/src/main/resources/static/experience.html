@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/experience.css">
+    <script type="module" src="/assets/js/pages/experience.js"></script>
+</head>
+<body data-title="experience.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/workspace.html" data-i18n="workspace.title"></a><a class="header-link" href="/connect.html" data-i18n="work.account"></a><button id="language" class="language" type="button">EN</button></nav>
+    </div></header>
+    <main id="main" class="page experience-page" tabindex="-1">
+        <div class="page-heading"><p class="eyebrow">SECURITY AFTER SIGN-IN</p><h1 data-i18n="experience.title"></h1><p class="lead" data-i18n="experience.lead"></p></div>
+        <nav class="experience-steps" aria-label="Experience steps">
+            <a href="/experience.html?step=normal" data-step="normal"><span class="step-number">01</span><span data-i18n="experience.normal"></span></a>
+            <a href="/experience.html?step=change" data-step="change"><span class="step-number">02</span><span data-i18n="experience.change"></span></a>
+            <a href="/experience.html?step=exception" data-step="exception"><span class="step-number">03</span><span data-i18n="experience.exception"></span></a>
+        </nav>
+        <section class="surface experience-stage" aria-labelledby="stage-title">
+            <div class="stage-story"><div class="stage-symbol" aria-hidden="true"><svg class="icon"><use href="/assets/icons.svg#shield"></use></svg></div><h2 id="stage-title"></h2><p id="stage-description" class="lead"></p><div class="stage-facts"><span class="badge" data-i18n="experience.fixed"></span><span class="badge" data-i18n="experience.actual"></span></div><div class="stage-observe"><h3 data-i18n="experience.observe"></h3><p id="stage-observe"></p></div></div>
+            <div class="stage-action"><p class="eyebrow" data-i18n="experience.resource"></p><div id="stage-resource" role="status" aria-live="polite"></div><div id="stage-actions" class="actions"></div><p class="small muted" data-i18n="experience.resultNote"></p></div>
+        </section>
+        <div id="experience-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <section id="experience-journeys" class="surface" hidden><div class="surface-head"><h2 data-i18n="journey.resume"></h2></div><div id="experience-journey-list"></div></section>
+        <div class="experience-explore"><div><h2 data-i18n="experience.more"></h2><p class="small muted" data-i18n="experience.more.note"></p></div><a class="button secondary" href="/explore.html" data-i18n="explore.inspect"></a></div>
+        <div class="experience-explore"><div><h2 data-i18n="memory.existing"></h2><p class="small muted" data-i18n="memory.compatibility"></p></div><a class="button secondary" href="/memory.html" data-i18n="memory.source"></a></div>
+        <section class="surface" aria-labelledby="records-title"><div class="surface-head"><div><h2 id="records-title" data-i18n="experience.records"></h2><p class="small muted" data-i18n="experience.records.note"></p></div><button id="experience-refresh" class="button secondary compact" type="button" data-i18n="refresh"></button></div><div id="experience-records"></div><p id="experience-empty" class="empty" role="status" data-i18n="loading"></p></section>
+        <details class="experience-terms"><summary data-i18n="experience.terms"></summary><div class="term-list"><section><h3 data-i18n="experience.confidence"></h3><p data-i18n="experience.confidence.body"></p></section><section><h3 data-i18n="experience.history"></h3><p data-i18n="experience.history.body"></p></section><section><h3 data-i18n="experience.reuse"></h3><p data-i18n="experience.reuse.body"></p></section></div></details>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

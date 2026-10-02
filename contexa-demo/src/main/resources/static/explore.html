@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/experience.css">
+    <script type="module" src="/assets/js/pages/explore.js"></script>
+</head>
+<body data-title="explore.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/experience.html" data-i18n="about"></a><button id="language" class="language" type="button">EN</button></nav>
+    </div></header>
+    <main id="main" class="page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/experience.html" data-i18n="about"></a></nav>
+        <div class="page-heading"><p class="eyebrow">EXPLORE · WORK CONTEXT</p><h1 data-i18n="explore.title"></h1><p class="lead" data-i18n="explore.lead"></p></div>
+        <div id="explore-feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div class="explore-layout"><nav id="scenario-nav" class="scenario-nav" aria-label="Scenarios"></nav><section id="scenario-panel" class="surface scenario-panel" hidden aria-labelledby="scenario-title"><div class="surface-body">
+            <p id="scenario-version" class="eyebrow"></p><h2 id="scenario-title" tabindex="-1"></h2><p id="scenario-description" class="lead"></p>
+            <h3 data-i18n="explore.plan"></h3><ol id="scenario-plan" class="scenario-plan"></ol>
+            <p class="notice" data-i18n="explore.unverified"></p><div class="actions"><a id="scenario-continue" class="button" href="/experience.html" data-i18n="explore.continue"></a></div>
+            <div class="actions"><a class="button secondary" href="/factors.html" data-i18n="factor.title"></a></div>
+            <details><summary data-i18n="explore.conditions"></summary><pre id="scenario-conditions" tabindex="0"></pre><p id="scenario-hash" class="mono"></p></details>
+            <details id="scenario-criteria-details"><summary data-i18n="explore.criteria"></summary><p class="small muted" data-i18n="explore.criteria.note"></p><pre id="scenario-criteria" tabindex="0"></pre></details>
+        </div></section></div>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/experience.html" data-i18n="about"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

@@ -1,0 +1,92 @@
+# Dedicated verification infrastructure, based on ../docker-compose.yml.
+# The ordinary demo continues to use standalone mode and does not start these services.
+name: contexa-runtime-lab-persistent
+services:
+  redis:
+    image: redis:7.2-alpine
+    labels:
+      io.contexa.lab.scope: persistent-verification
+    ports:
+      - "127.0.0.1:16379:6379"
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy noeviction
+    volumes:
+      - lab-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    labels:
+      io.contexa.lab.scope: persistent-verification
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - lab-zookeeper-data:/var/lib/zookeeper/data
+      - lab-zookeeper-logs:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    labels:
+      io.contexa.lab.scope: persistent-verification
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,PLAINTEXT_HOST://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:19092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "127.0.0.1:19092:19092"
+    volumes:
+      - lab-kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9093"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+  kafka-init:
+    image: confluentinc/cp-kafka:7.4.0
+    labels:
+      io.contexa.lab.scope: persistent-verification
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-euc"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic security.events.authentication.success --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic security.events.authentication.mfa --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic security.events.authorization.method --partitions 3 --replication-factor 1
+    restart: "no"
+volumes:
+  lab-redis:
+    labels:
+      io.contexa.lab.scope: persistent-verification
+  lab-zookeeper-data:
+    labels:
+      io.contexa.lab.scope: persistent-verification
+  lab-zookeeper-logs:
+    labels:
+      io.contexa.lab.scope: persistent-verification
+  lab-kafka:
+    labels:
+      io.contexa.lab.scope: persistent-verification

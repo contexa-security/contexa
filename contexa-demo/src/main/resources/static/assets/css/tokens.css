@@ -1,0 +1,20 @@
+:root {
+    color-scheme: light;
+    --canvas: #f6f7f8;
+    --paper: #ffffff;
+    --ink: #152a32;
+    --muted: #566773;
+    --line: #dce3e7;
+    --control-border: #788a95;
+    --accent: #006b5c;
+    --accent-hover: #005347;
+    --accent-soft: #e6f3ef;
+    --amber: #805800;
+    --amber-soft: #fff5dc;
+    --danger: #a33138;
+    --danger-soft: #fff0ef;
+    --shadow: 0 12px 40px #18303908;
+    --radius: 16px;
+    --font: "Segoe UI Variable", "Segoe UI", "Malgun Gothic", sans-serif;
+    --mono: "Cascadia Code", Consolas, monospace;
+}

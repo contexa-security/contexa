@@ -1,0 +1,67 @@
+{
+  "key": "S02",
+  "version": 1,
+  "definition": {
+    "display": {
+      "title": {
+        "ko": "승인된 대량 처리",
+        "en": "Approved bulk processing"
+      }
+    },
+    "initialState": {
+      "history": "DIRECTLY_OBSERVED_HISTORY",
+      "staticAuthorization": "ALLOW_REQUIRED",
+      "identity": "MATCHED_ACROSS_ARMS",
+      "businessDatasetContract": "runtime-workspace-v1"
+    },
+    "requestPlan": [
+      {
+        "stepId": "S02-1",
+        "operation": "READ_APPROVAL",
+        "selector": "VALID_BULK_APPROVAL",
+        "maxItems": 1
+      },
+      {
+        "stepId": "S02-2",
+        "operation": "EXPORT_DOCUMENTS",
+        "selector": "APPROVED_PROJECT_DOCUMENTS",
+        "maxItems": 40
+      }
+    ],
+    "conditions": {
+      "provenance": "BUSINESS_CONFIGURATION",
+      "approval": "VALID_SCOPED_APPROVAL",
+      "purpose": "APPROVED_BULK_DELIVERY",
+      "scope": "APPROVED",
+      "pace": "BULK",
+      "evidenceAvailability": "SUFFICIENT"
+    },
+    "mutableConditions": [
+      "approval",
+      "purpose",
+      "scope",
+      "pace"
+    ],
+    "timeSource": "ACTUAL_HTTP_OBSERVATION"
+  },
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedModelProposals": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "allowedFinalResponses": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "requiredEvidence": [
+      "APPROVAL_VALID_AT_REQUEST",
+      "EFFECT_WITHIN_APPROVED_SCOPE",
+      "NO_VOLUME_ONLY_THREAT_CLAIM",
+      "NO_UNJUSTIFIED_BLOCK"
+    ],
+    "rationale": "유효한 승인과 범위가 DB에서 확인되어야 한다. 양 증가만으로 BLOCK·장기 검토를 선택하면 정상 업무 오탐이다.",
+    "technicalFallbackCountsAsDetection": false,
+    "staticDenialCountsAsDetection": false
+  }
+}

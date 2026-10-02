@@ -1,0 +1,22 @@
+.export-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.export-selection-summary { grid-column: 2; grid-row: 1; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
+.export-selection-summary h3 { margin: 10px 0 14px; font-size: 27px; }
+.export-selection-summary .eyebrow { margin-bottom: 8px; }
+.export-selection-summary p:last-child { margin-bottom: 0; }
+.export-selection-summary .export-target-panel { margin-bottom: 16px; }
+.export-selection-summary .approval-target-summary { padding-left: 18px; font-size: 13px; }
+.export-selection-summary #export-targets { border-bottom: 0; padding-bottom: 0; }
+.export-layout .download-form { grid-column: 1; grid-row: 1; min-width: 0; }
+.export-layout .download-form select { max-width: 100%; }
+.export-layout .download-form .actions { margin-top: 28px; }
+.export-layout .download-form .actions .button { flex: 1; }
+.export-retry-help { margin-top: 24px; }
+.export-retry-help p { margin: 12px 0 0; }
+@media (max-width: 900px) {
+    .export-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .export-selection-summary, .export-layout .download-form { grid-column: 1; grid-row: auto; }
+    .export-selection-summary { padding: 20px; }
+}
+.export-security-mode { display: flex; align-items: start; gap: 12px; padding-top: 20px; color: var(--accent); }
+.export-security-mode h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+.export-security-mode p { margin-bottom: 0; }

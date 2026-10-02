@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/work.css">
+    <script type="module" src="/assets/js/pages/customers.js"></script>
+</head>
+<body data-title="customer.list">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/session.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page work-page" tabindex="-1">
+        <div class="work-environment"><span data-i18n="work.environment"></span><span id="environment"></span><span id="work-username" class="mono"></span></div>
+
+        <nav class="work-navigation" aria-label="Business navigation"><a href="/projects.html" data-i18n="work.projects"></a><a href="/customers.html" data-i18n="customer.list" aria-current="page"></a><a href="/approvals.html" data-i18n="approval.list"></a></nav>
+        <div class="page-heading"><p class="eyebrow">BUSINESS WORKSPACE</p><h1 id="page-title" data-i18n="customer.list"></h1><p id="page-description" class="lead" data-i18n="customer.list.lead"></p></div>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div id="recovery" class="actions" hidden><a id="native-verification" class="button" data-i18n="work.mfa.continue" hidden></a><a class="button secondary" href="/session.html" data-i18n="work.account"></a><a id="connect-link" href="/connect.html" data-i18n="work.reconnect"></a></div>
+        <section class="surface" aria-labelledby="customer-list-title">
+            <div class="surface-head"><h2 id="customer-list-title" data-i18n="customer.list"></h2><span id="customer-count" class="small muted" aria-live="polite"></span></div>
+            <form id="search-form" class="search-form customer-search">
+                <div class="field"><label for="project" data-i18n="customer.project.filter"></label><select id="project"><option value="" data-i18n="customer.all.projects"></option></select></div>
+                <div class="field"><label for="search" data-i18n="customer.search"></label><input id="search" name="search" type="search" maxlength="120" aria-describedby="search-hint"><span id="search-hint" class="hint" data-i18n="customer.search.hint"></span></div>
+                <button class="button secondary" type="submit" data-i18n="work.search.action"></button>
+            </form>
+            <div class="selection-toolbar" role="group" aria-label="Export selection"><span id="selection-count" class="small muted" aria-live="polite"></span><button id="select-visible" class="button secondary compact" type="button" data-i18n="export.select.visible" disabled></button><button id="clear-selection" class="text-action" type="button" data-i18n="export.clear" disabled></button><button id="export-selected" class="button compact" type="button" data-i18n="export.action" disabled></button></div>
+            <div class="table-wrap" role="region" tabindex="0" aria-labelledby="customer-list-title">
+                <table class="customer-table"><caption class="sr-only" data-i18n="customer.list"></caption><thead><tr>
+                    <th scope="col"><span class="sr-only" data-i18n="export.select"></span></th><th scope="col" data-i18n="customer.name"></th><th scope="col" data-i18n="customer.industry"></th><th scope="col" data-i18n="customer.region"></th><th scope="col" data-i18n="customer.assignment"></th><th scope="col"><span class="sr-only" data-i18n="customer.open"></span></th>
+                </tr></thead><tbody id="customer-list"></tbody></table>
+            </div>
+            <p id="customer-empty" class="empty" data-i18n="work.empty" hidden></p>
+        </section>
+        <p class="hint work-data-note" data-i18n="customer.demo.note"></p>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

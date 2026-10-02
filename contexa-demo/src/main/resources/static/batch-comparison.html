@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/comparison.css">
+    <link rel="stylesheet" href="/assets/css/pages/batch-comparison.css">
+    <script type="module" src="/assets/js/pages/batch-comparison.js"></script>
+</head>
+<body data-title="batch.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/connect.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page comparison-page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/connect.html" data-i18n="compare.account.return"></a><span aria-hidden="true">/</span><span data-i18n="compare.link"></span></nav>
+        <div class="page-heading"><p class="eyebrow"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#shield"></use></svg><span data-i18n="compare.eyebrow"></span></p><h1 data-i18n="batch.title"></h1><p class="lead" data-i18n="batch.lead"></p></div>
+        <p id="comparison-parent-note" class="notice" hidden><span data-i18n="variation.preparing"></span> <a id="comparison-parent-link" data-i18n="variation.original"></a></p>
+        <ol class="comparison-steps" aria-label="Comparison preparation">
+            <li data-comparison-step="1" class="is-current" aria-current="step"><span class="step-number" aria-hidden="true">1</span><span data-i18n="compare.step.select"></span></li>
+            <li data-comparison-step="2"><span class="step-number" aria-hidden="true">2</span><span data-i18n="compare.step.verify"></span></li>
+            <li data-comparison-step="3"><span class="step-number" aria-hidden="true">3</span><span data-i18n="compare.step.begin"></span></li>
+        </ol>
+        <section class="surface" aria-labelledby="plan-title">
+            <div class="surface-head"><h2 id="plan-title" data-i18n="compare.plan"></h2><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#shield"></use></svg></div>
+            <form id="preparation-form" class="surface-body">
+                <div class="plan-fields">
+                    <div class="field"><label for="resource-type" data-i18n="compare.resource.type"></label><select id="resource-type"><option value="DOCUMENT" data-i18n="batch.document"></option><option value="CUSTOMER" data-i18n="batch.customer"></option></select></div>
+                    <div class="field"><label for="requested-account" data-i18n="compare.account"></label><select id="requested-account" required></select></div>
+                    <div class="field"><label for="purpose" data-i18n="work.purpose"></label><select id="purpose"><option value="PROJECT_REVIEW" data-i18n="work.purpose.PROJECT_REVIEW"></option><option value="CUSTOMER_SUPPORT" data-i18n="work.purpose.CUSTOMER_SUPPORT"></option><option value="CROSS_PROJECT_REVIEW" data-i18n="work.purpose.CROSS_PROJECT_REVIEW"></option><option value="APPROVED_BULK_DELIVERY" data-i18n="approval.purpose.APPROVED_BULK_DELIVERY"></option><option value="EMERGENCY_MAINTENANCE" data-i18n="approval.purpose.EMERGENCY_MAINTENANCE"></option><option value="UNDECLARED" data-i18n="work.purpose.UNDECLARED"></option></select></div>
+                    <div class="field"><label for="file-language" data-i18n="download.language"></label><select id="file-language"><option value="KO">한국어</option><option value="EN">English</option></select></div>
+                </div>
+                <h3 id="batch-targets-title" data-i18n="batch.targets"></h3><p id="batch-limit" class="small muted"></p><div id="batch-targets" class="batch-selection" role="group" aria-labelledby="batch-targets-title"></div><p id="batch-count" class="batch-count" role="status" aria-live="polite"></p>
+                <h3 data-i18n="batch.approval"></h3><div class="batch-approvals"><div class="field"><label for="baseline-approval" data-i18n="connect.baseline"></label><select id="baseline-approval"></select><a id="baseline-approval-link" class="small" data-i18n="batch.approval.open"></a></div><div class="field"><label for="contexa-approval">Contexa</label><select id="contexa-approval"></select><a id="contexa-approval-link" class="small" data-i18n="batch.approval.open"></a></div></div><p class="small muted" data-i18n="batch.approval.note"></p>
+                <div id="approval-feedback" class="feedback" role="status" aria-live="polite"></div><button id="approval-refresh" class="button secondary compact" type="button" data-i18n="batch.refresh"></button>
+                <div id="batch-catalog-feedback" class="feedback" role="status" aria-live="polite"></div><button id="batch-refresh" class="button secondary compact" type="button" data-i18n="refresh"></button>
+                <div class="plan-action"><button id="prepare" class="button" type="submit" disabled data-i18n="batch.choose"></button></div><p class="small muted" data-i18n="batch.plan.note"></p>
+            </form>
+            <div id="selected-task" class="selected-task surface-body" hidden>
+                <div><span class="small muted" data-i18n="compare.selected"></span><h3 id="selected-title"></h3><p id="selected-purpose" class="muted small"></p></div>
+                <div class="selected-account"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#user"></use></svg><span id="selected-account"></span></div>
+            </div>
+            <div class="edit-plan"><button id="new-check" class="button secondary compact" type="button" data-i18n="batch.edit" hidden></button></div>
+        </section>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+        <section id="preparation-result" aria-labelledby="result-title" hidden>
+            <div class="result-heading"><div><h2 id="result-title" tabindex="-1" data-i18n="compare.result"></h2><p id="checked-at" class="small muted"></p></div><span id="execution-state"></span></div>
+            <section class="session-preparation surface" aria-labelledby="session-title">
+                <div class="surface-head"><h3 id="session-title" data-i18n="compare.sessions.heading"></h3><span id="document-match"></span></div>
+                <div id="comparison-arms" class="comparison-environments"></div>
+                <div class="session-controls"><p class="small muted" data-i18n="sessions.lead"></p><div class="actions"><button id="session-capture" type="button" class="button secondary" data-i18n="sessions.capture" disabled></button><button id="session-renew" type="button" class="button secondary" data-i18n="sessions.renew" hidden></button><a href="/connect.html" data-i18n="compare.account.return"></a></div></div>
+                <div id="session-feedback" class="feedback" role="status" aria-live="polite"></div>
+                <div id="session-recovery" class="stack" hidden></div>
+                <div id="session-result" hidden>
+                    <div class="session-result-heading"><h3 id="session-result-title" tabindex="-1" data-i18n="sessions.result"></h3><span id="session-check-state"></span></div>
+                    <ul id="session-blockers" class="blockers"></ul>
+                    <details id="session-source-details" class="evidence-fold"><summary data-i18n="compare.conditions.details"></summary><div id="session-sources" class="source-pair"></div><p class="small muted" data-i18n="sessions.scope"></p><details><summary data-i18n="sessions.source"></summary><pre id="session-json" tabindex="0"></pre></details></details>
+                </div>
+            </section>
+            <div class="comparison-next"><div><h3 data-i18n="compare.next.heading"></h3><p id="comparison-next" class="small muted" aria-live="polite"></p></div><button id="create-run" type="button" class="button" data-i18n="run.create" disabled></button></div>
+            <p class="small muted" data-i18n="run.create.note"></p>
+            <div id="run-create-feedback" class="feedback" role="status" aria-live="polite"></div>
+            <a id="run-create-recovery" class="button secondary" href="/status.html" hidden></a>
+            <details id="run-submissions" hidden>
+                <summary data-i18n="run.submissions.title"></summary>
+                <div id="run-submissions-feedback" class="feedback" role="status" aria-live="polite"></div>
+                <ol id="run-submissions-list" class="submission-list"></ol>
+                <button id="run-submissions-refresh" type="button" class="button secondary" data-i18n="run.submissions.refresh"></button>
+            </details>
+            <details id="preparation-details" class="evidence-fold preparation-evidence"><summary data-i18n="compare.preparation.details"></summary>
+                <p id="saved-plan" class="small muted"></p><p class="small muted" data-i18n="compare.hash.note"></p><div id="document-sources" class="source-pair"></div>
+                <p class="small muted plan-explanation" data-i18n="batch.plan.note"></p>
+                <div class="requirements"><h3 data-i18n="compare.needs"></h3><p class="small muted" data-i18n="compare.needs.note"></p><ul id="blockers" class="blockers"></ul></div>
+                <details id="source-details"><summary data-i18n="compare.source"></summary><dl id="record-meta" class="definition"></dl><pre id="preparation-json" tabindex="0"></pre></details>
+                <p class="small muted" data-i18n="compare.scope"></p>
+            </details>
+        </section>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

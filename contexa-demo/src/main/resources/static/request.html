@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/work.css">
+    <link rel="stylesheet" href="/assets/css/pages/request.css">
+    <script defer src="/assets/js/vendor/chart.umd.min.js"></script>
+    <script type="module" src="/assets/js/pages/request.js"></script>
+</head>
+<body data-title="outcome.page">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/session.html" data-i18n="work.account"></a><button id="language" class="language" type="button" aria-label="Switch to English">EN</button></nav>
+    </div></header>
+    <main id="main" class="page work-page" tabindex="-1">
+        <div class="work-environment"><span data-i18n="work.environment"></span><span id="environment"></span><span id="work-username" class="mono"></span></div>
+        <nav id="breadcrumb" class="breadcrumb" aria-label="Breadcrumb"><a href="/projects.html" data-i18n="work.projects"></a></nav>
+        <div class="page-heading"><p class="eyebrow">BUSINESS WORKSPACE</p><h1 id="page-title" data-i18n="outcome.page"></h1><p id="page-description" class="lead" data-i18n="outcome.lead"></p></div>
+        <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+        <div id="recovery" class="actions" hidden><a id="native-verification" class="button" data-i18n="work.mfa.continue" hidden></a><a class="button secondary" href="/session.html" data-i18n="work.account"></a><a id="connect-link" href="/connect.html" data-i18n="work.reconnect"></a></div>
+        <div id="request-evidence" hidden>
+        <p id="live-status" class="hint" role="status" aria-live="polite"></p>
+        <section id="outcome-summary" class="request-outcome" aria-label="Work outcome" hidden>
+            <div id="outcome-subject" class="outcome-subject" hidden>
+                <p id="outcome-resource" class="outcome-resource"></p>
+                <p id="outcome-purpose" class="hint"></p>
+            </div>
+            <div class="outcome-pair">
+                <div class="outcome-part">
+                    <h2 data-i18n="outcome.response"></h2>
+                    <p id="outcome-response" class="outcome-value"></p>
+                    <span id="outcome-response-code"></span>
+                    <p class="hint" data-i18n="outcome.response.note"></p>
+                </div>
+                <div class="outcome-part">
+                    <h2 data-i18n="outcome.decision"></h2>
+                    <p id="outcome-decision" class="outcome-value"></p>
+                    <p id="outcome-fallback" class="notice warning" data-i18n="outcome.fallback" hidden></p>
+                    <p id="outcome-decision-note" class="hint"></p>
+                </div>
+            </div>
+            <div class="outcome-actions">
+                <div class="actions">
+                    <a id="outcome-return" class="button" data-i18n="outcome.return"></a>
+                    <button id="outcome-reason" class="button secondary" type="button" data-i18n="outcome.reason" aria-controls="decision-evidence-group"></button>
+                </div>
+                <p class="hint" data-i18n="outcome.next"></p>
+            </div>
+        </section>
+        <details id="decision-evidence-group" class="evidence-group" data-source-key="decision-evidence-group">
+            <summary data-i18n="outcome.evidence"></summary>
+            <div class="evidence-group-content">
+        <section class="surface evidence-section"><div class="surface-head"><h2 data-i18n="work.final"></h2></div><div class="surface-body"><p id="decision-empty" class="muted"></p><div id="decision-list"></div></div></section>
+        <section id="context-evidence" class="surface evidence-section" hidden>
+            <div class="surface-head"><h2 data-i18n="work.history.title"></h2></div>
+            <div class="surface-body">
+                <p class="hint" data-i18n="work.history.boundary"></p>
+                <p id="context-evidence-empty" class="notice warning" data-i18n="work.history.missing"></p>
+                <div id="context-evidence-list"></div>
+            </div>
+        </section>
+        <details class="analysis-records" data-source-key="analysis-records"><summary data-i18n="work.analysis"></summary><div class="surface-body"><p id="analysis-empty" class="muted"></p><ol id="analysis-events" class="event-list"></ol><p id="provider-note" class="notice warning" data-i18n="work.provider.missing"></p></div></details>
+            </div>
+        </details>
+        <details id="delivery-evidence-group" class="evidence-group" data-source-key="delivery-evidence-group">
+            <summary data-i18n="outcome.delivery"></summary>
+            <div class="evidence-group-content">
+        <section class="surface evidence-section"><div class="surface-head"><h2 data-i18n="work.http"></h2><span id="http-badge"></span></div><div class="surface-body"><dl id="http-details" class="definition"></dl></div></section>
+        <section id="transfer-evidence" class="surface evidence-section" hidden><div class="surface-head"><h2 data-i18n="download.measurement"></h2></div><div class="surface-body"><p class="hint" data-i18n="download.measurement.note"></p><div class="transfer-chart"><canvas id="transfer-chart" role="img" aria-label="File preparation, servlet output and browser reported bytes"></canvas></div><dl id="transfer-details" class="definition"></dl><div id="receipt-state" class="feedback" role="status"></div><div id="transfer-sources"></div></div></section>
+        <section id="approval-evidence" class="surface evidence-section" hidden><div class="surface-head"><h2 data-i18n="approval.evidence"></h2><span id="approval-evidence-status"></span></div><div class="surface-body"><p class="hint" data-i18n="approval.evidence.note"></p><dl id="approval-evidence-facts" class="definition"></dl></div></section>
+            </div>
+        </details>
+        <details id="model-evidence-group" class="evidence-group" data-source-key="model-evidence-group">
+            <summary data-i18n="outcome.model"></summary>
+            <div class="evidence-group-content">
+        <section id="model-evidence" class="surface evidence-section" aria-labelledby="model-title" hidden>
+            <div class="surface-head"><h2 id="model-title" data-i18n="model.title"></h2><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#shield"></use></svg></div>
+            <div class="surface-body">
+                <p class="hint" data-i18n="model.lead"></p>
+                <p id="model-empty" class="muted"></p>
+                <p id="model-limited" class="notice warning" data-i18n="model.limited" hidden></p>
+                <div id="model-usage" hidden><h3 data-i18n="model.usage"></h3><div class="model-usage-chart"><canvas id="model-usage-chart" role="img" aria-describedby="model-token-note"></canvas></div><p id="model-chart-limited" class="hint" data-i18n="model.chart.limited" hidden></p><p id="model-token-note" class="hint" data-i18n="model.tokens.note"></p></div>
+                <ol id="model-observations" class="model-observations"></ol>
+                <div class="provider-http-evidence">
+                    <h3 data-i18n="provider.title"></h3>
+                    <p class="hint" data-i18n="provider.lead"></p>
+                    <p id="provider-http-empty" class="muted"></p>
+                    <p id="provider-http-limited" class="notice warning" data-i18n="provider.limited" hidden></p>
+                    <ol id="provider-http-observations" class="model-observations"></ol>
+                </div>
+                <p id="model-boundary-note" class="notice warning" data-i18n="model.boundary"></p>
+            </div>
+        </section>
+        <section id="learning-evidence" class="surface evidence-section" aria-labelledby="learning-title" hidden>
+            <div class="surface-head"><h2 id="learning-title" data-i18n="learning.title"></h2></div>
+            <div class="surface-body">
+                <p class="hint" data-i18n="learning.note"></p>
+                <p id="learning-empty" class="muted" data-i18n="learning.empty"></p>
+                <ol id="learning-list" class="event-list"></ol>
+                <div class="provider-http-evidence">
+                    <h3 data-i18n="rag.write.title"></h3>
+                    <p class="hint" data-i18n="rag.write.note"></p>
+                    <p id="rag-write-empty" class="muted" data-i18n="rag.write.empty"></p>
+                    <dl id="rag-write-counts" class="definition" hidden></dl>
+                    <ol id="rag-write-list" class="event-list"></ol>
+                </div>
+            </div>
+        </section>
+            </div>
+        </details>
+        <details id="technical-evidence-group" class="evidence-group" data-source-key="technical-evidence-group">
+            <summary data-i18n="outcome.technical"></summary>
+            <div class="evidence-group-content">
+                <div id="collection-notice" class="notice warning" role="status"></div>
+                <details id="collection-details" data-source-key="collector">
+                    <summary data-i18n="work.collection.details"></summary>
+                    <p class="hint" data-i18n="work.collection.scope"></p>
+                    <pre id="collection-source"></pre>
+                </details>
+        <section class="surface evidence-section"><div class="surface-head"><h2 data-i18n="work.snapshot"></h2></div><div class="surface-body"><details><summary data-i18n="work.source"></summary><pre id="snapshot"></pre></details></div></section>
+            </div>
+        </details>
+        </div>
+        <div id="record-toolbar" class="request-toolbar request-record-toolbar" hidden>
+            <code id="request-id" class="mono"></code>
+            <button id="refresh" class="button secondary compact" type="button" data-i18n="work.refresh"></button>
+        </div>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/status.html" data-i18n="status"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

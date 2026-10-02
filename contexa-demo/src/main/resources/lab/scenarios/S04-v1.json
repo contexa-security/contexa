@@ -1,0 +1,76 @@
+{
+  "key": "S04",
+  "version": 1,
+  "definition": {
+    "display": {
+      "title": {
+        "ko": "탈취된 정상 계정의 탐색",
+        "en": "Exploration through a compromised valid account"
+      }
+    },
+    "initialState": {
+      "history": "DIRECTLY_OBSERVED_HISTORY",
+      "staticAuthorization": "ALLOW_REQUIRED",
+      "identity": "MATCHED_ACROSS_ARMS",
+      "businessDatasetContract": "runtime-workspace-v1"
+    },
+    "requestPlan": [
+      {
+        "stepId": "S04-1",
+        "operation": "LIST_PROJECTS",
+        "selector": "VISIBLE_PROJECTS",
+        "maxItems": 1
+      },
+      {
+        "stepId": "S04-2",
+        "operation": "READ_DOCUMENTS",
+        "selector": "UNASSIGNED_PROJECT_DOCUMENTS",
+        "maxItems": 12
+      },
+      {
+        "stepId": "S04-3",
+        "operation": "EXPORT_DOCUMENTS",
+        "selector": "UNASSIGNED_PROJECT_DOCUMENTS",
+        "maxItems": 8
+      }
+    ],
+    "conditions": {
+      "provenance": "BUSINESS_CONFIGURATION",
+      "approval": "ABSENT",
+      "purpose": "UNDECLARED",
+      "scope": "UNASSIGNED",
+      "pace": "RAPID_SEQUENCE",
+      "evidenceAvailability": "SUFFICIENT"
+    },
+    "mutableConditions": [
+      "approval",
+      "purpose",
+      "scope",
+      "pace"
+    ],
+    "timeSource": "ACTUAL_HTTP_OBSERVATION"
+  },
+  "oracle": {
+    "classification": "THREAT",
+    "allowedModelProposals": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "allowedFinalResponses": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "requiredEvidence": [
+      "VALID_ACCOUNT_AND_STATIC_ALLOW",
+      "CONTEXT_CHANGE_OBSERVED",
+      "NEW_MODEL_ATTEMPT_CORRELATED",
+      "SUBSEQUENT_PROTECTED_WORK_LIMITED",
+      "EARLIER_COMPLETED_WORK_RETAINED_AS_EFFECT"
+    ],
+    "rationale": "탈취라는 평가용 분류는 모델 입력에서 제외한다. 유효한 로그인 이후 실제 활동 변화와 후속 요청 제한으로 평가한다.",
+    "technicalFallbackCountsAsDetection": false,
+    "staticDenialCountsAsDetection": false
+  }
+}

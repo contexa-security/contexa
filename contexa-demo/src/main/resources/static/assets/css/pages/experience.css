@@ -1,0 +1,52 @@
+.experience-page .page-heading { max-width: 840px; }
+.experience-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 24px; border-bottom: 1px solid var(--line); }
+.experience-steps a { display: flex; gap: 12px; align-items: center; padding: 18px 12px; border-bottom: 3px solid transparent; color: var(--muted); text-decoration: none; font-weight: 600; }
+.experience-steps a[aria-current="step"] { color: var(--accent); border-bottom-color: var(--accent); }
+.step-number { font: 12px var(--mono); border: 1px solid var(--line); border-radius: 50%; padding: 8px; background: var(--paper); }
+.experience-steps a[aria-current] .step-number { background: var(--accent); color: white; border-color: var(--accent); }
+.experience-stage { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.stage-story { padding: 36px; }
+.stage-story h2 { font-size: clamp(24px, 2.6vw, 32px); max-width: 20ch; word-break: keep-all; }
+.stage-story .lead { font-size: 15px; }
+.stage-symbol { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid #bbd9cf; background: var(--accent-soft); border-radius: 14px; color: var(--accent); margin-bottom: 24px; box-shadow: 0 5px 12px #006b5c0b; }
+.stage-symbol .icon { width: 25px; height: 25px; }
+.stage-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.stage-facts .badge { white-space: normal; }
+.stage-observe { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 24px; }
+.stage-observe p { font-size: 14px; color: var(--muted); margin: 0; }
+.stage-action { border-left: 1px solid var(--line); background: linear-gradient(150deg, #f1f8f5, #fafcfc); padding: 40px 32px; display: flex; flex-direction: column; justify-content: center; }
+.stage-action h3 { font-size: 23px; line-height: 1.5; }
+.stage-action .actions { margin-bottom: 24px; }
+.stage-action .small { margin-bottom: 0; }
+.experience-explore { display: flex; gap: 24px; justify-content: space-between; align-items: center; padding: 32px 0; }
+.experience-explore h2 { font-size: 18px; margin-bottom: 8px; }
+.experience-explore p { margin: 0; }
+.experience-record { padding: 20px 28px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.experience-record:last-child { border-bottom: 0; }
+.experience-record p { margin: 4px 0; }
+.experience-record .actions { margin: 0; flex-shrink: 0; }
+.experience-terms { margin-top: 32px; }
+.term-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding-top: 24px; }
+.term-list p { font-size: 14px; color: var(--muted); }
+.explore-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 32px; }
+.scenario-nav { display: flex; flex-direction: column; gap: 4px; }
+.scenario-nav a { display: flex; gap: 12px; padding: 13px 16px; border-radius: 8px; text-decoration: none; color: var(--muted); border: 1px solid transparent; }
+.scenario-nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); border-color: #bbd9cf; font-weight: 650; }
+.scenario-nav .mono { flex-shrink: 0; padding-top: 3px; }
+.scenario-panel { min-width: 0; }
+.scenario-panel h2 { font-size: 28px; }
+.scenario-plan { padding: 0; list-style: none; margin: 24px 0; counter-reset: steps; }
+.scenario-plan li { display: flex; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line); counter-increment: steps; }
+.scenario-plan li::before { content: counter(steps, decimal-leading-zero); color: var(--accent); font: 13px var(--mono); margin-top: 4px; }
+.scenario-plan p { margin: 6px 0 0; }
+@media (max-width: 900px) { .explore-layout { grid-template-columns: 220px minmax(0, 1fr); gap: 20px; } }
+@media (max-width: 767px) {
+    .experience-stage, .term-list, .explore-layout { grid-template-columns: minmax(0, 1fr); }
+    .experience-steps a { flex-direction: column; gap: 8px; text-align: center; padding: 14px 6px; font-size: 13px; }
+    .stage-story, .stage-action { padding: 24px 20px; }
+    .stage-action { border-left: 0; border-top: 1px solid var(--line); }
+    .experience-explore, .experience-record { flex-direction: column; align-items: flex-start; }
+    .experience-record { padding: 20px; }
+    .scenario-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .scenario-nav a { padding: 10px; gap: 8px; font-size: 12px; }
+}

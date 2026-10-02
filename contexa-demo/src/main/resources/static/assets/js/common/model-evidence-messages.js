@@ -1,0 +1,22 @@
+export const modelEvidenceMessages = {
+    'model.title': ['모델 응답 확인', 'Inspect model responses'],
+    'model.lead': ['이 요청과 분석에 연결된 응답만 표시합니다. 모델 응답과 엔진의 최종 결정은 아래에서 각각 확인하세요.', 'Only responses explicitly linked to this request and analysis are shown. Inspect model responses and final engine decisions separately.'],
+    'model.boundary': ['수집 범위: 엔진 내부 모델 호출 단계. 공급자에게 실제 전송된 전체 요청과 SDK의 내부 재시도는 아직 수집되지 않았습니다.', 'Capture boundary: the engine’s model call stage. Complete provider HTTP requests and internal SDK retries have not been captured.'],
+    'model.NOT_CAPTURED': ['이 요청에 명시적으로 연결된 모델 응답이 아직 없습니다. 분석 대기, 기존 결정 재사용, 수집 누락은 다른 상태이며 이 표시만으로 원인을 확정하지 않습니다.', 'No model response has been explicitly linked yet. Pending analysis, decision reuse, and missing capture are different states; this message does not establish the cause.'],
+    'model.UNAVAILABLE': ['모델 응답 기록을 읽지 못했습니다. 원래 업무 및 최종 결정과 구별해 확인하세요.', 'Model response records could not be read. Inspect the original business result and final decision separately.'],
+    'model.limited': ['이 화면은 처음 200개 관측을 보여줍니다. 전체 호출 수 또는 전체 사용량이 아닙니다.', 'This view shows the first 200 observations, not a complete call count or usage total.'],
+    'model.chart.limited': ['차트는 처음 12개 관측을 표시합니다. 아래 목록에서 나머지 사용량을 확인할 수 있습니다.', 'The chart shows the first 12 observations. Remaining usage values are available in the list below.'],
+    'model.observation': ['관측', 'Observation'],
+    'model.response.received': ['응답 수신', 'Response received'],
+    'model.response.failed': ['호출 오류 관측', 'Call error observed'],
+    'model.name': ['응답에 기록된 모델', 'Model reported in response'],
+    'model.started': ['호출 관측 시작', 'Call observation started'],
+    'model.ended': ['호출 관측 종료', 'Call observation ended'],
+    'model.input': ['입력 토큰', 'Input tokens'],
+    'model.output': ['출력 토큰', 'Output tokens'],
+    'model.tokens.note': ['토큰은 모델이 처리하는 텍스트 단위입니다. 관측한 응답의 사용량이며 청구 금액이나 전체 실행 사용량을 뜻하지 않습니다.', 'Tokens are units of text processed by the model. These values describe observed responses, not billed cost or complete run usage.'],
+    'model.source': ['응답과 연결 근거 펼치기', 'Expand response and source references'],
+    'model.source.note': ['안전하게 가린 응답과 서버 원본 ID입니다. 입력 지문은 이 호출 단계의 내용 지문이며 실제 HTTP 전송 본문의 지문이 아닙니다.', 'The response is sanitized and includes server source IDs. The input fingerprint identifies content at this call stage, not the actual HTTP request body.'],
+    'model.truncated': ['응답이 길어 일부만 보존되었습니다.', 'Only part of this long response was retained.'],
+    'model.usage': ['관측별 토큰 사용량', 'Token usage by observation']
+};

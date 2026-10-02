@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/memory.css">
+    <script defer src="/assets/js/vendor/chart.umd.min.js"></script>
+    <script type="module" src="/assets/js/pages/memory.js"></script>
+</head>
+<body data-title="memory.title">
+    <a class="skip" href="#main" data-i18n="skip"></a>
+    <header class="site-header"><div class="header-inner">
+        <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab"><svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>contexa</a>
+        <span class="brand-caption">RUNTIME LAB</span>
+        <nav class="header-actions" aria-label="Navigation"><a class="header-link" href="/experience.html" data-i18n="about"></a><button id="language" class="language" type="button">EN</button></nav>
+    </div></header>
+    <main id="main" class="page" tabindex="-1">
+        <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/experience.html" data-i18n="about"></a></nav>
+        <div class="page-heading"><p class="eyebrow">LEARN FROM REAL WORK</p><h1 data-i18n="memory.title"></h1><p class="lead" data-i18n="memory.lead"></p></div>
+        <div class="memory-direct"><div><h2 data-i18n="memory.direct"></h2><p class="small muted" data-i18n="memory.direct.note"></p></div><a class="button secondary" href="/journey.html?scenario=S01" data-i18n="journey.start"></a></div>
+        <section class="surface" aria-labelledby="memory-existing"><div class="surface-head"><h2 id="memory-existing" data-i18n="memory.existing"></h2><button id="memory-refresh" class="button secondary compact" type="button" data-i18n="refresh"></button></div><div class="surface-body">
+            <div id="memory-picker" hidden><label for="memory-run" data-i18n="memory.pick"></label><select id="memory-run"></select></div>
+            <div id="memory-feedback" class="feedback" role="status" aria-live="polite"></div>
+            <div id="memory-result" hidden><span id="memory-state" class="badge" data-i18n="memory.observed"></span><div class="memory-chart"><canvas id="memory-chart" role="img" aria-label="Observed learning and memory writes"></canvas></div><dl id="memory-counts" class="definition"></dl><p class="small muted" data-i18n="memory.chart.note"></p></div>
+            <p class="notice" data-i18n="memory.boundary"></p><p class="small muted" data-i18n="memory.compatibility"></p>
+            <div class="actions"><button id="memory-continue" class="button" type="button" disabled data-i18n="memory.continue"></button><a id="memory-source-link" class="button secondary" hidden data-i18n="memory.source"></a></div>
+            <details id="memory-details" hidden><summary data-i18n="memory.source"></summary><pre id="memory-source" tabindex="0"></pre></details>
+        </div></section>
+    </main>
+    <footer class="site-footer"><div class="footer-inner"><span data-i18n="footer"></span><a href="/experience.html" data-i18n="about"></a></div></footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required.</noscript>
+</body>
+</html>

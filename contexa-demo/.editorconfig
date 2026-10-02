@@ -1,0 +1,15 @@
+[*.java]
+charset = utf-8
+indent_style = space
+indent_size = 4
+tab_width = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+ij_java_class_count_to_use_import_on_demand = 999
+ij_java_names_count_to_use_import_on_demand = 999
+ij_java_packages_to_use_import_on_demand = unset
+ij_java_keep_simple_methods_in_one_line = false
+ij_java_keep_simple_blocks_in_one_line = false
+ij_java_keep_simple_classes_in_one_line = false
+ij_java_keep_control_statement_in_one_line = false

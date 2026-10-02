@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Contexa Runtime Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/css/base.css">
+    <link rel="stylesheet" href="/assets/css/pages/home.css">
+    
+    <script type="module" src="/assets/js/pages/index.js"></script>
+</head>
+<body data-title="home.title">
+    <a class="skip" href="#main" data-i18n="skip">본문으로 바로가기</a>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="/index.html" aria-label="Contexa Runtime Lab">
+                <svg class="icon brand-mark" aria-hidden="true"><use href="/assets/icons.svg#mark"></use></svg>
+                contexa
+            </a>
+            <span class="brand-caption">RUNTIME LAB</span>
+            <nav class="header-actions" aria-label="Navigation">
+                <a class="header-link" href="/index.html" data-i18n="about">체험 안내</a>
+                <button id="language" class="language" type="button" aria-label="Switch to English">EN</button>
+            </nav>
+        </div>
+    </header>
+    <main id="main" class="page home" tabindex="-1">
+<section class="hero" aria-labelledby="hero-title">
+    <div>
+        <p class="eyebrow">CONTEXA · RUNTIME SECURITY</p>
+        <h1 id="hero-title" data-i18n="home.title">로그인, 그다음의 보안을 경험하세요.</h1>
+        <p class="lead" data-i18n="home.description"></p>
+        <div class="actions"><a class="button" href="/entry.html"><span data-i18n="home.start">체험 준비하기</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#arrow"></use></svg></a></div>
+        <p class="small muted" data-i18n="home.email"></p>
+    </div>
+    <div class="principle">
+        <div class="principle-top"><span data-i18n="home.diagram">작동 원리</span><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#shield"></use></svg></div>
+        <div class="identity-node"><svg class="icon" aria-hidden="true"><use href="/assets/icons.svg#user"></use></svg><div><strong data-i18n="home.signed"></strong><span data-i18n="home.signed.detail"></span></div></div>
+        <div class="flow-line" aria-hidden="true"></div>
+        <div class="control-node">
+            <h2 data-i18n="home.runtime"></h2>
+            <div class="context-list"><span data-i18n="home.context1"></span><span data-i18n="home.context2"></span><span data-i18n="home.context3"></span><span data-i18n="home.context4"></span></div>
+            <div class="outcomes"><span data-i18n="home.allow"></span><span data-i18n="home.verify"></span><span data-i18n="home.limit"></span></div>
+        </div>
+        <p class="principle-note" data-i18n="home.diagram.note"></p>
+    </div>
+</section>
+<section class="journey" aria-label="Experience journey">
+    <article><span class="number">01</span><div><h2 data-i18n="home.step1"></h2><p data-i18n="home.step1.body"></p></div></article>
+    <article><span class="number">02</span><div><h2 data-i18n="home.step2"></h2><p data-i18n="home.step2.body"></p></div></article>
+    <article><span class="number">03</span><div><h2 data-i18n="home.step3"></h2><p data-i18n="home.step3.body"></p></div></article>
+</section>
+    </main>
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <span data-i18n="footer">인증 이후에도, 업무의 맥락을 확인합니다.</span>
+            <span><a href="/status.html" data-i18n="status">준비 상태</a> · <a href="/operator.html" data-i18n="operator">운영 진단</a></span>
+        </div>
+    </footer>
+    <noscript>이 체험은 JavaScript가 필요합니다. / JavaScript is required for this experience.</noscript>
+</body>
+</html>

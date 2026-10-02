@@ -1,0 +1,13 @@
+lab:
+  role: baseline
+spring:
+  datasource:
+    hikari:
+      schema: lab
+    url: ${LAB_DB_URL:jdbc:postgresql://localhost:15432/lab_baseline}
+server:
+  port: ${LAB_PORT:18081}
+  servlet:
+    session:
+      cookie:
+        name: LAB_BASELINE_SESSION

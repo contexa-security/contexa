@@ -1,0 +1,29 @@
+dependencies {
+    implementation project(':spring-boot-starter-contexa')
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+    implementation 'org.springframework.ai:spring-ai-pgvector-store'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.redisson:redisson:3.48.0'
+    implementation 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
+    implementation 'org.springframework.session:spring-session-data-redis'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+}
+
+description = 'Contexa Runtime Lab — executable OSS demonstration'
+bootJar.enabled = true
+jar.enabled = false
+springBoot {
+    mainClass = 'io.contexa.demo.RuntimeLabApplication'
+    buildInfo()
+}
+// This executable is not an additional published Contexa library.
+publishing.publications.clear()
+tasks.withType(PublishToMavenRepository).configureEach { enabled = false }
+tasks.withType(PublishToMavenLocal).configureEach { enabled = false }
+tasks.withType(Sign).configureEach { enabled = false }

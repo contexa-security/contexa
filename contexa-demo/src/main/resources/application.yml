@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: contexa-runtime-lab
+  config:
+    import:
+      - ${lab.bootstrap.environment-location:optional:file:./.env[.properties]}
+  profiles:
+    default: portal
+  datasource:
+    url: ${LAB_DB_URL:jdbc:postgresql://localhost:15432/lab_portal}
+    username: ${LAB_DB_USER:lab}
+    password: ${LAB_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 3000
+      initialization-fail-timeout: -1
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  flyway:
+    locations: classpath:lab/db/migration
+    default-schema: lab
+    schemas: lab
+    clean-disabled: true
+  sql:
+    init:
+      mode: never
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    ollama:
+      init:
+        pull-model-strategy: never
+  thymeleaf:
+    check-template-location: false
+server:
+  address: ${LAB_BIND_ADDRESS:127.0.0.1}
+  port: ${LAB_PORT:18080}
+  servlet:
+    session:
+      cookie:
+        name: LAB_PORTAL_SESSION
+        http-only: true
+        same-site: lax
+      timeout: 30m
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+lab:
+  role: portal
+  identity:
+    usernames: ${LAB_IDENTITY_USERS:admin,user}
+    baseline-db-url: ${LAB_BASELINE_DB_URL:jdbc:postgresql://localhost:15432/lab_baseline}
+  entry:
+    portal-url: ${LAB_PORTAL_URL:http://localhost:18080}
+    cookie-name: LAB_VISITOR
+    secure-cookie: ${LAB_SECURE_COOKIE:false}
+    pending-lifetime: 30m
+    verified-lifetime: 24h
+    code-lifetime: 10m
+    resend-interval: 60s
+    max-attempts: 5
+    email-daily-limit: 5
+    ip-daily-limit: 10
+    store:
+      url: ${LAB_PORTAL_DB_URL:jdbc:postgresql://localhost:15432/lab_portal}
+      username: ${LAB_DB_USER:lab}
+      password: ${LAB_DB_PASSWORD:}
+    mail:
+      host: ${SPRING_MAIL_HOST:}
+      port: ${SPRING_MAIL_PORT:587}
+      username: ${SPRING_MAIL_USERNAME:}
+      password: ${SPRING_MAIL_PASSWORD:}
+      from: ${LAB_EMAIL_FROM:}
+      starttls: ${LAB_MAIL_STARTTLS:true}
+      ssl: ${LAB_MAIL_SSL:false}
+
+  evidence:
+    baseline-url: ${LAB_BASELINE_DB_URL:jdbc:postgresql://localhost:15432/lab_baseline}
+    contexa-url: ${LAB_CONTEXA_DB_URL:jdbc:postgresql://localhost:15432/lab_contexa}
+    security-url: ${LAB_SECURITY_DB_URL:jdbc:postgresql://localhost:15432/lab_security}
+    username: ${LAB_DB_USER:lab}
+    password: ${LAB_DB_PASSWORD:}
+  account-password: ${LAB_ACCOUNT_PASSWORD:}
+  endpoints:
+    baseline: ${LAB_BASELINE_URL:http://localhost:18081}
+    contexa: ${LAB_CONTEXA_URL:http://localhost:18082}
+  chat:
+    provider: ${LAB_CHAT_PROVIDER:}
+    model: ${LAB_CHAT_MODEL:}
+  embedding:
+    provider: ${LAB_EMBEDDING_PROVIDER:}
+    model: ${LAB_EMBEDDING_MODEL:}
+    dimensions: ${LAB_EMBEDDING_DIMENSIONS:0}
+
+contexa:
+  enabled: false
