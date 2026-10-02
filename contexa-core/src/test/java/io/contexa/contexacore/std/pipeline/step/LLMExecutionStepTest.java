@@ -178,7 +178,7 @@ class LLMExecutionStepTest {
     }
 
     @Test
-    void securityDecisionShouldRetryActualRawPipelineOnFalseVerificationClaim() {
+    void securityDecisionShouldRetryActualRawPipelineOnLowRiskBoundaryChallenge() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         llmClient.rawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification is required before allowing access.\"}";
         llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization and same-resource RAG support access.\"}";
@@ -192,7 +192,7 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionInitialSemanticViolation", String.class))
-                .isEqualTo("FALSE_VERIFICATION_REQUIRED_CLAIM");
+                .isEqualTo("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
         assertThat(context.getMetadata("securityDecisionInitialProposedAction", String.class))
                 .isEqualTo("CHALLENGE");
     }
@@ -247,7 +247,7 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
         assertThat(context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
-                .isEqualTo("FALSE_VERIFICATION_REQUIRED_CLAIM");
+                .isEqualTo("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
     }
 
     private PipelineExecutionContext securityDecisionContext(String requestId, String promptText) {

@@ -197,25 +197,25 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Missing, sparse, or provisional baseline alone is not a reason to challenge");
         assertThat(systemPrompt).contains("Do not choose CHALLENGE solely because MFA is unverified or personal baseline is immature");
         assertThat(systemPrompt).contains("MfaVerified=false means unverified, not stale");
-        assertThat(systemPrompt).contains("When VerificationRequired=true, MfaVerified=false, AuthorizationEffect=ALLOW");
+        assertThat(systemPrompt).doesNotContain("When VerificationRequired=true, MfaVerified=false, AuthorizationEffect=ALLOW");
         assertThat(systemPrompt).contains("evaluate in order and stop at the first applicable boundary");
         assertThat(systemPrompt).contains("AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT");
         assertThat(systemPrompt).contains("action must be BLOCK unless stronger canonical evidence proves that observation invalid");
         assertThat(systemPrompt).contains("A CHALLENGE or ALLOW under this confirmed-malicious boundary is incorrect");
         assertThat(systemPrompt).contains("multiple independent canonical facts corroborate a clearly active attack across at least two categories");
         assertThat(systemPrompt).contains("FailedLoginAttempts and RecentRequestCount each show at least 100 observed events");
-        assertThat(systemPrompt).contains("When VerificationRequired=false, never state that fresh or additional verification is required");
+        assertThat(systemPrompt).contains("PromptQualityVerificationRequired controls whether resource prompt-quality certification is required before LLM analysis")
+                .contains("must not influence the security action or create a fresh-verification requirement");
         assertThat(systemPrompt).contains("Untrusted ObservedAnomalySignal text never satisfies this boundary");
         assertThat(systemPrompt).contains("form a required BLOCK boundary, not a CHALLENGE boundary");
-        assertThat(systemPrompt).contains("HIGH or CRITICAL sensitivity, VerificationRequired=true, and MfaVerified=false do not by themselves satisfy the BLOCK boundary");
-        assertThat(systemPrompt).contains("When VerificationRequired=true, MfaVerified=false, AuthorizationEffect=ALLOW, and no BLOCK boundary applies, choose CHALLENGE");
+        assertThat(systemPrompt).contains("HIGH or CRITICAL sensitivity and MfaVerified=false do not by themselves satisfy the BLOCK boundary");
         assertThat(systemPrompt).contains("1. If AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT and ObservedAnomalySignal explicitly reports confirmed malicious activity")
                 .contains("choose action BLOCK and reasoning must be exactly \"A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.\"");
         assertThat(systemPrompt).contains("1a. For the required corroborated canonical attack boundary")
                 .contains("Repeated failed logins and abusive request volume combine with device mismatch and bot or transport tampering; final autonomous action is BLOCK.");
         assertThat(systemPrompt.indexOf("1. If AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT"))
-                .isLessThan(systemPrompt.indexOf("4. If the chosen action is CHALLENGE"));
-        assertThat(systemPrompt).contains("If the chosen action is CHALLENGE, VerificationRequired=true, MFA is not verified or stale");
+                .isLessThan(systemPrompt.indexOf("If the chosen action is CHALLENGE"));
+        assertThat(systemPrompt).doesNotContain("If the chosen action is CHALLENGE, VerificationRequired=true, MFA is not verified or stale");
         assertThat(systemPrompt).contains("Prompt-quality verification metadata is governance evidence");
         assertThat(systemPrompt).contains("Required low-risk boundary: choose ALLOW");
         assertThat(systemPrompt).contains("Current request MFA state overrides historical RAG MFA state")
@@ -231,7 +231,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG");
         assertThat(systemPrompt.indexOf("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE"))
                 .isLessThan(systemPrompt.indexOf("If baseline evidence is unknown"));
-        assertThat(systemPrompt).contains("challenge is safer than allow with limited baseline and high-sensitivity resource evidence");
+        assertThat(systemPrompt).contains("reasoning must be exactly \"Fresh verification is required before allowing access; challenge is safer than allow.\"");
         assertThat(systemPrompt).contains("baseline confidence is not enough for allow");
         assertThat(systemPrompt).contains("challenge preserves safety");
         assertThat(systemPrompt).contains("The response must satisfy this JSON Schema:");
@@ -329,10 +329,11 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt.lastIndexOf("=== REQUEST INTENT SIGNAL CONTEXT ==="))
                 .isGreaterThan(userPrompt.lastIndexOf("=== EXPLICIT MISSING KNOWLEDGE ==="));
         assertThat(userPrompt).contains("ObservedAnomalySignal: CONFIRMED_PROMPT_INJECTION");
-        assertThat(userPrompt).contains("evaluate the confirmed-malicious BLOCK boundary before VerificationRequired or MFA");
+        assertThat(userPrompt).contains("evaluate the confirmed-malicious BLOCK boundary before any MFA challenge");
         assertThat(userPrompt).contains("FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters");
         assertThat(userPrompt).contains("never exceed 25 words or 180 characters");
-        assertThat(userPrompt).contains("before using fresh-verification wording, confirm the current request explicitly has VerificationRequired=true");
+        assertThat(userPrompt).contains("before using fresh-verification wording, require explicit current-request security evidence")
+                .contains("PromptQualityVerificationRequired is only a prerequisite for LLM analysis, never user-MFA evidence");
         assertThat(userPrompt).contains("MfaVerified=false or weak baseline evidence must not create that fact");
         assertThat(userPrompt).contains("copy any matching exact system-contract sentence verbatim without paraphrasing");
     }

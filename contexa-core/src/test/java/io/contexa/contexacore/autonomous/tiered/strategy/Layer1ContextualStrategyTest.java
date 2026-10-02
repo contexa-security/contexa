@@ -107,8 +107,8 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
-    @DisplayName("evaluate should preserve LLM ALLOW and expose required-verification constraint audit")
-    void evaluate_requiredVerification_shouldExposeChallengeConstraintAudit() {
+    @DisplayName("evaluate should preserve LLM ALLOW when only prompt-quality verification is required")
+    void evaluate_promptQualityVerificationRequired_shouldNotConstrainAllow() {
         SecurityEvent event = buildTestEvent();
         event.getMetadata().put("protectableVerificationRequired", true);
         event.getMetadata().put("mfaVerified", false);
@@ -122,12 +122,11 @@ class Layer1ContextualStrategyTest {
         ThreatAssessment assessment = strategy.evaluate(event);
 
         assertThat(assessment.getAction()).isEqualTo("ALLOW");
-        assertThat(assessment.getAutonomousAction()).isEqualTo("CHALLENGE");
-        assertThat(assessment.getAutonomyConstraintApplied()).isTrue();
-        assertThat(assessment.getAutonomyConstraintReasons()).containsExactly("FRESH_VERIFICATION_REQUIRED");
-        assertThat(assessment.getAutonomyConstraintPolicy()).isEqualTo("PROTECTABLE_REQUIRED_VERIFICATION");
-        assertThat(assessment.getAutonomyConstraintSource()).isEqualTo("Protectable.verificationRequired");
-        assertThat(assessment.getAutonomyConstraintVersion()).isEqualTo("1");
+        assertThat(assessment.getAutonomousAction()).isEqualTo("ALLOW");
+        assertThat(assessment.getAutonomyConstraintApplied()).isNull();
+        assertThat(assessment.getAutonomyConstraintReasons()).isEmpty();
+        assertThat(assessment.getAutonomyConstraintPolicy()).isNull();
+        assertThat(assessment.getAutonomyConstraintSource()).isNull();
     }
 
     @Test

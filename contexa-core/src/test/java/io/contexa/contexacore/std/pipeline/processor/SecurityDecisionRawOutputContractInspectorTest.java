@@ -26,14 +26,6 @@ class SecurityDecisionRawOutputContractInspectorTest {
             new SecurityDecisionRawOutputContractInspector();
 
     @Test
-    void shouldRejectFalseFreshVerificationClaim() {
-        assertViolation(
-                "VerificationRequired: false",
-                "Fresh verification is required before allowing access.",
-                "FALSE_VERIFICATION_REQUIRED_CLAIM");
-    }
-
-    @Test
     void shouldNotRejectNegatedFreshVerificationClaim() {
         assertNoViolation(
                 "VerificationRequired: false",
@@ -160,15 +152,6 @@ class SecurityDecisionRawOutputContractInspectorTest {
         assertNoViolation(
                 "MfaVerified: false\nRagDocument1: historical behavior, MfaVerified: true",
                 "MFA is not verified for the current request.");
-    }
-
-    @Test
-    void shouldRejectAllowThatViolatesRequiredVerificationBoundary() {
-        assertActionViolation(
-                "AuthorizationEffect: ALLOW\nVerificationRequired: true\nMfaVerified: false\nSensitivity: HIGH",
-                "ALLOW",
-                "Authorization allows access.",
-                "REQUIRED_VERIFICATION_BOUNDARY_ACTION_MISMATCH");
     }
 
     @Test
