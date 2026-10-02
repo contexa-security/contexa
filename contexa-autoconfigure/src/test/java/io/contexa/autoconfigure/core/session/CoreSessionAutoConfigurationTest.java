@@ -19,13 +19,16 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.HttpSessionIdGenerator;
 import io.contexa.contexacore.infra.session.impl.HttpSessionMfaRepository;
+import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 @DisplayName("CoreSessionAutoConfiguration")
 class CoreSessionAutoConfigurationTest {
@@ -60,6 +63,44 @@ class CoreSessionAutoConfigurationTest {
                 assertThat(context.getBean(MfaSessionRepository.class))
                         .isInstanceOf(HttpSessionMfaRepository.class);
             });
+        }
+
+        @Test
+        @DisplayName("Standalone mode keeps HttpSession when the host application configures Redis")
+        void standaloneModeIgnoresHostRedis() {
+            contextRunner
+                    .withPropertyValues("contexa.infrastructure.mode=standalone")
+                    .withBean("stringRedisTemplate", StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                    .run(context -> {
+                        assertThat(context).hasSingleBean(MfaSessionRepository.class);
+                        assertThat(context.getBean(MfaSessionRepository.class))
+                                .isInstanceOf(HttpSessionMfaRepository.class);
+                    });
+        }
+
+        @Test
+        @DisplayName("Distributed mode uses Redis when a string Redis template exists")
+        void distributedModeUsesRedis() {
+            contextRunner
+                    .withPropertyValues("contexa.infrastructure.mode=distributed")
+                    .withBean("stringRedisTemplate", StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                    .run(context -> {
+                        assertThat(context).hasSingleBean(MfaSessionRepository.class);
+                        assertThat(context.getBean(MfaSessionRepository.class))
+                                .isInstanceOf(RedisMfaRepository.class);
+                    });
+        }
+
+        @Test
+        @DisplayName("Distributed mode without Redis keeps the HttpSession fallback")
+        void distributedModeWithoutRedisFallsBack() {
+            contextRunner
+                    .withPropertyValues("contexa.infrastructure.mode=distributed")
+                    .run(context -> {
+                        assertThat(context).hasSingleBean(MfaSessionRepository.class);
+                        assertThat(context.getBean(MfaSessionRepository.class))
+                                .isInstanceOf(HttpSessionMfaRepository.class);
+                    });
         }
     }
 }

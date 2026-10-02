@@ -15,26 +15,64 @@
  */
 package io.contexa.autoconfigure.core.infra;
 
-import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
 import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.core.env.Environment;
 
+import java.util.List;
+import java.util.Locale;
+
 /**
- * Filters out Redis/Kafka/Redisson auto-configurations in standalone mode.
+ * Filters Redis/Kafka/Redisson auto-configurations in standalone mode.
  * Uses pattern-based matching instead of hardcoded FQCNs,
  * so Spring Boot version changes or new auto-configurations are handled automatically.
+ *
+ * <p>Contexa-owned ({@code io.contexa.*}) infrastructure auto-configurations are always excluded in
+ * standalone mode. Third-party infrastructure auto-configurations (Spring Boot, Redisson, Spring Kafka)
+ * are excluded only when the host application has not configured that infrastructure itself, so a host
+ * application that uses its own Redis or Kafka keeps its auto-configuration.</p>
  */
 public class StandaloneAutoConfigurationFilter implements AutoConfigurationImportFilter, EnvironmentAware {
 
     private static final String MODE_PROPERTY = "contexa.infrastructure.mode";
 
-    private static final String[] EXCLUDE_PATTERNS = {"redis", "kafka", "redisson"};
+    private static final String REDIS_PATTERN = "redis";
+    private static final String KAFKA_PATTERN = "kafka";
     private static final String CONTEXA_PACKAGE_PREFIX = "io.contexa.";
     private static final String CONTEXA_OWNED_DATASOURCE_AUTO_CONFIGURATION =
             "io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration";
+
+    /**
+     * Connection keys that show the host application configured its own Redis. Redisson keys are included
+     * because the Redisson starter also provides the Redis connection factory used by Spring Data Redis.
+     */
+    private static final List<String> APPLICATION_REDIS_PROPERTIES = List.of(
+            "spring.data.redis.host",
+            "spring.data.redis.port",
+            "spring.data.redis.url",
+            "spring.data.redis.cluster.nodes",
+            "spring.data.redis.sentinel.nodes",
+            "spring.redis.host",
+            "spring.redis.port",
+            "spring.redis.url",
+            "spring.redis.cluster.nodes",
+            "spring.redis.sentinel.nodes",
+            "spring.data.redis.redisson.config",
+            "spring.data.redis.redisson.file",
+            "spring.redis.redisson.config",
+            "spring.redis.redisson.file");
+
+    /**
+     * Connection keys that show the host application configured its own Kafka cluster.
+     */
+    private static final List<String> APPLICATION_KAFKA_PROPERTIES = List.of(
+            "spring.kafka.bootstrap-servers",
+            "spring.kafka.producer.bootstrap-servers",
+            "spring.kafka.consumer.bootstrap-servers",
+            "spring.kafka.admin.bootstrap-servers",
+            "spring.kafka.streams.bootstrap-servers");
 
     private Environment environment;
 
@@ -70,25 +108,39 @@ public class StandaloneAutoConfigurationFilter implements AutoConfigurationImpor
                 continue;
             }
 
-            if (isStandalone) {
-                String lowerName = autoConfigurationClass.toLowerCase();
-                boolean excluded = false;
-                for (String pattern : EXCLUDE_PATTERNS) {
-                    if (lowerName.contains(pattern)) {
-                        excluded = true;
-                        break;
-                    }
-                }
-                result[i] = !excluded;
-            } else {
-                result[i] = true;
-            }
+            result[i] = !isStandalone || !isExcludedInStandalone(autoConfigurationClass);
         }
         return result;
     }
 
+    private boolean isExcludedInStandalone(String autoConfigurationClass) {
+        String lowerName = autoConfigurationClass.toLowerCase(Locale.ROOT);
+        boolean redisRelated = lowerName.contains(REDIS_PATTERN);
+        boolean kafkaRelated = lowerName.contains(KAFKA_PATTERN);
+        if (!redisRelated && !kafkaRelated) {
+            return false;
+        }
+        if (isContexaAutoConfiguration(autoConfigurationClass)) {
+            return true;
+        }
+        if (redisRelated && !hasAnyApplicationProperty(APPLICATION_REDIS_PROPERTIES)) {
+            return true;
+        }
+        return kafkaRelated && !hasAnyApplicationProperty(APPLICATION_KAFKA_PROPERTIES);
+    }
+
+    private boolean hasAnyApplicationProperty(List<String> propertyNames) {
+        for (String propertyName : propertyNames) {
+            if (environment.containsProperty(propertyName)
+                    || environment.containsProperty(propertyName + "[0]")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isContexaPlatformActive() {
-        return environment != null && environment.containsProperty(AiSecurityImportSelector.PROP_MODE);
+        return ContexaPlatformActivation.isActive(environment);
     }
 
     private boolean isContexaAutoConfiguration(String autoConfigurationClass) {

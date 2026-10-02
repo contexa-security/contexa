@@ -19,7 +19,6 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -29,7 +28,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Fallback;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -45,25 +44,23 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class CommonRedisAutoConfiguration {
 
     
+    /**
+     * Shared Contexa template for polymorphic values. It is a fallback candidate so that an
+     * application-defined {@code RedisTemplate<String, Object>} wins plain by-type injection;
+     * Contexa injection points select this template by name.
+     */
     @Bean(name = "generalRedisTemplate")
-    @Primary
+    @Fallback
     @ConditionalOnMissingBean(name = "generalRedisTemplate")
     public RedisTemplate<String, Object> generalRedisTemplate(RedisConnectionFactory connectionFactory) {
         
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        ObjectMapper objectMapper = createBaseObjectMapper();
-        objectMapper.activateDefaultTyping(
-            BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType(Object.class)
-                .build(),
-            ObjectMapper.DefaultTyping.NON_FINAL
-        );
+        ObjectMapper objectMapper = ContexaJsonRedisSerializer.activateDefaultTyping(createBaseObjectMapper());
 
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-            new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer jsonSerializer = new ContexaJsonRedisSerializer(objectMapper);
 
         template.setKeySerializer(stringSerializer);
         template.setHashKeySerializer(stringSerializer);
@@ -77,7 +74,7 @@ public class CommonRedisAutoConfiguration {
     }
 
     
-    @Bean(name = "eventRedisTemplate")
+    @Bean(name = "eventRedisTemplate", defaultCandidate = false)
     @ConditionalOnMissingBean(name = "eventRedisTemplate")
     public RedisTemplate<String, Object> eventRedisTemplate(RedisConnectionFactory connectionFactory) {
         

@@ -110,7 +110,7 @@ public class ZeroTrustRedisConfig {
         return new LettuceConnectionFactory(redisConfig, lettuceClientConfiguration);
     }
 
-    @Bean(name = "stateMachineRedisTemplate")
+    @Bean(name = "stateMachineRedisTemplate", defaultCandidate = false)
     public RedisTemplate<String, Object> stateMachineRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory);

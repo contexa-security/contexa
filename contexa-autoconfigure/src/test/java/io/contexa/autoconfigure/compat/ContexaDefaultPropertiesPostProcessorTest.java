@@ -19,8 +19,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.mock.env.MockEnvironment;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,7 +45,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
     @Test
     @DisplayName("injects zero-configuration 1024-dimension vector and OpenAI embedding defaults")
     void injectsZeroConfigurationDefaults() {
-        MockEnvironment environment = new MockEnvironment();
+        MockEnvironment environment = activeEnvironment();
 
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
 
@@ -76,7 +79,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
     @Test
     @DisplayName("aligns default OpenAI embedding dimensions with explicit vector-store dimensions")
     void alignsOpenAiDimensionsWithExplicitVectorStoreDimensions() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = activeEnvironment()
                 .withProperty("contexa.vectorstore.pgvector.dimensions", "1536");
 
         postProcessor.postProcessEnvironment(environment, new SpringApplication());
@@ -89,7 +92,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
     @Test
     @DisplayName("keeps explicit Ollama embedding runtime on the 1024 product dimension")
     void keepsExplicitOllamaRuntimeOnProductDimension() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = activeEnvironment()
                 .withProperty("contexa.llm.selection.chat.priority", "ollama")
                 .withProperty("contexa.llm.selection.embedding.priority", "ollama");
 
@@ -109,7 +112,7 @@ class ContexaDefaultPropertiesPostProcessorTest {
     @Test
     @DisplayName("keeps multi-provider chat dynamic while selecting the fixed embedding provider")
     void keepsMultiProviderChatDynamic() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = activeEnvironment()
                 .withProperty("contexa.llm.selection.chat.priority", "ollama,openai")
                 .withProperty("contexa.llm.selection.embedding.priority", "ollama");
 
@@ -132,5 +135,37 @@ class ContexaDefaultPropertiesPostProcessorTest {
 
         assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("openai");
         assertThat(environment.getProperty("spring.ai.model.embedding")).isEqualTo("openai");
+    }
+
+    @Test
+    @DisplayName("keeps non-contexa defaults hidden in dependency-only applications until the platform is activated")
+    void hidesNonContexaDefaultsWhilePlatformIsInactive() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("contexa.llm.selection.chat.priority", "ollama")
+                .withProperty("contexa.llm.selection.embedding.priority", "ollama");
+
+        postProcessor.postProcessEnvironment(environment, new SpringApplication());
+
+        assertThat(environment.getProperty("contexa.vectorstore.pgvector.dimensions")).isEqualTo("1024");
+        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isNull();
+        assertThat(environment.containsProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isFalse();
+        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isNull();
+        assertThat(environment.getProperty("spring.ai.openai.embedding.options.model")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.chat")).isNull();
+        assertThat(environment.getProperty("spring.ai.model.embedding")).isNull();
+        assertThat(environment.getProperty("management.prometheus.metrics.export.exemplars.enabled")).isNull();
+        assertThat(environment.getProperty("management.metrics.enable.lettuce")).isNull();
+
+        environment.getPropertySources().addFirst(new MapPropertySource(
+                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
+
+        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.initialize-schema")).isEqualTo("true");
+        assertThat(environment.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("1024");
+        assertThat(environment.getProperty("spring.ai.model.chat")).isEqualTo("ollama");
+        assertThat(environment.getProperty("management.metrics.enable.lettuce")).isEqualTo("false");
+    }
+
+    private MockEnvironment activeEnvironment() {
+        return new MockEnvironment().withProperty("contexa.ai.security.mode", "SANDBOX");
     }
 }

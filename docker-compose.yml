@@ -6,6 +6,9 @@
 #
 #   Distributed mode (PostgreSQL + Ollama + Redis + Kafka):
 #     docker compose --profile distributed up
+#
+#   Standalone Contexa application image (PostgreSQL + Ollama only):
+#     docker compose --profile app up
 
 services:
   # --- Core Services (always started) ---
@@ -26,7 +29,7 @@ services:
     networks:
       - contexa-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d contexa"]
+      test: ["CMD-SHELL", "pg_isready -U contexa -d contexa"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,7 +51,8 @@ services:
       - OLLAMA_MAX_QUEUE=256
       - OLLAMA_MAX_LOADED_MODELS=1
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      # The ollama/ollama image ships without curl; the CLI queries the local server instead.
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -68,10 +72,18 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/contexa
-      SPRING_DATASOURCE_USERNAME: contexa
-      SPRING_DATASOURCE_PASSWORD: contexa1234!@#
+      # The image runs @EnableAISecurity(mode = FULL): Contexa owns the application datasource,
+      # so only the contexa.datasource.* keys are required (spring.datasource.* is not used).
+      CONTEXA_INFRASTRUCTURE_MODE: standalone
+      CONTEXA_DATASOURCE_URL: jdbc:postgresql://postgres:5432/contexa
+      CONTEXA_DATASOURCE_USERNAME: contexa
+      CONTEXA_DATASOURCE_PASSWORD: contexa1234!@#
+      # Ollama chat and embedding runtime (pull the models first, see README "Start infrastructure").
+      CONTEXA_LLM_SELECTION_CHAT_PRIORITY: ollama
+      CONTEXA_LLM_SELECTION_EMBEDDING_PRIORITY: ollama
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+      SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: qwen2.5:7b
+      SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL: mxbai-embed-large
     ports:
       - "8080:8080"
     volumes:

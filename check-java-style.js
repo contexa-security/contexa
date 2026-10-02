@@ -1,5 +1,36 @@
 const fs = require('fs');
+const path = require('path');
 const { execSync } = require('child_process');
+
+// Directories that never contain tracked sources; skipped when scanning without git metadata.
+const SKIPPED_DIRECTORIES = new Set(['.git', '.gradle', '.idea', 'build', 'out', 'node_modules']);
+
+function isInsideGitWorkTree() {
+    try {
+        const stdout = execSync('git rev-parse --is-inside-work-tree', {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore']
+        });
+        return stdout.trim() === 'true';
+    } catch (err) {
+        return false;
+    }
+}
+
+// Used when git metadata is unavailable, for example inside a Docker build context.
+function listJavaFiles(dir, result) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const entryPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            if (!SKIPPED_DIRECTORIES.has(entry.name)) {
+                listJavaFiles(entryPath, result);
+            }
+        } else if (entry.isFile() && entry.name.endsWith('.java')) {
+            result.push(path.relative(process.cwd(), entryPath));
+        }
+    }
+    return result;
+}
 
 const regex = /\b[a-z][a-z0-9_]*\.(?:[a-z0-9_]+\.)+[A-Z][A-Za-z0-9_]*\b/g;
 
@@ -136,8 +167,12 @@ function checkFile(file) {
 try {
     let files = [];
     if (process.argv.includes('--all')) {
-        const stdout = execSync('git ls-files', { encoding: 'utf8' });
-        files = stdout.split('\n').map(f => f.trim()).filter(f => f.endsWith('.java'));
+        if (isInsideGitWorkTree()) {
+            const stdout = execSync('git ls-files', { encoding: 'utf8' });
+            files = stdout.split('\n').map(f => f.trim()).filter(f => f.endsWith('.java'));
+        } else {
+            files = listJavaFiles(process.cwd(), []);
+        }
     } else {
         const stdout = execSync('git diff --cached --name-only --diff-filter=ACM', { encoding: 'utf8' });
         files = stdout.split('\n').map(f => f.trim()).filter(f => f.endsWith('.java'));

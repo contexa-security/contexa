@@ -166,6 +166,7 @@ public class IdentityStateMachineAutoConfiguration {
             "org.redisson.api.RedissonClient",
             "org.springframework.statemachine.data.redis.RedisStateMachineRepository"
     })
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
     @EnableRedisRepositories(basePackages = "org.springframework.statemachine.data.redis")
     static class DistributedStateMachineConfig {

@@ -522,7 +522,7 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
-                RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
         }
@@ -537,7 +537,7 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(ThreatScoreUtil.class)
         public RedisThreatScoreUtil redisThreatScoreUtil(
-                RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecurityZeroTrustProperties securityZeroTrustProperties) {
             return new RedisThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
         }
@@ -545,14 +545,14 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
-                RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisSecurityContextDataStore(redisTemplate);
         }
 
         @Bean
         @ConditionalOnMissingBean(DistributedLockService.class)
         public RedisDistributedLockService redisDistributedLockService(
-                RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisDistributedLockService(redisTemplate);
         }
     }

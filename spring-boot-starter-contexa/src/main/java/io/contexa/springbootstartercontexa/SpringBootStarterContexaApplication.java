@@ -15,10 +15,21 @@
  */
 package io.contexa.springbootstartercontexa;
 
+import io.contexa.contexacommon.annotation.EnableAISecurity;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 
-@SpringBootApplication
+/**
+ * Entry point of the standalone Contexa platform image built from this module (see the repository Dockerfile).
+ *
+ * <p>This class ships inside the starter library jar, so it intentionally carries no stereotype annotation
+ * such as {@code @SpringBootApplication} or {@code @Configuration}. Host applications that depend on the
+ * starter and component-scan {@code io.contexa} therefore never pick it up, and its {@code @EnableAISecurity}
+ * only takes effect when this class is the primary source passed to {@link SpringApplication}.</p>
+ */
+@EnableAutoConfiguration
+@EnableAISecurity(mode = SecurityMode.FULL)
 public class SpringBootStarterContexaApplication {
 
     public static void main(String[] args) {

@@ -4,13 +4,19 @@
 # ============================================================
 
 # --- Stage 1: Build ---
-FROM eclipse-temurin:21-jdk AS builder
+# JDK 17 matches the Gradle toolchain (java.toolchain.languageVersion = 17), so no toolchain download is needed.
+FROM eclipse-temurin:17-jdk-jammy AS builder
+
+# Every JavaCompile task depends on :checkJavaStyle, which runs check-java-style.js with Node.js.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Copy Gradle wrapper and config first (layer cache optimization)
+# Copy Gradle wrapper, build config and the Java style checker first (layer cache optimization)
 COPY gradle/ gradle/
-COPY gradlew settings.gradle build.gradle gradle.properties ./
+COPY gradlew settings.gradle build.gradle gradle.properties check-java-style.js ./
 
 # Copy module build files
 COPY contexa-common/build.gradle contexa-common/build.gradle
@@ -19,6 +25,8 @@ COPY contexa-identity/build.gradle contexa-identity/build.gradle
 COPY contexa-iam/build.gradle contexa-iam/build.gradle
 COPY contexa-autoconfigure/build.gradle contexa-autoconfigure/build.gradle
 COPY spring-boot-starter-contexa/build.gradle spring-boot-starter-contexa/build.gradle
+# contexa-demo is included in settings.gradle; only its build file is needed to configure the build
+COPY contexa-demo/build.gradle contexa-demo/build.gradle
 
 # Download dependencies (cached layer)
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon 2>/dev/null || true

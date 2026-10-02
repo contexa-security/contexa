@@ -18,7 +18,6 @@ package io.contexa.autoconfigure.compat;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
-import org.springframework.core.env.MapPropertySource;
  
 import java.util.LinkedHashMap;
 import java.util.Arrays;
@@ -27,13 +26,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
  
+/**
+ * Contributes Contexa defaults. Keys outside the {@code contexa.*} namespace (Spring AI vector store,
+ * Spring AI model selection, management metrics) are only visible while the Contexa platform is active,
+ * see {@link PlatformActivationGatedPropertySource}.
+ */
 public class ContexaDefaultPropertiesPostProcessor implements EnvironmentPostProcessor {
  
     static final String SOURCE_NAME = "contexaDefaultProperties";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        environment.getPropertySources().addLast(new MapPropertySource(SOURCE_NAME, defaults(environment)));
+        environment.getPropertySources().addLast(
+                new PlatformActivationGatedPropertySource(SOURCE_NAME, defaults(environment), environment));
     }
  
     private Map<String, Object> defaults(ConfigurableEnvironment environment) {

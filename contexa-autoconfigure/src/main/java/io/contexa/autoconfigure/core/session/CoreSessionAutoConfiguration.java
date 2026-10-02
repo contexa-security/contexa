@@ -25,11 +25,13 @@ import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
@@ -69,8 +71,28 @@ public class CoreSessionAutoConfiguration {
         }
     }
 
+    /**
+     * Standalone mode keeps MFA sessions in the HTTP session even when the host application
+     * configures its own Redis, because only distributed mode owns a Redis-backed repository.
+     * Distributed mode without a string Redis template keeps the HTTP session fallback.
+     */
+    static class StandaloneSessionCondition extends AnyNestedCondition {
+
+        StandaloneSessionCondition() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+        static class StandaloneMode {
+        }
+
+        @ConditionalOnMissingBean(name = "stringRedisTemplate")
+        static class NoStringRedisTemplate {
+        }
+    }
+
     @Configuration(proxyBeanMethods = false)
-    @ConditionalOnMissingBean(name = "stringRedisTemplate")
+    @Conditional(StandaloneSessionCondition.class)
     static class StandaloneSessionConfiguration {
 
         @Bean

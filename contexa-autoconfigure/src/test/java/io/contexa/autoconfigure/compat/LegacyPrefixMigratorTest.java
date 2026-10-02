@@ -18,7 +18,10 @@ package io.contexa.autoconfigure.compat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.mock.env.MockEnvironment;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -92,9 +95,29 @@ class LegacyPrefixMigratorTest {
     @DisplayName("역방향 alias: contexa.vectorstore.pgvector.* 가 Spring AI 표준 prefix 로도 노출된다")
     void reverseAliasesPgVectorToSpringAi() {
         MockEnvironment env = new MockEnvironment();
+        env.setProperty("contexa.ai.security.mode", "SANDBOX");
         env.setProperty("contexa.vectorstore.pgvector.dimensions", "2048");
 
         migrator.postProcessEnvironment(env, new SpringApplication());
+
+        assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("2048");
+    }
+
+    @Test
+    @DisplayName("Reverse aliases outside contexa.* stay hidden until @EnableAISecurity activates the platform")
+    void reverseAliasesStayHiddenWhilePlatformIsInactive() {
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("contexa.vectorstore.pgvector.dimensions", "2048");
+        env.setProperty("security.zerotrust.mode", "ENFORCE");
+
+        migrator.postProcessEnvironment(env, new SpringApplication());
+
+        assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isNull();
+        assertThat(env.containsProperty("spring.ai.vectorstore.pgvector.dimensions")).isFalse();
+        assertThat(env.getProperty("contexa.security.zerotrust.mode")).isEqualTo("ENFORCE");
+
+        env.getPropertySources().addFirst(new MapPropertySource(
+                "contexaAiSecurityAnnotation", Map.of("contexa.ai.security.mode", "SANDBOX")));
 
         assertThat(env.getProperty("spring.ai.vectorstore.pgvector.dimensions")).isEqualTo("2048");
     }
