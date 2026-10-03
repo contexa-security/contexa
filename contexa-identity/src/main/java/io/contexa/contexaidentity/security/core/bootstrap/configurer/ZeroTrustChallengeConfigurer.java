@@ -22,9 +22,12 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
-import lombok.extern.slf4j.Slf4j;
+import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 
-@Slf4j
 public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
     private static final int ORDER = 50;
@@ -37,26 +40,40 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
-        log.debug("ZeroTrustChallengeConfigurer initialized");
     }
 
     @Override
     public void configure(FlowContext fc) throws Exception {
         if (zeroTrustChallengeFilter == null) {
-            log.warn("ZeroTrustChallengeFilter is not available, skipping registration");
             return;
         }
 
         AuthenticationFlowConfig flowConfig = fc.flow();
 
         if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
-            log.debug("Skipping MfaPageGeneratingFilter for non-MFA flow: {}", flowConfig.getTypeName());
             return;
         }
 
-        fc.http().addFilterAfter(zeroTrustChallengeFilter, DefaultMfaPageGeneratingFilter.class);
-        log.debug("ZeroTrustChallengeFilter registered before LogoutFilter for flow: {}",
-                fc.flow().getTypeName());
+        if (isTokenState(fc)) {
+            // A token state authenticates the request in the bearer token filter, which runs after the MFA
+            // page filter; right after it (and after the OAuth2 zero trust filter) the challenge can see
+            // the user, still before access control and authorization.
+            fc.http().addFilterBefore(zeroTrustChallengeFilter, BasicAuthenticationFilter.class);
+        } else {
+            fc.http().addFilterAfter(zeroTrustChallengeFilter, DefaultMfaPageGeneratingFilter.class);
+        }
+    }
+
+    private static boolean isTokenState(FlowContext fc) {
+        StateConfig stateConfig = fc.flow().getStateConfig();
+        if (stateConfig != null && stateConfig.stateType() != null) {
+            return stateConfig.stateType() != StateType.SESSION;
+        }
+        ApplicationContext applicationContext = fc.http().getSharedObject(ApplicationContext.class);
+        if (applicationContext == null) {
+            return false;
+        }
+        return applicationContext.getBean(AuthContextProperties.class).getStateType() != StateType.SESSION;
     }
 
     @Override

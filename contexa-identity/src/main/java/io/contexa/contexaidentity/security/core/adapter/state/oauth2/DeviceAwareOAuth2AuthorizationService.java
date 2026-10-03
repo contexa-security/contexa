@@ -66,7 +66,11 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
 
     @Override
     public void save(OAuth2Authorization authorization) {
-        enforceConcurrentLoginPolicy(authorization);
+        // Only a newly created authorization is a new login. Updates of an existing one, such as a
+        // refresh token rotation or a logout invalidation, must not count against the login limit.
+        if (delegate.findById(authorization.getId()) == null) {
+            enforceConcurrentLoginPolicy(authorization);
+        }
         delegate.save(authorization);
     }
 

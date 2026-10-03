@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
+import io.contexa.contexaidentity.security.token.wrapper.OAuth2TokenRequestWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +44,12 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
         
         String grantType = request.getParameter(OAuth2ParameterNames.GRANT_TYPE);
         if (!GRANT_TYPE_VALUE.equals(grantType)) {
+            return null;
+        }
+
+        // The grant issues tokens for a username without user credentials, so it is only accepted from
+        // the in-process token engine; external requests are left unconverted and rejected as unsupported.
+        if (!Boolean.TRUE.equals(request.getAttribute(OAuth2TokenRequestWrapper.INTERNAL_REQUEST_ATTRIBUTE))) {
             return null;
         }
 

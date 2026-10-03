@@ -57,6 +57,7 @@ public class AuthContextProperties {
     private boolean allowMultipleLogins = false;
     private int maxConcurrentLogins = 3;
     private boolean cookieSecure = true;
+    private String cookieSameSite = "Lax";
 
     private String tokenPersistence = "memory";
 

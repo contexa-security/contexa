@@ -66,6 +66,9 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.ResponseCookie;
+import java.util.List;
+import static org.mockito.ArgumentMatchers.any;
 
 
 class AbstractMfaAuthenticationSuccessHandlerTest {
@@ -331,6 +334,57 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             assertThat(writtenBody(response))
                     .containsEntry("accessToken", "access")
                     .containsEntry("redirectUrl", "/webauthn/register");
+        }
+
+        @Test
+        @DisplayName("OAUTH2 JSON completion with a recorded intent tells a SPA to open passkey registration")
+        void oauth2JsonCompletionAnnouncesPasskeyRegistration() throws Exception {
+            AuthContextProperties properties = new AuthContextProperties();
+            properties.setStateType(StateType.OAUTH2);
+            TokenService tokenService = mock(TokenService.class);
+            TestHandler handler = newHandler(properties, tokenService, responseWriter, new AuthUrlProvider(properties));
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login/mfa-ott");
+            request.addHeader("Accept", "application/json");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            Authentication authentication = authentication();
+            MfaPasskeyRegistrationIntent.record(request, MFA_SESSION_ID);
+            when(tokenService.createTokenPair(eq(authentication), isNull(), eq(request), eq(response)))
+                    .thenReturn(TokenPair.builder().accessToken("access").refreshToken("refresh").build());
+            when(tokenService.prepareTokensForTransport("access", "refresh"))
+                    .thenReturn(TokenTransportResult.builder().body(Map.of("tokenTransportMethod", "COOKIE")).build());
+
+            handler.complete(request, response, authentication, factorContext());
+
+            assertThat(writtenBody(response))
+                    .containsEntry("nextAction", AbstractMfaAuthenticationSuccessHandler.NEXT_ACTION_PASSKEY_REGISTRATION)
+                    .containsEntry("redirectUrl", "/webauthn/register");
+        }
+
+        @Test
+        @DisplayName("OAUTH2 completion of a plain form submission sets the token cookies and redirects")
+        void oauth2FormCompletionRedirectsWithCookies() throws Exception {
+            AuthContextProperties properties = new AuthContextProperties();
+            properties.setStateType(StateType.OAUTH2);
+            TokenService tokenService = mock(TokenService.class);
+            TestHandler handler = newHandler(properties, tokenService, responseWriter, new AuthUrlProvider(properties));
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login/mfa-ott");
+            request.addHeader("Accept", "text/html");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            Authentication authentication = authentication();
+            MfaPasskeyRegistrationIntent.record(request, MFA_SESSION_ID);
+            when(tokenService.createTokenPair(eq(authentication), isNull(), eq(request), eq(response)))
+                    .thenReturn(TokenPair.builder().accessToken("access").refreshToken("refresh").build());
+            when(tokenService.prepareTokensForTransport("access", "refresh"))
+                    .thenReturn(TokenTransportResult.builder()
+                            .cookiesToSet(List.of(ResponseCookie.from("accessToken", "access").path("/").build()))
+                            .body(Map.of("tokenTransportMethod", "COOKIE"))
+                            .build());
+
+            handler.complete(request, response, authentication, factorContext());
+
+            assertThat(response.getRedirectedUrl()).isEqualTo("/webauthn/register");
+            assertThat(response.getHeaders("Set-Cookie")).anyMatch(c -> c.startsWith("accessToken=access"));
+            verify(responseWriter, never()).writeSuccessResponse(any(), any(), anyInt());
         }
 
         @Test

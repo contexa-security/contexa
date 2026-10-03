@@ -15,58 +15,87 @@
  */
 package io.contexa.contexaidentity.security.token.wrapper;
 
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+/**
+ * Presents the current request to the in-process Spring Authorization Server token endpoint as a
+ * client-authenticated token request carrying only the given grant parameters.
+ */
 public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
-    private final String username;
-    private final String deviceId;
+    /**
+     * Request attribute that is present only on token requests built by this wrapper. External HTTP
+     * requests cannot set request attributes, so it marks a request as issued inside the process.
+     */
+    public static final String INTERNAL_REQUEST_ATTRIBUTE = OAuth2TokenRequestWrapper.class.getName() + ".INTERNAL";
+
+    private static final String TOKEN_ENDPOINT = "/oauth2/token";
+
     private final String clientId;
     private final String clientSecret;
-    private final Set<String> scopes;
     private final Map<String, String[]> oauth2Parameters;
 
     public OAuth2TokenRequestWrapper(
+            HttpServletRequest request,
+            String clientId,
+            String clientSecret,
+            Map<String, String[]> oauth2Parameters) {
+        super(request);
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.oauth2Parameters = Collections.unmodifiableMap(new LinkedHashMap<>(oauth2Parameters));
+    }
+
+    public static OAuth2TokenRequestWrapper authenticatedUser(
             HttpServletRequest request,
             String username,
             String deviceId,
             String clientId,
             String clientSecret,
             Set<String> scopes) {
-
-        super(request);
-        this.username = username;
-        this.deviceId = deviceId;
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
-        this.scopes = scopes != null ? Set.copyOf(scopes) : Collections.emptySet();
-        this.oauth2Parameters = buildOAuth2Parameters();
-    }
-
-    private Map<String, String[]> buildOAuth2Parameters() {
-        Map<String, String[]> params = new HashMap<>();
-
-        params.put("grant_type", new String[]{"urn:ietf:params:oauth:grant-type:authenticated-user"});
-
+        Map<String, String[]> params = new LinkedHashMap<>();
+        params.put(OAuth2ParameterNames.GRANT_TYPE,
+                new String[]{AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.getValue()});
         params.put("username", new String[]{username});
-
         if (deviceId != null) {
             params.put("device_id", new String[]{deviceId});
         }
-        if (!scopes.isEmpty()) {
-            params.put("scope", new String[]{String.join(" ", scopes)});
+        if (scopes != null && !scopes.isEmpty()) {
+            params.put(OAuth2ParameterNames.SCOPE, new String[]{String.join(" ", scopes)});
         }
+        return new OAuth2TokenRequestWrapper(request, clientId, clientSecret, params);
+    }
 
-        return params;
+    public static OAuth2TokenRequestWrapper refreshToken(
+            HttpServletRequest request,
+            String refreshToken,
+            String clientId,
+            String clientSecret) {
+        Map<String, String[]> params = new LinkedHashMap<>();
+        params.put(OAuth2ParameterNames.GRANT_TYPE, new String[]{AuthorizationGrantType.REFRESH_TOKEN.getValue()});
+        params.put(OAuth2ParameterNames.REFRESH_TOKEN, new String[]{refreshToken});
+        return new OAuth2TokenRequestWrapper(request, clientId, clientSecret, params);
+    }
+
+    @Override
+    public Object getAttribute(String name) {
+        if (INTERNAL_REQUEST_ATTRIBUTE.equals(name)) {
+            return Boolean.TRUE;
+        }
+        return super.getAttribute(name);
     }
 
     @Override
     public String getRequestURI() {
-        return "/oauth2/token";
+        return TOKEN_ENDPOINT;
     }
 
     @Override
@@ -75,23 +104,30 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
         url.append(getScheme())
            .append("://")
            .append(getServerName());
-
         int port = getServerPort();
         if (port != 80 && port != 443) {
             url.append(':').append(port);
         }
-
-        url.append("/oauth2/token");
+        url.append(TOKEN_ENDPOINT);
         return url;
     }
 
     @Override
     public String getServletPath() {
-        return "/oauth2/token";
+        return TOKEN_ENDPOINT;
     }
 
     @Override
     public String getPathInfo() {
+        return null;
+    }
+
+    /**
+     * The token endpoint treats any parameter whose name appears in the query string as a query
+     * parameter and ignores it, so the original query string must not leak into the token request.
+     */
+    @Override
+    public String getQueryString() {
         return null;
     }
 
@@ -103,7 +139,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public Map<String, String[]> getParameterMap() {
-        return Collections.unmodifiableMap(oauth2Parameters);
+        return oauth2Parameters;
     }
 
     @Override
@@ -118,7 +154,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public String getHeader(String name) {
-        if ("Authorization".equalsIgnoreCase(name)) {
+        if (HttpHeaders.AUTHORIZATION.equalsIgnoreCase(name)) {
             String credentials = clientId + ":" + clientSecret;
             String base64Credentials = Base64.getEncoder()
                     .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
@@ -129,7 +165,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public Enumeration<String> getHeaders(String name) {
-        if ("Authorization".equalsIgnoreCase(name)) {
+        if (HttpHeaders.AUTHORIZATION.equalsIgnoreCase(name)) {
             return Collections.enumeration(Collections.singletonList(getHeader(name)));
         }
         return super.getHeaders(name);
@@ -144,7 +180,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
                 headerNames.add(originalHeaders.nextElement());
             }
         }
-        headerNames.add("Authorization");
+        headerNames.add(HttpHeaders.AUTHORIZATION);
         return Collections.enumeration(headerNames);
     }
 

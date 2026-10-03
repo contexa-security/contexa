@@ -29,6 +29,10 @@
 (function(window) {
     'use strict';
 
+    // Authentication results are stored here. It has to exist before the first result arrives, otherwise
+    // the memory token persistence silently drops the issued tokens.
+    window.TokenMemory = window.TokenMemory || { accessToken: null, refreshToken: null };
+
     /**
      * Bundled i18n strings for user-facing texts the SDK renders directly
      * (the response-blocked page). Auto-selected by navigator.language.
@@ -952,6 +956,10 @@
             };
             this.context = null;
 
+            if (this.options.attachAuthorization) {
+                window.__CONTEXA_ATTACH_AUTHORIZATION = true;
+            }
+
             if (this.options.autoInit) {
                 this.stateTracker.restoreFromSession();
                 this._restoreTokensFromStorage();
@@ -1341,10 +1349,180 @@
      * This allows users to use fetch() normally without additional code,
      * and MFA challenges are handled automatically.
      */
+    /**
+     * Token renewal through the server refresh entry point. One renewal is shared by all requests that
+     * fail at the same time. With the cookie transports the refresh token is an HttpOnly cookie sent by the
+     * browser; with the header transport it is sent from TokenMemory.
+     */
+    const ContexaTokenRefresh = (function() {
+        let inFlight = null;
+        let renewals = 0;
+        const SKIPPED_PATH_PATTERN = /\/(logout|oauth2|mfa|login)(\/|$|\?)/;
+
+        /**
+         * Pages rendered for a cookie login declare their transport and refresh entry point, which takes
+         * precedence over what was stored at login (the stored value may be missing or older).
+         */
+        function pageMeta(name) {
+            const element = document.querySelector('meta[name="' + name + '"]');
+            return element ? element.getAttribute('content') : null;
+        }
+
+        function refreshUrl() {
+            const fromPage = pageMeta('contexa-refresh-url');
+            if (fromPage) {
+                return fromPage;
+            }
+            const cfg = window.__MFA_CONFIG__;
+            return (cfg && cfg.api && cfg.api.refresh) || '/api/refresh';
+        }
+
+        function authMode() {
+            return (pageMeta('contexa-token-transport') || localStorage.getItem('authMode') || 'header').toLowerCase();
+        }
+
+        function usesHeaderToken() {
+            const mode = authMode();
+            return mode === 'header' || mode === 'header_cookie';
+        }
+
+        function urlOf(input) {
+            return input instanceof Request ? input.url : String(input);
+        }
+
+        function isSameOrigin(input) {
+            try {
+                return new URL(urlOf(input), window.location.href).origin === window.location.origin;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function isEligible(input) {
+            if (!isSameOrigin(input)) {
+                return false;
+            }
+            const path = new URL(urlOf(input), window.location.href).pathname;
+            if (path === refreshUrl() || SKIPPED_PATH_PATTERN.test(path)) {
+                return false;
+            }
+            return authMode() !== 'header' || !!window.TokenMemory.refreshToken;
+        }
+
+        function updateStoredToken(key, value) {
+            [localStorage, sessionStorage].forEach(function(storage) {
+                try {
+                    if (storage.getItem(key) !== null) {
+                        storage.setItem(key, value);
+                    }
+                } catch (e) {
+                }
+            });
+        }
+
+        async function renew(fetchImpl) {
+            const headers = {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Device-Id': ContexaMFAUtils.getDeviceId()
+            };
+            const csrfToken = ContexaMFAUtils.getCsrfToken();
+            const csrfHeader = ContexaMFAUtils.getCsrfHeader();
+            if (csrfToken && csrfHeader) {
+                headers[csrfHeader] = csrfToken;
+            }
+            if (authMode() === 'header' && window.TokenMemory.refreshToken) {
+                headers['X-Refresh-Token'] = window.TokenMemory.refreshToken;
+            }
+            const response = await fetchImpl(refreshUrl(), { method: 'POST', credentials: 'same-origin', headers: headers });
+            if (!response.ok) {
+                return false;
+            }
+            const data = await response.json().catch(function() { return {}; });
+            if (data.accessToken) {
+                window.TokenMemory.accessToken = data.accessToken;
+                updateStoredToken(TOKEN_STORAGE_KEYS.ACCESS_TOKEN, data.accessToken);
+            }
+            if (data.refreshToken) {
+                window.TokenMemory.refreshToken = data.refreshToken;
+                updateStoredToken(TOKEN_STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
+            }
+            return true;
+        }
+
+        function refresh(fetchImpl) {
+            if (!inFlight) {
+                inFlight = renew(fetchImpl)
+                    .then(function(renewed) {
+                        if (renewed) {
+                            renewals += 1;
+                        }
+                        return renewed;
+                    })
+                    .catch(function() { return false; })
+                    .finally(function() { inFlight = null; });
+            }
+            return inFlight;
+        }
+
+        /**
+         * Counts completed renewals. A request that was sent before a renewal completed failed with the old
+         * credentials, so it only has to be sent again; renewing once more would rotate the tokens for nothing.
+         */
+        function renewalCount() {
+            return renewals;
+        }
+
+        /**
+         * Sets the Authorization header when it is missing or still carries the token that was replaced.
+         */
+        function withAuthorization(args, token, replacedToken) {
+            const input = args[0];
+            const init = args[1];
+            const source = input instanceof Request ? input.headers : (init && init.headers) || {};
+            const headers = new Headers(source);
+            const current = headers.get('Authorization');
+            if (!current || (replacedToken && current === 'Bearer ' + replacedToken)) {
+                headers.set('Authorization', 'Bearer ' + token);
+            }
+            if (input instanceof Request) {
+                return [new Request(input, { headers: headers })].concat(args.slice(1));
+            }
+            return [input, Object.assign({}, init || {}, { headers: headers })].concat(args.slice(2));
+        }
+
+        function shouldAttach(input) {
+            return window.__CONTEXA_ATTACH_AUTHORIZATION === true && usesHeaderToken()
+                && !!window.TokenMemory.accessToken && isSameOrigin(input);
+        }
+
+        /**
+         * With a header transport a renewal only helps a request that presented a bearer token. A request sent
+         * without Authorization stays as it is unless the page opted in to the attachment.
+         */
+        function presentedBearer(args) {
+            const input = args[0];
+            const init = args[1];
+            const source = input instanceof Request ? input.headers : (init && init.headers) || {};
+            const value = new Headers(source).get('Authorization');
+            return !!value && /^Bearer\s+/i.test(value);
+        }
+
+        return { refresh: refresh, renewalCount: renewalCount, isEligible: isEligible, usesHeaderToken: usesHeaderToken,
+            withAuthorization: withAuthorization, shouldAttach: shouldAttach, presentedBearer: presentedBearer };
+    })();
+
     (function installGlobalFetchInterceptor() {
         const originalFetch = window.fetch;
+        window.__contexaOriginalFetch = originalFetch;
 
         window.fetch = async function(...args) {
+            const retryArgs = args[0] instanceof Request ? [args[0].clone()].concat(args.slice(1)) : args;
+            const sentAfterRenewals = ContexaTokenRefresh.renewalCount();
+            const sentToken = window.TokenMemory.accessToken;
+            if (ContexaTokenRefresh.shouldAttach(args[0])) {
+                args = ContexaTokenRefresh.withAuthorization(args, window.TokenMemory.accessToken, null);
+            }
             var response;
             try {
                 response = await originalFetch.apply(this, args);
@@ -1418,12 +1596,13 @@
             }
 
             if (response.status === 401) {
+                var challengeError = false;
                 try {
                     const clonedResponse = response.clone();
                     const data = await clonedResponse.json();
+                    challengeError = data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED';
 
-                    if ((data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED')
-                        && (data.challengeNoticeUrl || data.mfaUrl)) {
+                    if (challengeError && (data.challengeNoticeUrl || data.mfaUrl)) {
                         var redirectTarget = data.challengeNoticeUrl || data.mfaUrl;
                         ContexaMFAUtils.log(
                             `MFA Challenge detected, redirecting to: ${redirectTarget}`,
@@ -1434,6 +1613,21 @@
                         return new Promise(() => {});
                     }
                 } catch (e) {
+                }
+
+                // An expired access token is renewed once and the request is sent again.
+                if (!challengeError && ContexaTokenRefresh.isEligible(retryArgs[0])
+                    && (!ContexaTokenRefresh.usesHeaderToken() || ContexaTokenRefresh.presentedBearer(args))) {
+                    const renewed = sentAfterRenewals !== ContexaTokenRefresh.renewalCount()
+                        || await ContexaTokenRefresh.refresh(originalFetch);
+                    if (renewed) {
+                        var retry = retryArgs;
+                        if (ContexaTokenRefresh.usesHeaderToken() && window.TokenMemory.accessToken) {
+                            retry = ContexaTokenRefresh.withAuthorization(
+                                retryArgs, window.TokenMemory.accessToken, sentToken);
+                        }
+                        return originalFetch.apply(this, retry);
+                    }
                 }
             }
 
@@ -1628,6 +1822,9 @@
 
 
     window.ContexaMFA = {
+        refreshTokens: function() {
+            return ContexaTokenRefresh.refresh(window.__contexaOriginalFetch || window.fetch);
+        },
         Client: ContexaMFAClient,
         Utils: ContexaMFAUtils,
         StateTracker: MfaStateTracker,

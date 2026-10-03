@@ -59,6 +59,7 @@ import org.springframework.security.oauth2.server.authorization.token.JwtGenerat
 import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -217,6 +218,31 @@ class OAuth2ClientSecretLifecycleTest {
         assertThat(stored.getScopes()).isEqualTo(oldClient.getScopes());
         assertRejectedSecret(updated, stored.getClientId(), LEGACY_SECRET);
         assertUserTokenIssued(configuration, updated, internalClient(configuration, updated));
+    }
+
+    @Test
+    void restartWithChangedTokenValidityUpdatesOnlyTheStoredTokenSettings() {
+        AuthContextProperties first = properties(true);
+        configuration(first).registeredClientRepository(jdbcTemplate);
+        RegisteredClient stored = new JdbcRegisteredClientRepository(jdbcTemplate).findByClientId("default-client");
+        assertThat(stored.getTokenSettings().getAccessTokenTimeToLive())
+                .isEqualTo(Duration.ofMillis(first.getAccessTokenValidity()));
+
+        AuthContextProperties changed = properties(true);
+        changed.setAccessTokenValidity(Duration.ofSeconds(90).toMillis());
+        changed.setRefreshTokenValidity(Duration.ofHours(2).toMillis());
+        RegisteredClient updated = configuration(changed).registeredClientRepository(jdbcTemplate)
+                .findByClientId("default-client");
+
+        assertThat(updated.getTokenSettings().getAccessTokenTimeToLive()).isEqualTo(Duration.ofSeconds(90));
+        assertThat(updated.getTokenSettings().getRefreshTokenTimeToLive()).isEqualTo(Duration.ofHours(2));
+        assertThat(updated.getTokenSettings().isReuseRefreshTokens()).isFalse();
+        assertThat(updated.getId()).isEqualTo(stored.getId());
+        assertThat(updated.getClientSecret()).isEqualTo(stored.getClientSecret());
+        assertThat(updated.getAuthorizationGrantTypes()).isEqualTo(stored.getAuthorizationGrantTypes());
+        assertThat(updated.getScopes()).isEqualTo(stored.getScopes());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM oauth2_registered_client", Integer.class))
+                .isEqualTo(1);
     }
 
     private AuthContextProperties properties(boolean configured) {

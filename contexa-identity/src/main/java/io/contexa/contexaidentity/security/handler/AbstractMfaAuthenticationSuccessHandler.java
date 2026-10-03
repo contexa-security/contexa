@@ -75,6 +75,8 @@ import java.util.UUID;
 @Slf4j
 public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler {
 
+    public static final String NEXT_ACTION_PASSKEY_REGISTRATION = "PASSKEY_REGISTRATION";
+
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
@@ -157,7 +159,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             String userId = finalAuthentication.getName();
             if (factorContext != null && factorContext.isCompleted()) {
-                log.error("completed but factorContext is not null: {}", factorContext.isCompleted());
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {
                     handleBlockMfaSuccess(userId, request, response);
@@ -169,7 +170,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 resetActionOnMfaSuccess(userId, request, factorContext);
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext);
-                log.error("Action: {}", actionRedisRepository.getCurrentAction(userId));
             }
 
             successStage = "resolvePasskeyRegistrationIntent";
@@ -333,6 +333,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         if (stateType == StateType.SESSION && !isApiRequest(request)) {
             String targetUrl = targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response);
             response.sendRedirect(targetUrl);
+        } else if (stateType == StateType.OAUTH2 && !isApiRequest(request)) {
+            // A plain form submission of a browser follows a redirect, as the single-factor OAuth2 login does.
+            // The target was resolved once for the response body; resolving it again would consume the
+            // saved request a second time.
+            Object redirectUrl = result.getBody() != null ? result.getBody().get("redirectUrl") : null;
+            response.sendRedirect(redirectUrl != null ? redirectUrl.toString()
+                    : (targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response)));
         } else {
             writeJsonResponse(response, result.getBody());
         }
@@ -502,6 +509,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         responseData.put("redirectUrl",
                 targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());
+        if (targetUrlOverride != null) {
+            // Lets a SPA, which receives this JSON instead of following the redirect, open its own
+            // passkey registration view.
+            responseData.put("nextAction", NEXT_ACTION_PASSKEY_REGISTRATION);
+        }
 
         return responseData;
     }

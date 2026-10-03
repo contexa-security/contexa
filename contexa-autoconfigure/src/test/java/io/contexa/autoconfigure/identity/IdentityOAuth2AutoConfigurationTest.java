@@ -31,6 +31,12 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKMatcher;
+import com.nimbusds.jose.jwk.JWKSelector;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -110,6 +116,45 @@ class IdentityOAuth2AutoConfigurationTest {
         assertThatThrownBy(() -> configuration.clientRegistrationRepository(registeredClientRepository))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("contexa.auth.oauth2.client-secret is required");
+    }
+
+    @Test
+    @DisplayName("The signing key can be read from a key store file outside the classpath")
+    void jwkKeyStoreFromFile(@TempDir Path tempDir) throws Exception {
+        Path keyStore = tempDir.resolve("jwk.p12");
+        Process keytool = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "keytool").toString(),
+                "-genkeypair", "-alias", "contexa-jwk", "-keyalg", "RSA", "-keysize", "2048",
+                "-storetype", "PKCS12", "-keystore", keyStore.toString(),
+                "-storepass", "test-store-pass", "-keypass", "test-store-pass",
+                "-dname", "CN=contexa-test", "-validity", "1")
+                .redirectErrorStream(true)
+                .start();
+        assertThat(keytool.waitFor()).isZero();
+
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.getOauth2().setJwkKeyStorePath("file:" + keyStore.toAbsolutePath());
+        properties.getOauth2().setJwkKeyStorePassword("test-store-pass");
+        properties.getOauth2().setJwkKeyAlias("contexa-jwk");
+
+        JWKSource<SecurityContext> jwkSource = configuration(properties).jwkSource();
+
+        List<JWK> keys = jwkSource.get(new JWKSelector(new JWKMatcher.Builder().build()), null);
+        assertThat(keys).singleElement().satisfies(key -> {
+            assertThat(key.getKeyID()).isEqualTo("contexa-jwk");
+            assertThat(key.isPrivate()).isTrue();
+        });
+    }
+
+    @Test
+    @DisplayName("A missing key store fails fast")
+    void missingJwkKeyStoreFails() {
+        AuthContextProperties properties = new AuthContextProperties();
+        properties.getOauth2().setJwkKeyStorePath("file:/nonexistent/contexa-jwk.p12");
+
+        assertThatThrownBy(() -> configuration(properties).jwkSource())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Failed to load JWK from KeyStore");
     }
 
     private IdentityOAuth2AutoConfiguration configuration(AuthContextProperties properties) {

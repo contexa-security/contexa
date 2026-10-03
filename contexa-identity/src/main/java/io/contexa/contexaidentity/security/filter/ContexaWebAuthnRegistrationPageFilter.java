@@ -35,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -119,6 +120,13 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         if (!this.matcher.matches(request)) {
             filterChain.doFilter(request, response);
             return;
+        }
+
+        // Passkeys belong to the signed-in user. The security-aware request reports no remote user for an
+        // anonymous request, so hand over to the chain's entry point (sign-in redirect or 401) through the
+        // exception translation filter instead of rendering.
+        if (request.getRemoteUser() == null) {
+            throw new AuthenticationCredentialsNotFoundException("Authentication is required to manage passkeys");
         }
 
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());

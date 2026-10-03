@@ -32,6 +32,7 @@ import org.springframework.security.web.RedirectStrategy;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 
 @Slf4j
 public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHandler {
@@ -70,6 +71,10 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
                 log.error("Failed to record login success for user: {}", authentication.getName(), e);
             }
         }
+
+        // A completed single-factor login ends any MFA left pending in this session; a token state cannot tell
+        // the new login apart from the pending one through the session.
+        MfaPendingSessionMarker.clear(request);
 
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
         TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());

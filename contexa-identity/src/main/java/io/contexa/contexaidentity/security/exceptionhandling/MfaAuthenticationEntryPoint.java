@@ -106,6 +106,11 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
             HttpServletResponse response,
             AuthenticationException exception) {
 
+        if (isPasskeyRegistrationRequest(request)) {
+            // Passkey registration needs a completed login, not the passkey step of an MFA flow.
+            return getLoginFormUrl();
+        }
+
         String factorType = request.getParameter("factor.type");
 
         if ("select".equalsIgnoreCase(factorType) || isSelectFactorRequest(request)) {
@@ -212,6 +217,15 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         return uri.contains("/ott/verify") ||
                 uri.contains("/challenge/ott") ||
                 uri.contains("/mfa/challenge/ott");
+    }
+
+    private boolean isPasskeyRegistrationRequest(HttpServletRequest request) {
+        if (authUrlProvider == null) {
+            return false;
+        }
+        String registrationPage = request.getContextPath() + authUrlProvider.getPasskeyRegistrationPage();
+        String uri = request.getRequestURI();
+        return uri.equals(registrationPage) || uri.startsWith(registrationPage + "/");
     }
 
     private boolean isPasskeyChallengeRequest(HttpServletRequest request) {

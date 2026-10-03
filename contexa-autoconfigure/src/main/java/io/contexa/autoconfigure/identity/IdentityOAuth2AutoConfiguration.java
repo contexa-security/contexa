@@ -27,10 +27,14 @@ import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.OAuth2TokenSettings;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.AuthenticatedUserOAuth2AuthorizedClientProvider;
-import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.RestClientAuthenticatedUserTokenResponseClient;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.InProcessAuthenticatedUserTokenResponseClient;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.InProcessOAuth2TokenEndpoint;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.InProcessRefreshTokenTokenResponseClient;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.TransientOAuth2AuthorizedClientRepository;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
@@ -121,6 +125,8 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
 
 @Slf4j
 @AutoConfiguration
@@ -183,7 +189,7 @@ public class IdentityOAuth2AutoConfiguration {
             return loadJwkFromKeyStore(oauth2);
         }
 
-        log.warn("[OAuth2] JWK KeyStore not configured (spring.auth.oauth2.jwk-key-store-path) - using an ephemeral RSA signing key "
+        log.error("[OAuth2] JWK KeyStore not configured (contexa.auth.oauth2.jwk-key-store-path) - using an ephemeral RSA signing key "
                 + "for the internal token engine. Tokens will be invalidated on restart; configure a persistent key for "
                 + "multi-instance deployments or restart-stable token verification.");
 
@@ -203,10 +209,13 @@ public class IdentityOAuth2AutoConfiguration {
     private JWKSource<SecurityContext> loadJwkFromKeyStore(OAuth2TokenSettings oauth2) {
         try {
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            try (InputStream is = getClass().getClassLoader().getResourceAsStream(oauth2.getJwkKeyStorePath())) {
-                if (is == null) {
-                    throw new IllegalStateException("KeyStore not found: " + oauth2.getJwkKeyStorePath());
-                }
+            // A plain path is read from the classpath as before; "file:" lets the private key stay outside the jar.
+            Resource keyStoreResource = new DefaultResourceLoader(getClass().getClassLoader())
+                    .getResource(oauth2.getJwkKeyStorePath());
+            if (!keyStoreResource.exists()) {
+                throw new IllegalStateException("KeyStore not found: " + oauth2.getJwkKeyStorePath());
+            }
+            try (InputStream is = keyStoreResource.getInputStream()) {
                 char[] storePassword = oauth2.getJwkKeyStorePassword() != null
                         ? oauth2.getJwkKeyStorePassword().toCharArray() : new char[0];
                 keyStore.load(is, storePassword);
@@ -290,6 +299,7 @@ public class IdentityOAuth2AutoConfiguration {
         RegisteredClient existingClient = repository.findByClientId(clientId);
         if (existingClient != null) {
             rejectLegacyStoredClientSecret(existingClient.getClientSecret());
+            synchronizeTokenSettings(repository, existingClient);
         }
 
         if (existingClient == null) {
@@ -307,11 +317,7 @@ public class IdentityOAuth2AutoConfiguration {
                             .requireAuthorizationConsent(false)
                             .requireProofKey(false)
                             .build())
-                    .tokenSettings(TokenSettings.builder()
-                            .accessTokenTimeToLive(Duration.ofMillis(authContextProperties.getAccessTokenValidity()))
-                            .refreshTokenTimeToLive(Duration.ofMillis(authContextProperties.getRefreshTokenValidity()))
-                            .reuseRefreshTokens(false)
-                            .build());
+                    .tokenSettings(configuredTokenSettings(TokenSettings.builder()));
 
             for (String scope : resolveConfiguredClientScopes(oauth2)) {
                 builder.scope(scope);
@@ -332,6 +338,29 @@ public class IdentityOAuth2AutoConfiguration {
         }
 
         return repository;
+    }
+
+    /**
+     * The internal client is stored once, so its token lifetimes would otherwise keep the values of the first
+     * start while the token cookies follow the current settings. Only the token settings derived from the
+     * configuration are updated; the secret, grant types and scopes of the stored client stay as they are.
+     */
+    private void synchronizeTokenSettings(JdbcRegisteredClientRepository repository, RegisteredClient client) {
+        TokenSettings stored = client.getTokenSettings();
+        TokenSettings configured = configuredTokenSettings(TokenSettings.withSettings(stored.getSettings()));
+        if (configured.getSettings().equals(stored.getSettings())) {
+            return;
+        }
+        RegisteredClient updated = RegisteredClient.from(client).tokenSettings(configured).build();
+        transactionTemplate.executeWithoutResult(status -> repository.save(updated));
+    }
+
+    private TokenSettings configuredTokenSettings(TokenSettings.Builder builder) {
+        return builder
+                .accessTokenTimeToLive(Duration.ofMillis(authContextProperties.getAccessTokenValidity()))
+                .refreshTokenTimeToLive(Duration.ofMillis(authContextProperties.getRefreshTokenValidity()))
+                .reuseRefreshTokens(false)
+                .build();
     }
 
     private void initializeAuthorizationServerSchema(@Qualifier("contexaDataSource") DataSource dataSource) {
@@ -363,7 +392,7 @@ public class IdentityOAuth2AutoConfiguration {
         if (StringUtils.hasText(issuerUri)) {
             builder.issuer(issuerUri);
         } else {
-            log.warn("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
+            log.error("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - Spring Authorization Server will "
                     + "resolve the issuer from the current request for the internal token engine.");
         }
 
@@ -431,11 +460,12 @@ public class IdentityOAuth2AutoConfiguration {
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizationService authorizationService,
             TokenValidator oauth2TokenValidator,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ObjectProvider<ZeroTrustActionRepository> zeroTrustActionRepositoryProvider) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
-        return new OAuth2TokenService(
+        OAuth2TokenService tokenService = new OAuth2TokenService(
                 authorizedClientManager,
                 clientRegistrationRepository,
                 authorizationService,
@@ -443,6 +473,8 @@ public class IdentityOAuth2AutoConfiguration {
                 authContextProperties,
                 objectMapper,
                 transport);
+        tokenService.setZeroTrustActionRepository(zeroTrustActionRepositoryProvider.getIfAvailable());
+        return tokenService;
     }
 
     @Bean("oauth2TokenSuccessHandler")
@@ -613,33 +645,28 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(name = "authorizedClientManager")
     public OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizedClientRepository authorizedClientRepository,
             ObjectProvider<FilterChainProxy> filterChainProxyProvider,
             RegisteredClientRepository registeredClientRepository,
             OAuth2AuthorizationService authorizationService) {
 
-        RestClientAuthenticatedUserTokenResponseClient tokenResponseClient = new RestClientAuthenticatedUserTokenResponseClient();
-        tokenResponseClient.setFilterChainProxyProvider(filterChainProxyProvider);
+        InProcessOAuth2TokenEndpoint tokenEndpoint = new InProcessOAuth2TokenEndpoint(
+                filterChainProxyProvider,
+                new ClientSecretBasicAuthenticationConverter(),
+                new ClientSecretAuthenticationProvider(registeredClientRepository, authorizationService));
 
-        tokenResponseClient.setClientSecretBasicConverter(
-                new ClientSecretBasicAuthenticationConverter());
-
-        tokenResponseClient.setClientSecretAuthenticationProvider(
-                new ClientSecretAuthenticationProvider(
-                        registeredClientRepository,
-                        authorizationService));
-
-        AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider = new AuthenticatedUserOAuth2AuthorizedClientProvider();
-        authenticatedUserProvider.setAccessTokenResponseClient(tokenResponseClient);
+        AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider =
+                new AuthenticatedUserOAuth2AuthorizedClientProvider(
+                        new InProcessAuthenticatedUserTokenResponseClient(tokenEndpoint));
 
         OAuth2AuthorizedClientProvider authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
                 .provider(authenticatedUserProvider)
-                .refreshToken()
+                .refreshToken(refreshToken -> refreshToken
+                        .accessTokenResponseClient(new InProcessRefreshTokenTokenResponseClient(tokenEndpoint)))
                 .build();
 
         DefaultOAuth2AuthorizedClientManager authorizedClientManager = new DefaultOAuth2AuthorizedClientManager(
                 clientRegistrationRepository,
-                authorizedClientRepository);
+                new TransientOAuth2AuthorizedClientRepository());
 
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 

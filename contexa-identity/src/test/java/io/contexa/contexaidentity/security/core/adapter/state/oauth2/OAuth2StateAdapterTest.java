@@ -49,6 +49,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -208,7 +212,10 @@ class OAuth2StateAdapterTest {
         verify(httpSecurity).setSharedObject(AuthorizationServerSettings.class, authorizationServerSettings);
         verify(httpSecurity).setSharedObject(OAuth2TokenGenerator.class, tokenGenerator);
         verify(httpSecurity).setSharedObject(UserRepository.class, userRepository);
+        verify(httpSecurity).setSharedObject(eq(SecurityContextRepository.class),
+                isA(RequestAttributeSecurityContextRepository.class));
 
         verify(httpSecurity).with(any(OAuth2StateConfigurer.class), any(Customizer.class));
+        verify(mockLogoutConfigurer).invalidateHttpSession(true);
     }
 }

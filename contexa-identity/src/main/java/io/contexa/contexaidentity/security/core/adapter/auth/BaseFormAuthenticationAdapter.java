@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
@@ -23,6 +24,7 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccess
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
@@ -40,10 +42,11 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
         T configurer = createConfigurer();
+        StateType stateType = resolveStateType(http, currentFlow);
 
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);
-            configureSecurityContext(config, opts, http);
+            configureSecurityContext(config, opts, http, stateType);
         });
     }
 
@@ -57,7 +60,15 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
      * Common security context configuration for all form-based adapters.
      * Subclasses can override applySecurityContextRepository to bridge different configurer APIs.
      */
-    protected void configureSecurityContext(T configurer, FormOptions opts, HttpSecurity http) {
+    protected void configureSecurityContext(T configurer, FormOptions opts, HttpSecurity http, StateType stateType) {
+        if (stateType != StateType.SESSION) {
+            // A token state never stores the login in the HTTP session; during MFA the primary proof is
+            // restored per request from the factor context, and the completed login travels as a token.
+            applySecurityContextRepository(configurer, opts.getSecurityContextRepository() != null
+                    ? opts.getSecurityContextRepository()
+                    : new RequestAttributeSecurityContextRepository());
+            return;
+        }
         SecurityContextRepository existing = http.getSharedObject(SecurityContextRepository.class);
         if (existing instanceof AISessionSecurityContextRepository) {
             applySecurityContextRepository(configurer, existing);

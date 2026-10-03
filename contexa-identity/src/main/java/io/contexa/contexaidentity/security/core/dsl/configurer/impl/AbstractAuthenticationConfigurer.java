@@ -33,6 +33,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
+import io.contexa.contexacommon.enums.StateType;
 
 public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
@@ -94,10 +95,15 @@ public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthent
 
         AuthenticationFlowConfig flowConfig = http.getSharedObject(AuthenticationFlowConfig.class);
         if (flowConfig != null) {
+            StateType stateType = flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null
+                    ? flowConfig.getStateConfig().stateType()
+                    : (properties != null ? properties.getStateType() : null);
             if (filter instanceof MfaFormAuthenticationFilter mfaFormFilter) {
                 mfaFormFilter.setFlowTypeName(flowConfig.getTypeName());
+                mfaFormFilter.setStateType(stateType);
             } else if (filter instanceof MfaRestAuthenticationFilter mfaRestFilter) {
                 mfaRestFilter.setFlowTypeName(flowConfig.getTypeName());
+                mfaRestFilter.setStateType(stateType);
             }
         }
     }

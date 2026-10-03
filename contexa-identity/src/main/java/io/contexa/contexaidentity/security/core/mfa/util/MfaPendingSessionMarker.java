@@ -19,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
+import io.contexa.contexacommon.enums.StateType;
 
 /**
  * Marks an HTTP session whose primary authentication succeeded but whose MFA has not completed yet.
@@ -33,10 +34,14 @@ import org.springframework.util.StringUtils;
  * Failure, cancellation and expiry keep the marker, so the session stays restricted until a new
  * login. The attribute name starts with {@code SPRING_SECURITY_} so that session fixation strategies
  * which migrate only Spring Security attributes keep it together with the SecurityContext.</p>
+ *
+ * <p>The state type of the pending flow is stored as well. A token state (OAuth2) keeps no login in the
+ * HTTP session, so the pending restriction cannot depend on a session SecurityContext there.</p>
  */
 public final class MfaPendingSessionMarker {
 
     public static final String SESSION_ATTRIBUTE = "SPRING_SECURITY_CONTEXA_MFA_PENDING_FLOW";
+    public static final String STATE_ATTRIBUTE = "SPRING_SECURITY_CONTEXA_MFA_PENDING_STATE";
 
     private MfaPendingSessionMarker() {
     }
@@ -45,8 +50,21 @@ public final class MfaPendingSessionMarker {
      * Marks the current session as MFA pending for the given flow, creating the session if needed.
      */
     public static void mark(HttpServletRequest request, @Nullable String flowTypeName) {
+        mark(request, flowTypeName, null);
+    }
+
+    /**
+     * Marks the current session as MFA pending for the given flow and records the state type of the flow.
+     */
+    public static void mark(HttpServletRequest request, @Nullable String flowTypeName, @Nullable StateType stateType) {
         String value = StringUtils.hasText(flowTypeName) ? flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName();
-        request.getSession(true).setAttribute(SESSION_ATTRIBUTE, value);
+        HttpSession session = request.getSession(true);
+        session.setAttribute(SESSION_ATTRIBUTE, value);
+        if (stateType != null) {
+            session.setAttribute(STATE_ATTRIBUTE, stateType.name());
+        } else {
+            session.removeAttribute(STATE_ATTRIBUTE);
+        }
     }
 
     /**
@@ -59,6 +77,7 @@ public final class MfaPendingSessionMarker {
         }
         try {
             session.removeAttribute(SESSION_ATTRIBUTE);
+            session.removeAttribute(STATE_ATTRIBUTE);
         } catch (IllegalStateException ignored) {
             // The session has already been invalidated, so the marker is gone with it.
         }
@@ -68,6 +87,26 @@ public final class MfaPendingSessionMarker {
      * Returns the MFA flow type name the current session is pending on, or {@code null} when the
      * session is not marked.
      */
+    /**
+     * Returns whether the pending flow uses a token state, in which the session holds no login and the
+     * restriction therefore applies whatever authentication the request carries.
+     */
+    public static boolean isTokenStatePending(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return false;
+        }
+        try {
+            if (session.getAttribute(SESSION_ATTRIBUTE) == null) {
+                return false;
+            }
+            Object state = session.getAttribute(STATE_ATTRIBUTE);
+            return state != null && !StateType.SESSION.name().equals(state.toString());
+        } catch (IllegalStateException e) {
+            return false;
+        }
+    }
+
     @Nullable
     public static String getPendingFlowTypeName(HttpServletRequest request) {
         HttpSession session = request.getSession(false);

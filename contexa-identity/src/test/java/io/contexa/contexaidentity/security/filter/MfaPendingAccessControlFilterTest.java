@@ -58,6 +58,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
+import io.contexa.contexacommon.enums.StateType;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -512,6 +513,71 @@ class MfaPendingAccessControlFilterTest {
             filter.doFilter(request, new MockHttpServletResponse(), chain);
 
             assertThat(chain.getRequest()).isSameAs(request);
+        }
+    }
+
+    @Nested
+    @DisplayName("Sessions of a token state flow with an incomplete MFA")
+    class TokenStateSessions {
+
+        @Test
+        @DisplayName("Browser request without a session login is redirected to the MFA page")
+        void anonymousBrowserRequestIsRedirectedToMfaPage() throws Exception {
+            MockHttpServletRequest request = browserRequest("/orders");
+            MfaPendingSessionMarker.mark(request, "mfa", StateType.OAUTH2);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request, response, chain);
+
+            assertThat(chain.getRequest()).isNull();
+            assertThat(response.getRedirectedUrl()).isEqualTo("/mfa/select-factor");
+        }
+
+        @Test
+        @DisplayName("API request without a session login receives the MFA_REQUIRED error")
+        void anonymousApiRequestReceivesMfaRequired() throws Exception {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders/42");
+            request.addHeader("Accept", "application/json");
+            MfaPendingSessionMarker.mark(request, "mfa", StateType.OAUTH2);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request, response, chain);
+
+            assertThat(chain.getRequest()).isNull();
+            verify(responseWriter).writeErrorResponse(
+                    eq(response),
+                    eq(HttpServletResponse.SC_UNAUTHORIZED),
+                    eq(MfaPendingAccessControlFilter.ERROR_CODE),
+                    anyString(),
+                    eq("/orders/42"),
+                    any());
+        }
+
+        @Test
+        @DisplayName("MFA progress requests still pass")
+        void mfaProgressRequestPasses() throws Exception {
+            MockHttpServletRequest request = browserRequest("/mfa/select-factor");
+            MfaPendingSessionMarker.mark(request, "mfa", StateType.OAUTH2);
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+            assertThat(chain.getRequest()).isSameAs(request);
+        }
+
+        @Test
+        @DisplayName("A session state flow keeps letting anonymous requests through")
+        void sessionStateAnonymousRequestStillPasses() throws Exception {
+            MockHttpServletRequest request = browserRequest("/orders");
+            MfaPendingSessionMarker.mark(request, "mfa", StateType.SESSION);
+            MockFilterChain chain = new MockFilterChain();
+
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+            assertThat(chain.getRequest()).isSameAs(request);
+            verifyNoInteractions(responseWriter);
         }
     }
 

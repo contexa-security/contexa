@@ -24,6 +24,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.security.authentication.event.AbstractAuthenticationEvent;
 import org.springframework.security.authentication.event.AbstractAuthenticationFailureEvent;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -44,10 +51,18 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @RequiredArgsConstructor
 public class LoginAttemptEventListener {
 
+    private static final boolean RESOURCE_SERVER_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken",
+            LoginAttemptEventListener.class.getClassLoader());
+    private static final boolean AUTHORIZATION_SERVER_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken",
+            LoginAttemptEventListener.class.getClassLoader());
+
     private final LoginPolicyHandler loginPolicyHandler;
 
     @EventListener
     public void onSuccess(AuthenticationSuccessEvent event) {
+        if (isTokenRequest(event)) return;
         String username = safeName(event);
         if (username == null) return;
         loginPolicyHandler.onLoginSuccess(username, currentIp(), "EVENT");
@@ -55,11 +70,23 @@ public class LoginAttemptEventListener {
 
     @EventListener
     public void onFailure(AbstractAuthenticationFailureEvent event) {
+        if (isTokenRequest(event)) return;
         String username = safeName(event);
         String type = event.getException() == null
                 ? "UNKNOWN"
                 : event.getException().getClass().getSimpleName();
         loginPolicyHandler.onLoginFailure(username, currentIp(), type, "EVENT");
+    }
+
+    /**
+     * Token traffic is not a login attempt: a request presenting an OAuth2 bearer token carries no credential
+     * typed by a user (and the name of a rejected bearer token is the token value itself), and the
+     * authorization server authenticates OAuth2 clients and token grants, whose names are client ids.
+     */
+    private static boolean isTokenRequest(AbstractAuthenticationEvent event) {
+        Authentication authentication = event.getAuthentication();
+        return (RESOURCE_SERVER_PRESENT && BearerTokenTypes.matches(authentication))
+                || (AUTHORIZATION_SERVER_PRESENT && AuthorizationServerTypes.matches(authentication));
     }
 
     private static String safeName(AbstractAuthenticationEvent e) {
@@ -78,6 +105,29 @@ public class LoginAttemptEventListener {
             return ClientIpResolver.resolve(req);
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    /**
+     * Holds the authorization server types apart so that they are only loaded when the module is present.
+     */
+    private static final class AuthorizationServerTypes {
+
+        private static boolean matches(Authentication authentication) {
+            return authentication instanceof OAuth2ClientAuthenticationToken
+                    || authentication instanceof OAuth2AccessTokenAuthenticationToken
+                    || authentication instanceof OAuth2AuthorizationGrantAuthenticationToken;
+        }
+    }
+
+    /**
+     * Holds the resource server types apart so that they are only loaded when the module is present.
+     */
+    private static final class BearerTokenTypes {
+
+        private static boolean matches(Authentication authentication) {
+            return authentication instanceof BearerTokenAuthenticationToken
+                    || authentication instanceof AbstractOAuth2TokenAuthenticationToken<?>;
         }
     }
 }

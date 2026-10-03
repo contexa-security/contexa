@@ -60,7 +60,6 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
         FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
         String usernameFromToken = token.getUsername();
-        log.error("token.getTokenValue() : {}", token.getTokenValue());
 
         if (factorContext != null &&
                 MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()) &&
@@ -68,7 +67,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 factorContext.getCurrentProcessingFactor() == AuthType.MFA_OTT) {
 
             if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
-                log.warn("MFA session {} not found in {} repository during OTT generation",
+                log.error("MFA session {} not found in {} repository during OTT generation",
                         factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
                 handleSessionNotFound(request, response, usernameFromToken);
                 return;
@@ -76,13 +75,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
             sessionRepository.refreshSession(factorContext.getMfaSessionId());
 
-            log.error("[OTT-RESEND] Before sendEvent: retryCount={}, state={}, sessionId={}",
-                    factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
-
             mfaStateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, factorContext, request);
-
-            log.error("[OTT-RESEND] After sendEvent: retryCount={}, state={}, sessionId={}",
-                    factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
 
             String challengeUiUrl = resolveProvider(request).getOttChallengeUi();
             String redirectUrl = request.getContextPath() + challengeUiUrl;
@@ -133,7 +126,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                        String username) throws IOException {
-        log.warn("Session not found in {} repository during OTT generation for user: {}",
+        log.error("Session not found in {} repository during OTT generation for user: {}",
                 sessionRepository.getRepositoryType(), username);
 
         String redirectUrl = request.getContextPath() + "/login?error=session_not_found&repository=" +

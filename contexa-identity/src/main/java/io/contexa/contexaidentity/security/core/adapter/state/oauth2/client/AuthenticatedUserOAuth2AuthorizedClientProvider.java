@@ -37,10 +37,11 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
     private static final AuthorizationGrantType AUTHENTICATED_USER =
             new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user");
 
-    private OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> accessTokenResponseClient =
-            new RestClientAuthenticatedUserTokenResponseClient();
+    private OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> accessTokenResponseClient;
 
-    public AuthenticatedUserOAuth2AuthorizedClientProvider() {
+    public AuthenticatedUserOAuth2AuthorizedClientProvider(
+            OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> accessTokenResponseClient) {
+        setAccessTokenResponseClient(accessTokenResponseClient);
     }
 
     public void setAccessTokenResponseClient(
@@ -81,11 +82,11 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         OAuth2AuthenticatedUserGrantRequest grantRequest =
                 new OAuth2AuthenticatedUserGrantRequest(clientRegistration, username, deviceId);
 
-        if (this.accessTokenResponseClient instanceof RestClientAuthenticatedUserTokenResponseClient client) {
+        if (this.accessTokenResponseClient instanceof InProcessAuthenticatedUserTokenResponseClient client) {
             client.setRequest(request);
             client.setResponse(response);
         } else {
-            log.error("accessTokenResponseClient is not an instance of RestClientAuthenticatedUserTokenResponseClient: {}",
+            log.error("accessTokenResponseClient is not an instance of InProcessAuthenticatedUserTokenResponseClient: {}",
                     this.accessTokenResponseClient.getClass().getName());
         }
 

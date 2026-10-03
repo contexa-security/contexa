@@ -38,6 +38,7 @@ import org.springframework.security.web.webauthn.management.PublicKeyCredentialU
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.security.web.webauthn.registration.PublicKeyCredentialCreationOptionsFilter;
 import org.springframework.security.web.webauthn.registration.WebAuthnRegistrationFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.util.StringUtils;
 
 /**
@@ -150,6 +151,9 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                         }
                     }
 
+                    if (stateType != StateType.SESSION) {
+                        authFilter.setSecurityContextRepository(new RequestAttributeSecurityContextRepository());
+                    }
                     if (successHandler != null) {
                         authFilter.setAuthenticationSuccessHandler(successHandler);
                     }

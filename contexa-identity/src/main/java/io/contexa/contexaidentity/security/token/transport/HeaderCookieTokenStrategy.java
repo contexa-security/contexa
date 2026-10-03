@@ -60,7 +60,7 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
                     .path(DEFAULT_COOKIE_PATH)
                     .httpOnly(HTTP_ONLY)
                     .secure(cookieSecureFlag)
-                    .sameSite(SAME_SITE)
+                    .sameSite(sameSite)
                     .maxAge((int) (refreshTokenValidity / 1000))
                     .build();
             cookiesToSet.add(refreshCookie);
@@ -80,7 +80,7 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
                 .path(DEFAULT_COOKIE_PATH)
                 .httpOnly(HTTP_ONLY)
                 .secure(cookieSecureFlag)
-                .sameSite(SAME_SITE)
+                .sameSite(sameSite)
                 .maxAge(0)
                 .build();
         cookiesToRemove.add(expiredRefreshCookie);

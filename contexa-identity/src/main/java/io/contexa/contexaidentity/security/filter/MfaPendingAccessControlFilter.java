@@ -121,10 +121,13 @@ public class MfaPendingAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
+        // A token state keeps no login in the session, so a pending MFA restricts the session whatever
+        // authentication the request carries; the session state keeps its rule unchanged.
         Authentication authentication = securityContextHolderStrategy.getContext().getAuthentication();
-        if (authentication == null
+        if (!MfaPendingSessionMarker.isTokenStatePending(request)
+                && (authentication == null
                 || !authentication.isAuthenticated()
-                || trustResolver.isAnonymous(authentication)) {
+                || trustResolver.isAnonymous(authentication))) {
             filterChain.doFilter(request, response);
             return;
         }
