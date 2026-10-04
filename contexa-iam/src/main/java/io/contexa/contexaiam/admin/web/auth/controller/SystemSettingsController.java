@@ -60,6 +60,13 @@ public class SystemSettingsController {
     @Nullable
     private PolicyReloadBroadcaster policyReloadBroadcaster;
 
+    /**
+     * Runtime zero trust settings whose mode is shown when no mode is stored.
+     */
+    @Setter
+    @Nullable
+    private SecurityZeroTrustProperties zeroTrustProperties;
+
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
     }
@@ -67,7 +74,8 @@ public class SystemSettingsController {
     @GetMapping
     public String showSettings(Model model) {
         model.addAttribute("activePage", "system-settings");
-        model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings()));
+        model.addAttribute("settings", SystemSettingsForm.from(systemSettingsService.getSettings(),
+                zeroTrustProperties != null ? zeroTrustProperties.getMode() : null));
         model.addAttribute("roles", systemSettingsService.getDefaultRoleOptions());
         model.addAttribute("algorithms", CombiningAlgorithm.values());
         model.addAttribute("noPolicyDecisionOptions", NoPolicyDecision.values());

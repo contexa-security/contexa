@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.RoleOption;
 import io.contexa.contexaiam.admin.web.auth.dto.SystemSettingsDtos.SystemSettingsForm;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
@@ -128,6 +129,44 @@ class SystemSettingsControllerTest {
             SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
             assertThat(form.getNoMatchingUrlPolicyDecision()).isEqualTo("DENY");
             assertThat(form.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
+        }
+
+        @Test
+        @DisplayName("should show the effective zero trust mode when no mode is stored")
+        void showsEffectiveZeroTrustModeWhenNotStored() {
+            when(systemSettingsService.getSettings()).thenReturn(SystemSettings.builder()
+                    .securityZeroTrustMode(null)
+                    .build());
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode.ENFORCE));
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getSecurityZeroTrustMode()).isEqualTo("ENFORCE");
+        }
+
+        @Test
+        @DisplayName("should show the stored zero trust mode when an operator saved one")
+        void showsStoredZeroTrustMode() {
+            when(systemSettingsService.getSettings()).thenReturn(SystemSettings.builder()
+                    .securityZeroTrustMode("SHADOW")
+                    .build());
+            when(systemSettingsService.getDefaultRoleOptions()).thenReturn(List.of());
+            controller.setZeroTrustProperties(zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode.ENFORCE));
+
+            Model model = new ConcurrentModel();
+            controller.showSettings(model);
+
+            SystemSettingsForm form = (SystemSettingsForm) model.getAttribute("settings");
+            assertThat(form.getSecurityZeroTrustMode()).isEqualTo("SHADOW");
+        }
+
+        private SecurityZeroTrustProperties zeroTrustProperties(SecurityZeroTrustProperties.SecurityMode mode) {
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(mode);
+            return properties;
         }
     }
 

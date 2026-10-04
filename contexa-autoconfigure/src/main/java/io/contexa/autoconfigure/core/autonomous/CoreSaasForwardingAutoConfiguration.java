@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
@@ -50,7 +51,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
 import java.util.concurrent.Executor;
 
-@AutoConfiguration
+@AutoConfiguration(after = CoreDataAutoConfiguration.class)
 @ConditionalOnClass(OAuth2AuthorizedClientManager.class)
 @ConditionalOnProperty(prefix = "contexa.saas", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(ContexaProperties.class)

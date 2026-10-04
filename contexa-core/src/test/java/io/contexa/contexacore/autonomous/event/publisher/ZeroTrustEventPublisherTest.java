@@ -335,6 +335,82 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("auth method should carry the bridge authentication type instead of an authority-derived value")
+    void shouldUseBridgeAuthenticationTypeAsAuthMethodWhenBridgeProvidesAuthenticationType() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createOauth2JwtBridgeResolutionResult());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ZeroTrustSpringEvent event = buildEventWithMfaAuthority();
+
+        assertThat(event.getPayload())
+                .containsEntry("bridgeAuthenticationSource", "SECURITY_CONTEXT")
+                .containsEntry("authenticationType", "OAUTH2_JWT")
+                .containsEntry("authMethod", "OAUTH2_JWT")
+                .containsEntry("mfaVerified", false);
+    }
+
+    @Test
+    @DisplayName("auth method should carry the bridge authentication type even when the authentication has no authorities")
+    void shouldUseBridgeAuthenticationTypeAsAuthMethodWithoutAuthorities() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createOauth2JwtBridgeResolutionResult());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                        invocation,
+                        new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                        true,
+                        null);
+
+        assertThat(event.getPayload())
+                .containsEntry("authenticationType", "OAUTH2_JWT")
+                .containsEntry("authMethod", "OAUTH2_JWT")
+                .containsEntry("mfaVerified", false);
+    }
+
+    @Test
+    @DisplayName("authority-derived auth method should remain the fallback without bridge evidence")
+    void shouldSynthesizeAuthMethodFromAuthoritiesWithoutBridgeEvidence() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ZeroTrustSpringEvent event = buildEventWithMfaAuthority();
+
+        assertThat(event.getPayload())
+                .containsEntry("authMethod", "mfa")
+                .containsEntry("mfaVerified", true)
+                .doesNotContainKeys("authenticationType", "bridgeAuthenticationSource");
+    }
+
+    private ZeroTrustSpringEvent buildEventWithMfaAuthority() throws Exception {
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "alice",
+                "n/a",
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_USER"),
+                        new SimpleGrantedAuthority("MFA_VERIFIED")));
+        return new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(invocation, authentication, true, null);
+    }
+
+    @Test
     @DisplayName("runtime action and role authorities should not be projected as permissions")
     void shouldNotProjectRoleAuthoritiesAsPermissions() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/view");
@@ -556,6 +632,22 @@ class ZeroTrustEventPublisherTest {
                         Set.of(MissingBridgeContext.AUTHORIZATION_EFFECT),
                         "Bridge resolved authentication, authorization, and delegated execution context for the current request.",
                         List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request."))
+        );
+    }
+
+    private BridgeResolutionResult createOauth2JwtBridgeResolutionResult() {
+        return new BridgeResolutionResult(
+                new RequestContextSnapshot("/api/profile", "GET", "10.0.0.20", "JUnit", "session-oauth", "request-oauth", "/api/profile", null, false, Instant.now()),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "OAUTH2_JWT", "SECURITY_CONTEXT", "loa2", false, Instant.now(), "session-oauth", List.of("ROLE_USER"), Map.of(
+                        "tenantId", "tenant-a")),
+                null,
+                null,
+                new BridgeCoverageReport(
+                        BridgeCoverageLevel.AUTHENTICATION_ONLY,
+                        40,
+                        Set.of(MissingBridgeContext.AUTHORIZATION),
+                        "Bridge resolved authentication for the current request.",
+                        List.of())
         );
     }
 

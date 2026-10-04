@@ -33,6 +33,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.util.List;
 import java.util.Map;
@@ -92,6 +96,58 @@ class DefaultContexaAuthBridgeHandlerTest {
                 .isInstanceOf(BridgeAuthenticationToken.class);
         assertThat(SecurityContextHolder.getContext().getAuthentication().getName())
                 .isEqualTo("contexa-user");
+    }
+
+    @Test
+    void jwtHandoffWithoutExplicitPrincipalIdUsesAuthenticationName() {
+        JwtAuthenticationToken authentication = jwtAuthentication("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+
+        handler().handoff(request, new MockHttpServletResponse(), ContexaAuthHandoff.of(authentication));
+
+        assertThat(authentication.getName()).isEqualTo("u-100");
+        assertThat(resolutionResult(request).authenticationStamp().principalId()).isEqualTo("u-100");
+    }
+
+    @Test
+    void oauth2LoginHandoffWithoutExplicitPrincipalIdUsesAuthenticationName() {
+        DefaultOAuth2User user = new DefaultOAuth2User(
+                List.of(new SimpleGrantedAuthority("OAUTH2_USER")),
+                Map.of("login", "octocat", "id", 123),
+                "login");
+        OAuth2AuthenticationToken authentication = new OAuth2AuthenticationToken(user, user.getAuthorities(), "github");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+
+        handler().handoff(request, new MockHttpServletResponse(), ContexaAuthHandoff.of(authentication));
+
+        assertThat(authentication.getName()).isEqualTo("octocat");
+        assertThat(resolutionResult(request).authenticationStamp().principalId()).isEqualTo("octocat");
+    }
+
+    @Test
+    void explicitPrincipalIdAttributeStillWinsOverOAuth2AuthenticationName() {
+        JwtAuthenticationToken authentication = jwtAuthentication("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+
+        handler().handoff(
+                request,
+                new MockHttpServletResponse(),
+                ContexaAuthHandoff.of(authentication, List.of(), Map.of("principalId", "explicit-7")));
+
+        assertThat(resolutionResult(request).authenticationStamp().principalId()).isEqualTo("explicit-7");
+    }
+
+    private BridgeResolutionResult resolutionResult(MockHttpServletRequest request) {
+        return (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+    }
+
+    private JwtAuthenticationToken jwtAuthentication(String subject, String email) {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", subject)
+                .claim("email", email)
+                .build();
+        return new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_profile")));
     }
 
     private DefaultContexaAuthBridgeHandler handler() {

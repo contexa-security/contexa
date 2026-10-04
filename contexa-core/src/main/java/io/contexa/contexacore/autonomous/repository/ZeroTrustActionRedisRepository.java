@@ -35,6 +35,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.serializer.GenericToStringSerializer;
 import org.springframework.data.redis.serializer.SerializationException;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -46,6 +47,62 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private static final Duration LAST_VERIFIED_ACTION_TTL = Duration.ofHours(24);
     private static final Duration DEFAULT_FAIL_COUNT_TTL = Duration.ofHours(24);
     private static final ObjectMapper LEGACY_HASH_VALUE_READER = new ObjectMapper();
+    private static final RedisSerializer<Long> SCRIPT_RESULT_SERIALIZER = new GenericToStringSerializer<>(Long.class);
+
+    /**
+     * Replaces the analysis hash and the last verified keys unless the stored action refuses the
+     * new one. KEYS: analysis hash, last verified action, last verified context. ARGV: hash field
+     * names of action and previousAction, the refusing stored action values, the plain and stored
+     * value of every action, the analysis TTL in milliseconds (0 keeps no TTL), the action name, the
+     * last verified TTL in milliseconds, a context flag and value, then the hash field/value pairs.
+     * Returns 0 when refused and 1 when written.
+     */
+    private static final DefaultRedisScript<Long> SAVE_FINAL_ACTION_SCRIPT = new DefaultRedisScript<>("""
+            local actionField = ARGV[1]
+            local previousField = ARGV[2]
+            local current = redis.call('HGET', KEYS[1], actionField)
+            local index = 3
+            local refusedCount = tonumber(ARGV[index])
+            index = index + 1
+            for i = index, index + refusedCount - 1 do
+                if current == ARGV[i] then
+                    return 0
+                end
+            end
+            index = index + refusedCount
+            local previous = current
+            local formCount = tonumber(ARGV[index])
+            index = index + 1
+            for i = index, index + 2 * formCount - 1, 2 do
+                if current == ARGV[i] then
+                    previous = ARGV[i + 1]
+                end
+            end
+            index = index + 2 * formCount
+            local analysisTtl = ARGV[index]
+            local lastAction = ARGV[index + 1]
+            local lastTtl = ARGV[index + 2]
+            local contextPresent = ARGV[index + 3]
+            local context = ARGV[index + 4]
+            index = index + 5
+            redis.call('DEL', KEYS[1])
+            if previous then
+                redis.call('HSET', KEYS[1], previousField, previous)
+            end
+            for i = index, #ARGV, 2 do
+                redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
+            end
+            if tonumber(analysisTtl) > 0 then
+                redis.call('PEXPIRE', KEYS[1], analysisTtl)
+            end
+            redis.call('SET', KEYS[2], lastAction, 'PX', lastTtl)
+            if contextPresent == '1' then
+                redis.call('SET', KEYS[3], context, 'PX', lastTtl)
+            else
+                redis.call('DEL', KEYS[3])
+            end
+            return 1
+            """, Long.class);
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration failCountTtl;
@@ -124,8 +181,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
             if (actionValue != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
-                if (action != ZeroTrustAction.PENDING_ANALYSIS
-                        && action != ZeroTrustAction.BLOCK
+                if (ZeroTrustActionPrecedence.isContextBound(action)
                         && contextBindingHash != null
                         && storedHash != null
                         && !storedHash.toString().equals(contextBindingHash)) {
@@ -138,8 +194,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String lastAction = readLastVerifiedAction(userId);
             if (lastAction != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
-                if (action != ZeroTrustAction.PENDING_ANALYSIS
-                        && action != ZeroTrustAction.BLOCK
+                if (ZeroTrustActionPrecedence.isContextBound(action)
                         && contextBindingHash != null) {
                     String lastContextHash = readLastVerifiedActionContext(userId);
                     if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
@@ -356,7 +411,27 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return false;
         }
 
-        saveAction(userId, action, additionalFields);
+        // A less strict result never replaces an active user-level CHALLENGE or ESCALATE, whichever
+        // session it was analysed for. The check and the write run in one script so that a concurrent
+        // final write cannot slip in between. A refused write is reported as applied because the
+        // stricter action stays in effect; reporting it as a failure would only cause retries.
+        Long written;
+        try {
+            written = stringRedisTemplate.execute(SAVE_FINAL_ACTION_SCRIPT, RedisSerializer.byteArray(),
+                    SCRIPT_RESULT_SERIALIZER,
+                    List.of(ZeroTrustRedisKeys.autonomousActionAnalysis(userId),
+                            ZeroTrustRedisKeys.autonomousLastVerifiedAction(userId),
+                            ZeroTrustRedisKeys.autonomousLastVerifiedActionContext(userId)),
+                    finalActionScriptArgs(action, additionalFields).toArray());
+        } catch (Exception exception) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to save final action: userId={}, action={}",
+                    userId, action, exception);
+            return false;
+        }
+        if (written != null && written == 0L) {
+            return true;
+        }
+
         try {
             Map<Object, Object> analysis = readAnalysis(userId);
             if (!action.name().equals(String.valueOf(analysis.get("action")))
@@ -536,15 +611,24 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
         if (userId == null || userId.isBlank()) {
             return;
         }
-        String serializedBlock = new String(
-                ((RedisSerializer<Object>) redisTemplate.getHashValueSerializer()).serialize(ZeroTrustAction.BLOCK.name()),
-                StandardCharsets.UTF_8);
+        // BLOCK, ESCALATE and CHALLENGE restrict the user rather than the session that logs out, so
+        // an active one keeps every key. Each action is passed plain and serialized; ARGV[1] is BLOCK.
+        RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
+        List<String> retainedActions = new ArrayList<>();
+        for (ZeroTrustAction retained : List.of(ZeroTrustAction.BLOCK, ZeroTrustAction.ESCALATE, ZeroTrustAction.CHALLENGE)) {
+            retainedActions.add(retained.name());
+            retainedActions.add(new String(hashValueSerializer.serialize(retained.name()), StandardCharsets.UTF_8));
+        }
         DefaultRedisScript<Long> script = new DefaultRedisScript<>("""
                 local action = redis.call('HGET', KEYS[1], 'action')
                 if redis.call('GET', KEYS[4]) == 'true'
-                    or action == ARGV[1] or action == ARGV[2]
                     or redis.call('GET', KEYS[2]) == ARGV[1] then
                     return 0
+                end
+                for _, retained in ipairs(ARGV) do
+                    if action == retained then
+                        return 0
+                    end
                 end
                 return redis.call('DEL', unpack(KEYS))
                 """, Long.class);
@@ -556,7 +640,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 ZeroTrustRedisKeys.blockMfaPending(userId),
                 ZeroTrustRedisKeys.blockMfaVerified(userId),
                 ZeroTrustRedisKeys.blockMfaFailCount(userId)),
-                ZeroTrustAction.BLOCK.name(), serializedBlock);
+                retainedActions.toArray());
     }
 
     public void removeAllUserData(String userId) {
@@ -752,6 +836,64 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                 return operations.exec();
             }
         });
+    }
+
+    /**
+     * Builds the SAVE_FINAL_ACTION_SCRIPT arguments. Hash fields and values are serialized with the
+     * template serializers, as {@link #saveAction} stores them; stored action values are compared in
+     * plain and serialized form, as in {@link #removeLogoutData}.
+     */
+    @SuppressWarnings("unchecked")
+    private List<byte[]> finalActionScriptArgs(ZeroTrustAction action, Map<String, Object> additionalFields) {
+        RedisSerializer<Object> hashKeySerializer = (RedisSerializer<Object>) redisTemplate.getHashKeySerializer();
+        RedisSerializer<Object> hashValueSerializer = (RedisSerializer<Object>) redisTemplate.getHashValueSerializer();
+        List<byte[]> args = new ArrayList<>();
+        args.add(serialize(hashKeySerializer, "action"));
+        args.add(serialize(hashKeySerializer, "previousAction"));
+
+        List<byte[]> refusingValues = new ArrayList<>();
+        for (ZeroTrustAction active : List.of(ZeroTrustAction.CHALLENGE, ZeroTrustAction.ESCALATE)) {
+            if (ZeroTrustActionPrecedence.keepsActiveRestriction(active, action)) {
+                refusingValues.add(utf8(active.name()));
+                refusingValues.add(serialize(hashValueSerializer, active.name()));
+            }
+        }
+        args.add(utf8(Integer.toString(refusingValues.size())));
+        args.addAll(refusingValues);
+
+        ZeroTrustAction[] knownActions = ZeroTrustAction.values();
+        args.add(utf8(Integer.toString(knownActions.length)));
+        for (ZeroTrustAction known : knownActions) {
+            args.add(utf8(known.name()));
+            args.add(serialize(hashValueSerializer, known.name()));
+        }
+
+        Duration ttl = action.getDefaultTtl();
+        args.add(utf8(Long.toString(ttl != null ? ttl.toMillis() : 0L)));
+        args.add(utf8(action.name()));
+        args.add(utf8(Long.toString(LAST_VERIFIED_ACTION_TTL.toMillis())));
+        Object contextBindingHash = additionalFields.get("contextBindingHash");
+        args.add(utf8(contextBindingHash != null ? "1" : "0"));
+        args.add(utf8(contextBindingHash != null ? contextBindingHash.toString() : ""));
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("action", action.name());
+        fields.put("updatedAt", Instant.now().toString());
+        fields.putAll(additionalFields);
+        fields.forEach((field, value) -> {
+            args.add(serialize(hashKeySerializer, field));
+            args.add(serialize(hashValueSerializer, canonicalizeRedisValue(value)));
+        });
+        return args;
+    }
+
+    private static byte[] serialize(RedisSerializer<Object> serializer, Object value) {
+        byte[] serialized = serializer.serialize(value);
+        return serialized != null ? serialized : new byte[0];
+    }
+
+    private static byte[] utf8(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
     }
 
     private Object canonicalizeRedisValue(Object value) {

@@ -18,6 +18,9 @@ package io.contexa.contexacore.std.pipeline.processor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -170,6 +173,37 @@ class SecurityDecisionOutputParserTest {
         assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
         assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
                 .isEqualTo("ACTION_FORMAT_INVALID");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"NOT ALLOW", "DO_NOT_ALLOW", "don't allow", "DON\u2019T ALLOW", "Never allow", "NO ALLOW", "do not block"})
+    void parseShouldFailClosedForNegatedDecoratedActions(String negatedAction) {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-negated-action");
+
+        SecurityDecisionResponseLite result = parser.parse(
+                "{\"action\": \"" + negatedAction + "\", \"reasoning\": \"The model negated the action token.\"}",
+                context);
+
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata("securityDecisionFallbackReason", String.class))
+                .isEqualTo("ACTION_FORMAT_INVALID");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {"ALLOW.|ALLOW", "Action: BLOCK|BLOCK", "**ESCALATE**|ESCALATE"})
+    void parseShouldKeepNormalizingPlainDecoratedActions(String decoratedAction, String expectedAction) {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-plain-decorated-action");
+
+        SecurityDecisionResponseLite result = parser.parse(
+                "{\"action\": \"" + decoratedAction + "\", \"reasoning\": \"The model decorated the action token.\"}",
+                context);
+
+        assertThat(result.getAction()).isEqualTo(expectedAction);
+        assertThat(context.getMetadata("llmDecisionPresent", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isFalse();
     }
 
     @Test

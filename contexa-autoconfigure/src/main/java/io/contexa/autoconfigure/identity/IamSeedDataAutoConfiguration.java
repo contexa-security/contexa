@@ -527,7 +527,10 @@ public class IamSeedDataAutoConfiguration {
                 .replaceAll("\\s+", " ")
                 .trim()
                 .toLowerCase();
+        // Under ALTER COLUMN only the removal of a NOT NULL constraint or of a default is replayed;
+        // both are no-ops once applied. Type, default and constraint changes are never replayed.
         return normalized.matches("^alter table \\S+ .*\\badd column if not exists\\b.*")
+                || normalized.matches("^alter table \\S+ alter column \\S+ drop (not null|default)$")
                 || normalized.matches("^create table if not exists\\b.*")
                 || normalized.matches("^create (unique )?index if not exists\\b.*")
                 || normalized.matches("^create extension if not exists\\b.*");

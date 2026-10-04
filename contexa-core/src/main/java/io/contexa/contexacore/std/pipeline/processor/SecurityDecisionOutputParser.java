@@ -43,6 +43,8 @@ public class SecurityDecisionOutputParser {
     private static final Pattern CONFIDENCE_LINE = Pattern.compile("(?im)^\\s*confidence\\s*[:=]\\s*([0-9.]+)\\s*$");
     private static final Pattern CANONICAL_ACTION_TOKEN =
             Pattern.compile("(?i)(?<![A-Z])(?:ALLOW|CHALLENGE|BLOCK|ESCALATE)(?![A-Z])");
+    private static final Pattern NEGATION_TOKEN =
+            Pattern.compile("(?i)(?<![A-Z])(?:NOT|NO|NEVER|CANNOT|DONT|[A-Z]+N['\\u2019]T)(?![A-Z])");
     private static final String FALLBACK_ACTION = "CHALLENGE";
 
     public SecurityDecisionResponseLite parse(String rawResponse, PipelineExecutionContext context) {
@@ -432,6 +434,10 @@ public class SecurityDecisionOutputParser {
     }
 
     private ActionResult normalizeDecoratedAction(String action) {
+        // A negated decorated value such as "NOT ALLOW" must never resolve to the negated action.
+        if (NEGATION_TOKEN.matcher(action).find()) {
+            return new ActionResult(FALLBACK_ACTION, true, true, "ACTION_FORMAT_INVALID");
+        }
         Matcher matcher = CANONICAL_ACTION_TOKEN.matcher(action);
         Set<String> candidates = new LinkedHashSet<>();
         while (matcher.find()) {

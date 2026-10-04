@@ -335,6 +335,32 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
     }
 
+    /**
+     * Stores the final analysis result unless it is less strict than an active user-level
+     * CHALLENGE or ESCALATE, whichever session it was analysed for. The stricter action then
+     * stays in effect and the write is reported as applied.
+     */
+    @Override
+    public boolean saveFinalAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields) {
+        if (userId == null || action == null) {
+            return ZeroTrustActionRepository.super.saveFinalAction(userId, action, additionalFields);
+        }
+
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            AnalysisEntry active = analysisStore.get(userId);
+            boolean keepsActiveRestriction = active != null && active.action != null && !isExpired(active)
+                    && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
+            if (!keepsActiveRestriction) {
+                saveAction(userId, action, additionalFields);
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     @Override
     public void saveActionWithPrevious(String userId, ZeroTrustAction newAction) {
         if (userId == null || newAction == null) {
@@ -459,7 +485,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
         lock.lock();
         try {
-            if (getCurrentAction(userId) != ZeroTrustAction.BLOCK) {
+            // BLOCK, ESCALATE and CHALLENGE restrict the user rather than the session that logs out.
+            if (!getCurrentAction(userId).isAccessRestricted()) {
                 removeAllUserData(userId);
             }
         } finally {
@@ -570,9 +597,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     private boolean requiresFreshAnalysis(ZeroTrustAction action, String requestedContextHash, String storedContextHash) {
-        return action != null
-                && action != ZeroTrustAction.PENDING_ANALYSIS
-                && action != ZeroTrustAction.BLOCK
+        return ZeroTrustActionPrecedence.isContextBound(action)
                 && requestedContextHash != null
                 && storedContextHash != null
                 && !storedContextHash.equals(requestedContextHash);

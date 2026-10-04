@@ -16,8 +16,10 @@
 package io.contexa.contexaiam.admin.web.auth.dto;
 
 import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService;
 import lombok.Data;
+import org.springframework.util.StringUtils;
 
 /**
  * Form-binding DTOs for the {@code /contexa/admin/system-settings} screen.
@@ -43,6 +45,16 @@ public final class SystemSettingsDtos {
         private String mvcResourceScannerBasePackages = SystemRuntimeSettingsService.DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES;
 
         public static SystemSettingsForm from(SystemSettings entity) {
+            return from(entity, null);
+        }
+
+        /**
+         * Builds the form from the stored settings.
+         *
+         * @param effectiveZeroTrustMode the zero trust mode in effect, shown when no mode is stored
+         */
+        public static SystemSettingsForm from(SystemSettings entity,
+                                              SecurityZeroTrustProperties.SecurityMode effectiveZeroTrustMode) {
             SystemSettings source = entity == null ? SystemRuntimeSettingsService.defaultSettings() : entity;
             SystemSettingsForm form = new SystemSettingsForm();
             form.setAuditLogRetentionDays(source.getAuditLogRetentionDays());
@@ -53,7 +65,10 @@ public final class SystemSettingsDtos {
             form.setMissingMethodPolicyDecision(valueOrDefault(source.getMissingMethodPolicyDecision(),
                     SystemRuntimeSettingsService.DEFAULT_NO_POLICY_DECISION.name()));
             form.setRegistrationEnabled(source.isRegistrationEnabled());
-            form.setSecurityZeroTrustMode(SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(source.getSecurityZeroTrustMode()));
+            String storedZeroTrustMode = source.getSecurityZeroTrustMode();
+            form.setSecurityZeroTrustMode(!StringUtils.hasText(storedZeroTrustMode) && effectiveZeroTrustMode != null
+                    ? effectiveZeroTrustMode.name()
+                    : SystemRuntimeSettingsService.normalizeSecurityZeroTrustModeForStorage(storedZeroTrustMode));
             form.setMvcResourceScannerBasePackages(
                     SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(source.getMvcResourceScannerBasePackages()));
             return form;

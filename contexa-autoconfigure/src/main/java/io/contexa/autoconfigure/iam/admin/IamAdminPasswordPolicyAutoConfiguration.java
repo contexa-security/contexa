@@ -110,11 +110,13 @@ public class IamAdminPasswordPolicyAutoConfiguration {
             MessageSource messageSource,
             ObjectProvider<CustomDynamicAuthorizationManager> authManagerProvider,
             ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider,
-            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider) {
+            ObjectProvider<PolicyReloadBroadcaster> policyReloadBroadcasterProvider,
+            ObjectProvider<SecurityZeroTrustProperties> zeroTrustPropertiesProvider) {
         SystemSettingsController controller = new SystemSettingsController(systemSettingsService,
                 policyCombiningProperties, messageSource, authManagerProvider.getIfAvailable(),
                 runtimeApplierProvider.getIfAvailable());
         policyReloadBroadcasterProvider.ifAvailable(controller::setPolicyReloadBroadcaster);
+        zeroTrustPropertiesProvider.ifAvailable(controller::setZeroTrustProperties);
         return controller;
     }
 

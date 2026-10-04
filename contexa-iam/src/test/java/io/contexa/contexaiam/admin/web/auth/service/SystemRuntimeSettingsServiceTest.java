@@ -17,6 +17,7 @@ package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
@@ -88,6 +89,33 @@ class SystemRuntimeSettingsServiceTest {
         assertThat(defaults.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
         assertThat(defaults.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
         assertThat(defaults.getPolicyCombiningAlgorithm()).isEqualTo("FIRST_APPLICABLE");
+    }
+
+    @Test
+    @DisplayName("should return the zero trust mode only when an operator saved one")
+    void findsOnlySavedZeroTrustMode() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        SystemRuntimeSettingsService service = new SystemRuntimeSettingsService(repository);
+
+        when(repository.findAll()).thenReturn(List.of());
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode(null).build()));
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode(" ").build()));
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode("ENFORCE").build()));
+        assertThat(service.findSecurityZeroTrustMode()).contains(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+    }
+
+    @Test
+    @DisplayName("should leave the zero trust mode unset on new settings rows")
+    void newSettingsLeaveZeroTrustModeUnset() {
+        assertThat(SystemRuntimeSettingsService.defaultSettings().getSecurityZeroTrustMode()).isNull();
+        assertThat(SystemSettings.builder().build().getSecurityZeroTrustMode()).isNull();
+        assertThat(new SystemSettings().getSecurityZeroTrustMode()).isNull();
     }
 
     @Test

@@ -155,6 +155,21 @@ class SystemSettingsServiceTest {
         }
 
         @Test
+        @DisplayName("should store the submitted zero trust mode on a row whose mode is not set")
+        void storesExplicitZeroTrustMode() {
+            SystemSettings existing = SystemSettings.builder().securityZeroTrustMode(null).build();
+            when(repository.findAll()).thenReturn(List.of(existing));
+
+            SystemSettingsForm form = validForm();
+            form.setSecurityZeroTrustMode("ENFORCE");
+
+            service.updateSettings(form);
+
+            verify(repository).save(existing);
+            assertThat(existing.getSecurityZeroTrustMode()).isEqualTo("ENFORCE");
+        }
+
+        @Test
         @DisplayName("should reject values that are not enum constants without saving")
         void rejectsNonEnumValues() {
             SystemSettingsForm invalidUrlDecision = validForm();

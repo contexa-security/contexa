@@ -16,6 +16,7 @@
 package io.contexa.contexacommon.security.bridge.handoff;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,8 +36,8 @@ public record ContexaAuthHandoff(
         if (principal == null) {
             throw new IllegalArgumentException("principal must not be null");
         }
-        authorities = authorities == null ? List.of() : List.copyOf(new LinkedHashSet<>(authorities));
-        attributes = attributes == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(attributes));
+        authorities = authorities == null ? List.of() : copyNonNullAuthorities(authorities);
+        attributes = attributes == null ? Map.of() : copyNonNullAttributes(attributes);
     }
 
     public static ContexaAuthHandoff of(Object principal) {
@@ -61,5 +62,25 @@ public record ContexaAuthHandoff(
 
     public ContexaAuthHandoff withMfaVerified(@Nullable Boolean mfaVerified) {
         return new ContexaAuthHandoff(principal, authorities, attributes, authenticationType, authenticationAssurance, mfaVerified);
+    }
+
+    private static List<?> copyNonNullAuthorities(Collection<?> authorities) {
+        LinkedHashSet<Object> distinctAuthorities = new LinkedHashSet<>();
+        for (Object authority : authorities) {
+            if (authority != null) {
+                distinctAuthorities.add(authority);
+            }
+        }
+        return List.copyOf(distinctAuthorities);
+    }
+
+    private static Map<String, Object> copyNonNullAttributes(Map<String, Object> attributes) {
+        LinkedHashMap<String, Object> nonNullAttributes = new LinkedHashMap<>();
+        attributes.forEach((key, value) -> {
+            if (key != null && value != null) {
+                nonNullAttributes.put(key, value);
+            }
+        });
+        return Collections.unmodifiableMap(nonNullAttributes);
     }
 }

@@ -396,7 +396,7 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("NormalApprovalPatterns: Export requires manager approval");
         assertThat(promptSection).contains("ApprovalRequired: true");
         assertThat(promptSection).contains("CurrentResourceFamily: REPORT");
-        assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: true");
+        assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: false");
         assertThat(promptSection).contains("RoleScopeDeltaCount: 0");
         assertThat(promptSection).contains("StrongestRoleScopeDelta: none");
         assertThat(promptSection).contains("RoleScopeDeltaSummary: no direct current-vs-scope mismatch detected");
@@ -420,6 +420,39 @@ class PromptContextComposerTest {
         assertThat(promptSection).doesNotContain("ObjectiveDrift:");
         assertThat(promptSection).doesNotContain("OutlierAgainstCohort:");
         assertThat(promptSection).doesNotContain("ContextTrust: ");
+    }
+
+    @Test
+    void composeObservedScopeShouldRenderHistoryPresenceAsInverseOfRareFlags() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/export")
+                        .actionFamily("READ")
+                        .build())
+                .observedScope(CanonicalSecurityContext.ObservedScope.builder()
+                        .frequentResources(List.of("/api/customer/list", "/api/customer/search"))
+                        .frequentActionFamilies(List.of("READ", "EXPORT"))
+                        .rareCurrentResource(true)
+                        .rareCurrentActionFamily(false)
+                        .build())
+                .build();
+        CanonicalSecurityContext unknownContext = CanonicalSecurityContext.builder()
+                .resource(context.getResource())
+                .observedScope(CanonicalSecurityContext.ObservedScope.builder()
+                        .frequentResources(List.of("/api/customer/list"))
+                        .frequentActionFamilies(List.of("READ"))
+                        .build())
+                .build();
+
+        String section = new PromptContextComposer().composeObservedScopeSection(context);
+        String unknownSection = new PromptContextComposer().composeObservedScopeSection(unknownContext);
+
+        assertThat(section)
+                .contains("CurrentResourcePresentInObservedHistory: false")
+                .contains("CurrentActionFamilyPresentInObservedHistory: true");
+        assertThat(unknownSection)
+                .contains("CurrentResourcePresentInObservedHistory: UNKNOWN - insufficient comparison evidence; do not infer")
+                .contains("CurrentActionFamilyPresentInObservedHistory: UNKNOWN - insufficient comparison evidence; do not infer");
     }
 
     @Test

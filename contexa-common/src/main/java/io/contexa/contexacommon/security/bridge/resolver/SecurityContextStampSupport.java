@@ -17,6 +17,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -37,6 +38,10 @@ final class SecurityContextStampSupport {
     }
 
     static String extractPrincipalId(Authentication authentication) {
+        String oauth2PrincipalName = OAuth2AuthenticationSupport.principalName(authentication);
+        if (oauth2PrincipalName != null) {
+            return oauth2PrincipalName;
+        }
         String fromDetails = BridgeObjectExtractor.extractString(authentication != null ? authentication.getDetails() : null, PRINCIPAL_ID_KEYS);
         if (fromDetails != null) {
             return fromDetails;

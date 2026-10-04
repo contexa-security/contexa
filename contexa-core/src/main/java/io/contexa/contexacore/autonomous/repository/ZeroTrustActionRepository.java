@@ -55,6 +55,13 @@ public interface ZeroTrustActionRepository {
 
     void saveAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields);
 
+    /**
+     * Stores the final decision of an analysis. The built-in repositories keep an active
+     * user-level CHALLENGE or ESCALATE when the decision is less strict, whichever session it was
+     * analysed for, and return {@code true} because the stricter action stays in effect.
+     *
+     * @return {@code false} only when the decision could not be written and verified
+     */
     default boolean saveFinalAction(
             String userId,
             ZeroTrustAction action,
@@ -79,7 +86,7 @@ public interface ZeroTrustActionRepository {
     void removeAllUserData(String userId);
 
     /**
-     * Clears logout state only when no actor BLOCK is present.
+     * Clears logout state only when no actor BLOCK, ESCALATE or CHALLENGE is present.
      * Custom repositories retain actor state until they implement this contract.
      * Explicit resets continue to use removeAllUserData.
      */

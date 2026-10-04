@@ -26,9 +26,11 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
@@ -138,6 +140,13 @@ public class AiSecurityConfiguration {
     public BridgeResolutionConfigurer bridgeResolutionConfigurer(
             ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilterProvider) {
         return new BridgeResolutionConfigurer(bridgeResolutionFilterProvider.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.bridge", name = "ownership", havingValue = "HOST_OWNED", matchIfMissing = true)
+    public HostOwnedSecurityChainDiagnostics hostOwnedSecurityChainDiagnostics(ConfigurableListableBeanFactory beanFactory) {
+        return new HostOwnedSecurityChainDiagnostics(beanFactory);
     }
 
     private SecurityMode resolveSecurityMode() {

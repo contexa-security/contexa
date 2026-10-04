@@ -26,9 +26,9 @@ import org.springframework.beans.factory.annotation.AnnotatedGenericBeanDefiniti
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.support.GenericApplicationContext;
-import org.springframework.core.env.Environment;
-import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -64,10 +64,12 @@ class CoreContexaDataSourceIsolationContractTest {
     }
 
     @Test
-    void contexaRepositoryPostProcessorIsEnabledOnlyWhenConfigured() throws Exception {
-        Method method = CoreDataAutoConfiguration.class.getDeclaredMethod(
-                "contexaRepositoriesPostProcessor", Environment.class, ResourceLoader.class);
-        ConditionalOnProperty conditional = method.getAnnotation(ConditionalOnProperty.class);
+    void contexaRepositoryPostProcessorIsEnabledOnlyWhenConfigured() {
+        Class<?> registration = CoreDataAutoConfiguration.ContexaRepositoriesRegistration.class;
+        ConditionalOnProperty conditional = registration.getAnnotation(ConditionalOnProperty.class);
+
+        assertThat(registration.getAnnotation(Import.class).value())
+                .containsExactly(ContexaRepositoriesPostProcessor.class);
 
         assertThat(conditional).isNotNull();
         assertThat(conditional.prefix()).isEqualTo("contexa.jpa.repositories");
@@ -84,7 +86,7 @@ class CoreContexaDataSourceIsolationContractTest {
                     context);
             int before = context.getBeanDefinitionCount();
 
-            postProcessor.postProcessBeanDefinitionRegistry(context);
+            postProcessor.registerBeanDefinitions(AnnotationMetadata.introspect(CoreDataAutoConfiguration.class), context);
 
             assertThat(context.getBeanDefinitionCount()).isEqualTo(before);
         }
@@ -101,7 +103,8 @@ class CoreContexaDataSourceIsolationContractTest {
                     new MockEnvironment(),
                     context);
 
-            assertThatThrownBy(() -> postProcessor.postProcessBeanDefinitionRegistry(context))
+            assertThatThrownBy(() -> postProcessor.registerBeanDefinitions(
+                    AnnotationMetadata.introspect(CoreDataAutoConfiguration.class), context))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Contexa repository packages must not be registered")
                     .hasMessageContaining(UserRepository.class.getName());
@@ -119,7 +122,8 @@ class CoreContexaDataSourceIsolationContractTest {
                     new MockEnvironment(),
                     context);
 
-            assertThatThrownBy(() -> postProcessor.postProcessBeanDefinitionRegistry(context))
+            assertThatThrownBy(() -> postProcessor.registerBeanDefinitions(
+                    AnnotationMetadata.introspect(CoreDataAutoConfiguration.class), context))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(UserRepository.class.getName());
         }

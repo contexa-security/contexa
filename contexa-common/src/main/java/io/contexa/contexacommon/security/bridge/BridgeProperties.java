@@ -77,7 +77,7 @@ public class BridgeProperties {
             private List<String> principalTypeKeys = List.of("principalType", "userType", "actorType", "token_use");
             private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod", "method", "factorType");
             private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa", "acr");
-            private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified", "amr");
+            private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified");
             private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "issuedAt", "auth_time", "iat");
             private List<String> attributeKeys = List.of(
                     "organizationId", "orgId", "tenantId", "department", "team", "email", "loginIp",

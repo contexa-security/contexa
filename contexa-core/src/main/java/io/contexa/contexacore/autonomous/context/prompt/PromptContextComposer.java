@@ -472,13 +472,18 @@ public class PromptContextComposer {
                 "CurrentResourcePresentInObservedHistory",
                 resolveCurrentResourceValue(context),
                 observedScope.getFrequentResources(),
-                observedScope.getRareCurrentResource());
+                presentInObservedHistory(observedScope.getRareCurrentResource()));
         appendComparisonEvidence(
                 section,
                 "CurrentActionFamilyPresentInObservedHistory",
                 resolveCurrentActionFamily(context),
                 observedScope.getFrequentActionFamilies(),
-                observedScope.getRareCurrentActionFamily());
+                presentInObservedHistory(observedScope.getRareCurrentActionFamily()));
+    }
+
+    private Boolean presentInObservedHistory(Boolean rareInObservedHistory) {
+        // A rare current value is one that is absent from the frequent observed-history values.
+        return rareInObservedHistory != null ? !rareInObservedHistory : null;
     }
 
     private void appendWorkProfileSection(StringBuilder section, CanonicalSecurityContext context) {

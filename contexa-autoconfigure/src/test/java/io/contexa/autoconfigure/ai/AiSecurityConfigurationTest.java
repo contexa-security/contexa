@@ -51,4 +51,16 @@ class AiSecurityConfigurationTest {
                     assertThat(context).hasSingleBean(SessionSecurityContextRepositoryConfigurer.class);
                 });
     }
+
+    @Test
+    void shouldRegisterHostOwnedChainDiagnosticsOnlyInHostOwnedMode() {
+        ApplicationContextRunner runner = new ApplicationContextRunner()
+                .withUserConfiguration(AiSecurityConfiguration.class)
+                .withBean(PlatformConfig.class, () -> PlatformConfig.builder().build());
+        runner.withPropertyValues("contexa.bridge.ownership=HOST_OWNED")
+                .run(context -> assertThat(context).hasSingleBean(HostOwnedSecurityChainDiagnostics.class));
+        runner.run(context -> assertThat(context).hasSingleBean(HostOwnedSecurityChainDiagnostics.class));
+        runner.withPropertyValues("contexa.bridge.ownership=CONTEXA_OWNED")
+                .run(context -> assertThat(context).doesNotHaveBean(HostOwnedSecurityChainDiagnostics.class));
+    }
 }

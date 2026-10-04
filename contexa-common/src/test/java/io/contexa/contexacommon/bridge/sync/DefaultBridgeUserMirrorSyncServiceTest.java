@@ -39,6 +39,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -97,6 +98,9 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         assertThat(profile.getAuthenticationAssurance()).isEqualTo("HIGH");
         assertThat(profile.getLastAuthoritiesJson()).contains("ROLE_ADMIN");
         assertThat(profile.getLastAttributesJson()).contains("tenant-a");
+        // A new profile keeps a null id so that JPA persists it; @MapsId derives the id from the user.
+        assertThat(profile.getUserId()).isNull();
+        assertThat(profile.getUser()).isSameAs(userCaptor.getValue());
 
         assertThat(result).isNotNull();
         assertThat(result.internalUserId()).isEqualTo(100L);
@@ -174,6 +178,58 @@ class DefaultBridgeUserMirrorSyncServiceTest {
         verify(userRepository, never()).save(any(Users.class));
         verify(bridgeUserProfileRepository, never()).save(any(BridgeUserProfile.class));
         verify(userRepository, times(1)).findByBridgeSubjectKey(anyString());
+    }
+
+    @Test
+    void shouldSkipWriteWhenOnlyRequestUriAndMethodChangeWithinRefreshInterval() {
+        UserRepository userRepository = mock(UserRepository.class);
+        BridgeUserProfileRepository bridgeUserProfileRepository = mock(BridgeUserProfileRepository.class);
+        BridgeProperties properties = new BridgeProperties();
+        properties.getSync().setMinRefreshIntervalSeconds(60);
+        DefaultBridgeUserMirrorSyncService service = new DefaultBridgeUserMirrorSyncService(
+                userRepository,
+                bridgeUserProfileRepository,
+                properties,
+                new ObjectMapper(),
+                null
+        );
+
+        AtomicReference<Users> storedUser = new AtomicReference<>();
+        AtomicReference<BridgeUserProfile> storedProfile = new AtomicReference<>();
+        when(userRepository.findByBridgeSubjectKey(anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(storedUser.get()));
+        when(userRepository.findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(bridgeUserProfileRepository.findById(anyLong()))
+                .thenAnswer(invocation -> Optional.ofNullable(storedProfile.get()));
+        when(userRepository.save(any(Users.class))).thenAnswer(invocation -> {
+            Users user = invocation.getArgument(0);
+            user.setId(100L);
+            storedUser.set(user);
+            return user;
+        });
+        when(bridgeUserProfileRepository.save(any(BridgeUserProfile.class))).thenAnswer(invocation -> {
+            BridgeUserProfile profile = invocation.getArgument(0);
+            storedProfile.set(profile);
+            return profile;
+        });
+
+        BridgeUserMirrorSyncResult first = service.sync(authenticationStamp(), authorizationStamp(), requestContext());
+        BridgeUserMirrorSyncResult second = service.sync(
+                authenticationStamp(),
+                authorizationStamp(),
+                requestContext("/reports/summary", "POST", "request-2")
+        );
+
+        assertThat(first.created()).isTrue();
+        assertThat(second.internalUserId()).isEqualTo(100L);
+        assertThat(second.created()).isFalse();
+        assertThat(second.updated()).isFalse();
+        verify(userRepository, times(1)).save(any(Users.class));
+        verify(bridgeUserProfileRepository, times(1)).save(any(BridgeUserProfile.class));
+        assertThat(storedProfile.get().getLastAttributesJson())
+                .contains("tenant-a")
+                .doesNotContain("/reports/export");
     }
 
     @Test
@@ -289,14 +345,18 @@ class DefaultBridgeUserMirrorSyncServiceTest {
     }
 
     private RequestContextSnapshot requestContext() {
+        return requestContext("/reports/export", "GET", "request-1");
+    }
+
+    private RequestContextSnapshot requestContext(String requestUri, String method, String requestId) {
         return new RequestContextSnapshot(
-                "/reports/export",
-                "GET",
+                requestUri,
+                method,
                 "10.0.0.10",
                 "JUnit",
                 "session-1",
-                "request-1",
-                "/reports/export",
+                requestId,
+                requestUri,
                 null,
                 false,
                 Instant.parse("2026-03-24T01:00:02Z")

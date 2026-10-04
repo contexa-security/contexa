@@ -49,9 +49,18 @@ public class SystemRuntimeSettingsService {
                 .orElseGet(SystemRuntimeSettingsService::defaultSettings);
     }
 
+    /**
+     * Returns the zero trust mode saved by an operator, or empty when the settings row does not
+     * exist or its mode is not set so that the {@code contexa.security.zerotrust.mode} property
+     * value stays in effect.
+     */
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public SecurityZeroTrustProperties.SecurityMode getSecurityZeroTrustMode() {
-        return normalizeSecurityZeroTrustMode(getSettings().getSecurityZeroTrustMode());
+    public Optional<SecurityZeroTrustProperties.SecurityMode> findSecurityZeroTrustMode() {
+        return repository.findAll().stream()
+                .findFirst()
+                .map(SystemSettings::getSecurityZeroTrustMode)
+                .filter(StringUtils::hasText)
+                .map(SystemRuntimeSettingsService::normalizeSecurityZeroTrustMode);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -85,7 +94,6 @@ public class SystemRuntimeSettingsService {
                 .policyCombiningAlgorithm(DEFAULT_POLICY_COMBINING_ALGORITHM.name())
                 .noMatchingUrlPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
                 .missingMethodPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
-                .securityZeroTrustMode(DEFAULT_SECURITY_ZEROTRUST_MODE.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
     }

@@ -15,10 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
-import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
@@ -28,17 +25,14 @@ import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
-import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -161,24 +155,8 @@ public class AiBridgeConfiguration {
         return new HeaderDelegationStampResolver();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean({UserRepository.class, BridgeUserProfileRepository.class})
-    public BridgeUserMirrorSyncService bridgeUserMirrorSyncService(
-            UserRepository userRepository,
-            BridgeUserProfileRepository bridgeUserProfileRepository,
-            BridgeProperties properties,
-            ObjectProvider<ObjectMapper> objectMapperProvider,
-            ObjectProvider<CacheManager> cacheManagerProvider) {
-        return new DefaultBridgeUserMirrorSyncService(
-                userRepository,
-                bridgeUserProfileRepository,
-                properties,
-                objectMapperProvider.getIfAvailable(ObjectMapper::new),
-                cacheManagerProvider.getIfAvailable()
-        );
-    }
-
+    // BridgeUserMirrorSyncService is provided by AiBridgeUserMirrorSyncAutoConfiguration, which is evaluated
+    // after the Contexa repositories are registered. It is resolved through ObjectProvider at instantiation time.
     @Bean
     @ConditionalOnMissingBean
     public BridgeRuntimeSupport bridgeRuntimeSupport(

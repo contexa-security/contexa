@@ -177,6 +177,52 @@ class SystemSettingsRuntimeApplierTest {
     }
 
     @Test
+    @DisplayName("Configured zero trust mode stays in effect when no settings row exists")
+    void keepsConfiguredZeroTrustModeWithoutSettingsRow() {
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        when(repository.findAll()).thenReturn(List.of());
+
+        applier.apply();
+
+        assertThat(zeroTrustProperties.getMode()).isEqualTo(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+    }
+
+    @Test
+    @DisplayName("Configured zero trust mode stays in effect when the stored mode is not set")
+    void keepsConfiguredZeroTrustModeWhenStoredModeIsNotSet() {
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .securityZeroTrustMode(null)
+                .build()));
+
+        applier.onApplicationEvent(mock(ApplicationReadyEvent.class));
+
+        assertThat(zeroTrustProperties.getMode()).isEqualTo(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+    }
+
+    @Test
+    @DisplayName("Zero trust mode saved by an operator replaces the configured mode")
+    void storedZeroTrustModeWins() {
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .securityZeroTrustMode("SHADOW")
+                .build()));
+
+        applier.apply();
+
+        assertThat(zeroTrustProperties.getMode()).isEqualTo(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+
+        zeroTrustProperties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .securityZeroTrustMode("ENFORCE")
+                .build()));
+
+        applier.apply();
+
+        assertThat(zeroTrustProperties.getMode()).isEqualTo(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+    }
+
+    @Test
     @DisplayName("Configured properties stay in effect when no settings row exists")
     void keepsPropertiesWithoutSettingsRow() {
         properties.setCombiningAlgorithm(CombiningAlgorithm.DENY_OVERRIDES);
