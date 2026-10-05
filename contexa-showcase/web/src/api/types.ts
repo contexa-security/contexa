@@ -11,12 +11,7 @@ export interface PairSummary {
 }
 
 export type Timing =
-  | 'BEFORE_RESPONSE'
-  | 'MID_RESPONSE'
-  | 'NEXT_REQUEST'
-  | 'NONE'
-  | 'STATIC_AUTHORIZATION'
-  | 'NOT_ANALYSED';
+  'BEFORE_RESPONSE' | 'MID_RESPONSE' | 'NEXT_REQUEST' | 'NONE' | 'STATIC_AUTHORIZATION' | 'NOT_ANALYSED';
 
 export interface Evidence {
   readonly decisionId: string | null;
@@ -243,4 +238,62 @@ export interface PredictionResult {
   readonly choice: Choice;
   readonly recorded: boolean;
   readonly tally: Readonly<Record<Choice, number>>;
+}
+
+/** Execution statistics (deck p.17): an operations record counted from the stored real runs. */
+export interface StatsView {
+  readonly computedAt: string;
+  readonly runs: {
+    readonly completed: number;
+    readonly failed: number;
+    readonly today: number;
+    readonly live: number;
+    readonly firstAt: string | null;
+    readonly lastAt: string | null;
+  };
+  readonly decisionTime: {
+    readonly decisions: number;
+    readonly p50Ms: number | null;
+    readonly p95Ms: number | null;
+  };
+  readonly engineActions: Readonly<Record<'ALLOW' | 'CHALLENGE' | 'BLOCK' | 'ESCALATE', number>>;
+  readonly unresolved: { readonly technical: number; readonly noNewAnalysis: number };
+  readonly agreement: {
+    readonly agreeing: number;
+    readonly repetitions: number;
+    readonly recordings: readonly {
+      readonly pairKey: string;
+      readonly scene: string;
+      readonly agreeing: number;
+      readonly repetitions: number;
+      readonly recordedAt: string;
+    }[];
+  };
+  readonly scope: { readonly threatRuns: number; readonly normalRuns: number; readonly otherRuns: number };
+  readonly layers: readonly {
+    readonly control: ControlId;
+    readonly threat: {
+      readonly runs: number;
+      readonly leaked: number;
+      readonly stopped: number;
+      readonly unresolved: number;
+    };
+    readonly normal: {
+      readonly runs: number;
+      readonly passed: number;
+      readonly challenged: number;
+      readonly blocked: number;
+      readonly unresolved: number;
+    };
+  }[];
+  readonly spec: {
+    readonly specHash: string;
+    readonly codeCommit: string;
+    readonly engineVersion: string;
+    readonly effectiveMode: string;
+    readonly chatModel: string;
+    readonly embeddingModel: string;
+    readonly timeZone: string;
+  } | null;
+  readonly specCount: number;
 }

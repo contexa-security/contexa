@@ -10,11 +10,22 @@ import type {
   Pair,
   PairSummary,
   PredictionResult,
+  StatsView,
   VisitorState,
 } from './types';
 
 /** Recorded replays never change once published, so they are cached for the whole visit. */
 const STATIC = { staleTime: Infinity, retry: false } as const;
+
+/** The statistics are counted on the server and cached there for a minute. */
+export function useStats() {
+  return useQuery({
+    queryKey: ['stats'],
+    queryFn: () => getJson<StatsView>('/api/stats'),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
 
 export function usePairs() {
   return useQuery({ queryKey: ['pairs'], queryFn: () => getJson<PairSummary[]>('/api/pairs'), ...STATIC });
@@ -40,7 +51,11 @@ export function useSpec(specHash: string | undefined) {
 
 /** Reading the visitor state issues the visitor cookie and the CSRF cookie before the first vote. */
 export function useVisitor() {
-  return useQuery({ queryKey: ['visitor'], queryFn: () => getJson<VisitorState>('/api/visitor'), retry: false });
+  return useQuery({
+    queryKey: ['visitor'],
+    queryFn: () => getJson<VisitorState>('/api/visitor'),
+    retry: false,
+  });
 }
 
 export function usePrediction() {
@@ -58,7 +73,11 @@ export function usePrediction() {
 
 /** The development single space (P3); a 404 means it is not open on this portal. */
 export function useLiveConfig() {
-  return useQuery({ queryKey: ['live-config'], queryFn: () => getJson<LiveConfig>('/api/live/config'), ...STATIC });
+  return useQuery({
+    queryKey: ['live-config'],
+    queryFn: () => getJson<LiveConfig>('/api/live/config'),
+    ...STATIC,
+  });
 }
 
 const LIVE_ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE']);

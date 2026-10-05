@@ -8,8 +8,10 @@ import '../i18n';
 import i18n from '../i18n';
 import { replayFixture } from '../test/replayFixture';
 import { required } from '../test/required';
+import type { StatsView } from '../api/types';
 import HomePage from './HomePage';
 import ReplayPage from './ReplayPage';
+import StatsPage from './StatsPage';
 import ExplorePage from './ExplorePage';
 import TryPage from './TryPage';
 
@@ -91,7 +93,10 @@ describe('first screen', () => {
 
     expect(await screen.findByRole('heading', { name: replayFixture.question.en })).toBeInTheDocument();
     expect(screen.getByText('What would you do?')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Skip and see the result/ })).toHaveAttribute('href', '/replay/A3');
+    expect(screen.getByRole('link', { name: /Skip and see the result/ })).toHaveAttribute(
+      'href',
+      '/replay/A3',
+    );
 
     await userEvent.click(await screen.findByRole('button', { name: 'Block it' }));
 
@@ -136,7 +141,9 @@ describe('verdict comparison', () => {
     await i18n.changeLanguage('en');
     renderAt('/replay/A3', <ReplayPage />);
 
-    const card = required((await screen.findAllByRole('article')).find((article) => article.dataset.control === 'D'));
+    const card = required(
+      (await screen.findAllByRole('article')).find((article) => article.dataset.control === 'D'),
+    );
     expect(within(card).getByText('Permitted · short usual pattern · no concrete risk')).toBeInTheDocument();
     await userEvent.click(within(card).getByRole('button', { name: /Evidence chain/ }));
 
@@ -146,14 +153,14 @@ describe('verdict comparison', () => {
     const reasoning = required(required(replayFixture.scenes[0]).engineReason?.reasoning, 'engine reasoning');
     expect(within(dialog).getByText(reasoning)).toBeInTheDocument();
     expect(within(dialog).getByText('Analysis timeline')).toBeInTheDocument();
-    expect(within(dialog).getAllByTestId('timeline-offset').map((offset) => offset.textContent)).toEqual([
-      '+38 ms',
-      '+38 ms',
-      '+1,666 ms',
-      '+1,666 ms',
-      '+1,702 ms',
-    ]);
-    expect(within(dialog).getByText('The decision took effect 36 ms before the response.')).toBeInTheDocument();
+    expect(
+      within(dialog)
+        .getAllByTestId('timeline-offset')
+        .map((offset) => offset.textContent),
+    ).toEqual(['+38 ms', '+38 ms', '+1,666 ms', '+1,666 ms', '+1,702 ms']);
+    expect(
+      within(dialog).getByText('The decision took effect 36 ms before the response.'),
+    ).toBeInTheDocument();
   });
 
   it('says the run is being prepared when the pair has no published recording', async () => {
@@ -202,7 +209,15 @@ describe('try it yourself', () => {
   beforeEach(() => {
     routes['GET /api/live/config'] = () => ({
       status: 200,
-      body: { scenarios: [{ key: 'K2', title: { ko: '담당 도면 열람', en: 'Opening an assigned drawing' }, classification: 'NORMAL' }] },
+      body: {
+        scenarios: [
+          {
+            key: 'K2',
+            title: { ko: '담당 도면 열람', en: 'Opening an assigned drawing' },
+            classification: 'NORMAL',
+          },
+        ],
+      },
     });
   });
 
@@ -374,9 +389,13 @@ describe('explore conditions', () => {
     expect(screen.getByText('Live runs left today: 10/10')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Run this combination' }));
 
-    expect(await screen.findByText('Number 2 in line · it starts as soon as it is your turn')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Number 2 in line · it starts as soon as it is your turn'),
+    ).toBeInTheDocument();
     const posted = calls.find((call) => call.url === '/api/live/combinations');
-    expect(posted?.init?.body).toBe(JSON.stringify({ key: 'adm-a.MORNING.40.NONE.USUAL', turnstileToken: null }));
+    expect(posted?.init?.body).toBe(
+      JSON.stringify({ key: 'adm-a.MORNING.40.NONE.USUAL', turnstileToken: null }),
+    );
   });
 
   it('shows the daily limit when the gate refuses a new cell', async () => {
@@ -387,5 +406,110 @@ describe('explore conditions', () => {
     await userEvent.click(await screen.findByRole('button', { name: '이 조합 실행' }));
 
     expect(await screen.findByText('오늘의 실시간 실행을 모두 썼습니다.')).toBeInTheDocument();
+  });
+});
+
+const statsView: StatsView = {
+  computedAt: '2026-10-05T07:30:12.000Z',
+  runs: { completed: 1284, failed: 3, today: 41, live: 334, firstAt: '2026-10-04T06:00:00Z', lastAt: null },
+  decisionTime: { decisions: 760, p50Ms: 2500, p95Ms: 3850 },
+  engineActions: { ALLOW: 728, CHALLENGE: 1, BLOCK: 31, ESCALATE: 0 },
+  unresolved: { technical: 87, noNewAnalysis: 29 },
+  agreement: {
+    agreeing: 9,
+    repetitions: 10,
+    recordings: [
+      { pairKey: 'A3', scene: 'ATTACK', agreeing: 4, repetitions: 5, recordedAt: '2026-10-05T01:00:00Z' },
+      { pairKey: 'A3', scene: 'LEGITIMATE', agreeing: 5, repetitions: 5, recordedAt: '2026-10-05T01:00:00Z' },
+    ],
+  },
+  scope: { threatRuns: 3, normalRuns: 1, otherRuns: 192 },
+  layers: [
+    {
+      control: 'A',
+      threat: { runs: 3, leaked: 2, stopped: 1, unresolved: 0 },
+      normal: { runs: 1, passed: 1, challenged: 0, blocked: 0, unresolved: 0 },
+    },
+    {
+      control: 'B',
+      threat: { runs: 3, leaked: 3, stopped: 0, unresolved: 0 },
+      normal: { runs: 1, passed: 1, challenged: 0, blocked: 0, unresolved: 0 },
+    },
+    {
+      control: 'C1',
+      threat: { runs: 3, leaked: 1, stopped: 2, unresolved: 0 },
+      normal: { runs: 1, passed: 0, challenged: 0, blocked: 1, unresolved: 0 },
+    },
+    {
+      control: 'C2',
+      threat: { runs: 3, leaked: 0, stopped: 2, unresolved: 1 },
+      normal: { runs: 1, passed: 1, challenged: 0, blocked: 0, unresolved: 0 },
+    },
+    {
+      control: 'D',
+      threat: { runs: 3, leaked: 2, stopped: 1, unresolved: 0 },
+      normal: { runs: 1, passed: 0, challenged: 1, blocked: 0, unresolved: 0 },
+    },
+  ],
+  spec: {
+    specHash: 'a'.repeat(64),
+    codeCommit: 'f1f5c2a4',
+    engineVersion: '0.1.0',
+    effectiveMode: 'ENFORCE',
+    chatModel: 'gpt-5-nano',
+    embeddingModel: 'text-embedding-3-small',
+    timeZone: 'UTC',
+  },
+  specCount: 2,
+};
+
+describe('execution statistics', () => {
+  it('shows exactly the counted numbers, each layer of the table, the decision mix and the specification', async () => {
+    await i18n.changeLanguage('en');
+    routes['GET /api/stats'] = () => ({ status: 200, body: statsView });
+    renderAt('/', <StatsPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Execution statistics' })).toBeInTheDocument();
+    expect(screen.getByText('Operations record · not the benchmark')).toBeInTheDocument();
+    expect(await screen.findByText('1,284')).toBeInTheDocument();
+    expect(screen.getByText('41 today · 334 by visitors')).toBeInTheDocument();
+    expect(screen.getByText('2.5 s')).toBeInTheDocument();
+    expect(screen.getByText('p95 3.9 s · 760 decisions')).toBeInTheDocument();
+    expect(screen.getByText('90%')).toBeInTheDocument();
+    expect(screen.getByText('2 published scenes · 9 of 10 runs agree')).toBeInTheDocument();
+
+    const row = (control: string) =>
+      within(document.querySelector(`tr[data-control="${control}"]`) as HTMLElement);
+    expect(
+      row('D')
+        .getAllByRole('cell')
+        .map((cell) => cell.querySelector('[data-part="value"]')?.textContent),
+    ).toEqual(['2/3 (67%)', '1/3 (33%)', '0/1 (0%)', '1/1 (100%)']);
+    expect(row('C1').getByRole('rowheader')).toHaveTextContent('Threshold rules');
+    expect(
+      screen.getByText(/3 attack runs and 1 normal-work runs were counted\. 192 runs/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('728 · 95.8%')).toBeInTheDocument();
+    expect(screen.getByText('0 · 0%')).toBeInTheDocument();
+    expect(screen.getByText('gpt-5-nano')).toBeInTheDocument();
+    expect(screen.getByText('Updated 2026-10-05 07:30 UTC')).toBeInTheDocument();
+  });
+
+  it('says so before the official recordings and when nothing has run', async () => {
+    await i18n.changeLanguage('ko');
+    routes['GET /api/stats'] = () => ({
+      status: 200,
+      body: { ...statsView, agreement: { agreeing: 0, repetitions: 0, recordings: [] } },
+    });
+    const first = renderAt('/', <StatsPage />);
+    expect(await screen.findByText('공식 녹화 전')).toBeInTheDocument();
+    first.unmount();
+
+    routes['GET /api/stats'] = () => ({
+      status: 200,
+      body: { ...statsView, runs: { ...statsView.runs, completed: 0 } },
+    });
+    renderAt('/', <StatsPage />);
+    expect(await screen.findByText('아직 집계할 실제 실행이 없습니다')).toBeInTheDocument();
   });
 });

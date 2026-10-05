@@ -16,7 +16,7 @@ import java.util.Objects;
  */
 public final class OutcomeSignature {
 
-    static final List<String> CONTROLS = List.of("A", "B", "C1", "C2", "D");
+    public static final List<String> CONTROLS = List.of("A", "B", "C1", "C2", "D");
 
     private OutcomeSignature() {
     }

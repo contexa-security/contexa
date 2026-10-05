@@ -60,6 +60,7 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("GET /api/specs/{specHash}", Reach.READ),
             Map.entry("GET /api/combinations", Reach.READ),
             Map.entry("GET /api/combinations/{key}", Reach.READ),
+            Map.entry("GET /api/stats", Reach.READ),
             Map.entry("GET /api/live/config", Reach.READ),
             Map.entry("GET /api/live/runs/current", Reach.READ),
             Map.entry("POST /api/live/runs", Reach.GATED_ENGINE_START),
