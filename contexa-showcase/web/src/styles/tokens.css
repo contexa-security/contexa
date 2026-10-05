@@ -7,10 +7,25 @@
 @import url('@fontsource/jetbrains-mono/400.css');
 @import url('@fontsource/jetbrains-mono/600.css');
 
+/*
+ * Every character the visitor screens use, in one preloaded file (scripts/font-subset.py, approval Q-36); anything
+ * else falls back to the regular Pretendard pieces below it in the stack.
+ */
+@font-face {
+  font-family: 'Pretendard Demo';
+  src:
+    url('/fonts/pretendard-demo.woff2') format('woff2-variations'),
+    url('/fonts/pretendard-demo.woff2') format('woff2');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Typography */
-  --font-sans: 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI', roboto,
-    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --font-sans:
+    'Pretendard Demo', 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI',
+    roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, sfmono-regular, menlo, consolas, monospace;
   --text-sm: 0.875rem;
   --text-md: 1rem;
@@ -49,6 +64,9 @@
   --duration-base: 200ms;
   --duration-slow: 360ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layout */
+  --header-height: 4rem;
 
   /* Layers */
   --layer-raised: 10;

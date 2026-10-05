@@ -5,6 +5,7 @@ import type {
   CombinationGrid,
   CombinationView,
   ExecutionSpec,
+  ExperienceResult,
   LiveConfig,
   LiveRunView,
   Pair,
@@ -16,6 +17,16 @@ import type {
 
 /** Recorded replays never change once published, so they are cached for the whole visit. */
 const STATIC = { staleTime: Infinity, retry: false } as const;
+
+/** The visitor's result of a pair; it depends on the visitor's votes, so it is read fresh. */
+export function useExperienceResult(pairKey: string | undefined) {
+  return useQuery({
+    queryKey: ['result', pairKey],
+    queryFn: () => getJson<ExperienceResult>(`/api/results/${encodeURIComponent(pairKey ?? '')}`),
+    enabled: Boolean(pairKey),
+    retry: false,
+  });
+}
 
 /** The statistics are counted on the server and cached there for a minute. */
 export function useStats() {

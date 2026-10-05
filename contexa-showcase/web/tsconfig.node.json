@@ -19,6 +19,7 @@
     "playwright.config.ts",
     "bundleGuard.ts",
     "bundleGuard.test.ts",
+    "fontCoverage.test.ts",
     "e2e"
   ]
 }

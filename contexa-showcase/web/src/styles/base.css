@@ -40,6 +40,32 @@ button {
   color: inherit;
 }
 
+/* The bar painted by index.html before the application loads; same height as the application's header bar. */
+.app-shell {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--header-height);
+  padding: 0 var(--space-6);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.app-shell-brand {
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+}
+
+.app-shell-brand span {
+  color: var(--color-text-muted);
+}
+
+/* Every screen's main area fills the first view, so the footer starts below it and never moves into view while
+   the content loads. */
+main {
+  min-block-size: calc(100dvh - var(--header-height));
+}
+
 :focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;

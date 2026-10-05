@@ -4,7 +4,9 @@ import io.contexa.showcase.portal.combination.Combination;
 import io.contexa.showcase.portal.combination.CombinationCatalog;
 import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.RunSummary;
+import io.contexa.showcase.portal.orchestrator.RunOrchestrator.StepSummary;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
+import io.contexa.showcase.portal.template.TemplateCurrency;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -14,7 +16,9 @@ import java.util.function.Consumer;
  * The cost gate in front of every new live run (deck p.28, docs/showcase/P4-설계.md 3절), in this order: a cell that
  * already has a stored run is shown from that run with no call at all; otherwise the human check, the daily allotment,
  * room in the spaces and the visitor and address limits must all pass, and a run that cannot start or fails for a
- * technical reason gives its count back. Every outcome is counted by {@link LiveGateWatch} (P5-SEC-07).
+ * technical reason gives its count back. A scenario that clones a template starts only when a template learned under the
+ * versions in force exists (TEMPLATE, shown as a pause; docs/showcase/계획대조-검수.md N-8). Every outcome is counted by
+ * {@link LiveGateWatch} (P5-SEC-07), and so is every finished run with or without an engine decision (N-1).
  */
 public class LiveGate {
 
@@ -29,7 +33,7 @@ public class LiveGate {
     }
 
     /**
-     * @param reason TURNSTILE_*, ALLOTMENT, BUSY, VISITOR_LIMIT or ADDRESS_LIMIT
+     * @param reason TEMPLATE, TURNSTILE_*, ALLOTMENT, BUSY, VISITOR_LIMIT or ADDRESS_LIMIT
      */
     public record Refused(String reason) implements Outcome {
     }
@@ -40,9 +44,11 @@ public class LiveGate {
     private final LiveQuota quota;
     private final LiveRuns live;
     private final LiveGateWatch watch;
+    private final TemplateCurrency templates;
 
     public LiveGate(CombinationService combinations, TurnstileVerifier turnstile, LiveAllotment allotment,
-                    LiveQuota quota, LiveRuns live, LiveGateWatch watch) {
+                    LiveQuota quota, LiveRuns live, LiveGateWatch watch, TemplateCurrency templates) {
+        this.templates = templates;
         this.combinations = combinations;
         this.turnstile = turnstile;
         this.allotment = allotment;
@@ -66,17 +72,21 @@ public class LiveGate {
     }
 
     /** A scenario of the "try it yourself" page; it is not a grid cell, so nothing is reused or kept. */
-    public Outcome scenario(String visitor, String address, ScenarioDefinition scenario, String turnstileToken) {
+    public Outcome scenario(String visitor, String address, ScenarioDefinition scenario, String turnstileToken)
+            throws IOException {
         return start(visitor, address, scenario, turnstileToken, summary -> {
         });
     }
 
     private Outcome start(String visitor, String address, ScenarioDefinition scenario, String turnstileToken,
-                          Consumer<RunSummary> keep) {
+                          Consumer<RunSummary> keep) throws IOException {
         Optional<LiveRun> current = live.current(visitor);
         if (current.isPresent() && current.get().active()) {
             watch.passed(LiveGateWatch.RESUMED);
             return new Started(current.get());
+        }
+        if (scenario.template() && templates.current(scenario.protagonist()).isEmpty()) {
+            return refuse("TEMPLATE");
         }
         TurnstileVerifier.Result check = turnstile.verify(turnstileToken, address);
         if (!check.passed()) {
@@ -94,6 +104,7 @@ public class LiveGate {
         }
         try {
             LiveRun run = live.start(visitor, scenario, summary -> {
+                watch.finished(summary.steps().stream().anyMatch(StepSummary::unresolved));
                 if (!"COMPLETED".equals(summary.status())) {
                     quota.giveBack(visitor, address);
                 }

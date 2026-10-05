@@ -4,7 +4,7 @@
  */
 export type Verdict = 'ALLOW' | 'CHALLENGE' | 'ESCALATE' | 'BLOCK' | 'PENDING';
 
-export type VerdictIcon = 'check' | 'key' | 'clock' | 'lock' | 'hourglass';
+export type VerdictIcon = 'check' | 'cross' | 'key' | 'clock' | 'lock' | 'hourglass';
 
 export interface VerdictPresentation {
   /** i18n key of the plain-language word shown to visitors. */

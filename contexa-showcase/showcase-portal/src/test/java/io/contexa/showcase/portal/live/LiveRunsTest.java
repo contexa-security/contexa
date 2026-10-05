@@ -23,13 +23,16 @@ import java.util.function.BooleanSupplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Deck p.27 on the live spaces: a limit of concurrent runs, a queue that tells its place, and space clean-up. */
+/**
+ * Deck p.27 on the live spaces: a limit of concurrent runs, a limit of starts per minute that keeps the model provider
+ * under its rate limit (docs/showcase/계획대조-검수.md N-1), a queue that tells its place, and space clean-up.
+ */
 class LiveRunsTest {
 
     private final MovableClock clock = new MovableClock(Instant.parse("2026-10-05T07:00:00Z"));
     private final Map<String, CountDownLatch> gates = new ConcurrentHashMap<>();
     private final List<String> finished = new CopyOnWriteArrayList<>();
-    private final LiveRuns live = new LiveRuns((scenario, forced, responder, listener) -> {
+    private final LiveRuns.Runner runner = (scenario, forced, responder, listener) -> {
         listener.runStarted("run-" + scenario.key());
         try {
             gate(scenario.key()).await(10, TimeUnit.SECONDS);
@@ -37,7 +40,9 @@ class LiveRunsTest {
             Thread.currentThread().interrupt();
         }
         return new RunSummary("run-" + scenario.key(), scenario.key(), "u", "org", "COMPLETED", null, List.of());
-    }, new LiveRuns.Settings(2, 2, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null), clock);
+    };
+    private final LiveRuns live = new LiveRuns(runner,
+            new LiveRuns.Settings(2, 2, 0, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null), clock);
 
     @AfterEach
     void close() {
@@ -67,6 +72,30 @@ class LiveRunsTest {
         await(() -> finished.contains(cell(0).key()));
         assertThat(live.running()).isEqualTo(2);
         assertThat(live.waiting()).isEqualTo(1);
+    }
+
+    @Test
+    void runsBeyondTheStartRateWaitForTheNextMinuteEvenWithRoom() throws Exception {
+        try (LiveRuns rated = new LiveRuns(runner,
+                new LiveRuns.Settings(10, 5, 2, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null),
+                clock)) {
+            LiveRun first = rated.start("v1", CombinationCatalog.scenario(cell(0)), summary -> { });
+            LiveRun second = rated.start("v2", CombinationCatalog.scenario(cell(1)), summary -> { });
+            LiveRun third = rated.start("v3", CombinationCatalog.scenario(cell(2)), summary -> { });
+
+            assertThat(first.view().status()).isNotEqualTo(LiveRun.Status.QUEUED);
+            assertThat(second.view().status()).isNotEqualTo(LiveRun.Status.QUEUED);
+            assertThat(third.view().queuePosition()).as("two starts this minute already").isEqualTo(1);
+            assertThat(rated.startsInLastMinute()).isEqualTo(2);
+
+            rated.dispatch();
+            assertThat(third.view().status()).as("still the same minute").isEqualTo(LiveRun.Status.QUEUED);
+
+            clock.move(Duration.ofSeconds(61));
+            rated.dispatch();
+            assertThat(third.view().status()).isNotEqualTo(LiveRun.Status.QUEUED);
+            assertThat(rated.startsInLastMinute()).isEqualTo(1);
+        }
     }
 
     @Test

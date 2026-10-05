@@ -8,7 +8,8 @@ export function refusalOf(status: number, reason: string | null): GateRefusal {
   if (status === 429) {
     return 'dailyLimit';
   }
-  if (status === 409 || (status === 503 && reason === 'ALLOTMENT')) {
+  // A full house, a spent daily allotment, or no template learned under the engine's current versions yet.
+  if (status === 409 || (status === 503 && (reason === 'ALLOTMENT' || reason === 'TEMPLATE'))) {
     return 'paused';
   }
   if (status === 403 && reason?.startsWith('TURNSTILE')) {

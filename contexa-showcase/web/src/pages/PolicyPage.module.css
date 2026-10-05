@@ -1,0 +1,108 @@
+.page {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-16);
+}
+
+.page:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.article {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.title {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.heading {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.paragraph {
+  color: var(--color-text-body);
+  line-height: var(--leading-normal);
+}
+
+.tableWrap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--color-text-subtle);
+  font-weight: var(--weight-medium);
+}
+
+.table tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-block-end: none;
+}
+
+@media (width < 768px) {
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table tbody tr {
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .table tbody tr:last-child {
+    border-block-end: none;
+  }
+
+  .table tbody th,
+  .table tbody td {
+    padding: var(--space-1) 0;
+    border: none;
+  }
+}

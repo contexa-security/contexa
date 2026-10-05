@@ -87,7 +87,7 @@ public class ExecutionStats {
                         select count(*) filter (where r.status = 'COMPLETED') as completed,
                                count(*) filter (where r.status = 'FAILED') as failed,
                                count(*) filter (where r.status = 'COMPLETED' and r.started_at >= :today) as today,
-                               count(*) filter (where r.status = 'COMPLETED' and r.live_visitor_hash is not null)
+                               count(*) filter (where r.status = 'COMPLETED' and r.live_run)
                                    as live,
                                min(r.started_at) filter (where r.status = 'COMPLETED') as first_at,
                                max(r.started_at) filter (where r.status = 'COMPLETED') as last_at

@@ -6,6 +6,7 @@ import io.contexa.showcase.portal.replay.ReplayStore;
 import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.spec.ScoringContract;
+import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateStore;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class CombinationService {
     }
 
     private final WorkloadAdmin admin;
-    private final TemplateStore templates;
+    private final TemplateCurrency templates;
     private final ScoringContract contract;
     private final CombinationStore store;
     private final ReplayStore runs;
@@ -48,7 +49,7 @@ public class CombinationService {
     private final Clock clock;
     private final Map<String, CachedVersion> versions = new HashMap<>();
 
-    public CombinationService(WorkloadAdmin admin, TemplateStore templates, ScoringContract contract,
+    public CombinationService(WorkloadAdmin admin, TemplateCurrency templates, ScoringContract contract,
                               CombinationStore store, ReplayStore runs, ReplayViews views, Clock clock) {
         this.admin = admin;
         this.templates = templates;
@@ -65,7 +66,7 @@ public class CombinationService {
         if (cached != null && clock.instant().isBefore(cached.until())) {
             return cached.key();
         }
-        String templateId = templates.latestReady(employee).map(TemplateStore.ReadyTemplate::templateId).orElse(null);
+        String templateId = templates.current(employee).map(TemplateStore.ReadyTemplate::templateId).orElse(null);
         String key = CombinationVersions.key(admin.engine(), admin.rules(), templateId, contract.version());
         versions.put(employee, new CachedVersion(key, clock.instant().plus(VERSION_CACHE)));
         return key;
@@ -109,13 +110,14 @@ public class CombinationService {
     }
 
     /**
-     * Keeps a completed live run as the cell's record. A run that did not complete or used a development-only forced
-     * decision is never kept; the first run of a cell wins.
+     * Keeps a completed live run as the cell's record. A run that did not complete, used a development-only forced
+     * decision or got no decision from the engine (unresolved: a technical failure, not a judgement) is never kept;
+     * the first resolved run of a cell wins.
      */
     public boolean keep(Combination combination, String versionKey, String runId, String visitorHash) {
         Optional<ReplayStore.RunRow> run = runs.run(runId);
         if (run.isEmpty() || !"COMPLETED".equals(run.get().status()) || run.get().forcedAction() != null
-                || !combination.key().equals(run.get().scenarioKey())) {
+                || !combination.key().equals(run.get().scenarioKey()) || store.unresolved(runId)) {
             return false;
         }
         return store.save(combination.key(), versionKey, runId, visitorHash);

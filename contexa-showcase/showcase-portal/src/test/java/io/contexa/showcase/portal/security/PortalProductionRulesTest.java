@@ -18,7 +18,8 @@ class PortalProductionRulesTest {
                 "showcase.live.dev-forced-action is set",
                 "client addresses need server.forward-headers-strategy=native and the trusted proxies in "
                         + "server.tomcat.remoteip.internal-proxies",
-                "live runs need showcase.turnstile.enabled");
+                "live runs need showcase.turnstile.enabled",
+                "showcase.public-url must be the public https address");
     }
 
     @Test
@@ -26,7 +27,8 @@ class PortalProductionRulesTest {
         MockEnvironment ready = new MockEnvironment().withProperty("showcase.portal.secure-cookie", "true")
                 .withProperty("server.forward-headers-strategy", "native")
                 .withProperty("server.tomcat.remoteip.internal-proxies", "10\\.20\\.0\\.5")
-                .withProperty("showcase.live.enabled", "true").withProperty("showcase.turnstile.enabled", "true");
+                .withProperty("showcase.live.enabled", "true").withProperty("showcase.turnstile.enabled", "true")
+                .withProperty("showcase.public-url", "https://demo.ctxa.ai");
 
         assertThat(PortalProductionRules.problems(ready)).isEmpty();
     }

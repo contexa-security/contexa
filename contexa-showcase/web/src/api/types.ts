@@ -297,3 +297,32 @@ export interface StatsView {
   } | null;
   readonly specCount: number;
 }
+
+/** The visitor's result of a pair (deck p.15), scored on the server; the share card uses the same numbers. */
+export interface ExperienceScore {
+  readonly hits: number;
+  readonly total: number;
+}
+
+export interface ExperienceResult {
+  readonly pairKey: string;
+  readonly scenes: readonly {
+    readonly kind: 'ATTACK' | 'LEGITIMATE';
+    readonly choice: Choice | null;
+    /** The first question's call, carried over to this look-alike scene. */
+    readonly carriedOver: boolean;
+    readonly myCorrect: boolean | null;
+    readonly contexaOutcome: BusinessOutcome;
+    readonly contexaVerdict: Verdict;
+    readonly contexaCorrect: boolean;
+  }[];
+  /** Null when the visitor watched without voting. */
+  readonly mine: ExperienceScore | null;
+  readonly contexa: ExperienceScore;
+}
+
+export interface ShareResponse {
+  readonly shareKey: string;
+  readonly url: string;
+  readonly image: string;
+}

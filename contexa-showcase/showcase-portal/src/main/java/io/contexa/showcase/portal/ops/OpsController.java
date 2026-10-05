@@ -15,10 +15,15 @@ import io.contexa.showcase.portal.replay.ReplayRecorder;
 import io.contexa.showcase.portal.replay.ReplayStore;
 import io.contexa.showcase.portal.replay.ReplayView;
 import io.contexa.showcase.portal.replay.ReplayViews;
+import io.contexa.showcase.portal.retention.RetentionJob;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
+import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.template.CloneVerifier;
+import io.contexa.showcase.portal.orchestrator.CleanupRetrier;
+import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateLearner;
+import io.contexa.showcase.portal.template.TemplateMaintainer;
 import io.contexa.showcase.portal.template.TemplateStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +80,11 @@ public class OpsController {
     private final ObjectProvider<LiveRuns> liveRuns;
     private final ObjectProvider<LiveAllotment> liveAllotment;
     private final ObjectProvider<LiveGateWatch> liveGateWatch;
+    private final RetentionJob retention;
+    private final ScoringContract contract;
+    private final TemplateCurrency templateCurrency;
+    private final ObjectProvider<TemplateMaintainer> templateMaintainer;
+    private final CleanupRetrier cleanupRetrier;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "showcase-ops-job");
         thread.setDaemon(true);
@@ -87,7 +97,9 @@ public class OpsController {
                          IsolationSmoke isolationSmoke, Measurements measurements, ReplayRecorder recorder,
                          ReplayStore replays, ReplayViews replayViews, ReplayConsistency replayConsistency,
                          ReplayGuard replayGuard, ObjectProvider<LiveRuns> liveRuns,
-                         ObjectProvider<LiveAllotment> liveAllotment, ObjectProvider<LiveGateWatch> liveGateWatch) {
+                         ObjectProvider<LiveAllotment> liveAllotment, ObjectProvider<LiveGateWatch> liveGateWatch,
+                         RetentionJob retention, ScoringContract contract, TemplateCurrency templateCurrency,
+                         ObjectProvider<TemplateMaintainer> templateMaintainer, CleanupRetrier cleanupRetrier) {
         this.learner = learner;
         this.templates = templates;
         this.orchestrator = orchestrator;
@@ -105,6 +117,36 @@ public class OpsController {
         this.liveRuns = liveRuns;
         this.liveAllotment = liveAllotment;
         this.liveGateWatch = liveGateWatch;
+        this.retention = retention;
+        this.contract = contract;
+        this.templateCurrency = templateCurrency;
+        this.templateMaintainer = templateMaintainer;
+        this.cleanupRetrier = cleanupRetrier;
+    }
+
+    /**
+     * The R1 scoring contract draft and its version, for the operator only: the benchmark is not part of the first
+     * release (ADR-28), so the draft is not served to visitors.
+     */
+    @GetMapping("/ops/contract")
+    public Map<String, Object> contract() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("contractVersion", contract.version());
+        body.put("status", contract.status());
+        body.put("contract", contract.document());
+        return body;
+    }
+
+    /** P5-PRV-02: the latest retention passes and what each step deleted. */
+    @GetMapping("/ops/retention")
+    public List<Map<String, Object>> retention() {
+        return retention.recent(20);
+    }
+
+    /** Runs a retention pass now (it also runs daily at 03:30 UTC). */
+    @PostMapping("/ops/retention/run")
+    public RetentionJob.Pass runRetention() {
+        return retention.run();
     }
 
     /** P2 recording harness: every scene of the pair runs the given number of times on fresh principals. */
@@ -185,6 +227,31 @@ public class OpsController {
         return templates.list();
     }
 
+    /**
+     * The versions in force, each protagonist's current template (learned under them, the only kind runs clone) and
+     * the automatic re-learning's last check when it is on (N-8).
+     */
+    @GetMapping("/ops/templates/current")
+    public Map<String, Object> currentTemplates() throws IOException {
+        Map<String, Object> current = new LinkedHashMap<>();
+        current.put("versionKey", templateCurrency.currentKey());
+        Map<String, Object> employees = new LinkedHashMap<>();
+        scenarios.all().stream().filter(ScenarioDefinition::template).map(ScenarioDefinition::protagonist).distinct()
+                .sorted().forEach(employee -> employees.put(employee, templateCurrency.currentOrFail(employee)
+                        .map(TemplateStore.ReadyTemplate::templateId).orElse(null)));
+        current.put("templates", employees);
+        TemplateMaintainer maintainer = templateMaintainer.getIfAvailable();
+        current.put("autoLearn", maintainer != null);
+        current.put("lastCheck", maintainer == null ? null : maintainer.last());
+        return current;
+    }
+
+    /** Runs one pass of the clean-up retry now (it also runs every five minutes, N-6). */
+    @PostMapping("/ops/cleanup/retry")
+    public CleanupRetrier.Pass retryCleanups() {
+        return cleanupRetrier.run();
+    }
+
     @GetMapping("/ops/templates/{templateId}/steps")
     public List<Map<String, Object>> templateSteps(@PathVariable("templateId") String templateId) {
         return templates.steps(templateId);
@@ -247,6 +314,8 @@ public class OpsController {
         spaces.put("spaces", live.spaces());
         spaces.put("maxConcurrent", live.settings().maxConcurrent());
         spaces.put("maxQueue", live.settings().maxQueue());
+        spaces.put("startsPerMinute", live.settings().startsPerMinute());
+        spaces.put("startsInLastMinute", live.startsInLastMinute());
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("spaces", spaces);
         status.put("allotment", allotment.state());

@@ -74,11 +74,12 @@ public class TemplateLearner {
         JsonNode company = admin.company();
         JsonNode employee = admin.employee(employeeKey);
         JsonNode engine = admin.engine();
+        String learnedUnder = TemplateVersions.key(engine, company);
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             String templateId = "tpl-" + employeeKey + "-" + ID_TIME.format(Instant.now()) + "-" + attempt;
             templates.start(templateId, employeeKey, company.path("seed").asLong(),
                     LocalDate.parse(company.path("anchorDate").asText()), company.path("dataSha256").asText(), attempt,
-                    engine.path("chatModel").asText(null), engine.path("embeddingModel").asText(null));
+                    engine.path("chatModel").asText(null), engine.path("embeddingModel").asText(null), learnedUnder);
             String failure = attempt(templateId, employeeKey, employee);
             if (failure == null) {
                 return templateId;

@@ -21,7 +21,8 @@ import styles from './ExplorePage.module.css';
 const COUNT = new Intl.NumberFormat('en-US');
 const ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE']);
 
-type StartResult = (LiveRunView & { reason?: string }) | { recorded: true; combination: CombinationView } | null;
+type StartResult =
+  (LiveRunView & { reason?: string }) | { recorded: true; combination: CombinationView } | null;
 
 /**
  * Screen 3, exploring conditions (deck p.13): the visitor changes only the company's facts and finds the engine's
@@ -48,7 +49,8 @@ export default function ExplorePage() {
   const [refusal, setRefusal] = useState<GateRefusal | null>(null);
   const run = live.data ?? null;
   const running = run !== null && ACTIVE.has(run.status);
-  const finished = run !== null && (run.status === 'COMPLETED' || run.status === 'FAILED') ? run.liveRunId : null;
+  const finished =
+    run !== null && (run.status === 'COMPLETED' || run.status === 'FAILED') ? run.liveRunId : null;
 
   useEffect(() => {
     if (finished) {
@@ -114,7 +116,9 @@ export default function ExplorePage() {
               </h2>
               <p className={styles.request}>{describe(selection, t)}</p>
               {combination.isPending ? <StateScreen kind="loading" /> : null}
-              {combination.isError ? <StateScreen kind="error" onRetry={() => void combination.refetch()} /> : null}
+              {combination.isError ? (
+                <StateScreen kind="error" onRetry={() => void combination.refetch()} />
+              ) : null}
               {view?.recorded && view.result ? <RecordedResult view={view} language={language} /> : null}
               {view && !view.recorded ? (
                 <div className={styles.notRun}>
@@ -135,7 +139,9 @@ export default function ExplorePage() {
                           daily: config.data.dailyRuns,
                         })}
                       </p>
-                      {turnstileRequired ? <div ref={turnstileContainer} className={styles.turnstile} /> : null}
+                      {turnstileRequired ? (
+                        <div ref={turnstileContainer} className={styles.turnstile} />
+                      ) : null}
                     </>
                   ) : (
                     <p className={styles.remaining}>{t('explore.liveOff')}</p>
@@ -195,7 +201,13 @@ function describe(selection: Selection, t: TFunction): string {
   });
 }
 
-function RecordedResult({ view, language }: { readonly view: CombinationView; readonly language: 'ko' | 'en' }) {
+function RecordedResult({
+  view,
+  language,
+}: {
+  readonly view: CombinationView;
+  readonly language: 'ko' | 'en';
+}) {
   const { t } = useTranslation();
   const result = view.result;
   if (!result) {
@@ -213,7 +225,7 @@ function RecordedResult({ view, language }: { readonly view: CombinationView; re
       <OutcomeStrip outcomes={result.layers.map(({ control, outcome }) => ({ control, outcome }))} />
       {engine ? (
         <div className={styles.engine}>
-          <VerdictChip verdict={engine.verdict} showCode />
+          <VerdictChip verdict={engine.verdict} showCode unresolved={engine.evidence.unresolved} />
           <p className={styles.reason}>{engineReasonLine(engine, result.engineReason, t)}</p>
         </div>
       ) : null}

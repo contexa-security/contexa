@@ -30,7 +30,7 @@ export const designScene = {
       control: 'A',
       outcome: 'DELIVERED',
       verdict: 'ALLOW',
-      reason: { ko: '요청 형태와 출처가 정상', en: 'Request shape and source look normal' },
+      reason: { ko: 'WAF 규칙에 걸리지 않음', en: 'No WAF rule matched' },
       evidence: { decisionId: 'sample-a-0001', verdict: 'ALLOW', timing: 'Before response', httpStatus: 200, outcome: 'Data delivered' },
     },
     {

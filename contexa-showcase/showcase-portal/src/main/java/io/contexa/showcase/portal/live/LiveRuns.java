@@ -25,23 +25,28 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * Visitor spaces of live runs (deck p.27, docs/showcase/P4-설계.md 2절): each visitor has one space with at most one
- * live run, up to {@code maxConcurrent} runs go at once and the next visitors wait in a queue that tells them their
- * place. A space ends after its lifetime or when its visitor has been inactive; a run still waiting then leaves the
- * queue. Every run takes a fresh run principal that the orchestrator cleans afterwards, so nothing of one visitor
- * reaches another.
+ * Visitor spaces of live runs (deck p.27, docs/showcase/P4-설계.md section 2): each visitor has one space with at most
+ * one live run, up to {@code maxConcurrent} runs go at once, at most {@code startsPerMinute} runs start in any minute,
+ * and the next visitors wait in a queue that tells them their place. The start rate keeps the engine's model calls
+ * under the provider's tokens-per-minute limit: above it the provider answers with rate-limit errors, the engine's
+ * retries run out and its decision stays unresolved (docs/showcase/계획대조-검수.md N-1). A space ends after its
+ * lifetime or when its visitor has been inactive; a run still waiting then leaves the queue. Every run takes a fresh
+ * run principal that the orchestrator cleans afterwards, so nothing of one visitor reaches another.
  */
 public class LiveRuns implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(LiveRuns.class);
 
     /**
-     * @param scenarioKeys scenarios offered on the "try it yourself" page; cells of the grid are always offered
-     * @param forcedAction development-only forced decision (approval Q-23), null for the engine's own decisions
+     * @param startsPerMinute most runs that start within any 60 seconds; 0 for no start-rate limit
+     * @param scenarioKeys    scenarios offered on the "try it yourself" page; cells of the grid are always offered
+     * @param forcedAction    development-only forced decision (approval Q-23), null for the engine's own decisions
      */
-    public record Settings(int maxConcurrent, int maxQueue, Duration lifetime, Duration inactivity,
-                           List<String> scenarioKeys, String forcedAction) {
+    public record Settings(int maxConcurrent, int maxQueue, int startsPerMinute, Duration lifetime,
+                           Duration inactivity, List<String> scenarioKeys, String forcedAction) {
     }
+
+    static final Duration START_WINDOW = Duration.ofMinutes(1);
 
     /** No live run can start or wait now: the queue is full. */
     public static final class Busy extends RuntimeException {
@@ -82,6 +87,7 @@ public class LiveRuns implements AutoCloseable {
     });
     private final Map<String, Space> spaces = new HashMap<>();
     private final Deque<Pending> waiting = new ArrayDeque<>();
+    private final Deque<Instant> starts = new ArrayDeque<>();
     private int running;
 
     public LiveRuns(Runner runner, Settings settings, Clock clock) {
@@ -104,13 +110,14 @@ public class LiveRuns implements AutoCloseable {
         if (space.current != null && space.current.active()) {
             return space.current;
         }
-        if (running >= settings.maxConcurrent() && waiting.size() >= settings.maxQueue()) {
+        boolean launchable = waiting.isEmpty() && canLaunch();
+        if (!launchable && waiting.size() >= settings.maxQueue()) {
             throw new Busy();
         }
         LiveRun run = new LiveRun("live-" + HexFormat.of().formatHex(bytes()), visitor, scenario.key(), clock);
         space.current = run;
         Pending pending = new Pending(run, scenario, onFinish);
-        if (running < settings.maxConcurrent()) {
+        if (launchable) {
             launch(pending);
         } else {
             waiting.add(pending);
@@ -130,7 +137,28 @@ public class LiveRuns implements AutoCloseable {
     }
 
     public synchronized boolean hasRoom() {
-        return running < settings.maxConcurrent() || waiting.size() < settings.maxQueue();
+        return (waiting.isEmpty() && canLaunch()) || waiting.size() < settings.maxQueue();
+    }
+
+    /** Runs started within the last minute. */
+    public synchronized int startsInLastMinute() {
+        forgetOldStarts();
+        return starts.size();
+    }
+
+    /**
+     * Starts queued runs while the concurrency and the start rate allow; called every second, so a run that waited for
+     * the start rate starts as soon as the minute allows it.
+     */
+    public synchronized void dispatch() {
+        boolean started = false;
+        while (!waiting.isEmpty() && canLaunch()) {
+            launch(waiting.poll());
+            started = true;
+        }
+        if (started) {
+            renumber();
+        }
     }
 
     public synchronized int running() {
@@ -183,8 +211,27 @@ public class LiveRuns implements AutoCloseable {
         return space;
     }
 
+    private boolean canLaunch() {
+        if (running >= settings.maxConcurrent()) {
+            return false;
+        }
+        if (settings.startsPerMinute() <= 0) {
+            return true;
+        }
+        forgetOldStarts();
+        return starts.size() < settings.startsPerMinute();
+    }
+
+    private void forgetOldStarts() {
+        Instant windowStart = clock.instant().minus(START_WINDOW);
+        while (!starts.isEmpty() && !starts.peekFirst().isAfter(windowStart)) {
+            starts.pollFirst();
+        }
+    }
+
     private void launch(Pending pending) {
         running++;
+        starts.addLast(clock.instant());
         pending.run().starting();
         executor.execute(() -> {
             RunSummary summary = null;
@@ -209,10 +256,7 @@ public class LiveRuns implements AutoCloseable {
 
     private synchronized void released() {
         running--;
-        Pending next = waiting.poll();
-        if (next != null) {
-            launch(next);
-        }
+        dispatch();
         renumber();
     }
 

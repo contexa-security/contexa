@@ -18,8 +18,11 @@ import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.template.CloneVerifier;
+import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateLearner;
+import io.contexa.showcase.portal.template.TemplateMaintainer;
 import io.contexa.showcase.portal.template.TemplateStore;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -64,11 +67,42 @@ public class OrchestrationConfiguration {
         return new TemplateStore(jdbc, objectMapper);
     }
 
+    /** The template a run may clone: learned under the versions in force (docs/showcase/계획대조-검수.md N-8). */
+    @Bean
+    TemplateCurrency templateCurrency(WorkloadAdmin admin, TemplateStore templateStore) {
+        return new TemplateCurrency(admin, templateStore, Clock.systemUTC());
+    }
+
     @Bean
     RunOrchestrator runOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
-                                    RunStore runStore, TemplateStore templateStore, ExecutionSpecStore specs,
+                                    RunStore runStore, TemplateCurrency templateCurrency, ExecutionSpecStore specs,
                                     ScoringContract contract, ObjectMapper objectMapper) {
-        return new RunOrchestrator(endpoints, admin, signer, runStore, templateStore, specs, contract, objectMapper);
+        return new RunOrchestrator(endpoints, admin, signer, runStore, templateCurrency, specs, contract,
+                objectMapper);
+    }
+
+    @Bean
+    CleanupRetrier cleanupRetrier(RunStore runStore, WorkloadAdmin admin, ObjectMapper objectMapper) {
+        return new CleanupRetrier(runStore, admin, objectMapper, Clock.systemUTC());
+    }
+
+    /** Repeats failed or abandoned run clean-ups every five minutes (plan section 8, N-6). */
+    @Bean(destroyMethod = "shutdownNow")
+    ScheduledExecutorService cleanupRetrierSchedule(CleanupRetrier retrier) {
+        ScheduledExecutorService schedule = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "showcase-cleanup-retrier");
+            thread.setDaemon(true);
+            return thread;
+        });
+        schedule.scheduleWithFixedDelay(() -> {
+            try {
+                retrier.run();
+            } catch (RuntimeException e) {
+                // The next pass five minutes later tries again.
+                LoggerFactory.getLogger(CleanupRetrier.class).error("Clean-up retry pass failed", e);
+            }
+        }, 2, 5, TimeUnit.MINUTES);
+        return schedule;
     }
 
     @Bean
@@ -79,14 +113,17 @@ public class OrchestrationConfiguration {
 
     /**
      * Live runs of visitors (P3 single space, P4 spaces and gate); off unless showcase.live.enabled=true. The limits
-     * are the plan's values (docs/showcase approvals Q-26). A forced decision (Q-23) is only for checking the flows on a
-     * development stack.
+     * are the plan's values (docs/showcase approvals Q-26). The start rate keeps the engine under the model provider's
+     * tokens-per-minute limit: 12 starts a minute fit a key of 200,000 tokens a minute (a run uses about 6,000 to
+     * 14,000 tokens; docs/showcase/계획대조-검수.md N-1); raise it together with the provider limit. A forced
+     * decision (Q-23) is only for checking the flows on a development stack.
      */
     @Bean(destroyMethod = "close")
     @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
     LiveRuns liveRuns(RunOrchestrator orchestrator, ScenarioCatalog scenarios,
                       @Value("${showcase.live.max-concurrent:50}") int maxConcurrent,
                       @Value("${showcase.live.max-queue:200}") int maxQueue,
+                      @Value("${showcase.live.starts-per-minute:12}") int startsPerMinute,
                       @Value("${showcase.live.space-lifetime:PT30M}") Duration lifetime,
                       @Value("${showcase.live.space-inactivity:PT15M}") Duration inactivity,
                       @Value("${showcase.live.scenarios:}") String scenarioKeys,
@@ -95,8 +132,21 @@ public class OrchestrationConfiguration {
                 .filter(key -> !key.isEmpty()).toList();
         keys.forEach(key -> scenarios.find(key)
                 .orElseThrow(() -> new IllegalStateException("Unknown live scenario " + key)));
-        return new LiveRuns(orchestrator::run, new LiveRuns.Settings(maxConcurrent, maxQueue, lifetime, inactivity, keys,
-                forcedAction.isBlank() ? null : forcedAction), Clock.systemUTC());
+        return new LiveRuns(orchestrator::run, new LiveRuns.Settings(maxConcurrent, maxQueue, startsPerMinute, lifetime,
+                inactivity, keys, forcedAction.isBlank() ? null : forcedAction), Clock.systemUTC());
+    }
+
+    /** Starts queued live runs as soon as the concurrency and the start rate allow, checked every second. */
+    @Bean(destroyMethod = "shutdownNow")
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    ScheduledExecutorService liveDispatcher(LiveRuns liveRuns) {
+        ScheduledExecutorService dispatcher = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "showcase-live-dispatcher");
+            thread.setDaemon(true);
+            return thread;
+        });
+        dispatcher.scheduleWithFixedDelay(liveRuns::dispatch, 1, 1, TimeUnit.SECONDS);
+        return dispatcher;
     }
 
     /** Ends expired visitor spaces every 30 seconds. */
@@ -144,8 +194,8 @@ public class OrchestrationConfiguration {
     @Bean
     @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
     LiveGate liveGate(CombinationService combinations, TurnstileVerifier turnstile, LiveAllotment allotment,
-                      LiveQuota quota, LiveRuns liveRuns, LiveGateWatch watch) {
-        return new LiveGate(combinations, turnstile, allotment, quota, liveRuns, watch);
+                      LiveQuota quota, LiveRuns liveRuns, LiveGateWatch watch, TemplateCurrency templateCurrency) {
+        return new LiveGate(combinations, turnstile, allotment, quota, liveRuns, watch, templateCurrency);
     }
 
     /** Refusals of the gate by reason, with one error log in an hour that reaches the alert level (P5-SEC-07). */
@@ -161,10 +211,10 @@ public class OrchestrationConfiguration {
     }
 
     @Bean
-    CombinationService combinationService(WorkloadAdmin admin, TemplateStore templateStore, ScoringContract contract,
-                                          CombinationStore combinationStore, ReplayStore replayStore,
-                                          ReplayViews replayViews) {
-        return new CombinationService(admin, templateStore, contract, combinationStore, replayStore, replayViews,
+    CombinationService combinationService(WorkloadAdmin admin, TemplateCurrency templateCurrency,
+                                          ScoringContract contract, CombinationStore combinationStore,
+                                          ReplayStore replayStore, ReplayViews replayViews) {
+        return new CombinationService(admin, templateCurrency, contract, combinationStore, replayStore, replayViews,
                 Clock.systemUTC());
     }
 
@@ -200,5 +250,16 @@ public class OrchestrationConfiguration {
     TemplateLearner templateLearner(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                                     TemplateStore templateStore, RunStore runStore, ObjectMapper objectMapper) {
         return new TemplateLearner(endpoints, admin, signer, templateStore, runStore, objectMapper);
+    }
+
+    /**
+     * Learns a new template whenever none was learned under the versions in force (plan P1 "automate re-learning",
+     * N-8). On in production; a development stack learns through the operator API instead.
+     */
+    @Bean(initMethod = "start", destroyMethod = "close")
+    @ConditionalOnProperty(name = "showcase.templates.auto-learn", havingValue = "true")
+    TemplateMaintainer templateMaintainer(ScenarioCatalog scenarios, TemplateCurrency templateCurrency,
+                                          TemplateStore templateStore, TemplateLearner learner) {
+        return new TemplateMaintainer(scenarios, templateCurrency, templateStore, learner::learn, Clock.systemUTC());
     }
 }

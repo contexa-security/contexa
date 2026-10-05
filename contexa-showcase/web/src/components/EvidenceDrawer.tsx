@@ -12,6 +12,8 @@ export interface EvidenceChain {
   /** Null when no engine decision exists: a 403 from a permission check is not the engine's block (deck p.24). */
   readonly decisionId: string | null;
   readonly verdict: Verdict;
+  /** The engine gave no decision (technical failure), so the verdict chip says "unresolved". */
+  readonly unresolved?: boolean;
   readonly timing: string;
   readonly httpStatus: number | null;
   readonly outcome: string;
@@ -69,7 +71,7 @@ export function EvidenceDrawer({ title, evidence, onClose }: EvidenceDrawerProps
             <div className={styles.link}>
               <dt>{t('evidence.decision')}</dt>
               <dd>
-                <VerdictChip verdict={evidence.verdict} showCode />
+                <VerdictChip verdict={evidence.verdict} showCode unresolved={evidence.unresolved ?? false} />
               </dd>
             </div>
             <div className={styles.link}>

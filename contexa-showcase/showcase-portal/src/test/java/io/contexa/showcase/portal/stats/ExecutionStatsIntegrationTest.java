@@ -156,10 +156,10 @@ class ExecutionStatsIntegrationTest {
         jdbc.update("""
                 insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
                     tenant_id, client_ip, device, company_time, status, spec_hash, started_at, forced_action,
-                    live_visitor_hash)
-                values (?, ?, 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', ?, ?, ?, ?, ?, ?)""",
+                    live_visitor_hash, live_run)
+                values (?, ?, 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', ?, ?, ?, ?, ?, ?, ?)""",
                 runId, scenario, "v" + runId, Timestamp.from(startedAt), status, SPEC, Timestamp.from(startedAt),
-                forced, liveVisitor);
+                forced, liveVisitor, liveVisitor != null);
     }
 
     private void arms(String runId, int step, String a, String b, String c1, String c2, String d, int dStatus) {

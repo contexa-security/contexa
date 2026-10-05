@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -12,6 +12,10 @@ import type { StatsView } from '../api/types';
 import HomePage from './HomePage';
 import ReplayPage from './ReplayPage';
 import StatsPage from './StatsPage';
+import AdoptPage from './AdoptPage';
+import EndPage from './EndPage';
+import LibraryPage from './LibraryPage';
+import PolicyPage from './PolicyPage';
 import ExplorePage from './ExplorePage';
 import TryPage from './TryPage';
 
@@ -58,7 +62,7 @@ beforeEach(() => {
       calls.push({ url, init });
       const handler = routes[`${init?.method ?? 'GET'} ${url}`];
       const { status, body } = handler ? handler(init) : { status: 404, body: null };
-      return new Response(body === null ? '' : JSON.stringify(body), { status });
+      return new Response(body === null ? null : JSON.stringify(body), { status });
     }),
   );
 });
@@ -80,6 +84,7 @@ function renderAt(path: string, element: ReactNode, state?: unknown) {
         <Routes>
           <Route path="/" element={element} />
           <Route path="/replay/:pairKey" element={path === '/' ? <Where /> : element} />
+          <Route path="/end/:pairKey" element={element} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -135,6 +140,7 @@ describe('verdict comparison', () => {
       }
     }
     expect(screen.getByText('You have seen both requests')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'See your result' })).toHaveAttribute('href', '/end/A3');
   });
 
   it('opens the evidence chain of Contexa with the decision ID and the engine text', async () => {
@@ -221,11 +227,15 @@ describe('try it yourself', () => {
     });
   });
 
-  it('says it is being prepared when the portal has no live space', async () => {
+  it('says live runs are not open and leads to the stored runs when the portal has them switched off', async () => {
     await i18n.changeLanguage('en');
     delete routes['GET /api/live/config'];
     renderAt('/', <TryPage />);
-    expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Live runs are not open yet. Stored real runs can be viewed.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'See the stored real run' })).toHaveAttribute('href', '/library');
+    expect(screen.queryByText('The real run of this scene is being prepared')).toBeNull();
   });
 
   it('runs live, answers the check with the demo inbox code and shows the work coming back', async () => {
@@ -511,5 +521,185 @@ describe('execution statistics', () => {
     });
     renderAt('/', <StatsPage />);
     expect(await screen.findByText('아직 집계할 실제 실행이 없습니다')).toBeInTheDocument();
+  });
+});
+
+const halfResult = {
+  pairKey: 'A3',
+  scenes: [
+    {
+      kind: 'ATTACK',
+      choice: 'BLOCK',
+      carriedOver: false,
+      myCorrect: true,
+      contexaOutcome: 'DELIVERED',
+      contexaVerdict: 'ALLOW',
+      contexaCorrect: false,
+    },
+    {
+      kind: 'LEGITIMATE',
+      choice: 'BLOCK',
+      carriedOver: true,
+      myCorrect: false,
+      contexaOutcome: 'DELIVERED',
+      contexaVerdict: 'ALLOW',
+      contexaCorrect: true,
+    },
+  ],
+  mine: { hits: 1, total: 2 },
+  contexa: { hits: 1, total: 2 },
+};
+
+describe('end screen', () => {
+  it('shows the server result, claims only what the recording supports, and makes the share card', async () => {
+    await i18n.changeLanguage('en');
+    routes['GET /api/results/A3'] = () => ({ status: 200, body: halfResult });
+    routes['POST /api/shares'] = () => ({
+      status: 201,
+      body: {
+        shareKey: 'AbCdEfGh23',
+        url: 'https://demo.example/s/AbCdEfGh23',
+        image: '/s/AbCdEfGh23/card.png',
+      },
+    });
+    renderAt('/end/A3', <EndPage />);
+
+    expect(await screen.findByText('Your result · 2 scenes · real recorded runs')).toBeInTheDocument();
+    expect(screen.getAllByText('1/2')).toHaveLength(2);
+    expect(
+      screen.getByText('Your answer to the first question was applied to both look-alike requests.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('In this recording Contexa got 1 of 2 scenes right')).toBeInTheDocument();
+    expect(screen.queryByText('Stops only what it should · the legitimate request passes')).toBeNull();
+    expect(screen.getAllByText('Right')).toHaveLength(2);
+    expect(screen.getAllByText('Wrong')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: /Change the conditions and try it/ })).toHaveAttribute(
+      'href',
+      '/explore',
+    );
+    expect(screen.getByRole('link', { name: 'Execution statistics' })).toHaveAttribute('href', '/stats');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Share the result' }));
+    const posted = calls.find((call) => call.url === '/api/shares');
+    expect(posted?.init?.body).toBe(JSON.stringify({ pairKey: 'A3', language: 'en' }));
+    expect(
+      await screen.findByRole('img', { name: 'Share card: Your call 1/2 · Contexa 1/2' }),
+    ).toHaveAttribute('src', '/s/AbCdEfGh23/card.png');
+    expect(screen.getByLabelText('Share link')).toHaveValue('https://demo.example/s/AbCdEfGh23');
+  });
+
+  it('marks the precise claim only when Contexa got every scene right, and says when nobody voted', async () => {
+    await i18n.changeLanguage('ko');
+    routes['GET /api/results/A3'] = () => ({
+      status: 200,
+      body: {
+        ...halfResult,
+        scenes: halfResult.scenes.map((scene) => ({
+          ...scene,
+          choice: null,
+          carriedOver: false,
+          myCorrect: null,
+        })),
+        mine: null,
+        contexa: { hits: 2, total: 2 },
+      },
+    });
+    renderAt('/end/A3', <EndPage />);
+
+    expect(await screen.findByText('투표 없이 봄')).toBeInTheDocument();
+    expect(screen.getByText('2/2')).toBeInTheDocument();
+    expect(screen.getByText('막을 것만 막는다 · 정당한 요청은 통과')).toBeInTheDocument();
+    expect(screen.queryByText('첫 질문의 판단을 겉모습이 같은 두 요청 모두에 적용했습니다.')).toBeNull();
+  });
+
+  it('links to the additional check only where live runs are open', async () => {
+    await i18n.changeLanguage('en');
+    routes['GET /api/results/A3'] = () => ({ status: 200, body: halfResult });
+    renderAt('/end/A3', <EndPage />);
+    expect(await screen.findByText('In this recording Contexa got 1 of 2 scenes right')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'See the extra check' })).toBeNull();
+    cleanup();
+
+    routes['GET /api/live/config'] = () => ({
+      status: 200,
+      body: {
+        scenarios: [{ key: 'K2', title: { ko: 'K2', en: 'K2' }, classification: 'LEGITIMATE' }],
+        turnstileSiteKey: null,
+        dailyRuns: 10,
+        remainingToday: 10,
+        paused: false,
+      },
+    });
+    renderAt('/end/A3', <EndPage />);
+    expect(await screen.findByRole('link', { name: 'See the extra check' })).toHaveAttribute('href', '/try');
+  });
+
+  it('says the result is being prepared when the pair is not published', async () => {
+    await i18n.changeLanguage('en');
+    renderAt('/end/A3', <EndPage />);
+    expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
+  });
+});
+
+describe('privacy notice', () => {
+  it('says what is not collected and names the only cookies, with no choice to make', async () => {
+    await i18n.changeLanguage('en');
+    renderAt('/', <PolicyPage />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Privacy notice' })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'SC_VISITOR' })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'XSRF-TOKEN' })).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).queryByRole('button')).toBeNull();
+  });
+});
+
+describe('scenario library', () => {
+  it('plays only published pairs, shows their five results, and says the rest are being prepared', async () => {
+    await i18n.changeLanguage('en');
+    renderAt('/', <LibraryPage />);
+
+    const a3 = await screen.findByRole('article', { name: 'Insider bulk export' });
+    expect(within(a3).getByText('ATT&CK T1213')).toBeInTheDocument();
+    expect(
+      within(a3).getByText('Look-alike legitimate request: An approved project transfer'),
+    ).toBeInTheDocument();
+    expect(await within(a3).findByRole('link', { name: /See the record/ })).toHaveAttribute(
+      'href',
+      '/replay/A3',
+    );
+    expect(within(a3).getAllByText(/of 5 approaches stopped it$/)).toHaveLength(2);
+    expect(within(a3).getAllByText(/^Contexa: /)).toHaveLength(2);
+    const a1 = screen.getByRole('article', { name: 'Use of a stolen account' });
+    expect(within(a1).getByText('Real run being prepared')).toBeInTheDocument();
+    expect(within(a1).queryByRole('link')).toBeNull();
+    const w1 = screen.getByRole('article', { name: 'An attack perimeter security stops' });
+    expect(
+      within(w1).getByText('Layer comparison · the perimeter stops SQL injection first'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(9);
+  });
+});
+
+describe('adopting Contexa', () => {
+  it('shows the real coordinates and the Shadow numbers counted from this demo', async () => {
+    await i18n.changeLanguage('en');
+    routes['GET /api/stats'] = () => ({ status: 200, body: statsView });
+    renderAt('/', <AdoptPage />);
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Adopt Contexa: attach, watch, enforce' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Attach')).toHaveTextContent(
+      'implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"',
+    );
+    expect(screen.getByLabelText('Attach')).toHaveTextContent('@EnableAISecurity');
+    expect(screen.getByLabelText('Watch')).toHaveTextContent('mode: SHADOW');
+    expect(screen.getByLabelText('Enforce')).toHaveTextContent('mode: ENFORCE');
+    expect(
+      await screen.findByText(
+        'Counted from this demo’s 760 real engine decisions. In Shadow mode they would only have been recorded, not enforced.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Would have been blocked').nextSibling).toHaveTextContent('31');
   });
 });

@@ -54,7 +54,10 @@ class VisitorPortExposureIntegrationTest {
     private static final Map<String, Reach> VISITOR_PATHS = new TreeMap<>(Map.ofEntries(
             Map.entry("GET /api/visitor", Reach.READ),
             Map.entry("POST /api/predictions", Reach.VISITOR_WRITE),
-            Map.entry("GET /api/contract", Reach.READ),
+            Map.entry("POST /api/shares", Reach.VISITOR_WRITE),
+            Map.entry("GET /api/results/{pairKey}", Reach.READ),
+            Map.entry("GET /s/{key}", Reach.READ),
+            Map.entry("GET /s/{key}/card.png", Reach.READ),
             Map.entry("GET /api/pairs", Reach.READ),
             Map.entry("GET /api/replays/{pairKey}", Reach.READ),
             Map.entry("GET /api/specs/{specHash}", Reach.READ),

@@ -8,6 +8,8 @@ interface LayerCardProps {
   readonly control: ControlId;
   readonly outcome: BusinessOutcome;
   readonly verdict: Verdict;
+  /** The engine gave no decision (technical failure); the chip says so instead of "analysing". */
+  readonly unresolved?: boolean;
   /** Short, localized reason shown under the verdict. */
   readonly reason: string;
   /** Contexa is the subject of the demo and is visually emphasized. */
@@ -25,6 +27,7 @@ export function LayerCard({
   control,
   outcome,
   verdict,
+  unresolved = false,
   reason,
   highlighted = false,
   rowAligned = false,
@@ -55,7 +58,7 @@ export function LayerCard({
         {t(OUTCOME_KEYS[outcome])}
       </p>
       <div className={styles.verdict}>
-        <VerdictChip verdict={verdict} />
+        <VerdictChip verdict={verdict} unresolved={unresolved} />
       </div>
       <p className={styles.reason}>{reason}</p>
       <button type="button" className={styles.evidence} onClick={() => onOpenEvidence(control)}>

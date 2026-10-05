@@ -165,10 +165,8 @@ class ReplayAndVisitorIntegrationTest {
         assertThat(pair.path("scenes").get(1).path("companyFacts").get(1).path("code").asText())
                 .isEqualTo("APPROVAL_COVERS");
         mvc.perform(get("/api/specs/" + spec)).andExpect(status().isOk());
-        JsonNode contract = json.readTree(mvc.perform(get("/api/contract")).andExpect(status().isOk()).andReturn()
-                .getResponse().getContentAsString());
-        assertThat(contract.path("contractVersion").asText()).hasSize(64);
-        assertThat(contract.path("status").asText()).isEqualTo("DRAFT");
+        // The R1 scoring contract draft is not served to visitors (ADR-28).
+        mvc.perform(get("/api/contract")).andExpect(status().isForbidden());
 
         assertThat(consistency.check(null)).allMatch(ReplayConsistency.Finding::consistent);
         jdbc.update("update run_arm_result set outcome = 'CUT' where run_id = ? and control = 'D'", attackRun);
@@ -258,7 +256,7 @@ class ReplayAndVisitorIntegrationTest {
         String spec = specs.record(spec());
         String live = run("A3T", spec, true);
         String recording = run("A3T", spec, true);
-        jdbc.update("update run set live_visitor_hash = ? where run_id = ?", "v".repeat(64), live);
+        jdbc.update("update run set live_visitor_hash = ?, live_run = true where run_id = ?", "v".repeat(64), live);
         cost(recording, 1_000_000, 1_000_000);
 
         assertThat(allotment.state().spentUsd()).as("recordings do not count").isZero();

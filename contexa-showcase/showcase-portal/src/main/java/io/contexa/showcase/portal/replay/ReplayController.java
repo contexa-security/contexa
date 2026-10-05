@@ -2,7 +2,6 @@ package io.contexa.showcase.portal.replay;
 
 import io.contexa.showcase.portal.spec.ExecutionSpec;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
-import io.contexa.showcase.portal.spec.ScoringContract;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,23 +24,11 @@ public class ReplayController {
     private final ReplayViews views;
     private final ExecutionSpecStore specs;
     private final ReplayGuard guard;
-    private final ScoringContract contract;
 
-    public ReplayController(ReplayViews views, ExecutionSpecStore specs, ReplayGuard guard, ScoringContract contract) {
+    public ReplayController(ReplayViews views, ExecutionSpecStore specs, ReplayGuard guard) {
         this.views = views;
         this.specs = specs;
         this.guard = guard;
-        this.contract = contract;
-    }
-
-    /** The scoring contract and its version, as every run records it (deck p.33: published before measuring). */
-    @GetMapping("/api/contract")
-    public Map<String, Object> contract() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("contractVersion", contract.version());
-        body.put("status", contract.status());
-        body.put("contract", contract.document());
-        return body;
     }
 
     @GetMapping("/api/pairs")

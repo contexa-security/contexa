@@ -89,7 +89,7 @@ public class ReplayStore {
         }
         transactions.executeWithoutResult(status -> {
             jdbc.update("""
-                            update replay_record set status = 'RETIRED'
+                            update replay_record set status = 'RETIRED', retired_at = now()
                              where pair_key = :pair and scene = :scene and status = 'PUBLISHED' and record_id <> :id""",
                     new MapSqlParameterSource("pair", record.get().pairKey())
                             .addValue("scene", record.get().scene().name()).addValue("id", recordId));

@@ -91,7 +91,11 @@ public class LiveController {
         if (scenario == null) {
             return ResponseEntity.badRequest().build();
         }
-        return respond(gate.scenario(visitor.get(), request.getRemoteAddr(), scenario, start.turnstileToken()));
+        try {
+            return respond(gate.scenario(visitor.get(), request.getRemoteAddr(), scenario, start.turnstileToken()));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("reason", "ENGINE_UNAVAILABLE"));
+        }
     }
 
     @PostMapping("/api/live/combinations")
@@ -144,7 +148,7 @@ public class LiveController {
         String reason = ((LiveGate.Refused) outcome).reason();
         HttpStatus status = switch (reason) {
             case "VISITOR_LIMIT", "ADDRESS_LIMIT" -> HttpStatus.TOO_MANY_REQUESTS;
-            case "ALLOTMENT" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "ALLOTMENT", "TEMPLATE" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "BUSY" -> HttpStatus.CONFLICT;
             default -> HttpStatus.FORBIDDEN;
         };

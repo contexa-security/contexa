@@ -3,13 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Contexa Demo — AI runtime security for everything after authentication." />
+    <meta
+      name="description"
+      content="Contexa Demo — AI runtime security for everything after authentication."
+    />
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" href="/fonts/pretendard-demo.woff2" as="font" type="font/woff2" crossorigin />
     <title>Contexa Demo</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Painted before the application loads; React replaces it with the same bar (P5-FE-01 first paint). -->
+    <div id="root">
+      <header class="app-shell">
+        <span class="app-shell-brand">CONTEXA <span>DEMO</span></span>
+      </header>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

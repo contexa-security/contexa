@@ -12,7 +12,8 @@ export type StateKind =
   | 'challengeExpired'
   | 'dailyLimit'
   | 'paused'
-  | 'recoveryFailed';
+  | 'recoveryFailed'
+  | 'liveClosed';
 
 interface StateSpec {
   readonly message: string;
@@ -40,10 +41,17 @@ const SPECS: Readonly<Record<StateKind, StateSpec>> = {
     retry: 'state.retryChallenge',
     record: 'state.viewRecord',
   },
-  challengeExpired: { message: 'state.challengeExpired', live: 'alert', retry: 'state.restart', record: 'state.viewRecord' },
+  challengeExpired: {
+    message: 'state.challengeExpired',
+    live: 'alert',
+    retry: 'state.restart',
+    record: 'state.viewRecord',
+  },
   dailyLimit: { message: 'state.dailyLimit', live: 'alert', record: 'state.viewRecord' },
   paused: { message: 'state.paused', live: 'alert', record: 'state.viewSameRecord' },
   recoveryFailed: { message: 'state.recoveryFailed', live: 'alert', retry: 'state.resetRetry' },
+  // Live runs are switched off on this site: say so and lead to the stored real runs.
+  liveClosed: { message: 'explore.liveOff', live: 'status', record: 'state.viewRecord' },
 };
 
 interface StateScreenProps {

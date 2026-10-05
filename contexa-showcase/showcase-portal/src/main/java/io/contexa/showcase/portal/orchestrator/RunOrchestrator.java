@@ -17,6 +17,7 @@ import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition.Fact;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition.Step;
+import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,14 +59,14 @@ public class RunOrchestrator {
     private final WorkloadAdmin admin;
     private final InternalContextSigner signer;
     private final RunStore store;
-    private final TemplateStore templates;
+    private final TemplateCurrency templates;
     private final ExecutionSpecStore specs;
     private final ScoringContract contract;
     private final ObjectMapper json;
     private final SecureRandom random = new SecureRandom();
 
     public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
-                           RunStore store, TemplateStore templates, ExecutionSpecStore specs, ScoringContract contract,
+                           RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
                            ObjectMapper json) {
         this.endpoints = endpoints;
         this.admin = admin;
@@ -142,10 +143,11 @@ public class RunOrchestrator {
             Map<String, Long> stages = new LinkedHashMap<>();
             long stageStart = System.nanoTime();
             Optional<TemplateStore.ReadyTemplate> template = scenario.template()
-                    ? templates.latestReady(scenario.protagonist()) : Optional.empty();
+                    ? templates.current(scenario.protagonist()) : Optional.empty();
             stageStart = stage(stages, "template", stageStart);
             if (scenario.template() && template.isEmpty()) {
-                throw new IllegalStateException("No READY template for " + scenario.protagonist());
+                throw new IllegalStateException("No template of " + scenario.protagonist()
+                        + " learned under the versions in force");
             }
             store.start(new RunStore.RunStart(runId, scenario.key(), scenario.version(), scenario.protagonist(),
                     username, template.map(TemplateStore.ReadyTemplate::templateId).orElse(null), run.organization(),

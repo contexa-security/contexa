@@ -8,7 +8,8 @@ import java.util.List;
 
 /**
  * The portal's own production rules (deck p.37): the visitor cookie is Secure, no development-only forced decision,
- * client addresses come only from the configured trusted proxies, and live runs keep the human check.
+ * client addresses come only from the configured trusted proxies, live runs keep the human check, and share links use
+ * the configured public https address rather than a request's Host header.
  */
 final class PortalProductionRules {
 
@@ -31,6 +32,10 @@ final class PortalProductionRules {
         if (environment.getProperty("showcase.live.enabled", Boolean.class, false)
                 && !environment.getProperty("showcase.turnstile.enabled", Boolean.class, false)) {
             problems.add("live runs need showcase.turnstile.enabled");
+        }
+        String publicUrl = environment.getProperty("showcase.public-url", "");
+        if (!publicUrl.startsWith("https://")) {
+            problems.add("showcase.public-url must be the public https address");
         }
         return problems;
     }

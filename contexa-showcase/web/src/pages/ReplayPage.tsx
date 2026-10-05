@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useReplay, useSpec } from '../api/queries';
 import type { Choice, Layer, Scene } from '../api/types';
 import { AppHeader } from '../components/AppHeader';
@@ -62,13 +62,16 @@ export default function ReplayPage() {
   }
 
   function reason(layer: Layer): string {
-    return layer.control === 'D' ? engineReasonLine(layer, scene?.engineReason ?? null, t) : ruleReason(layer, t);
+    return layer.control === 'D'
+      ? engineReasonLine(layer, scene?.engineReason ?? null, t)
+      : ruleReason(layer, t);
   }
 
   function evidence(layer: Layer): EvidenceChain {
     const chain: EvidenceChain = {
       decisionId: layer.evidence.decisionId,
       verdict: layer.evidence.verdict,
+      unresolved: layer.evidence.unresolved,
       timing: timingLine(layer.evidence.timing, t),
       httpStatus: layer.evidence.httpStatus,
       outcome: t(OUTCOME_KEYS[layer.evidence.outcome]),
@@ -88,7 +91,9 @@ export default function ReplayPage() {
   const contexa = scene?.layers.find((layer) => layer.control === 'D');
   const foldedCount = (scene?.layers.length ?? 0) - MOBILE_PRIORITY.length;
   const cited = evidenceKinds(scene?.engineReason ?? null, t);
-  const facts = (scene?.companyFacts ?? []).map((fact) => factLine(fact, t)).filter((line): line is string => !!line);
+  const facts = (scene?.companyFacts ?? [])
+    .map((fact) => factLine(fact, t))
+    .filter((line): line is string => !!line);
 
   return (
     <>
@@ -113,13 +118,17 @@ export default function ReplayPage() {
                 {scene.sentence[language]}
               </h1>
               <p className={styles.meta}>
-                <span>{t('replay.agreement', { agreeing: scene.agreeing, repetitions: scene.repetitions })}</span>
+                <span>
+                  {t('replay.agreement', { agreeing: scene.agreeing, repetitions: scene.repetitions })}
+                </span>
                 <span aria-hidden="true">·</span>
                 <span>{t('replay.companyTime', { time: scene.companyTime.substring(11, 16) })}</span>
                 <span aria-hidden="true">·</span>
                 <span>
                   {t('replay.recordedAt', {
-                    date: new Date(scene.recordedAt).toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US'),
+                    date: new Date(scene.recordedAt).toLocaleDateString(
+                      language === 'ko' ? 'ko-KR' : 'en-US',
+                    ),
                   })}
                 </span>
               </p>
@@ -133,6 +142,7 @@ export default function ReplayPage() {
               </p>
             ) : null}
             <OutcomeStrip outcomes={scene.layers.map(({ control, outcome }) => ({ control, outcome }))} />
+            <h2 className="visually-hidden">{t('layers.title')}</h2>
             <div className={styles.layers} data-expanded={expanded}>
               {scene.layers.map((layer) => (
                 <div
@@ -145,6 +155,7 @@ export default function ReplayPage() {
                     control={layer.control}
                     outcome={layer.outcome}
                     verdict={layer.verdict}
+                    unresolved={layer.evidence.unresolved}
                     reason={reason(layer)}
                     highlighted={layer.control === 'D'}
                     rowAligned
@@ -229,9 +240,14 @@ export default function ReplayPage() {
                   </button>
                 ) : null}
                 {last ? (
-                  <button type="button" className={styles.primaryAction} onClick={() => go(0)}>
-                    {t('replay.restart')}
-                  </button>
+                  <>
+                    <button type="button" className={styles.secondaryAction} onClick={() => go(0)}>
+                      {t('replay.restart')}
+                    </button>
+                    <Link className={styles.primaryAction} to={`/end/${pairKey ?? ''}`}>
+                      {t('replay.results')}
+                    </Link>
+                  </>
                 ) : (
                   <button type="button" className={styles.primaryAction} onClick={() => go(index + 1)}>
                     {t('next.button')}

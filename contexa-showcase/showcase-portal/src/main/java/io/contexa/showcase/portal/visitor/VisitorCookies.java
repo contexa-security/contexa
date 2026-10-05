@@ -1,5 +1,7 @@
 package io.contexa.showcase.portal.visitor;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -66,6 +68,20 @@ public class VisitorCookies {
             return Optional.empty();
         }
         return MessageDigest.isEqual(expected, actual) ? Optional.of(id) : Optional.empty();
+    }
+
+    /** The stored visitor of a request: the hash of its cookie's identifier when the signature verifies. */
+    public Optional<String> visitorOf(HttpServletRequest request) {
+        Cookie[] all = request.getCookies();
+        if (all == null) {
+            return Optional.empty();
+        }
+        for (Cookie cookie : all) {
+            if (NAME.equals(cookie.getName())) {
+                return verify(cookie.getValue()).map(VisitorCookies::hash);
+            }
+        }
+        return Optional.empty();
     }
 
     /** What the database stores for a visitor. */

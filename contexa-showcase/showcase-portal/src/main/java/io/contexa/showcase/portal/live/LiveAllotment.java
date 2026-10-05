@@ -48,7 +48,7 @@ public class LiveAllotment {
                                coalesce(sum(c.completion_tokens) filter (where c.kind = 'CHAT'), 0) as chat_out,
                                coalesce(sum(c.prompt_tokens) filter (where c.kind = 'EMBEDDING'), 0) as embedding_in
                           from cost_ledger c join run r on r.run_id = c.run_id
-                         where r.live_visitor_hash is not null and c.recorded_at >= :from and c.recorded_at < :to""",
+                         where r.live_run and c.recorded_at >= :from and c.recorded_at < :to""",
                 new MapSqlParameterSource("from", Timestamp.from(day.atStartOfDay().toInstant(ZoneOffset.UTC)))
                         .addValue("to", Timestamp.from(day.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC))));
         double spent = (number(usage.get("chat_in")) * prices.chatInput()

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { postJson } from '../api/http';
+import { HttpError, postJson } from '../api/http';
 import { useLiveConfig, useLiveRun, useVisitor } from '../api/queries';
 import type { LiveRunView } from '../api/types';
 import { AppHeader } from '../components/AppHeader';
@@ -59,11 +59,16 @@ export default function TryPage() {
       <AppHeader />
       <main id="main" className={styles.page}>
         {config.isPending ? <StateScreen kind="loading" /> : null}
-        {config.isError ? <StateScreen kind="notReady" /> : null}
+        {config.isError && config.error instanceof HttpError && config.error.status === 404 ? (
+          <StateScreen kind="liveClosed" recordTo="/library" />
+        ) : null}
+        {config.isError && !(config.error instanceof HttpError && config.error.status === 404) ? (
+          <StateScreen kind="error" onRetry={() => void config.refetch()} />
+        ) : null}
         {config.data ? (
           <>
             <header className={styles.header}>
-              <p className={styles.badge}>{t('try.devSpace')}</p>
+              <p className={styles.badge}>{t('live.badge')}</p>
               <h1 className={styles.title}>{t('try.title')}</h1>
               <p className={styles.lead}>{t('try.lead')}</p>
             </header>

@@ -53,10 +53,10 @@ public class PortalSecurityConfiguration {
         http.authorizeHttpRequests(requests -> requests
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/visitor", "/api/pairs", "/api/replays/*",
-                                "/api/specs/*", "/api/contract", "/api/combinations", "/api/combinations/*",
-                                "/api/stats")
+                                "/api/specs/*", "/api/combinations", "/api/combinations/*",
+                                "/api/stats", "/api/results/*")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/predictions").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares").permitAll()
                         // Live runs (P3, P4); the endpoints exist only with showcase.live.enabled.
                         .requestMatchers(HttpMethod.GET, "/api/live/config", "/api/live/runs/current").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/runs", "/api/live/combinations",

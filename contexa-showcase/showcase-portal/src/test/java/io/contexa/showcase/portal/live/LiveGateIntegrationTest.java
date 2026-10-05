@@ -6,6 +6,8 @@ import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.combination.CombinationStore;
 import io.contexa.showcase.portal.orchestrator.Measurements;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.RunSummary;
+import io.contexa.showcase.portal.template.TemplateCurrency;
+import io.contexa.showcase.portal.template.TemplateStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +69,7 @@ class LiveGateIntegrationTest {
     private final List<String> kept = new CopyOnWriteArrayList<>();
     private final List<String> runStatus = new ArrayList<>(List.of("COMPLETED"));
     private LiveRuns live;
+    private final AtomicBoolean templateCurrent = new AtomicBoolean(true);
     private final LiveGateWatch watch = new LiveGateWatch(1000, Clock.systemUTC());
 
     @AfterEach
@@ -130,6 +134,28 @@ class LiveGateIntegrationTest {
     }
 
     @Test
+    void noRunStartsWithoutATemplateLearnedUnderTheVersionsInForce() throws Exception {
+        templateCurrent.set(false);
+        LiveQuota quota = quota(1);
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
+
+        assertThat(gate.combination("v1", ADDRESS, cell(), null)).isEqualTo(new LiveGate.Refused("TEMPLATE"));
+        assertThat(quota.remaining("v1")).as("a refusal takes nothing").isEqualTo(1);
+        assertThat(live.running()).isZero();
+        assertThat(watch.status().outcomes()).isEqualTo(Map.of("TEMPLATE", 1L));
+    }
+
+    @Test
+    void finishedRunsAreCountedWithTheirUnresolvedDecisions() throws Exception {
+        LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota(5));
+
+        assertThat(gate.combination("v1", ADDRESS, cell(), null)).isInstanceOf(LiveGate.Started.class);
+        release.countDown();
+        await(() -> watch.status().finishedThisHour() == 1);
+        assertThat(watch.status().unresolvedThisHour()).isZero();
+    }
+
+    @Test
     void aRunThatFailsGivesItsCountBack() throws Exception {
         runStatus.set(0, "FAILED");
         LiveQuota quota = quota(1);
@@ -152,9 +178,22 @@ class LiveGateIntegrationTest {
             }
             return new RunSummary("run-" + scenario.key(), scenario.key(), "u", "org", runStatus.get(0), null,
                     List.of());
-        }, new LiveRuns.Settings(5, 5, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null),
+        }, new LiveRuns.Settings(5, 5, 0, Duration.ofMinutes(30), Duration.ofMinutes(15), List.of(), null),
                 Clock.systemUTC());
-        return new LiveGate(cells, turnstile, allotment, quota, live, watch);
+        return new LiveGate(cells, turnstile, allotment, quota, live, watch, templates());
+    }
+
+    /** The current template of any employee, or none when {@link #templateCurrent} is false. */
+    private TemplateCurrency templates() {
+        return new TemplateCurrency(null, null, Clock.systemUTC()) {
+            @Override
+            public Optional<TemplateStore.ReadyTemplate> current(String employeeKey) {
+                return templateCurrent.get()
+                        ? Optional.of(new TemplateStore.ReadyTemplate("tpl-" + employeeKey, employeeKey, null,
+                        Instant.now()))
+                        : Optional.empty();
+            }
+        };
     }
 
     /** The grid's stored runs without control D: the version key is fixed and a kept run is only noted. */

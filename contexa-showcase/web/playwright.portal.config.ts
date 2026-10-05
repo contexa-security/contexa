@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 // P2 checks run against a real portal that serves the production bundle and real recorded replays
 // (SHOWCASE_PORTAL_URL, default the local P1 stack). The browser projects are chosen with --project.
+const baseURL = process.env.SHOWCASE_PORTAL_URL ?? 'http://127.0.0.1:19180';
+
 export default defineConfig({
   testDir: './e2e/portal',
   fullyParallel: false,
@@ -9,7 +11,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: process.env.SHOWCASE_PORTAL_URL ?? 'http://127.0.0.1:19180',
+    baseURL,
     trace: 'retain-on-failure',
   },
   projects: [

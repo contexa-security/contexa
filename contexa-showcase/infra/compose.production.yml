@@ -1,0 +1,51 @@
+# Production settings of the Contexa Showcase, laid over compose.stack.yml on the server:
+#   docker compose -f compose.stack.yml -f compose.production.yml --env-file /opt/contexa/showcase.env up -d
+# Every application runs with showcase.production=true, so a weak or missing secret, a missing trusted proxy, an
+# http public address, a forced decision or a Turnstile test key stops it at start (deck p.37, P5-SEC-02). Live runs
+# (try it yourself and the exploration grid) are on behind the Turnstile check and the cost gate; templates are
+# re-learned automatically whenever the versions in force change (docs/showcase/계획대조-검수.md N-5, N-8).
+# The variables are listed in production.env.example; the values stay on the server and are never committed.
+
+x-production-env: &production-env
+  SHOWCASE_PRODUCTION: "true"
+
+services:
+  workload-plain-b:
+    environment:
+      <<: *production-env
+
+  workload-plain-c1:
+    environment:
+      <<: *production-env
+
+  workload-plain-c2:
+    environment:
+      <<: *production-env
+
+  workload-contexa:
+    environment:
+      <<: *production-env
+
+  portal:
+    environment:
+      <<: *production-env
+      # The visitor cookie is Secure and the public https address builds the share links (PortalProductionRules).
+      SHOWCASE_PORTAL_SECURE_COOKIE: "true"
+      SHOWCASE_PUBLIC_URL: ${SHOWCASE_PUBLIC_URL:?Set SHOWCASE_PUBLIC_URL, for example https://demo.ctxa.ai}
+      # Client addresses (daily limits) come only from the forwarding headers of the trusted reverse proxy, given as
+      # the Tomcat internal-proxies pattern of the proxy's address on the Docker network.
+      SHOWCASE_FORWARD_HEADERS: native
+      SHOWCASE_TRUSTED_PROXIES: ${SHOWCASE_TRUSTED_PROXIES:?Set SHOWCASE_TRUSTED_PROXIES to the reverse proxy address pattern}
+      # Live runs: the scenarios of "try it yourself", the start rate that fits the model provider's tokens-per-minute
+      # limit (12 for 200,000 tokens a minute) and the monthly model budget in US dollars.
+      SHOWCASE_LIVE_ENABLED: ${SHOWCASE_LIVE_ENABLED:-true}
+      SHOWCASE_LIVE_SCENARIOS: ${SHOWCASE_LIVE_SCENARIOS:-K2}
+      SHOWCASE_LIVE_STARTS_PER_MINUTE: ${SHOWCASE_LIVE_STARTS_PER_MINUTE:-12}
+      SHOWCASE_LIVE_MONTHLY_BUDGET_USD: ${SHOWCASE_LIVE_MONTHLY_BUDGET_USD:-30}
+      # Cloudflare Turnstile in front of every new live run (fail-closed; test keys are refused in production).
+      SHOWCASE_TURNSTILE_ENABLED: "true"
+      SHOWCASE_TURNSTILE_SITE_KEY: ${SHOWCASE_TURNSTILE_SITE_KEY:?Set SHOWCASE_TURNSTILE_SITE_KEY}
+      SHOWCASE_TURNSTILE_SECRET_KEY: ${SHOWCASE_TURNSTILE_SECRET_KEY:?Set SHOWCASE_TURNSTILE_SECRET_KEY}
+      SHOWCASE_TURNSTILE_HOSTNAMES: ${SHOWCASE_TURNSTILE_HOSTNAMES:?Set SHOWCASE_TURNSTILE_HOSTNAMES, for example demo.ctxa.ai}
+      # A new template is learned when none was learned under the versions in force (a new release, model or mode).
+      SHOWCASE_TEMPLATES_AUTO_LEARN: "true"

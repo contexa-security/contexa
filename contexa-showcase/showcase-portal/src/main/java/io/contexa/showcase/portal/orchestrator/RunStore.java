@@ -42,16 +42,17 @@ public class RunStore {
         jdbc.update("""
                         insert into run (run_id, scenario_key, scenario_version, employee_key, principal, template_id,
                                          organization_id, tenant_id, client_ip, device, company_time, status, forced_action,
-                                         live_visitor_hash)
+                                         live_visitor_hash, live_run)
                         values (:run, :scenario, :version, :employee, :principal, :template, :org, :tenant, :ip,
-                                :device, :time, 'RUNNING', :forced, :visitor)""",
+                                :device, :time, 'RUNNING', :forced, :visitor, :live)""",
                 new MapSqlParameterSource("run", run.runId()).addValue("scenario", run.scenarioKey())
                         .addValue("version", run.scenarioVersion()).addValue("employee", run.employeeKey())
                         .addValue("principal", run.principal()).addValue("template", run.templateId())
                         .addValue("org", run.organizationId()).addValue("tenant", run.tenantId())
                         .addValue("ip", run.clientIp()).addValue("device", run.device())
                         .addValue("time", Timestamp.from(run.companyTime()))
-                        .addValue("forced", run.forcedAction()).addValue("visitor", run.liveVisitorHash()));
+                        .addValue("forced", run.forcedAction()).addValue("visitor", run.liveVisitorHash())
+                        .addValue("live", run.liveVisitorHash() != null));
     }
 
     public void armResult(String runId, int stepNo, Control control, String operation, StepOutcome outcome) {
@@ -198,6 +199,40 @@ public class RunStore {
                          where run_id = :run""",
                 new MapSqlParameterSource("run", runId).addValue("status", status)
                         .addValue("failure", truncate(failure, 500)).addValue("cleanup", write(cleanup)));
+    }
+
+    /**
+     * A run whose clean-up has to be done again: a finished run whose engine or business clean-up failed, or a run
+     * still RUNNING long after any run could last (the portal stopped during the run).
+     *
+     * @param cleanup the recorded clean-up result as JSON text, null when the run never got that far
+     */
+    public record CleanupCandidate(String runId, String principal, String status, String cleanup) {
+    }
+
+    public List<CleanupCandidate> cleanupCandidates(Instant abandonedBefore, int maxRetries, int limit) {
+        return jdbc.query("""
+                        select run_id, principal, status, cleanup::text from run
+                         where (status <> 'RUNNING'
+                                and (cleanup ->> 'engineError' is not null or cleanup ->> 'businessError' is not null)
+                                and coalesce((cleanup ->> 'retries')::int, 0) < :maxRetries)
+                            or (status = 'RUNNING' and started_at < :abandoned)
+                         order by started_at limit :limit""",
+                new MapSqlParameterSource("abandoned", Timestamp.from(abandonedBefore))
+                        .addValue("maxRetries", maxRetries).addValue("limit", limit),
+                (rs, n) -> new CleanupCandidate(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)));
+    }
+
+    /** Stores the result of a repeated clean-up; an abandoned RUNNING run is closed as FAILED with the reason. */
+    public void cleanupRetried(String runId, Map<String, Object> cleanup, String abandonedFailure) {
+        jdbc.update("""
+                        update run set cleanup = cast(:cleanup as jsonb),
+                                       status = case when status = 'RUNNING' then 'FAILED' else status end,
+                                       failure = case when status = 'RUNNING' then :failure else failure end,
+                                       finished_at = coalesce(finished_at, now())
+                         where run_id = :run""",
+                new MapSqlParameterSource("run", runId).addValue("cleanup", write(cleanup))
+                        .addValue("failure", truncate(abandonedFailure, 500)));
     }
 
     public Map<String, Object> run(String runId) {
