@@ -15,12 +15,10 @@
  */
 package io.contexa.autoconfigure.core;
 
-import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
 import org.springframework.context.annotation.AnnotationBeanNameGenerator;
+import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.ResourceLoaderAware;
 import org.springframework.core.env.Environment;
@@ -35,7 +33,17 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryPostProcessor,
+/**
+ * Registers the Contexa JPA repositories bound to {@code contexaEntityManagerFactory} and
+ * {@code contexaTransactionManager}.
+ * <p>
+ * It is imported by {@link CoreDataAutoConfiguration} as an {@link ImportBeanDefinitionRegistrar}, so the
+ * repository bean definitions exist while the configuration classes ordered after
+ * {@link CoreDataAutoConfiguration} are evaluated and their {@code @ConditionalOnBean} conditions on Contexa
+ * repository types can match. A {@code BeanDefinitionRegistryPostProcessor} would run only after every
+ * configuration class condition has already been evaluated.
+ */
+public class ContexaRepositoriesPostProcessor implements ImportBeanDefinitionRegistrar,
         EnvironmentAware, ResourceLoaderAware {
 
     private static final String ENABLED_PROPERTY = "contexa.jpa.repositories.enabled";
@@ -73,7 +81,7 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
     }
 
     @Override
-    public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
+    public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
         if (!repositoriesEnabled()) {
             return;
         }
@@ -87,11 +95,6 @@ public class ContexaRepositoriesPostProcessor implements BeanDefinitionRegistryP
                 metadata, EnableJpaRepositories.class, this.resourceLoader, this.environment, registry, null);
         RepositoryConfigurationDelegate delegate = new RepositoryConfigurationDelegate(source, this.resourceLoader, this.environment);
         delegate.registerRepositoriesIn(registry, new JpaRepositoryConfigExtension());
-    }
-
-    @Override
-    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        // No-op
     }
 
     private boolean repositoriesEnabled() {

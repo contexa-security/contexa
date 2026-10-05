@@ -32,6 +32,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -78,6 +79,7 @@ public class IamAiamWebAutoConfiguration {
     }
 
     @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(type = "org.springframework.data.redis.core.StringRedisTemplate")
     static class DistributedBlockMfaConfig {
 
@@ -90,7 +92,6 @@ public class IamAiamWebAutoConfiguration {
     }
 
     @Configuration
-    @ConditionalOnMissingBean(name = "stringRedisTemplate")
     static class StandaloneBlockMfaConfig {
 
         @Bean

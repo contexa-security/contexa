@@ -104,6 +104,8 @@ public abstract class AbstractOfficialVerificationMetricExecutionService<R> {
         if (headerConfigurer != null) {
             headerConfigurer.accept(headers);
         }
+        // Applied last so that a forwarded client header can never replace the server issued value.
+        headers.setRuntimeOverrideCapability();
         return probeClient.get(baseUrl, requestPath, headers.asMap(), Duration.ofSeconds(30));
     }
 

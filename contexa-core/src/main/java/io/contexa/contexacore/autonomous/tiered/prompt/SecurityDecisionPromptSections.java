@@ -66,6 +66,7 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1333,7 +1334,8 @@ public class SecurityDecisionPromptSections {
 
         appendObservedPresence(section, "CurrentAccessHour", currentAccessHour, observedValues(observedPatterns, patterns, "hours"), "CurrentAccessHourPresentInObservedHours", 80);
         appendObservedPresence(section, "CurrentDayOfWeek", currentDayOfWeek, observedValues(observedPatterns, patterns, "days"), "CurrentDayPresentInObservedDays", 80);
-        appendObservedPresence(section, "CurrentNetwork", currentNetwork, observedValues(observedPatterns, patterns, "networks"), "CurrentNetworkPresentInObservedNetworks", 96);
+        appendObservedPresence(section, "CurrentNetwork", currentNetwork, observedValues(observedPatterns, patterns, "networks"), "CurrentNetworkPresentInObservedNetworks", 96,
+                SecuritySemanticNormalizer::sameNetwork);
         appendObservedPresence(section, "CurrentBrowser", currentBrowser, observedValues(observedPatterns, patterns, "browsers"), "CurrentBrowserPresentInObservedBrowsers", 96);
         appendObservedPresence(section, "CurrentOperatingSystem", currentOperatingSystem, observedValues(observedPatterns, patterns, "operatingSystems"), "CurrentOperatingSystemPresentInObservedOperatingSystems", 96);
         appendObservedPresence(section, "CurrentPathFamily", currentPathFamily, observedValues(observedPatterns, patterns, "paths"), "CurrentPathPresentInObservedPaths", 180);
@@ -2276,8 +2278,9 @@ public class SecurityDecisionPromptSections {
                 Apply the following reasoning wording rules in order and use only the first matching rule.
                 1. If AnomalySignalTrust=TRUSTED_VERIFICATION_INPUT and ObservedAnomalySignal explicitly reports confirmed malicious activity, choose action BLOCK and reasoning must be exactly "A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK."
                 1a. For the required corroborated canonical attack boundary, reasoning must be exactly "Repeated failed logins and abusive request volume combine with device mismatch and bot or transport tampering; final autonomous action is BLOCK."
-                2. If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE, authorized RAG is projected, and PersonalBaselineEstablished=true, reasoning must be exactly "Authorization allows access, the personal baseline is established, and authorized RAG is relevant to the same resource."
-                3. If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE, and authorized RAG is projected, reasoning must be exactly "Authorization allows access, and authorized RAG is relevant to the same resource."
+                2. If the chosen action is ALLOW and RagRelevance is not SAME_RESOURCE or no authorized RAG is projected, never mention RAG; when PersonalBaselineEstablished=true, reasoning must be exactly "Authorization allows access, the personal baseline is established, and no concrete risk or verification requirement is present."; otherwise reasoning must be exactly "Authorization allows access with a limited baseline, and no concrete risk or verification requirement is present."
+                3. If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE, authorized RAG is projected, and PersonalBaselineEstablished=true, reasoning must be exactly "Authorization allows access, the personal baseline is established, and authorized RAG is relevant to the same resource."
+                4. If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE, and authorized RAG is projected, reasoning must be exactly "Authorization allows access, and authorized RAG is relevant to the same resource."
                 5. If the chosen action is CHALLENGE and policy or explicit verification evidence requires fresh verification, reasoning must be exactly "Fresh verification is required before allowing access; challenge is safer than allow."
                 6. If the chosen action is CHALLENGE and resource sensitivity increased from the previous flow or a higher sensitivity resource is reached, reasoning must explain that resource sensitivity is higher than the previous flow and that challenge is appropriate for the sensitivity change.
                 7. If the chosen action is CHALLENGE, baseline confidence is weak, sparse, insufficient, or low, and another concrete risk supports CHALLENGE, reasoning must include the exact phrases "baseline confidence is not enough for allow" and "challenge preserves safety".
@@ -3030,6 +3033,18 @@ public class SecurityDecisionPromptSections {
             List<String> observedValues,
             String presenceLabel,
             int maxLength) {
+        appendObservedPresence(section, label, currentValue, observedValues, presenceLabel, maxLength,
+                String::equalsIgnoreCase);
+    }
+
+    private void appendObservedPresence(
+            StringBuilder section,
+            String label,
+            String currentValue,
+            List<String> observedValues,
+            String presenceLabel,
+            int maxLength,
+            BiPredicate<String, String> sameValue) {
         if (!StringUtils.hasText(currentValue)) {
             String unavailable = "UNKNOWN - current value unavailable; do not infer baseline membership";
             appendCompactFact(section, label, unavailable, maxLength);
@@ -3047,7 +3062,7 @@ public class SecurityDecisionPromptSections {
         }
         section.append(presenceLabel)
                 .append(": ")
-                .append(observedValues.stream().anyMatch(value -> value.equalsIgnoreCase(currentValue)))
+                .append(observedValues.stream().anyMatch(value -> value != null && sameValue.test(value, currentValue)))
                 .append("\n");
     }
 

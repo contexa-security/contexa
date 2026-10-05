@@ -169,7 +169,7 @@ public class LLMExecutionStep implements PipelineStep {
                     .onErrorResume(error -> {
                         log.error("[PIPELINE-STEP] Security decision raw execution failed; fail-closed parsing will produce a challenge. Request: {}",
                                 request.getRequestId(), error);
-                        String failureCategory = timeoutFailureCategory(context, error);
+                        String failureCategory = rawExecutionFailureCategory(context, error);
                         context.addMetadata("rawExecutionSucceeded", false);
                         context.addMetadata("structuredOutputFailureCategory", failureCategory);
                         context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
@@ -246,7 +246,7 @@ public class LLMExecutionStep implements PipelineStep {
                 });
     }
 
-    private String timeoutFailureCategory(PipelineExecutionContext context, Throwable error) {
+    private String rawExecutionFailureCategory(PipelineExecutionContext context, Throwable error) {
         String explicit = firstNonBlankMetadata(
                 context,
                 "providerCallFailureCategory",
@@ -256,7 +256,23 @@ public class LLMExecutionStep implements PipelineStep {
         if (explicit != null && explicit.toUpperCase().contains("TIMEOUT")) {
             return explicit.toUpperCase();
         }
-        return isTimeout(error) ? "TIMEOUT" : "MODEL_UNAVAILABLE";
+        if (isTimeout(error)) {
+            return "TIMEOUT";
+        }
+        // A response that reached the model but broke the decision contract is not a model outage.
+        StructuredOutputFailureCategory structuredCategory = structuredOutputFailureCategory(error);
+        return structuredCategory != null ? structuredCategory.name() : "MODEL_UNAVAILABLE";
+    }
+
+    private StructuredOutputFailureCategory structuredOutputFailureCategory(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof StructuredOutputExecutionException structured && structured.getCategory() != null) {
+                return structured.getCategory();
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private String firstNonBlankMetadata(PipelineExecutionContext context, String... keys) {

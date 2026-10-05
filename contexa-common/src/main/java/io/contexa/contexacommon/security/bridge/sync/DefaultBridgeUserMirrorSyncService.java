@@ -318,8 +318,6 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
         attributePayload.put("authorizationEffect", authorizationStamp != null ? authorizationStamp.effect().name() : null);
         attributePayload.put("policyId", authorizationStamp != null ? authorizationStamp.policyId() : null);
         attributePayload.put("policyVersion", authorizationStamp != null ? authorizationStamp.policyVersion() : null);
-        attributePayload.put("requestUri", requestContext != null ? requestContext.requestUri() : null);
-        attributePayload.put("method", requestContext != null ? requestContext.method() : null);
         String attributesJson = toJson(attributePayload);
 
         return new SyncSnapshot(
@@ -342,7 +340,8 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
     ) {
         BridgeUserProfile profile = existingProfile != null
                 ? existingProfile
-                : BridgeUserProfile.builder().user(user).userId(user.getId()).build();
+                // A new profile keeps a null id so that JPA persists it; @MapsId derives the id from the user.
+                : BridgeUserProfile.builder().user(user).build();
 
         boolean changed = false;
         changed |= setIfChanged(profile.getSourceSystem(), syncSnapshot.sourceSystem(), profile::setSourceSystem);
@@ -361,7 +360,6 @@ public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncS
 
         if (changed || profile.getUser() == null) {
             profile.setUser(user);
-            profile.setUserId(user.getId());
             bridgeUserProfileRepository.save(profile);
             return true;
         }

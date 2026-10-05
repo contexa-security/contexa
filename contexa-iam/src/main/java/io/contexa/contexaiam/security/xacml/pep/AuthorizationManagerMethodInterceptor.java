@@ -110,7 +110,19 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             }
 
             if (llmAnalysisAllowed && rapidReentryAllowed && isSyncProtectable(protectable)) {
-                SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
+                SynchronousProtectableDecisionService.SyncDecisionResult syncDecision;
+                try {
+                    syncDecision = evaluateSynchronousProtectable(mi, authentication);
+                } catch (RuntimeException syncEvaluationFailure) {
+                    if (!isEnforcementDisabled()) {
+                        throw syncEvaluationFailure;
+                    }
+                    log.error("[ZeroTrust][SHADOW] sync Protectable evaluation failed and was not enforced. Access will proceed. resource={}",
+                            buildResourceId(mi, protectable), syncEvaluationFailure);
+                    publishEvent = false;
+                    granted = true;
+                    return proceed(mi);
+                }
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
                     if (isEnforcementDisabled()) {
                         log.info("[ZeroTrust][SHADOW] sync Protectable decision observed but not enforced. resource={}, action={}",

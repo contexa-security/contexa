@@ -239,6 +239,32 @@ class AIPolicyValidatorTest {
         }
 
         @Test
+        @DisplayName("DENY effect + permitAll 조건은 모든 접근 차단 -> WARNING")
+        void denyWithPermitAllWarning() {
+            Policy policy = buildPolicy("permitAll");
+            policy.setEffect(Policy.Effect.DENY);
+
+            AIPolicyValidationReport report = validator.validate(policy);
+
+            assertThat(report.items().stream()
+                    .filter(i -> "Dangerous Patterns".equals(i.checkName()))
+                    .findFirst().get().detail()).contains("msg.policy.ai.check.danger.denyall");
+        }
+
+        @Test
+        @DisplayName("DENY effect + denyAll 조건은 적용되지 않으므로 차단 경고 없음")
+        void denyWithDenyAllIsNotBlockAllWarning() {
+            Policy policy = buildPolicy("denyAll");
+            policy.setEffect(Policy.Effect.DENY);
+
+            AIPolicyValidationReport report = validator.validate(policy);
+
+            assertThat(report.items().stream()
+                    .filter(i -> "Dangerous Patterns".equals(i.checkName()))
+                    .findFirst().get().result()).isEqualTo(CheckResult.PASS);
+        }
+
+        @Test
         @DisplayName("정상 조건은 PASS")
         void normalConditionPass() {
             when(roleRepository.findByRoleName("ROLE_ADMIN")).thenReturn(Optional.of(new Role()));

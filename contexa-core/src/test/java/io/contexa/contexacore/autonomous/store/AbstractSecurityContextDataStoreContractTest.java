@@ -109,4 +109,31 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         store.markMfaVerified("alice");
         assertThat(store.isMfaVerified("alice")).isTrue();
     }
+
+    @Test
+    @DisplayName("deleting a user removes its records in every tenant and keeps other users and shared scopes")
+    void deleteUserData_removesOnlyThatUser() {
+        long now = System.currentTimeMillis();
+        for (String user : new String[]{"carol", "dave"}) {
+            store.addWorkProfileObservation(null, user, "{\"path\":\"/documents\"}");
+            store.addWorkProfileObservation("tenant-a", user, "{\"path\":\"/exports\"}");
+            store.addPermissionChangeObservation("tenant-a", user, "{\"role\":\"ENGINEER\"}");
+            store.setAuthorizationScopeState("tenant-a", user, "{\"scope\":\"engineering\"}");
+            store.markMfaVerified(user);
+            store.recordLoginFailure(user, null, now);
+        }
+        store.addRoleScopeObservation("tenant-a", "engineering", "{\"user\":\"carol\"}");
+
+        store.deleteUserData("carol");
+
+        assertThat(store.getRecentWorkProfileObservations(null, "carol", 10)).isEmpty();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "carol", 10)).isEmpty();
+        assertThat(store.getRecentPermissionChangeObservations("tenant-a", "carol", 10)).isEmpty();
+        assertThat(store.getAuthorizationScopeState("tenant-a", "carol")).isNull();
+        assertThat(store.isMfaVerified("carol")).isFalse();
+        assertThat(store.getRecentLoginFailureCount("carol", null, now - 5_000, now + 5_000)).isZero();
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "dave", 10)).isNotEmpty();
+        assertThat(store.isMfaVerified("dave")).isTrue();
+        assertThat(store.getRecentRoleScopeObservations("tenant-a", "engineering", 10)).isNotEmpty();
+    }
 }

@@ -108,6 +108,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "org.redisson.api.RedissonClient")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonEventConfiguration {
 
         @Bean

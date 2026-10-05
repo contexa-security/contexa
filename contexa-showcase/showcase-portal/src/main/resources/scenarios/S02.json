@@ -1,0 +1,46 @@
+{
+  "key": "S02",
+  "version": 1,
+  "title": {
+    "ko": "승인된 대량 처리",
+    "en": "Approved bulk delivery"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "APPROVAL",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 500,
+      "validFromOffset": "-P1D",
+      "validUntilOffset": "P1D",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 400,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

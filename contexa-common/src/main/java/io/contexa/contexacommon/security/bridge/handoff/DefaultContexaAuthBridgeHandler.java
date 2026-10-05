@@ -18,6 +18,7 @@ package io.contexa.contexacommon.security.bridge.handoff;
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
@@ -109,7 +110,7 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         Object principal = unwrapPrincipal(rawPrincipal);
         BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
 
-        String principalId = resolvePrincipalId(principal, handoff);
+        String principalId = resolvePrincipalId(rawPrincipal, principal, handoff);
         if (principalId == null || principalId.isBlank()) {
             throw new IllegalArgumentException("Unable to resolve principalId from handoff principal.");
         }
@@ -203,7 +204,7 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         return principal;
     }
 
-    private String resolvePrincipalId(Object principal, ContexaAuthHandoff handoff) {
+    private String resolvePrincipalId(Object rawPrincipal, Object principal, ContexaAuthHandoff handoff) {
         BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
         String explicitPrincipalId = firstText(
                 text(handoff.attributes().get("principalId")),
@@ -215,6 +216,13 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         }
         if (principal instanceof String textPrincipal && !textPrincipal.isBlank()) {
             return textPrincipal;
+        }
+        if (rawPrincipal instanceof Authentication authentication) {
+            // OAuth2/JWT handoffs use the same principal id as the SecurityContext resolver and Zero Trust.
+            String oauth2PrincipalName = OAuth2AuthenticationSupport.principalName(authentication);
+            if (oauth2PrincipalName != null) {
+                return oauth2PrincipalName;
+            }
         }
         return BridgeObjectExtractor.extractString(principal, requestAttributes.getPrincipalIdKeys());
     }

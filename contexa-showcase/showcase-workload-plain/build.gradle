@@ -1,0 +1,52 @@
+description = 'Contexa Showcase controls without Contexa: perimeter backend, RBAC and rule baselines'
+
+// Testcontainers 1.21.4 negotiates the Docker API version; 1.21.3 is refused by Docker 29 (minimum API 1.44).
+ext['testcontainers.version'] = '1.21.4'
+
+dependencies {
+    implementation project(':showcase-business')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+}
+
+// The company clock is UTC (ADR-09); the tests run in the same time zone as the containers.
+tasks.named('test') {
+    systemProperty 'user.timezone', 'UTC'
+}
+
+bootJar.enabled = true
+jar.enabled = false
+// Build commit for the execution specification (docs/showcase/실행명세.md). Docker builds have no .git, so the
+// commit comes from SHOWCASE_GIT_COMMIT there; a working tree with uncommitted changes is marked "-dirty".
+def showcaseCommit = providers.environmentVariable('SHOWCASE_GIT_COMMIT').orElse(providers.provider {
+    try {
+        def head = ['git', 'rev-parse', '--short=12', 'HEAD'].execute(null, rootDir).text.trim()
+        def dirty = ['git', 'status', '--porcelain', '--untracked-files=no'].execute(null, rootDir).text.trim()
+        head ? head + (dirty ? '-dirty' : '') : 'unknown'
+    } catch (IOException ignored) {
+        'unknown'
+    }
+})
+springBoot {
+    mainClass = 'io.contexa.showcase.workload.plain.PlainWorkloadApplication'
+    buildInfo {
+        properties {
+            additional = ['git.commit': showcaseCommit.get()]
+        }
+    }
+}
+
+// This executable is not a published Contexa library.
+publishing.publications.clear()
+tasks.withType(PublishToMavenRepository).configureEach { enabled = false }
+tasks.withType(PublishToMavenLocal).configureEach { enabled = false }
+tasks.withType(Sign).configureEach { enabled = false }

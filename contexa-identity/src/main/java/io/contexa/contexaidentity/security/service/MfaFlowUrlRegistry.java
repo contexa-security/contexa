@@ -110,4 +110,27 @@ public class MfaFlowUrlRegistry {
         }
         return allUrls;
     }
+
+    /**
+     * Returns the MFA in-progress paths of all registered flows.
+     * Used to decide which requests a session with an incomplete MFA may still reach.
+     */
+    public Set<String> getAllMfaInProgressUrls() {
+        Set<String> allUrls = new HashSet<>();
+        for (AuthUrlProvider provider : flowProviders.values()) {
+            allUrls.addAll(provider.getMfaInProgressUrls());
+        }
+        return allUrls;
+    }
+
+    /**
+     * Returns the passkey registration paths of all registered flows.
+     */
+    public Set<String> getAllPasskeyRegistrationUrls() {
+        Set<String> allUrls = new HashSet<>();
+        for (AuthUrlProvider provider : flowProviders.values()) {
+            allUrls.addAll(provider.getPasskeyRegistrationUrls());
+        }
+        return allUrls;
+    }
 }

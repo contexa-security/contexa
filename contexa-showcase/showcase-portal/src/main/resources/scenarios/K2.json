@@ -1,0 +1,38 @@
+{
+  "key": "K2",
+  "version": 1,
+  "title": {
+    "ko": "처음 쓰는 기기에서 담당 도면 열기",
+    "en": "Opening an assigned drawing on a new device"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "NEW",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

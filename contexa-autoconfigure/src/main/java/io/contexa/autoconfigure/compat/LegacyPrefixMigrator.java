@@ -20,7 +20,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.PropertySource;
 
 import java.util.HashMap;
@@ -35,6 +34,10 @@ import java.util.Map;
  *
  * A single ERROR-level log line is emitted per legacy prefix detected so the
  * operator can migrate. Removal target: v0.3.0.
+ *
+ * Aliases outside the contexa.* namespace (reverse aliases for third-party
+ * prefixes) are only visible while the Contexa platform is active, see
+ * {@link PlatformActivationGatedPropertySource}.
  */
 @Slf4j
 public class LegacyPrefixMigrator implements EnvironmentPostProcessor {
@@ -166,7 +169,7 @@ public class LegacyPrefixMigrator implements EnvironmentPostProcessor {
         if (!aliases.isEmpty()) {
             // addLast so explicit user-defined keys (incl. command-line, env, application yml)
             // always win over our legacy-derived fallback.
-            env.getPropertySources().addLast(new MapPropertySource(ALIAS_SOURCE_NAME, aliases));
+            env.getPropertySources().addLast(new PlatformActivationGatedPropertySource(ALIAS_SOURCE_NAME, aliases, env));
         }
     }
 

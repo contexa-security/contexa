@@ -269,4 +269,85 @@ class StandaloneAutoConfigurationFilterTest {
             assertThat(result).containsExactly(true, true, true, true);
         }
     }
+
+    @Nested
+    @DisplayName("Host application infrastructure in standalone mode")
+    class HostApplicationInfrastructure {
+
+        private final String[] infrastructureClasses = {
+                "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
+                "org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration",
+                "org.redisson.spring.starter.RedissonAutoConfigurationV2",
+                "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
+                "io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration",
+                "io.contexa.contexaidentity.config.ZeroTrustRedisConfig"
+        };
+
+        private StandaloneAutoConfigurationFilter createActiveStandaloneFilter(String... properties) {
+            StandaloneAutoConfigurationFilter filter = new StandaloneAutoConfigurationFilter();
+            MockEnvironment env = new MockEnvironment()
+                    .withProperty("contexa.infrastructure.mode", "standalone")
+                    .withProperty("contexa.ai.security.mode", "SANDBOX");
+            for (int i = 0; i < properties.length; i += 2) {
+                env.setProperty(properties[i], properties[i + 1]);
+            }
+            filter.setEnvironment(env);
+            return filter;
+        }
+
+        @Test
+        @DisplayName("Should keep host Redis and Redisson auto-configurations when the host configured Redis")
+        void shouldKeepHostRedisWhenHostConfiguredRedis() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.data.redis.host", "redis.host.internal");
+
+            boolean[] result = filter.match(infrastructureClasses, metadata);
+
+            assertThat(result).containsExactly(true, true, true, false, false, false);
+        }
+
+        @Test
+        @DisplayName("Should keep host Kafka auto-configuration when the host configured bootstrap servers")
+        void shouldKeepHostKafkaWhenHostConfiguredKafka() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.kafka.bootstrap-servers", "kafka.host.internal:9092");
+
+            boolean[] result = filter.match(infrastructureClasses, metadata);
+
+            assertThat(result).containsExactly(false, false, false, true, false, false);
+        }
+
+        @Test
+        @DisplayName("Should detect list-style cluster nodes and bootstrap servers")
+        void shouldDetectIndexedListProperties() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.data.redis.cluster.nodes[0]", "redis-a:6379",
+                    "spring.kafka.producer.bootstrap-servers[0]", "kafka-a:9092");
+
+            boolean[] result = filter.match(infrastructureClasses, metadata);
+
+            assertThat(result).containsExactly(true, true, true, true, false, false);
+        }
+
+        @Test
+        @DisplayName("Should keep Redis auto-configurations when only Redisson is configured")
+        void shouldKeepRedisWhenOnlyRedissonIsConfigured() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter(
+                    "spring.data.redis.redisson.config", "singleServerConfig:\n  address: redis://redis:6379");
+
+            boolean[] result = filter.match(infrastructureClasses, metadata);
+
+            assertThat(result).containsExactly(true, true, true, false, false, false);
+        }
+
+        @Test
+        @DisplayName("Should exclude Redis/Kafka auto-configurations when the host configured neither")
+        void shouldExcludeInfrastructureWithoutHostConfiguration() {
+            StandaloneAutoConfigurationFilter filter = createActiveStandaloneFilter();
+
+            boolean[] result = filter.match(infrastructureClasses, metadata);
+
+            assertThat(result).containsExactly(false, false, false, false, false, false);
+        }
+    }
 }

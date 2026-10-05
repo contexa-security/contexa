@@ -105,6 +105,17 @@ public interface SecurityContextDataStore {
 
     void markMfaVerified(String userId);
 
+    /**
+     * Removes every per-user record of a user whose account is deleted, in all tenants: work-profile, permission
+     * change and authorization scope observations, request tracking, MFA verification, login failures by user and
+     * the tracked sessions. Shared records (role scopes, sessions, events) are kept. Stores that cannot delete must
+     * fail loudly rather than keep the records silently.
+     */
+    default void deleteUserData(String userId) {
+        throw new UnsupportedOperationException(
+                "User context deletion is not supported by " + getClass().getSimpleName());
+    }
+
     EventProcessingClaim claimEventProcessing(String eventId);
 
     default EventProcessingLease claimEventProcessingLease(String eventId) {

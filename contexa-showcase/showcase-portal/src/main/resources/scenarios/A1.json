@@ -1,0 +1,55 @@
+{
+  "key": "A1",
+  "version": 1,
+  "title": {
+    "ko": "새 기기·회사 밖 네트워크에서 쓰는 계정",
+    "en": "An account used from a new device outside the company"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "MORNING",
+  "device": "NEW",
+  "network": "EXTERNAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 3
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 4
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

@@ -17,13 +17,16 @@ package io.contexa.contexacore.autonomous.handler.handler;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
+import io.contexa.contexacore.util.ErrorLogThrottle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +36,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ProcessingExecutionHandler implements SecurityEventHandler {
 
+    private static final Duration STRATEGY_SELECTION_LOG_INTERVAL = Duration.ofMinutes(5);
+
     private final List<ProcessingStrategy> strategies;
     private final Map<ProcessingMode, ProcessingStrategy> strategyCache = new ConcurrentHashMap<>();
+    private final ErrorLogThrottle strategySelectionLogThrottle = new ErrorLogThrottle(STRATEGY_SELECTION_LOG_INTERVAL);
 
     @Override
     public boolean handle(SecurityEventContext context) {
@@ -46,11 +52,20 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.addMetadata("processingMode", mode);
         }
 
+        ProcessingResult auditPendingResult = takeAuditPendingResult(event);
+        if (auditPendingResult != null) {
+            // The decision was already produced for this event; only its observation is retried.
+            event.addMetadata("auditPendingDecisionReused", true);
+            context.addMetadata("auditPendingDecisionReused", true);
+            handleProcessingResult(context, auditPendingResult, 0L);
+            return true;
+        }
+
         ProcessingStrategy strategy;
         try {
             strategy = selectStrategy(mode);
         } catch (Exception e) {
-            log.error("[ProcessingExecutionHandler] Error selecting processing strategy for event: {}", event.getEventId(), e);
+            reportStrategySelectionFailure(event, mode, e);
             context.markAsFailed("Processing strategy selection error: " + e.getMessage());
             return false;
         }
@@ -93,6 +108,37 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             handleProcessingResult(context, failedResult, executionTime);
             return true;
         }
+    }
+
+    private ProcessingResult takeAuditPendingResult(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return null;
+        }
+        Object retained = event.getMetadata().get(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT);
+        if (!(retained instanceof ProcessingResult result) || !result.isSuccess()) {
+            return null;
+        }
+        event.getMetadata().remove(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT);
+        return result;
+    }
+
+    private void reportStrategySelectionFailure(SecurityEvent event, ProcessingMode mode, Exception exception) {
+        if (event != null) {
+            event.addMetadata(SecurityPlaneAgent.PROCESSING_STRATEGY_UNAVAILABLE, true);
+            event.addMetadata(SecurityPlaneAgent.PROCESSING_FAILURE_REPORTED, true);
+        }
+        long suppressed = strategySelectionLogThrottle.tryAcquire();
+        if (suppressed == ErrorLogThrottle.SUPPRESSED) {
+            return;
+        }
+        List<String> registered = strategies == null ? List.of() : strategies.stream()
+                .map(strategy -> strategy.getClass().getSimpleName())
+                .toList();
+        log.error("[ProcessingExecutionHandler] No processing strategy can handle mode {} ({}). Registered strategies: {}. "
+                        + "No autonomous decision can be produced, so actors stay PENDING_ANALYSIS. The cold path "
+                        + "strategy needs Layer1ContextualStrategy and Layer2ExpertStrategy, which are created only when "
+                        + "a Spring AI ChatModel and a VectorStore are configured. eventId={}, similarFailuresSinceLastReport={}",
+                mode, exception.getMessage(), registered, event != null ? event.getEventId() : null, suppressed);
     }
 
     private ProcessingStrategy selectStrategy(ProcessingMode mode) {

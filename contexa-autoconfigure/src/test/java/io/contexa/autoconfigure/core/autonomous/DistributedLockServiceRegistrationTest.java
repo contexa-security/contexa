@@ -43,7 +43,7 @@ class DistributedLockServiceRegistrationTest {
         void distributedMode_registersRedisImplementation() {
             new ApplicationContextRunner()
                     .withUserConfiguration(CoreAutonomousAutoConfiguration.DistributedRepositoryConfiguration.class)
-                    .withBean("redisTemplate", RedisTemplate.class, () -> mock(RedisTemplate.class))
+                    .withBean("generalRedisTemplate", RedisTemplate.class, () -> mock(RedisTemplate.class))
                     .withBean("stringRedisTemplate", StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
                     .withBean(SecurityZeroTrustProperties.class, SecurityZeroTrustProperties::new)
                     .withPropertyValues("contexa.infrastructure.mode=distributed")

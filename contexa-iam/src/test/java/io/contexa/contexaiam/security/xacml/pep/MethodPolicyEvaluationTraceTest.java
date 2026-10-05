@@ -51,7 +51,7 @@ class MethodPolicyEvaluationTraceTest {
         assertThat((List<MethodPolicyEvaluation>) context.lookupVariable("methodPolicyEvaluationTrace"))
                 .containsExactly(
                         new MethodPolicyEvaluation(10L, Policy.Effect.ALLOW, 1, true),
-                        new MethodPolicyEvaluation(20L, Policy.Effect.DENY, 2, false));
+                        new MethodPolicyEvaluation(20L, Policy.Effect.DENY, 2, false, false));
         assertThat(context.lookupVariable("methodPolicyFinalDecision")).isNotNull();
     }
 }

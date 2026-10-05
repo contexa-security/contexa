@@ -99,9 +99,11 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
                 .orElseThrow(() -> new IllegalArgumentException(messageResolver.resolve(
                         "enterprise.pqa.runtimeVerification.error.packageId.notFound",
                         request.packageId())));
+        // Integrity is evaluated on the package exactly as persisted. The prepared copy may carry
+        // recovered legacy fields and is used only as analysis input.
+        boolean integrityValid = evidenceLookupService.verifyIntegrity(loadedPackage);
         SealedEvidencePackage evidencePackage = prepareSealedPromptEvidencePackage(loadedPackage);
         String operatorId = firstNonBlank(request.operatorId(), evidencePackage.getUserId(), "official-sealed-evidence-runtime");
-        boolean integrityValid = evidenceLookupService.verifyIntegrity(evidencePackage);
         Instant started = Instant.now();
         String startedAt = format(started);
         Map<String, Object> requestFacts = parseJson(objectMapper, evidencePackage.getRequestFactsJson());
@@ -160,6 +162,7 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
         }
         SealedEvidencePackage loadedPackage = evidenceLookupService.findByPackageId(packageId.trim())
                 .orElseThrow(() -> new IllegalArgumentException("sealed evidence package not found: " + packageId));
+        boolean integrityValid = evidenceLookupService.verifyIntegrity(loadedPackage);
         SealedEvidencePackage evidencePackage = prepareSealedPromptEvidencePackage(loadedPackage);
         List<OfficialVerificationRunView> runs = runStore.listDetailedByPackageId(packageId.trim());
         String aggregateRunId = latestAggregateRunId(runs);
@@ -173,7 +176,7 @@ public class DefaultOfficialSealedEvidenceVerificationRuntime implements Officia
                 evidencePackage.getPackageId(),
                 evidencePackage.getUserId(),
                 format(Instant.now()),
-                evidenceLookupService.verifyIntegrity(evidencePackage),
+                integrityValid,
                 List.copyOf(latestRuns));
     }
 

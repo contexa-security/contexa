@@ -326,6 +326,33 @@ class Layer2ExpertStrategyTest {
                 .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_VERSION);
     }
 
+    @Test
+    @DisplayName("Layer2 terminal fallback keeps a trusted confirmed-malicious BLOCK over an ESCALATE proposal")
+    void performDeepAnalysis_escalateProposalWithConfirmedMaliciousSignal_keepsBlock() {
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setRiskScore(0.9);
+        response.setConfidence(0.8);
+        response.setAction("ESCALATE");
+        response.setReasoning("Expert review is required");
+        when(pipelineOrchestrator.execute(
+                any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+        SecurityEvent event = buildTestEvent();
+        event.addMetadata("anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
+        event.addMetadata("anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL");
+
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
+        assertThat(decision.getAutonomyConstraintReasons())
+                .containsExactly("CONFIRMED_MALICIOUS_ACTIVITY");
+        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("TRUSTED_CONFIRMED_MALICIOUS_SIGNAL");
+    }
+
     private SecurityEvent buildTestEvent() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("httpMethod", "POST");

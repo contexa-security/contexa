@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -120,6 +122,13 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
             return;
         }
 
+        // Passkeys belong to the signed-in user. The security-aware request reports no remote user for an
+        // anonymous request, so hand over to the chain's entry point (sign-in redirect or 401) through the
+        // exception translation filter instead of rendering.
+        if (request.getRemoteUser() == null) {
+            throw new AuthenticationCredentialsNotFoundException("Authentication is required to manage passkeys");
+        }
+
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         response.setContentType(MediaType.TEXT_HTML_VALUE + ";charset=UTF-8");
         response.setCharacterEncoding("UTF-8");
@@ -147,9 +156,29 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("i18nTableSignatures", msg(request, "webauthn.table.signatures", "Signatures"))
                 .withValue("i18nTableAction", msg(request, "webauthn.table.action", "Action"))
                 .withValue("i18nSuccess", msg(request, "webauthn.success", "Passkey registered successfully!"))
+                .withRawHtml("continueLink", buildContinueLink(request))
                 .render();
 
         response.getWriter().write(html);
+    }
+
+    /**
+     * Renders a link to the page the user was headed to when the MFA flow sent the user here to register
+     * a passkey. The return URL is used once: it is removed when the page is rendered after a successful
+     * registration.
+     */
+    private String buildContinueLink(HttpServletRequest request) {
+        String returnUrl = MfaPasskeyRegistrationIntent.getReturnUrl(request);
+        if (returnUrl == null) {
+            return "";
+        }
+        if (request.getParameter("success") != null) {
+            MfaPasskeyRegistrationIntent.clearReturnUrl(request);
+        }
+        return MfaHtmlTemplates.fromTemplate(CONTINUE_LINK_TEMPLATE)
+                .withValue("returnUrl", returnUrl)
+                .withValue("i18nContinue", msg(request, "webauthn.continue", "Continue to your original page"))
+                .render();
     }
 
     private String passkeyRows(HttpServletRequest request, String username, String contextPath, CsrfToken csrfToken) {
@@ -356,6 +385,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                         </div>
                         <button id="register" class="primary-button" type="submit">{{i18nRegisterButton}}</button>
                     </form>
+                    {{continueLink}}
                     <table>
                         <thead>
                             <tr>
@@ -389,6 +419,13 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                                     </form>
                                 </td>
                             </tr>
+            """;
+
+    private static final String CONTINUE_LINK_TEMPLATE = """
+                    <div style="text-align: center; margin-top: 20px;">
+                        <a id="continue-link" href="{{returnUrl}}"
+                           style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">{{i18nContinue}}</a>
+                    </div>
             """;
 
     private static final String CSRF_HEADERS = """

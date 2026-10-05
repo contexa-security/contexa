@@ -25,6 +25,8 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
+import io.contexa.contexacore.verification.runtime.VerificationFaultScenario;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -84,7 +86,7 @@ class RequestInfoExtractorTest {
     void extractShouldIncludeAuthMethodAndResourceHintsFromRequestAttributes() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-001");
-        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        request.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
         request.setAttribute("authenticationType", "mfa");
         request.setAttribute("resourceSensitivity", "HIGH");
         request.setAttribute("resourceBusinessLabel", "Sensitive Security Test Resource resource-001");
@@ -161,11 +163,12 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("observed-at header should populate request info observedAt")
+    @DisplayName("observed-at header should populate request info observedAt for server issued probes")
     void extractShouldIncludeObservedAtFromHeaders() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.addHeader("X-Request-ID", "req-observed-at");
         request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
+        addServerIssuedProbeCapability(request);
 
         RequestInfoExtractor.RequestInfo requestInfo =
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
@@ -217,10 +220,11 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("canonical runtime headers should be allowed for official verification probes")
+    @DisplayName("canonical runtime headers should be allowed for server issued official verification probes")
     void extractShouldAllowCanonicalRuntimeHeadersForOfficialVerificationProbe() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         request.addHeader("X-Request-ID", "req-runtime-selection-official");
+        addServerIssuedProbeCapability(request);
         request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
         request.addHeader("X-Contexa-Temperature", "0.0");
         request.addHeader("X-Contexa-Top-P", "0.2");
@@ -349,5 +353,121 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getPqaPromptFaultScenario()).isNull();
         assertThat(requestInfo.getPqaPromptFaultRejected()).isTrue();
         assertThat(requestInfo.getPqaPromptFaultRejectedSource()).isEqualTo("UNTRUSTED_REQUEST_HEADER");
+    }
+
+    @Test
+    @DisplayName("client scenario marker and probe path alone should not unlock overrides or simulation")
+    void clientOfficialVerificationMarkersShouldNotUnlockOverridesOrSimulation() {
+        MockHttpServletRequest request = clientForgedProbeRequest();
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertClientOverridesIgnored(request, requestInfo);
+    }
+
+    @Test
+    @DisplayName("forged runtime capability value should not unlock overrides or simulation")
+    void forgedRuntimeCapabilityShouldNotUnlockOverridesOrSimulation() {
+        MockHttpServletRequest request = clientForgedProbeRequest();
+        request.addHeader(OfficialVerificationProbeHeaders.RUNTIME_OVERRIDE_CAPABILITY, "00000000-0000-0000-0000-000000000000");
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertClientOverridesIgnored(request, requestInfo);
+    }
+
+    @Test
+    @DisplayName("fault capability should not unlock runtime overrides")
+    void faultCapabilityShouldNotUnlockRuntimeOverrides() {
+        MockHttpServletRequest request = clientForgedProbeRequest();
+        OfficialVerificationProbeHeaders faultHeaders = new OfficialVerificationProbeHeaders();
+        faultHeaders.setAuthorizedFault(VerificationFaultScenario.of("RUNTIME_SLOT_MULTI_FAULT", "TEST", "operator"));
+        faultHeaders.asMap().forEach(request::addHeader);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertClientOverridesIgnored(request, requestInfo);
+    }
+
+    @Test
+    @DisplayName("server issued runtime capability should honor boundary mode and simulation headers")
+    void serverIssuedRuntimeCapabilityShouldHonorBoundaryModeAndSimulationHeaders() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("User-Agent", "Probe-Transport/1.0");
+        request.addHeader("X-Forwarded-For", "198.51.100.20");
+        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 Simulated Chrome/120");
+        request.addHeader("X-Simulated-User-Agent-Label", "Simulated Chrome");
+        request.addHeader("X-Simulated-Observed-At", "2026-02-03T09:15:00+09:00");
+        request.addHeader("X-Contexa-Decision-Boundary-Mode", "SHADOW");
+        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_BSR");
+        addServerIssuedProbeCapability(request);
+
+        RequestInfoExtractor.RequestInfo requestInfo =
+                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
+
+        assertThat(requestInfo.getDecisionBoundaryMode()).isEqualTo("SHADOW");
+        assertThat(requestInfo.getUserAgent()).isEqualTo("Mozilla/5.0 Simulated Chrome/120");
+        assertThat(requestInfo.getSimulatedUserAgentLabel()).isEqualTo("Simulated Chrome");
+        assertThat(requestInfo.getObservedAt()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
+        assertThat(requestInfo.getClientIp()).isEqualTo("198.51.100.20");
+        assertThat(requestInfo.getScenario()).isEqualTo("OFFICIAL_VERIFICATION_BSR");
+    }
+
+    private static MockHttpServletRequest clientForgedProbeRequest() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+        request.setRemoteAddr("10.0.0.10");
+        request.addHeader("User-Agent", "RealBrowser/1.0");
+        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_RUNTIME");
+        request.addHeader("X-Forwarded-For", "198.51.100.20");
+        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 Baseline Chrome/120");
+        request.addHeader("X-Simulated-User-Agent-Label", "Baseline Chrome");
+        request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
+        request.addHeader("X-Simulated-Observed-At", "2026-02-03T09:15:00+09:00");
+        request.addHeader("X-Contexa-Decision-Boundary-Mode", "SHADOW");
+        request.addHeader("X-Contexa-Model-Id", "attacker-model");
+        request.addHeader("X-Contexa-Preferred-Model", "attacker-model");
+        request.addHeader("X-Contexa-Runtime-Model-Id", "attacker-model");
+        request.addHeader("X-Contexa-Temperature", "1.5");
+        request.addHeader("X-Contexa-Top-P", "0.9");
+        request.addHeader("X-Contexa-Seed", "42");
+        request.addHeader("X-Contexa-Max-Tokens", "8");
+        request.addHeader("X-Contexa-Disable-Retries", "true");
+        request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
+        request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
+        return request;
+    }
+
+    private static void assertClientOverridesIgnored(
+            MockHttpServletRequest request,
+            RequestInfoExtractor.RequestInfo requestInfo) {
+        assertThat(requestInfo.getDecisionBoundaryMode()).isNull();
+        assertThat(requestInfo.getRequestedModelId()).isNull();
+        assertThat(requestInfo.getRuntimeTemperature()).isNull();
+        assertThat(requestInfo.getRuntimeTopP()).isNull();
+        assertThat(requestInfo.getRuntimeSeed()).isNull();
+        assertThat(requestInfo.getRuntimeMaxTokens()).isNull();
+        assertThat(requestInfo.getRuntimeDisableRetries()).isNull();
+        assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isNull();
+        assertThat(requestInfo.getUserAgent()).isEqualTo("RealBrowser/1.0");
+        assertThat(requestInfo.getSimulatedUserAgentLabel()).isNull();
+        assertThat(requestInfo.getObservedAt()).isNull();
+        assertThat(requestInfo.getClientIp()).isEqualTo("10.0.0.10");
+        assertThat(requestInfo.getScenario()).isNull();
+        assertThat(requestInfo.getAnomalySignalSource()).isEqualTo("UNTRUSTED_REQUEST_HEADER");
+        assertThat(RequestInfoExtractor.extractClientIp(request, new TieredStrategyProperties().getSecurity()))
+                .isEqualTo("10.0.0.10");
+        assertThat(RequestInfoExtractor.extractUserAgent(request)).isEqualTo("RealBrowser/1.0");
+        assertThat(RequestInfoExtractor.extractObservedAt(request)).isNull();
+        assertThat(RequestInfoExtractor.extractScenario(request)).isNull();
+    }
+
+    private static void addServerIssuedProbeCapability(MockHttpServletRequest request) {
+        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
+        headers.setRuntimeOverrideCapability();
+        headers.asMap().forEach(request::addHeader);
     }
 }

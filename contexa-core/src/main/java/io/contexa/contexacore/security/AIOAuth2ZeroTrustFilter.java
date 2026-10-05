@@ -25,6 +25,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 
 import java.io.IOException;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.util.Assert;
 
 /**
  * Zero Trust filter for OAuth2 Resource Server requests.
@@ -44,6 +46,14 @@ import java.io.IOException;
 public class AIOAuth2ZeroTrustFilter extends OncePerRequestFilter {
 
     private final AIOAuth2SecurityContextRepository oAuth2SecurityContextRepository;
+    private AuthenticationFailureHandler failureHandler;
+
+    public AIOAuth2ZeroTrustFilter(AIOAuth2SecurityContextRepository oAuth2SecurityContextRepository,
+                                   AuthenticationFailureHandler failureHandler) {
+        this(oAuth2SecurityContextRepository);
+        Assert.notNull(failureHandler, "failureHandler cannot be null");
+        this.failureHandler = failureHandler;
+    }
 
     public AIOAuth2ZeroTrustFilter(AIOAuth2SecurityContextRepository oAuth2SecurityContextRepository) {
         this.oAuth2SecurityContextRepository = oAuth2SecurityContextRepository;
@@ -56,7 +66,11 @@ public class AIOAuth2ZeroTrustFilter extends OncePerRequestFilter {
             oAuth2SecurityContextRepository.applyZeroTrustToCurrentContext(request);
         } catch (AuthenticationException exception) {
             SecurityContextHolder.clearContext();
-            new BearerTokenAuthenticationEntryPoint().commence(request, response, exception);
+            if (failureHandler != null) {
+                failureHandler.onAuthenticationFailure(request, response, exception);
+            } else {
+                new BearerTokenAuthenticationEntryPoint().commence(request, response, exception);
+            }
             return;
         }
         filterChain.doFilter(request, response);

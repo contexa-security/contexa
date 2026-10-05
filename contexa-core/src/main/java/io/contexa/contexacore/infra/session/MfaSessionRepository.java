@@ -17,6 +17,7 @@ package io.contexa.contexacore.infra.session;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.lang.Nullable;
 
 import java.time.Duration;
@@ -47,4 +48,14 @@ public interface MfaSessionRepository {
     boolean isValidSessionIdFormat(String sessionId);
 
     boolean supportsDistributedSync();
+
+    /** MFA session id bound to an HTTP session, for repositories that keep it there; otherwise null. */
+    @Nullable
+    default String sessionIdOf(HttpSession session) {
+        return null;
+    }
+
+    /** Forgets an MFA session whose HTTP session the container destroyed; it can no longer be reached. */
+    default void forgetSession(String sessionId) {
+    }
 }

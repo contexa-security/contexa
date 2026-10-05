@@ -24,6 +24,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

@@ -57,13 +57,10 @@ public class ContexaAutoConfigurationIntegrityVerifier implements SmartInitializ
                 .filter(result -> result.required() || mode == CapabilityMode.STRICT)
                 .toList();
 
+        // Project logging policy allows only error level, so non-fatal capability defects
+        // in WARN mode are reported as errors as well; only fail-fast modes stop startup.
         for (CapabilityCheckResult result : abnormalResults) {
-            String diagnostic = diagnosticMessage(result);
-            if (result.shouldFail(mode)) {
-                log.error(diagnostic);
-            } else {
-                log.warn(diagnostic);
-            }
+            log.error(diagnosticMessage(result));
         }
 
         List<CapabilityCheckResult> failures = results.stream()

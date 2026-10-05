@@ -1,0 +1,28 @@
+{
+  "key": "A6",
+  "order": 6,
+  "question": {
+    "ko": "관리자 A가 오후에 담당이 아닌 고객 레코드 다섯 건을 1분 간격으로 차례로 엽니다.",
+    "en": "In the afternoon, admin A opens five customer records of other account managers, one a minute."
+  },
+  "scenes": [
+    {
+      "kind": "ATTACK",
+      "scenario": "A6",
+      "sentence": {
+        "ko": "관리자 A가 오후에 담당이 아닌 고객 레코드 다섯 건을 1분 간격으로 차례로 엽니다.",
+        "en": "In the afternoon, admin A opens five customer records of other account managers, one a minute."
+      },
+      "featuredStep": 5
+    },
+    {
+      "kind": "LEGITIMATE",
+      "scenario": "A6T",
+      "sentence": {
+        "ko": "관리자 A가 승인된 장애 대응 티켓 범위 안에서 같은 고객 다섯 건을 차례로 확인합니다.",
+        "en": "Admin A checks the same five customers under an approved incident ticket that covers them."
+      },
+      "featuredStep": 5
+    }
+  ]
+}

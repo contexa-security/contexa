@@ -425,5 +425,95 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThat(result).isEqualTo("protected");
             verify(methodInvocation).proceed();
         }
+
+        @Test
+        @DisplayName("SHADOW mode: sync evaluation failure should be recorded and access should proceed")
+        void shadow_syncEvaluationFailure_shouldProceed() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("protected");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(shadow);
+
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenThrow(new IllegalStateException("Security event pipeline did not produce a final result"));
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(synchronousProtectableDecisionService).analyze(methodInvocation, authentication);
+            verify(methodInvocation).proceed();
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
+        @DisplayName("ENFORCE mode: sync evaluation failure should still fail closed")
+        void enforce_syncEvaluationFailure_shouldThrow() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenThrow(new IllegalStateException("Security event pipeline did not produce a final result"));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Security event pipeline did not produce a final result");
+
+            verify(synchronousProtectableDecisionService).analyze(methodInvocation, authentication);
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("SHADOW mode: missing sync decision service should be recorded and access should proceed")
+        void shadow_missingSyncDecisionService_shouldProceed() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("protected");
+
+            SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(shadow);
+
+            Object result = interceptor.invoke(methodInvocation);
+
+            assertThat(result).isEqualTo("protected");
+            verify(methodInvocation).proceed();
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+        }
+
+        @Test
+        @DisplayName("ENFORCE mode: missing sync decision service should still require analysis")
+        void enforce_missingSyncDecisionService_shouldRequireAnalysis() throws Throwable {
+            Method method = SyncProtectableService.class.getMethod("protectedMethod");
+            when(methodInvocation.getMethod()).thenReturn(method);
+            when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class, denied -> {
+                        assertThat(denied.getAction()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name());
+                        assertThat(denied.getResourceId()).isEqualTo("SyncProtectableService.protectedMethod");
+                    });
+
+            verify(methodInvocation, never()).proceed();
+        }
     }
 }

@@ -20,6 +20,7 @@ import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.bootstrap.ConfiguredFactorFilterProvider;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
@@ -108,6 +109,11 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                 applicationContext
         );
         mfaContinuationFilter.setFlowTypeName(currentFlow.getTypeName());
+        StateConfig resolvedStateConfig = stateConfig != null ? stateConfig : currentFlow.getStateConfig();
+        StateType stateType = resolvedStateConfig != null && resolvedStateConfig.stateType() != null
+                ? resolvedStateConfig.stateType()
+                : authContextProperties.getStateType();
+        mfaContinuationFilter.setRestorePrimaryProof(stateType != StateType.SESSION);
 
         if (currentFlow.getRegisteredFactorOptions() == null || currentFlow.getRegisteredFactorOptions().isEmpty()) {
             log.error("Critical: MFA flow has no registered factor options");

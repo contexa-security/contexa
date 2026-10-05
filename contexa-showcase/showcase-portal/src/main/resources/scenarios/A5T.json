@@ -1,0 +1,47 @@
+{
+  "key": "A5T",
+  "version": 1,
+  "title": {
+    "ko": "승인된 변경 티켓에 따른 권한 부여",
+    "en": "Granting a role under an approved change"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TICKET",
+      "ticketKind": "CHANGE",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "ACCESS_GRANT",
+      "validFromOffset": "-PT2H",
+      "validUntilOffset": "PT6H",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "ROLE_GRANT",
+      "project": "GB-500",
+      "grantee": "eng-k",
+      "responsibility": "REVIEW",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

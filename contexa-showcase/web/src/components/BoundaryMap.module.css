@@ -1,0 +1,81 @@
+.map {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: var(--space-2);
+  table-layout: fixed;
+}
+
+.caption {
+  margin-block-end: var(--space-2);
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  text-align: start;
+}
+
+.corner {
+  width: 5.5rem;
+}
+
+.slot,
+.items {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.items {
+  text-align: start;
+}
+
+.cell {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-1);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.cell[data-verdict='ALLOW'] {
+  border: 2px solid var(--color-verdict-allow);
+  background-color: var(--color-verdict-allow);
+  color: var(--color-verdict-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.cell[data-verdict='CHALLENGE'] {
+  border: 2px solid var(--color-verdict-verify);
+  background-color: var(--color-verdict-verify);
+  color: var(--color-verdict-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.cell[data-verdict='ESCALATE'] {
+  border: 2px solid var(--color-verdict-review);
+  background-color: var(--color-verdict-review);
+  color: var(--color-verdict-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.cell[data-verdict='BLOCK'] {
+  border: 2px solid var(--color-verdict-block);
+  background-color: var(--color-verdict-block);
+  color: var(--color-verdict-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.cell[data-verdict='PENDING'] {
+  border: 2px solid var(--color-verdict-pending);
+  background-color: var(--color-verdict-pending);
+  color: var(--color-verdict-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.cell[aria-pressed='true'] {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}

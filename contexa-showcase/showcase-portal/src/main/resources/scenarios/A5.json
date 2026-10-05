@@ -1,0 +1,37 @@
+{
+  "key": "A5",
+  "version": 1,
+  "title": {
+    "ko": "승인 없는 권한 부여",
+    "en": "Granting a role without approval"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "ROLE_GRANT",
+      "project": "GB-500",
+      "grantee": "eng-k",
+      "responsibility": "REVIEW",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

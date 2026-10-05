@@ -20,49 +20,100 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
-import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport.DecisionDetail;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport.SimulationResult;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport.SimulationSummary;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationTestCase;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator.CombinedDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyEvaluationOrder;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionSandbox;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
+import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
+import io.contexa.contexaiam.security.xacml.pep.UrlPolicyTargetMatcher;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.convert.TypeDescriptor;
+import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.MethodExecutor;
+import org.springframework.expression.MethodResolver;
+import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.security.access.expression.DenyAllPermissionEvaluator;
+import org.springframework.security.access.expression.SecurityExpressionRoot;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.util.AntPathMatcher;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
- * Simulates policy evaluation for test cases.
- * Evaluates current policies and optionally compares with a candidate policy.
+ * Simulates policy decisions for test cases with the rules of the enforcement points.
+ *
+ * <p>URL test cases follow the URL enforcement point and method test cases follow the
+ * {@code @Protectable} method enforcement point. Both use the same executable policy filter and
+ * evaluation order ({@link PolicyEvaluationOrder}), the same condition expression built from the
+ * policy rules ({@link PolicyExpressionConverter} for URL policies and
+ * {@link CustomMethodSecurityExpressionHandler#buildPolicyCondition(Policy)} for method policies),
+ * the same load time rejection of unsafe conditions, the same effect handling
+ * ({@link PolicyCombiningEvaluator#applyEffect}) and the same combining evaluator with the combining
+ * algorithm and no-matching-policy decisions currently held by {@link PolicyCombiningProperties}.</p>
+ *
+ * <p>Conditions are evaluated in the policy expression sandbox against a Spring Security expression
+ * root that holds the authorities of the simulated user. Facts that exist only for a live request
+ * or invocation cannot be simulated: {@code #ai} predicates are treated as satisfied, and a
+ * condition that needs request data or method arguments (for example {@code hasIpAddress} or an
+ * object level {@code hasPermission}) is treated as not satisfied.</p>
  */
-@Slf4j
 @RequiredArgsConstructor
 public class PolicySimulator {
+
+    private static final String METHOD_TARGET = "METHOD";
+    private static final String URL_TARGET = "URL";
+    private static final String ROLE_PREFIX = "ROLE_";
+    private static final SimulatedAiAssessment SIMULATED_AI_ASSESSMENT = new SimulatedAiAssessment();
+    private static final MethodResolver SIMULATED_AI_RESOLVER = new SimulatedAiAssessmentResolver();
+
+    /**
+     * Order in which the URL policy query of the policy retrieval point returns policies; the URL
+     * enforcement point sorts that list stably by priority.
+     */
+    private static final Comparator<Policy> URL_RETRIEVAL_ORDER = Comparator
+            .<Policy>comparingInt(policy -> PolicyEvaluationOrder.lowestTargetOrder(policy, URL_TARGET, null))
+            .thenComparingInt(Policy::getPriority);
 
     private final UserRepository userRepository;
     private final PolicyRepository policyRepository;
     private final RoleHierarchy roleHierarchy;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    private final PolicyCombiningEvaluator combiningEvaluator;
+    private final PolicyCombiningProperties combiningProperties;
+    private final PolicyExpressionConverter urlExpressionConverter = new PolicyExpressionConverter();
+    private final ExpressionParser expressionParser = new SpelExpressionParser();
 
-    private static final Pattern HAS_AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
-    private static final Pattern HAS_ANY_AUTHORITY_PATTERN = Pattern.compile("hasAnyAuthority\\(([^)]+)\\)");
-    private static final Pattern HAS_ROLE_PATTERN = Pattern.compile("hasRole\\('([^']*)'\\)");
-    private static final Pattern HAS_ANY_ROLE_PATTERN = Pattern.compile("hasAnyRole\\(([^)]+)\\)");
-    private static final Pattern QUOTED_ARG_PATTERN = Pattern.compile("'([^']*)'");
-
+    /**
+     * Simulates every test case against the stored policies and, when a candidate is given, against
+     * the stored policies with the candidate applied. A candidate with the id of a stored policy
+     * replaces that policy. The candidate is simulated as deployed, regardless of its approval state.
+     */
     public SimulationReport simulate(Policy candidatePolicy, List<SimulationTestCase> testCases) {
-        List<Policy> existingPolicies = policyRepository.findAllWithDetails().stream()
-                .filter(Policy::getIsActive)
-                .sorted(Comparator.comparingInt(Policy::getPriority))
-                .toList();
+        List<Policy> storedPolicies = policyRepository.findAllWithDetails();
+        List<Policy> candidatePolicies = candidatePolicy != null
+                ? withCandidate(storedPolicies, candidatePolicy)
+                : storedPolicies;
+        CombiningSettings settings = new CombiningSettings(
+                combiningProperties.getCombiningAlgorithm(),
+                combiningProperties.getNoMatchingUrlPolicyDecision(),
+                combiningProperties.getMissingMethodPolicyDecision());
 
         List<SimulationResult> results = new ArrayList<>();
         int unchanged = 0;
@@ -81,21 +132,14 @@ public class PolicySimulator {
                     roleHierarchy.getReachableGrantedAuthorities(baseAuthorities);
             List<String> authorityNames = expanded.stream()
                     .map(GrantedAuthority::getAuthority).toList();
+            Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
+                    user.getUsername(), null, expanded);
 
-            String targetType = testCase.resolvedTargetType();
             DecisionDetail currentResult = evaluate(
-                    targetType, testCase.path(), testCase.httpMethod(), expanded, existingPolicies);
-
-            DecisionDetail newResult;
-            if (candidatePolicy != null) {
-                List<Policy> withCandidate = new ArrayList<>();
-                withCandidate.add(candidatePolicy);
-                withCandidate.addAll(existingPolicies);
-                newResult = evaluate(
-                        targetType, testCase.path(), testCase.httpMethod(), expanded, withCandidate);
-            } else {
-                newResult = currentResult;
-            }
+                    testCase, authentication, authorityNames, storedPolicies, null, settings);
+            DecisionDetail newResult = candidatePolicy != null
+                    ? evaluate(testCase, authentication, authorityNames, candidatePolicies, candidatePolicy, settings)
+                    : currentResult;
 
             boolean changed = !currentResult.decision().equals(newResult.decision());
             String changeType = "UNCHANGED";
@@ -115,212 +159,156 @@ public class PolicySimulator {
             }
 
             results.add(new SimulationResult(
-                    testCase, user.getUsername(),
-                    new DecisionDetail(currentResult.decision(), currentResult.matchedPolicyId(),
-                            currentResult.matchedPolicyName(), currentResult.matchedExpression(), authorityNames),
-                    new DecisionDetail(newResult.decision(), newResult.matchedPolicyId(),
-                            newResult.matchedPolicyName(), newResult.matchedExpression(), authorityNames),
-                    changed, changeType));
+                    testCase, user.getUsername(), currentResult, newResult, changed, changeType));
         }
 
         return new SimulationReport(results,
                 new SimulationSummary(unchanged, allowToDeny, denyToAllow, otherChanges));
     }
 
-    private DecisionDetail evaluate(String targetType, String identifier, String httpMethod,
-                                      Collection<? extends GrantedAuthority> authorities,
-                                      List<Policy> policies) {
-        Set<String> authorityNames = authorities.stream()
-                .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
+    private DecisionDetail evaluate(SimulationTestCase testCase, Authentication authentication,
+                                    List<String> authorityNames, List<Policy> policies, Policy candidate,
+                                    CombiningSettings settings) {
+        boolean methodTarget = METHOD_TARGET.equals(testCase.resolvedTargetType());
+        List<Policy> matchedPolicies = methodTarget
+                ? matchMethodPolicies(policies, candidate, testCase.path())
+                : matchUrlPolicies(policies, candidate, testCase.path(), normalizeHttpMethod(testCase.httpMethod()));
 
-        DecisionDetail firstTargetMatch = null;
-
-        for (Policy policy : policies) {
-            boolean targetMatches;
-            if ("METHOD".equals(targetType)) {
-                targetMatches = policy.getTargets().stream()
-                        .filter(t -> "METHOD".equals(t.getTargetType()))
-                        .anyMatch(t -> t.getTargetIdentifier().equals(identifier));
-            } else {
-                targetMatches = policy.getTargets().stream()
-                        .filter(t -> "URL".equals(t.getTargetType()))
-                        .anyMatch(t -> pathMatches(t.getTargetIdentifier(), identifier)
-                                && methodMatches(t.getHttpMethod(), httpMethod));
-            }
-
-            if (!targetMatches) continue;
-
-            String expression = policy.getRules().stream()
-                    .flatMap(r -> r.getConditions().stream())
-                    .map(PolicyCondition::getExpression)
-                    .collect(Collectors.joining(" AND "));
-            if (expression.isEmpty()) expression = "permitAll";
-
-            boolean conditionMatches = evaluateConditions(policy, authorityNames);
-            if (conditionMatches) {
-                return new DecisionDetail(
-                        policy.getEffect().name(),
-                        policy.getId(), policy.getName(),
-                        expression, List.of());
-            }
-
-            if (firstTargetMatch == null) {
-                firstTargetMatch = new DecisionDetail(
-                        "DENY", policy.getId(), policy.getName(),
-                        expression, List.of());
-            }
+        List<AuthorizationDecision> decisions = new ArrayList<>();
+        List<String> expressions = new ArrayList<>();
+        for (Policy policy : matchedPolicies) {
+            PolicyOutcome outcome = methodTarget
+                    ? evaluateMethodPolicy(policy, authentication)
+                    : evaluateUrlPolicy(policy, authentication);
+            decisions.add(outcome.decision());
+            expressions.add(outcome.expression());
         }
 
-        return firstTargetMatch != null ? firstTargetMatch
-                : new DecisionDetail("NONE", null, null, null, List.of());
+        NoPolicyDecision noPolicyDecision = methodTarget ? settings.missingMethodPolicyDecision()
+                : settings.noMatchingUrlPolicyDecision();
+        CombinedDecision combined = combiningEvaluator.combine(decisions, settings.algorithm(), noPolicyDecision);
+        boolean granted = combined.decision().isGranted();
+        int decidingIndex = combined.noPolicyDecisionApplied() ? -1 : decidingIndex(decisions, granted);
+        Policy decidingPolicy = decidingIndex >= 0 ? matchedPolicies.get(decidingIndex) : null;
+
+        return new DecisionDetail(
+                granted ? "ALLOW" : "DENY",
+                decidingPolicy != null ? decidingPolicy.getId() : null,
+                decidingPolicy != null ? decidingPolicy.getName() : null,
+                decidingPolicy != null ? expressions.get(decidingIndex) : null,
+                authorityNames,
+                combined.algorithm().name(),
+                combined.noPolicyDecision().name(),
+                combined.noPolicyDecisionApplied());
     }
 
-    private boolean pathMatches(String pattern, String path) {
+    /**
+     * Selects URL policies like the URL enforcement point: executable policies with a URL target,
+     * in the retrieval order sorted stably by priority, whose URL target matches the request.
+     */
+    private List<Policy> matchUrlPolicies(List<Policy> policies, Policy candidate, String path, String httpMethod) {
+        return policies.stream()
+                .filter(policy -> policy == candidate || PolicyEvaluationOrder.isExecutable(policy))
+                .filter(policy -> policy.getTargets().stream()
+                        .anyMatch(target -> URL_TARGET.equals(target.getTargetType())))
+                .sorted(URL_RETRIEVAL_ORDER)
+                .sorted(PolicyEvaluationOrder.urlOrder())
+                .filter(policy -> policy.getTargets().stream()
+                        .anyMatch(target -> UrlPolicyTargetMatcher.matches(target, path, httpMethod)))
+                .toList();
+    }
+
+    /**
+     * Selects method policies like the method enforcement point: executable policies bound to the
+     * method identifier, in method evaluation order.
+     */
+    private List<Policy> matchMethodPolicies(List<Policy> policies, Policy candidate, String methodIdentifier) {
+        return policies.stream()
+                .filter(policy -> policy == candidate || PolicyEvaluationOrder.isExecutable(policy))
+                .filter(policy -> policy.getTargets().stream()
+                        .anyMatch(target -> METHOD_TARGET.equals(target.getTargetType())
+                                && Objects.equals(methodIdentifier, target.getTargetIdentifier())))
+                .sorted(PolicyEvaluationOrder.methodOrder(methodIdentifier))
+                .toList();
+    }
+
+    /**
+     * Evaluates a URL policy like the URL enforcement point. A policy whose condition is rejected
+     * while loading is a constant Deny there, whatever its effect.
+     */
+    private PolicyOutcome evaluateUrlPolicy(Policy policy, Authentication authentication) {
+        String expression;
         try {
-            return pathMatcher.match(pattern, path) || pattern.equals(path);
-        } catch (Exception e) {
-            return pattern.equals(path);
+            expression = urlExpressionConverter.toExpression(policy);
+        } catch (RuntimeException e) {
+            // The enforcement point rejects a policy whose condition cannot be converted.
+            return new PolicyOutcome(new AuthorizationDecision(false), null);
         }
-    }
-
-    private boolean methodMatches(String policyMethod, String requestMethod) {
-        if (policyMethod == null || "ANY".equalsIgnoreCase(policyMethod)
-                || "ALL".equalsIgnoreCase(policyMethod) || policyMethod.isBlank()) {
-            return true;
+        if (urlExpressionConverter.findLoadViolation(policy, expression) != null) {
+            return new PolicyOutcome(new AuthorizationDecision(false), expression);
         }
-        return policyMethod.equalsIgnoreCase(requestMethod);
-    }
-
-    /**
-     * Evaluates conditions of a policy against user authorities.
-     * If no rules or no conditions exist, the policy matches unconditionally
-     * (same as CustomDynamicAuthorizationManager which converts to permitAll/denyAll).
-     */
-    private boolean evaluateConditions(Policy policy, Set<String> authorities) {
-        if (policy.getRules() == null || policy.getRules().isEmpty()) {
-            return true;
-        }
-
-        boolean hasAnyCondition = false;
-        for (var rule : policy.getRules()) {
-            if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
-                continue;
-            }
-            hasAnyCondition = true;
-            boolean allMet = true;
-            for (PolicyCondition condition : rule.getConditions()) {
-                if (!evaluateExpression(condition.getExpression(), authorities)) {
-                    allMet = false;
-                    break;
-                }
-            }
-            if (allMet) return true;
-        }
-
-        // No conditions found in any rule = unconditional match (permitAll equivalent)
-        return !hasAnyCondition;
+        boolean satisfied = isSatisfied(expression, authentication);
+        return new PolicyOutcome(PolicyCombiningEvaluator.applyEffect(policy.getEffect(), satisfied), expression);
     }
 
     /**
-     * Evaluates a SpEL-like expression against user authorities.
-     * Supports all patterns used in the real authorization system.
+     * Evaluates a method policy like the method enforcement point. A rejected condition is replaced
+     * by the constant condition that yields Deny for the policy effect.
      */
-    private boolean evaluateExpression(String expression, Set<String> authorities) {
-        if (expression == null || expression.isBlank()) return true;
+    private PolicyOutcome evaluateMethodPolicy(Policy policy, Authentication authentication) {
+        String condition = CustomMethodSecurityExpressionHandler.buildPolicyCondition(policy);
+        String evaluatedCondition = PolicyExpressionValidator.findViolation(condition).isPresent()
+                ? CustomMethodSecurityExpressionHandler.rejectedPolicyCondition(policy)
+                : condition;
+        boolean satisfied = isSatisfied(evaluatedCondition, authentication);
+        return new PolicyOutcome(PolicyCombiningEvaluator.applyEffect(policy.getEffect(), satisfied), condition);
+    }
 
-        String trimmed = expression.trim();
-
-        // permitAll / isAuthenticated - always true in simulation context
-        if (trimmed.contains("permitAll") || trimmed.contains("isAuthenticated")) return true;
-
-        // denyAll - always false
-        if (trimmed.equals("denyAll")) return false;
-
-        // AI expressions - treated as true
-        if (trimmed.contains("#ai.")) return true;
-
-        // Handle negation: !(expression)
-        if (trimmed.startsWith("!(") && trimmed.endsWith(")")) {
-            return !evaluateExpression(trimmed.substring(2, trimmed.length() - 1), authorities);
-        }
-
-        // Handle OR: (expr1) or (expr2)
-        if (trimmed.contains(" or ")) {
-            String[] parts = trimmed.split("\\s+or\\s+");
-            for (String part : parts) {
-                String cleaned = part.trim();
-                if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-                    cleaned = cleaned.substring(1, cleaned.length() - 1);
-                }
-                if (evaluateExpression(cleaned, authorities)) return true;
-            }
+    private boolean isSatisfied(String expression, Authentication authentication) {
+        SimulationExpressionRoot root = new SimulationExpressionRoot(authentication);
+        root.setRoleHierarchy(roleHierarchy);
+        root.setDefaultRolePrefix(ROLE_PREFIX);
+        root.setTrustResolver(new AuthenticationTrustResolverImpl());
+        root.setPermissionEvaluator(new DenyAllPermissionEvaluator());
+        StandardEvaluationContext context = new StandardEvaluationContext(root);
+        PolicyExpressionSandbox.apply(context);
+        context.getMethodResolvers().add(0, SIMULATED_AI_RESOLVER);
+        context.setVariable("ai", SIMULATED_AI_ASSESSMENT);
+        try {
+            return Boolean.TRUE.equals(expressionParser.parseExpression(expression).getValue(context, Boolean.class));
+        } catch (RuntimeException e) {
+            // The condition needs facts of a live request or invocation, which a simulation does not have.
             return false;
         }
-
-        // Handle AND: expr1 and expr2
-        if (trimmed.contains(" and ")) {
-            String[] parts = trimmed.split("\\s+and\\s+");
-            for (String part : parts) {
-                String cleaned = part.trim();
-                if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-                    cleaned = cleaned.substring(1, cleaned.length() - 1);
-                }
-                if (!evaluateExpression(cleaned, authorities)) return false;
-            }
-            return true;
-        }
-
-        // hasAnyAuthority('A', 'B', ...)
-        Matcher anyAuthMatcher = HAS_ANY_AUTHORITY_PATTERN.matcher(trimmed);
-        if (anyAuthMatcher.find()) {
-            return matchesAnyQuotedArg(anyAuthMatcher.group(1), authorities, false);
-        }
-
-        // hasAuthority('X')
-        Matcher authMatcher = HAS_AUTHORITY_PATTERN.matcher(trimmed);
-        if (authMatcher.find()) {
-            return authorities.contains(authMatcher.group(1));
-        }
-
-        // hasAnyRole('A', 'B', ...)
-        Matcher anyRoleMatcher = HAS_ANY_ROLE_PATTERN.matcher(trimmed);
-        if (anyRoleMatcher.find()) {
-            return matchesAnyQuotedArg(anyRoleMatcher.group(1), authorities, true);
-        }
-
-        // hasRole('X')
-        Matcher roleMatcher = HAS_ROLE_PATTERN.matcher(trimmed);
-        if (roleMatcher.find()) {
-            String role = roleMatcher.group(1);
-            String fullRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
-            return authorities.contains(fullRole);
-        }
-
-        // Plain authority name (used when conditions are just authority names like "ADMIN")
-        if (!trimmed.contains("(") && !trimmed.contains(" ")) {
-            return authorities.contains(trimmed)
-                    || authorities.contains("ROLE_" + trimmed);
-        }
-
-        // Unknown expression - cannot evaluate, treat as not matched
-        return false;
     }
 
     /**
-     * Extracts quoted arguments and checks if any matches user authorities.
+     * Returns the index of the policy whose decision the combining algorithm returned: the first
+     * applicable decision with the combined outcome, or -1 when no applicable decision has it.
      */
-    private boolean matchesAnyQuotedArg(String argsString, Set<String> authorities, boolean isRole) {
-        Matcher argMatcher = QUOTED_ARG_PATTERN.matcher(argsString);
-        while (argMatcher.find()) {
-            String value = argMatcher.group(1);
-            if (isRole) {
-                String fullRole = value.startsWith("ROLE_") ? value : "ROLE_" + value;
-                if (authorities.contains(fullRole)) return true;
-            } else {
-                if (authorities.contains(value)) return true;
+    private static int decidingIndex(List<AuthorizationDecision> decisions, boolean granted) {
+        for (int index = 0; index < decisions.size(); index++) {
+            AuthorizationDecision decision = decisions.get(index);
+            if (decision != null && decision.isGranted() == granted) {
+                return index;
             }
         }
-        return false;
+        return -1;
+    }
+
+    private static List<Policy> withCandidate(List<Policy> storedPolicies, Policy candidate) {
+        List<Policy> policies = new ArrayList<>();
+        policies.add(candidate);
+        for (Policy stored : storedPolicies) {
+            if (candidate.getId() == null || !candidate.getId().equals(stored.getId())) {
+                policies.add(stored);
+            }
+        }
+        return policies;
+    }
+
+    private static String normalizeHttpMethod(String httpMethod) {
+        return httpMethod != null ? httpMethod.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     private Set<GrantedAuthority> initializeAuthorities(Users user) {
@@ -352,5 +340,46 @@ public class PolicySimulator {
                 });
 
         return authorities;
+    }
+
+    private record CombiningSettings(CombiningAlgorithm algorithm,
+                                     NoPolicyDecision noMatchingUrlPolicyDecision,
+                                     NoPolicyDecision missingMethodPolicyDecision) {
+    }
+
+    private record PolicyOutcome(AuthorizationDecision decision, String expression) {
+    }
+
+    /**
+     * Expression root with the Spring Security operations shared by the URL and method expression
+     * roots of the enforcement points.
+     */
+    private static final class SimulationExpressionRoot extends SecurityExpressionRoot {
+
+        private SimulationExpressionRoot(Authentication authentication) {
+            super(authentication);
+        }
+    }
+
+    /**
+     * Stands in for the AI assessment that only exists for a live request or invocation.
+     */
+    private static final class SimulatedAiAssessment {
+    }
+
+    /**
+     * Resolves every method called on the simulated AI assessment to a satisfied result.
+     */
+    private static final class SimulatedAiAssessmentResolver implements MethodResolver {
+
+        private static final TypedValue SATISFIED = new TypedValue(Boolean.TRUE);
+
+        @Override
+        public MethodExecutor resolve(EvaluationContext context, Object targetObject, String name,
+                                      List<TypeDescriptor> argumentTypes) {
+            return targetObject instanceof SimulatedAiAssessment
+                    ? (evaluationContext, target, arguments) -> SATISFIED
+                    : null;
+        }
     }
 }

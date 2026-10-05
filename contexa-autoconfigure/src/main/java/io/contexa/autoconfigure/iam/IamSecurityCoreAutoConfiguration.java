@@ -42,6 +42,7 @@ import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -155,7 +156,7 @@ public class IamSecurityCoreAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
         public RedisZeroTrustSecurityService zeroTrustSecurityService(
-                RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 ThreatScoreUtil threatScoreUtil,
                 SecurityZeroTrustProperties securityZeroTrustProperties,
                 ZeroTrustActionRepository actionRedisRepository) {
@@ -165,7 +166,8 @@ public class IamSecurityCoreAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(SessionIdResolver.class)
-        public RedisSessionIdResolver redisSessionIdResolver(RedisTemplate<String, Object> redisTemplate,
+        public RedisSessionIdResolver redisSessionIdResolver(
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecuritySessionProperties securitySessionProperties) {
             return new RedisSessionIdResolver(redisTemplate, securitySessionProperties);
         }

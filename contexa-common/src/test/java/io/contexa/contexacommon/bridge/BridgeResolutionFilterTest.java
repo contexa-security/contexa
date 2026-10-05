@@ -21,14 +21,21 @@ import io.contexa.contexacommon.security.bridge.authentication.HostPrincipalSnap
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
+import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthHandoff;
+import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthHandoffResult;
+import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.resolver.*;
+import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -39,6 +46,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class BridgeResolutionFilterTest {
 
@@ -324,6 +333,99 @@ class BridgeResolutionFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 
+    @Test
+    void shouldKeepExplicitHandoffWhenSecurityContextResolvesTheSamePrincipal() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        AtomicInteger filterSyncCalls = new AtomicInteger();
+        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
+        authenticateJwt("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        ContexaAuthHandoffResult handoffResult = handoffHandler(properties)
+                .handoff(request, response, oauth2JwtHandoff("u-100"));
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result).isSameAs(handoffResult.resolutionResult());
+        assertThat(result.authenticationStamp().principalId()).isEqualTo("u-100");
+        assertThat(result.authenticationStamp().authenticationSource()).isEqualTo("EXPLICIT_HANDOFF");
+        assertThat(result.authenticationStamp().mfaCompleted()).isTrue();
+        assertThat(result.authenticationStamp().authenticationType()).isEqualTo("OAUTH2_JWT");
+        assertThat(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).isSameAs(result.authenticationStamp());
+        BridgeProperties.RequestAttributes requestAttributes = properties.getAuthentication().getRequestAttributes();
+        assertThat(request.getAttribute(requestAttributes.getFlatMfaCompleted())).isEqualTo(true);
+        assertThat(request.getAttribute(requestAttributes.getFlatAuthenticationType())).isEqualTo("OAUTH2_JWT");
+        assertThat(filterSyncCalls).hasValue(0);
+    }
+
+    @Test
+    void shouldKeepHandoffOfTheSecurityContextJwtWithoutExplicitPrincipalId() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        AtomicInteger filterSyncCalls = new AtomicInteger();
+        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
+        Authentication jwtAuthentication = authenticateJwt("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        ContexaAuthHandoffResult handoffResult = handoffHandler(properties).handoff(
+                request,
+                response,
+                ContexaAuthHandoff.of(jwtAuthentication).withAuthenticationType("OAUTH2_JWT").withMfaVerified(true));
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result).isSameAs(handoffResult.resolutionResult());
+        assertThat(result.authenticationStamp().principalId()).isEqualTo("u-100");
+        assertThat(result.authenticationStamp().authenticationSource()).isEqualTo("EXPLICIT_HANDOFF");
+        assertThat(result.authenticationStamp().mfaCompleted()).isTrue();
+        assertThat(result.authenticationStamp().attributes()).doesNotContainKey("bridgeHandoffConflict");
+        assertThat(filterSyncCalls).hasValue(0);
+    }
+
+    @Test
+    void shouldUseSecurityContextAndRecordConflictWhenHandoffPrincipalDiffers() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        AtomicInteger filterSyncCalls = new AtomicInteger();
+        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
+        authenticateJwt("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        handoffHandler(properties).handoff(request, response, oauth2JwtHandoff("u-200"));
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        AuthenticationStamp stamp = result.authenticationStamp();
+        assertThat(stamp.principalId()).isEqualTo("u-100");
+        assertThat(stamp.authenticationSource()).isEqualTo("SECURITY_CONTEXT");
+        assertThat(stamp.authenticationType()).isEqualTo("JwtAuthenticationToken");
+        assertThat(stamp.mfaCompleted()).isNull();
+        assertThat(stamp.attributes())
+                .containsEntry("bridgeHandoffConflict", true)
+                .containsEntry("bridgeHandoffPrincipalId", "u-200");
+        assertThat(request.getAttribute(BridgeRequestAttributes.AUTHENTICATION_STAMP)).isSameAs(stamp);
+        assertThat(filterSyncCalls).hasValue(1);
+    }
+
+    @Test
+    void shouldResolveSecurityContextWithoutConflictAttributesWhenNoHandoffHappened() throws Exception {
+        BridgeProperties properties = new BridgeProperties();
+        AtomicInteger filterSyncCalls = new AtomicInteger();
+        BridgeResolutionFilter filter = createSecurityContextFilter(properties, countingMirrorSync(filterSyncCalls));
+        authenticateJwt("u-100", "a@corp.com");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        AuthenticationStamp stamp = result.authenticationStamp();
+        assertThat(stamp.principalId()).isEqualTo("u-100");
+        assertThat(stamp.authenticationSource()).isEqualTo("SECURITY_CONTEXT");
+        assertThat(stamp.attributes()).doesNotContainKeys("bridgeHandoffConflict", "bridgeHandoffPrincipalId");
+        assertThat(filterSyncCalls).hasValue(1);
+    }
+
     private BridgeResolutionFilter createExternalContextFilter() {
         BridgeProperties properties = new BridgeProperties();
         enableTrustedHeaders(properties);
@@ -383,6 +485,58 @@ class BridgeResolutionFilterTest {
                 List.of(),
                 new BridgeCoverageEvaluator()
         );
+    }
+
+    private BridgeResolutionFilter createSecurityContextFilter(
+            BridgeProperties properties,
+            BridgeUserMirrorSyncService bridgeUserMirrorSyncService) {
+        return new BridgeResolutionFilter(
+                properties,
+                new RequestContextCollector(),
+                List.of(new SecurityContextAuthenticationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver()),
+                List.of(),
+                new BridgeCoverageEvaluator(),
+                bridgeUserMirrorSyncService,
+                new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService),
+                null
+        );
+    }
+
+    private BridgeUserMirrorSyncService countingMirrorSync(AtomicInteger calls) {
+        return (authenticationStamp, authorizationStamp, requestContext) -> {
+            calls.incrementAndGet();
+            return null;
+        };
+    }
+
+    private DefaultContexaAuthBridgeHandler handoffHandler(BridgeProperties properties) {
+        return new DefaultContexaAuthBridgeHandler(
+                properties,
+                new RequestContextCollector(),
+                new BridgeCoverageEvaluator(),
+                new BridgeRuntimeSupport(properties, null),
+                null);
+    }
+
+    private ContexaAuthHandoff oauth2JwtHandoff(String principalId) {
+        return ContexaAuthHandoff.of(
+                        principalId,
+                        List.of("ROLE_USER"),
+                        Map.of("principalId", principalId))
+                .withAuthenticationType("OAUTH2_JWT")
+                .withMfaVerified(true);
+    }
+
+    private Authentication authenticateJwt(String subject, String email) {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", subject)
+                .claim("email", email)
+                .build();
+        Authentication authentication = new JwtAuthenticationToken(jwt, AuthorityUtils.createAuthorityList("SCOPE_reports"));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        return authentication;
     }
 
     private Authentication authenticateHost(String username, String... authorities) {

@@ -1,0 +1,28 @@
+{
+  "key": "A1",
+  "order": 1,
+  "question": {
+    "ko": "엔지니어 K의 계정이 처음 보는 기기와 회사 밖 네트워크에서 로그인해 오전 09:40 설계 문서를 엽니다.",
+    "en": "Engineer K's account signs in from a new device outside the company network and opens design documents at 09:40."
+  },
+  "scenes": [
+    {
+      "kind": "ATTACK",
+      "scenario": "A1",
+      "sentence": {
+        "ko": "엔지니어 K의 계정이 처음 보는 기기와 회사 밖 네트워크에서 로그인해 오전 09:40 설계 문서를 엽니다.",
+        "en": "Engineer K's account signs in from a new device outside the company network and opens design documents at 09:40."
+      },
+      "featuredStep": 1
+    },
+    {
+      "kind": "LEGITIMATE",
+      "scenario": "A1T",
+      "sentence": {
+        "ko": "엔지니어 K가 등록된 싱가포르 출장지 네트워크에서 평소 기기로 같은 설계 문서를 엽니다.",
+        "en": "Engineer K opens the same design documents with the usual device from the network of a registered trip to Singapore."
+      },
+      "featuredStep": 1
+    }
+  ]
+}

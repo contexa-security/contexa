@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +24,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
  * Uses ConcurrentHashMap instead of Redis Hash/String operations.
  */
 @Slf4j
-public class InMemoryZeroTrustActionRepository implements ZeroTrustActionRepository {
+public class InMemoryZeroTrustActionRepository implements ZeroTrustActionRepository, ExpiringStateStore {
 
     private final ConcurrentHashMap<String, AnalysisEntry> analysisStore = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ActionEntry> lastVerifiedStore = new ConcurrentHashMap<>();
@@ -46,6 +48,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, Instant> mfaPendingExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> escalateRetries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, Instant>> decisionAuditPending = new ConcurrentHashMap<>();
+    private static final String DECISION_AUDIT_NO_CONTEXT = "no-context";
 
     private final Duration failCountTtl;
     private final Clock clock;
@@ -77,7 +81,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (entry != null && entry.action != null) {
             ZeroTrustAction action = ZeroTrustAction.fromString(entry.action);
             if (isExpired(entry)) {
-                return ZeroTrustAction.PENDING_ANALYSIS;
+                return unresolvedEscalationOrPending(userId);
             }
             return action;
         }
@@ -104,7 +108,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (entry != null && entry.action != null) {
             ZeroTrustAction action = ZeroTrustAction.fromString(entry.action);
             if (isExpired(entry)) {
-                return ZeroTrustAction.PENDING_ANALYSIS;
+                return unresolvedEscalationOrPending(userId);
             }
             if (requiresFreshAnalysis(action, contextBindingHash, entry.contextBindingHash)) {
                 log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
@@ -158,7 +162,9 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return null;
         }
         AnalysisEntry entry = analysisStore.get(userId);
-        return entry != null && entry.action != null ? ZeroTrustAction.fromString(entry.action) : null;
+        return entry != null && entry.action != null && !isExpired(entry)
+                ? ZeroTrustAction.fromString(entry.action)
+                : null;
     }
 
     @Override
@@ -333,6 +339,32 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         }
     }
 
+    /**
+     * Stores the final analysis result unless it is less strict than an active user-level
+     * CHALLENGE or ESCALATE, whichever session it was analysed for. The stricter action then
+     * stays in effect and the write is reported as applied.
+     */
+    @Override
+    public boolean saveFinalAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields) {
+        if (userId == null || action == null) {
+            return ZeroTrustActionRepository.super.saveFinalAction(userId, action, additionalFields);
+        }
+
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+        lock.lock();
+        try {
+            AnalysisEntry active = analysisStore.get(userId);
+            boolean keepsActiveRestriction = active != null && active.action != null && !isExpired(active)
+                    && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
+            if (!keepsActiveRestriction) {
+                saveAction(userId, action, additionalFields);
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     @Override
     public void saveActionWithPrevious(String userId, ZeroTrustAction newAction) {
         if (userId == null || newAction == null) {
@@ -457,7 +489,8 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
         lock.lock();
         try {
-            if (getCurrentAction(userId) != ZeroTrustAction.BLOCK) {
+            // BLOCK, ESCALATE and CHALLENGE restrict the user rather than the session that logs out.
+            if (!getCurrentAction(userId).isAccessRestricted()) {
                 removeAllUserData(userId);
             }
         } finally {
@@ -476,6 +509,100 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         mfaFailCounts.remove(userId);
         mfaPendingExpiry.remove(userId);
         escalateRetries.remove(userId);
+        decisionAuditPending.remove(userId);
+    }
+
+    @Override
+    public void markDecisionAuditPending(String userId, String contextBindingHash, Duration ttl) {
+        if (userId == null || userId.isBlank() || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return;
+        }
+        decisionAuditPending
+                .computeIfAbsent(userId, key -> new ConcurrentHashMap<>())
+                .put(decisionAuditContextKey(contextBindingHash), clock.instant().plus(ttl));
+    }
+
+    @Override
+    public boolean isDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        Map<String, Instant> contexts = decisionAuditPending.get(userId);
+        if (contexts == null) {
+            return false;
+        }
+        String contextKey = decisionAuditContextKey(contextBindingHash);
+        Instant expiresAt = contexts.get(contextKey);
+        if (expiresAt == null) {
+            return false;
+        }
+        if (clock.instant().isBefore(expiresAt)) {
+            return true;
+        }
+        contexts.remove(contextKey, expiresAt);
+        return false;
+    }
+
+    @Override
+    public void clearDecisionAuditPending(String userId, String contextBindingHash) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        Map<String, Instant> contexts = decisionAuditPending.get(userId);
+        if (contexts != null) {
+            contexts.remove(decisionAuditContextKey(contextBindingHash));
+        }
+    }
+
+    /**
+     * Releases decisions, MFA counters, retry and audit markers that no read can return any more. A user's decision
+     * is dropped only once both its analysis entry and its 24 h last-verified record are expired, so every read keeps
+     * its current result. Decisions without a TTL (BLOCK) stay. Per-user locks stay: they are bounded by the user
+     * population and are removed with the user's data.
+     */
+    @Override
+    public void removeExpiredEntries() {
+        Set<String> users = new HashSet<>(analysisStore.keySet());
+        users.addAll(lastVerifiedStore.keySet());
+        for (String userId : users) {
+            ReentrantLock lock = userLocks.computeIfAbsent(userId, key -> new ReentrantLock());
+            if (!lock.tryLock()) {
+                continue;
+            }
+            try {
+                AnalysisEntry analysis = analysisStore.get(userId);
+                ActionEntry lastVerified = lastVerifiedStore.get(userId);
+                if ((analysis == null || isExpired(analysis)) && (lastVerified == null || isExpired(lastVerified))) {
+                    analysisStore.remove(userId);
+                    lastVerifiedStore.remove(userId);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+        Instant now = clock.instant();
+        mfaFailCounts.forEach((userId, entry) -> {
+            if (now.isAfter(entry.expiresAt)) {
+                mfaFailCounts.remove(userId, entry);
+            }
+        });
+        removeExpiredInstants(mfaPendingExpiry, now);
+        removeExpiredInstants(escalateRetries, now);
+        decisionAuditPending.values().forEach(contexts -> removeExpiredInstants(contexts, now));
+    }
+
+    private static void removeExpiredInstants(Map<String, Instant> expiries, Instant now) {
+        expiries.forEach((key, expiresAt) -> {
+            if (!now.isBefore(expiresAt)) {
+                expiries.remove(key, expiresAt);
+            }
+        });
+    }
+
+    private String decisionAuditContextKey(String contextBindingHash) {
+        return contextBindingHash == null || contextBindingHash.isBlank()
+                ? DECISION_AUDIT_NO_CONTEXT
+                : contextBindingHash;
     }
 
     @Override
@@ -495,11 +622,19 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     private boolean isExpired(AnalysisEntry entry) {
-        return entry.expiresAt != null && Instant.now().isAfter(entry.expiresAt);
+        return entry.expiresAt != null && clock.instant().isAfter(entry.expiresAt);
     }
 
     private boolean isExpired(ActionEntry entry) {
-        return entry.expiresAt != null && Instant.now().isAfter(entry.expiresAt);
+        return entry.expiresAt != null && clock.instant().isAfter(entry.expiresAt);
+    }
+
+    // An ESCALATE whose TTL ends without resolution keeps reading as ESCALATE through its 24 h last-verified
+    // record, so the access filter promotes it to BLOCK; every other expired action reads as PENDING_ANALYSIS.
+    private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
+        return getLastVerifiedAction(userId) == ZeroTrustAction.ESCALATE
+                ? ZeroTrustAction.ESCALATE
+                : ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     private static class AnalysisEntry {
@@ -519,9 +654,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     private boolean requiresFreshAnalysis(ZeroTrustAction action, String requestedContextHash, String storedContextHash) {
-        return action != null
-                && action != ZeroTrustAction.PENDING_ANALYSIS
-                && action != ZeroTrustAction.BLOCK
+        return ZeroTrustActionPrecedence.isContextBound(action)
                 && requestedContextHash != null
                 && storedContextHash != null
                 && !storedContextHash.equals(requestedContextHash);
@@ -541,5 +674,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             this.count = count;
             this.expiresAt = expiresAt;
         }
+    }
+
+    boolean holdsStateFor(String userId) {
+        return analysisStore.containsKey(userId) || lastVerifiedStore.containsKey(userId)
+                || mfaPendingExpiry.containsKey(userId) || escalateRetries.containsKey(userId)
+                || mfaFailCounts.containsKey(userId);
     }
 }

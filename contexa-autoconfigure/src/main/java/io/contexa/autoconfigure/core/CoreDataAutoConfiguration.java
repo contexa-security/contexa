@@ -25,14 +25,16 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.jdbc.DatabaseDriver;
 import org.springframework.context.EnvironmentAware;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -50,17 +52,23 @@ import java.util.Map;
 import java.util.Set;
 
 @AutoConfiguration
-@AutoConfigureAfter({DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class})
+@AutoConfigureAfter({DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class,
+        JpaRepositoriesAutoConfiguration.class})
 @ConditionalOnClass(name = "jakarta.persistence.EntityManager")
 @ConditionalOnBean(PlatformConfig.class)
 @EnableConfigurationProperties(ContexaDataSourceProperties.class)
 public class CoreDataAutoConfiguration implements EnvironmentAware {
 
-    @Bean
+    /**
+     * Registers the Contexa repositories while this auto-configuration is processed, so auto-configurations
+     * ordered after it see them in {@code @ConditionalOnBean}. Ordered after
+     * {@link JpaRepositoriesAutoConfiguration} so the Contexa repository factory beans do not make Spring Boot
+     * back off from registering the application's own repositories.
+     */
+    @Configuration(proxyBeanMethods = false)
     @ConditionalOnProperty(prefix = "contexa.jpa.repositories", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public static ContexaRepositoriesPostProcessor contexaRepositoriesPostProcessor(
-            Environment environment, ResourceLoader resourceLoader) {
-        return new ContexaRepositoriesPostProcessor(environment, resourceLoader);
+    @Import(ContexaRepositoriesPostProcessor.class)
+    static class ContexaRepositoriesRegistration {
     }
 
     private static final List<String> DEFAULT_PACKAGES_TO_SCAN = List.of(

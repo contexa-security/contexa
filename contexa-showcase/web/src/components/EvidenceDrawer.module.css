@@ -1,0 +1,115 @@
+.drawer {
+  width: min(36rem, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-inline-start: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-body);
+}
+
+.drawer::backdrop {
+  background-color: var(--color-backdrop);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-6);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.title {
+  font-size: var(--text-lg);
+}
+
+.close {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.summary {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.chain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.link {
+  display: grid;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.link[data-primary='true'] {
+  border: 1px solid var(--color-accent);
+}
+
+.link dt {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.link dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.primary {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-sm);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.decisionId {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.reasoningTitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-subtle);
+}

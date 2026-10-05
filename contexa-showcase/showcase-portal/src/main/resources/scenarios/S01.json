@@ -1,0 +1,65 @@
+{
+  "key": "S01",
+  "version": 1,
+  "title": {
+    "ko": "담당 업무의 정상 반복",
+    "en": "Routine work on an assigned project"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "HX-310",
+      "items": 20,
+      "offsetSeconds": 600,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

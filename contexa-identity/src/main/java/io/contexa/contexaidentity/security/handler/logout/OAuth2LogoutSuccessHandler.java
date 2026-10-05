@@ -23,17 +23,35 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 
 import java.io.IOException;
 import java.util.Map;
+import io.contexa.contexaidentity.security.utils.WebUtil;
+import org.springframework.lang.Nullable;
+import org.springframework.util.StringUtils;
 
 /**
  * LogoutSuccessHandler for OAuth2/REST flows.
- * Writes JSON response {"status":"LOGGED_OUT"} after successful logout.
+ * Writes JSON response {"status":"LOGGED_OUT"} after successful logout. When a logout success URL is set,
+ * a plain browser submission is redirected there instead, as the session state does.
  */
 public class OAuth2LogoutSuccessHandler implements LogoutSuccessHandler {
 
     private final AuthResponseWriter responseWriter;
+    @Nullable
+    private final String logoutSuccessUrl;
 
     public OAuth2LogoutSuccessHandler(AuthResponseWriter responseWriter) {
+        this(responseWriter, null);
+    }
+
+    public OAuth2LogoutSuccessHandler(AuthResponseWriter responseWriter, @Nullable String logoutSuccessUrl) {
         this.responseWriter = responseWriter;
+        this.logoutSuccessUrl = logoutSuccessUrl;
+    }
+
+    /**
+     * Returns a handler that redirects plain browser submissions to the given URL of a flow.
+     */
+    public OAuth2LogoutSuccessHandler withLogoutSuccessUrl(@Nullable String url) {
+        return new OAuth2LogoutSuccessHandler(responseWriter, url);
     }
 
     @Override
@@ -41,6 +59,11 @@ public class OAuth2LogoutSuccessHandler implements LogoutSuccessHandler {
             throws IOException {
 
         if (response.isCommitted()) {
+            return;
+        }
+
+        if (StringUtils.hasText(logoutSuccessUrl) && !WebUtil.isApiOrAjaxRequest(request)) {
+            response.sendRedirect(request.getContextPath() + logoutSuccessUrl);
             return;
         }
 

@@ -100,14 +100,15 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, options
         );
 
-        if (stateType == StateType.SESSION
-                && http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
-        } else if (securityContextRepository instanceof HttpSessionSecurityContextRepository) {
-            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
-        } else if (stateType != StateType.SESSION) {
-            http.setSharedObject(SecurityContextRepository.class, new NullSecurityContextRepository());
-        } else if (!(securityContextRepository instanceof NullSecurityContextRepository)) {
-            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+        // For a token state the chain repository is decided once by the state adapter, which runs after every
+        // authentication adapter; letting each factor overwrite it made the result depend on the factor order.
+        if (stateType == StateType.SESSION) {
+            if (http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
+            } else if (securityContextRepository instanceof HttpSessionSecurityContextRepository) {
+                http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+            } else if (!(securityContextRepository instanceof NullSecurityContextRepository)) {
+                http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+            }
         }
 
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
@@ -198,6 +199,16 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             return null;
         }
         return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+    }
+
+    /**
+     * Resolves the state type of the flow that is being configured on the given chain.
+     */
+    protected StateType resolveStateType(HttpSecurity http, @Nullable AuthenticationFlowConfig currentFlow) {
+        PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
+        Assert.state(platformContext != null, "PlatformContext not found in HttpSecurity shared objects.");
+        return determineStateType(currentFlow != null ? currentFlow.getStateConfig() : null,
+                platformContext.applicationContext());
     }
 
     protected StateType determineStateType(@Nullable StateConfig stateConfig, ApplicationContext appContext) {

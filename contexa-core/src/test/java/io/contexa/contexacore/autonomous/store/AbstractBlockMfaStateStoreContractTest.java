@@ -120,4 +120,16 @@ abstract class AbstractBlockMfaStateStoreContractTest {
     void getFailCount_unknownUser_returnsZero() {
         assertThat(store.getFailCount("ghost-user")).isZero();
     }
+
+    @Test
+    @DisplayName("clearing a user removes its BLOCK MFA verification")
+    void clearUser_removesVerification() {
+        store.setVerified("gina");
+        store.setVerified("hank");
+
+        store.clearUser("gina");
+
+        assertThat(store.isVerified("gina")).isFalse();
+        assertThat(store.isVerified("hank")).isTrue();
+    }
 }

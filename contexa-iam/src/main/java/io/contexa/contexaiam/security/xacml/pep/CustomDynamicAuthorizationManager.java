@@ -27,6 +27,8 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyEvaluationOrder;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConverter;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -37,23 +39,36 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcherEntry;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
+/**
+ * URL policy enforcement point.
+ *
+ * <p>ALLOW policies yield Permit when their condition holds and Deny otherwise. DENY policies yield
+ * Deny when their condition holds and NotApplicable otherwise, so a non-matching DENY policy never
+ * grants access and never hides lower-priority policies. NotApplicable results are excluded from
+ * combining; when matching policies exist but none applies, DENY_UNLESS_PERMIT denies and the other
+ * algorithms use the no-matching-policy decision.</p>
+ *
+ * <p>A policy whose condition is rejected by {@link PolicyExpressionValidator} while loading is not
+ * compiled. Its URL targets are mapped to a constant Deny instead, because dropping the policy could
+ * open the target through the no-matching-policy default.</p>
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class CustomDynamicAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
+
+    private static final AuthorizationManager<RequestAuthorizationContext> REJECTED_POLICY_MANAGER =
+            (authentication, context) -> new AuthorizationDecision(false);
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ExpressionAuthorizationManagerResolver managerResolver;
@@ -77,38 +92,45 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private void initialize() {
         List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> loadedMappings = new ArrayList<>();
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies().stream()
-                .sorted(Comparator.comparingInt(Policy::getPriority))
+                .sorted(PolicyEvaluationOrder.urlOrder())
                 .toList();
 
         for (Policy policy : urlPolicies) {
-            if (!isExecutable(policy)) {
+            if (!PolicyEvaluationOrder.isExecutable(policy)) {
                 continue;
             }
-            String expression = getExpressionFromPolicy(policy);
-            for (PolicyTarget target : policy.getTargets()) {
-                if (!"URL".equals(target.getTargetType())) {
-                    continue;
-                }
-                String httpMethod = target.getHttpMethod();
-                RequestMatcher matcher;
-                if (httpMethod != null && !"ANY".equals(httpMethod) && !"ALL".equals(httpMethod)) {
-                    matcher = PathPatternRequestMatcher.withDefaults()
-                            .matcher(HttpMethod.valueOf(httpMethod), target.getTargetIdentifier());
-                } else {
-                    matcher = PathPatternRequestMatcher.withDefaults().matcher(target.getTargetIdentifier());
-                }
-                loadedMappings.add(new RequestMatcherEntry<>(matcher, managerResolver.resolve(expression)));
+            List<PolicyTarget> urlTargets = policy.getTargets().stream()
+                    .filter(target -> "URL".equals(target.getTargetType()))
+                    .toList();
+            if (urlTargets.isEmpty()) {
+                continue;
+            }
+            AuthorizationManager<RequestAuthorizationContext> policyManager = createPolicyManager(policy);
+            for (PolicyTarget target : urlTargets) {
+                RequestMatcher matcher = UrlPolicyTargetMatcher.requestMatcher(target);
+                loadedMappings.add(new RequestMatcherEntry<>(matcher, policyManager));
             }
         }
         mappings = List.copyOf(loadedMappings);
     }
 
-    private boolean isExecutable(Policy policy) {
-        if (policy == null || !Boolean.TRUE.equals(policy.getIsActive())) {
-            return false;
+    private AuthorizationManager<RequestAuthorizationContext> createPolicyManager(Policy policy) {
+        String violation;
+        try {
+            String expression = getExpressionFromPolicy(policy);
+            violation = expressionConverter.findLoadViolation(policy, expression);
+            if (violation == null) {
+                AuthorizationManager<RequestAuthorizationContext> conditionManager = managerResolver.resolve(expression);
+                return policy.getEffect() == Policy.Effect.DENY
+                        ? new DenyEffectAuthorizationManager(conditionManager)
+                        : conditionManager;
+            }
+        } catch (RuntimeException e) {
+            violation = "Policy expression cannot be compiled: " + e.getMessage();
         }
-        Policy.ApprovalStatus status = policy.getApprovalStatus();
-        return status == Policy.ApprovalStatus.APPROVED || status == Policy.ApprovalStatus.NOT_REQUIRED;
+        log.error("URL policy rejected while loading, its targets are denied. policyId={}, name={}, reason={}",
+                policy.getId(), policy.getName(), violation);
+        return REJECTED_POLICY_MANAGER;
     }
 
     @Override
@@ -120,6 +142,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         CombiningAlgorithm currentAlgorithm = combiningAlgorithm;
         NoPolicyDecision currentNoPolicyDecision = noMatchingUrlPolicyDecision;
         boolean firstApplicable = currentAlgorithm == CombiningAlgorithm.FIRST_APPLICABLE;
+        // One entry per matching policy; null marks a NotApplicable DENY policy.
         List<AuthorizationDecision> matchedDecisions = new ArrayList<>();
         List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> currentMappings = mappings;
 
@@ -130,18 +153,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             }
             AuthorizationDecision decision = mapping.getEntry().check(authenticationSupplier,
                     new RequestAuthorizationContext(request, matchResult.getVariables()));
-            if (decision == null) {
-                continue;
-            }
-            if (firstApplicable) {
+            if (decision != null && firstApplicable) {
                 return complete(authentication, request, decision, startedAt);
             }
             matchedDecisions.add(decision);
         }
 
-        AuthorizationDecision finalDecision = matchedDecisions.isEmpty()
-                ? new AuthorizationDecision(currentNoPolicyDecision.isGranted())
-                : combiningEvaluator.evaluate(matchedDecisions, currentAlgorithm);
+        AuthorizationDecision finalDecision = combiningEvaluator.evaluate(
+                matchedDecisions, currentAlgorithm, currentNoPolicyDecision);
         return complete(authentication, request, finalDecision, startedAt);
     }
 
@@ -224,5 +243,29 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         this.noMatchingUrlPolicyDecision = noMatchingUrlPolicyDecision != null
                 ? noMatchingUrlPolicyDecision
                 : NoPolicyDecision.PERMIT;
+    }
+
+    public CombiningAlgorithm getCombiningAlgorithm() {
+        return combiningAlgorithm;
+    }
+
+    public NoPolicyDecision getNoMatchingUrlPolicyDecision() {
+        return noMatchingUrlPolicyDecision;
+    }
+
+    /**
+     * Applies the DENY effect to a condition: a satisfied condition is Deny and an unsatisfied
+     * condition is NotApplicable ({@code null}).
+     */
+    private record DenyEffectAuthorizationManager(AuthorizationManager<RequestAuthorizationContext> condition)
+            implements AuthorizationManager<RequestAuthorizationContext> {
+
+        @Override
+        public AuthorizationDecision check(Supplier<Authentication> authentication,
+                                           RequestAuthorizationContext context) {
+            AuthorizationDecision conditionResult = condition.check(authentication, context);
+            return PolicyCombiningEvaluator.applyEffect(
+                    Policy.Effect.DENY, conditionResult != null && conditionResult.isGranted());
+        }
     }
 }

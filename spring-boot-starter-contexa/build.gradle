@@ -34,6 +34,34 @@ dependencies {
     testImplementation 'org.awaitility:awaitility:4.2.0'
 }
 
+// The boot jar is the standalone Contexa platform image (PostgreSQL + Ollama, see the repository Dockerfile).
+// Dependencies declared in 'standaloneImage' are bundled into the boot jar only. Library consumers resolve the
+// published api/implementation dependencies and keep choosing their own Spring AI provider.
+configurations {
+    standaloneImage {
+        canBeConsumed = false
+        canBeResolved = false
+    }
+    standaloneImageRuntimeClasspath {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom configurations.implementation, configurations.runtimeOnly, configurations.standaloneImage
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                    objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+}
+
+dependencies {
+    standaloneImage 'org.springframework.ai:spring-ai-starter-model-ollama'
+    standaloneImage 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+}
+
 bootJar.enabled = true
 jar.enabled = true
 
@@ -51,6 +79,7 @@ tasks.named('bootRun') {
 
 tasks.named('bootJar') {
     mainClass = 'io.contexa.springbootstartercontexa.SpringBootStarterContexaApplication'
+    classpath = files(sourceSets.main.output, configurations.standaloneImageRuntimeClasspath)
 }
 
 tasks.named('test') {

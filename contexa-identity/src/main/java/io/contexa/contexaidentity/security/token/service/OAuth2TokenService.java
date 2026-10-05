@@ -16,7 +16,9 @@
 package io.contexa.contexaidentity.security.token.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -40,6 +42,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -59,8 +62,14 @@ public class OAuth2TokenService implements TokenService {
     private final AuthContextProperties properties;
     private final ObjectMapper objectMapper;
     private final TokenTransportStrategy transportStrategy;
+    private volatile ZeroTrustActionRepository zeroTrustActionRepository;
 
     private static final String CLIENT_REGISTRATION_ID = "aidc-internal";
+
+    /**
+     * Error code of a refresh refused because the user must complete a zero trust MFA challenge first.
+     */
+    public static final String MFA_CHALLENGE_REQUIRED_ERROR = "mfa_challenge_required";
 
     public OAuth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
@@ -98,19 +107,7 @@ public class OAuth2TokenService implements TokenService {
             builder.attribute("device_id", deviceId);
         }
 
-        try {
-            ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-
-            if (requestAttributes != null) {
-                HttpServletRequest req = requestAttributes.getRequest();
-                HttpServletResponse res = requestAttributes.getResponse();
-
-                builder.attribute(HttpServletRequest.class.getName(), req);
-                builder.attribute(HttpServletResponse.class.getName(), res);
-            }
-        } catch (Exception ex) {
-            log.error("Failed to extract HttpServletRequest/Response from RequestContextHolder", ex);
-        }
+        addCurrentRequestAttributes(builder);
 
         OAuth2AuthorizeRequest authorizeRequest = builder.build();
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
@@ -206,6 +203,16 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("invalid_token", "Refresh token is expired", null));
         }
 
+        OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = authorization.getAccessToken();
+        if (accessTokenMeta == null) {
+            log.error("OAuth2Authorization has no access token for refresh");
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("invalid_token", "Authorization has no access token", null));
+        }
+
+        String principalName = authorization.getPrincipalName();
+        rejectWhenZeroTrustForbidsRefresh(principalName);
+
         ClientRegistration clientRegistration = clientRegistrationRepository.findByRegistrationId(CLIENT_REGISTRATION_ID);
         if (clientRegistration == null) {
             log.error("ClientRegistration not found: {}", CLIENT_REGISTRATION_ID);
@@ -213,7 +220,6 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("server_error", "Client registration not configured", null));
         }
 
-        String principalName = authorization.getPrincipalName();
         List<GrantedAuthority> authorities = authorization.getAuthorizedScopes().stream()
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
@@ -221,12 +227,17 @@ public class OAuth2TokenService implements TokenService {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 principalName, null, authorities);
 
-        OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
-                .withClientRegistrationId(CLIENT_REGISTRATION_ID)
-                .principal(authentication)
-                .build();
+        // Hand the presented refresh token to the Spring refresh provider explicitly; the Spring
+        // Authorization Server then validates and rotates it through its refresh_token grant.
+        OAuth2AuthorizedClient currentClient = new OAuth2AuthorizedClient(
+                clientRegistration, principalName, accessTokenMeta.getToken(), refreshTokenMeta.getToken());
 
-        OAuth2AuthorizedClient refreshedClient = authorizedClientManager.authorize(authorizeRequest);
+        OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
+                .withAuthorizedClient(currentClient)
+                .principal(authentication);
+        addCurrentRequestAttributes(builder);
+
+        OAuth2AuthorizedClient refreshedClient = authorizedClientManager.authorize(builder.build());
 
         if (refreshedClient == null) {
             log.error("OAuth2AuthorizedClientManager failed to refresh token");
@@ -241,6 +252,42 @@ public class OAuth2TokenService implements TokenService {
                 : refreshToken;
 
         return new RefreshResult(newAccessToken, newRefreshToken);
+    }
+
+    public void setZeroTrustActionRepository(@Nullable ZeroTrustActionRepository zeroTrustActionRepository) {
+        this.zeroTrustActionRepository = zeroTrustActionRepository;
+    }
+
+    private void rejectWhenZeroTrustForbidsRefresh(String principalName) {
+        ZeroTrustActionRepository repository = this.zeroTrustActionRepository;
+        if (repository == null) {
+            return;
+        }
+        ZeroTrustAction action = repository.getCurrentAction(principalName);
+        if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.ESCALATE) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.ACCESS_DENIED,
+                    "Token refresh is not allowed while the zero trust action is " + action, null));
+        }
+        if (action == ZeroTrustAction.CHALLENGE) {
+            throw new OAuth2AuthenticationException(new OAuth2Error(MFA_CHALLENGE_REQUIRED_ERROR,
+                    "Token refresh requires completing the zero trust MFA challenge", null));
+        }
+    }
+
+    private void addCurrentRequestAttributes(OAuth2AuthorizeRequest.Builder builder) {
+        try {
+            ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+
+            if (requestAttributes != null) {
+                HttpServletRequest req = requestAttributes.getRequest();
+                HttpServletResponse res = requestAttributes.getResponse();
+
+                builder.attribute(HttpServletRequest.class.getName(), req);
+                builder.attribute(HttpServletResponse.class.getName(), res);
+            }
+        } catch (Exception ex) {
+            log.error("Failed to extract HttpServletRequest/Response from RequestContextHolder", ex);
+        }
     }
 
     @Override

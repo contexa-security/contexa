@@ -19,6 +19,8 @@ import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
@@ -72,6 +74,8 @@ import java.util.UUID;
 
 @Slf4j
 public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler {
+
+    public static final String NEXT_ACTION_PASSKEY_REGISTRATION = "PASSKEY_REGISTRATION";
 
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
@@ -141,6 +145,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         persistSessionAuthentication(finalAuthentication, request, response, stateType);
 
+        // Final success (including MFA not required): tokens are issued and the final authentication
+        // is persisted, so the session no longer has to be restricted to MFA progress requests.
+        MfaPendingSessionMarker.clear(request);
+
         String successStage = "releaseStateMachine";
         try {
             if (factorContext != null && factorContext.getMfaSessionId() != null) {
@@ -151,7 +159,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             String userId = finalAuthentication.getName();
             if (factorContext != null && factorContext.isCompleted()) {
-                log.error("completed but factorContext is not null: {}", factorContext.isCompleted());
                 Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
                 if (Boolean.TRUE.equals(blockMfaFlow)) {
                     handleBlockMfaSuccess(userId, request, response);
@@ -163,11 +170,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 resetActionOnMfaSuccess(userId, request, factorContext);
                 successStage = "recordMfaCompletionInSession";
                 recordMfaCompletionInSession(request, factorContext);
-                log.error("Action: {}", actionRedisRepository.getCurrentAction(userId));
             }
 
+            successStage = "resolvePasskeyRegistrationIntent";
+            String passkeyRegistrationUrl = resolvePasskeyRegistrationRedirect(request, response, factorContext);
+
             successStage = "buildResponseData";
-            Map<String, Object> responseData = buildResponseData(stateType, transportResult, request, response);
+            Map<String, Object> responseData = buildResponseData(
+                    stateType, transportResult, request, response, passkeyRegistrationUrl);
             TokenTransportResult finalResult = TokenTransportResult.builder()
                     .body(responseData)
                     .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
@@ -185,7 +195,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             successStage = "processDefaultResponse";
             if (!response.isCommitted()) {
-                processDefaultResponse(request, response, stateType, finalResult);
+                processDefaultResponse(request, response, stateType, finalResult, passkeyRegistrationUrl);
             }
 
             successStage = "auditAuthenticationSuccess";
@@ -296,13 +306,40 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     }
 
+    /**
+     * Consumes the passkey registration intent recorded for the completed MFA session. When it is
+     * present, the regular post-login target is kept as the return URL of the passkey registration
+     * page, and the passkey registration page becomes the target of this response.
+     *
+     * @return the passkey registration page URL, or {@code null} to keep the regular target
+     */
+    @Nullable
+    private String resolvePasskeyRegistrationRedirect(HttpServletRequest request,
+                                                      HttpServletResponse response,
+                                                      @Nullable FactorContext factorContext) {
+        String mfaSessionId = factorContext != null ? factorContext.getMfaSessionId() : null;
+        if (!MfaPasskeyRegistrationIntent.consume(request, mfaSessionId)) {
+            return null;
+        }
+        MfaPasskeyRegistrationIntent.storeReturnUrl(request, determineTargetUrl(request, response));
+        return request.getContextPath() + resolveProvider(request, factorContext).getPasskeyRegistrationPage();
+    }
+
     private void processDefaultResponse(HttpServletRequest request, HttpServletResponse response, StateType stateType,
-                                        TokenTransportResult result) throws IOException {
+                                        TokenTransportResult result,
+                                        @Nullable String targetUrlOverride) throws IOException {
 
         setCookies(response, result);
         if (stateType == StateType.SESSION && !isApiRequest(request)) {
-            String targetUrl = determineTargetUrl(request, response);
+            String targetUrl = targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response);
             response.sendRedirect(targetUrl);
+        } else if (stateType == StateType.OAUTH2 && !isApiRequest(request)) {
+            // A plain form submission of a browser follows a redirect, as the single-factor OAuth2 login does.
+            // The target was resolved once for the response body; resolving it again would consume the
+            // saved request a second time.
+            Object redirectUrl = result.getBody() != null ? result.getBody().get("redirectUrl") : null;
+            response.sendRedirect(redirectUrl != null ? redirectUrl.toString()
+                    : (targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response)));
         } else {
             writeJsonResponse(response, result.getBody());
         }
@@ -455,7 +492,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             StateType stateType,
             @Nullable TokenTransportResult transportResult,
             HttpServletRequest request,
-            HttpServletResponse response) {
+            HttpServletResponse response,
+            @Nullable String targetUrlOverride) {
 
         Map<String, Object> responseData = new HashMap<>();
 
@@ -468,8 +506,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "Authentication completed.");
-        responseData.put("redirectUrl", determineTargetUrl(request, response));
+        responseData.put("redirectUrl",
+                targetUrlOverride != null ? targetUrlOverride : determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());
+        if (targetUrlOverride != null) {
+            // Lets a SPA, which receives this JSON instead of following the redirect, open its own
+            // passkey registration view.
+            responseData.put("nextAction", NEXT_ACTION_PASSKEY_REGISTRATION);
+        }
 
         return responseData;
     }
@@ -555,6 +599,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private String extractUserAgent(HttpServletRequest request) {
         return request.getHeader("User-Agent");
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request, @Nullable FactorContext factorContext) {
+        if (factorContext != null && factorContext.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(factorContext.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return resolveProvider(request);
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request) {
@@ -685,7 +739,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
-                String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+                // Bind to the session the client uses next: MFA success has already rotated the session id.
+                String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
                 actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnOnLlmChallengedMfaSuccess(userId, request, factorContext);
             }

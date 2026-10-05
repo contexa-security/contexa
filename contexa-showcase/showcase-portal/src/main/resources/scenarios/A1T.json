@@ -1,0 +1,63 @@
+{
+  "key": "A1T",
+  "version": 1,
+  "title": {
+    "ko": "등록된 출장지에서의 정상 접속",
+    "en": "A normal sign-in from a registered business trip"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "MORNING",
+  "device": "USUAL",
+  "network": "TRAVEL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TRAVEL",
+      "city": "Singapore",
+      "country": "SG",
+      "network": "198.51.100.0/24",
+      "validFromOffset": "-P2D",
+      "validUntilOffset": "P3D"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 3
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 4
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

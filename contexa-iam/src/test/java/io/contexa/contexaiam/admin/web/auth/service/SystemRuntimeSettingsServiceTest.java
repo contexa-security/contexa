@@ -15,12 +15,22 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.entity.SystemSettings;
+import io.contexa.contexacommon.repository.SystemSettingsRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexaiam.admin.web.auth.service.SystemRuntimeSettingsService.PolicyDecisionSettings;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @DisplayName("SystemRuntimeSettingsService")
 class SystemRuntimeSettingsServiceTest {
@@ -43,6 +53,83 @@ class SystemRuntimeSettingsServiceTest {
         assertThat(prefixes).containsExactly("io.contexa.contexaiam.", "io.contexa.contexaiamenterprise.");
         assertThat(SystemRuntimeSettingsService.normalizePackagePrefixesForStorage(raw))
                 .isEqualTo("io.contexa.contexaiam.\nio.contexa.contexaiamenterprise.");
+    }
+
+    @Test
+    @DisplayName("should read stored policy decision settings")
+    void readsPolicyDecisionSettings() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder()
+                .policyCombiningAlgorithm("DENY_UNLESS_PERMIT")
+                .noMatchingUrlPolicyDecision("DENY")
+                .missingMethodPolicyDecision("PERMIT")
+                .build()));
+
+        Optional<PolicyDecisionSettings> settings =
+                new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings();
+
+        assertThat(settings).contains(new PolicyDecisionSettings(
+                CombiningAlgorithm.DENY_UNLESS_PERMIT, NoPolicyDecision.DENY, NoPolicyDecision.PERMIT));
+    }
+
+    @Test
+    @DisplayName("should return empty policy decision settings when the settings row does not exist")
+    void emptyWithoutSettingsRow() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        when(repository.findAll()).thenReturn(List.of());
+
+        assertThat(new SystemRuntimeSettingsService(repository).findPolicyDecisionSettings()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should default new policy decision columns to PERMIT")
+    void defaultsArePermit() {
+        SystemSettings defaults = SystemRuntimeSettingsService.defaultSettings();
+
+        assertThat(defaults.getNoMatchingUrlPolicyDecision()).isEqualTo("PERMIT");
+        assertThat(defaults.getMissingMethodPolicyDecision()).isEqualTo("PERMIT");
+        assertThat(defaults.getPolicyCombiningAlgorithm()).isEqualTo("FIRST_APPLICABLE");
+    }
+
+    @Test
+    @DisplayName("should return the zero trust mode only when an operator saved one")
+    void findsOnlySavedZeroTrustMode() {
+        SystemSettingsRepository repository = mock(SystemSettingsRepository.class);
+        SystemRuntimeSettingsService service = new SystemRuntimeSettingsService(repository);
+
+        when(repository.findAll()).thenReturn(List.of());
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode(null).build()));
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode(" ").build()));
+        assertThat(service.findSecurityZeroTrustMode()).isEmpty();
+
+        when(repository.findAll()).thenReturn(List.of(SystemSettings.builder().securityZeroTrustMode("ENFORCE").build()));
+        assertThat(service.findSecurityZeroTrustMode()).contains(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+    }
+
+    @Test
+    @DisplayName("should leave the zero trust mode unset on new settings rows")
+    void newSettingsLeaveZeroTrustModeUnset() {
+        assertThat(SystemRuntimeSettingsService.defaultSettings().getSecurityZeroTrustMode()).isNull();
+        assertThat(SystemSettings.builder().build().getSecurityZeroTrustMode()).isNull();
+        assertThat(new SystemSettings().getSecurityZeroTrustMode()).isNull();
+    }
+
+    @Test
+    @DisplayName("should accept only exact enum constant names")
+    void parsesOnlyEnumNames() {
+        assertThat(SystemRuntimeSettingsService.parseNoPolicyDecision("field", "DENY")).isEqualTo(NoPolicyDecision.DENY);
+        assertThat(SystemRuntimeSettingsService.parseCombiningAlgorithm("PERMIT_OVERRIDES"))
+                .isEqualTo(CombiningAlgorithm.PERMIT_OVERRIDES);
+        assertThatThrownBy(() -> SystemRuntimeSettingsService.parseNoPolicyDecision("field", "deny"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> SystemRuntimeSettingsService.parseNoPolicyDecision("field", null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> SystemRuntimeSettingsService.parseCombiningAlgorithm("T(java.lang.Runtime)"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
 }

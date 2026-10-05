@@ -1,0 +1,44 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "plugins": ["stylelint-declaration-strict-value"],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "fill",
+        "stroke",
+        "font-size",
+        "font-family",
+        "font-weight",
+        "line-height",
+        "letter-spacing",
+        "/^margin/",
+        "/^padding/",
+        "gap",
+        "row-gap",
+        "column-gap",
+        "/radius$/",
+        "box-shadow",
+        "transition-duration",
+        "transition-timing-function",
+        "z-index"
+      ],
+      {
+        "ignoreValues": ["transparent", "inherit", "currentcolor", "none", "0", "auto", "unset", "initial"],
+        "ignoreFunctions": false,
+        "disableFix": true
+      }
+    ],
+    "selector-class-pattern": "^[a-z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)*(?:__[a-zA-Z0-9-]+)?(?:--[a-zA-Z0-9-]+)?$",
+    "custom-property-pattern": null,
+    "declaration-property-value-no-unknown": true
+  },
+  "overrides": [
+    {
+      "files": ["src/styles/tokens.css"],
+      "rules": {
+        "scale-unlimited/declaration-strict-value": null
+      }
+    }
+  ]
+}

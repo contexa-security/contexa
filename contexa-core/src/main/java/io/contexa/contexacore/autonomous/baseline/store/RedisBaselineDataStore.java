@@ -118,6 +118,15 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     }
 
     @Override
+    public void deleteUserBaseline(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        redisTemplate.delete(BASELINE_KEY_PREFIX + userId);
+        redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, userId);
+    }
+
+    @Override
     public long countUserBaselines() {
         try {
             Long count = redisTemplate.opsForSet().size(USER_BASELINE_INDEX_KEY);

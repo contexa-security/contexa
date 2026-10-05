@@ -1,0 +1,79 @@
+{
+  "key": "A6",
+  "version": 1,
+  "title": {
+    "ko": "담당이 아닌 고객 레코드 연속 조회",
+    "en": "Walking through customer records of others"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0001",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0012",
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0023",
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0034",
+      "offsetSeconds": 180,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0045",
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

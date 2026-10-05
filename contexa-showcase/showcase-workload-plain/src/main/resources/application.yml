@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: showcase-workload-plain
+  datasource:
+    url: ${SHOWCASE_WORK_DB_URL:jdbc:postgresql://127.0.0.1:46432/showcase_work}
+    username: ${SHOWCASE_DB_USER:showcase}
+    password: ${SHOWCASE_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      # Idle pools keep few connections; the pool grows only under load.
+      minimum-idle: 2
+      connection-timeout: 3000
+  flyway:
+    locations: classpath:db/migration/work
+    clean-disabled: true
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  jpa:
+    open-in-view: false
+  # A streamed export of the largest allowed size (10,000 items at the business pace of 160 per second) takes
+  # about 63 seconds; the default 30-second async timeout would cut it without any security decision.
+  mvc:
+    async:
+      request-timeout: 120s
+  sql:
+    init:
+      mode: never
+server:
+  address: ${SHOWCASE_BIND_ADDRESS:127.0.0.1}
+  # The client address comes only from the signed internal context, never from proxy headers.
+  forward-headers-strategy: none
+  port: ${SHOWCASE_PLAIN_PORT:19181}
+  servlet:
+    session:
+      cookie:
+        name: SHOWCASE_PLAIN_SESSION
+        http-only: true
+        same-site: lax
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+showcase:
+  # B, C1 or C2: the control this instance serves (docs/showcase/ADR.md ADR-20).
+  control: ${SHOWCASE_CONTROL:B}
+  company:
+    # The plain workload owns the business database and generates the virtual company once (ADR-19).
+    generate-on-start: true
+    seed: ${SHOWCASE_COMPANY_SEED:20261005}
+    anchor-date: ${SHOWCASE_COMPANY_ANCHOR_DATE:}
+  internal:
+    # Base64 HMAC key shared with the portal orchestrator (at least 32 bytes). Startup fails without it.
+    signing-key: ${SHOWCASE_INTERNAL_SIGNING_KEY:}

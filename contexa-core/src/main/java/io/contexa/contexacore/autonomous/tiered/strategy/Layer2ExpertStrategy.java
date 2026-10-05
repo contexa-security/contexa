@@ -479,9 +479,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (decision == null || tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
             return;
         }
-        ZeroTrustAction proposed = decision.getAction();
-        ZeroTrustAction autonomous = decision.resolveAutonomousAction();
-        if (proposed != ZeroTrustAction.ESCALATE && autonomous != ZeroTrustAction.ESCALATE) {
+        // Only an unresolved ESCALATE is terminalized; an earlier non-ESCALATE constraint such as BLOCK is kept.
+        if (decision.resolveAutonomousAction() != ZeroTrustAction.ESCALATE) {
             return;
         }
 

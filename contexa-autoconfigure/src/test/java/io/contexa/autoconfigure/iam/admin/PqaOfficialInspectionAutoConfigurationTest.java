@@ -46,7 +46,6 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -168,19 +167,14 @@ class PqaOfficialInspectionAutoConfigurationTest {
     }
 
     @Test
-    void ossCaptureFilterUsesTheSameEnablementContractAsItsService() throws NoSuchMethodException {
-        Method method = PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethod(
-                "pqaOssOfficialSealedEvidenceCaptureFilter",
-                OssOfficialSealedEvidenceCaptureService.class);
-
-        assertThat(Arrays.stream(method.getAnnotationsByType(ConditionalOnProperty.class)))
-                .anyMatch(condition ->
-                        condition.prefix().equals("contexa.pqa.oss.sealed-evidence")
-                                && Arrays.asList(condition.name()).contains("capture-enabled")
-                                && condition.havingValue().equals("true")
-                                && condition.matchIfMissing());
-        assertThat(Arrays.asList(method.getAnnotation(ConditionalOnBean.class).value()))
-                .contains(OssOfficialSealedEvidenceCaptureService.class);
+    @DisplayName("OSS PQA should not synthesize sealed evidence from HTTP requests")
+    void pqaOfficialInspectionDoesNotRegisterRequestThreadEvidenceCapture() {
+        assertThat(Arrays.stream(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
+                .map(Method::getName))
+                .noneMatch(name -> name.contains("SealedEvidenceCapture"));
+        assertThat(Arrays.stream(PqaOfficialInspectionAutoConfiguration.class.getDeclaredMethods())
+                .map(method -> method.getReturnType().getSimpleName()))
+                .doesNotContain("FilterRegistrationBean");
     }
 
 }

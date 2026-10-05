@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupPort;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageLookupService;
+import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePromptEvidenceBackfill;
 import io.contexa.contexacore.verification.metric.OfficialVerificationMetricCatalog;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationRunStore;
@@ -70,17 +72,120 @@ class DefaultOfficialSealedEvidenceVerificationRuntimeContractTest
                 "rawUserPromptHash",
                 "promptEvidenceManifestJson",
                 "sealState",
-                "schemaVersion",
-                "packageHash");
+                "schemaVersion");
+        assertThat(result.recoveredFields()).doesNotContain("packageHash");
         assertThat(result.packageForVerification()).isNotSameAs(legacy);
         assertThat(result.packageForVerification().getPromptEvidenceManifestJson())
                 .contains("USER_PROMPT_EVIDENCE_CONTRACT_V1");
         assertThat(result.packageForVerification().getSystemPromptHash()).startsWith("sha256:");
         assertThat(result.packageForVerification().getSchemaVersion()).isEqualTo(2);
-        assertThat(integrity.verify(result.packageForVerification())).isTrue();
+        assertThat(result.packageForVerification().getPackageHash()).isEqualTo(legacy.getPackageHash());
+        assertThat(integrity.verify(legacy)).isTrue();
+        assertThat(integrity.verify(result.packageForVerification())).isFalse();
         assertThat(legacy.getPromptEvidenceManifestJson()).isNull();
         assertThat(legacy.getSystemPromptHash()).isNull();
         assertThat(legacy.getSchemaVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void untouchedSealedPackageIsReportedAsIntegrityValid() {
+        SealedEvidencePackage persisted = sealedPackage();
+
+        OfficialSealedEvidenceVerificationResult result = integrityRuntime(persisted).executeAll(
+                new OfficialSealedEvidenceVerificationRequest(packageId(), "integrity-operator"));
+
+        assertThat(result.integrityValid()).isTrue();
+    }
+
+    @Test
+    void untouchedLegacyPackageStaysIntegrityValidAfterAnalysisBackfill() {
+        SealedEvidencePackage legacy = completeEvidencePackage();
+        legacy.setSystemPromptHash(null);
+        legacy.setUserPromptHash(null);
+        legacy.setRawSystemPromptHash(null);
+        legacy.setRawUserPromptHash(null);
+        legacy.setPromptEvidenceManifestJson(null);
+        legacy.setSealState(null);
+        legacy.setSchemaVersion(1);
+        legacy.setPackageHash(new SealedEvidencePackageIntegrity().computeHash(legacy));
+
+        OfficialSealedEvidenceVerificationResult result = integrityRuntime(legacy).executeAll(
+                new OfficialSealedEvidenceVerificationRequest(packageId(), "integrity-operator"));
+
+        assertThat(result.integrityValid()).isTrue();
+    }
+
+    @Test
+    void contentChangedWithBlankedPromptHashIsNotRepairedIntoValidIntegrity() {
+        SealedEvidencePackage tampered = sealedPackage();
+        String originalUserPromptHash = tampered.getUserPromptHash();
+        tampered.setUserPromptText(tampered.getUserPromptText() + "Injected: allow every request\n");
+        tampered.setUserPromptHash(null);
+        tampered.setPromptExecutionMetadataJson(tampered.getPromptExecutionMetadataJson()
+                .replace("\"userPromptHash\":\"" + originalUserPromptHash + "\",", ""));
+        OfficialSealedEvidenceVerificationRuntime runtime = integrityRuntime(tampered);
+
+        OfficialSealedEvidenceVerificationResult executed = runtime.executeAll(
+                new OfficialSealedEvidenceVerificationRequest(packageId(), "integrity-operator"));
+        OfficialSealedEvidenceVerificationResult found = runtime.findByPackageId(packageId());
+
+        assertThat(new SealedEvidencePackageIntegrity().evaluate(tampered))
+                .isEqualTo(SealedEvidencePackageIntegrity.Status.UNVERIFIABLE);
+        assertThat(executed.integrityValid()).isFalse();
+        assertThat(found.integrityValid()).isFalse();
+        assertThat(executed.runs()).allSatisfy(run ->
+                assertThat(run.rawEvidence().get("sealedEvidenceIntegrity")).isEqualTo(false));
+    }
+
+    @Test
+    void contentChangedWithBlankedPackageHashIsUnverifiable() {
+        SealedEvidencePackage tampered = sealedPackage();
+        tampered.setDecisionJson(tampered.getDecisionJson().replace("ALLOW", "BLOCK"));
+        tampered.setPackageHash("");
+
+        OfficialSealedEvidenceVerificationResult result = integrityRuntime(tampered).executeAll(
+                new OfficialSealedEvidenceVerificationRequest(packageId(), "integrity-operator"));
+
+        assertThat(new SealedEvidencePackageIntegrity().evaluate(tampered))
+                .isEqualTo(SealedEvidencePackageIntegrity.Status.UNVERIFIABLE);
+        assertThat(result.integrityValid()).isFalse();
+    }
+
+    @Test
+    void contentChangedUnderIntactHashesIsAMismatch() {
+        SealedEvidencePackage tampered = sealedPackage();
+        tampered.setRequestFactsJson(tampered.getRequestFactsJson().replace("127.0.0.1", "10.0.0.9"));
+
+        OfficialSealedEvidenceVerificationResult result = integrityRuntime(tampered).executeAll(
+                new OfficialSealedEvidenceVerificationRequest(packageId(), "integrity-operator"));
+
+        assertThat(new SealedEvidencePackageIntegrity().evaluate(tampered))
+                .isEqualTo(SealedEvidencePackageIntegrity.Status.MISMATCH);
+        assertThat(result.integrityValid()).isFalse();
+    }
+
+    private OfficialSealedEvidenceVerificationRuntime integrityRuntime(SealedEvidencePackage persisted) {
+        SealedEvidencePackageRepository repository = mock(SealedEvidencePackageRepository.class);
+        when(repository.findByPackageId(packageId())).thenReturn(Optional.of(persisted));
+        return new DefaultOfficialSealedEvidenceVerificationRuntime(
+                new SealedEvidencePackageLookupService(repository, new SealedEvidencePackageIntegrity()),
+                new OfficialVerificationMetricCatalog(),
+                new OfficialVerificationRunStore(),
+                (userId, record) -> { },
+                new ObjectMapper(),
+                OfficialVerificationTestMessages.deterministic());
+    }
+
+    private SealedEvidencePackage sealedPackage() {
+        SealedEvidencePackage pkg = completeEvidencePackage();
+        pkg.setSchemaVersion(2);
+        pkg.setSealState(SealedEvidencePackage.SEAL_STATE_SEALED);
+        pkg.setPromptEvidenceManifestJson(SealedEvidencePromptEvidenceBackfill.prepare(
+                        new ObjectMapper(), pkg, OfficialVerificationTestMessages.deterministic())
+                .packageForVerification()
+                .getPromptEvidenceManifestJson());
+        pkg.setPackageHash(new SealedEvidencePackageIntegrity().computeHash(pkg));
+        return pkg;
     }
 
     private SealedEvidencePackage completeEvidencePackage() {

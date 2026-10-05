@@ -19,8 +19,8 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.contexa.contexacommon.config.redis.ContexaJsonRedisSerializer;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -37,16 +37,10 @@ public final class RedisTestTemplates {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        ObjectMapper objectMapper = createBaseObjectMapper();
-        objectMapper.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder()
-                        .allowIfSubType(Object.class)
-                        .build(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
+        ObjectMapper objectMapper = ContexaJsonRedisSerializer.activateDefaultTyping(createBaseObjectMapper());
 
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer jsonSerializer = new ContexaJsonRedisSerializer(objectMapper);
 
         template.setKeySerializer(stringSerializer);
         template.setHashKeySerializer(stringSerializer);

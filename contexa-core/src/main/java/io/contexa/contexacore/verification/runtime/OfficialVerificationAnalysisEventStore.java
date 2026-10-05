@@ -1,7 +1,9 @@
 package io.contexa.contexacore.verification.runtime;
 
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -11,7 +13,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class OfficialVerificationAnalysisEventStore {
+public class OfficialVerificationAnalysisEventStore implements ExpiringStateStore {
+
+    private static final Duration RETENTION = Duration.ofHours(1);
 
     private final Map<String, CopyOnWriteArrayList<AnalysisEvent>> eventsByRequestId = new ConcurrentHashMap<>();
 
@@ -20,7 +24,29 @@ public class OfficialVerificationAnalysisEventStore {
         if (event.requestId() == null || event.requestId().isBlank()) {
             return;
         }
-        eventsByRequestId.computeIfAbsent(event.requestId(), ignored -> new CopyOnWriteArrayList<>()).add(event);
+        eventsByRequestId.compute(event.requestId(), (ignored, events) -> {
+            CopyOnWriteArrayList<AnalysisEvent> bucket = events != null ? events : new CopyOnWriteArrayList<>();
+            bucket.add(event);
+            return bucket;
+        });
+    }
+
+    /**
+     * Drops request buckets whose latest event is older than an hour. A verification run reads its own requests
+     * within minutes of sending them (probe, polling and settle waits), and every other request is never read.
+     */
+    @Override
+    public void removeExpiredEntries() {
+        removeEventsObservedBefore(Instant.now().minus(RETENTION));
+    }
+
+    void removeEventsObservedBefore(Instant cutoff) {
+        for (String requestId : eventsByRequestId.keySet()) {
+            eventsByRequestId.computeIfPresent(requestId, (ignored, events) ->
+                    events.stream().allMatch(event -> event.observedAt() == null || event.observedAt().isBefore(cutoff))
+                            ? null
+                            : events);
+        }
     }
 
     public List<AnalysisEvent> findByRequestId(String requestId) {

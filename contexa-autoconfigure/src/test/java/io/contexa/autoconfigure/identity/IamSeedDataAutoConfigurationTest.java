@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
@@ -178,6 +179,64 @@ class IamSeedDataAutoConfigurationTest {
                 .doesNotContain("owner to");
         assertThat(maintenanceSql.indexOf("create table if not exists ai_security_monitoring_session_summary"))
                 .isLessThan(maintenanceSql.indexOf("alter table ai_security_monitoring_session_summary"));
+    }
+
+    @Test
+    @DisplayName("IAM schema maintenance should leave the zero trust mode unset on new and existing databases")
+    void iamSchemaMaintenanceLeavesZeroTrustModeUnset() throws Exception {
+        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+
+        String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema));
+
+        List<String> statements = IamSeedDataAutoConfiguration.splitSqlStatements(maintenanceSql).stream()
+                .map(statement -> statement.replaceAll("(?m)--.*$", " ")
+                        .replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT))
+                .filter(statement -> statement.contains("security_zerotrust_mode"))
+                .toList();
+        assertThat(statements)
+                .filteredOn(statement -> statement.startsWith("create table if not exists system_settings "))
+                .singleElement().asString()
+                .contains("security_zerotrust_mode varchar(20) )");
+        assertThat(statements)
+                .filteredOn(statement -> statement.startsWith("alter table system_settings "))
+                .containsExactly(
+                        "alter table system_settings add column if not exists security_zerotrust_mode varchar(20)",
+                        "alter table system_settings alter column security_zerotrust_mode drop not null",
+                        "alter table system_settings alter column security_zerotrust_mode drop default");
+    }
+
+    @Test
+    @DisplayName("IAM schema maintenance should replay only nullability and default removal under ALTER COLUMN")
+    void iamSchemaMaintenanceAcceptsOnlyDropNotNullAndDropDefaultColumnChanges() {
+        String sql = """
+                alter table system_settings alter column security_zerotrust_mode drop not null;
+
+                alter table system_settings
+                    alter column security_zerotrust_mode drop default;
+
+                alter table sealed_evidence_package alter column package_id set data type varchar(256);
+
+                alter table official_prompt_field_definition alter column field_key type varchar(512);
+
+                alter table system_settings alter column security_zerotrust_mode set default 'SHADOW';
+
+                alter table system_settings alter column security_zerotrust_mode set not null;
+
+                alter table system_settings drop column security_zerotrust_mode;
+
+                alter table system_settings alter column security_zerotrust_mode drop not null,
+                    alter column security_zerotrust_mode set default 'SHADOW';
+                """;
+
+        List<String> maintenance = IamSeedDataAutoConfiguration.splitSqlStatements(
+                        IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(sql)).stream()
+                .map(statement -> statement.replaceAll("\\s+", " ").trim())
+                .toList();
+
+        assertThat(maintenance).containsExactly(
+                "alter table system_settings alter column security_zerotrust_mode drop not null",
+                "alter table system_settings alter column security_zerotrust_mode drop default");
     }
 
     @Test

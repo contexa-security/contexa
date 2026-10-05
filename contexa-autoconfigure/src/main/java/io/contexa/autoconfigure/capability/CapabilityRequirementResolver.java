@@ -174,6 +174,9 @@ public class CapabilityRequirementResolver {
                     "org.springframework.ai.embedding.EmbeddingModel"));
             case RAG_VECTOR -> filterMissingBeans(result, List.of(
                     "org.springframework.ai.vectorstore.VectorStore"));
+            case AUTONOMOUS_DECISION -> filterMissingBeans(result, List.of(
+                    CoreCapabilityContributor.PROCESSING_STRATEGY_TYPE,
+                    CoreCapabilityContributor.DECISION_OBSERVATION_STORE_BEAN));
             default -> List.of();
         };
     }
@@ -213,7 +216,18 @@ public class CapabilityRequirementResolver {
             case RAG_VECTOR -> appendRagVectorGuidance(guidance, missingBeans, customerFacing);
             case SECURITY_LEARNING -> appendSecurityLearningGuidance(guidance, missingBeans);
             case AUTONOMOUS_DECISION -> {
-                guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");
+                if (!hasBean(CoreCapabilityContributor.PROCESSING_STRATEGY_TYPE)) {
+                    guidance.add("Configure a Spring AI ChatModel and a VectorStore; without them no decision strategy "
+                            + "(cold path Layer1/Layer2) is created and every protected request stays PENDING_ANALYSIS.");
+                }
+                if (!hasBeanName(CoreCapabilityContributor.DECISION_OBSERVATION_STORE_BEAN)) {
+                    guidance.add("Configure the Contexa datasource so that contexaJdbcTemplate exists; final decisions "
+                            + "are enforced only after they are recorded in ai_security_decision_observation.");
+                }
+                if (!customerFacing) {
+                    guidance.add("Verify autonomous decision auto-configuration completed and required LLM/RAG dependencies are active.");
+                }
+                guidance.add("Set contexa.autonomous.enabled=false if the application intentionally runs without the autonomous decision plane.");
             }
             case BRIDGE -> guidance.add("Verify AI security bridge configuration is active before invoking protected resources.");
             case PQA_ENGINE -> guidance.add("Verify the Core prompt quality official inspection modules are on the runtime classpath.");

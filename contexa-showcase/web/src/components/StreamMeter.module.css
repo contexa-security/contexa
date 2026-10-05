@@ -1,0 +1,64 @@
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.state {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.bar {
+  overflow: hidden;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-subtle);
+}
+
+.meter[data-state='cut'] .fill {
+  background-color: var(--color-verdict-block);
+}
+
+.meter[data-state='done'] .fill {
+  background-color: var(--color-verdict-allow);
+}
+
+.meter[data-state='interrupted'] .fill {
+  background-color: var(--color-verdict-pending);
+}
+
+.count {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+.exposure {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

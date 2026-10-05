@@ -16,10 +16,12 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.service.PasskeyUserStatePurgeContributor;
 import io.contexa.contexaidentity.security.webauthn.codec.DefaultPasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.codec.PasskeyCreationOptionsCodec;
 import io.contexa.contexaidentity.security.webauthn.repository.SerializablePasskeyCreationOptionsRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -54,6 +56,14 @@ public class IdentityWebAuthnAutoConfiguration {
             @Qualifier("contexaJdbcTemplate")
             JdbcOperations jdbcOperations) {
         return new JdbcUserCredentialRepository(jdbcOperations);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PasskeyUserStatePurgeContributor passkeyUserStatePurgeContributor(
+            ObjectProvider<PublicKeyCredentialUserEntityRepository> userEntities,
+            ObjectProvider<UserCredentialRepository> userCredentials) {
+        return new PasskeyUserStatePurgeContributor(userEntities, userCredentials);
     }
 
     @Bean

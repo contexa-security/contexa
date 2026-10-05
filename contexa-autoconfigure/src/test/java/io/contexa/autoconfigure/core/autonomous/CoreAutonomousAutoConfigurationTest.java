@@ -23,17 +23,21 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 /**
  * Tests CoreAutonomousAutoConfiguration conditional annotations and mode switching structure.
@@ -248,4 +252,27 @@ class CoreAutonomousAutoConfigurationTest {
         }
     }
 
+    @Nested
+    @DisplayName("Client IP resolution binding")
+    class ClientIpResolutionBinding {
+
+        @Test
+        @DisplayName("Should bind the trusted proxy settings to the context binding hash until the context closes")
+        void shouldBindTrustedProxySettingsUntilClose() throws Exception {
+            TieredStrategyProperties properties = new TieredStrategyProperties();
+            properties.getSecurity().setTrustedProxies(List.of("10.0.0.0/8"));
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", "/orders");
+            request.setRemoteAddr("10.0.0.10");
+            request.addHeader("X-Forwarded-For", "198.51.100.20");
+
+            DisposableBean binding = new CoreAutonomousAutoConfiguration().contexaClientIpResolutionBinding(properties);
+            try {
+                assertThat(SessionFingerprintUtil.extractClientIp(request)).isEqualTo("198.51.100.20");
+            } finally {
+                binding.destroy();
+            }
+
+            assertThat(SessionFingerprintUtil.extractClientIp(request)).isEqualTo("10.0.0.10");
+        }
+    }
 }

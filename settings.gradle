@@ -6,3 +6,10 @@ rootProject.name = 'contexa'
 include('contexa-core','contexa-identity','contexa-iam','contexa-common', 'contexa-autoconfigure','spring-boot-starter-contexa')
 
 include('contexa-demo')
+
+// Contexa Showcase: the public demonstration built on the v5 strategy (docs/showcase).
+include('showcase-business', 'showcase-workload-plain', 'showcase-workload-contexa', 'showcase-portal')
+project(':showcase-business').projectDir = file('contexa-showcase/showcase-business')
+project(':showcase-workload-plain').projectDir = file('contexa-showcase/showcase-workload-plain')
+project(':showcase-workload-contexa').projectDir = file('contexa-showcase/showcase-workload-contexa')
+project(':showcase-portal').projectDir = file('contexa-showcase/showcase-portal')

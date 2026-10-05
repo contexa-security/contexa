@@ -16,7 +16,9 @@
 package io.contexa.contexaidentity.security.token.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -27,6 +29,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -39,6 +44,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -52,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -184,18 +191,14 @@ class OAuth2TokenServiceTest {
     }
 
     @Test
-    @DisplayName("refresh should return refreshed tokens on success")
-    @SuppressWarnings("unchecked")
+    @DisplayName("refresh should hand the presented refresh token to the Spring refresh provider")
     void refreshSuccess() {
-        OAuth2Authorization authorization = mock(OAuth2Authorization.class);
-        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = mock(OAuth2Authorization.Token.class);
-
-        when(authorizationService.findByToken("refresh-token-123", OAuth2TokenType.REFRESH_TOKEN)).thenReturn(authorization);
-        when(authorization.getRefreshToken()).thenReturn(refreshTokenMeta);
-        when(refreshTokenMeta.isInvalidated()).thenReturn(false);
-        when(refreshTokenMeta.isExpired()).thenReturn(false);
-        when(authorization.getPrincipalName()).thenReturn("testUser");
-        when(authorization.getAuthorizedScopes()).thenReturn(Collections.singleton("read"));
+        Instant issuedAt = Instant.now().minusSeconds(7200);
+        OAuth2AccessToken storedAccessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER,
+                "stored-access-token", issuedAt, issuedAt.plusSeconds(3600));
+        OAuth2RefreshToken presentedRefreshToken = new OAuth2RefreshToken(
+                "refresh-token-123", issuedAt, issuedAt.plusSeconds(604800));
+        stubActiveAuthorization(storedAccessToken, presentedRefreshToken);
 
         ClientRegistration clientRegistration = mock(ClientRegistration.class);
         when(clientRegistrationRepository.findByRegistrationId("aidc-internal")).thenReturn(clientRegistration);
@@ -209,13 +212,91 @@ class OAuth2TokenServiceTest {
         when(accessToken.getTokenValue()).thenReturn("new-access-token");
         when(newRefreshToken.getTokenValue()).thenReturn("new-refresh-token");
 
-        when(authorizedClientManager.authorize(any(OAuth2AuthorizeRequest.class))).thenReturn(refreshedClient);
+        ArgumentCaptor<OAuth2AuthorizeRequest> requestCaptor = ArgumentCaptor.forClass(OAuth2AuthorizeRequest.class);
+        when(authorizedClientManager.authorize(requestCaptor.capture())).thenReturn(refreshedClient);
 
         TokenService.RefreshResult result = service.refresh("refresh-token-123");
 
         assertThat(result).isNotNull();
         assertThat(result.accessToken()).isEqualTo("new-access-token");
         assertThat(result.refreshToken()).isEqualTo("new-refresh-token");
+
+        OAuth2AuthorizedClient handedOver = requestCaptor.getValue().getAuthorizedClient();
+        assertThat(handedOver).isNotNull();
+        assertThat(handedOver.getRefreshToken().getTokenValue()).isEqualTo("refresh-token-123");
+        assertThat(handedOver.getAccessToken().getTokenValue()).isEqualTo("stored-access-token");
+        assertThat(handedOver.getPrincipalName()).isEqualTo("testUser");
+    }
+
+    @Test
+    @DisplayName("refresh should be refused when the authorization holds no access token")
+    void refreshThrowsExceptionWithoutStoredAccessToken() {
+        OAuth2Authorization authorization = mock(OAuth2Authorization.class);
+        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = activeRefreshTokenMeta(
+                new OAuth2RefreshToken("refresh-token-123", Instant.now(), Instant.now().plusSeconds(60)));
+        when(authorizationService.findByToken("refresh-token-123", OAuth2TokenType.REFRESH_TOKEN)).thenReturn(authorization);
+        when(authorization.getRefreshToken()).thenReturn(refreshTokenMeta);
+        when(authorization.getAccessToken()).thenReturn(null);
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("Authorization has no access token");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ZeroTrustAction.class, names = {"BLOCK", "ESCALATE"})
+    @DisplayName("refresh should be refused while zero trust blocks or escalates the user")
+    void refreshRefusedWhenZeroTrustDenies(ZeroTrustAction action) {
+        stubActiveAuthorization(
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "a", Instant.now(), Instant.now().plusSeconds(60)),
+                new OAuth2RefreshToken("refresh-token-123", Instant.now(), Instant.now().plusSeconds(60)));
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        when(actionRepository.getCurrentAction("testUser")).thenReturn(action);
+        service.setZeroTrustActionRepository(actionRepository);
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2ErrorCodes.ACCESS_DENIED));
+        verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @Test
+    @DisplayName("refresh should require the MFA challenge while zero trust challenges the user")
+    void refreshRequiresChallengeWhenZeroTrustChallenges() {
+        stubActiveAuthorization(
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "a", Instant.now(), Instant.now().plusSeconds(60)),
+                new OAuth2RefreshToken("refresh-token-123", Instant.now(), Instant.now().plusSeconds(60)));
+        ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        when(actionRepository.getCurrentAction("testUser")).thenReturn(ZeroTrustAction.CHALLENGE);
+        service.setZeroTrustActionRepository(actionRepository);
+
+        assertThatThrownBy(() -> service.refresh("refresh-token-123"))
+                .isInstanceOfSatisfying(OAuth2AuthenticationException.class, ex ->
+                        assertThat(ex.getError().getErrorCode()).isEqualTo(OAuth2TokenService.MFA_CHALLENGE_REQUIRED_ERROR));
+        verify(authorizedClientManager, never()).authorize(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stubActiveAuthorization(OAuth2AccessToken accessToken, OAuth2RefreshToken refreshToken) {
+        OAuth2Authorization authorization = mock(OAuth2Authorization.class);
+        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = activeRefreshTokenMeta(refreshToken);
+        OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = mock(OAuth2Authorization.Token.class);
+        when(accessTokenMeta.getToken()).thenReturn(accessToken);
+
+        when(authorizationService.findByToken(refreshToken.getTokenValue(), OAuth2TokenType.REFRESH_TOKEN)).thenReturn(authorization);
+        when(authorization.getRefreshToken()).thenReturn(refreshTokenMeta);
+        when(authorization.getAccessToken()).thenReturn(accessTokenMeta);
+        when(authorization.getPrincipalName()).thenReturn("testUser");
+        when(authorization.getAuthorizedScopes()).thenReturn(Collections.singleton("read"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private OAuth2Authorization.Token<OAuth2RefreshToken> activeRefreshTokenMeta(OAuth2RefreshToken refreshToken) {
+        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = mock(OAuth2Authorization.Token.class);
+        when(refreshTokenMeta.isInvalidated()).thenReturn(false);
+        when(refreshTokenMeta.isExpired()).thenReturn(false);
+        when(refreshTokenMeta.getToken()).thenReturn(refreshToken);
+        return refreshTokenMeta;
     }
 
     @Test

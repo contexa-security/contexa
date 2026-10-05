@@ -17,12 +17,13 @@ package io.contexa.contexacore.infra.redis;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.contexa.contexacommon.config.redis.ContexaJsonRedisSerializer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -55,8 +56,7 @@ public class UnifiedRedisConfiguration {
         template.setConnectionFactory(connectionFactory);
 
         ObjectMapper objectMapper = createObjectMapper();
-        GenericJackson2JsonRedisSerializer serializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer serializer = new ContexaJsonRedisSerializer(objectMapper);
 
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
@@ -72,22 +72,14 @@ public class UnifiedRedisConfiguration {
 
         objectMapper.registerModule(new JavaTimeModule());
 
-        objectMapper.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder()
-                        .allowIfSubType(Object.class)
-                        .build(),
-                ObjectMapper.DefaultTyping.NON_FINAL,
-                JsonTypeInfo.As.PROPERTY
-        );
-
-        return objectMapper;
+        return ContexaJsonRedisSerializer.activateDefaultTyping(objectMapper, JsonTypeInfo.As.PROPERTY);
     }
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             @Autowired(required = false) SoarApprovalNotifier soarApprovalNotifier,
-            @Autowired RedisTemplate<String, Object> generalRedisTemplate) {
+            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> generalRedisTemplate) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -105,7 +97,7 @@ public class UnifiedRedisConfiguration {
 
     @Bean
     public RedisDistributedLockService redisDistributedLockService(
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
+            @Autowired(required = false) @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
 
         if (redisTemplate != null) {
             return new RedisDistributedLockService(redisTemplate);

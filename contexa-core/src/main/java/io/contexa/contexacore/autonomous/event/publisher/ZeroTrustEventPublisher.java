@@ -534,6 +534,10 @@ public class ZeroTrustEventPublisher {
     }
 
     private void populateAuthenticationFallback(Authentication authentication, Map<String, Object> payload) {
+        String bridgeAuthenticationType = bridgeAuthenticationType(payload);
+        if (bridgeAuthenticationType != null && !hasNonNullPayload(payload, "authMethod")) {
+            payload.put("authMethod", bridgeAuthenticationType);
+        }
         if (authentication == null) {
             return;
         }
@@ -674,6 +678,14 @@ public class ZeroTrustEventPublisher {
 
     private boolean hasNonNullPayload(Map<String, Object> payload, String key) {
         return payload.containsKey(key) && payload.get(key) != null;
+    }
+
+    private String bridgeAuthenticationType(Map<String, Object> payload) {
+        if (!hasNonNullPayload(payload, "bridgeAuthenticationSource") || !hasNonNullPayload(payload, "authenticationType")) {
+            return null;
+        }
+        String authenticationType = payload.get("authenticationType").toString();
+        return StringUtils.hasText(authenticationType) ? authenticationType : null;
     }
 
     private List<String> sanitizeRoleTokens(List<String> rawValues) {

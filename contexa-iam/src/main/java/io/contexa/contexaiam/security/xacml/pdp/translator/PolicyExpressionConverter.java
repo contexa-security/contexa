@@ -17,15 +17,23 @@ package io.contexa.contexaiam.security.xacml.pdp.translator;
 
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Converts policy conditions to valid SpEL expressions.
  * Handles plain authority names, mixed expressions, and permission stripping for URL policies.
+ *
+ * <p>The produced expression is the policy condition. Its meaning depends on the policy effect:
+ * for an ALLOW policy a satisfied condition is Permit and an unsatisfied one is Deny; for a DENY
+ * policy a satisfied condition is Deny and an unsatisfied one is NotApplicable. A policy without
+ * conditions always applies, so its condition is {@code permitAll} for both effects.</p>
  */
 public class PolicyExpressionConverter {
 
@@ -34,7 +42,8 @@ public class PolicyExpressionConverter {
             Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
 
     /**
-     * Converts a Policy entity's conditions into a single SpEL expression string.
+     * Converts a Policy entity's conditions into a single SpEL condition expression string.
+     * The expression is never negated for DENY policies; the caller applies the effect.
      */
     public String toExpression(Policy policy) {
         List<String> conditionExpressions = policy.getRules().stream()
@@ -44,7 +53,7 @@ public class PolicyExpressionConverter {
                 .toList();
 
         if (conditionExpressions.isEmpty()) {
-            return (policy.getEffect() == Policy.Effect.ALLOW) ? "permitAll" : "denyAll";
+            return "permitAll";
         }
 
         String finalExpression;
@@ -66,10 +75,37 @@ public class PolicyExpressionConverter {
             }
         }
 
-        if (policy.getEffect() == Policy.Effect.DENY) {
-            finalExpression = "!(" + finalExpression + ")";
+        String stripped = removePermissionChecks(finalExpression);
+        if (stripped.isEmpty()) {
+            // Object-level permission checks cannot be evaluated for a URL. Fail closed for both
+            // effects: an ALLOW policy never permits and a DENY policy always applies.
+            return policy.getEffect() == Policy.Effect.DENY ? "permitAll" : "denyAll";
         }
-        return stripHasPermission(finalExpression);
+        return stripped;
+    }
+
+    /**
+     * Returns why the URL condition of a policy must not be compiled, or {@code null} when it is
+     * acceptable. Every stored condition and the converted expression are checked, so a forbidden
+     * construct is rejected even when the conversion would have removed it.
+     *
+     * @param policy     the policy whose stored conditions are checked
+     * @param expression the expression produced by {@link #toExpression(Policy)} for the policy
+     */
+    public String findLoadViolation(Policy policy, String expression) {
+        for (PolicyRule rule : policy.getRules()) {
+            for (PolicyCondition condition : rule.getConditions()) {
+                String rawExpression = condition.getExpression();
+                if (rawExpression == null || rawExpression.isBlank()) {
+                    continue;
+                }
+                Optional<String> violation = PolicyExpressionValidator.findViolation(rawExpression);
+                if (violation.isPresent()) {
+                    return violation.get();
+                }
+            }
+        }
+        return PolicyExpressionValidator.findViolation(expression).orElse(null);
     }
 
     /**
@@ -119,11 +155,15 @@ public class PolicyExpressionConverter {
      * Strips hasPermission() calls from URL-type policy expressions.
      */
     public static String stripHasPermission(String expression) {
+        String cleaned = removePermissionChecks(expression);
+        return cleaned.isEmpty() ? "denyAll" : cleaned;
+    }
+
+    private static String removePermissionChecks(String expression) {
         String cleaned = HAS_PERMISSION_PATTERN.matcher(expression).replaceAll(" ");
         cleaned = cleaned.replaceAll("\\s+and\\s+and\\s+", " and ");
         cleaned = cleaned.replaceAll("^\\s*and\\s+", "");
         cleaned = cleaned.replaceAll("\\s+and\\s*$", "");
-        cleaned = cleaned.trim();
-        return cleaned.isEmpty() ? "denyAll" : cleaned;
+        return cleaned.trim();
     }
 }

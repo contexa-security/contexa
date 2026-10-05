@@ -11,6 +11,9 @@ io.contexa.contexacommon.config.JpaAuditingConfig
 io.contexa.autoconfigure.core.ContexaOwnedDataSourceAutoConfiguration
 io.contexa.autoconfigure.core.CoreDataAutoConfiguration
 
+# AI Bridge (repository-backed bridge beans)
+io.contexa.autoconfigure.ai.AiBridgeUserMirrorSyncAutoConfiguration
+
 # Core Session Management
 io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
@@ -107,6 +110,7 @@ io.contexa.autoconfigure.iam.admin.IamAdminPasswordPolicyAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
+io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
 
 # IAM Security Core
 io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration

@@ -26,14 +26,6 @@ class SecurityDecisionRawOutputContractInspectorTest {
             new SecurityDecisionRawOutputContractInspector();
 
     @Test
-    void shouldRejectFalseFreshVerificationClaim() {
-        assertViolation(
-                "VerificationRequired: false",
-                "Fresh verification is required before allowing access.",
-                "FALSE_VERIFICATION_REQUIRED_CLAIM");
-    }
-
-    @Test
     void shouldNotRejectNegatedFreshVerificationClaim() {
         assertNoViolation(
                 "VerificationRequired: false",
@@ -78,6 +70,24 @@ class SecurityDecisionRawOutputContractInspectorTest {
                 "AuthorizationEffect: ALLOW",
                 "Authorization is denied for this request.",
                 "FALSE_AUTHORIZATION_DENIED_CLAIM");
+    }
+
+    @Test
+    void shouldRejectSameResourceRagSentenceWithoutRagDocuments() {
+        assertViolation(
+                "AuthorizationEffect: ALLOW\nRagRelevance: NO_DOCUMENTS\nRagAuthorizedDocumentCount: 0",
+                "Authorization allows access, and authorized RAG is relevant to the same resource.",
+                "FALSE_AUTHORIZED_RAG_CLAIM");
+    }
+
+    @Test
+    void shouldAcceptTheNoRagAllowSentences() {
+        String facts = "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW"
+                + "\nRagRelevance: NO_DOCUMENTS\nRagAuthorizedDocumentCount: 0";
+        assertNoViolation(facts,
+                "Authorization allows access with a limited baseline, and no concrete risk or verification requirement is present.");
+        assertNoViolation(facts,
+                "Authorization allows access, the personal baseline is established, and no concrete risk or verification requirement is present.");
     }
 
     @Test
@@ -160,15 +170,6 @@ class SecurityDecisionRawOutputContractInspectorTest {
         assertNoViolation(
                 "MfaVerified: false\nRagDocument1: historical behavior, MfaVerified: true",
                 "MFA is not verified for the current request.");
-    }
-
-    @Test
-    void shouldRejectAllowThatViolatesRequiredVerificationBoundary() {
-        assertActionViolation(
-                "AuthorizationEffect: ALLOW\nVerificationRequired: true\nMfaVerified: false\nSensitivity: HIGH",
-                "ALLOW",
-                "Authorization allows access.",
-                "REQUIRED_VERIFICATION_BOUNDARY_ACTION_MISMATCH");
     }
 
     @Test

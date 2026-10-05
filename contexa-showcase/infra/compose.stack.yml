@@ -1,0 +1,132 @@
+# Production-shaped stack of the Contexa Showcase, used for every real-server phase gate and, with server
+# secrets, on the Oracle Cloud host. Only the portal publishes a port; everything else stays on the
+# internal network. Build the images with infra/docker/showcase.Dockerfile first.
+# Required environment (never committed): SHOWCASE_DB_PASSWORD, SHOWCASE_INTERNAL_SIGNING_KEY, OPENAI_API_KEY.
+name: contexa-showcase-stack
+
+x-signing-env: &signing-env
+  # HMAC key of the signed internal context between the portal and the workloads (base64, 32 bytes or more).
+  SHOWCASE_INTERNAL_SIGNING_KEY: ${SHOWCASE_INTERNAL_SIGNING_KEY:?Set SHOWCASE_INTERNAL_SIGNING_KEY}
+
+x-database-env: &database-env
+  SHOWCASE_DB_USER: ${SHOWCASE_DB_USER:-showcase}
+  SHOWCASE_DB_PASSWORD: ${SHOWCASE_DB_PASSWORD:?Set SHOWCASE_DB_PASSWORD}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    # Five workloads, the portal and the engine's own pools hold up to about 120 connections under 50 concurrent live
+    # runs (P4-BE-01 measurement); the default limit of 100 refused new clients.
+    command: ["postgres", "-c", "max_connections=300"]
+    environment:
+      POSTGRES_USER: ${SHOWCASE_DB_USER:-showcase}
+      POSTGRES_PASSWORD: ${SHOWCASE_DB_PASSWORD:?Set SHOWCASE_DB_PASSWORD}
+      POSTGRES_DB: showcase_portal
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - showcase-stack-postgres:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d showcase_portal"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One plain executable runs as controls B, C1 and C2 (docs/showcase/ADR.md ADR-20). Instance B owns the business
+  # database: it migrates the schema and generates the virtual company on first start.
+  workload-plain-b:
+    image: ${SHOWCASE_IMAGE_PREFIX:-contexa-showcase}-plain:${SHOWCASE_IMAGE_TAG:-local}
+    environment:
+      <<: [*database-env, *signing-env]
+      SHOWCASE_WORK_DB_URL: jdbc:postgresql://postgres:5432/showcase_work
+      SHOWCASE_CONTROL: B
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 768m
+
+  workload-plain-c1:
+    image: ${SHOWCASE_IMAGE_PREFIX:-contexa-showcase}-plain:${SHOWCASE_IMAGE_TAG:-local}
+    environment:
+      <<: [*database-env, *signing-env]
+      SHOWCASE_WORK_DB_URL: jdbc:postgresql://postgres:5432/showcase_work
+      SHOWCASE_CONTROL: C1
+    depends_on:
+      workload-plain-b:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 768m
+
+  workload-plain-c2:
+    image: ${SHOWCASE_IMAGE_PREFIX:-contexa-showcase}-plain:${SHOWCASE_IMAGE_TAG:-local}
+    environment:
+      <<: [*database-env, *signing-env]
+      SHOWCASE_WORK_DB_URL: jdbc:postgresql://postgres:5432/showcase_work
+      SHOWCASE_CONTROL: C2
+    depends_on:
+      workload-plain-b:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 768m
+
+  # Control A: OWASP Coraza WAF with the OWASP Core Rule Set at its defaults, in front of control B (ADR-07, ADR-20).
+  waf:
+    image: ghcr.io/coreruleset/coraza-crs:caddy-alpine@sha256:572f727887e9c8234ded1466fe56fec3a0470a6375f1263c4200a13c4324dc59
+    environment:
+      BACKEND: workload-plain-b:19181
+      PORT: "8080"
+    depends_on:
+      workload-plain-b:
+        condition: service_healthy
+    networks: [internal]
+    mem_limit: 256m
+
+  workload-contexa:
+    image: ${SHOWCASE_IMAGE_PREFIX:-contexa-showcase}-contexa:${SHOWCASE_IMAGE_TAG:-local}
+    environment:
+      <<: [*database-env, *signing-env]
+      SHOWCASE_VECTOR_DB_URL: jdbc:postgresql://postgres:5432/showcase_vector
+      SHOWCASE_ENGINE_DB_URL: jdbc:postgresql://postgres:5432/showcase_engine
+      SHOWCASE_WORK_DB_URL: jdbc:postgresql://postgres:5432/showcase_work
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      workload-plain-b:
+        condition: service_healthy
+    # The engine calls the LLM provider, so it also joins the egress network.
+    networks: [internal, egress]
+    mem_limit: 2g
+
+  portal:
+    image: ${SHOWCASE_IMAGE_PREFIX:-contexa-showcase}-portal:${SHOWCASE_IMAGE_TAG:-local}
+    environment:
+      <<: [*database-env, *signing-env]
+      SHOWCASE_PORTAL_DB_URL: jdbc:postgresql://postgres:5432/showcase_portal
+      SHOWCASE_PORTAL_CONTROLS_A: http://waf:8080/
+      SHOWCASE_PORTAL_CONTROLS_B: http://workload-plain-b:19181/
+      SHOWCASE_PORTAL_CONTROLS_C1: http://workload-plain-c1:19181/
+      SHOWCASE_PORTAL_CONTROLS_C2: http://workload-plain-c2:19181/
+      SHOWCASE_PORTAL_CONTROLS_D: http://workload-contexa:19182/
+      # Operator API: listens on the internal network only and is never published (deck p.37 criterion 6).
+      SHOWCASE_PORTAL_OPS_PORT: "19190"
+      SHOWCASE_PORTAL_OPS_ADDRESS: 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${SHOWCASE_PORTAL_PUBLISH:-127.0.0.1:19180}:19180"
+    networks: [internal, egress]
+    mem_limit: 768m
+
+networks:
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  showcase-stack-postgres: {}

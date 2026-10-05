@@ -31,6 +31,7 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
+import io.contexa.contexacore.std.rag.service.BehaviorDocumentRetentionScheduler;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -103,6 +104,15 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(AIStrategyRegistry strategyRegistry) {
         return new DistributedStrategyExecutor(strategyRegistry);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
+    public BehaviorDocumentRetentionScheduler behaviorDocumentRetentionScheduler(
+            VectorStore vectorStore,
+            ContexaRagProperties ragProperties) {
+        return new BehaviorDocumentRetentionScheduler(vectorStore, ragProperties);
     }
 
     @Bean

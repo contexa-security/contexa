@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
+import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
+import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.std.security.AuthorizedPromptContextItem;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
@@ -303,5 +305,77 @@ class PromptContextAuditPayloadMapperTest {
         assertThat(first.getDeniedReasons()).containsExactly("DENIED_PURPOSE", "DENIED_TENANT_SCOPE");
         assertThat(first.getContextFingerprint()).isEqualTo(second.getContextFingerprint());
         assertThat(first.getAuditId()).isEqualTo(second.getAuditId());
+    }
+
+    @Test
+    void mapPseudonymizesContextUserIdsWithTheDecisionPayloadTenantScope() {
+        TenantScopedPseudonymizationService pseudonymizationService =
+                new TenantScopedPseudonymizationService(pseudonymizationProperties());
+        PromptContextAuditPayloadMapper pseudonymizingMapper = new PromptContextAuditPayloadMapper(pseudonymizationService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-pseudonymized")
+                .metadata(Map.of("tenantId", "tenant-acme", "correlationId", "corr-pseudonymized"))
+                .build();
+        AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(
+                List.of(new Document("behavior context", new LinkedHashMap<>(Map.of(
+                        VectorDocumentMetadata.ARTIFACT_ID, "artifact-document",
+                        VectorDocumentMetadata.USER_ID, "alice@example.com")))),
+                1,
+                1,
+                0,
+                "THREAT_RUNTIME_CONTEXT",
+                List.of(),
+                null,
+                List.of(),
+                List.of(AuthorizedPromptContextItem.builder()
+                        .contextType("BEHAVIOR")
+                        .artifactId("artifact-item")
+                        .userId("bob@example.com")
+                        .includedInPrompt(true)
+                        .build()));
+
+        PromptContextAuditPayload fromItems = pseudonymizingMapper.map(event, null, authorizedPromptContext);
+        PromptContextAuditPayload fromDocuments = pseudonymizingMapper.map(event, null, new AuthorizedPromptContext(
+                authorizedPromptContext.documents(), 1, 1, 0, "THREAT_RUNTIME_CONTEXT", List.of()));
+
+        assertThat(fromItems.getContexts()).singleElement()
+                .satisfies(item -> assertThat(item.getUserId())
+                        .isEqualTo(pseudonymizationService.hash("tenant-acme", "bob@example.com"))
+                        .doesNotContain("bob"));
+        assertThat(fromDocuments.getContexts()).singleElement()
+                .satisfies(item -> assertThat(item.getUserId())
+                        .isEqualTo(pseudonymizationService.hash("tenant-acme", "alice@example.com"))
+                        .doesNotContain("alice"));
+    }
+
+    @Test
+    void mapWithoutPseudonymizationServiceOmitsContextUserIds() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("evt-no-pseudonymizer")
+                .metadata(Map.of("tenantId", "tenant-acme"))
+                .build();
+        AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(
+                List.of(new Document("behavior context", new LinkedHashMap<>(Map.of(
+                        VectorDocumentMetadata.ARTIFACT_ID, "artifact-document",
+                        VectorDocumentMetadata.USER_ID, "alice@example.com")))),
+                1,
+                1,
+                0,
+                "THREAT_RUNTIME_CONTEXT",
+                List.of());
+
+        PromptContextAuditPayload payload = mapper.map(event, null, authorizedPromptContext);
+
+        assertThat(payload.getContexts()).singleElement()
+                .satisfies(item -> assertThat(item.getUserId()).isNull());
+    }
+
+    private SaasForwardingProperties pseudonymizationProperties() {
+        return SaasForwardingProperties.builder()
+                .enabled(true)
+                .endpoint("https://saas.example.com")
+                .pseudonymizationSecret("prompt-context-audit-pseudonymization-secret")
+                .globalCorrelationSecret("prompt-context-audit-global-correlation-secret")
+                .build();
     }
 }

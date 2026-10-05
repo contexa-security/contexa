@@ -21,12 +21,14 @@ import java.util.Objects;
  * Builds an official-verification-ready detached copy of a sealed evidence
  * package. This is used for legacy packages created before the prompt evidence
  * manifest columns existed. The original persisted package is not mutated.
+ *
+ * The detached copy is analysis input only. Its package hash is the persisted value and
+ * is never recomputed, so integrity must always be evaluated against the original package.
  */
 public final class SealedEvidencePromptEvidenceBackfill {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private static final HexFormat HEX = HexFormat.of();
-    private static final SealedEvidencePackageIntegrity INTEGRITY = new SealedEvidencePackageIntegrity();
 
     private SealedEvidencePromptEvidenceBackfill() {
     }
@@ -108,10 +110,6 @@ public final class SealedEvidencePromptEvidenceBackfill {
 
         if (!violations.isEmpty()) {
             return new Result(pkg, List.copyOf(violations), List.copyOf(recoveredFields));
-        }
-        if (!recoveredFields.isEmpty()) {
-            pkg.setPackageHash(INTEGRITY.computeHash(pkg));
-            recoveredFields.add("packageHash");
         }
         return new Result(pkg, List.of(), List.copyOf(recoveredFields));
     }

@@ -19,8 +19,11 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
@@ -29,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -36,6 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -71,6 +76,15 @@ class UserManagementServiceImplTest {
 
     @Spy
     private MessageSource messageSource = I18nTestSupport.englishMessageSource();
+
+    @Mock
+    private UserRolePermissionRepository userRolePermissionRepository;
+
+    @Mock
+    private BridgeUserProfileRepository bridgeUserProfileRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private UserManagementServiceImpl service;
@@ -315,6 +329,33 @@ class UserManagementServiceImplTest {
 
             verify(centralAuditFacade).recordAsync(any());
             verify(userRepository).deleteById(1L);
+        }
+
+        @Test
+        @DisplayName("should remove rows that block the deletion and announce the deleted account")
+        void shouldRemoveDependentRowsAndPublishDeletion() {
+            Users user = buildUser(1L, "alice", "Alice");
+            when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+            when(bridgeUserProfileRepository.existsById(1L)).thenReturn(true);
+
+            service.deleteUser(1L);
+
+            InOrder order = inOrder(userRolePermissionRepository, bridgeUserProfileRepository, userRepository,
+                    eventPublisher);
+            order.verify(userRolePermissionRepository).deleteByUserId(1L);
+            order.verify(bridgeUserProfileRepository).deleteById(1L);
+            order.verify(userRepository).deleteById(1L);
+            order.verify(eventPublisher).publishEvent(new UserAccountDeletedEvent(1L, "alice"));
+        }
+
+        @Test
+        @DisplayName("should not announce a deletion of an unknown account")
+        void shouldNotPublishForUnknownAccount() {
+            when(userRepository.findById(9L)).thenReturn(Optional.empty());
+
+            service.deleteUser(9L);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
         }
     }
 }

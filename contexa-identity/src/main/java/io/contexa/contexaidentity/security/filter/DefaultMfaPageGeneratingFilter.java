@@ -25,6 +25,8 @@ import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.FilterChain;
@@ -699,16 +701,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         {{i18nPasskeyStartButton}}
                     </button>
 
-                    <!-- Passkey registration link -->
-                    <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0;">
-                        <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                            {{i18nPasskeyNoPasskey}}
-                        </p>
-                        <a href="{{contextPath}}{{passkeyRegistrationUrl}}"
-                           style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
-                            {{i18nPasskeyRegisterLink}}
-                        </a>
-                    </div>
+                    {{passkeyRegistrationSection}}
 
                     <!-- i18n data for JavaScript -->
                     <div id="i18n-passkey" style="display:none"
@@ -767,11 +760,76 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     window.location.href = '{{contextPath}}{{failureUrl}}?error=' + encodeURIComponent(error.message || 'Unknown error');
                                 }
                             });
+
+                            const registrationForm = document.getElementById('passkey-registration-form');
+                            if (registrationForm) {
+                                registrationForm.addEventListener('submit', async (e) => {
+                                    e.preventDefault();
+                                    const registrationButton = registrationForm.querySelector('button[type="submit"]');
+                                    const originalText = registrationButton.textContent;
+                                    registrationButton.disabled = true;
+                                    registrationButton.textContent = registrationForm.dataset.processing;
+                                    try {
+                                        const result = await mfa.selectFactor(registrationForm.dataset.factorType,
+                                                { registerPasskeyAfterMfa: true });
+                                        if (result.nextStepUrl) { window.location.href = result.nextStepUrl; }
+                                        else if (result.redirectUrl) { window.location.href = result.redirectUrl; }
+                                    } catch (error) {
+                                        console.error('Factor selection failed:', error);
+                                        alert(registrationForm.dataset.error + (error.message || 'Unknown error'));
+                                        registrationButton.disabled = false;
+                                        registrationButton.textContent = originalText;
+                                    }
+                                });
+                            }
                         }
                     </script>
                 </div>
             </body>
             </html>
+            """;
+
+    private static final String PASSKEY_REGISTRATION_LINK_TEMPLATE = """
+            <!-- Passkey registration link -->
+                    <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0;">
+                        <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                            {{i18nPasskeyNoPasskey}}
+                        </p>
+                        <a href="{{passkeyRegistrationUrl}}"
+                           style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
+                            {{i18nPasskeyRegisterLink}}
+                        </a>
+                    </div>
+            """;
+
+    private static final String PASSKEY_REGISTRATION_VIA_OTT_TEMPLATE = """
+            <!-- Passkey registration after identity verification with the email OTT factor -->
+                    <div id="passkey-registration-notice" style="margin-top: 24px; padding: 16px; background: #f6f8fa; border: 1px solid #e0e0e0; border-radius: 8px; text-align: left;">
+                        <p style="color: #555; font-size: 14px; line-height: 1.6; margin-bottom: 12px;">
+                            {{i18nPasskeyRegistrationNotice}}
+                        </p>
+                        <form id="passkey-registration-form" method="post" action="{{selectFactorUrl}}"
+                              data-factor-type="{{factorType}}"
+                              data-processing="{{i18nProcessing}}"
+                              data-error="{{i18nError}}">
+                            {{hiddenInputs}}
+                            <input type="hidden" name="factorType" value="{{factorType}}">
+                            <input type="hidden" name="{{intentParameter}}" value="true">
+                            <button type="submit"
+                                    style="width: 100%; padding: 12px; background: white; color: #667eea; border: 1.5px solid #667eea; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">
+                                {{i18nPasskeyRegistrationButton}}
+                            </button>
+                        </form>
+                    </div>
+            """;
+
+    private static final String PASSKEY_REGISTRATION_UNAVAILABLE_TEMPLATE = """
+            <!-- Passkey registration is not available before the MFA flow completes -->
+                    <div id="passkey-registration-notice" style="margin-top: 24px; padding: 16px; background: #f6f8fa; border: 1px solid #e0e0e0; border-radius: 8px; text-align: left;">
+                        <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                            {{i18nPasskeyRegistrationUnavailable}}
+                        </p>
+                    </div>
             """;
 
     private static final String SELECT_FACTOR_TEMPLATE = """
@@ -2018,6 +2076,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .replace("{{headerValue}}", csrfToken);
 
         String failureUrl = authUrlProvider.getMfaFailure();
+        FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
                 .withValue("contextPath", contextPath)
@@ -2027,19 +2086,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withValue("csrfHeaders", csrfHeaders)
                 .withValue("failureUrl", failureUrl)
-                .withValue("passkeyRegistrationUrl", authUrlProvider.getPasskeyRegistrationPage())
                 .withValue("tokenPersistence", tokenPersistence)
                 .withValue("i18nPasskeyPageTitle", msg(request, "mfa.passkey.page.title", "MFA - Passkey Authentication"))
                 .withValue("i18nPasskeyTitle", msg(request, "mfa.passkey.title", "Passkey Authentication"))
                 .withValue("i18nPasskeyDescription", msg(request, "mfa.passkey.description", "Authenticate using biometrics or a security key."))
                 .withValue("i18nPasskeyAccountLabel", msg(request, "mfa.passkey.account.label", "Account being authenticated"))
                 .withValue("i18nPasskeyStartButton", msg(request, "mfa.passkey.start.button", "Start Passkey Authentication"))
-                .withValue("i18nPasskeyNoPasskey", msg(request, "mfa.passkey.no.passkey", "Don't have a registered Passkey?"))
-                .withValue("i18nPasskeyRegisterLink", msg(request, "mfa.passkey.register.link", "Register Passkey"))
                 .withValue("i18nPasskeyJsInitializing", msg(request, "mfa.passkey.js.initializing", "Initializing..."))
                 .withValue("i18nPasskeyJsAuthenticate", msg(request, "mfa.passkey.js.authenticate", "Authenticate with Passkey"))
                 .withValue("i18nPasskeyJsAuthenticating", msg(request, "mfa.passkey.js.authenticating", "Authenticating..."))
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
+                .withRawHtml("passkeyRegistrationSection", buildPasskeyRegistrationSection(request, contextPath, factorContext))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(request, contextPath, factorContext))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -2233,5 +2290,63 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return "<div style=\"text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;\">"
                 + "<a href=\"" + selectFactorUrl + "\" style=\"color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;\">"
                 + linkText + "</a></div>";
+    }
+
+    /**
+     * Renders the passkey registration section of the MFA passkey page.
+     *
+     * <p>A session whose MFA is still pending must not register a passkey, because the first factor
+     * alone would then be enough to enroll a new credential. Instead of the registration link, such a
+     * session gets an explanation: when the email OTT factor is available, it offers to continue with
+     * that factor through the regular factor selection and to register a passkey once the MFA flow
+     * completes; otherwise it states that the sign-in configuration has to be changed by an operator.
+     * A session without pending MFA, for example a fully authenticated user challenged by Zero Trust,
+     * may register a passkey and keeps the registration link.</p>
+     */
+    private String buildPasskeyRegistrationSection(HttpServletRequest request, String contextPath,
+                                                   @Nullable FactorContext ctx) {
+        if (MfaPendingSessionMarker.getPendingFlowTypeName(request) == null) {
+            return MfaHtmlTemplates.fromTemplate(PASSKEY_REGISTRATION_LINK_TEMPLATE)
+                    .withValue("passkeyRegistrationUrl", contextPath + authUrlProvider.getPasskeyRegistrationPage())
+                    .withValue("i18nPasskeyNoPasskey", msg(request, "mfa.passkey.no.passkey", "Don't have a registered Passkey?"))
+                    .withValue("i18nPasskeyRegisterLink", msg(request, "mfa.passkey.register.link", "Register Passkey"))
+                    .render();
+        }
+
+        if (!isOttFactorAvailable(ctx)) {
+            return MfaHtmlTemplates.fromTemplate(PASSKEY_REGISTRATION_UNAVAILABLE_TEMPLATE)
+                    .withValue("i18nPasskeyRegistrationUnavailable", msg(request, "mfa.passkey.registration.unavailable",
+                            "A passkey cannot be registered for the first time with the current sign-in configuration. "
+                                    + "Ask your system administrator to add email verification as an authentication method."))
+                    .render();
+        }
+
+        return MfaHtmlTemplates.fromTemplate(PASSKEY_REGISTRATION_VIA_OTT_TEMPLATE)
+                .withValue("selectFactorUrl", contextPath + authUrlProvider.getMfaSelectFactor())
+                .withValue("factorType", AuthType.MFA_OTT.name())
+                .withValue("intentParameter", MfaPasskeyRegistrationIntent.REQUEST_PARAMETER)
+                .withValue("i18nPasskeyRegistrationNotice", msg(request, "mfa.passkey.registration.notice",
+                        "Don't have a registered passkey yet? For your security, a passkey can be registered only after "
+                                + "your identity is verified. Complete sign-in with an email verification code and you will "
+                                + "be taken straight to passkey registration."))
+                .withValue("i18nPasskeyRegistrationButton", msg(request, "mfa.passkey.registration.button",
+                        "Continue with email verification and register a passkey"))
+                .withValue("i18nProcessing", msg(request, "mfa.select.js.processing", "Processing..."))
+                .withValue("i18nError", msg(request, "mfa.select.js.error", "Authentication method selection failed: "))
+                .withRawHtml("hiddenInputs", resolveHiddenInputs(request))
+                .render();
+    }
+
+    /**
+     * Returns whether the email OTT factor can still be selected in the current MFA flow: it must be
+     * available to the user and not completed yet. Without an initialized factor context, the factors
+     * registered for the flow decide.
+     */
+    private boolean isOttFactorAvailable(@Nullable FactorContext ctx) {
+        if (ctx != null && !ctx.getAvailableFactors().isEmpty()) {
+            return ctx.getRemainingFactors().contains(AuthType.MFA_OTT);
+        }
+        return mfaFlowConfig.getRegisteredFactorOptions() != null
+                && mfaFlowConfig.getRegisteredFactorOptions().containsKey(AuthType.MFA_OTT);
     }
 }

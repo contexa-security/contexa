@@ -30,6 +30,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.time.Instant;
+
 /**
  * Shared Zero Trust logic delegated from AISessionSecurityContextRepository
  * and AIOAuth2SecurityContextRepository via composition pattern.
@@ -113,6 +115,18 @@ public class AISecurityContextSupport {
             return session.getId();
         }
         return sessionIdResolver != null ? sessionIdResolver.resolve(request) : null;
+    }
+
+    /**
+     * Expiry of the access token behind a JWT authentication, or null for any other authentication. The identifier of
+     * a JWT authentication (its jti) is dead once the token has expired.
+     */
+    @Nullable
+    public static Instant accessTokenExpiry(@Nullable Authentication auth) {
+        if (JWT_AUTHENTICATION_PRESENT && auth instanceof JwtAuthenticationToken jwtAuth) {
+            return jwtAuth.getToken().getExpiresAt();
+        }
+        return null;
     }
 
     public AuthenticationTrustResolver getTrustResolver() {

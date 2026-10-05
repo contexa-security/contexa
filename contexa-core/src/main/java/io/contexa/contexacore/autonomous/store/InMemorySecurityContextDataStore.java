@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class InMemorySecurityContextDataStore implements SecurityContextDataStore {
+public class InMemorySecurityContextDataStore implements SecurityContextDataStore, ExpiringStateStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
@@ -45,6 +45,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration DEFAULT_SOAR_TTL = Duration.ofDays(7);
     private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
+    private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
 
     private final Duration eventProcessedTtl;
     private final Duration soarTtl;
@@ -88,6 +89,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, ConcurrentSkipListMap<Long, String>> loginFailureCounters =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> mfaVerifiedExpiry = new ConcurrentHashMap<>();
+    private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
     private final AtomicLong authenticationEventSequence = new AtomicLong();
     private final Object eventProcessingLock = new Object();
     private final Map<String, String> processingEventOwners = new LinkedHashMap<>();
@@ -332,6 +334,24 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void deleteUserData(String userId) {
+        if (userId == null) {
+            return;
+        }
+        String tenantScopedSuffix = "::" + userId;
+        for (Map<String, ?> perUser : List.of(
+                workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
+            perUser.keySet().removeIf(key -> key.equals(userId) || key.endsWith(tenantScopedSuffix));
+        }
+        lastRequestTimes.remove(userId);
+        previousPaths.remove(userId);
+        mfaVerifiedExpiry.remove(userId);
+        loginFailureCounters.remove("user:" + userId.trim());
+        userSessions.remove(userId);
+        userSessionsExpiry.remove(userId);
+    }
+
+    @Override
     public EventProcessingClaim claimEventProcessing(String eventId) {
         return claimEventProcessingLease(eventId).claim();
     }
@@ -456,6 +476,37 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return sessions == null ? Collections.emptySet() : Collections.unmodifiableSet(sessions);
     }
 
+    /**
+     * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes (the
+     * records are trimmed to five minutes whenever a new failure arrives).
+     */
+    public void setLoginFailureRetention(Duration retention) {
+        if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
+            loginFailureRetention = retention;
+        }
+    }
+
+    /**
+     * Releases MFA verifications, tracked user sessions and login failure records that no read can return any more,
+     * following the same expiry rules as the reads.
+     */
+    @Override
+    public void removeExpiredEntries() {
+        long nowMs = clock.millis();
+        mfaVerifiedExpiry.forEach((userId, expiresAt) -> {
+            if (nowMs >= expiresAt) {
+                mfaVerifiedExpiry.remove(userId, expiresAt);
+            }
+        });
+        Instant now = clock.instant();
+        userSessionsExpiry.forEach((userId, expiresAt) -> {
+            if (now.isAfter(expiresAt) && userSessionsExpiry.remove(userId, expiresAt)) {
+                userSessions.remove(userId);
+            }
+        });
+        removeExpiredLoginFailures(nowMs);
+    }
+
     private void appendToStringSequence(
             ConcurrentHashMap<String, List<String>> target,
             String sequenceKey,
@@ -472,6 +523,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return sequence;
         });
         evictIfOversized();
+    }
+
+    private void removeExpiredLoginFailures(long nowMs) {
+        long staleBefore = (nowMs - loginFailureRetention.toMillis()) * 1_000_000L;
+        for (String key : loginFailureCounters.keySet()) {
+            loginFailureCounters.computeIfPresent(key, (ignored, counter) ->
+                    counter.isEmpty() || counter.lastKey() < staleBefore ? null : counter);
+        }
     }
 
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
@@ -592,5 +651,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             return key;
         }
         return tenantId + "::" + key;
+    }
+
+    boolean holdsUserRecordsFor(String userId) {
+        return mfaVerifiedExpiry.containsKey(userId) || userSessionsExpiry.containsKey(userId)
+                || userSessions.containsKey(userId) || loginFailureCounters.containsKey("user:" + userId);
     }
 }

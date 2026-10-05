@@ -111,4 +111,13 @@ public class RedisBlockMfaStateStore implements BlockMfaStateStore {
     public int getFailCount(String userId) {
         return (int) actionRepository.getBlockMfaFailCount(userId);
     }
+
+    @Override
+    public void clearUser(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        stringRedisTemplate.delete(ZeroTrustRedisKeys.blockMfaVerified(userId));
+        actionRepository.clearBlockMfaPending(userId);
+    }
 }

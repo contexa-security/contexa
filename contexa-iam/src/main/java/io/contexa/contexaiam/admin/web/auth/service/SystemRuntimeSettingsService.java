@@ -18,6 +18,8 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import io.contexa.contexacommon.entity.SystemSettings;
 import io.contexa.contexacommon.repository.SystemSettingsRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.CombiningAlgorithm;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,8 @@ public class SystemRuntimeSettingsService {
 
     public static final SecurityZeroTrustProperties.SecurityMode DEFAULT_SECURITY_ZEROTRUST_MODE = SecurityZeroTrustProperties.SecurityMode.SHADOW;
     public static final String DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES = "io.contexa.contexaiam.";
+    public static final CombiningAlgorithm DEFAULT_POLICY_COMBINING_ALGORITHM = CombiningAlgorithm.FIRST_APPLICABLE;
+    public static final NoPolicyDecision DEFAULT_NO_POLICY_DECISION = NoPolicyDecision.PERMIT;
 
     private final SystemSettingsRepository repository;
 
@@ -44,9 +49,18 @@ public class SystemRuntimeSettingsService {
                 .orElseGet(SystemRuntimeSettingsService::defaultSettings);
     }
 
+    /**
+     * Returns the zero trust mode saved by an operator, or empty when the settings row does not
+     * exist or its mode is not set so that the {@code contexa.security.zerotrust.mode} property
+     * value stays in effect.
+     */
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
-    public SecurityZeroTrustProperties.SecurityMode getSecurityZeroTrustMode() {
-        return normalizeSecurityZeroTrustMode(getSettings().getSecurityZeroTrustMode());
+    public Optional<SecurityZeroTrustProperties.SecurityMode> findSecurityZeroTrustMode() {
+        return repository.findAll().stream()
+                .findFirst()
+                .map(SystemSettings::getSecurityZeroTrustMode)
+                .filter(StringUtils::hasText)
+                .map(SystemRuntimeSettingsService::normalizeSecurityZeroTrustMode);
     }
 
     @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
@@ -59,11 +73,59 @@ public class SystemRuntimeSettingsService {
         return normalizePackagePrefixes(getSettings().getMvcResourceScannerBasePackages());
     }
 
+    /**
+     * Returns the policy decision settings stored in the singleton row, or empty when the row does
+     * not exist yet so that the {@code contexa.policy.*} property values stay in effect.
+     *
+     * @throws IllegalArgumentException when a stored value is not a valid enum constant
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public Optional<PolicyDecisionSettings> findPolicyDecisionSettings() {
+        return repository.findAll().stream()
+                .findFirst()
+                .map(settings -> new PolicyDecisionSettings(
+                        parseCombiningAlgorithm(settings.getPolicyCombiningAlgorithm()),
+                        parseNoPolicyDecision("noMatchingUrlPolicyDecision", settings.getNoMatchingUrlPolicyDecision()),
+                        parseNoPolicyDecision("missingMethodPolicyDecision", settings.getMissingMethodPolicyDecision())));
+    }
+
     public static SystemSettings defaultSettings() {
         return SystemSettings.builder()
-                .securityZeroTrustMode(DEFAULT_SECURITY_ZEROTRUST_MODE.name())
+                .policyCombiningAlgorithm(DEFAULT_POLICY_COMBINING_ALGORITHM.name())
+                .noMatchingUrlPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
+                .missingMethodPolicyDecision(DEFAULT_NO_POLICY_DECISION.name())
                 .mvcResourceScannerBasePackages(DEFAULT_MVC_RESOURCE_SCANNER_BASE_PACKAGES)
                 .build();
+    }
+
+    /**
+     * Parses a combining algorithm. Only exact enum constant names are accepted.
+     *
+     * @throws IllegalArgumentException when the value is blank or not a {@link CombiningAlgorithm}
+     */
+    public static CombiningAlgorithm parseCombiningAlgorithm(String rawValue) {
+        return parseEnum(CombiningAlgorithm.class, "policyCombiningAlgorithm", rawValue);
+    }
+
+    /**
+     * Parses a no-matching-policy decision. Only exact enum constant names are accepted.
+     *
+     * @throws IllegalArgumentException when the value is blank or not a {@link NoPolicyDecision}
+     */
+    public static NoPolicyDecision parseNoPolicyDecision(String field, String rawValue) {
+        return parseEnum(NoPolicyDecision.class, field, rawValue);
+    }
+
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String field, String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        for (E constant : type.getEnumConstants()) {
+            if (constant.name().equals(rawValue.trim())) {
+                return constant;
+            }
+        }
+        throw new IllegalArgumentException(field + " has an unsupported value: " + rawValue);
     }
 
     public static SecurityZeroTrustProperties.SecurityMode normalizeSecurityZeroTrustMode(String rawValue) {
@@ -98,6 +160,15 @@ public class SystemRuntimeSettingsService {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized.endsWith(".") ? normalized : normalized + ".";
+    }
+
+    /**
+     * Operator-controlled policy decision settings persisted in {@code system_settings}.
+     */
+    public record PolicyDecisionSettings(
+            CombiningAlgorithm combiningAlgorithm,
+            NoPolicyDecision noMatchingUrlPolicyDecision,
+            NoPolicyDecision missingMethodPolicyDecision) {
     }
 
 }

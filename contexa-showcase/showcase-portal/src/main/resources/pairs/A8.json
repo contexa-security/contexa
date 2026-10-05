@@ -1,0 +1,28 @@
+{
+  "key": "A8",
+  "order": 8,
+  "question": {
+    "ko": "관리자 A가 저녁 20:30, 장애 티켓 번호를 대며 담당이 아닌 프로젝트 문서 300건을 내보내려 합니다.",
+    "en": "At 20:30, admin A names an incident ticket and tries to export 300 documents from a project they are not assigned to."
+  },
+  "scenes": [
+    {
+      "kind": "ATTACK",
+      "scenario": "A8",
+      "sentence": {
+        "ko": "관리자 A가 저녁 20:30, 장애 티켓 번호를 대며 담당이 아닌 프로젝트 문서 300건을 내보내려 합니다.",
+        "en": "At 20:30, admin A names an incident ticket and tries to export 300 documents from a project they are not assigned to."
+      },
+      "featuredStep": 1
+    },
+    {
+      "kind": "LEGITIMATE",
+      "scenario": "A8T",
+      "sentence": {
+        "ko": "관리자 A가 저녁 20:30, 당번 근무 중 실제 장애 티켓으로 같은 문서 300건을 내보냅니다.",
+        "en": "At 20:30, admin A, on call, exports the same 300 documents under a real incident ticket."
+      },
+      "featuredStep": 1
+    }
+  ]
+}

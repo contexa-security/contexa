@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -33,6 +34,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -43,6 +45,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,6 +57,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationContext;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -105,6 +109,8 @@ class MfaFormAuthenticationFilterTest {
     @Mock
     private SecurityContextRepository securityContextRepository;
 
+    private final MockHttpSession session = new MockHttpSession();
+
     private MfaFormAuthenticationFilter filter;
 
     @BeforeEach
@@ -125,6 +131,47 @@ class MfaFormAuthenticationFilterTest {
         setField(filter, "securityContextRepository", securityContextRepository);
 
         when(securityContextHolderStrategy.createEmptyContext()).thenReturn(new SecurityContextImpl());
+        when(request.getSession(true)).thenReturn(session);
+        when(request.getSession(false)).thenReturn(session);
+    }
+
+    @Nested
+    @DisplayName("MFA pending marker tests")
+    class MfaPendingMarkerTests {
+
+        @Test
+        @DisplayName("Primary authentication marks the session before the SecurityContext is saved")
+        void marksSessionBeforeSavingContext() throws Exception {
+            when(sessionRepository.supportsDistributedSync()).thenReturn(false);
+            when(stateMachineIntegrator.getCurrentState(anyString())).thenReturn(MfaState.NONE);
+            filter.setFlowTypeName("mfa_admin");
+            AtomicReference<Object> markerAtSave = new AtomicReference<>();
+            doAnswer(invocation -> {
+                markerAtSave.set(session.getAttribute(MfaPendingSessionMarker.SESSION_ATTRIBUTE));
+                return null;
+            }).when(securityContextRepository).saveContext(any(), eq(request), eq(response));
+
+            Authentication auth = createSuccessfulAuthentication();
+
+            filter.successfulAuthentication(request, response, filterChain, auth);
+
+            assertThat(markerAtSave.get()).isEqualTo("mfa_admin");
+            assertThat(session.getAttribute(MfaPendingSessionMarker.SESSION_ATTRIBUTE)).isEqualTo("mfa_admin");
+            verify(successHandler).onAuthenticationSuccess(request, response, auth);
+        }
+
+        @Test
+        @DisplayName("State machine initialization failure keeps the session marked")
+        void initializationFailureKeepsMarker() throws Exception {
+            when(sessionRepository.supportsDistributedSync()).thenReturn(false);
+            doThrow(new RuntimeException("SM init failed"))
+                    .when(stateMachineIntegrator).initializeStateMachine(any(), any(), any());
+
+            filter.successfulAuthentication(request, response, filterChain, createSuccessfulAuthentication());
+
+            assertThat(session.getAttribute(MfaPendingSessionMarker.SESSION_ATTRIBUTE)).isEqualTo("mfa");
+            verify(failureHandler).onAuthenticationFailure(eq(request), eq(response), any());
+        }
     }
 
     @Nested

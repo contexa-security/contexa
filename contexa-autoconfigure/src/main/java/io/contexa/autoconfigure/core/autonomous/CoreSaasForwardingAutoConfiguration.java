@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.core.CoreDataAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
@@ -50,7 +51,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
 import java.util.concurrent.Executor;
 
-@AutoConfiguration
+@AutoConfiguration(after = CoreDataAutoConfiguration.class)
 @ConditionalOnClass(OAuth2AuthorizedClientManager.class)
 @ConditionalOnProperty(prefix = "contexa.saas", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(ContexaProperties.class)
@@ -97,6 +98,8 @@ public class CoreSaasForwardingAutoConfiguration {
     @ConditionalOnMissingBean
     public SaasForwardingProperties saasForwardingProperties(ContexaProperties properties) {
         ContexaProperties.Saas source = properties.getSaas();
+        // Also enforced here so that a custom saasClientRegistrationRepository cannot bypass it.
+        source.validateSecrets();
         return SaasForwardingProperties.builder()
                 .enabled(source.isEnabled())
                 .endpoint(source.getEndpoint())
@@ -224,8 +227,9 @@ public class CoreSaasForwardingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PromptContextAuditPayloadMapper promptContextAuditPayloadMapper() {
-        return new PromptContextAuditPayloadMapper();
+    public PromptContextAuditPayloadMapper promptContextAuditPayloadMapper(
+            TenantScopedPseudonymizationService pseudonymizationService) {
+        return new PromptContextAuditPayloadMapper(pseudonymizationService);
     }
 
     @Bean

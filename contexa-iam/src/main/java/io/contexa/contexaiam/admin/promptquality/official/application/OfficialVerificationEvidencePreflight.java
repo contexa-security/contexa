@@ -67,6 +67,9 @@ public final class OfficialVerificationEvidencePreflight extends AbstractPromptQ
                 .orElseThrow(() -> new NoSuchElementException(message(
                         "enterprise.pqa.runtimeVerification.error.packageId.notFound",
                         request.packageId())));
+        // Integrity is evaluated on the package exactly as persisted. The prepared copy may carry
+        // recovered legacy fields and is used only as analysis input.
+        boolean integrityValid = lookupService.verifyIntegrity(loaded);
         SealedEvidencePackage evidencePackage = prepare(loaded);
         Map<String, Object> requestFacts = parseJson(evidencePackage.getRequestFactsJson());
         Map<String, Object> promptMetadata =
@@ -76,7 +79,6 @@ public final class OfficialVerificationEvidencePreflight extends AbstractPromptQ
         String httpMethod = httpMethod(requestFacts);
         String actualResourceId = resourceResolver.actualResourceId(
                 requestFacts, promptMetadata, requestPath, resourceId, evidencePackage);
-        boolean integrityValid = lookupService.verifyIntegrity(evidencePackage);
         RuntimeEvidencePromptConsistencyResult promptConsistency = promptConsistencyGate.evaluate(evidencePackage);
         String operatorId = firstNonBlank(request.operatorId(), evidencePackage.getUserId(), "runtime-pqa");
         PromptQualityProcessScope processScope = new PromptQualityProcessScope(

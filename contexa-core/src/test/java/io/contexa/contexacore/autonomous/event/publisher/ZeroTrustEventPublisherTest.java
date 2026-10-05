@@ -31,6 +31,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -89,7 +90,7 @@ class ZeroTrustEventPublisherTest {
                 null
         );
 
-        assertThat(event.getUserAgent()).isEqualTo("JUnit /ato");
+        assertThat(event.getUserAgent()).isEqualTo("JUnit");
         assertThat(event.getPayload())
                 .containsEntry("principalType", "USER")
                 .containsEntry("authenticationType", "JWT")
@@ -142,6 +143,7 @@ class ZeroTrustEventPublisherTest {
                 "officialVerification.protectableResourceUrl",
                 "/api/security-test/sensitive/{resourceId}");
         request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
+        addServerIssuedProbeCapability(request);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -333,6 +335,82 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("auth method should carry the bridge authentication type instead of an authority-derived value")
+    void shouldUseBridgeAuthenticationTypeAsAuthMethodWhenBridgeProvidesAuthenticationType() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createOauth2JwtBridgeResolutionResult());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ZeroTrustSpringEvent event = buildEventWithMfaAuthority();
+
+        assertThat(event.getPayload())
+                .containsEntry("bridgeAuthenticationSource", "SECURITY_CONTEXT")
+                .containsEntry("authenticationType", "OAUTH2_JWT")
+                .containsEntry("authMethod", "OAUTH2_JWT")
+                .containsEntry("mfaVerified", false);
+    }
+
+    @Test
+    @DisplayName("auth method should carry the bridge authentication type even when the authentication has no authorities")
+    void shouldUseBridgeAuthenticationTypeAsAuthMethodWithoutAuthorities() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createOauth2JwtBridgeResolutionResult());
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                        invocation,
+                        new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                        true,
+                        null);
+
+        assertThat(event.getPayload())
+                .containsEntry("authenticationType", "OAUTH2_JWT")
+                .containsEntry("authMethod", "OAUTH2_JWT")
+                .containsEntry("mfaVerified", false);
+    }
+
+    @Test
+    @DisplayName("authority-derived auth method should remain the fallback without bridge evidence")
+    void shouldSynthesizeAuthMethodFromAuthoritiesWithoutBridgeEvidence() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-oauth");
+        request.addHeader("User-Agent", "JUnit");
+        request.setRemoteAddr("10.0.0.20");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        ZeroTrustSpringEvent event = buildEventWithMfaAuthority();
+
+        assertThat(event.getPayload())
+                .containsEntry("authMethod", "mfa")
+                .containsEntry("mfaVerified", true)
+                .doesNotContainKeys("authenticationType", "bridgeAuthenticationSource");
+    }
+
+    private ZeroTrustSpringEvent buildEventWithMfaAuthority() throws Exception {
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "alice",
+                "n/a",
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_USER"),
+                        new SimpleGrantedAuthority("MFA_VERIFIED")));
+        return new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(invocation, authentication, true, null);
+    }
+
+    @Test
     @DisplayName("runtime action and role authorities should not be projected as permissions")
     void shouldNotProjectRoleAuthoritiesAsPermissions() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/view");
@@ -357,12 +435,13 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("observed-at header should control authorization event timestamp")
+    @DisplayName("observed-at header should control authorization event timestamp for server issued probes")
     void shouldUseObservedAtForAuthorizationEventTimestamp() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
         request.setRequestedSessionId("session-observed-at");
         request.addHeader("User-Agent", "JUnit");
         request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
+        addServerIssuedProbeCapability(request);
         request.setRemoteAddr("203.0.113.10");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
@@ -473,6 +552,50 @@ class ZeroTrustEventPublisherTest {
                         "disableOllamaThinking");
     }
 
+    @Test
+    @DisplayName("client official verification markers should not put a shadow boundary or simulated facts into the event")
+    void shouldIgnoreClientShadowBoundaryAndSimulationHeadersWithoutServerCapability() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+        request.setRequestedSessionId("session-forged-probe");
+        request.addHeader("User-Agent", "JUnit");
+        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_RUNTIME");
+        request.addHeader("X-Contexa-Decision-Boundary-Mode", "SHADOW");
+        request.addHeader("X-Contexa-Model-Id", "attacker-model");
+        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 Baseline Chrome/120");
+        request.addHeader("X-Simulated-User-Agent-Label", "Baseline Chrome");
+        request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
+        request.addHeader("X-Forwarded-For", "198.51.100.20");
+        request.setRemoteAddr("203.0.113.10");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null
+        );
+
+        assertThat(event.getPayload())
+                .doesNotContainKeys("decisionBoundaryMode", "requestedModelId", "preferredModel", "simulatedUserAgentLabel");
+        assertThat(event.getPayload().get("scenario")).isNull();
+        assertThat(event.getUserAgent()).isEqualTo("JUnit");
+        assertThat(event.getClientIp()).isEqualTo("203.0.113.10");
+        assertThat(event.getEventTimestamp()).isNotEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
+    }
+
+    private static void addServerIssuedProbeCapability(MockHttpServletRequest request) {
+        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
+        headers.setRuntimeOverrideCapability();
+        headers.asMap().forEach(request::addHeader);
+    }
+
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
@@ -509,6 +632,22 @@ class ZeroTrustEventPublisherTest {
                         Set.of(MissingBridgeContext.AUTHORIZATION_EFFECT),
                         "Bridge resolved authentication, authorization, and delegated execution context for the current request.",
                         List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request."))
+        );
+    }
+
+    private BridgeResolutionResult createOauth2JwtBridgeResolutionResult() {
+        return new BridgeResolutionResult(
+                new RequestContextSnapshot("/api/profile", "GET", "10.0.0.20", "JUnit", "session-oauth", "request-oauth", "/api/profile", null, false, Instant.now()),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "OAUTH2_JWT", "SECURITY_CONTEXT", "loa2", false, Instant.now(), "session-oauth", List.of("ROLE_USER"), Map.of(
+                        "tenantId", "tenant-a")),
+                null,
+                null,
+                new BridgeCoverageReport(
+                        BridgeCoverageLevel.AUTHENTICATION_ONLY,
+                        40,
+                        Set.of(MissingBridgeContext.AUTHORIZATION),
+                        "Bridge resolved authentication for the current request.",
+                        List.of())
         );
     }
 

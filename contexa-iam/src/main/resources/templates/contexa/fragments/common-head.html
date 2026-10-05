@@ -65,6 +65,13 @@
         <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />
     </th:block>
 
+    <!--/* A page of a cookie login: the SDK renews an expired access token for the requests of page scripts. */-->
+    <th:block th:if="${contexaTokenTransport != null and contexaSdkUrl != null}">
+        <meta name="contexa-token-transport" th:content="${contexaTokenTransport}" />
+        <meta th:if="${contexaRefreshUrl != null}" name="contexa-refresh-url" th:content="${contexaRefreshUrl}" />
+        <script th:src="${contexaSdkUrl}"></script>
+    </th:block>
+
     <style>
         .admin-sidebar * {
             box-sizing: border-box;

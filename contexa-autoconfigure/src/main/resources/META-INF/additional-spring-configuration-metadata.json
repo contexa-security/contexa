@@ -23,6 +23,42 @@
       "type": "java.time.Duration",
       "defaultValue": "15m",
       "description": "Elapsed time without execution progress after which an interrupted official verification can be recovered by the next request."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.capture-enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether the OSS decision pipeline seals the final LLM prompt and the enforced decision into sealed evidence packages. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.snapshot-ttl",
+      "type": "java.time.Duration",
+      "defaultValue": "10m",
+      "description": "Maximum time a captured prompt trace waits in memory for the decision pipeline to seal it."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.max-pending-snapshots",
+      "type": "java.lang.Integer",
+      "defaultValue": 1000,
+      "description": "Upper bound of prompt traces kept in memory before Layer1 completion; the oldest are evicted first."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.max-completed-snapshots",
+      "type": "java.lang.Integer",
+      "defaultValue": 1000,
+      "description": "Upper bound of completed prompt traces kept in memory until they are sealed; the oldest are evicted first."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.retention.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether expired sealed evidence packages are deleted on schedule. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.retention.cleanup-cron",
+      "type": "java.lang.String",
+      "defaultValue": "0 30 3 * * *",
+      "description": "Cron expression of the cleanup that deletes sealed evidence packages whose expiresAt has passed."
     }
   ]
 }

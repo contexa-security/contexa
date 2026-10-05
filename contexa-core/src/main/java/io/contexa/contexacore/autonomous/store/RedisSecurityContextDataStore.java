@@ -18,7 +18,9 @@ package io.contexa.contexacore.autonomous.store;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Duration;
@@ -598,6 +600,46 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to store SOAR execution: eventId={}", eventId, e);
         }
+    }
+
+    @Override
+    public void deleteUserData(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        List<String> keys = new ArrayList<>(List.of(
+                ZeroTrustRedisKeys.userLastRequestTime(userId),
+                ZeroTrustRedisKeys.userPreviousPath(userId),
+                ZeroTrustRedisKeys.authenticationMfaVerified(userId),
+                ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()),
+                ZeroTrustRedisKeys.userSessions(userId),
+                ZeroTrustRedisKeys.userWorkProfileObservations(userId),
+                ZeroTrustRedisKeys.userPermissionChangeObservations(userId),
+                ZeroTrustRedisKeys.userAuthorizationScopeState(userId)));
+        String anyTenantScope = "*::" + escapeGlob(userId);
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
+        keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
+        redisTemplate.delete(keys);
+    }
+
+    private List<String> scanKeys(String pattern) {
+        List<String> keys = new ArrayList<>();
+        try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions().match(pattern).count(500).build())) {
+            cursor.forEachRemaining(keys::add);
+        }
+        return keys;
+    }
+
+    private static String escapeGlob(String value) {
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (char c : value.toCharArray()) {
+            if (c == '\\' || c == '*' || c == '?' || c == '[' || c == ']') {
+                escaped.append('\\');
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
     }
 
     @Override

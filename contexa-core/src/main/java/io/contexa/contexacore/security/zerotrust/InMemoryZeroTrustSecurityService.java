@@ -34,6 +34,7 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
 
     private final ConcurrentHashMap<String, Instant> invalidatedSessionExpiry = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> userSessions = new ConcurrentHashMap<>();
+    private final Map<String, Instant> trackUntil = new ConcurrentHashMap<>();
     private final Duration invalidationTtl;
     private final Clock clock;
 
@@ -95,7 +96,53 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
 
     @Override
     protected void doRegisterSession(String userId, String sessionId) {
-        userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
+        // Added inside compute so the sweep cannot drop the set between its creation and this add.
+        userSessions.compute(userId, (ignored, sessions) -> {
+            Set<String> tracked = sessions != null ? sessions : ConcurrentHashMap.newKeySet();
+            tracked.add(sessionId);
+            return tracked;
+        });
+    }
+
+    @Override
+    protected void doRegisterSession(String userId, String sessionId, Instant deadline) {
+        doRegisterSession(userId, sessionId);
+        if (deadline != null) {
+            trackUntil.put(sessionId, deadline);
+        }
+    }
+
+    @Override
+    protected void doForgetSession(String sessionId) {
+        trackUntil.remove(sessionId);
+        userSessions.values().forEach(sessions -> sessions.remove(sessionId));
+    }
+
+    /**
+     * Releases invalidation marks past their TTL, token identifiers past their expiry and users without tracked
+     * sessions. A live identifier is never dropped, so forced logout keeps reaching every live session.
+     */
+    @Override
+    protected void doRemoveExpiredSessionData() {
+        Instant now = clock.instant();
+        invalidatedSessionExpiry.forEach((sessionId, expiresAt) -> {
+            if (now.isAfter(expiresAt)) {
+                invalidatedSessionExpiry.remove(sessionId, expiresAt);
+            }
+        });
+        trackUntil.forEach((sessionId, deadline) -> {
+            if (now.isAfter(deadline) && trackUntil.remove(sessionId, deadline)) {
+                userSessions.values().forEach(sessions -> sessions.remove(sessionId));
+            }
+        });
+        for (String userId : userSessions.keySet()) {
+            userSessions.computeIfPresent(userId, (ignored, sessions) -> sessions.isEmpty() ? null : sessions);
+        }
+    }
+
+    boolean tracksSession(String sessionId) {
+        return trackUntil.containsKey(sessionId)
+                || userSessions.values().stream().anyMatch(sessions -> sessions.contains(sessionId));
     }
 
     @Override

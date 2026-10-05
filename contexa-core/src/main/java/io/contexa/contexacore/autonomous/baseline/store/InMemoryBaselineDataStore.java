@@ -82,6 +82,13 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
         return userBaselines.estimatedSize();
     }
 
+    @Override
+    public void deleteUserBaseline(String userId) {
+        if (userId != null) {
+            userBaselines.invalidate(userId);
+        }
+    }
+
     private Cache<String, BaselineVector> buildCache(Duration ttl) {
         return Caffeine.newBuilder()
                 .expireAfterWrite(ttl)

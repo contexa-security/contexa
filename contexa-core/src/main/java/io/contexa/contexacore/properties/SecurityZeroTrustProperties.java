@@ -114,6 +114,12 @@ public class SecurityZeroTrustProperties {
     @Data
     public static class AnalysisSettings {
         private long maxAgeMs = 3_600_000L;
+
+        /**
+         * How long new analysis for an actor context is suspended after its final decision
+         * could not be written to the decision observation store.
+         */
+        private long auditFailureCooldownMs = 30_000L;
     }
 
     @Data

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPasskeyRegistrationIntent;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,59 @@ class WebAuthnFilterTest {
         assertThat(resultHtml).contains("My Key");
         assertThat(resultHtml).contains("csrf-value-123");
         assertThat(resultHtml).contains("/ctx/webauthn/register/BAUG");
+    }
+
+    @Test
+    @DisplayName("RegistrationPageFilter offers a link back to the original target after MFA sent the user here")
+    void registrationPageFilterRendersContinueLink() throws Exception {
+        ContexaWebAuthnRegistrationPageFilter filter = new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/webauthn/register");
+        request.setRemoteUser("testuser");
+        MfaPasskeyRegistrationIntent.storeReturnUrl(request, "/orders?id=42&view=full");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(response.getContentAsString())
+                .contains("<a id=\"continue-link\" href=\"/orders?id=42&amp;view=full\"")
+                .contains("Continue to your original page");
+        assertThat(MfaPasskeyRegistrationIntent.getReturnUrl(request)).isEqualTo("/orders?id=42&view=full");
+    }
+
+    @Test
+    @DisplayName("RegistrationPageFilter uses the return URL once after a successful registration")
+    void registrationPageFilterConsumesReturnUrlAfterSuccess() throws Exception {
+        ContexaWebAuthnRegistrationPageFilter filter = new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/webauthn/register");
+        request.setQueryString("success");
+        request.setParameter("success", "");
+        request.setRemoteUser("testuser");
+        MfaPasskeyRegistrationIntent.storeReturnUrl(request, "/home");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(response.getContentAsString()).contains("<a id=\"continue-link\" href=\"/home\"");
+        assertThat(MfaPasskeyRegistrationIntent.getReturnUrl(request)).isNull();
+
+        MockHttpServletResponse reloaded = new MockHttpServletResponse();
+        filter.doFilterInternal(request, reloaded, filterChain);
+        assertThat(reloaded.getContentAsString()).doesNotContain("continue-link");
+    }
+
+    @Test
+    @DisplayName("RegistrationPageFilter renders no continue link without a return URL")
+    void registrationPageFilterWithoutReturnUrlHasNoContinueLink() throws Exception {
+        ContexaWebAuthnRegistrationPageFilter filter = new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/webauthn/register");
+        request.setRemoteUser("testuser");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(response.getContentAsString())
+                .doesNotContain("continue-link")
+                .doesNotContain("{{continueLink}}");
     }
 
     @Test

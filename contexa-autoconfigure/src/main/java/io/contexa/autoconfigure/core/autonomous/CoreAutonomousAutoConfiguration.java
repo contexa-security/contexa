@@ -33,7 +33,9 @@ import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.saas.*;
+import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -41,8 +43,19 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.autonomous.service.UserAccountDeletionListener;
+import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
+import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import io.contexa.contexacore.autonomous.service.BridgeMirrorUserStatePurgeContributor;
+import org.springframework.transaction.PlatformTransactionManager;
+import io.contexa.contexacore.autonomous.service.UserStatePurgeContributor;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
+import io.contexa.contexacore.autonomous.store.InMemoryStateSweeper;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -53,6 +66,7 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
@@ -69,6 +83,7 @@ import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -81,9 +96,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -140,6 +157,19 @@ import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistr
 public class CoreAutonomousAutoConfiguration {
 
     public CoreAutonomousAutoConfiguration() {
+    }
+
+    /**
+     * Binds the trusted proxy settings to the context binding hash so that filters, handlers and
+     * repositories resolve the client IP exactly as the security event publisher does. The binding
+     * is created eagerly because no other bean depends on it.
+     */
+    @Bean("contexaClientIpResolutionBinding")
+    @Lazy(false)
+    @ConditionalOnMissingBean(name = "contexaClientIpResolutionBinding")
+    public DisposableBean contexaClientIpResolutionBinding(TieredStrategyProperties tieredStrategyProperties) {
+        SessionFingerprintUtil.bindClientIpResolution(tieredStrategyProperties);
+        return () -> SessionFingerprintUtil.unbindClientIpResolution(tieredStrategyProperties);
     }
 
     @Bean
@@ -522,7 +552,7 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(ZeroTrustActionRepository.class)
         public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
-                RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
         }
@@ -537,7 +567,7 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(ThreatScoreUtil.class)
         public RedisThreatScoreUtil redisThreatScoreUtil(
-                RedisTemplate<String, Object> redisTemplate,
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
                 SecurityZeroTrustProperties securityZeroTrustProperties) {
             return new RedisThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
         }
@@ -545,14 +575,14 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
-                RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisSecurityContextDataStore(redisTemplate);
         }
 
         @Bean
         @ConditionalOnMissingBean(DistributedLockService.class)
         public RedisDistributedLockService redisDistributedLockService(
-                RedisTemplate<String, Object> redisTemplate) {
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
             return new RedisDistributedLockService(redisTemplate);
         }
     }
@@ -596,8 +626,63 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(SecurityContextDataStore.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
-    public InMemorySecurityContextDataStore inMemorySecurityContextDataStore() {
-        return new InMemorySecurityContextDataStore();
+    public InMemorySecurityContextDataStore inMemorySecurityContextDataStore(
+            ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
+        if (properties != null) {
+            store.setLoginFailureRetention(Duration.ofMinutes(
+                    Math.max(1, properties.getContext().getLoginFailureWindowMinutes())));
+        }
+        return store;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserEngineStatePurger userEngineStatePurger(
+            ZeroTrustActionRepository zeroTrustActionRepository,
+            ObjectProvider<BlockingSignalBroadcaster> blockingSignalBroadcaster,
+            ObjectProvider<BlockMfaStateStore> blockMfaStateStore,
+            ObjectProvider<BaselineDataStore> baselineDataStore,
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<ColdPathEventProcessor> coldPathEventProcessor,
+            ObjectProvider<VectorStore> vectorStore,
+            ObjectProvider<IForceLogoutService> forceLogoutService,
+            ObjectProvider<UserStatePurgeContributor> contributors) {
+        return new UserEngineStatePurger(
+                zeroTrustActionRepository,
+                blockingSignalBroadcaster.getIfAvailable(),
+                blockMfaStateStore.getIfAvailable(),
+                baselineDataStore.getIfAvailable(),
+                securityContextDataStore.getIfAvailable(),
+                coldPathEventProcessor.getIfAvailable(),
+                vectorStore.getIfUnique(),
+                forceLogoutService.getIfAvailable(),
+                contributors.orderedStream().toList());
+    }
+
+    /** Removes the security bridge's mirror users of a deleted account; skips itself without the user tables. */
+    @Bean
+    public UserStatePurgeContributor bridgeMirrorUserStatePurgeContributor(
+            ObjectProvider<UserRepository> userRepository,
+            ObjectProvider<BridgeUserProfileRepository> bridgeUserProfileRepository,
+            ObjectProvider<UserRolePermissionRepository> userRolePermissionRepository,
+            @Qualifier("contexaTransactionManager") ObjectProvider<PlatformTransactionManager> contexaTransactionManager) {
+        return new BridgeMirrorUserStatePurgeContributor(userRepository, bridgeUserProfileRepository,
+                userRolePermissionRepository, contexaTransactionManager);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserAccountDeletionListener userAccountDeletionListener(UserEngineStatePurger userEngineStatePurger) {
+        return new UserAccountDeletionListener(userEngineStatePurger);
+    }
+
+    @Bean(destroyMethod = "close")
+    @ConditionalOnMissingBean
+    public InMemoryStateSweeper inMemoryStateSweeper(ObjectProvider<ExpiringStateStore> expiringStateStores) {
+        return new InMemoryStateSweeper(
+                () -> expiringStateStores.orderedStream().toList(), InMemoryStateSweeper.DEFAULT_INTERVAL);
     }
 }
 

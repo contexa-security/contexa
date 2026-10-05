@@ -1,0 +1,28 @@
+{
+  "key": "A5",
+  "order": 5,
+  "question": {
+    "ko": "관리자 A가 오후에 엔지니어 K에게 RESTRICTED 프로젝트 GB-500의 검토 권한을 줍니다.",
+    "en": "In the afternoon, admin A gives engineer K a review role on the restricted project GB-500."
+  },
+  "scenes": [
+    {
+      "kind": "ATTACK",
+      "scenario": "A5",
+      "sentence": {
+        "ko": "관리자 A가 오후에 승인 없이 엔지니어 K에게 RESTRICTED 프로젝트 GB-500의 검토 권한을 줍니다.",
+        "en": "In the afternoon, admin A gives engineer K a review role on the restricted project GB-500 without approval."
+      },
+      "featuredStep": 1
+    },
+    {
+      "kind": "LEGITIMATE",
+      "scenario": "A5T",
+      "sentence": {
+        "ko": "관리자 A가 승인된 변경 티켓에 따라 엔지니어 K에게 같은 검토 권한을 줍니다.",
+        "en": "Admin A gives engineer K the same review role under an approved change ticket."
+      },
+      "featuredStep": 1
+    }
+  ]
+}

@@ -405,6 +405,67 @@ public class AuthUrlProvider {
         return urls;
     }
 
+    /**
+     * Returns the request paths a session must still reach after primary authentication
+     * succeeded and before MFA completed: login, logout, MFA pages, factor challenge and
+     * verification endpoints. Unlike {@link #getAllMfaRelatedUrls()}, the post-MFA success
+     * page and the passkey registration endpoints are excluded, because registering a new
+     * credential with only the first factor would let the second factor be bypassed.
+     * Query strings are stripped so that the values can be compared with request paths.
+     */
+    public Set<String> getMfaInProgressUrls() {
+        Set<String> paths = new LinkedHashSet<>();
+        addPath(paths, getPrimaryLoginPage());
+        addPath(paths, getPrimaryFormLoginProcessing());
+        addPath(paths, getPrimaryRestLoginProcessing());
+        addPath(paths, getPrimaryLoginFailure());
+        addPath(paths, getLogoutPage());
+        addPath(paths, getLogoutProcessingUrl());
+        addPath(paths, getMfaSelectFactor());
+        addPath(paths, getMfaFailure());
+        addPath(paths, getMfaCancel());
+        addPath(paths, getMfaStatus());
+        addPath(paths, getMfaRequestOttCode());
+        addPath(paths, getMfaConfig());
+        addPath(paths, getOttRequestCodeUi());
+        addPath(paths, getOttCodeGeneration());
+        addPath(paths, getOttChallengeUi());
+        addPath(paths, getOttLoginProcessing());
+        addPath(paths, getPasskeyChallengeUi());
+        addPath(paths, getPasskeyAssertionOptions());
+        addPath(paths, getPasskeyLoginProcessing());
+        addPath(paths, getRecoveryCodeChallengeUi());
+        addPath(paths, getRecoveryCodeLoginProcessing());
+        return paths;
+    }
+
+    /**
+     * Returns the request paths that register a new passkey: the registration page, the creation
+     * options endpoint and the registration processing endpoint of the MFA factor, and those of the
+     * single passkey login. A session with an incomplete MFA must not reach them.
+     * Query strings are stripped so that the values can be compared with request paths.
+     */
+    public Set<String> getPasskeyRegistrationUrls() {
+        Set<String> paths = new LinkedHashSet<>();
+        addPath(paths, getPasskeyRegistrationPage());
+        addPath(paths, getPasskeyRegistrationOptions());
+        addPath(paths, getPasskeyRegistrationProcessing());
+        addPath(paths, getSinglePasskeyRegistrationOptions());
+        addPath(paths, getSinglePasskeyRegistrationProcessing());
+        return paths;
+    }
+
+    private void addPath(Set<String> paths, @Nullable String url) {
+        if (!StringUtils.hasText(url)) {
+            return;
+        }
+        int queryIndex = url.indexOf('?');
+        String path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
+        if (StringUtils.hasText(path)) {
+            paths.add(path);
+        }
+    }
+
     public Map<String, Object> getAllUiPageUrls() {
         Map<String, Object> urls = new LinkedHashMap<>();
 

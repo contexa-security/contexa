@@ -89,7 +89,7 @@ class TokenTransportStrategyTest {
         assertThat(accessCookie.getValue()).isEqualTo("access-123");
         assertThat(accessCookie.isHttpOnly()).isTrue();
         assertThat(accessCookie.isSecure()).isTrue();
-        assertThat(accessCookie.getSameSite()).isEqualTo("Strict");
+        assertThat(accessCookie.getSameSite()).isEqualTo("Lax");
         assertThat(accessCookie.getPath()).isEqualTo("/");
         assertThat(accessCookie.getMaxAge().getSeconds()).isEqualTo(3600L);
 

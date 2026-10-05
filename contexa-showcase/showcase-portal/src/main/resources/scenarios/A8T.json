@@ -1,0 +1,53 @@
+{
+  "key": "A8T",
+  "version": 1,
+  "title": {
+    "ko": "당번 중 실제 장애 티켓으로 반출",
+    "en": "Exporting on call under a real incident ticket"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "EVENING",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TICKET",
+      "ticketKind": "INCIDENT",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFromOffset": "-PT1H",
+      "validUntilOffset": "PT5H",
+      "status": "OPEN"
+    },
+    {
+      "kind": "ONCALL",
+      "team": "PLATFORM",
+      "validFromOffset": "-PT2H",
+      "validUntilOffset": "PT6H"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 300,
+      "offsetSeconds": 0,
+      "claimedTicket": "{fact:1}",
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

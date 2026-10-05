@@ -48,9 +48,14 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class BridgeResolutionFilter extends OncePerRequestFilter {
+
+    private static final String EXPLICIT_HANDOFF_SOURCE = "EXPLICIT_HANDOFF";
+    private static final String HANDOFF_CONFLICT_ATTRIBUTE = "bridgeHandoffConflict";
+    private static final String HANDOFF_PRINCIPAL_ID_ATTRIBUTE = "bridgeHandoffPrincipalId";
 
     private final BridgeProperties properties;
     private final RequestContextCollector requestContextCollector;
@@ -144,7 +149,17 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 BridgeRequestAttributes.HOST_PRINCIPAL_SNAPSHOT,
                 HostPrincipalSnapshotAdapter.INSTANCE.snapshot(auth));
         RequestContextSnapshot requestContext = requestContextCollector.collect(request);
-        AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
+        AuthenticationStamp resolvedAuthenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
+        AuthenticationStamp handoffStamp = explicitHandoffStamp(request);
+        if (handoffStamp != null && resolvedAuthenticationStamp != null
+                && Objects.equals(handoffStamp.principalId(), resolvedAuthenticationStamp.principalId())) {
+            // An explicit handoff earlier in this request already resolved the same principal; keep it as is.
+            filterChain.doFilter(request, response);
+            return;
+        }
+        AuthenticationStamp authenticationStamp = handoffStamp != null
+                ? withHandoffConflict(resolvedAuthenticationStamp, handoffStamp)
+                : resolvedAuthenticationStamp;
         AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext)
                 .or(() -> bridgeRuntimeSupport.deriveAuthorizationStamp(authenticationStamp, requestContext.requestUri(), requestContext.method()))
                 .orElse(null);
@@ -165,6 +180,40 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             bridgeRuntimeSupport.persistSecurityContext(securityContextRepository, request, response);
         }
         filterChain.doFilter(request, response);
+    }
+
+    @Nullable
+    private AuthenticationStamp explicitHandoffStamp(HttpServletRequest request) {
+        if (request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT) instanceof BridgeResolutionResult result
+                && result.authenticationStamp() != null
+                && EXPLICIT_HANDOFF_SOURCE.equals(result.authenticationStamp().authenticationSource())) {
+            return result.authenticationStamp();
+        }
+        return null;
+    }
+
+    @Nullable
+    private AuthenticationStamp withHandoffConflict(@Nullable AuthenticationStamp stamp, AuthenticationStamp handoffStamp) {
+        if (stamp == null) {
+            return null;
+        }
+        Map<String, Object> attributes = new LinkedHashMap<>(stamp.attributes());
+        attributes.put(HANDOFF_CONFLICT_ATTRIBUTE, true);
+        attributes.put(HANDOFF_PRINCIPAL_ID_ATTRIBUTE, handoffStamp.principalId());
+        return new AuthenticationStamp(
+                stamp.principalId(),
+                stamp.displayName(),
+                stamp.principalType(),
+                stamp.authenticated(),
+                stamp.authenticationType(),
+                stamp.authenticationSource(),
+                stamp.authenticationAssurance(),
+                stamp.mfaCompleted(),
+                stamp.authenticationTime(),
+                stamp.sessionId(),
+                stamp.authorities(),
+                attributes
+        );
     }
 
     private Optional<AuthenticationStamp> resolveAuthenticationStamp(HttpServletRequest request, RequestContextSnapshot requestContext) {

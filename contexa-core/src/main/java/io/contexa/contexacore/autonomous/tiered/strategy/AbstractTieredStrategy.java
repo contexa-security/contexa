@@ -89,6 +89,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
             "Authorization allows access, the personal baseline is established, "
                     + "and authorized RAG is relevant to the same resource.";
+    private static final String LIMITED_BASELINE_ALLOW_REASONING =
+            "Authorization allows access with a limited baseline, "
+                    + "and no concrete risk or verification requirement is present.";
     private static final String CONFIRMED_MALICIOUS_BLOCK_REASONING =
             "A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.";
     private static final Set<String> CONFIRMED_MALICIOUS_MARKERS = Set.of(
@@ -585,9 +588,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 context.setBaselineResourceFamilies(personalBaseline.getFrequentResourceFamilies());
                 context.setBaselineUpdateCount(personalBaseline.getUpdateCount());
                 context.setBaselineAvgTrustScore(personalBaseline.getAvgTrustScore());
-                if (personalBaseline.getNormalUserAgents() != null && personalBaseline.getNormalUserAgents().length > 0) {
-                    context.setPreviousUserAgentBrowser(personalBaseline.getNormalUserAgents()[0]);
-                }
             }
             BaselineLearningService.BaselineMaturitySnapshot maturity = baselineEvidence.maturity();
             if (maturity == null) {
@@ -1751,16 +1751,25 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
 
-        if (finalAction == ZeroTrustAction.ALLOW && hasSameResourceAuthorizedRag(metadata, relatedDocuments)) {
+        if (finalAction == ZeroTrustAction.ALLOW) {
             boolean personalBaselineEstablished = Boolean.TRUE.equals(
                     booleanValue(metadata.get("personalBaselineEstablished")))
                     || Boolean.TRUE.equals(booleanValue(metadata.get("learningPersonalBaselineEstablished")));
-            setCanonicalReasoning(
-                    decision,
-                    personalBaselineEstablished
-                            ? SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING
-                            : SAME_RESOURCE_RAG_ALLOW_REASONING);
+            if (hasSameResourceAuthorizedRag(metadata, relatedDocuments)) {
+                setCanonicalReasoning(
+                        decision,
+                        personalBaselineEstablished
+                                ? SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING
+                                : SAME_RESOURCE_RAG_ALLOW_REASONING);
+            } else if (!personalBaselineEstablished && claimsEstablishedBaseline(decision.getReasoning())) {
+                // The canonical facts decide the baseline: an established-baseline claim without one is replaced.
+                setCanonicalReasoning(decision, LIMITED_BASELINE_ALLOW_REASONING);
+            }
         }
+    }
+
+    private boolean claimsEstablishedBaseline(String reasoning) {
+        return reasoning != null && reasoning.toLowerCase(Locale.ROOT).contains("baseline is established");
     }
 
     private void setCanonicalReasoning(SecurityDecision decision, String canonicalReasoning) {

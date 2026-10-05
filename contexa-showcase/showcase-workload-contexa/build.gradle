@@ -1,0 +1,110 @@
+description = 'Contexa Showcase control protected by the Contexa runtime engine'
+
+// Testcontainers 1.21.4 negotiates the Docker API version; 1.21.3 is refused by Docker 29 (minimum API 1.44).
+ext['testcontainers.version'] = '1.21.4'
+
+// contexa-common depends on nd4j-native-platform, which bundles native libraries for every operating
+// system and makes the executable close to 900 MB. The showcase packages only the native libraries of the
+// platform it is built on: linux-x86_64 inside the Docker build, windows-x86_64 for local runs on Windows.
+def nativePlatform = findProperty('showcase.nativePlatform')
+        ?: (System.getProperty('os.name').toLowerCase().contains('windows') ? 'windows-x86_64' : 'linux-x86_64')
+
+configurations.matching { it.name in ['runtimeClasspath', 'testRuntimeClasspath'] }.configureEach {
+    exclude group: 'org.nd4j', module: 'nd4j-native-platform'
+    exclude group: 'org.bytedeco', module: 'openblas-platform'
+    exclude group: 'org.bytedeco', module: 'javacpp-platform'
+}
+
+dependencies {
+    runtimeOnly 'org.nd4j:nd4j-native:1.0.0-M2.1'
+    runtimeOnly "org.nd4j:nd4j-native:1.0.0-M2.1:${nativePlatform}"
+    runtimeOnly 'org.bytedeco:openblas:0.3.19-1.5.7'
+    runtimeOnly "org.bytedeco:openblas:0.3.19-1.5.7:${nativePlatform}"
+    runtimeOnly 'org.bytedeco:javacpp:1.5.7'
+    runtimeOnly "org.bytedeco:javacpp:1.5.7:${nativePlatform}"
+}
+
+dependencies {
+    implementation project(':showcase-business')
+    implementation project(':spring-boot-starter-contexa')
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    // The tests prepare the business database the way the plain workload does.
+    testImplementation 'org.flywaydb:flyway-core'
+    testRuntimeOnly 'org.flywaydb:flyway-database-postgresql'
+}
+
+// The engine reads ZoneId.systemDefault(); tests run in the same time zone as the containers (ADR-09).
+tasks.named('test') {
+    systemProperty 'user.timezone', 'UTC'
+    useJUnitPlatform {
+        excludeTags 'live-llm', 'slow-contract'
+    }
+}
+
+// Contracts that need real elapsed time (SlowContractProbeTest): needs Docker, takes about six minutes.
+tasks.register('slowContractTest', Test) {
+    description = 'Runs the connection contract probes that wait for real time windows.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'slow-contract'
+    }
+    systemProperty 'user.timezone', 'UTC'
+    outputs.upToDateWhen { false }
+}
+
+// Real model measurement (LiveDecisionMeasurementTest): needs Docker and OPENAI_API_KEY, and spends model credit.
+tasks.register('liveLlmTest', Test) {
+    description = 'Measures real security decisions of control D with the configured chat model.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'live-llm'
+    }
+    systemProperty 'user.timezone', 'UTC'
+    ['showcase.live.principals', 'showcase.live.output'].each { key ->
+        if (project.hasProperty(key)) {
+            systemProperty key, project.property(key)
+        }
+    }
+    outputs.upToDateWhen { false }
+}
+
+bootJar.enabled = true
+jar.enabled = false
+// Build commit for the execution specification (docs/showcase/실행명세.md). Docker builds have no .git, so the
+// commit comes from SHOWCASE_GIT_COMMIT there; a working tree with uncommitted changes is marked "-dirty".
+def showcaseCommit = providers.environmentVariable('SHOWCASE_GIT_COMMIT').orElse(providers.provider {
+    try {
+        def head = ['git', 'rev-parse', '--short=12', 'HEAD'].execute(null, rootDir).text.trim()
+        def dirty = ['git', 'status', '--porcelain', '--untracked-files=no'].execute(null, rootDir).text.trim()
+        head ? head + (dirty ? '-dirty' : '') : 'unknown'
+    } catch (IOException ignored) {
+        'unknown'
+    }
+})
+springBoot {
+    mainClass = 'io.contexa.showcase.workload.contexa.ContexaWorkloadApplication'
+    buildInfo {
+        properties {
+            additional = ['git.commit': showcaseCommit.get()]
+        }
+    }
+}
+
+// This executable is not a published Contexa library.
+publishing.publications.clear()
+tasks.withType(PublishToMavenRepository).configureEach { enabled = false }
+tasks.withType(PublishToMavenLocal).configureEach { enabled = false }
+tasks.withType(Sign).configureEach { enabled = false }

@@ -127,8 +127,8 @@ class CustomDynamicAuthorizationManagerCombiningTest {
             CustomDynamicAuthorizationManager manager = createManager(CombiningAlgorithm.FIRST_APPLICABLE);
             manager.reload();
 
-            // high priority (100) should be resolved first
-            assertThat(resolved.get(0)).isEqualTo("!(denyAll)");
+            // high priority (100) should be resolved first; DENY conditions are never negated
+            assertThat(resolved.get(0)).isEqualTo("denyAll");
             assertThat(resolved.get(1)).isEqualTo("permitAll");
         }
     }
@@ -140,14 +140,14 @@ class CustomDynamicAuthorizationManagerCombiningTest {
     class ExpressionConversion {
 
         @Test
-        @DisplayName("DENY_OVERRIDES에서도 DENY 정책의 expression이 부정으로 래핑됨")
-        void denyExpressionNegated() {
+        @DisplayName("DENY 정책의 expression은 부정 없이 적용 조건 그대로 유지됨")
+        void denyExpressionIsApplicabilityCondition() {
             CustomDynamicAuthorizationManager manager = createManager(CombiningAlgorithm.DENY_OVERRIDES);
             Policy denyPolicy = buildPolicy(1L, "deny", Policy.Effect.DENY, 100, "/api/test", "hasAuthority('ROLE_ADMIN')");
 
             String expr = manager.getExpressionFromPolicy(denyPolicy);
 
-            assertThat(expr).isEqualTo("!(hasAuthority('ROLE_ADMIN'))");
+            assertThat(expr).isEqualTo("hasAuthority('ROLE_ADMIN')");
         }
 
         @Test

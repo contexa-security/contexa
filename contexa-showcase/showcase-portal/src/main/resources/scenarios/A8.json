@@ -1,0 +1,37 @@
+{
+  "key": "A8",
+  "version": 1,
+  "title": {
+    "ko": "없는 장애 티켓을 대며 반출",
+    "en": "Exporting while naming an incident ticket that does not exist"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "EVENING",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 300,
+      "offsetSeconds": 0,
+      "claimedTicket": "INC-7781",
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

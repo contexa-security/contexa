@@ -24,6 +24,9 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationReport;
 import io.contexa.contexaiam.security.xacml.pap.dto.SimulationTestCase;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,17 +57,21 @@ class PolicySimulatorTest {
     @Mock private RoleHierarchy roleHierarchy;
 
     private PolicySimulator simulator;
+    private PolicyCombiningProperties combiningProperties;
 
     @BeforeEach
     void setUp() {
-        simulator = new PolicySimulator(userRepository, policyRepository, roleHierarchy);
+        combiningProperties = new PolicyCombiningProperties();
+        simulator = new PolicySimulator(userRepository, policyRepository, roleHierarchy,
+                new PolicyCombiningEvaluator(), combiningProperties);
         when(roleHierarchy.getReachableGrantedAuthorities(anyCollection()))
                 .thenAnswer(inv -> inv.getArgument(0));
     }
 
     private Policy buildPolicy(Long id, String name, Policy.Effect effect,
                                 String path, String condition) {
-        Policy policy = Policy.builder().id(id).name(name).effect(effect).priority(100).isActive(true).build();
+        Policy policy = Policy.builder().id(id).name(name).effect(effect).priority(100).isActive(true)
+                .approvalStatus(Policy.ApprovalStatus.APPROVED).build();
         PolicyTarget target = PolicyTarget.builder()
                 .policy(policy).targetType("URL").targetIdentifier(path).build();
         policy.getTargets().add(target);
@@ -147,8 +154,9 @@ class PolicySimulatorTest {
         }
 
         @Test
-        @DisplayName("후보 ALLOW 정책 추가 시 NONE -> ALLOW 변경 감지")
+        @DisplayName("No-matching default DENY followed by a candidate ALLOW policy is DENY -> ALLOW")
         void candidateAllowGrantsAccess() {
+            combiningProperties.setNoMatchingUrlPolicyDecision(NoPolicyDecision.DENY);
             Policy candidate = buildPolicy(null, "allow-new", Policy.Effect.ALLOW,
                     "/api/new", "hasAuthority('ROLE_USER')");
             Users user = buildUser(1L, "testuser", "ROLE_USER");
@@ -162,6 +170,8 @@ class PolicySimulatorTest {
             assertThat(report.results().get(0).changed()).isTrue();
             assertThat(report.results().get(0).changeType()).isEqualTo("DENY_TO_ALLOW");
             assertThat(report.summary().denyToAllow()).isEqualTo(1);
+            assertThat(report.results().get(0).currentResult().noPolicyDecisionApplied()).isTrue();
+            assertThat(report.results().get(0).currentResult().noPolicyDecision()).isEqualTo("DENY");
         }
     }
 

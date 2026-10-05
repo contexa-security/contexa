@@ -1,0 +1,57 @@
+{
+  "key": "S05",
+  "version": 1,
+  "title": {
+    "ko": "넓은 권한의 업무 범위 이탈",
+    "en": "Broad privilege outside the job"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0001",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0007",
+      "offsetSeconds": 90,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0013",
+      "offsetSeconds": 180,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

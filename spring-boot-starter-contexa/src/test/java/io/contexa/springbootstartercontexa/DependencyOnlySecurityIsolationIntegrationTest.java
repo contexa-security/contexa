@@ -22,10 +22,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -147,6 +152,28 @@ class DependencyOnlySecurityIsolationIntegrationTest {
                 404));
     }
 
+    @Test
+    void dependencyOnlyLeavesHostResourceServerConfigurationUntouched() {
+        contextRunner.withUserConfiguration(HostResourceServerConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    MockMvc mockMvc = MockMvcBuilders
+                            .webAppContextSetup(context.getSourceApplicationContext())
+                            .apply(springSecurity())
+                            .build();
+                    var hostToken = mockMvc.perform(get("/rs/me")
+                                    .header("Authorization", "Bearer host-token"))
+                            .andReturn().getResponse();
+                    int unknownTokenStatus = mockMvc.perform(get("/rs/me")
+                                    .header("Authorization", "Bearer unknown-token"))
+                            .andReturn().getResponse().getStatus();
+
+                    assertThat(hostToken.getStatus()).isEqualTo(200);
+                    assertThat(hostToken.getContentAsString()).isEqualTo("host-token-principal");
+                    assertThat(unknownTokenStatus).isEqualTo(401);
+                });
+    }
+
     private WebApplicationContextRunner contexaDisabledBaselineRunner() {
         return new WebApplicationContextRunner()
                 .withPropertyValues(
@@ -255,6 +282,51 @@ class DependencyOnlySecurityIsolationIntegrationTest {
         @Bean
         HostContractController hostContractController() {
             return new HostContractController();
+        }
+    }
+
+    /**
+     * Host resource server that authenticates bearer tokens with its own AuthenticationManagerResolver while a
+     * JwtDecoder bean also exists. Adding JWT support to this chain would conflict with the resolver.
+     */
+    @Configuration(proxyBeanMethods = false)
+    static class HostResourceServerConfiguration {
+
+        @Bean
+        SecurityFilterChain hostResourceServerFilterChain(HttpSecurity httpSecurity) throws Exception {
+            AuthenticationManager hostTokenManager = authentication -> {
+                if (authentication instanceof BearerTokenAuthenticationToken bearer
+                        && "host-token".equals(bearer.getToken())) {
+                    return new TestingAuthenticationToken("host-token-principal", null, "ROLE_HOST");
+                }
+                throw new BadCredentialsException("Unknown host token");
+            };
+            return httpSecurity
+                    .securityMatcher("/rs/**")
+                    .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+                    .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(request -> hostTokenManager))
+                    .build();
+        }
+
+        @Bean
+        JwtDecoder hostJwtDecoder() {
+            return token -> {
+                throw new BadJwtException("The host resource server chain does not accept JWTs");
+            };
+        }
+
+        @Bean
+        HostResourceServerController hostResourceServerController() {
+            return new HostResourceServerController();
+        }
+    }
+
+    @RestController
+    static class HostResourceServerController {
+
+        @GetMapping("/rs/me")
+        String me(Authentication authentication) {
+            return authentication.getName();
         }
     }
 

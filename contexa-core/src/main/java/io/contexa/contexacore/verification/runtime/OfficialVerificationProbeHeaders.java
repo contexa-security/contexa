@@ -19,8 +19,10 @@ public final class OfficialVerificationProbeHeaders {
     public static final String ACCEPT = "Accept";
     public static final String FAULT_SCENARIO = "X-Contexa-Verification-Bridge-Fault-Scenario";
     public static final String FAULT_CAPABILITY = "X-Contexa-Verification-Bridge-Fault-Capability";
+    public static final String RUNTIME_OVERRIDE_CAPABILITY = "X-Contexa-Verification-Runtime-Capability";
 
     private static final String FAULT_CAPABILITY_VALUE = UUID.randomUUID().toString();
+    private static final String RUNTIME_OVERRIDE_CAPABILITY_VALUE = UUID.randomUUID().toString();
 
     private final Map<String, String> values = new LinkedHashMap<>();
 
@@ -42,12 +44,37 @@ public final class OfficialVerificationProbeHeaders {
         set(FAULT_CAPABILITY, FAULT_CAPABILITY_VALUE);
     }
 
+    /**
+     * Marks this probe as issued by the current server so that the runtime override and
+     * simulation headers it carries are honored when the probe request is analyzed.
+     * The capability is scoped separately from the fault capability, so it never
+     * authorizes prompt fault injection.
+     */
+    public void setRuntimeOverrideCapability() {
+        set(RUNTIME_OVERRIDE_CAPABILITY, RUNTIME_OVERRIDE_CAPABILITY_VALUE);
+    }
+
     public static boolean isAuthorizedFault(String scenario, String capability) {
-        if (!StringUtils.hasText(scenario) || !StringUtils.hasText(capability)) {
+        if (!StringUtils.hasText(scenario)) {
+            return false;
+        }
+        return capabilityMatches(FAULT_CAPABILITY_VALUE, capability);
+    }
+
+    /**
+     * Returns true only when the presented value equals the runtime override capability
+     * issued by this JVM. Client supplied scenario markers or request paths never qualify.
+     */
+    public static boolean isAuthorizedRuntimeOverride(String capability) {
+        return capabilityMatches(RUNTIME_OVERRIDE_CAPABILITY_VALUE, capability);
+    }
+
+    private static boolean capabilityMatches(String expected, String capability) {
+        if (!StringUtils.hasText(capability)) {
             return false;
         }
         return MessageDigest.isEqual(
-                FAULT_CAPABILITY_VALUE.getBytes(StandardCharsets.UTF_8),
+                expected.getBytes(StandardCharsets.UTF_8),
                 capability.trim().getBytes(StandardCharsets.UTF_8));
     }
 

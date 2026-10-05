@@ -1,0 +1,96 @@
+{
+  "key": "S06",
+  "version": 1,
+  "title": {
+    "ko": "낮은 속도의 누적 자료 수집",
+    "en": "Slow accumulation of documents"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "MORNING",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "CP-220",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "CP-220",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 600,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "CP-220",
+        "type": "DRAWING",
+        "position": 3
+      },
+      "offsetSeconds": 1200,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "CP-220",
+        "type": "DRAWING",
+        "position": 4
+      },
+      "offsetSeconds": 1800,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "CP-220",
+      "items": 12,
+      "offsetSeconds": 2700,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

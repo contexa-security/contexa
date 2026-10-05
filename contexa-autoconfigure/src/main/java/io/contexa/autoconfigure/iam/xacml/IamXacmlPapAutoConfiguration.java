@@ -25,6 +25,7 @@ import io.contexa.contexacore.infra.redis.PolicyReloadBroadcaster;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsRuntimeApplier;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -46,6 +47,8 @@ import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -57,6 +60,7 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -129,8 +133,12 @@ public class IamXacmlPapAutoConfiguration {
     public PolicySimulator policySimulator(
             UserRepository userRepository,
             PolicyRepository policyRepository,
-            RoleHierarchy roleHierarchy) {
-        return new PolicySimulator(userRepository, policyRepository, roleHierarchy);
+            RoleHierarchy roleHierarchy,
+            ObjectProvider<PolicyCombiningEvaluator> policyCombiningEvaluator,
+            ObjectProvider<PolicyCombiningProperties> policyCombiningProperties) {
+        return new PolicySimulator(userRepository, policyRepository, roleHierarchy,
+                policyCombiningEvaluator.getIfAvailable(PolicyCombiningEvaluator::new),
+                policyCombiningProperties.getIfAvailable(PolicyCombiningProperties::new));
     }
 
     @Bean
@@ -165,6 +173,7 @@ public class IamXacmlPapAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "org.redisson.api.RedissonClient")
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     static class RedissonPapConfiguration {
 
         @Bean
@@ -173,8 +182,10 @@ public class IamXacmlPapAutoConfiguration {
         public PolicyReloadBroadcaster policyReloadBroadcaster(
                 RedissonClient redissonClient,
                 PolicyRetrievalPoint policyRetrievalPoint,
-                CustomDynamicAuthorizationManager authorizationManager) {
+                CustomDynamicAuthorizationManager authorizationManager,
+                ObjectProvider<SystemSettingsRuntimeApplier> runtimeApplierProvider) {
             return new PolicyReloadBroadcaster(redissonClient, () -> {
+                runtimeApplierProvider.ifAvailable(SystemSettingsRuntimeApplier::applyPolicyDecisionSettings);
                 policyRetrievalPoint.clearUrlPoliciesCache();
                 policyRetrievalPoint.clearMethodPoliciesCache();
                 authorizationManager.reload();

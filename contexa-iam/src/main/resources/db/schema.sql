@@ -1248,11 +1248,19 @@ create table system_settings
     policy_combining_algorithm varchar(50)  not null,
     default_role               varchar(100) not null,
     created_at                 timestamp(6) not null,
-    updated_at                 timestamp(6)
+    updated_at                 timestamp(6),
+    security_zerotrust_mode    varchar(20)
 );
 
-alter table system_settings add column if not exists security_zerotrust_mode varchar(20) default 'SHADOW' not null;
+-- security_zerotrust_mode stays NULL until an operator saves a mode, so contexa.security.zerotrust.mode
+-- applies. Older databases created the column with a SHADOW default and a NOT NULL constraint; schema
+-- maintenance replays the two ALTER COLUMN statements and removes both. Stored values are kept.
+alter table system_settings add column if not exists security_zerotrust_mode varchar(20);
+alter table system_settings alter column security_zerotrust_mode drop not null;
+alter table system_settings alter column security_zerotrust_mode drop default;
 alter table system_settings add column if not exists mvc_resource_scanner_base_packages text default 'io.contexa.contexaiam.' not null;
+alter table system_settings add column if not exists no_matching_url_policy_decision varchar(20) default 'PERMIT' not null;
+alter table system_settings add column if not exists missing_method_policy_decision varchar(20) default 'PERMIT' not null;
 
 
 create table learning_artifact_registry

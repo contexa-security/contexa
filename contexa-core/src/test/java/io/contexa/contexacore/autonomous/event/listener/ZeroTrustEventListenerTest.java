@@ -182,4 +182,28 @@ class ZeroTrustEventListenerTest {
         // then
         verify(securityEventPublisher, never()).publishGenericSecurityEvent(any());
     }
+
+    @Test
+    @DisplayName("PENDING_ANALYSIS context whose decision awaits its audit record should not be analyzed again")
+    void shouldPublishAuthorizationEvent_decisionAuditPending_shouldSkip() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-audit-pending")
+                .sessionId("session-audit-pending")
+                .clientIp("10.0.0.6")
+                .userAgent("TestAgent")
+                .build();
+        String contextBindingHash = listener.generateAuthorizationContextBindingHash(event);
+        when(actionRepository.getCurrentAction("user-audit-pending", contextBindingHash))
+                .thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+        when(actionRepository.isDecisionAuditPending("user-audit-pending", contextBindingHash))
+                .thenReturn(true);
+
+        assertThat(listener.shouldPublishAuthorizationEvent(event)).isFalse();
+
+        listener.handleZeroTrustEvent(event);
+
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(event);
+    }
 }

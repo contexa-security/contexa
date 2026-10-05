@@ -15,10 +15,12 @@
  */
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
@@ -39,6 +41,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.MessageSource;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -116,10 +119,14 @@ public class IamAdminAuthAutoConfiguration {
             CentralAuditFacade centralAuditFacade,
             PasswordPolicyService passwordPolicyService,
             SystemSettingsService systemSettingsService,
-            MessageSource messageSource) {
+            MessageSource messageSource,
+            UserRolePermissionRepository userRolePermissionRepository,
+            BridgeUserProfileRepository bridgeUserProfileRepository,
+            ApplicationEventPublisher eventPublisher) {
         return new UserManagementServiceImpl(
                 userRepository, groupRepository, roleRepository, passwordEncoder, modelMapper,
-                centralAuditFacade, passwordPolicyService, systemSettingsService, messageSource);
+                centralAuditFacade, passwordPolicyService, systemSettingsService, messageSource,
+                userRolePermissionRepository, bridgeUserProfileRepository, eventPublisher);
     }
 
     @Bean

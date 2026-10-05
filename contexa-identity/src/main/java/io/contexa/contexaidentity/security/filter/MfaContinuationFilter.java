@@ -36,12 +36,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Slf4j
 public class MfaContinuationFilter extends OncePerRequestFilter {
@@ -60,6 +63,10 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private volatile String flowTypeName;
     private volatile AuthUrlProvider flowUrlProvider;
+    private volatile boolean restorePrimaryProof;
+    private static final RequestAttributeSecurityContextRepository REQUEST_CONTEXT_REPOSITORY =
+            new RequestAttributeSecurityContextRepository();
+    private volatile Set<String> primaryProofPaths = Set.of();
 
     public MfaContinuationFilter(AuthContextProperties authContextProperties,
                                  AuthResponseWriter responseWriter,
@@ -95,7 +102,9 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             return;
         }
 
-//        restorePrimaryProofForMfaRequest(request);
+        if (restorePrimaryProof) {
+            restorePrimaryProofForMfaRequest(request, response);
+        }
 
         if (!urlMatcher.isMfaRequest(request)) {
             filterChain.doFilter(request, response);
@@ -173,14 +182,39 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
     public void initializeUrlMatchers() {
         this.flowUrlProvider = authUrlProvider;
+        this.primaryProofPaths = resolvePrimaryProofPaths(authUrlProvider);
         urlMatcher.initializeMatchers();
         initialized = true;
     }
 
     public void initializeUrlMatchers(AuthUrlProvider flowUrlProvider) {
         this.flowUrlProvider = flowUrlProvider;
+        this.primaryProofPaths = resolvePrimaryProofPaths(flowUrlProvider);
         this.urlMatcher.initializeMatchers(flowUrlProvider);
         initialized = true;
+    }
+
+    /**
+     * Enables the per-request restoration of the primary proof. Only token states use it, because they
+     * keep no login in the HTTP session while the second factor is pending.
+     */
+    public void setRestorePrimaryProof(boolean restorePrimaryProof) {
+        this.restorePrimaryProof = restorePrimaryProof;
+    }
+
+    /**
+     * The MFA step URLs of the flow. The primary login and logout URLs are excluded because they start or
+     * end a login, and the passkey registration URLs are not MFA steps, so a pending MFA never reaches them.
+     */
+    private static Set<String> resolvePrimaryProofPaths(AuthUrlProvider provider) {
+        Set<String> paths = new LinkedHashSet<>(provider.getMfaInProgressUrls());
+        paths.remove(provider.getPrimaryLoginPage());
+        paths.remove(provider.getPrimaryFormLoginProcessing());
+        paths.remove(provider.getPrimaryRestLoginProcessing());
+        paths.remove(provider.getPrimaryLoginFailure());
+        paths.remove(provider.getLogoutPage());
+        paths.remove(provider.getLogoutProcessingUrl());
+        return Set.copyOf(paths);
     }
 
 
@@ -188,14 +222,9 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
      * Expose primary proof only for the current, configured MFA request. It is never
      * persisted as a completed login; ordinary application requests remain unauthenticated.
      */
-    private void restorePrimaryProofForMfaRequest(HttpServletRequest request) {
-        AuthUrlProvider provider = this.flowUrlProvider;
-        if (provider == null) {
-            return;
-        }
+    private void restorePrimaryProofForMfaRequest(HttpServletRequest request, HttpServletResponse response) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        if ("/".equals(path) || !(provider.getAllMfaRelatedUrls().contains(path)
-                || provider.getPasskeyRegistrationPage().equals(path))) {
+        if (!primaryProofPaths.contains(path)) {
             return;
         }
         var existing = SecurityContextHolder.getContext().getAuthentication();
@@ -214,6 +243,9 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         var requestContext = SecurityContextHolder.createEmptyContext();
         requestContext.setAuthentication(primary);
         SecurityContextHolder.setContext(requestContext);
+        // Registered for this request only, as the stateless Spring authentication filters do. Without it the
+        // session management of the chain takes the proof for a new login and rotates session and CSRF token.
+        REQUEST_CONTEXT_REPOSITORY.saveContext(requestContext, request, response);
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request) {

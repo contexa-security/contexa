@@ -19,8 +19,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningEvaluator.CombinedDecision;
+import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties.NoPolicyDecision;
 import org.springframework.security.authorization.AuthorizationDecision;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,6 +154,96 @@ class PolicyCombiningEvaluatorTest {
                 AuthorizationDecision deny = evaluator.evaluate(List.of(DENY), alg);
                 assertThat(deny.isGranted()).isFalse();
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("NotApplicable(null) 결정 처리")
+    class NotApplicableDecisions {
+
+        private List<AuthorizationDecision> decisions(AuthorizationDecision... values) {
+            return Arrays.asList(values);
+        }
+
+        @Test
+        @DisplayName("NotApplicable은 결합에서 제외되고 남은 결정으로 판정")
+        void notApplicableIsExcluded() {
+            for (CombiningAlgorithm alg : CombiningAlgorithm.values()) {
+                assertThat(evaluator.evaluate(decisions(null, ALLOW), alg, NoPolicyDecision.DENY).isGranted())
+                        .isTrue();
+                assertThat(evaluator.evaluate(decisions(null, DENY), alg, NoPolicyDecision.PERMIT).isGranted())
+                        .isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("FIRST_APPLICABLE은 첫 번째 적용 가능한 결정을 사용")
+        void firstApplicableSkipsNotApplicable() {
+            assertThat(evaluator.evaluate(decisions(null, DENY, ALLOW),
+                    CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.PERMIT).isGranted()).isFalse();
+            assertThat(evaluator.evaluate(decisions(null, ALLOW, DENY),
+                    CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.DENY).isGranted()).isTrue();
+        }
+
+        @Test
+        @DisplayName("모두 NotApplicable이면 DENY_UNLESS_PERMIT만 거부하고 나머지는 매칭 없음 기본값 적용")
+        void allNotApplicable() {
+            assertThat(evaluator.evaluate(decisions(null, null),
+                    CombiningAlgorithm.DENY_UNLESS_PERMIT, NoPolicyDecision.PERMIT).isGranted()).isFalse();
+            assertThat(evaluator.evaluate(decisions(null, null),
+                    CombiningAlgorithm.PERMIT_OVERRIDES, NoPolicyDecision.PERMIT).isGranted()).isTrue();
+            assertThat(evaluator.evaluate(decisions(null, null),
+                    CombiningAlgorithm.DENY_OVERRIDES, NoPolicyDecision.PERMIT).isGranted()).isTrue();
+            assertThat(evaluator.evaluate(decisions(null, null),
+                    CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.PERMIT).isGranted()).isTrue();
+            assertThat(evaluator.evaluate(decisions(null, null),
+                    CombiningAlgorithm.PERMIT_OVERRIDES, NoPolicyDecision.DENY).isGranted()).isFalse();
+        }
+
+        @Test
+        @DisplayName("매칭 정책이 없으면 모든 알고리즘이 매칭 없음 기본값을 사용")
+        void noMatchingPolicyUsesDefault() {
+            for (CombiningAlgorithm alg : CombiningAlgorithm.values()) {
+                assertThat(evaluator.evaluate(List.of(), alg, NoPolicyDecision.PERMIT).isGranted()).isTrue();
+                assertThat(evaluator.evaluate(List.of(), alg, NoPolicyDecision.DENY).isGranted()).isFalse();
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Combined decision details")
+    class CombinedDecisionDetails {
+
+        @Test
+        @DisplayName("The no-matching-policy decision is reported as applied only when no policy applied")
+        void reportsWhenTheNoPolicyDecisionApplied() {
+            CombinedDecision noPolicy = evaluator.combine(List.of(), null, NoPolicyDecision.DENY);
+            CombinedDecision notApplicable = evaluator.combine(
+                    Arrays.<AuthorizationDecision>asList(null, null), CombiningAlgorithm.PERMIT_OVERRIDES, NoPolicyDecision.PERMIT);
+            CombinedDecision denyUnlessPermit = evaluator.combine(
+                    Arrays.<AuthorizationDecision>asList(null, null), CombiningAlgorithm.DENY_UNLESS_PERMIT, NoPolicyDecision.PERMIT);
+            CombinedDecision applied = evaluator.combine(
+                    Arrays.asList(null, DENY), CombiningAlgorithm.FIRST_APPLICABLE, NoPolicyDecision.PERMIT);
+
+            assertThat(noPolicy.decision().isGranted()).isFalse();
+            assertThat(noPolicy.noPolicyDecisionApplied()).isTrue();
+            assertThat(noPolicy.algorithm()).isEqualTo(CombiningAlgorithm.FIRST_APPLICABLE);
+            assertThat(noPolicy.noPolicyDecision()).isEqualTo(NoPolicyDecision.DENY);
+            assertThat(notApplicable.decision().isGranted()).isTrue();
+            assertThat(notApplicable.noPolicyDecisionApplied()).isTrue();
+            assertThat(denyUnlessPermit.decision().isGranted()).isFalse();
+            assertThat(denyUnlessPermit.noPolicyDecisionApplied()).isFalse();
+            assertThat(applied.decision().isGranted()).isFalse();
+            assertThat(applied.noPolicyDecisionApplied()).isFalse();
+        }
+
+        @Test
+        @DisplayName("ALLOW yields Permit or Deny and DENY yields Deny or NotApplicable")
+        void appliesPolicyEffects() {
+            assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.ALLOW, true).isGranted()).isTrue();
+            assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.ALLOW, false).isGranted()).isFalse();
+            assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.DENY, true).isGranted()).isFalse();
+            assertThat(PolicyCombiningEvaluator.applyEffect(Policy.Effect.DENY, false)).isNull();
         }
     }
 }

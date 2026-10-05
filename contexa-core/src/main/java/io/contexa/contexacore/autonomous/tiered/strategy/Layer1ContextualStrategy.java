@@ -715,12 +715,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 threatKnowledgePackService,
                 detectionStrategyPackService);
 
-        if (!StringUtils.hasText(ctx.getPreviousUserAgentOS())
-                && ctx.getPersonalBaselineEvidence() != null
-                && !ctx.getPersonalBaselineEvidence().operatingSystems().isEmpty()) {
-            ctx.setPreviousUserAgentOS(ctx.getPersonalBaselineEvidence().operatingSystems().get(0));
-        }
-
         return ctx;
     }
 

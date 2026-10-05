@@ -15,14 +15,16 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 
@@ -30,6 +32,31 @@ import lombok.extern.slf4j.Slf4j;
 public class SessionFingerprintUtil {
 
     private static final HexFormat HEX_FORMAT = HexFormat.of();
+
+    /**
+     * Settings used until the application binds its own. Proxy validation is enabled and no proxy is
+     * trusted, so forwarded headers are ignored and the socket peer address is used.
+     */
+    private static final TieredStrategyProperties DEFAULT_CLIENT_IP_PROPERTIES = new TieredStrategyProperties();
+    private static final AtomicReference<TieredStrategyProperties> BOUND_CLIENT_IP_PROPERTIES =
+            new AtomicReference<>();
+
+    /**
+     * Binds the trusted proxy settings that {@link RequestInfoExtractor} applies to security events.
+     * The context binding hash is computed by filters, handlers and repositories that cannot inject
+     * configuration, so the binding keeps every caller on the same client IP trust rule.
+     */
+    public static void bindClientIpResolution(TieredStrategyProperties properties) {
+        BOUND_CLIENT_IP_PROPERTIES.set(properties);
+    }
+
+    /**
+     * Removes the binding made with the given settings. A binding registered later by another
+     * application context is kept.
+     */
+    public static void unbindClientIpResolution(TieredStrategyProperties properties) {
+        BOUND_CLIENT_IP_PROPERTIES.compareAndSet(properties, null);
+    }
 
     public static String generateFingerprint(SecurityEvent event) {
         if (event == null) {
@@ -97,6 +124,20 @@ public class SessionFingerprintUtil {
         return hash;
     }
 
+    /**
+     * Context binding hash the client presents on its next request. Authentication success can rotate the session
+     * id within the current request (session fixation protection), so the current session id wins over the
+     * requested one. Without a session the requested id is kept, as in {@link #generateContextBindingHash(HttpServletRequest)}.
+     */
+    public static String generateNextRequestContextBindingHash(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        HttpSession session = request.getSession(false);
+        String sessionId = session != null ? session.getId() : request.getRequestedSessionId();
+        return generateContextBindingHash(sessionId, extractClientIp(request), request.getHeader("User-Agent"));
+    }
+
     public static String generateContextBindingHash(String sessionId, String ip, String userAgent) {
         if (sessionId == null && ip == null && userAgent == null) {
             return null;
@@ -121,7 +162,18 @@ public class SessionFingerprintUtil {
         }
     }
 
+    /**
+     * Resolves the client IP with the same trust rule as {@link RequestInfoExtractor}: forwarded
+     * headers are honored only when the peer is a configured trusted proxy, or for probes carrying
+     * the runtime capability issued by this server.
+     */
     public static String extractClientIp(HttpServletRequest request) {
-        return ClientIpResolver.resolveLegacy(request);
+        return RequestInfoExtractor.extractClientIp(request, clientIpSecurity());
+    }
+
+    private static TieredStrategyProperties.Security clientIpSecurity() {
+        TieredStrategyProperties bound = BOUND_CLIENT_IP_PROPERTIES.get();
+        TieredStrategyProperties.Security security = bound != null ? bound.getSecurity() : null;
+        return security != null ? security : DEFAULT_CLIENT_IP_PROPERTIES.getSecurity();
     }
 }

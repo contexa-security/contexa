@@ -37,6 +37,9 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     Optional<Users> findByBridgeSubjectKey(String bridgeSubjectKey);
 
+    /** Bridge mirror users of one authenticated principal, across authentication sources and organizations. */
+    List<Users> findByExternalSubjectIdAndBridgeManagedTrue(String externalSubjectId);
+
     Optional<Users> findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(
             String externalSubjectId,
             String authenticationSource,

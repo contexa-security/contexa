@@ -68,6 +68,35 @@ class MfaAuthenticationEntryPointTest {
         assertThat(response.getRedirectedUrl()).endsWith("/default/select-factor");
     }
 
+    @Test
+    void passkeyRegistrationPageGoesToTheLoginPage() throws Exception {
+        when(defaultProvider.getPasskeyRegistrationPage()).thenReturn("/webauthn/register");
+
+        MockHttpServletResponse response = commenceForPage(boundEntryPoint(), "/webauthn/register");
+
+        assertThat(response.getRedirectedUrl()).endsWith("/login");
+    }
+
+    @Test
+    void passkeyAuthenticationRequestStillGoesToThePasskeyStep() throws Exception {
+        when(defaultProvider.getPasskeyRegistrationPage()).thenReturn("/webauthn/register");
+        when(stateMachineIntegrator.loadFactorContextFromRequest(any())).thenReturn(null);
+        when(defaultProvider.getPasskeyChallengeUi()).thenReturn("/mfa/challenge/passkey");
+
+        MockHttpServletResponse response = commenceForPage(boundEntryPoint(), "/webauthn/authenticate/options");
+
+        assertThat(response.getRedirectedUrl()).endsWith("/mfa/challenge/passkey");
+    }
+
+    private MockHttpServletResponse commenceForPage(MfaAuthenticationEntryPoint entryPoint, String uri)
+            throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);
+        request.addHeader("Accept", "text/html");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        entryPoint.commence(request, response, new InsufficientAuthenticationException("Authentication is required"));
+        return response;
+    }
+
     private MfaAuthenticationEntryPoint boundEntryPoint() {
         return new MfaAuthenticationEntryPoint(new ObjectMapper(), "/login", null)
                 .withRuntimeDependencies(defaultProvider, flowUrlRegistry, stateMachineIntegrator);

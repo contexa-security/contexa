@@ -84,7 +84,7 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 timestamp(record.requestedAt()),
                 timestamp(record.startedAt()),
                 timestamp(record.completedAt()));
-        super.save(userId, record);
+        // Every read is served from the ledger, so the inherited in-memory maps are not filled.
     }
     @Override
     @Transactional(transactionManager = "contexaTransactionManager")
@@ -162,7 +162,6 @@ public class JdbcOfficialVerificationRunStore extends OfficialVerificationRunSto
                 timestamp(record.startedAt()),
                 timestamp(record.completedAt()));
         replaceNormalizedChildren(record, detailedView);
-        super.saveDetailed(userId, record, detailedView);
     }
 
     private void replaceNormalizedChildren(

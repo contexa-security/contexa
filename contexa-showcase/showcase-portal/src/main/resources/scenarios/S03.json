@@ -1,0 +1,61 @@
+{
+  "key": "S03",
+  "version": 1,
+  "title": {
+    "ko": "승인된 예외·긴급 작업",
+    "en": "Approved emergency work"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TICKET",
+      "ticketKind": "INCIDENT",
+      "approver": "pm-03",
+      "project": "HX-450",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFromOffset": "-PT1H",
+      "validUntilOffset": "PT4H",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-450",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "HX-450",
+      "items": 2,
+      "offsetSeconds": 300,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

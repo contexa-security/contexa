@@ -84,6 +84,19 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
             }
 
     @Override
+    @Nullable
+    public String sessionIdOf(HttpSession session) {
+        return session == null ? null : (String) session.getAttribute(MFA_SESSION_ID_ATTRIBUTE);
+    }
+
+    @Override
+    public void forgetSession(String sessionId) {
+        if (sessionId != null) {
+            activeSessionIds.remove(sessionId);
+        }
+    }
+
+    @Override
     public boolean existsSession(String sessionId) {
         return sessionId != null && activeSessionIds.contains(sessionId);
     }

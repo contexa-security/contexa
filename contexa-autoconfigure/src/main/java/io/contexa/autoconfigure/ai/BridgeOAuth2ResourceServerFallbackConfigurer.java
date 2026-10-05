@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.autoconfigure.core.infra.ContexaPlatformActivation;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,19 +25,23 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import java.lang.reflect.Field;
 
+/**
+ * Registered for every {@link HttpSecurity} through {@code spring.factories}. It only acts when the Contexa
+ * platform is active; in dependency-only applications it leaves every security chain untouched.
+ */
 public class BridgeOAuth2ResourceServerFallbackConfigurer extends AbstractHttpConfigurer<BridgeOAuth2ResourceServerFallbackConfigurer, HttpSecurity> {
 
     @Override
     public void init(HttpSecurity http) throws Exception {
+        ApplicationContext applicationContext = http.getSharedObject(ApplicationContext.class);
+        if (applicationContext == null || !ContexaPlatformActivation.isActive(applicationContext.getEnvironment())) {
+            return;
+        }
         OAuth2ResourceServerConfigurer<HttpSecurity> configurer = http.getConfigurer(OAuth2ResourceServerConfigurer.class);
         if (configurer == null) {
             return;
         }
         if (hasOpaqueTokenConfigurer(configurer) || hasJwtConfigurer(configurer)) {
-            return;
-        }
-        ApplicationContext applicationContext = http.getSharedObject(ApplicationContext.class);
-        if (applicationContext == null) {
             return;
         }
         if (applicationContext.getBeanNamesForType(JwtDecoder.class).length == 0) {

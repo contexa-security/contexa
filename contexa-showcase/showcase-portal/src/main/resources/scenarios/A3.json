@@ -1,0 +1,36 @@
+{
+  "key": "A3",
+  "version": 1,
+  "title": {
+    "ko": "내부자 대량 반출",
+    "en": "Insider bulk export"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 4831,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

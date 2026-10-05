@@ -23,6 +23,7 @@ import io.contexa.contexaidentity.domain.LoginRequest;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaPendingSessionMarker;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.FilterChain;
@@ -45,6 +46,7 @@ import org.springframework.security.crypto.keygen.KeyGenerators;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
+import io.contexa.contexacommon.enums.StateType;
 
 @Slf4j
 public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
@@ -59,6 +61,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
     private static final int MAX_SESSION_ID_GENERATION_ATTEMPTS = 5;
     private static final int MAX_COLLISION_RESOLUTION_ATTEMPTS = 3;
     private String flowTypeName;
+    private StateType stateType;
 
     public MfaRestAuthenticationFilter(AuthenticationManager authenticationManager,
                                        ApplicationContext applicationContext,
@@ -80,6 +83,11 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                          Authentication authentication) throws IOException, ServletException {
 
+        String flowTypeNameForContext = (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName();
+
+        // The session must never hold this primary-only authentication without the MFA pending marker.
+        MfaPendingSessionMarker.mark(request, flowTypeNameForContext, stateType);
+
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);
@@ -88,7 +96,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         cleanupExistingSession(request, response);
 
         String mfaSessionId = generateSecureDistributedSessionId(request);
-        String flowTypeNameForContext = (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName();
 
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
@@ -102,7 +109,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
             MfaState actualState = stateMachineIntegrator.getCurrentState(factorContext.getMfaSessionId());
             if (actualState != factorContext.getCurrentState()) {
-                log.warn("State mismatch! FactorContext: {}, StateMachine: {} for session: {}",
+                log.error("State mismatch! FactorContext: {}, StateMachine: {} for session: {}",
                         factorContext.getCurrentState(), actualState, factorContext.getMfaSessionId());
             }
             successHandler.onAuthenticationSuccess(request, response, authentication);
@@ -131,7 +138,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 return sessionRepository.generateUniqueSessionId(baseId, request);
 
             } catch (SessionIdGenerationException e) {
-                log.warn("Session ID generation failed (attempt: {}): {}", attempt + 1, e.getMessage());
+                log.error("Session ID generation failed (attempt: {}): {}", attempt + 1, e.getMessage());
 
                 if (attempt == MAX_SESSION_ID_GENERATION_ATTEMPTS - 1) {
                     return resolveSessionIdGenerationFailure(request);
@@ -146,7 +153,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             }
         }
 
-        log.warn("All distributed session ID generation attempts failed, using fallback method");
+        log.error("All distributed session ID generation attempts failed, using fallback method");
         return generateSecureSessionId();
     }
 
@@ -179,7 +186,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 sessionRepository.removeSession(mfaSessionId, request, response);
             }
         } catch (Exception e) {
-            log.warn("Failed to cleanup failed session: {}", mfaSessionId, e);
+            log.error("Failed to cleanup failed session: {}", mfaSessionId, e);
         }
     }
 
@@ -188,7 +195,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.clearContext();
         stateMachineIntegrator.cleanupSession(request, response);
 
-        log.warn("Authentication failed for user: {} from IP: {} using repository: {}",
+        log.error("Authentication failed for user: {} from IP: {} using repository: {}",
                 failed.getAuthenticationRequest() != null ?
                         failed.getAuthenticationRequest().getName() : "unknown",
                 getClientIpAddress(request),
@@ -201,7 +208,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         try {
             stateMachineIntegrator.cleanupSession(request, response);
         } catch (Exception e) {
-            log.warn("Failed to cleanup existing session using {}: {}", sessionRepository.getRepositoryType(), e.getMessage());
+            log.error("Failed to cleanup existing session using {}: {}", sessionRepository.getRepositoryType(), e.getMessage());
         }
     }
 
@@ -277,7 +284,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             byte[] hash = md.digest(clientInfo.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
         } catch (Exception e) {
-            log.warn("Failed to generate distributed device ID, using fallback", e);
+            log.error("Failed to generate distributed device ID, using fallback", e);
             return generateSecureDeviceId();
         }
     }
@@ -291,6 +298,10 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         byte[] bytes = new byte[24];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public void setStateType(StateType stateType) {
+        this.stateType = stateType;
     }
 
     public void setFlowTypeName(String flowTypeName) {

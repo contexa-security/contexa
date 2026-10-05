@@ -54,9 +54,20 @@ public class SystemSettings {
     @Builder.Default
     private String mvcResourceScannerBasePackages = "io.contexa.contexaiam.";
 
-    @Column(name = "security_zerotrust_mode", nullable = false, length = 20)
+    /**
+     * Zero trust mode saved by an operator. {@code null} means not set, so the
+     * {@code contexa.security.zerotrust.mode} property stays in effect.
+     */
+    @Column(name = "security_zerotrust_mode", length = 20)
+    private String securityZeroTrustMode;
+
+    @Column(name = "no_matching_url_policy_decision", nullable = false, length = 20)
     @Builder.Default
-    private String securityZeroTrustMode = "SHADOW";
+    private String noMatchingUrlPolicyDecision = "PERMIT";
+
+    @Column(name = "missing_method_policy_decision", nullable = false, length = 20)
+    @Builder.Default
+    private String missingMethodPolicyDecision = "PERMIT";
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

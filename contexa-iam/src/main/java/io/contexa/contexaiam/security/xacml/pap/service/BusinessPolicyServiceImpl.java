@@ -34,6 +34,8 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyVersion;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictAnalyzer;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyConflictException;
 import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.PolicyExpressionValidator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.UnsafePolicyExpressionException;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
@@ -109,6 +111,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         Policy policy = new Policy();
         translateAndApplyDtoToPolicy(policy, dto);
+        validateConditionExpressions(policy);
 
         validateConflicts(policy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
@@ -137,6 +140,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                 PolicyVersion.ChangeType.UPDATED, null);
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
+        validateConditionExpressions(existingPolicy);
         validateConflicts(existingPolicy);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
 
@@ -325,7 +329,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             }
         }
         if (StringUtils.hasText(dto.getCustomConditionSpel())) {
-            validateSpelSafety(dto.getCustomConditionSpel());
             allConditions.add("(" + dto.getCustomConditionSpel() + ")");
         }
         if (!CollectionUtils.isEmpty(dto.getConditions())) {
@@ -536,17 +539,15 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         }
     }
 
-    private void validateSpelSafety(String spel) {
-        String upper = spel.toUpperCase();
-        String[] dangerousPatterns = {
-            "T(", "RUNTIME", "EXEC(", "PROCESSBUILDER",
-            "GETCLASS(", "FORNAME(", "SYSTEM.", "CLASSLOADER",
-            "JAVA.LANG.", "JAVA.IO.", "JAVA.NET."
-        };
-        for (String pattern : dangerousPatterns) {
-            if (upper.contains(pattern)) {
-                throw new IllegalArgumentException(i18n("msg.policy.spel.dangerous", pattern));
-            }
+    /**
+     * Validates every condition of the translated policy, including custom SpEL, condition
+     * templates filled with user parameters and SecuritySpel catalog expressions.
+     */
+    private void validateConditionExpressions(Policy policy) {
+        try {
+            PolicyExpressionValidator.validatePolicy(policy);
+        } catch (UnsafePolicyExpressionException e) {
+            throw new IllegalArgumentException(i18n(e.getMessageKey(), e.getReason()), e);
         }
     }
 

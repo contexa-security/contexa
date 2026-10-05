@@ -30,6 +30,9 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexaidentity.security.core.session.HttpSessionCleanupListener;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
@@ -44,6 +47,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.*;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.MfaPendingAccessControlFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
@@ -75,6 +79,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
@@ -154,6 +159,12 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public PasskeyOptionsValidator passkeyOptionsValidator() {
         return new PasskeyOptionsValidator();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MfaPasskeyRegistrationPathValidator mfaPasskeyRegistrationPathValidator() {
+        return new MfaPasskeyRegistrationPathValidator();
     }
 
     @Bean
@@ -430,6 +441,39 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
         return new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter);
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MfaPendingAccessControlFilter mfaPendingAccessControlFilter(
+            AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            MfaSessionRepository mfaSessionRepository,
+            AuthResponseWriter authResponseWriter,
+            Environment environment) {
+        String errorPath = environment.getProperty("server.error.path",
+                environment.getProperty("error.path", "/error"));
+        return new MfaPendingAccessControlFilter(authUrlProvider, mfaFlowUrlRegistry,
+                mfaSessionRepository, authResponseWriter, errorPath);
+    }
+
+    @Bean
+    @ConditionalOnBean(MfaPendingAccessControlFilter.class)
+    public FilterRegistrationBean<MfaPendingAccessControlFilter> mfaPendingAccessControlFilterRegistrationBean(
+            MfaPendingAccessControlFilter mfaPendingAccessControlFilter) {
+        FilterRegistrationBean<MfaPendingAccessControlFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(mfaPendingAccessControlFilter);
+        registrationBean.setEnabled(false);
+        return registrationBean;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(MfaPendingAccessControlFilter.class)
+    public MfaPendingAccessControlConfigurer mfaPendingAccessControlConfigurer(
+            MfaPendingAccessControlFilter mfaPendingAccessControlFilter) {
+        return new MfaPendingAccessControlConfigurer(mfaPendingAccessControlFilter);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(name = "contexaJdbcTemplate")
@@ -448,4 +492,12 @@ public class IdentitySecurityCoreAutoConfiguration {
         return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public HttpSessionCleanupListener httpSessionCleanupListener(
+            ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
+            ObjectProvider<MfaSessionRepository> mfaSessionRepository,
+            ObjectProvider<MfaStateMachineService> mfaStateMachineService) {
+        return new HttpSessionCleanupListener(zeroTrustSecurityService, mfaSessionRepository, mfaStateMachineService);
+    }
 }

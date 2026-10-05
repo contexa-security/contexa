@@ -37,18 +37,25 @@ import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.analysis.PolicyValidationService;
 import io.contexa.contexaiam.security.xacml.pdp.combining.PolicyCombiningProperties;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
+
+    private static final String IAM_SEED_DATA_INITIALIZER_BEAN = "iamSeedDataInitializer";
+    private static final String ADMIN_MENU_SERVICE_BEAN = "adminMenuService";
 
     @Bean
     @ConditionalOnMissingBean
@@ -170,8 +177,27 @@ public class IamAdminMonitoringAutoConfiguration {
     }
 
     @Bean
+    public static BeanFactoryPostProcessor adminMenuSeedDataDependencyConfigurer() {
+        return beanFactory -> {
+            if (!beanFactory.containsBeanDefinition(ADMIN_MENU_SERVICE_BEAN)
+                    || !beanFactory.containsBeanDefinition(IAM_SEED_DATA_INITIALIZER_BEAN)) {
+                return;
+            }
+            BeanDefinition adminMenuService = beanFactory.getBeanDefinition(ADMIN_MENU_SERVICE_BEAN);
+            Set<String> dependsOn = new LinkedHashSet<>();
+            if (adminMenuService.getDependsOn() != null) {
+                for (String dependency : adminMenuService.getDependsOn()) {
+                    dependsOn.add(dependency);
+                }
+            }
+            if (dependsOn.add(IAM_SEED_DATA_INITIALIZER_BEAN)) {
+                adminMenuService.setDependsOn(dependsOn.toArray(String[]::new));
+            }
+        };
+    }
+
+    @Bean
     @ConditionalOnMissingBean
-    @DependsOn("iamSeedDataInitializer")
     public AdminMenuService adminMenuService(
             AdminMenuRepository adminMenuRepository,
             AdminMenuQueryCache adminMenuQueryCache,
