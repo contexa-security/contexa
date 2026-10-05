@@ -161,7 +161,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                     .filterExpression(filterExpression)
                     .build();
 
-            List<Document> results = vectorStore.similaritySearch(searchRequest);
+            List<Document> results = vectorStore.similaritySearch(VectorStoreFilterValues.encode(searchRequest, vectorStore));
 
             if (vectorStoreMetrics != null) {
                 vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,
@@ -185,7 +185,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         long startTime = System.currentTimeMillis();
 
         try {
-            List<Document> results = vectorStore.similaritySearch(searchRequest);
+            List<Document> results = vectorStore.similaritySearch(VectorStoreFilterValues.encode(searchRequest, vectorStore));
 
             if (vectorStoreMetrics != null) {
                 vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,

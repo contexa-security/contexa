@@ -73,6 +73,24 @@ class SecurityDecisionRawOutputContractInspectorTest {
     }
 
     @Test
+    void shouldRejectSameResourceRagSentenceWithoutRagDocuments() {
+        assertViolation(
+                "AuthorizationEffect: ALLOW\nRagRelevance: NO_DOCUMENTS\nRagAuthorizedDocumentCount: 0",
+                "Authorization allows access, and authorized RAG is relevant to the same resource.",
+                "FALSE_AUTHORIZED_RAG_CLAIM");
+    }
+
+    @Test
+    void shouldAcceptTheNoRagAllowSentences() {
+        String facts = "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW"
+                + "\nRagRelevance: NO_DOCUMENTS\nRagAuthorizedDocumentCount: 0";
+        assertNoViolation(facts,
+                "Authorization allows access with a limited baseline, and no concrete risk or verification requirement is present.");
+        assertNoViolation(facts,
+                "Authorization allows access, the personal baseline is established, and no concrete risk or verification requirement is present.");
+    }
+
+    @Test
     void shouldAcceptFactsThatMatchThePrompt() {
         assertNoViolation(
                 "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW",

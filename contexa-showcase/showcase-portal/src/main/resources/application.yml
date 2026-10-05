@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: showcase-portal
+  datasource:
+    url: ${SHOWCASE_PORTAL_DB_URL:jdbc:postgresql://127.0.0.1:46432/showcase_portal}
+    username: ${SHOWCASE_DB_USER:showcase}
+    password: ${SHOWCASE_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      # Idle pools keep few connections; the pool grows only under load.
+      minimum-idle: 2
+      connection-timeout: 3000
+  flyway:
+    locations: classpath:db/migration/portal
+    clean-disabled: true
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  jpa:
+    open-in-view: false
+  sql:
+    init:
+      mode: never
+server:
+  address: ${SHOWCASE_BIND_ADDRESS:127.0.0.1}
+  port: ${SHOWCASE_PORTAL_PORT:19180}
+  # Client addresses (daily limits) come from forwarding headers only when they arrive from the trusted proxies of a
+  # production stack; by default the headers are ignored and the connection's address is used (deck p.37).
+  forward-headers-strategy: ${SHOWCASE_FORWARD_HEADERS:none}
+  tomcat:
+    remoteip:
+      internal-proxies: ${SHOWCASE_TRUSTED_PROXIES:}
+  # The web bundle and the visitor API are text; compressed they are a third of their size (P2-FE-03 on slow 4G).
+  compression:
+    enabled: true
+    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,image/svg+xml
+    min-response-size: 1024
+  servlet:
+    session:
+      cookie:
+        name: SHOWCASE_PORTAL_SESSION
+        http-only: true
+        same-site: lax
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

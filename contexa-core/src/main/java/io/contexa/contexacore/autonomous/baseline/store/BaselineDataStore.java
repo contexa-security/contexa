@@ -30,4 +30,13 @@ public interface BaselineDataStore {
     Iterable<BaselineVector> listOrganizationBaselines();
 
     long countUserBaselines();
+
+    /**
+     * Removes the personal baseline of a user whose account is deleted, so that a later account with the same
+     * name starts without it. Stores that cannot delete must fail loudly rather than keep the baseline silently.
+     */
+    default void deleteUserBaseline(String userId) {
+        throw new UnsupportedOperationException(
+                "User baseline deletion is not supported by " + getClass().getSimpleName());
+    }
 }

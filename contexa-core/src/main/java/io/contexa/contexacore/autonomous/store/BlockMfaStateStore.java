@@ -36,4 +36,10 @@ public interface BlockMfaStateStore {
     void clearPending(String userId);
 
     int getFailCount(String userId);
+
+    /** Removes the BLOCK MFA state of a user whose account is deleted. */
+    default void clearUser(String userId) {
+        throw new UnsupportedOperationException(
+                "BLOCK MFA state deletion is not supported by " + getClass().getSimpleName());
+    }
 }

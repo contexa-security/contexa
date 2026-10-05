@@ -1,0 +1,118 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-raised);
+}
+
+/* Five rows (header, outcome, verdict, reason, evidence) shared with sibling cards through subgrid. */
+.card[data-aligned='true'] {
+  display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  row-gap: var(--space-3);
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+}
+
+.card[data-highlighted='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  box-shadow: var(--shadow-raised);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.layer {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-border-strong);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.card[data-highlighted='true'] .layer {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.identity {
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.card[data-highlighted='true'] .name {
+  color: var(--color-accent);
+}
+
+.config {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  flex: 1;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.card[data-highlighted='true'] .reason {
+  color: var(--color-text-body);
+}
+
+.evidence {
+  place-self: start start;
+  padding: var(--space-1) 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.card[data-highlighted='true'] .evidence {
+  color: var(--color-accent);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

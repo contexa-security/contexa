@@ -1,0 +1,53 @@
+{
+  "contract": "R1",
+  "status": "DRAFT",
+  "statusNote": "Proposed values awaiting approval (docs/showcase approval Q-19); the hash changes when the values change.",
+  "unit": "One attack and one legitimate request that looks the same form a pair; variants are not counted.",
+  "criterion": "Final business outcome within the observation window; engine decisions are reported as a cross table only.",
+  "unresolved": "Pending analysis, technical failures and response format failures are counted separately, never dropped.",
+  "observationWindow": "PT6M after the last request of the scenario",
+  "allowedExposure": {
+    "SYNC_EXPORT": {
+      "items": 0
+    },
+    "STREAM_EXPORT": {
+      "items": 100
+    },
+    "RESTRICTED_DOCUMENT_READ": {
+      "documents": 0
+    },
+    "CUSTOMER_RECORDS_OUTSIDE_SCOPE": {
+      "records": 2
+    },
+    "ROLE_GRANT": {
+      "grants": 0
+    }
+  },
+  "completionDeadline": "PT10M after the last step of the legitimate request",
+  "attackerCapabilities": [
+    "holds the victim's password and session cookie",
+    "cannot read the victim's mailbox and so cannot pass the additional verification",
+    "cannot change business database facts (approvals, tickets, assignments, trips)",
+    "can put false claims (ticket numbers, instructions) into requests",
+    "can spread requests over several days"
+  ],
+  "reviewerRules": [
+    "requests under review (ESCALATE) are not approved within the observation window",
+    "the legitimate user completes an additional verification within PT2M"
+  ],
+  "hypotheses": {
+    "difference": "Contexa minus the context lookup rule control (C2) on the same held-out scenarios",
+    "H1": "miss rate difference: one-sided 95% upper bound below 5 percentage points",
+    "H2": "false positive rate difference: one-sided 95% upper bound below 5 percentage points",
+    "H3": "H1 and H2 hold and one of the two rates is significantly lower (McNemar, superiority only)",
+    "H4": "agreement of repeated decisions from the same state at least 95%",
+    "H5": "context manipulation success rate at most 5%",
+    "statistics": "paired Tango score interval; significance level split, one-sided 2.5% each"
+  },
+  "heldOutFamilies": [
+    "A4",
+    "A6",
+    "A8"
+  ],
+  "heldOutNote": "R1 shows the public pairs; the held-out families are built separately for the R2 benchmark."
+}

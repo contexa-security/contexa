@@ -300,14 +300,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 ));
             }
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
+        } catch (Error error) {
+            // Without the release the event identity would stay IN_FLIGHT and never be analysed again.
+            releaseEventProcessing(event);
+            throw error;
         }
     }
     private SecurityEventContext reconcilePersistedFinalDecision(SecurityEvent event) {
         try {
             return restorePersistedFinalDecision(event);
-        } catch (RuntimeException exception) {
+        } catch (RuntimeException | Error failure) {
             releaseEventProcessing(event);
-            throw exception;
+            throw failure;
         }
     }
 

@@ -1,0 +1,62 @@
+{
+  "key": "S07",
+  "version": 1,
+  "title": {
+    "ko": "정당성 근거가 부족한 예외",
+    "en": "An exception without valid grounds"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TICKET",
+      "ticketKind": "INCIDENT",
+      "approver": "pm-03",
+      "project": "HX-450",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFromOffset": "-PT6H",
+      "validUntilOffset": "-PT2H",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-450",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "HX-450",
+      "items": 2,
+      "offsetSeconds": 300,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "UNCERTAIN",
+    "allowedEngineActions": [
+      "CHALLENGE",
+      "ESCALATE",
+      "BLOCK"
+    ]
+  }
+}

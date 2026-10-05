@@ -250,6 +250,28 @@ class LLMExecutionStepTest {
                 .isEqualTo("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
     }
 
+    @Test
+    void securityDecisionContractViolationAfterRetryIsRecordedAsValidationFailure() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        String ragClaim = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows access, and authorized RAG is relevant to the same resource.\"}";
+        llmClient.rawResponse = ragClaim;
+        llmClient.secondRawResponse = ragClaim;
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext(
+                "exec-security-rag-claim-persists",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW"
+                        + "\nRagRelevance: NO_DOCUMENTS\nRagAuthorizedDocumentCount: 0");
+
+        Object response = step.execute(securityRequest(), context).block();
+
+        assertThat(response).isEqualTo("");
+        assertThat(llmClient.rawExecutions).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
+                .isEqualTo("FALSE_AUTHORIZED_RAG_CLAIM");
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("VALIDATION_FAILED");
+        assertThat(context.getMetadata("structuredOutputFailureCategory", String.class)).isEqualTo("VALIDATION_FAILED");
+    }
+
     private PipelineExecutionContext securityDecisionContext(String requestId, String promptText) {
         PipelineExecutionContext context = new PipelineExecutionContext(requestId);
         context.addStepResult(

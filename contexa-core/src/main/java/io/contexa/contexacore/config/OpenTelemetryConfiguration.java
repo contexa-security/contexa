@@ -16,6 +16,7 @@
 package io.contexa.contexacore.config;
 
 import io.contexa.contexacore.properties.OpenTelemetryProperties;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Tracer;
@@ -77,11 +78,25 @@ public class OpenTelemetryConfiguration {
         OpenTelemetrySdk openTelemetrySdk = OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-                .buildAndRegisterGlobal();
+                .build();
+        registerGlobal(openTelemetrySdk);
 
         Runtime.getRuntime().addShutdownHook(new Thread(tracerProvider::close));
 
                 return openTelemetrySdk;
+    }
+
+    /**
+     * The global instance can be set once per JVM. A second application context in the same JVM (a test suite with
+     * several configurations, a devtools restart) keeps its SDK as a bean instead of failing to start.
+     */
+    static void registerGlobal(OpenTelemetrySdk openTelemetrySdk) {
+        try {
+            GlobalOpenTelemetry.set(openTelemetrySdk);
+        } catch (IllegalStateException e) {
+            log.error("[OpenTelemetry] GlobalOpenTelemetry is already set in this JVM; this application context "
+                    + "uses its own OpenTelemetry bean without replacing the global instance");
+        }
     }
 
     @Bean

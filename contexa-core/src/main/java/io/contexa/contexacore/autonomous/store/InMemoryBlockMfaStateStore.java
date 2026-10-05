@@ -23,7 +23,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
+public class InMemoryBlockMfaStateStore implements BlockMfaStateStore, ExpiringStateStore {
 
     private static final Duration DEFAULT_VERIFIED_TTL = Duration.ofHours(1);
 
@@ -91,5 +91,29 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
     @Override
     public int getFailCount(String userId) {
         return (int) actionRepository.getBlockMfaFailCount(userId);
+    }
+
+    @Override
+    public void clearUser(String userId) {
+        if (userId == null) {
+            return;
+        }
+        verifiedAt.remove(userId);
+        verifiedExpiry.remove(userId);
+        actionRepository.clearBlockMfaPending(userId);
+    }
+
+    @Override
+    public void removeExpiredEntries() {
+        Instant now = clock.instant();
+        verifiedExpiry.forEach((userId, expiry) -> {
+            if (now.isAfter(expiry) && verifiedExpiry.remove(userId, expiry)) {
+                verifiedAt.remove(userId);
+            }
+        });
+    }
+
+    boolean holdsVerificationFor(String userId) {
+        return verifiedExpiry.containsKey(userId) || verifiedAt.containsKey(userId);
     }
 }

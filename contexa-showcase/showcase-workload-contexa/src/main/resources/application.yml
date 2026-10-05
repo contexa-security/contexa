@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: showcase-workload-contexa
+  # The application datasource holds the Spring AI vector store. Contexa refuses to share it with
+  # contexa.datasource, and business data is reached through the work datasource of showcase-business.
+  datasource:
+    url: ${SHOWCASE_VECTOR_DB_URL:jdbc:postgresql://127.0.0.1:46432/showcase_vector}
+    username: ${SHOWCASE_DB_USER:showcase}
+    password: ${SHOWCASE_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      # Idle pools keep few connections; the pool grows only under load.
+      minimum-idle: 2
+      connection-timeout: 3000
+  flyway:
+    # The engine schema is created by Contexa itself and the business schema by showcase-workload-plain.
+    enabled: false
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  jpa:
+    open-in-view: false
+  # A streamed export of the largest allowed size (10,000 items at the business pace of 160 per second) takes
+  # about 63 seconds; the default 30-second async timeout would cut it without any security decision.
+  mvc:
+    async:
+      request-timeout: 120s
+  sql:
+    init:
+      mode: never
+  ai:
+    model:
+      chat: openai
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${SHOWCASE_CHAT_MODEL:gpt-5-nano}
+      embedding:
+        options:
+          model: ${SHOWCASE_EMBEDDING_MODEL:text-embedding-3-small}
+          dimensions: ${SHOWCASE_EMBEDDING_DIMENSIONS:1024}
+contexa:
+  enabled: true
+  infrastructure:
+    mode: standalone
+  datasource:
+    url: ${SHOWCASE_ENGINE_DB_URL:jdbc:postgresql://127.0.0.1:46432/showcase_engine}
+    username: ${SHOWCASE_DB_USER:showcase}
+    password: ${SHOWCASE_DB_PASSWORD:}
+    isolation:
+      contexa-owned-application: false
+  security:
+    zerotrust:
+      mode: ENFORCE
+  auth:
+    state-type: SESSION
+    cookie-secure: ${SHOWCASE_SECURE_COOKIE:false}
+  llm:
+    selection:
+      chat:
+        priority: openai
+      embedding:
+        priority: openai
+  vectorstore:
+    pgvector:
+      dimensions: ${SHOWCASE_EMBEDDING_DIMENSIONS:1024}
+      initialize-schema: true
+  saas:
+    enabled: false
+  rag:
+    etl:
+      behavior:
+        # Template memory documents carry the company time of the learned history; keep them for the template's
+        # life instead of the 90-day default measured against the wall clock (docs/showcase/ADR.md ADR-23).
+        retention-days: 400
+server:
+  address: ${SHOWCASE_BIND_ADDRESS:127.0.0.1}
+  # The client address comes only from the signed internal context, never from proxy headers.
+  forward-headers-strategy: none
+  port: ${SHOWCASE_CONTEXA_PORT:19182}
+  servlet:
+    session:
+      cookie:
+        name: SHOWCASE_CONTEXA_SESSION
+        http-only: true
+        same-site: lax
+management:
+  endpoints:
+    web:
+      exposure:
+        # The workload publishes no host port; the capability report is read by the portal and the phase gates.
+        include: health,contexacapabilities
+  endpoint:
+    health:
+      show-details: never
+showcase:
+  control: D
+  work:
+    # Business database of the virtual company, reached through its own pool (ADR-10).
+    datasource:
+      url: ${SHOWCASE_WORK_DB_URL:jdbc:postgresql://127.0.0.1:46432/showcase_work}
+      username: ${SHOWCASE_DB_USER:showcase}
+      password: ${SHOWCASE_DB_PASSWORD:}
+  internal:
+    # Base64 HMAC key shared with the portal orchestrator (at least 32 bytes). Startup fails without it.
+    signing-key: ${SHOWCASE_INTERNAL_SIGNING_KEY:}

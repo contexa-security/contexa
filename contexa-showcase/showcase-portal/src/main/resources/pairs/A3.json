@@ -1,0 +1,28 @@
+{
+  "key": "A3",
+  "order": 3,
+  "question": {
+    "ko": "관리자 A가 새벽 03:17, 담당이 아닌 프로젝트의 설계 문서 4,831건을 내보내려 합니다.",
+    "en": "At 03:17, admin A tries to export 4,831 design documents from a project they are not assigned to."
+  },
+  "scenes": [
+    {
+      "kind": "ATTACK",
+      "scenario": "A3",
+      "sentence": {
+        "ko": "관리자 A가 새벽 03:17, 담당이 아닌 프로젝트의 설계 문서 4,831건을 내보내려 합니다.",
+        "en": "At 03:17, admin A tries to export 4,831 design documents from a project they are not assigned to."
+      },
+      "featuredStep": 1
+    },
+    {
+      "kind": "LEGITIMATE",
+      "scenario": "A3T",
+      "sentence": {
+        "ko": "관리자 A가 새벽 03:17, 승인된 프로젝트 이관으로 같은 설계 문서 4,831건을 내보냅니다.",
+        "en": "At 03:17, admin A exports the same 4,831 design documents under an approved project transfer."
+      },
+      "featuredStep": 1
+    }
+  ]
+}

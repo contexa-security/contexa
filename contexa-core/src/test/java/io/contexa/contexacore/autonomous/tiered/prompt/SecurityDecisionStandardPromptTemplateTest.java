@@ -229,6 +229,11 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE");
         assertThat(systemPrompt).contains("reasoning must be exactly \"Authorization allows access, the personal baseline is established, and authorized RAG is relevant to the same resource.\"");
         assertThat(systemPrompt).contains("Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG");
+        assertThat(systemPrompt).contains("for any other ALLOW, copy the matching no-RAG sentence and never mention RAG");
+        assertThat(systemPrompt).contains("reasoning must be exactly \"Authorization allows access with a limited baseline, and no concrete risk or verification requirement is present.\"");
+        assertThat(systemPrompt.indexOf("If the chosen action is ALLOW and RagRelevance is not SAME_RESOURCE"))
+                .isPositive()
+                .isLessThan(systemPrompt.indexOf("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE"));
         assertThat(systemPrompt.indexOf("If the chosen action is ALLOW, RagRelevance is SAME_RESOURCE"))
                 .isLessThan(systemPrompt.indexOf("If baseline evidence is unknown"));
         assertThat(systemPrompt).contains("reasoning must be exactly \"Fresh verification is required before allowing access; challenge is safer than allow.\"");

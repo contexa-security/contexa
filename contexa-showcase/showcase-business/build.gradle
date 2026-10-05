@@ -1,0 +1,19 @@
+description = 'Contexa Showcase business domain shared by every control'
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
+}
+
+tasks.named('test') {
+    systemProperty 'user.timezone', 'UTC'
+}
+
+// Shared library of the showcase executables; it is never published.
+publishing.publications.clear()
+tasks.withType(PublishToMavenRepository).configureEach { enabled = false }
+tasks.withType(PublishToMavenLocal).configureEach { enabled = false }
+tasks.withType(Sign).configureEach { enabled = false }

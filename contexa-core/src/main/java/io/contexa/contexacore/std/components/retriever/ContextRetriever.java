@@ -23,6 +23,7 @@ import io.contexa.contexacore.std.rag.service.VectorOperations;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import io.contexa.contexacore.std.rag.service.VectorStoreFilterValues;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -129,7 +130,7 @@ public class ContextRetriever {
             if (vectorStore == null) {
                 return List.of();
             }
-            return vectorStore.similaritySearch(request);
+            return vectorStore.similaritySearch(VectorStoreFilterValues.encode(request, vectorStore));
         }
 
         @Override

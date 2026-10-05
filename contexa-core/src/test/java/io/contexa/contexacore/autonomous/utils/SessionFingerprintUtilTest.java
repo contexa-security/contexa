@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -87,5 +88,37 @@ class SessionFingerprintUtilTest {
 
         assertThat(hash).isNotNull();
         verify(request).setAttribute("contexa.contextBindingHash", hash);
+    }
+
+    @Test
+    @DisplayName("generateNextRequestContextBindingHash follows a session id rotated during the request")
+    void nextRequestHashFollowsRotatedSession() {
+        HttpSession rotated = mock(HttpSession.class);
+        when(rotated.getId()).thenReturn("rotated-session");
+        when(request.getSession(false)).thenReturn(rotated);
+        when(request.getRemoteAddr()).thenReturn("192.168.1.10");
+        when(request.getHeader(anyString())).thenAnswer(invocation ->
+                "User-Agent".equals(invocation.getArgument(0)) ? "Mozilla/5.0" : null);
+
+        String next = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
+
+        assertThat(next).isEqualTo(
+                SessionFingerprintUtil.generateContextBindingHash("rotated-session", "192.168.1.10", "Mozilla/5.0"));
+        verify(request, never()).getRequestedSessionId();
+    }
+
+    @Test
+    @DisplayName("generateNextRequestContextBindingHash keeps the requested session id without a session")
+    void nextRequestHashKeepsRequestedSessionWithoutSession() {
+        when(request.getSession(false)).thenReturn(null);
+        when(request.getRequestedSessionId()).thenReturn("session-xyz");
+        when(request.getRemoteAddr()).thenReturn("192.168.1.10");
+        when(request.getHeader(anyString())).thenAnswer(invocation ->
+                "User-Agent".equals(invocation.getArgument(0)) ? "Mozilla/5.0" : null);
+
+        String next = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
+
+        assertThat(next).isEqualTo(
+                SessionFingerprintUtil.generateContextBindingHash("session-xyz", "192.168.1.10", "Mozilla/5.0"));
     }
 }

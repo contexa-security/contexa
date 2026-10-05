@@ -1,0 +1,46 @@
+{
+  "key": "R1",
+  "version": 1,
+  "title": {
+    "ko": "역할 밖 요청(RBAC 거부 표본)",
+    "en": "A request outside the role (RBAC refusal sample)"
+  },
+  "protagonist": "eng-k",
+  "template": false,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0001",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "DENY",
+        "B": "DENY",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0007",
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "DENY",
+        "B": "DENY",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

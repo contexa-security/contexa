@@ -28,7 +28,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +49,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Storage of the final decision in both repository implementations. The decision is stored per
  * user while analysis runs per user session. CHALLENGE and ESCALATE restrict the user like BLOCK:
  * the analysis of another session, a re-analysis or the logout of one session cannot lift them.
- * MFA success, an approved override, a stricter decision or the TTL still replace them. ALLOW stays
- * bound to the analysed context and lapses after its 15 second TTL.
+ * MFA success, an approved override or a stricter decision still replace them. A CHALLENGE lapses
+ * with its TTL; an ESCALATE whose TTL ends unresolved keeps reading as ESCALATE so that the access
+ * filter promotes it to BLOCK. ALLOW stays bound to the analysed context and lapses after its 15
+ * second TTL.
  */
 class ZeroTrustActionStorageReproductionTest {
 
@@ -192,6 +198,72 @@ class ZeroTrustActionStorageReproductionTest {
     @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
     void redisEscalatePromotionToBlockStillApplies() {
         assertEscalatePromotionToBlockStillApplies(redis);
+    }
+
+    @Test
+    void inMemoryEscalateThatExpiresUnresolvedStaysEscalateForPromotion() {
+        AdjustableClock clock = new AdjustableClock();
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+        String user = user();
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+
+        clock.advance(ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
+
+        assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(repository.getCurrentAction(user)).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(repository.getActionFromHash(user)).isNull();
+    }
+
+    @Test
+    void inMemoryExpiredChallengeReadsAsPendingAnalysis() {
+        AdjustableClock clock = new AdjustableClock();
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+        String user = user();
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.CHALLENGE, fields(SESSION_A))).isTrue();
+
+        clock.advance(ZeroTrustAction.CHALLENGE.getDefaultTtl().plusSeconds(1));
+
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.getCurrentAction(user)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+        assertThat(repository.getActionFromHash(user)).isNull();
+    }
+
+    @Test
+    void inMemoryResolvedEscalateIsNotPromotedAfterExpiry() {
+        AdjustableClock clock = new AdjustableClock();
+        InMemoryZeroTrustActionRepository repository = new InMemoryZeroTrustActionRepository(Duration.ofHours(24), clock);
+        String user = user();
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+        repository.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
+
+        clock.advance(ZeroTrustAction.ESCALATE.getDefaultTtl().plusSeconds(1));
+
+        assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisEscalateThatExpiresUnresolvedStaysEscalateForPromotion() {
+        String user = user();
+        assertThat(redis.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+        strings.expire(ZeroTrustRedisKeys.autonomousActionAnalysis(user), Duration.ofMillis(300));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(redis.getActionFromHash(user)).isNull());
+
+        assertThat(redis.getCurrentAction(user, SESSION_B)).isEqualTo(ZeroTrustAction.ESCALATE);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisResolvedEscalateIsNotPromotedAfterExpiry() {
+        String user = user();
+        assertThat(redis.saveFinalAction(user, ZeroTrustAction.ESCALATE, fields(SESSION_A))).isTrue();
+        redis.approveOverrideAtomically(user, ZeroTrustAction.ALLOW);
+        strings.expire(ZeroTrustRedisKeys.autonomousActionAnalysis(user), Duration.ofMillis(300));
+        Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                assertThat(redis.getActionFromHash(user)).isNull());
+
+        assertThat(redis.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
     }
 
     @Test
@@ -366,6 +438,31 @@ class ZeroTrustActionStorageReproductionTest {
         assertThat(repository.getCurrentAction(user, SESSION_B)).isEqualTo(restriction);
         repository.removeAllUserData(user);
         assertThat(repository.getCurrentAction(user, SESSION_A)).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    /** System clock that a test can move forward to expire stored decisions. */
+    private static final class AdjustableClock extends Clock {
+
+        private volatile Duration offset = Duration.ZERO;
+
+        void advance(Duration amount) {
+            offset = offset.plus(amount);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return Instant.now().plus(offset);
+        }
     }
 
     private static String user() {

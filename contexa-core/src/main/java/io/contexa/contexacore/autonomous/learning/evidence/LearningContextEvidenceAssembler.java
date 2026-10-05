@@ -576,7 +576,9 @@ public class LearningContextEvidenceAssembler {
         if (observedValues == null || observedValues.isEmpty()) {
             return;
         }
-        boolean observed = containsIgnoreCase(observedValues, currentValue);
+        boolean observed = "network".equals(key)
+                ? observedValues.stream().anyMatch(value -> SecuritySemanticNormalizer.sameNetwork(value, currentValue))
+                : containsIgnoreCase(observedValues, currentValue);
         if (observed) {
             return;
         }

@@ -22,7 +22,9 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.security.AISecurityContextSupport;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
@@ -39,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecurityService {
+public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecurityService, ExpiringStateStore {
 
     private static final String ZERO_TRUST_ACTION_ATTR = "contexa.zeroTrustAction";
 
@@ -50,6 +54,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
 
     private final Cache<String, CachedZeroTrustDecision> decisionCache;
     private final Set<String> registeredSessions = ConcurrentHashMap.newKeySet();
+    private static final Duration TOKEN_CLOCK_SKEW = Duration.ofSeconds(60);
 
     protected AbstractZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,
@@ -89,7 +94,9 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             adjustAuthoritiesByAction(context, action, userId, trustScore, threatScore);
 
             if (sessionId != null && registeredSessions.add(sessionId)) {
-                doRegisterSession(userId, sessionId);
+                Instant tokenExpiry = AISecurityContextSupport.accessTokenExpiry(context.getAuthentication());
+                doRegisterSession(userId, sessionId,
+                        tokenExpiry != null ? tokenExpiry.plus(TOKEN_CLOCK_SKEW) : null);
             }
 
             if (request != null) {
@@ -100,6 +107,39 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             log.error("[ZeroTrust] Failed to apply Zero Trust to context for user: {}", userId, e);
             throw e;
         }
+    }
+
+    /**
+     * Registers a session or token identifier for the user. {@code trackUntil} is when the identifier is certainly
+     * dead (a JWT past its expiry), or null for an HTTP session, which is forgotten when the container destroys it.
+     */
+    protected void doRegisterSession(String userId, String sessionId, Instant trackUntil) {
+        doRegisterSession(userId, sessionId);
+    }
+
+    /** Forgets a session the servlet container destroyed or replaced; it can no longer authenticate a request. */
+    public void forgetSession(String sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        registeredSessions.remove(sessionId);
+        doForgetSession(sessionId);
+    }
+
+    protected void doForgetSession(String sessionId) {
+    }
+
+    /**
+     * The registration set only prevents registering the same identifier twice; clearing it makes live identifiers
+     * register once more with the same result. Subclasses release their own expired entries.
+     */
+    @Override
+    public void removeExpiredEntries() {
+        registeredSessions.clear();
+        doRemoveExpiredSessionData();
+    }
+
+    protected void doRemoveExpiredSessionData() {
     }
 
     @Override

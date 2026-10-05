@@ -27,6 +27,11 @@ COPY contexa-autoconfigure/build.gradle contexa-autoconfigure/build.gradle
 COPY spring-boot-starter-contexa/build.gradle spring-boot-starter-contexa/build.gradle
 # contexa-demo is included in settings.gradle; only its build file is needed to configure the build
 COPY contexa-demo/build.gradle contexa-demo/build.gradle
+# The showcase modules are included in settings.gradle as well; only their build files are needed here
+COPY contexa-showcase/showcase-business/build.gradle contexa-showcase/showcase-business/build.gradle
+COPY contexa-showcase/showcase-workload-plain/build.gradle contexa-showcase/showcase-workload-plain/build.gradle
+COPY contexa-showcase/showcase-workload-contexa/build.gradle contexa-showcase/showcase-workload-contexa/build.gradle
+COPY contexa-showcase/showcase-portal/build.gradle contexa-showcase/showcase-portal/build.gradle
 
 # Download dependencies (cached layer)
 RUN chmod +x gradlew && ./gradlew dependencies --no-daemon 2>/dev/null || true

@@ -1,0 +1,28 @@
+# Build context exclusions for showcase.Dockerfile (BuildKit uses this file instead of the root .dockerignore).
+# Local outputs and Windows-native packages must not enter the Linux build.
+**/build/
+**/out/
+**/.gradle/
+**/node_modules/
+**/dist/
+**/test-results/
+**/playwright-report/
+
+# IDE, VCS and OS files
+.idea/
+.vscode/
+*.iml
+.git/
+.claude/
+.DS_Store
+Thumbs.db
+
+# Documentation and secrets never belong in an image
+docs/
+*.md
+*.pptx
+*.pdf
+*.png
+*.log
+**/.env
+**/.env.*

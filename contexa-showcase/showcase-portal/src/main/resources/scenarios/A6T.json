@@ -1,0 +1,89 @@
+{
+  "key": "A6T",
+  "version": 1,
+  "title": {
+    "ko": "장애 대응 티켓 범위 안의 고객 일괄 확인",
+    "en": "Checking customers under an incident ticket"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "TICKET",
+      "ticketKind": "INCIDENT",
+      "approver": "pm-11",
+      "project": "HX-200",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFromOffset": "-PT2H",
+      "validUntilOffset": "PT6H",
+      "status": "OPEN"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0001",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0012",
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0023",
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0034",
+      "offsetSeconds": 180,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "CUSTOMER_READ",
+      "customer": "CUS-0045",
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ]
+  }
+}

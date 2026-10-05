@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -42,13 +44,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ColdPathEventProcessor implements IPathProcessor {
+public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStore {
 
     private final Layer1ContextualStrategy contextualStrategy;
     private final Layer2ExpertStrategy expertStrategy;
     private final LlmAnalysisEventListener llmAnalysisEventListener;
 
     private static final int ESCALATE_SAMPLE_WINDOW = 100;
+    private static final Duration ESCALATION_WINDOW_IDLE_TTL = Duration.ofHours(24);
     private static final double ESCALATE_RATE_THRESHOLD = 0.5;
     private final ConcurrentMap<String, EscalationProtectionWindow> escalationProtectionWindows = new ConcurrentHashMap<>();
 
@@ -370,15 +373,50 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
     }
 
-    private EscalationProtectionSample recordEscalationProtectionSample(
+    EscalationProtectionSample recordEscalationProtectionSample(
             SecurityEvent event,
             String requestPath,
             boolean escalated) {
         String key = resolveEscalationProtectionKey(event, requestPath);
-        EscalationProtectionWindow window = escalationProtectionWindows.computeIfAbsent(
-                key,
-                ignored -> new EscalationProtectionWindow());
-        return window.record(escalated);
+        EscalationProtectionSample[] sample = new EscalationProtectionSample[1];
+        // Recorded inside compute so a concurrent sweep cannot drop the window between lookup and record.
+        escalationProtectionWindows.compute(key, (ignored, window) -> {
+            EscalationProtectionWindow current = window != null ? window : new EscalationProtectionWindow();
+            sample[0] = current.record(escalated);
+            return current;
+        });
+        return sample[0];
+    }
+
+    /**
+     * Releases escalation protection windows that no longer affect a decision: a full window (100 analyses) is reset
+     * by its next record anyway, and a window idle for a day restarts its count. The window key contains the raw
+     * request path, so without this the map grows with every distinct path.
+     */
+    @Override
+    public void removeExpiredEntries() {
+        removeInactiveEscalationWindows(System.currentTimeMillis());
+    }
+
+    void removeInactiveEscalationWindows(long nowMs) {
+        long idleBefore = nowMs - ESCALATION_WINDOW_IDLE_TTL.toMillis();
+        for (String key : escalationProtectionWindows.keySet()) {
+            escalationProtectionWindows.computeIfPresent(key, (ignored, window) ->
+                    window.isFull() || window.lastRecordedAtMs() < idleBefore ? null : window);
+        }
+    }
+
+    int escalationWindowCount() {
+        return escalationProtectionWindows.size();
+    }
+
+    /** Drops the escalation protection windows scoped to a user whose account is deleted. */
+    public void clearUserEscalationProtection(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        String userScope = "user:" + userId + "|";
+        escalationProtectionWindows.keySet().removeIf(key -> key.startsWith(userScope));
     }
 
     private String resolveEscalationProtectionKey(SecurityEvent event, String requestPath) {
@@ -415,15 +453,25 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private static final class EscalationProtectionWindow {
         private final AtomicInteger escalateCount = new AtomicInteger(0);
         private final AtomicInteger totalAnalysisCount = new AtomicInteger(0);
+        private volatile long lastRecordedAtMs = System.currentTimeMillis();
 
         synchronized EscalationProtectionSample record(boolean escalated) {
             if (totalAnalysisCount.get() >= ESCALATE_SAMPLE_WINDOW) {
                 totalAnalysisCount.set(0);
                 escalateCount.set(0);
             }
+            lastRecordedAtMs = System.currentTimeMillis();
             int total = totalAnalysisCount.incrementAndGet();
             int escalates = escalated ? escalateCount.incrementAndGet() : escalateCount.get();
             return new EscalationProtectionSample(escalates, total);
+        }
+
+        boolean isFull() {
+            return totalAnalysisCount.get() >= ESCALATE_SAMPLE_WINDOW;
+        }
+
+        long lastRecordedAtMs() {
+            return lastRecordedAtMs;
         }
     }
 

@@ -1,0 +1,52 @@
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.title {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+}
+
+.queued {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stepLabel {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.finish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.finishText {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.again {
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}

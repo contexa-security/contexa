@@ -24,6 +24,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.rag.service.VectorStoreFilterValues;
 
 import java.time.Duration;
 import java.util.List;
@@ -73,7 +74,7 @@ public class VectorStoreCacheLayer {
             String cacheKey = generateCacheKey(request);
 
             return cache.get(cacheKey, ignored -> {
-                List<Document> result = vectorStore.similaritySearch(request);
+                List<Document> result = vectorStore.similaritySearch(VectorStoreFilterValues.encode(request, vectorStore));
                 return result != null ? List.copyOf(result) : List.of();
             });
 
@@ -114,7 +115,7 @@ public class VectorStoreCacheLayer {
         }
 
         try {
-            return vectorStore.similaritySearch(request);
+            return vectorStore.similaritySearch(VectorStoreFilterValues.encode(request, vectorStore));
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Fallback search failed", e);
             throw new VectorSearchException("Vector store fallback search failed", e);

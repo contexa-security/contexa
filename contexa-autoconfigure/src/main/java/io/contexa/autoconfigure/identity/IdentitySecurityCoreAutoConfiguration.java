@@ -30,6 +30,9 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexaidentity.security.core.session.HttpSessionCleanupListener;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
@@ -489,4 +492,12 @@ public class IdentitySecurityCoreAutoConfiguration {
         return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public HttpSessionCleanupListener httpSessionCleanupListener(
+            ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityService,
+            ObjectProvider<MfaSessionRepository> mfaSessionRepository,
+            ObjectProvider<MfaStateMachineService> mfaStateMachineService) {
+        return new HttpSessionCleanupListener(zeroTrustSecurityService, mfaSessionRepository, mfaStateMachineService);
+    }
 }

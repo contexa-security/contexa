@@ -1,0 +1,54 @@
+{
+  "key": "S08",
+  "version": 1,
+  "title": {
+    "ko": "신규 사용자·부족한 기준선",
+    "en": "A new user without a baseline"
+  },
+  "protagonist": "eng-k",
+  "template": false,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "UNCERTAIN",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

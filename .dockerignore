@@ -14,9 +14,12 @@ out/
 .git/
 .gitignore
 
-# Documentation
+# Documentation (a bare *.md matches the context root only)
 *.md
+**/*.md
 !README.md
+# Local secrets must never enter a build context
+**/APIKEY.md
 LICENSE
 CONTRIBUTING.md
 CODE_OF_CONDUCT.md

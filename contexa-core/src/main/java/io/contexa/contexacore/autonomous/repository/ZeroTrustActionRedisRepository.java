@@ -174,7 +174,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
 
             Map<Object, Object> analysis = readAnalysis(userId);
             if (analysis.isEmpty()) {
-                return ZeroTrustAction.PENDING_ANALYSIS;
+                return unresolvedEscalationOrPending(userId);
             }
             Object actionValue = analysis.get("action");
             Object storedHash = analysis.get("contextBindingHash");
@@ -210,6 +210,15 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             log.error("[ZeroTrustActionRedisRepository] Failed to get current action with context: userId={}", userId, e);
             return ZeroTrustAction.PENDING_ANALYSIS;
         }
+    }
+
+    // An ESCALATE whose analysis hash expires without resolution keeps reading as ESCALATE through the 24 h
+    // last-verified key, so the access filter promotes it to BLOCK; every other expired action reads as PENDING_ANALYSIS.
+    private ZeroTrustAction unresolvedEscalationOrPending(String userId) {
+        String lastAction = readLastVerifiedAction(userId);
+        return lastAction != null && ZeroTrustAction.fromString(lastAction) == ZeroTrustAction.ESCALATE
+                ? ZeroTrustAction.ESCALATE
+                : ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     public ZeroTrustAnalysisData getAnalysisData(String userId) {
@@ -658,7 +667,8 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
                     ZeroTrustRedisKeys.blockMfaPending(userId),
                     ZeroTrustRedisKeys.blockMfaVerified(userId),
                     ZeroTrustRedisKeys.blockMfaFailCount(userId),
-                    ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId)
+                    ZeroTrustRedisKeys.autonomousDecisionAuditPending(userId),
+                    "security:escalate:retry:" + userId
             );
             stringRedisTemplate.delete(stringKeys);
         } catch (Exception e) {

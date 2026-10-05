@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.utils;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -121,6 +122,20 @@ public class SessionFingerprintUtil {
             request.setAttribute(CONTEXT_BINDING_HASH_ATTR, hash);
         }
         return hash;
+    }
+
+    /**
+     * Context binding hash the client presents on its next request. Authentication success can rotate the session
+     * id within the current request (session fixation protection), so the current session id wins over the
+     * requested one. Without a session the requested id is kept, as in {@link #generateContextBindingHash(HttpServletRequest)}.
+     */
+    public static String generateNextRequestContextBindingHash(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        HttpSession session = request.getSession(false);
+        String sessionId = session != null ? session.getId() : request.getRequestedSessionId();
+        return generateContextBindingHash(sessionId, extractClientIp(request), request.getHeader("User-Agent"));
     }
 
     public static String generateContextBindingHash(String sessionId, String ip, String userAgent) {

@@ -174,4 +174,16 @@ abstract class AbstractBaselineDataStoreContractTest {
                         .as("organization baseline must expire after TTL in both modes")
                         .isNull());
     }
+
+    @Test
+    @DisplayName("deleting a user baseline leaves other baselines")
+    void deleteUserBaseline_removesOnlyThatUser() {
+        store.saveUserBaseline("erin", userBaseline("erin"));
+        store.saveUserBaseline("frank", userBaseline("frank"));
+
+        store.deleteUserBaseline("erin");
+
+        assertThat(store.getUserBaseline("erin")).isNull();
+        assertThat(store.getUserBaseline("frank")).isNotNull();
+    }
 }

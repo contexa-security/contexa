@@ -739,7 +739,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
-                String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+                // Bind to the session the client uses next: MFA success has already rotated the session id.
+                String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
                 actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnOnLlmChallengedMfaSuccess(userId, request, factorContext);
             }

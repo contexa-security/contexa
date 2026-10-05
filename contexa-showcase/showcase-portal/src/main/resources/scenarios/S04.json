@@ -1,0 +1,76 @@
+{
+  "key": "S04",
+  "version": 1,
+  "title": {
+    "ko": "탈취된 정상 계정의 탐색",
+    "en": "A stolen account explores"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "EVENING",
+  "device": "NEW",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "PROJECT_LIST",
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "GB-500",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_READ",
+      "document": {
+        "project": "GB-500",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 8,
+      "offsetSeconds": 180,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ]
+  }
+}

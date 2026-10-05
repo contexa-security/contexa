@@ -92,7 +92,9 @@ public final class SecuritySemanticNormalizer {
             if (!StringUtils.hasText(candidate)) {
                 continue;
             }
-            if (containsAny(candidate, "CRITICAL")) {
+            // RESTRICTED is the top level of the common four-level classification (public, internal,
+            // confidential, restricted), above CONFIDENTIAL.
+            if (containsAny(candidate, "CRITICAL", "RESTRICTED")) {
                 return "CRITICAL";
             }
             if (containsAny(candidate, "SENSITIVE", "HIGH")) {
@@ -117,7 +119,9 @@ public final class SecuritySemanticNormalizer {
             if (!StringUtils.hasText(candidate)) {
                 continue;
             }
-            if (containsAny(candidate, "CRITICAL")) {
+            // RESTRICTED is the top level of the common four-level classification (public, internal,
+            // confidential, restricted), above CONFIDENTIAL.
+            if (containsAny(candidate, "CRITICAL", "RESTRICTED")) {
                 return "CRITICAL";
             }
             if (containsAny(candidate, "HIGH", "SENSITIVE", "SECRET", "CONFIDENTIAL")) {
@@ -163,6 +167,46 @@ public final class SecuritySemanticNormalizer {
             }
         }
         return normalized.length() == 0 ? "/" : normalized.toString();
+    }
+
+    /**
+     * Whether two network values name the same network. The current request carries the canonical IPv4 band
+     * ({@code a.b.c.0/24}) while learned baselines and memory documents store the three-octet prefix ({@code a.b.c})
+     * unless the host supplied an ipBand; both forms of the same /24 compare equal. Other values compare as written,
+     * ignoring case.
+     */
+    public static boolean sameNetwork(String left, String right) {
+        String leftKey = networkKey(left);
+        String rightKey = networkKey(right);
+        return leftKey != null && leftKey.equals(rightKey);
+    }
+
+    private static String networkKey(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String text = value.trim().toLowerCase(Locale.ROOT);
+        if (text.endsWith(".0/24")) {
+            String prefix = text.substring(0, text.length() - ".0/24".length());
+            if (isThreeOctetPrefix(prefix)) {
+                return prefix;
+            }
+        }
+        return text;
+    }
+
+    private static boolean isThreeOctetPrefix(String text) {
+        String[] octets = text.split("\\.", -1);
+        if (octets.length != 3) {
+            return false;
+        }
+        for (String octet : octets) {
+            if (octet.isEmpty() || octet.length() > 3 || !octet.chars().allMatch(Character::isDigit)
+                    || Integer.parseInt(octet) > 255) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static String normalizeNetwork(String sourceIp, String ipBand) {

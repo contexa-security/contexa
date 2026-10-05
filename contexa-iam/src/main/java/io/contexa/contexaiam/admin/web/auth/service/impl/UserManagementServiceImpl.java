@@ -26,15 +26,19 @@ import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.UserRole;
 import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.repository.UserRolePermissionRepository;
+import io.contexa.contexacommon.security.UserAccountDeletedEvent;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.admin.web.auth.service.SystemSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
@@ -49,6 +53,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -65,6 +70,9 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final PasswordPolicyService passwordPolicyService;
     private final SystemSettingsService systemSettingsService;
     private final MessageSource messageSource;
+    private final UserRolePermissionRepository userRolePermissionRepository;
+    private final BridgeUserProfileRepository bridgeUserProfileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -272,13 +280,14 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional(transactionManager = "contexaTransactionManager")
     @Protectable(verificationRequired = false)
     public void deleteUser(Long id) {
+        Optional<Users> target = userRepository.findById(id);
         try {
             String admin = "SYSTEM";
             var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) admin = auth.getName();
             final String auditAdmin = admin;
 
-            userRepository.findById(id).ifPresent(user ->
+            target.ifPresent(user ->
                     centralAuditFacade.recordAsync(AuditRecord.builder()
                             .eventCategory(AuditEventCategory.USER_DELETED)
                             .principalName(auditAdmin)
@@ -294,6 +303,13 @@ public class UserManagementServiceImpl implements UserManagementService {
         } catch (Exception e) {
             log.error("Failed to audit user deletion: id={}", id, e);
         }
+        // These rows reference the account without cascade, so the deletion would otherwise fail.
+        userRolePermissionRepository.deleteByUserId(id);
+        if (bridgeUserProfileRepository.existsById(id)) {
+            bridgeUserProfileRepository.deleteById(id);
+        }
         userRepository.deleteById(id);
+        target.map(Users::getUsername)
+                .ifPresent(username -> eventPublisher.publishEvent(new UserAccountDeletedEvent(id, username)));
     }
 }

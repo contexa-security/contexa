@@ -1,0 +1,87 @@
+description = 'Contexa Showcase visitor portal, orchestrator and evidence store'
+
+// Testcontainers 1.21.4 negotiates the Docker API version; 1.21.3 is refused by Docker 29 (minimum API 1.44).
+ext['testcontainers.version'] = '1.21.4'
+
+dependencies {
+    // Signed internal context, the workload client and the company vocabulary; no Contexa dependency.
+    implementation project(':showcase-business')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+}
+
+bootJar.enabled = true
+jar.enabled = false
+// Build commit for the execution specification (docs/showcase/실행명세.md). Docker builds have no .git, so the
+// commit comes from SHOWCASE_GIT_COMMIT there; a working tree with uncommitted changes is marked "-dirty".
+def showcaseCommit = providers.environmentVariable('SHOWCASE_GIT_COMMIT').orElse(providers.provider {
+    try {
+        def head = ['git', 'rev-parse', '--short=12', 'HEAD'].execute(null, rootDir).text.trim()
+        def dirty = ['git', 'status', '--porcelain', '--untracked-files=no'].execute(null, rootDir).text.trim()
+        head ? head + (dirty ? '-dirty' : '') : 'unknown'
+    } catch (IOException ignored) {
+        'unknown'
+    }
+})
+springBoot {
+    mainClass = 'io.contexa.showcase.portal.ShowcasePortalApplication'
+    buildInfo {
+        properties {
+            additional = ['git.commit': showcaseCommit.get()]
+        }
+    }
+}
+
+// The visitor web application (contexa-showcase/web) is built with npm and packaged into the executable
+// jar only, so the repository-wide test run (OSS ci.yml) never needs Node for this module. During
+// development the web application runs on the Vite dev server instead.
+// -Pshowcase.skipWeb=true packages the jar without it for fast backend-only iterations.
+def webDir = file("${rootDir}/contexa-showcase/web")
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def skipWeb = (findProperty('showcase.skipWeb') ?: 'false').toString().toBoolean()
+
+def webInstall = tasks.register('webInstall', Exec) {
+    group = 'build'
+    description = 'Installs the locked web dependencies'
+    workingDir webDir
+    commandLine npmCommand, 'ci', '--no-audit', '--no-fund'
+    inputs.file(new File(webDir, 'package-lock.json'))
+    outputs.dir(new File(webDir, 'node_modules'))
+}
+
+def webBuild = tasks.register('webBuild', Exec) {
+    group = 'build'
+    description = 'Type-checks and builds the visitor web application'
+    dependsOn webInstall
+    workingDir webDir
+    commandLine npmCommand, 'run', 'build'
+    inputs.dir(new File(webDir, 'src'))
+    inputs.dir(new File(webDir, 'public'))
+    inputs.files(['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json',
+                  'tsconfig.app.json', 'tsconfig.node.json'].collect { new File(webDir, it) })
+    outputs.dir(new File(webDir, 'dist'))
+}
+
+tasks.named('bootJar') {
+    if (!skipWeb) {
+        dependsOn webBuild
+        from(new File(webDir, 'dist')) {
+            into 'BOOT-INF/classes/static'
+        }
+    }
+}
+
+// This executable is not a published Contexa library.
+publishing.publications.clear()
+tasks.withType(PublishToMavenRepository).configureEach { enabled = false }
+tasks.withType(PublishToMavenLocal).configureEach { enabled = false }
+tasks.withType(Sign).configureEach { enabled = false }

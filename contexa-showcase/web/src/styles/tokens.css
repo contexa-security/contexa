@@ -1,0 +1,125 @@
+/*
+ * Design tokens of the Contexa Showcase. Every color, size, spacing, radius, shadow and motion value
+ * used by the application comes from this file; stylelint rejects literal values elsewhere.
+ * Dark is the default theme; the light theme follows the system preference or data-theme="light".
+ */
+@import url('pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import url('@fontsource/jetbrains-mono/400.css');
+@import url('@fontsource/jetbrains-mono/600.css');
+
+:root {
+  /* Typography */
+  --font-sans: 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI', roboto,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, sfmono-regular, menlo, consolas, monospace;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --tracking-wide: 0.08em;
+
+  /* Spacing (4 px grid) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layers */
+  --layer-raised: 10;
+  --layer-drawer: 100;
+
+  /* Dark theme (default) */
+  --color-bg: #0b1220;
+  --color-surface: #111a2b;
+  --color-surface-raised: #16223a;
+  --color-surface-accent: #1b2a47;
+  --color-border: #22314d;
+  --color-border-strong: #3a4b6b;
+  --color-text: #f4f1e8;
+  --color-text-body: #e9e6dd;
+  --color-text-muted: #a9b4c4;
+  --color-text-subtle: #8e9aae;
+  --color-accent: #d4af5a;
+  --color-accent-ink: #0e1726;
+  --color-focus: #f2c14e;
+  --color-backdrop: rgb(4 8 16 / 60%);
+  --shadow-raised: 0 12px 32px rgb(0 0 0 / 35%);
+
+  /* Verdicts: color, icon and word are always shown together */
+  --color-verdict-allow: #2563b8;
+  --color-verdict-verify: #a85a14;
+  --color-verdict-review: #6b4fb8;
+  --color-verdict-block: #b3261e;
+  --color-verdict-ink: #fbfaf6;
+  --color-verdict-pending: #3a4b6b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --color-bg: #f6f5f1;
+    --color-surface: #fdfcf9;
+    --color-surface-raised: #f1eee6;
+    --color-surface-accent: #f3ecd9;
+    --color-border: #e2ded3;
+    --color-border-strong: #cfc8b8;
+    --color-text: #0e1726;
+    --color-text-body: #1b2433;
+    --color-text-muted: #4a5568;
+    --color-text-subtle: #5b6576;
+    --color-accent: #7a5c14;
+    --color-accent-ink: #fbfaf6;
+    --color-focus: #7a5c14;
+    --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
+  }
+}
+
+:root[data-theme='light'] {
+  --color-bg: #f6f5f1;
+  --color-surface: #fdfcf9;
+  --color-surface-raised: #f1eee6;
+  --color-surface-accent: #f3ecd9;
+  --color-border: #e2ded3;
+  --color-border-strong: #cfc8b8;
+  --color-text: #0e1726;
+  --color-text-body: #1b2433;
+  --color-text-muted: #4a5568;
+  --color-text-subtle: #5b6576;
+  --color-accent: #7a5c14;
+  --color-accent-ink: #fbfaf6;
+  --color-focus: #7a5c14;
+  --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}

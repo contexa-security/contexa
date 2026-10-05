@@ -33,9 +33,11 @@ import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -729,6 +731,41 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should not present a baseline browser as the session's previous device")
+    void enrichBehaviorAnalysisWithBaselineSupport_baselineBrowserIsNotASessionDeviceChange() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session-device")
+                .userId("user-123")
+                .metadata(new LinkedHashMap<>())
+                .build();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        BaselineVector baseline = BaselineVector.builder()
+                .userId("user-123")
+                .normalUserAgents(new String[]{"Edge/140"})
+                .updateCount(25L)
+                .build();
+        BaselineLearningService.BaselineMaturitySnapshot maturity =
+                new BaselineLearningService.BaselineMaturitySnapshot(
+                true,
+                true,
+                true,
+                true,
+                true,
+                List.of("ACCESS_HOURS", "OPERATING_SYSTEMS"));
+        when(baselineLearningService.buildPromptBaselineEvidenceSnapshot("user-123", event))
+                .thenReturn(new BaselineLearningService.PromptBaselineEvidence(maturity, baseline, null, null, null));
+
+        strategy.enrichBehaviorAnalysisWithBaselineSupportForTest(behaviorAnalysis, event,
+                Mockito.mock(SaasBaselineSeedService.class));
+
+        assertThat(behaviorAnalysis.getBaselineUserAgents()).containsExactly("Edge/140");
+        assertThat(behaviorAnalysis.getPreviousUserAgentBrowser())
+                .as("a browser of the baseline is not the previous device of this session")
+                .isNull();
+    }
+
+    @Test
     @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should set typed service unavailable evidence when baseline service is missing")
     void enrichBehaviorAnalysisWithBaselineSupport_missingService_setsTypedUnavailableEvidence() {
         ConcreteStrategy strategyWithoutBaselineService = new ConcreteStrategy(
@@ -890,6 +927,48 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getReasoning())
                 .isEqualTo("Authorization allows access, and authorized RAG is relevant to the same resource.");
         assertThat(decision.getReasoning()).doesNotContain("baseline");
+    }
+
+    @Test
+    @DisplayName("ALLOW without same-resource RAG states the baseline from the canonical facts, not the model")
+    void applyCanonicalDecisionReasoning_shouldStateLimitedBaselineWithoutRag() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Authorization allows access, the personal baseline is established, "
+                        + "and no concrete risk or verification requirement is present.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("personalBaselineEstablished", false)))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
+
+        assertThat(decision.getReasoning()).isEqualTo("Authorization allows access with a limited baseline, "
+                + "and no concrete risk or verification requirement is present.");
+        assertThat(decision.getLlmReasoning()).contains("the personal baseline is established");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+    }
+
+    @Test
+    @DisplayName("ALLOW without same-resource RAG keeps a model explanation that matches the facts")
+    void applyCanonicalDecisionReasoning_shouldKeepModelExplanationWithoutRag() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Authorization allows access, the personal baseline is established, "
+                        + "and no concrete risk or verification requirement is present.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("personalBaselineEstablished", true)))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
+
+        assertThat(decision.getReasoning()).contains("the personal baseline is established");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "MODEL");
     }
     @Test
     @DisplayName("trusted confirmed malicious evidence should produce the canonical BLOCK explanation")
