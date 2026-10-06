@@ -82,15 +82,17 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
         <h1 id="end-title" className={styles.title}>
           {t('end.title')}
         </h1>
+        <p className={styles.explain}>{t('end.explain')}</p>
         <dl className={styles.scores}>
-          <div className={styles.score}>
-            <dt>{t('end.mine')}</dt>
-            <dd className={styles.scoreValue}>
-              {result.mine ? `${result.mine.hits}/${result.mine.total}` : t('end.noVote')}
-            </dd>
-          </div>
+          {/* The visitor's own score exists only for a visitor who voted before the hands-on first screen. */}
+          {result.mine ? (
+            <div className={styles.score}>
+              <dt>{t('end.mine')}</dt>
+              <dd className={styles.scoreValue}>{`${result.mine.hits}/${result.mine.total}`}</dd>
+            </div>
+          ) : null}
           <div className={styles.score} data-contexa="true">
-            <dt>Contexa</dt>
+            <dt>{t('end.contexaScore')}</dt>
             <dd className={styles.scoreValue}>{`${result.contexa.hits}/${result.contexa.total}`}</dd>
           </div>
         </dl>
@@ -98,7 +100,10 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
         <ul className={styles.scenes}>
           {result.scenes.map((scene) => (
             <li key={scene.kind} className={styles.scene}>
-              <span className={styles.sceneKind}>{t(`replay.scene.${scene.kind}`)}</span>
+              <span className={styles.sceneKind}>
+                {t(`replay.scene.${scene.kind}`)}
+                <span className={styles.sceneExpect}>{t(`replay.expect.${scene.kind}`)}</span>
+              </span>
               <span className={styles.call}>
                 {scene.choice
                   ? t('end.scene.call', { choice: t(`replay.choice.${scene.choice}`) })
@@ -126,7 +131,7 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
         {recoveryOpen ? (
           <li className={styles.proof}>
             <span>{t('end.proof.recover')}</span>
-            <Link className={styles.proofLink} to="/try">
+            <Link className={styles.proofLink} to="/">
               {t('end.proof.recoverLink')}
             </Link>
           </li>
@@ -139,7 +144,7 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
         </li>
       </ul>
 
-      <Link className={styles.primary} to="/explore">
+      <Link className={styles.primary} to="/">
         {t('end.primary')} <span aria-hidden="true">›</span>
       </Link>
 
@@ -171,7 +176,7 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
             width={1200}
             height={630}
             alt={t('end.shareCard.alt', {
-              score: `${result.mine ? `${t('end.mine')} ${result.mine.hits}/${result.mine.total} · ` : ''}Contexa ${result.contexa.hits}/${result.contexa.total}`,
+              score: `${result.mine ? `${t('end.shareCard.mine')} ${result.mine.hits}/${result.mine.total} · ` : ''}Contexa ${result.contexa.hits}/${result.contexa.total}`,
             })}
           />
           <p className={styles.note}>{t('end.shareCard.note')}</p>

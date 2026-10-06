@@ -66,13 +66,15 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("GET /api/stats", Reach.READ),
             Map.entry("GET /api/live/config", Reach.READ),
             Map.entry("GET /api/live/runs/current", Reach.READ),
+            Map.entry("GET /api/live/runs/current/result", Reach.READ),
             Map.entry("POST /api/live/runs", Reach.GATED_ENGINE_START),
             Map.entry("POST /api/live/combinations", Reach.GATED_ENGINE_START),
             // A started run's own steps: the code request and the answer continue the run the gate admitted, at most
-            // LiveRun.MAX_ATTEMPTS times; cancel only ends it.
+            // LiveRun.MAX_ATTEMPTS times; cancel and abandon only end it.
             Map.entry("POST /api/live/runs/current/code", Reach.OWN_RUN_STEP),
             Map.entry("POST /api/live/runs/current/answer", Reach.OWN_RUN_STEP),
-            Map.entry("POST /api/live/runs/current/cancel", Reach.OWN_RUN_STEP)));
+            Map.entry("POST /api/live/runs/current/cancel", Reach.OWN_RUN_STEP),
+            Map.entry("POST /api/live/runs/current/abandon", Reach.OWN_RUN_STEP)));
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {

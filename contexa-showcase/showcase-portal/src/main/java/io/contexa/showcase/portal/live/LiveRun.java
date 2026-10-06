@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +23,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * One scenario a visitor runs live (docs/showcase/P3-설계.md 3절). It hears every control's result as it arrives and,
  * when control D asks for an additional check, waits for the visitor: ask for the code, enter it from the demo inbox,
- * or cancel. Each wait ends after {@link #STAGE_TIMEOUT}; three wrong codes end the check as a failed recovery.
+ * cancel, or give up at once (the attacker of the first scene has no access to the employee's mailbox). Each wait ends
+ * after {@link #STAGE_TIMEOUT}; three wrong codes end the check as a failed recovery.
  */
 public final class LiveRun implements ChallengeResponder, RunListener {
 
@@ -33,11 +35,12 @@ public final class LiveRun implements ChallengeResponder, RunListener {
 
     /**
      * WAITING: the check was asked, nothing requested yet. CODE_SHOWN: the demo inbox holds a code. CANCELLED: the
-     * visitor stepped back; the request stays on hold until the time runs out. The rest are final.
+     * visitor stepped back; the request stays on hold until the time runs out. ABANDONED: the visitor gave up the check
+     * and the request stays held. The rest are final too.
      */
-    public enum Stage { WAITING, CODE_SHOWN, CANCELLED, VERIFYING, DONE, EXPIRED, FAILED }
+    public enum Stage { WAITING, CODE_SHOWN, CANCELLED, VERIFYING, DONE, EXPIRED, FAILED, ABANDONED }
 
-    sealed interface Command permits RequestCode, Answer, Cancel {
+    sealed interface Command permits RequestCode, Answer, Cancel, Abandon {
     }
 
     record RequestCode() implements Command {
@@ -49,7 +52,14 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     record Cancel() implements Command {
     }
 
-    public record LayerView(String outcome, Integer httpStatus) {
+    record Abandon() implements Command {
+    }
+
+    /**
+     * @param deliveredItems items the control actually handed over in its response
+     * @param elapsedMs      milliseconds from sending the request to its response
+     */
+    public record LayerView(String outcome, Integer httpStatus, int deliveredItems, long elapsedMs) {
     }
 
     public record StepView(int stepNo, String operation, Map<String, LayerView> layers) {
@@ -154,6 +164,15 @@ public final class LiveRun implements ChallengeResponder, RunListener {
         commands.add(new Cancel());
     }
 
+    public void abandon() {
+        commands.add(new Abandon());
+    }
+
+    /** The run ID of this run once it completed, for its full result; empty while it runs or after a failure. */
+    public synchronized Optional<String> completedRunId() {
+        return status == Status.COMPLETED ? Optional.ofNullable(runId) : Optional.empty();
+    }
+
     @Override
     public String liveVisitor() {
         return visitor;
@@ -174,7 +193,8 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     @Override
     public synchronized void stepResult(int stepNo, String operation, Control control, StepOutcome outcome) {
         StepView step = steps.computeIfAbsent(stepNo, number -> new StepView(number, operation, new LinkedHashMap<>()));
-        step.layers().put(control.name(), new LayerView(outcome(control, outcome), outcome.httpStatus()));
+        step.layers().put(control.name(), new LayerView(outcome(control, outcome), outcome.httpStatus(),
+                outcome.deliveredItems(), outcome.elapsedMs()));
     }
 
     synchronized void finish(RunSummary summary) {
@@ -236,6 +256,9 @@ public final class LiveRun implements ChallengeResponder, RunListener {
                 } else if (command instanceof Cancel && stage() != Stage.CANCELLED) {
                     cancelled = true;
                     enter(Stage.CANCELLED);
+                } else if (command instanceof Abandon) {
+                    return finish(Stage.ABANDONED, new ChallengeTrace(false, "ABANDONED", challenge.challengedAt(),
+                            requested, null, null), null);
                 }
             }
         } catch (IOException e) {
@@ -303,7 +326,8 @@ public final class LiveRun implements ChallengeResponder, RunListener {
     }
 
     private synchronized long secondsLeft() {
-        if (deadline == null || stage == Stage.DONE || stage == Stage.EXPIRED || stage == Stage.FAILED) {
+        if (deadline == null || stage == Stage.DONE || stage == Stage.EXPIRED || stage == Stage.FAILED
+                || stage == Stage.ABANDONED) {
             return 0;
         }
         return Math.max(0, Duration.between(clock.instant(), deadline).toSeconds());

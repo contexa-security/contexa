@@ -23,7 +23,6 @@ public class LiveGateWatch {
 
     private static final Logger log = LoggerFactory.getLogger(LiveGateWatch.class);
 
-    public static final String RECORDED = "RECORDED";
     public static final String STARTED = "STARTED";
     public static final String RESUMED = "RESUMED";
 
@@ -31,7 +30,7 @@ public class LiveGateWatch {
     static final int UNRESOLVED_RATE_MIN_RUNS = 20;
 
     /**
-     * @param outcomes             every outcome since start: RECORDED, STARTED, RESUMED and each refusal reason
+     * @param outcomes             every outcome since start: STARTED, RESUMED and each refusal reason
      * @param refusalsThisHour     refusals by reason in the clock hour starting at {@code hourStart}
      * @param finishedThisHour     live runs that finished in that hour
      * @param unresolvedThisHour   of those, runs with an unresolved engine decision

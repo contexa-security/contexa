@@ -20,7 +20,10 @@ import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Deck p.12 and p.20 on the live run: the visitor answers the check, cancels, lets it expire or fails to recover. */
+/**
+ * Deck p.12 and p.20 on the live run: the visitor answers the check, cancels, gives up, lets it expire or fails to
+ * recover.
+ */
 class LiveRunTest {
 
     private static final Instant START = Instant.parse("2026-10-05T06:00:00Z");
@@ -78,6 +81,21 @@ class LiveRunTest {
         assertThat(trace.answered()).isFalse();
         assertThat(trace.reason()).isEqualTo("CANCELLED");
         assertThat(run.view().challenge().stage()).isEqualTo(LiveRun.Stage.EXPIRED);
+        assertThat(actions.submitted).isEmpty();
+    }
+
+    @Test
+    void anAbandonedCheckEndsAtOnceAndTheRequestStaysHeld() throws Exception {
+        CompletableFuture<ChallengeTrace> answer = respond();
+        await(view -> view.stage() == LiveRun.Stage.WAITING);
+        run.abandon();
+
+        ChallengeTrace trace = answer.get(5, TimeUnit.SECONDS);
+        assertThat(trace.answered()).isFalse();
+        assertThat(trace.reason()).isEqualTo("ABANDONED");
+        assertThat(trace.reissue()).as("nothing is sent again").isNull();
+        assertThat(run.view().challenge().stage()).isEqualTo(LiveRun.Stage.ABANDONED);
+        assertThat(run.view().challenge().secondsLeft()).isZero();
         assertThat(actions.submitted).isEmpty();
     }
 

@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 // The design mock lives on a development-only route, so P0 checks run against the Vite dev server.
 export default defineConfig({
   testDir: './e2e',
+  // The real-portal checks and the visual comparison have their own configurations (playwright.portal.config.ts,
+  // playwright.visual.config.ts) and need a running portal or a baseline folder.
+  testIgnore: ['portal/**', 'visual/**'],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

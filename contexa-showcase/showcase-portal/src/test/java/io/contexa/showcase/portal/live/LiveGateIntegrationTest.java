@@ -40,8 +40,9 @@ import java.util.function.BooleanSupplier;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deck p.28 on the gate in front of new live runs (P4-BE-03, P4-BE-04): stored cells cost nothing, a failed human
- * check or a spent allotment refuses before any count is taken, and a run that fails gives its count back.
+ * Deck p.28 on the gate in front of new live runs (P4-BE-03, docs/showcase/체험우선-설계.md): every press runs live,
+ * a failed human check or a spent allotment refuses before any count is taken and carries the cell's record, and a run
+ * that fails gives its count back.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
@@ -81,16 +82,30 @@ class LiveGateIntegrationTest {
     }
 
     @Test
-    void aStoredCellIsShownWithoutAnyCallOrCount() throws Exception {
+    void everyPressRunsLiveEvenWhenTheCellHasARecord() throws Exception {
         LiveQuota quota = quota(2);
         LiveGate gate = gate(cells(Optional.of("run-stored")), turnstileOff(), allotment(30), quota);
 
         LiveGate.Outcome outcome = gate.combination("v1", ADDRESS, cell(), null);
 
-        assertThat(outcome).isInstanceOf(LiveGate.Recorded.class);
+        assertThat(outcome).isInstanceOf(LiveGate.Started.class);
+        assertThat(quota.remaining("v1")).isEqualTo(1);
+        assertThat(watch.status().outcomes()).isEqualTo(Map.of("STARTED", 1L));
+    }
+
+    @Test
+    void aRefusedCellCarriesItsRecordToBeShownAsARecord() throws Exception {
+        LiveQuota quota = quota(2);
+        LiveGate gate = gate(cells(Optional.of("run-stored")), turnstileOff(), allotment(0), quota);
+
+        LiveGate.Outcome outcome = gate.combination("v1", ADDRESS, cell(), null);
+
+        assertThat(outcome).isInstanceOf(LiveGate.Refused.class);
+        LiveGate.Refused refused = (LiveGate.Refused) outcome;
+        assertThat(refused.reason()).isEqualTo("ALLOTMENT");
+        assertThat(refused.fallback().runId()).isEqualTo("run-stored");
         assertThat(quota.remaining("v1")).isEqualTo(2);
         assertThat(live.running()).isZero();
-        assertThat(watch.status().outcomes()).isEqualTo(Map.of("RECORDED", 1L));
     }
 
     @Test
@@ -105,8 +120,8 @@ class LiveGateIntegrationTest {
         LiveGate.Outcome spent = gate(cells(Optional.empty()), turnstileOff(), allotment(0), quota)
                 .combination("v1", ADDRESS, cell(), null);
 
-        assertThat(check).isEqualTo(new LiveGate.Refused("TURNSTILE_UNAVAILABLE"));
-        assertThat(spent).isEqualTo(new LiveGate.Refused("ALLOTMENT"));
+        assertThat(check).isEqualTo(new LiveGate.Refused("TURNSTILE_UNAVAILABLE", null));
+        assertThat(spent).isEqualTo(new LiveGate.Refused("ALLOTMENT", null));
         assertThat(quota.remaining("v1")).isEqualTo(2);
         assertThat(watch.status().refusalsThisHour()).isEqualTo(Map.of("TURNSTILE_UNAVAILABLE", 1L, "ALLOTMENT", 1L));
     }
@@ -129,7 +144,7 @@ class LiveGateIntegrationTest {
         await(() -> kept.size() == 2);
         assertThat(kept).containsOnly("run-" + cell().key());
         assertThat(gate.combination("v1", ADDRESS, Combination.parse("eng-k.DAWN.40.NONE.USUAL"), null))
-                .isEqualTo(new LiveGate.Refused("VISITOR_LIMIT"));
+                .isEqualTo(new LiveGate.Refused("VISITOR_LIMIT", null));
         assertThat(watch.status().outcomes()).isEqualTo(Map.of("STARTED", 2L, "RESUMED", 1L, "VISITOR_LIMIT", 1L));
     }
 
@@ -139,7 +154,7 @@ class LiveGateIntegrationTest {
         LiveQuota quota = quota(1);
         LiveGate gate = gate(cells(Optional.empty()), turnstileOff(), allotment(30), quota);
 
-        assertThat(gate.combination("v1", ADDRESS, cell(), null)).isEqualTo(new LiveGate.Refused("TEMPLATE"));
+        assertThat(gate.combination("v1", ADDRESS, cell(), null)).isEqualTo(new LiveGate.Refused("TEMPLATE", null));
         assertThat(quota.remaining("v1")).as("a refusal takes nothing").isEqualTo(1);
         assertThat(live.running()).isZero();
         assertThat(watch.status().outcomes()).isEqualTo(Map.of("TEMPLATE", 1L));

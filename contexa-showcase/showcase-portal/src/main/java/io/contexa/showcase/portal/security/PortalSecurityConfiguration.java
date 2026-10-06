@@ -58,7 +58,8 @@ public class PortalSecurityConfiguration {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares").permitAll()
                         // Live runs (P3, P4); the endpoints exist only with showcase.live.enabled.
-                        .requestMatchers(HttpMethod.GET, "/api/live/config", "/api/live/runs/current").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/live/config", "/api/live/runs/current",
+                                "/api/live/runs/current/result").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/runs", "/api/live/combinations",
                                 "/api/live/runs/current/*").permitAll()
                         .requestMatchers("/api/**").denyAll()

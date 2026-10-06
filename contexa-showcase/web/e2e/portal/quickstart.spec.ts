@@ -4,13 +4,12 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * P2-FE-02 and P2-FE-04 on the real portal: first screen, vote, screen 1 and the legitimate request that looks the
- * same, in Korean and English, with the keyboard-free click path and the accessibility scan on each screen. The
- * expected words come from the dictionaries; the shown results come from the recorded replay.
+ * The recorded replays on the real portal (P2-FE-01, P2-FE-03, P3-BE-03): load time of the first screen and of a replay,
+ * and every published replay showing exactly its recorded outcomes and timeline. The first screen's hands-on flow is
+ * checked by experience.spec.ts.
  */
 const COPY = {
-  ko: { block: '차단한다', next: '다음', finished: '두 장면을 모두 보았습니다', prompt: '당신이라면?' },
-  en: { block: 'Block it', next: 'Next', finished: 'You have seen both requests', prompt: 'What would you do?' },
+  en: { next: 'Next' },
 } as const;
 
 const evidenceDir = process.env.SHOWCASE_EVIDENCE_DIR;
@@ -24,56 +23,6 @@ async function seriousViolations(page: Page) {
     .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`);
 }
-
-async function noHorizontalScroll(page: Page) {
-  return page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
-}
-
-for (const language of ['ko', 'en'] as const) {
-  test(`quick start ${language}: question, vote, verdict comparison, legitimate request`, async ({ page }, info) => {
-    const copy = COPY[language];
-    await page.goto(`/?lng=${language}`);
-    await expect(page.getByText(copy.prompt)).toBeVisible();
-    expect(await seriousViolations(page)).toEqual([]);
-    expect(await noHorizontalScroll(page)).toBe(true);
-    if (evidenceDir) {
-      await page.screenshot({ path: join(evidenceDir, `entry-${info.project.name}-${language}.png`), fullPage: true });
-    }
-
-    await page.getByRole('button', { name: copy.block }).click();
-    await expect(page).toHaveURL(/\/replay\/A3$/);
-    await expect(page.locator('article[data-control="D"]')).toBeVisible();
-    expect(await seriousViolations(page)).toEqual([]);
-    expect(await noHorizontalScroll(page)).toBe(true);
-    if (evidenceDir) {
-      await page.screenshot({ path: join(evidenceDir, `replay-${info.project.name}-${language}.png`), fullPage: true });
-    }
-
-    await page.getByRole('button', { name: copy.next, exact: true }).click();
-    await expect(page.getByText(copy.finished)).toBeVisible();
-    expect(await seriousViolations(page)).toEqual([]);
-  });
-}
-
-test('quick start with the keyboard only', async ({ page }, info) => {
-  test.skip(info.project.name !== 'chromium', 'keyboard path is checked once on desktop');
-  await page.goto('/?lng=en');
-  await expect(page.getByText(COPY.en.prompt)).toBeVisible();
-  const block = page.getByRole('button', { name: COPY.en.block });
-  for (let presses = 0; presses < 20 && !(await block.evaluate((element) => element === document.activeElement)); presses++) {
-    await page.keyboard.press('Tab');
-  }
-  await expect(block).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/replay\/A3$/);
-  const next = page.getByRole('button', { name: COPY.en.next, exact: true });
-  for (let presses = 0; presses < 60 && !(await next.evaluate((element) => element === document.activeElement)); presses++) {
-    await page.keyboard.press('Tab');
-  }
-  await expect(next).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.getByText(COPY.en.finished)).toBeVisible();
-});
 
 /**
  * P2-FE-03: largest contentful paint under a slow 4G profile (Lighthouse mobile: 150 ms round trip, 1.6 Mbit/s down,
@@ -182,7 +131,7 @@ test('every published replay shows the recorded analysis timeline', async ({ pag
         values.push(engine.evidence.responseMs);
       }
       const expected = values.sort((left, right) => left - right).map((value) => `+${number.format(value)} ms`);
-      await page.locator('article[data-control="D"]').getByRole('button', { name: /Evidence chain/ }).click();
+      await page.locator('article[data-control="D"]').getByRole('button', { name: /Reasoning in detail/ }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog.getByText('Analysis timeline')).toBeVisible();
       await expect(dialog.getByTestId('timeline-offset')).toHaveText(expected);

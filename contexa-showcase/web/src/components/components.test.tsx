@@ -39,8 +39,8 @@ describe('LayerCard', () => {
     const onOpen = vi.fn();
     render(<LayerCard control="D" outcome="STOPPED" verdict="BLOCK" reason="Not assigned" highlighted onOpenEvidence={onOpen} />);
     expect(screen.getByRole('heading', { name: 'Contexa' })).toBeInTheDocument();
-    expect(screen.getByText('Data stopped')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Evidence chain/ }));
+    expect(screen.getByText('Stopped')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Reasoning in detail/ }));
     expect(onOpen).toHaveBeenCalledWith('D');
   });
 });
@@ -51,7 +51,7 @@ describe('EvidenceDrawer', () => {
     render(
       <EvidenceDrawer
         title="Contexa"
-        evidence={{ decisionId: 'd-1', verdict: 'BLOCK', timing: 'Before response', httpStatus: 403, outcome: 'Data stopped' }}
+        evidence={{ decisionId: 'd-1', verdict: 'BLOCK', timing: 'Before response', httpStatus: 403, outcome: 'Stopped' }}
         onClose={() => undefined}
       />,
     );

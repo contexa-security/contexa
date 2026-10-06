@@ -43,7 +43,7 @@ for (const language of ['ko', 'en'] as const) {
     const format = new Intl.NumberFormat(language === 'ko' ? 'ko-KR' : 'en-US');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      language === 'ko' ? '수행 통계' : 'Execution statistics',
+      language === 'ko' ? '실행 통계' : 'Run statistics',
     );
     await expect(page.locator('dl dd').first()).toHaveText(format.format(stats.runs.completed));
     for (const layer of stats.layers) {

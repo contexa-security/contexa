@@ -1,0 +1,233 @@
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-inline-start: 6px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  transition: border-color var(--duration-base) var(--ease-standard);
+}
+
+.lane[data-control='D'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.lane[data-outcome='DELIVERED'] {
+  border-inline-start-color: var(--color-verdict-allow);
+}
+
+.lane[data-outcome='STOPPED'],
+.lane[data-outcome='CUT'] {
+  border-inline-start-color: var(--color-verdict-block);
+}
+
+.lane[data-outcome='HELD'] {
+  border-inline-start-color: var(--color-verdict-verify);
+}
+
+@media (width <= 52rem) {
+  .lane {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .identity {
+    grid-column: 1 / -1;
+  }
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.lane[data-control='D'] .name {
+  color: var(--color-accent);
+}
+
+.config {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  word-break: keep-all;
+}
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.waiting {
+  color: var(--color-text-subtle);
+}
+
+.sending {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-body);
+  font-weight: var(--weight-semibold);
+}
+
+.outcome {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  word-break: keep-all;
+}
+
+.meta {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.right,
+.wrong,
+.neutral,
+.changed {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.right {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.wrong {
+  background-color: var(--color-verdict-block);
+  color: var(--color-verdict-ink);
+}
+
+.neutral {
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.changed {
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+}
+
+.detail {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.reason {
+  flex: 1 1 20rem;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.evidence {
+  padding: var(--space-1) 0;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.lane[data-control='D'] .evidence {
+  color: var(--color-accent);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pulse {
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  animation: pulse var(--duration-slow) var(--ease-standard) infinite alternate;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+
+  .lane {
+    transition: none;
+  }
+}

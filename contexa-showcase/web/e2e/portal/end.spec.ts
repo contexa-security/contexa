@@ -4,24 +4,21 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Deck p.15 on the real portal: after the vote and both scenes, the end screen shows the result the server scored
- * (the same answer of /api/results for this visitor), one next action, and a share card made from the result values
- * only; in Korean and English, without horizontal scrolling or serious accessibility violations.
+ * Deck p.15 on the real portal: after both scenes of a recorded replay (opened from the library; the first screen is
+ * the hands-on experience and asks for no vote), the end screen shows the result the server scored (the same answer of
+ * /api/results for this visitor), one next action, and a share card made from the result values only; in Korean and
+ * English, without horizontal scrolling or serious accessibility violations.
  */
 const COPY = {
   ko: {
-    block: '차단한다',
     next: '다음',
     results: '결과 보기',
     share: '결과 공유',
-    carried: '첫 질문의 판단을',
   },
   en: {
-    block: 'Block it',
     next: 'Next',
     results: 'See your result',
     share: 'Share the result',
-    carried: 'Your answer',
   },
 } as const;
 
@@ -49,9 +46,7 @@ async function seriousViolations(page: Page) {
 for (const language of ['ko', 'en'] as const) {
   test(`end screen ${language}: server result, one next action, share card`, async ({ page }, info) => {
     const copy = COPY[language];
-    await page.goto(`/?lng=${language}`);
-    await page.getByRole('button', { name: copy.block }).click();
-    await expect(page).toHaveURL(/\/replay\/A3$/);
+    await page.goto(`/replay/A3?lng=${language}`);
     await page.getByRole('button', { name: copy.next, exact: true }).click();
     await page.getByRole('link', { name: copy.results }).click();
     await expect(page).toHaveURL(/\/end\/A3$/);
@@ -60,16 +55,11 @@ for (const language of ['ko', 'en'] as const) {
       mine: Score | null;
       contexa: Score;
     };
-    expect(result.mine).not.toBeNull();
-    const values = page.locator('dl dd');
-    await expect(values).toHaveText([
-      `${result.mine?.hits}/${result.mine?.total}`,
-      `${result.contexa.hits}/${result.contexa.total}`,
-    ]);
-    await expect(page.getByText(copy.carried)).toBeVisible();
-    await expect(page.getByRole('link', { name: /explore|직접 해보기|try it/i }).first()).toHaveAttribute(
+    expect(result.mine).toBeNull();
+    await expect(page.locator('dl dd')).toHaveText([`${result.contexa.hits}/${result.contexa.total}`]);
+    await expect(page.getByRole('main').getByRole('link', { name: /직접 해보기|try it/i }).first()).toHaveAttribute(
       'href',
-      '/explore',
+      '/',
     );
     expect(await seriousViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(

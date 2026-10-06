@@ -79,6 +79,14 @@ function text(value: unknown): string {
   return /^\d+$/.test(raw) ? NUMBER.format(Number(raw)) : raw;
 }
 
+function covered(fact: unknown): boolean {
+  return typeof fact === 'object' && fact !== null && (fact as { covered?: unknown }).covered === true;
+}
+
+function onCall(fact: unknown): boolean {
+  return typeof fact === 'object' && fact !== null && (fact as { onCall?: unknown }).onCall === true;
+}
+
 /** The reason line of a rule control's card. */
 export function ruleReason(layer: Layer, t: TFunction): string {
   if (layer.control === 'A') {
@@ -93,6 +101,10 @@ export function ruleReason(layer: Layer, t: TFunction): string {
   if (id === 'RBAC') {
     const role = text(layer.ruleFacts.role);
     return layer.outcome === 'DELIVERED' ? t('rule.RBAC.allow', { role }) : t('rule.RBAC.deny', { role });
+  }
+  if (id === 'C2-NO-CONTEXT' && covered(layer.ruleFacts.ticket) && !onCall(layer.ruleFacts.oncall)) {
+    // The rule saw the ticket; what it missed is the on-call duty it also asks for.
+    return t('rule.C2-NO-CONTEXT.notOnCall');
   }
   if (id && KNOWN_RULES.has(id)) {
     return t(`rule.${id}`, { items: text(layer.ruleFacts.items) });

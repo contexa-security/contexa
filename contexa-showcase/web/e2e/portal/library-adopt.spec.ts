@@ -10,13 +10,13 @@ import { join } from 'node:path';
  */
 const COPY = {
   ko: {
-    library: '시나리오 라이브러리',
+    library: '다른 장면',
     adopt: '도입하기',
     play: '기록 보기',
     preparing: '실제 실행 기록 준비 중',
   },
   en: {
-    library: 'Scenario library',
+    library: 'More scenes',
     adopt: 'Adopt Contexa',
     play: 'See the record',
     preparing: 'Real run being prepared',

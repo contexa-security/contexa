@@ -1,6 +1,8 @@
 package io.contexa.showcase.portal.live;
 
 import io.contexa.showcase.portal.combination.Combination;
+import io.contexa.showcase.portal.replay.ReplayView;
+import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.visitor.VisitorCookies;
@@ -50,9 +52,12 @@ public class LiveController {
     private final TurnstileVerifier turnstile;
     private final ScenarioCatalog scenarios;
     private final VisitorCookies cookies;
+    private final ReplayViews views;
 
     public LiveController(LiveRuns live, LiveGate gate, LiveQuota quota, LiveAllotment allotment,
-                          TurnstileVerifier turnstile, ScenarioCatalog scenarios, VisitorCookies cookies) {
+                          TurnstileVerifier turnstile, ScenarioCatalog scenarios, VisitorCookies cookies,
+                          ReplayViews views) {
+        this.views = views;
         this.live = live;
         this.gate = gate;
         this.quota = quota;
@@ -138,21 +143,47 @@ public class LiveController {
         return act(request, LiveRun::cancel);
     }
 
-    private ResponseEntity<Object> respond(LiveGate.Outcome outcome) {
-        if (outcome instanceof LiveGate.Recorded recorded) {
-            return ResponseEntity.ok(Map.of("recorded", true, "combination", recorded.view()));
+    /** Gives up the additional check at once: the request stays held (the attacker has no access to the mailbox). */
+    @PostMapping("/api/live/runs/current/abandon")
+    public ResponseEntity<LiveRun.View> abandon(HttpServletRequest request) {
+        return act(request, LiveRun::abandon);
+    }
+
+    /**
+     * The full result of the visitor's own run once it completed, with each control's evidence and the engine's
+     * reasoning (the same view as a recording); 409 while it runs or after a failure.
+     */
+    @GetMapping("/api/live/runs/current/result")
+    public ResponseEntity<ReplayView.StepResult> result(HttpServletRequest request) {
+        Optional<LiveRun> run = visitor(request).flatMap(live::current);
+        if (run.isEmpty()) {
+            return ResponseEntity.notFound().build();
         }
+        Optional<String> runId = run.get().completedRunId();
+        if (runId.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+        return ResponseEntity.ok(views.step(runId.get(), 1));
+    }
+
+    private ResponseEntity<Object> respond(LiveGate.Outcome outcome) {
         if (outcome instanceof LiveGate.Started started) {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(started.run().view());
         }
-        String reason = ((LiveGate.Refused) outcome).reason();
+        LiveGate.Refused refused = (LiveGate.Refused) outcome;
+        String reason = refused.reason();
         HttpStatus status = switch (reason) {
             case "VISITOR_LIMIT", "ADDRESS_LIMIT" -> HttpStatus.TOO_MANY_REQUESTS;
             case "ALLOTMENT", "TEMPLATE" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "BUSY" -> HttpStatus.CONFLICT;
             default -> HttpStatus.FORBIDDEN;
         };
-        return ResponseEntity.status(status).body(Map.of("reason", reason));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reason", reason);
+        if (refused.fallback() != null) {
+            body.put("fallback", refused.fallback());
+        }
+        return ResponseEntity.status(status).body(body);
     }
 
     private ResponseEntity<LiveRun.View> act(HttpServletRequest request, Consumer<LiveRun> action) {

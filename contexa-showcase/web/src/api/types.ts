@@ -57,11 +57,23 @@ export interface TimelineEvent {
 
 export type LiveStatus = 'QUEUED' | 'STARTING' | 'RUNNING' | 'CHALLENGE' | 'COMPLETED' | 'FAILED' | 'EXPIRED';
 
-export type LiveStage = 'WAITING' | 'CODE_SHOWN' | 'CANCELLED' | 'VERIFYING' | 'DONE' | 'EXPIRED' | 'FAILED';
+export type LiveStage =
+  | 'WAITING'
+  | 'CODE_SHOWN'
+  | 'CANCELLED'
+  | 'VERIFYING'
+  | 'DONE'
+  | 'EXPIRED'
+  | 'FAILED'
+  | 'ABANDONED';
 
 export interface LiveLayer {
   readonly outcome: BusinessOutcome;
   readonly httpStatus: number | null;
+  /** Items the control actually handed over in its response. */
+  readonly deliveredItems: number;
+  /** Milliseconds from sending the request to its response. */
+  readonly elapsedMs: number;
 }
 
 export interface LiveStep {
@@ -124,23 +136,6 @@ export type Slot = 'DAWN' | 'MORNING' | 'AFTERNOON' | 'EVENING';
 export type TicketState = 'NONE' | 'MISMATCH' | 'MATCH';
 
 export type DeviceState = 'USUAL' | 'NEW';
-
-export interface CombinationCell {
-  readonly key: string;
-  readonly slot: Slot;
-  readonly items: number;
-  readonly recorded: boolean;
-  readonly recordedAt: string | null;
-  readonly engineVerdict: Verdict | null;
-  readonly engineOutcome: BusinessOutcome | null;
-}
-
-export interface CombinationGrid {
-  readonly catalogVersion: number;
-  readonly employees: readonly string[];
-  readonly items: readonly number[];
-  readonly cells: readonly CombinationCell[];
-}
 
 export interface StepResult {
   readonly companyTime: string;
@@ -231,13 +226,6 @@ export type Choice = 'ALLOW' | 'BLOCK';
 
 export interface VisitorState {
   readonly predictions: Readonly<Record<string, Choice>>;
-}
-
-export interface PredictionResult {
-  readonly scene: string;
-  readonly choice: Choice;
-  readonly recorded: boolean;
-  readonly tally: Readonly<Record<Choice, number>>;
 }
 
 /** Execution statistics (deck p.17): an operations record counted from the stored real runs. */

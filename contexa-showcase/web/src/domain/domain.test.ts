@@ -4,7 +4,6 @@ import i18n from '../i18n';
 import type { Layer } from '../api/types';
 import { replayFixture } from '../test/replayFixture';
 import { required } from '../test/required';
-import { AUTO_ADVANCE_MS, playback, TICK_MS } from './playback';
 import { refusalOf } from './live';
 import { engineReasonLine, evidenceKinds, factLine, ruleReason } from './reasons';
 import { exposureSeconds, itemsAt, streamState } from './stream';
@@ -66,20 +65,6 @@ describe('reason lines', () => {
     expect(factLine({ code: 'NOT_ASSIGNED', value: 'GB-500' }, t)).toBe('Not assigned to project GB-500');
     expect(factLine({ code: 'ITEMS', value: '4831' }, t)).toBe('4,831 items requested');
     expect(factLine({ code: 'UNKNOWN_FACT', value: null }, t)).toBeNull();
-  });
-});
-
-describe('playback', () => {
-  it('moves to the next scene after the scene time and never past the last one', () => {
-    let state = { index: 0, elapsed: 0 };
-    for (let tick = 0; tick < AUTO_ADVANCE_MS / TICK_MS - 1; tick++) {
-      state = playback(state, { type: 'tick', scenes: 2 });
-    }
-    expect(state.index).toBe(0);
-    state = playback(state, { type: 'tick', scenes: 2 });
-    expect(state).toEqual({ index: 1, elapsed: 0 });
-    expect(playback(state, { type: 'tick', scenes: 2 })).toBe(state);
-    expect(playback(state, { type: 'go', index: 0 })).toEqual({ index: 0, elapsed: 0 });
   });
 });
 

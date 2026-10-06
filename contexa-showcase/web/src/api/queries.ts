@@ -1,17 +1,14 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { getJson, HttpError, postJson } from './http';
+import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getJson } from './http';
 import type {
-  Choice,
-  CombinationGrid,
-  CombinationView,
   ExecutionSpec,
   ExperienceResult,
   LiveConfig,
   LiveRunView,
   Pair,
   PairSummary,
-  PredictionResult,
   StatsView,
+  StepResult,
   VisitorState,
 } from './types';
 
@@ -69,19 +66,6 @@ export function useVisitor() {
   });
 }
 
-export function usePrediction() {
-  return useMutation({
-    mutationFn: async ({ scene, choice }: { scene: string; choice: Choice }) => {
-      const result = await postJson<PredictionResult>('/api/predictions', { scene, choice });
-      // 409: this scene was already predicted; the stored first vote is returned and counts.
-      if (result.status !== 201 && result.status !== 409) {
-        throw new HttpError(result.status, `prediction refused with ${result.status}`);
-      }
-      return result.body;
-    },
-  });
-}
-
 /** The development single space (P3); a 404 means it is not open on this portal. */
 export function useLiveConfig() {
   return useQuery({
@@ -92,34 +76,59 @@ export function useLiveConfig() {
 }
 
 const LIVE_ACTIVE = new Set(['QUEUED', 'STARTING', 'RUNNING', 'CHALLENGE']);
+const LIVE_ENDED = new Set(['COMPLETED', 'FAILED', 'EXPIRED']);
 
-/** The visitor's live run, polled every second while it is still going. */
+/** While answers arrive they are read often enough to appear one by one; waits are read once a second. */
+const LIVE_ARRIVING = new Set(['STARTING', 'RUNNING']);
+
+/** The visitor's live run, polled while it is still going. */
 export function useLiveRun(enabled: boolean) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['live-run'],
-    queryFn: () => getJson<LiveRunView>('/api/live/runs/current'),
+    queryFn: async () => {
+      const run = await getJson<LiveRunView>('/api/live/runs/current');
+      if (LIVE_ENDED.has(run.status)) {
+        // An ended run is kept by its ID, so a screen still shows it after the visitor's next run starts.
+        queryClient.setQueryData(['live-ended', run.liveRunId], run);
+        void queryClient.invalidateQueries({ queryKey: ['live-config'] });
+      }
+      return run;
+    },
     enabled,
     retry: false,
-    refetchInterval: (query) => (query.state.data && LIVE_ACTIVE.has(query.state.data.status) ? 1000 : false),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || !LIVE_ACTIVE.has(status)) {
+        return false;
+      }
+      return LIVE_ARRIVING.has(status) ? 250 : 1000;
+    },
   });
 }
 
-/** The boundary map of one employee, ticket and device: stored real runs only. */
-export function useCombinationGrid(employee: string, ticket: string, device: string) {
-  return useQuery({
-    queryKey: ['grid', employee, ticket, device],
-    queryFn: () =>
-      getJson<CombinationGrid>(
-        `/api/combinations?employee=${encodeURIComponent(employee)}&ticket=${ticket}&device=${device}`,
-      ),
-    retry: false,
+/** A live run as it ended, kept by {@link useLiveRun}; it never changes. */
+export function useEndedRun(liveRunId: string | null) {
+  return useQuery<LiveRunView>({
+    queryKey: ['live-ended', liveRunId],
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 
-export function useCombination(key: string) {
+/**
+ * The full result of the visitor's completed live run, with each control's evidence. The server answers for the current
+ * run only, so it is read while that run is current and kept once read: it never changes.
+ */
+export function useLiveResult(liveRunId: string | null, current: boolean) {
   return useQuery({
-    queryKey: ['combination', key],
-    queryFn: () => getJson<CombinationView>(`/api/combinations/${encodeURIComponent(key)}`),
-    retry: false,
+    queryKey: ['live-result', liveRunId],
+    queryFn: () => getJson<StepResult>('/api/live/runs/current/result'),
+    enabled: liveRunId !== null && current,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: 2,
   });
 }
+

@@ -252,3 +252,17 @@
   color: var(--color-text-muted);
   font-size: var(--text-sm);
 }
+
+.explain {
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  word-break: keep-all;
+}
+
+.sceneExpect {
+  display: block;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}

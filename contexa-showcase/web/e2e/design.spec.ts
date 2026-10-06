@@ -75,7 +75,7 @@ for (const viewport of VIEWPORTS) {
 test('design mock: the evidence chain is reachable and closable with the keyboard only', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/design?lng=en');
-  const trigger = page.getByRole('button', { name: /Evidence chain — Contexa/ });
+  const trigger = page.getByRole('button', { name: /Reasoning in detail — Contexa/ });
   for (let presses = 0; presses < 40; presses += 1) {
     await page.keyboard.press('Tab');
     if (await trigger.evaluate((element) => element === document.activeElement)) {
@@ -96,8 +96,8 @@ test('design mock: mobile shows Contexa and the context lookup rule first and fo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/design?lng=en');
   await expect(page.getByRole('heading', { name: 'Contexa' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Context lookup rules' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Perimeter' })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Business record rule' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Perimeter (WAF)' })).toBeHidden();
   await page.getByRole('button', { name: /Show 3 more/ }).click();
-  await expect(page.getByRole('heading', { name: 'Perimeter' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Perimeter (WAF)' })).toBeVisible();
 });

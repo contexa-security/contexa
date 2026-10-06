@@ -40,7 +40,7 @@ class LiveGateWatchTest {
         MovingClock clock = new MovingClock(Instant.parse("2026-10-05T09:10:00Z"));
         LiveGateWatch watch = new LiveGateWatch(3, clock);
 
-        watch.passed(LiveGateWatch.RECORDED);
+        watch.passed(LiveGateWatch.RESUMED);
         watch.passed(LiveGateWatch.STARTED);
         watch.refused("TURNSTILE_FAILED");
         watch.refused("VISITOR_LIMIT");
@@ -62,7 +62,7 @@ class LiveGateWatchTest {
         LiveGateWatch.Status next = watch.status();
         assertThat(next.refusalsInHour()).isZero();
         assertThat(next.alertedThisHour()).isFalse();
-        assertThat(next.outcomes()).isEqualTo(Map.of("RECORDED", 1L, "STARTED", 1L, "TURNSTILE_FAILED", 2L,
+        assertThat(next.outcomes()).isEqualTo(Map.of("RESUMED", 1L, "STARTED", 1L, "TURNSTILE_FAILED", 2L,
                 "VISITOR_LIMIT", 1L, "ADDRESS_LIMIT", 1L));
         watch.refused("BUSY");
         watch.refused("BUSY");

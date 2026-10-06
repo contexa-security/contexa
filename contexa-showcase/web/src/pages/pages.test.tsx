@@ -9,15 +9,12 @@ import i18n from '../i18n';
 import { replayFixture } from '../test/replayFixture';
 import { required } from '../test/required';
 import type { StatsView } from '../api/types';
-import HomePage from './HomePage';
 import ReplayPage from './ReplayPage';
 import StatsPage from './StatsPage';
 import AdoptPage from './AdoptPage';
 import EndPage from './EndPage';
 import LibraryPage from './LibraryPage';
 import PolicyPage from './PolicyPage';
-import ExplorePage from './ExplorePage';
-import TryPage from './TryPage';
 
 const spec = {
   specHash: 'a'.repeat(64),
@@ -91,33 +88,6 @@ function renderAt(path: string, element: ReactNode, state?: unknown) {
   );
 }
 
-describe('first screen', () => {
-  it('asks the recorded question and turns the first button into the stored vote', async () => {
-    await i18n.changeLanguage('en');
-    renderAt('/', <HomePage />);
-
-    expect(await screen.findByRole('heading', { name: replayFixture.question.en })).toBeInTheDocument();
-    expect(screen.getByText('What would you do?')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Skip and see the result/ })).toHaveAttribute(
-      'href',
-      '/replay/A3',
-    );
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Block it' }));
-
-    const post = calls.find((call) => call.init?.method === 'POST');
-    expect(JSON.parse(String(post?.init?.body))).toEqual({ scene: 'A3:ATTACK', choice: 'BLOCK' });
-    expect(await screen.findByTestId('where')).toHaveTextContent('/replay/A3 {"choice":"BLOCK"}');
-  });
-
-  it('says the run is being prepared when no pair is recorded', async () => {
-    await i18n.changeLanguage('en');
-    routes['GET /api/pairs'] = () => ({ status: 200, body: [] });
-    renderAt('/', <HomePage />);
-    expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
-  });
-});
-
 describe('verdict comparison', () => {
   it('shows exactly the recorded outcome and verdict of every layer, then the legitimate request', async () => {
     await i18n.changeLanguage('en');
@@ -125,8 +95,14 @@ describe('verdict comparison', () => {
 
     const attack = required(replayFixture.scenes[0], 'attack scene');
     expect(await screen.findByRole('heading', { name: attack.sentence.en })).toBeInTheDocument();
-    expect(screen.getByText('Same result in 5 of 5 runs')).toBeInTheDocument();
-    expect(screen.getByText('Your call: Block · Contexa: Data delivered')).toBeInTheDocument();
+    expect(
+      screen.getByText('Run 5 times under the same conditions, 5 with the same result'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Of the five security approaches, 2 stopped it and 3 let it through.' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Contexa let it through. The data left.')).toBeInTheDocument();
+    expect(screen.getByText('Your call: Block')).toBeInTheDocument();
 
     for (const scene of replayFixture.scenes) {
       if (scene.kind === 'LEGITIMATE') {
@@ -135,7 +111,7 @@ describe('verdict comparison', () => {
       }
       for (const layer of scene.layers) {
         const card = document.querySelector(`article[data-control="${layer.control}"]`) as HTMLElement;
-        const outcome = layer.outcome === 'DELIVERED' ? 'Data delivered' : 'Data stopped';
+        const outcome = layer.outcome === 'DELIVERED' ? 'Passed · data left' : 'Stopped';
         expect(within(card).getByText(outcome), `${scene.kind} ${layer.control}`).toBeInTheDocument();
       }
     }
@@ -151,7 +127,7 @@ describe('verdict comparison', () => {
       (await screen.findAllByRole('article')).find((article) => article.dataset.control === 'D'),
     );
     expect(within(card).getByText('Permitted · short usual pattern · no concrete risk')).toBeInTheDocument();
-    await userEvent.click(within(card).getByRole('button', { name: /Evidence chain/ }));
+    await userEvent.click(within(card).getByRole('button', { name: /Reasoning in detail/ }));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('3522bb83-0f99-481d-9466-f1249f5094df')).toBeInTheDocument();
@@ -174,248 +150,6 @@ describe('verdict comparison', () => {
     routes['GET /api/replays/A3'] = () => ({ status: 404, body: null });
     renderAt('/replay/A3', <ReplayPage />);
     expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
-  });
-});
-
-describe('try it yourself', () => {
-  const layers = {
-    A: { outcome: 'DELIVERED', httpStatus: 200 },
-    B: { outcome: 'DELIVERED', httpStatus: 200 },
-    C1: { outcome: 'DELIVERED', httpStatus: 200 },
-    C2: { outcome: 'DELIVERED', httpStatus: 200 },
-    D: { outcome: 'HELD', httpStatus: 401 },
-  };
-  const challenge = {
-    stage: 'WAITING',
-    code: null,
-    secondsLeft: 120,
-    attempts: 0,
-    error: null,
-    cause: null,
-    codeRequestedMs: null,
-    verifiedMs: null,
-    reissueSentMs: null,
-    reissueDoneMs: null,
-    reissueStatus: null,
-    reissueOutcome: null,
-  };
-  function view(overrides: Record<string, unknown>, challengeOverrides: Record<string, unknown> | null) {
-    return {
-      liveRunId: 'live-1',
-      scenario: 'K2',
-      status: 'CHALLENGE',
-      runId: 'run-1',
-      steps: [{ stepNo: 1, operation: 'DOCUMENT_READ', layers }],
-      challenge: challengeOverrides === null ? null : { ...challenge, ...challengeOverrides },
-      failure: null,
-      ...overrides,
-    };
-  }
-
-  beforeEach(() => {
-    routes['GET /api/live/config'] = () => ({
-      status: 200,
-      body: {
-        scenarios: [
-          {
-            key: 'K2',
-            title: { ko: '담당 도면 열람', en: 'Opening an assigned drawing' },
-            classification: 'NORMAL',
-          },
-        ],
-      },
-    });
-  });
-
-  it('says live runs are not open and leads to the stored runs when the portal has them switched off', async () => {
-    await i18n.changeLanguage('en');
-    delete routes['GET /api/live/config'];
-    renderAt('/', <TryPage />);
-    expect(
-      await screen.findByText('Live runs are not open yet. Stored real runs can be viewed.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'See the stored real run' })).toHaveAttribute('href', '/library');
-    expect(screen.queryByText('The real run of this scene is being prepared')).toBeNull();
-  });
-
-  it('runs live, answers the check with the demo inbox code and shows the work coming back', async () => {
-    await i18n.changeLanguage('en');
-    let current = view({}, {});
-    routes['POST /api/live/runs'] = () => ({ status: 202, body: current });
-    routes['POST /api/live/runs/current/code'] = () => {
-      current = view({}, { stage: 'CODE_SHOWN', code: '481516', codeRequestedMs: 120 });
-      return { status: 200, body: current };
-    };
-    routes['POST /api/live/runs/current/answer'] = () => {
-      current = view(
-        { status: 'COMPLETED' },
-        {
-          stage: 'DONE',
-          codeRequestedMs: 120,
-          verifiedMs: 6400,
-          reissueSentMs: 6450,
-          reissueDoneMs: 6480,
-          reissueStatus: 200,
-          reissueOutcome: 'DELIVERED',
-          secondsLeft: 0,
-        },
-      );
-      return { status: 200, body: current };
-    };
-    routes['GET /api/live/runs/current'] = () => ({ status: 404, body: null });
-    renderAt('/', <TryPage />);
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Run' }));
-    routes['GET /api/live/runs/current'] = () => ({ status: 200, body: current });
-    expect(await screen.findByText('Contexa asks you to confirm it is you')).toBeInTheDocument();
-    expect(screen.getByText('Delivery on hold')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Send me the code' }));
-    expect(await screen.findByTestId('inbox-code')).toHaveTextContent('481516');
-    expect(screen.getByText("In a real deployment this goes to the employee's mailbox.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm with this code' }));
-
-    expect(await screen.findByText('Control and recovery')).toBeInTheDocument();
-    expect(screen.getByText('Original request sent again +6,450 ms')).toBeInTheDocument();
-    expect(screen.getByText('t+6,480 ms')).toBeInTheDocument();
-    expect(screen.getByText('Data delivered · HTTP 200')).toBeInTheDocument();
-    expect(screen.getByText('You confirmed it was you and the work carried on')).toBeInTheDocument();
-    const answer = calls.find((call) => call.url === '/api/live/runs/current/answer');
-    expect(answer?.init?.body).toBe(JSON.stringify({ code: '481516' }));
-  });
-
-  it('tells a second visitor that live runs are pausing', async () => {
-    await i18n.changeLanguage('ko');
-    routes['GET /api/live/runs/current'] = () => ({ status: 404, body: null });
-    routes['POST /api/live/runs'] = () => ({ status: 409, body: null });
-    renderAt('/', <TryPage />);
-    await userEvent.click(await screen.findByRole('button', { name: '실행' }));
-    expect(await screen.findByText('실시간 실행이 잠시 쉬고 있습니다.')).toBeInTheDocument();
-  });
-});
-
-describe('explore conditions', () => {
-  const slots = ['DAWN', 'MORNING', 'AFTERNOON', 'EVENING'];
-  const items = [40, 480, 4831, 6200];
-  const recordedKey = 'adm-a.DAWN.4831.NONE.USUAL';
-  const attack = required(replayFixture.scenes[0], 'attack scene');
-
-  beforeEach(() => {
-    routes['GET /api/live/config'] = () => ({
-      status: 200,
-      body: { scenarios: [], turnstileSiteKey: null, dailyRuns: 10, remainingToday: 10, paused: false },
-    });
-    routes['GET /api/live/runs/current'] = () => ({ status: 404, body: null });
-    routes['GET /api/combinations?employee=adm-a&ticket=NONE&device=USUAL'] = () => ({
-      status: 200,
-      body: {
-        catalogVersion: 1,
-        employees: ['adm-a', 'eng-k'],
-        items,
-        cells: items.flatMap((count) =>
-          slots.map((slot) => {
-            const key = `adm-a.${slot}.${count}.NONE.USUAL`;
-            const recorded = key === recordedKey;
-            return {
-              key,
-              slot,
-              items: count,
-              recorded,
-              recordedAt: recorded ? '2026-10-05T06:30:00Z' : null,
-              engineVerdict: recorded ? 'BLOCK' : null,
-              engineOutcome: recorded ? 'STOPPED' : null,
-            };
-          }),
-        ),
-      },
-    });
-    routes[`GET /api/combinations/${recordedKey}`] = () => ({
-      status: 200,
-      body: {
-        key: recordedKey,
-        employee: 'adm-a',
-        slot: 'DAWN',
-        items: 4831,
-        ticket: 'NONE',
-        device: 'USUAL',
-        recorded: true,
-        recordedAt: '2026-10-05T06:30:00Z',
-        runId: 'run-1',
-        result: {
-          companyTime: '2026-09-30T03:17:00Z',
-          layers: attack.layers,
-          engineReason: attack.engineReason,
-          companyFacts: attack.companyFacts,
-        },
-      },
-    });
-    routes['GET /api/combinations/adm-a.MORNING.40.NONE.USUAL'] = () => ({
-      status: 200,
-      body: {
-        key: 'adm-a.MORNING.40.NONE.USUAL',
-        employee: 'adm-a',
-        slot: 'MORNING',
-        items: 40,
-        ticket: 'NONE',
-        device: 'USUAL',
-        recorded: false,
-        recordedAt: null,
-        runId: null,
-        result: null,
-      },
-    });
-  });
-
-  it('shows the stored real run of the chosen cell with its time, and the map filled only by real runs', async () => {
-    await i18n.changeLanguage('en');
-    renderAt('/', <ExplorePage />);
-
-    expect(await screen.findByText(/Real run record · .*UTC/)).toBeInTheDocument();
-    const cell = screen.getByRole('button', { name: 'Dawn · 5,000 or fewer · Blocked' });
-    expect(cell).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getAllByRole('button', { name: /· Not run$/ })).toHaveLength(15);
-    expect(screen.getByText(/Admin A · Dawn · export 4,831 GB-500 design documents/)).toBeInTheDocument();
-  });
-
-  it('runs a new cell live through the gate and tells its place in the queue', async () => {
-    await i18n.changeLanguage('en');
-    routes['POST /api/live/combinations'] = () => ({
-      status: 202,
-      body: {
-        liveRunId: 'live-1',
-        scenario: 'adm-a.MORNING.40.NONE.USUAL',
-        status: 'QUEUED',
-        queuePosition: 2,
-        runId: null,
-        steps: [],
-        challenge: null,
-        failure: null,
-      },
-    });
-    renderAt('/', <ExplorePage />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Morning · 50 or fewer · Not run' }));
-
-    expect(await screen.findByText('No one has run this combination yet.')).toBeInTheDocument();
-    expect(screen.getByText('Live runs left today: 10/10')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Run this combination' }));
-
-    expect(
-      await screen.findByText('Number 2 in line · it starts as soon as it is your turn'),
-    ).toBeInTheDocument();
-    const posted = calls.find((call) => call.url === '/api/live/combinations');
-    expect(posted?.init?.body).toBe(
-      JSON.stringify({ key: 'adm-a.MORNING.40.NONE.USUAL', turnstileToken: null }),
-    );
-  });
-
-  it('shows the daily limit when the gate refuses a new cell', async () => {
-    await i18n.changeLanguage('ko');
-    routes['POST /api/live/combinations'] = () => ({ status: 429, body: { reason: 'VISITOR_LIMIT' } });
-    renderAt('/', <ExplorePage />);
-    await userEvent.click(await screen.findByRole('button', { name: '아침 · 50 이하 · 미실행' }));
-    await userEvent.click(await screen.findByRole('button', { name: '이 조합 실행' }));
-
-    expect(await screen.findByText('오늘의 실시간 실행을 모두 썼습니다.')).toBeInTheDocument();
   });
 });
 
@@ -479,7 +213,7 @@ describe('execution statistics', () => {
     routes['GET /api/stats'] = () => ({ status: 200, body: statsView });
     renderAt('/', <StatsPage />);
 
-    expect(await screen.findByRole('heading', { name: 'Execution statistics' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Run statistics' })).toBeInTheDocument();
     expect(screen.getByText('Operations record · not the benchmark')).toBeInTheDocument();
     expect(await screen.findByText('1,284')).toBeInTheDocument();
     expect(screen.getByText('41 today · 334 by visitors')).toBeInTheDocument();
@@ -495,7 +229,7 @@ describe('execution statistics', () => {
         .getAllByRole('cell')
         .map((cell) => cell.querySelector('[data-part="value"]')?.textContent),
     ).toEqual(['2/3 (67%)', '1/3 (33%)', '0/1 (0%)', '1/1 (100%)']);
-    expect(row('C1').getByRole('rowheader')).toHaveTextContent('Threshold rules');
+    expect(row('C1').getByRole('rowheader')).toHaveTextContent('Threshold rule');
     expect(
       screen.getByText(/3 attack runs and 1 normal-work runs were counted\. 192 runs/),
     ).toBeInTheDocument();
@@ -573,11 +307,11 @@ describe('end screen', () => {
     expect(screen.queryByText('Stops only what it should · the legitimate request passes')).toBeNull();
     expect(screen.getAllByText('Right')).toHaveLength(2);
     expect(screen.getAllByText('Wrong')).toHaveLength(2);
-    expect(screen.getByRole('link', { name: /Change the conditions and try it/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Change the conditions and try it/ })).toHaveAttribute('href', '/');
+    expect(within(screen.getByRole('main')).getByRole('link', { name: 'Run statistics' })).toHaveAttribute(
       'href',
-      '/explore',
+      '/stats',
     );
-    expect(screen.getByRole('link', { name: 'Execution statistics' })).toHaveAttribute('href', '/stats');
 
     await userEvent.click(screen.getByRole('button', { name: 'Share the result' }));
     const posted = calls.find((call) => call.url === '/api/shares');
@@ -606,8 +340,8 @@ describe('end screen', () => {
     });
     renderAt('/end/A3', <EndPage />);
 
-    expect(await screen.findByText('투표 없이 봄')).toBeInTheDocument();
-    expect(screen.getByText('2/2')).toBeInTheDocument();
+    expect(await screen.findByText('2/2')).toBeInTheDocument();
+    expect(screen.queryByText('내 판단 · 맞힌 장면')).toBeNull();
     expect(screen.getByText('막을 것만 막는다 · 정당한 요청은 통과')).toBeInTheDocument();
     expect(screen.queryByText('첫 질문의 판단을 겉모습이 같은 두 요청 모두에 적용했습니다.')).toBeNull();
   });
@@ -631,7 +365,7 @@ describe('end screen', () => {
       },
     });
     renderAt('/end/A3', <EndPage />);
-    expect(await screen.findByRole('link', { name: 'See the extra check' })).toHaveAttribute('href', '/try');
+    expect(await screen.findByRole('link', { name: 'See the extra check' })).toHaveAttribute('href', '/');
   });
 
   it('says the result is being prepared when the pair is not published', async () => {

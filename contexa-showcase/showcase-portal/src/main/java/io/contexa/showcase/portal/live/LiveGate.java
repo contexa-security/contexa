@@ -13,29 +13,27 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * The cost gate in front of every new live run (deck p.28, docs/showcase/P4-설계.md 3절), in this order: a cell that
- * already has a stored run is shown from that run with no call at all; otherwise the human check, the daily allotment,
- * room in the spaces and the visitor and address limits must all pass, and a run that cannot start or fails for a
- * technical reason gives its count back. A scenario that clones a template starts only when a template learned under the
- * versions in force exists (TEMPLATE, shown as a pause; docs/showcase/계획대조-검수.md N-8). Every outcome is counted by
- * {@link LiveGateWatch} (P5-SEC-07), and so is every finished run with or without an engine decision (N-1).
+ * The cost gate in front of every new live run (deck p.28, docs/showcase/P4-설계.md 3절). Every press of the visitor
+ * runs live (docs/showcase/체험우선-설계.md, ADR-32): the human check, the daily allotment, room in the spaces and the
+ * visitor and address limits must all pass, and a run that cannot start or fails for a technical reason gives its count
+ * back. A refused grid cell carries its stored run, if any visitor ran it already, so the screen can show that record
+ * as a record. A scenario that clones a template starts only when a template learned under the versions in force exists
+ * (TEMPLATE, shown as a pause; docs/showcase/계획대조-검수.md N-8). Every outcome is counted by {@link LiveGateWatch}
+ * (P5-SEC-07), and so is every finished run with or without an engine decision (N-1).
  */
 public class LiveGate {
 
-    public sealed interface Outcome permits Recorded, Started, Refused {
-    }
-
-    /** The cell's stored run is shown instead of a new run (no model call). */
-    public record Recorded(CombinationService.CombinationView view) implements Outcome {
+    public sealed interface Outcome permits Started, Refused {
     }
 
     public record Started(LiveRun run) implements Outcome {
     }
 
     /**
-     * @param reason TEMPLATE, TURNSTILE_*, ALLOTMENT, BUSY, VISITOR_LIMIT or ADDRESS_LIMIT
+     * @param reason   TEMPLATE, TURNSTILE_*, ALLOTMENT, BUSY, VISITOR_LIMIT or ADDRESS_LIMIT
+     * @param fallback the refused cell's stored run, shown as a record instead; null without one
      */
-    public record Refused(String reason) implements Outcome {
+    public record Refused(String reason, CombinationService.CombinationView fallback) implements Outcome {
     }
 
     private final CombinationService combinations;
@@ -59,16 +57,16 @@ public class LiveGate {
 
     public Outcome combination(String visitor, String address, Combination cell, String turnstileToken)
             throws IOException {
-        if (combinations.record(cell).isPresent()) {
-            watch.passed(LiveGateWatch.RECORDED);
-            return new Recorded(combinations.view(cell));
-        }
         String versionKey = combinations.versionKey(cell.employee());
-        return start(visitor, address, CombinationCatalog.scenario(cell), turnstileToken, summary -> {
+        Outcome outcome = start(visitor, address, CombinationCatalog.scenario(cell), turnstileToken, summary -> {
             if ("COMPLETED".equals(summary.status())) {
                 combinations.keep(cell, versionKey, summary.runId(), visitor);
             }
         });
+        if (outcome instanceof Refused refused && combinations.record(cell).isPresent()) {
+            return new Refused(refused.reason(), combinations.view(cell));
+        }
+        return outcome;
     }
 
     /** A scenario of the "try it yourself" page; it is not a grid cell, so nothing is reused or kept. */
@@ -120,6 +118,6 @@ public class LiveGate {
 
     private Refused refuse(String reason) {
         watch.refused(reason);
-        return new Refused(reason);
+        return new Refused(reason, null);
     }
 }

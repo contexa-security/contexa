@@ -34,7 +34,10 @@ export default function LibraryPage() {
         {pairs.isError ? <StateScreen kind="error" onRetry={() => void pairs.refetch()} /> : null}
         {pairs.isSuccess ? (
           <ul className={styles.cards}>
-            {LIBRARY.map((entry) => (
+            {/* Scenes with a real record come first; the ones in preparation follow in catalogue order. */}
+            {[...LIBRARY]
+              .sort((left, right) => Number(recorded.has(right.key)) - Number(recorded.has(left.key)))
+              .map((entry) => (
               <li key={entry.key}>
                 <LibraryCard entry={entry} recorded={recorded.has(entry.key)} />
               </li>
