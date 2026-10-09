@@ -1,6 +1,7 @@
 {
   "key": "S05",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "넓은 권한의 업무 범위 이탈",
     "en": "Broad privilege outside the job"
@@ -52,6 +53,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 권한이 넓은 관리자 A가 업무와 관계없는 고객 레코드 세 건을 조회한다. 관리자 역할은 고객 조회가 허용되지만, A는 이 고객들의 담당 영업이 아니고 이 조회를 덮는 티켓도 없다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: administrator A, whose role is broad, reads three customer records unrelated to A's work. The administrator role may read customers, but A manages none of these customers and no ticket covers the reads. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 관리 업무 중 고객 정보 확인이 필요했을 수 있다. 그 근거가 되는 티켓이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the administrator's work may have needed the customer data. No ticket supports it, so the case is an attack."
+    }
   }
 }

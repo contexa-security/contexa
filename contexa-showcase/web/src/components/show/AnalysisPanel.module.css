@@ -1,0 +1,133 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.title {
+  color: var(--color-accent);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.idle {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  word-break: keep-all;
+}
+
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.stageName {
+  min-width: 0;
+}
+
+.stageAction {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.at {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+}
+
+.working {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.pulse {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  animation: pulse var(--duration-slow) var(--ease-standard) infinite alternate;
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.25;
+  }
+}
+
+.decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  animation: stamp var(--duration-slow) var(--ease-standard);
+}
+
+.decision[data-good='true'] {
+  border-inline-start: 4px solid var(--color-safe);
+}
+
+.decision[data-good='false'] {
+  border-inline-start: 4px solid var(--color-loss);
+}
+
+.decisionLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.decisionAction {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.decision[data-good='true'] .decisionAction {
+  color: var(--color-safe);
+}
+
+.decision[data-good='false'] .decisionAction {
+  color: var(--color-loss);
+}
+
+.risk {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* Text keeps its full contrast while it arrives: only position and size move (docs/showcase/화면설계서.md 1.3). */
+@keyframes stamp {
+  from {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .decision {
+    animation: none;
+  }
+}

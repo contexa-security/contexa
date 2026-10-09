@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -47,6 +48,8 @@ public class LiveRuns implements AutoCloseable {
     }
 
     static final Duration START_WINDOW = Duration.ofMinutes(1);
+    /** How many of the latest live runs the expected start of a queued run is read from. */
+    static final int RECENT_RUNS = 20;
 
     /** No live run can start or wait now: the queue is full. */
     public static final class Busy extends RuntimeException {
@@ -88,6 +91,7 @@ public class LiveRuns implements AutoCloseable {
     private final Map<String, Space> spaces = new HashMap<>();
     private final Deque<Pending> waiting = new ArrayDeque<>();
     private final Deque<Instant> starts = new ArrayDeque<>();
+    private final Deque<Long> recentMillis = new ArrayDeque<>();
     private int running;
 
     public LiveRuns(Runner runner, Settings settings, Clock clock) {
@@ -231,7 +235,8 @@ public class LiveRuns implements AutoCloseable {
 
     private void launch(Pending pending) {
         running++;
-        starts.addLast(clock.instant());
+        Instant launched = clock.instant();
+        starts.addLast(launched);
         pending.run().starting();
         executor.execute(() -> {
             RunSummary summary = null;
@@ -242,7 +247,7 @@ public class LiveRuns implements AutoCloseable {
                 log.error("Live run failed: scenario={}", pending.scenario().key(), e);
                 pending.run().fail(e.getClass().getSimpleName());
             } finally {
-                released();
+                released(Duration.between(launched, clock.instant()));
             }
             if (summary != null) {
                 try {
@@ -254,7 +259,11 @@ public class LiveRuns implements AutoCloseable {
         });
     }
 
-    private synchronized void released() {
+    private synchronized void released(Duration took) {
+        recentMillis.addLast(took.toMillis());
+        while (recentMillis.size() > RECENT_RUNS) {
+            recentMillis.pollFirst();
+        }
         running--;
         dispatch();
         renumber();
@@ -263,8 +272,27 @@ public class LiveRuns implements AutoCloseable {
     private void renumber() {
         List<Pending> queue = new ArrayList<>(waiting);
         for (int i = 0; i < queue.size(); i++) {
-            queue.get(i).run().queued(i + 1);
+            queue.get(i).run().queued(i + 1, expectedStart(i + 1));
         }
+    }
+
+    /**
+     * When the run at a place in the queue is expected to start, for the "about s seconds" of the waiting state
+     * (common-2 of docs/showcase/화면설계서-v2.md): every round of {@code maxConcurrent} runs takes the median time of
+     * the latest live runs, and the start rate lets {@code startsPerMinute} runs start a minute. Null before any live
+     * run finished, so the screen shows the place alone.
+     */
+    private Instant expectedStart(int position) {
+        if (recentMillis.isEmpty()) {
+            return null;
+        }
+        List<Long> sorted = new ArrayList<>(recentMillis);
+        Collections.sort(sorted);
+        long median = sorted.get((int) Math.round(0.5 * (sorted.size() - 1)));
+        long rounds = (position + settings.maxConcurrent() - 1L) / settings.maxConcurrent();
+        long byRate = settings.startsPerMinute() <= 0 ? 0
+                : START_WINDOW.toMillis() * ((position - 1L) / settings.startsPerMinute());
+        return clock.instant().plusMillis(Math.max(rounds * median, byRate));
     }
 
     private byte[] bytes() {

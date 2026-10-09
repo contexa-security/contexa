@@ -19,6 +19,8 @@ import java.util.Objects;
  * @param ruleVersion         hash of the frozen rule controls C1 and C2
  * @param contractVersion     hash of the frozen scoring contract, if any
  * @param timeZone            time zone of the virtual company
+ * @param modelSettings       the model settings control D sends with every analysis, per layer (reasoning effort,
+ *                            verbosity, output limit); null for specifications recorded before they were reported
  */
 public record ExecutionSpec(
         String codeCommit,
@@ -32,7 +34,14 @@ public record ExecutionSpec(
         String templateId,
         String ruleVersion,
         String contractVersion,
-        String timeZone) {
+        String timeZone,
+        Map<String, Object> modelSettings) {
+
+    /**
+     * The prompt hash of a run in which the engine made no model call (refused by the permission check or by an earlier
+     * decision before any analysis): the run still has an execution specification (H-22), with no prompt in it.
+     */
+    public static final String NO_MODEL_CALL = "NO_MODEL_CALL";
 
     public ExecutionSpec {
         Objects.requireNonNull(codeCommit, "codeCommit");
@@ -44,6 +53,7 @@ public record ExecutionSpec(
         Objects.requireNonNull(promptHash, "promptHash");
         Objects.requireNonNull(ruleVersion, "ruleVersion");
         Objects.requireNonNull(timeZone, "timeZone");
+        modelSettings = modelSettings == null || modelSettings.isEmpty() ? null : Map.copyOf(modelSettings);
         if (embeddingDimensions <= 0) {
             throw new IllegalArgumentException("embeddingDimensions must be positive");
         }

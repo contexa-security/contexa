@@ -6,6 +6,7 @@ export type StateKind =
   | 'loading'
   | 'error'
   | 'notReady'
+  | 'queued'
   | 'waiting'
   | 'outage'
   | 'challengeCancelled'
@@ -33,7 +34,10 @@ const SPECS: Readonly<Record<StateKind, StateSpec>> = {
   loading: { message: 'state.loading', live: 'status', spinner: true },
   error: { message: 'state.error', live: 'alert', retry: 'state.retry' },
   notReady: { message: 'state.notReady', live: 'alert' },
-  waiting: { message: 'state.waiting', live: 'status', spinner: true, record: 'state.viewRecord' },
+  // The queue (common-2): the place, about how long until the run starts, and a turn notification where one exists.
+  queued: { message: 'state.queuePosition', live: 'status', spinner: true },
+  // Waiting for the decision has no button: the screen goes on by itself when the decision comes (common-2).
+  waiting: { message: 'state.waiting', live: 'status', spinner: true },
   outage: { message: 'state.outage', live: 'alert', retry: 'state.retry', record: 'state.viewRecord' },
   challengeCancelled: {
     message: 'state.challengeCancelled',
@@ -66,7 +70,8 @@ interface StateScreenProps {
   readonly onNotify?: () => void;
   /** Why the work could not continue, in visitor words; folded under "see the cause". */
   readonly cause?: string;
-  readonly remainingSeconds?: number;
+  /** About how many seconds are left, as the server estimated them from records; omitted when it gave none. */
+  readonly remainingSeconds?: number | null;
   readonly queuePosition?: number;
 }
 
@@ -85,7 +90,7 @@ export function StateScreen({
   const retry = spec.retry && onRetry ? spec.retry : null;
   const record = spec.record && recordTo ? { label: spec.record, to: recordTo } : null;
   const signIn = kind === 'dailyLimit' && onSignIn ? onSignIn : null;
-  const notify = kind === 'paused' && onNotify ? onNotify : null;
+  const notify = (kind === 'paused' || kind === 'queued') && onNotify ? onNotify : null;
   const anyAction = retry !== null || record !== null || signIn !== null || notify !== null;
   // The stored run is the main action when nothing else is offered, except while the decision is still coming.
   const recordIsPrimary = retry === null && kind !== 'waiting';
@@ -93,8 +98,10 @@ export function StateScreen({
   return (
     <section className={styles.state} data-kind={kind} role={spec.live}>
       {spec.spinner ? <span className={styles.spinner} aria-hidden="true" /> : null}
-      <p className={styles.message}>{t(spec.message)}</p>
-      {kind === 'waiting' && remainingSeconds !== undefined ? (
+      <p className={styles.message}>{t(spec.message, { position: queuePosition })}</p>
+      {(kind === 'waiting' || kind === 'queued') &&
+      remainingSeconds !== undefined &&
+      remainingSeconds !== null ? (
         <p className={styles.detail}>{t('state.waitingRemaining', { seconds: remainingSeconds })}</p>
       ) : null}
       {kind === 'paused' ? <p className={styles.detail}>{t('state.pausedWhy')}</p> : null}
@@ -129,7 +136,7 @@ export function StateScreen({
               {t('state.notifyTurn')}
             </button>
           ) : null}
-          {anyAction || kind === 'waiting' ? null : (
+          {anyAction || kind === 'waiting' || kind === 'queued' ? null : (
             <Link className={styles.link} to="/">
               {t('state.home')}
             </Link>

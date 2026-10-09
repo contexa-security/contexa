@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -40,6 +41,7 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/contexa/admin/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasRole('ADMIN')")
 public class AiApiController {
 
     private final AICoreOperations<PolicyContext> aiNativeProcessor;

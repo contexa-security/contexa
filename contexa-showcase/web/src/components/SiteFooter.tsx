@@ -1,17 +1,25 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { ActionChip } from './common/ActionChip';
 import styles from './SiteFooter.module.css';
 
-/** Small links on every visitor screen: the library, adopting, the privacy notice and the statistics. */
+/** Small links on every visitor screen: the lab, adopting, the privacy notice and the benchmark. */
 export function SiteFooter() {
   const { t } = useTranslation();
   return (
     <footer className={styles.footer}>
       <nav className={styles.links} aria-label={t('footer.label')}>
-        <Link to="/library">{t('footer.library')}</Link>
-        <Link to="/adopt">{t('footer.adopt')}</Link>
-        <Link to="/privacy">{t('footer.privacy')}</Link>
-        <Link to="/stats">{t('footer.stats')}</Link>
+        <ActionChip to="/lab" icon="search" size="sm">
+          {t('footer.lab')}
+        </ActionChip>
+        <ActionChip to="/adopt" icon="code" size="sm">
+          {t('footer.adopt')}
+        </ActionChip>
+        <ActionChip to="/privacy" icon="lock" size="sm">
+          {t('footer.privacy')}
+        </ActionChip>
+        <ActionChip to="/benchmark" icon="chart" size="sm">
+          {t('footer.benchmark')}
+        </ActionChip>
       </nav>
     </footer>
   );

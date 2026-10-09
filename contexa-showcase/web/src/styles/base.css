@@ -12,6 +12,12 @@ html {
   color: var(--color-text-body);
   text-rendering: optimizelegibility;
   -webkit-font-smoothing: antialiased;
+
+  /* Korean wraps between words, never inside one, and no line ends with one letter alone (C-4); a word longer than
+     its line still breaks so nothing scrolls sideways. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 }
 
 body {
@@ -25,6 +31,11 @@ h2,
 h3,
 p {
   margin: 0;
+}
+
+/* A new screen moves the focus to its heading (App RouteFocus); the heading itself shows no ring. */
+main h1[tabindex='-1']:focus {
+  outline: none;
 }
 
 h1,
@@ -95,4 +106,44 @@ main {
 
 .skip-link:focus {
   transform: translateY(0);
+}
+
+/*
+ * Phones (mobile slide): the screen's one main button is fixed at the bottom, where the thumb reaches, and the page keeps
+ * room under its content so nothing ends hidden behind it; a focused element scrolls clear of it. On a run screen the
+ * nine-cell strip holds the bottom, so the button sits right over it.
+ */
+@media (width <= 40rem) {
+  html:has(main [data-main]) {
+    scroll-padding-bottom: 6rem;
+  }
+
+  body:has(main [data-main]) {
+    padding-bottom: var(--space-reserve);
+  }
+
+  main [data-main] {
+    position: fixed;
+    right: var(--space-4);
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+    left: var(--space-4);
+    z-index: var(--layer-raised);
+    justify-content: center;
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* A fixed button covers what scrolls under it, so a disabled one is solid and muted, never see-through. */
+  main [data-main]:disabled {
+    background-color: var(--color-surface-raised);
+    color: var(--color-text-muted);
+    opacity: 1;
+  }
+
+  body:has([data-inside-strip]) main [data-main] {
+    bottom: calc(var(--space-16) + env(safe-area-inset-bottom));
+  }
+
+  body:has([data-inside-strip]):has(main [data-main]) {
+    padding-bottom: var(--space-reserve-strip);
+  }
 }

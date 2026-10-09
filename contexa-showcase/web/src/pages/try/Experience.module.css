@@ -1,0 +1,1127 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+/* A quiet fold: what serves the screen's purpose only on demand (D-41), with a chevron that shows it opens. */
+
+/* A fold opens more of the content above it, so its summary is the "open" chip. */
+.more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  list-style: none;
+  cursor: pointer;
+}
+
+.more[open] > summary {
+  margin-bottom: var(--space-3);
+  border-color: var(--color-accent);
+}
+
+.more summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.more summary::-webkit-details-marker {
+  display: none;
+}
+
+.more summary::before {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
+  transform: rotate(-45deg);
+  content: '';
+}
+
+.more[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.more summary:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.foldText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.foldText p {
+  margin: 0;
+}
+
+.original {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* A note that belongs to the table right above it: small, muted, with the table's "*" where it explains one. */
+
+/* The send button with its note and "send without a call" under it, aligned to the action row's right edge. */
+.sendBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.tableNote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-pull) 0 0;
+  padding: 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.tableNote p {
+  margin: 0;
+}
+
+.callout {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+/* Try 1-1: one request card with the goal and the right answer next to it. */
+.sceneGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(14rem, 1fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.requestCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.cardLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.factRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.factIcon {
+  flex: none;
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.markers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.marker {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-raised);
+}
+
+.marker dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.marker dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.marker[data-kind='answer'] {
+  border: 1px solid var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+/* Try 1-2: the differences large, the rest folded. */
+.compareGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panelTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.diffs,
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diff {
+  display: grid;
+  grid-template-columns: minmax(4rem, 6rem) minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-halt);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.diffName {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.diffUsual,
+.diffNow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-body);
+}
+
+.diffNow {
+  color: var(--color-halt);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.diffLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.diffArrow {
+  color: var(--color-text-muted);
+}
+
+.flagRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-halt);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.flagIcon {
+  flex: none;
+  color: var(--color-halt);
+}
+
+.restRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.restRows li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+}
+
+.restName {
+  min-width: 4rem;
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.restState {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+/* Try 1-3: four large choices, then the optional guess. */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 8rem;
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: var(--color-accent);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.choice[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.choiceIcon {
+  color: var(--color-accent);
+  font-size: var(--text-xl);
+}
+
+.choiceName {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.choiceHint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.guess {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.guessTitle {
+  margin-bottom: var(--space-3);
+  padding: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.optional {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-regular);
+}
+
+.guessOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.pill:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.pill[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.approaches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.approaches div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.approaches dt {
+  min-width: 8rem;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.approaches dd {
+  margin: 0;
+  color: var(--color-text-body);
+}
+
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sendNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The button that sends the next request of a two-request case inside the run. */
+.primary {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+/* Try 1-4: the time bars with one legend line, the inside panel beside them. */
+.runGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.runMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.runStep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-subtle);
+}
+
+.swatch[data-outcome='DELIVERED'] {
+  background-color: var(--color-loss);
+}
+
+.swatch[data-outcome='STOPPED'] {
+  background-color: var(--color-safe);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+}
+
+.barName {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.bar[data-control='D'] .barName {
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
+}
+
+.barTrack {
+  position: relative;
+  height: 0.875rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-raised);
+}
+
+.barFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-subtle);
+  transition-duration: var(--duration-slow);
+  transition-property: width;
+  transition-timing-function: var(--ease-standard);
+}
+
+.barFill[data-outcome='DELIVERED'] {
+  background-color: var(--color-loss);
+}
+
+.barFill[data-outcome='STOPPED'],
+.barFill[data-outcome='HELD'],
+.barFill[data-outcome='CUT'] {
+  background-color: var(--color-safe);
+}
+
+.barFill[data-held],
+.swatch[data-held] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-accent) 0 0.4rem,
+    var(--color-surface-accent) 0.4rem 0.8rem
+  );
+}
+
+.barLabel {
+  grid-column: 2;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.axis {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.axisScale {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Try 1-5: who answered right. */
+.results {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.results th,
+.results td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+  vertical-align: top;
+}
+
+.results thead th {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.results tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.results tr[data-contexa] th,
+.results tr[data-contexa] td {
+  background-color: var(--color-surface-accent);
+}
+
+.results tr[data-contexa] th {
+  color: var(--color-accent);
+}
+
+.resultValue {
+  display: block;
+}
+
+.resultMeasured {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.mine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-raised);
+}
+
+.mineLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.mineLabel {
+  min-width: 7rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.mineAnswer {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Try 1-6: the facts to the decision as one figure, then the reason as a quote. */
+.reasonFigure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.reasonFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A fact is a label, not something to press: a tinted block with a coloured edge, never a bordered chip (U-7). */
+.reasonFact {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-halt);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.reasonArrow {
+  color: var(--color-text-muted);
+  font-size: var(--text-xl);
+}
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 4px solid var(--color-border-strong);
+}
+
+.quoteLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.quoteText {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+.quoteNote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Try 1-7: the follow-up as one numbered flow. */
+.flowFigure {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flowStep {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.flowArrow {
+  position: absolute;
+  top: 50%;
+  right: calc(-1 * var(--space-8));
+  width: var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  transform: translateY(-50%);
+}
+
+.flowStep[data-tone='stop'] {
+  border-color: var(--color-loss);
+}
+
+.flowStep[data-tone='safe'] {
+  border-color: var(--color-safe);
+}
+
+.flowNumber {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.flowIcon {
+  color: var(--color-accent);
+  font-size: var(--text-xl);
+}
+
+.flowStep[data-tone='stop'] .flowIcon {
+  color: var(--color-loss);
+}
+
+.flowStep[data-tone='safe'] .flowIcon {
+  color: var(--color-safe);
+}
+
+.flowText {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+/* Try 2-1: the one thing that changed, above the same request card. */
+.changed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-accent);
+}
+
+.changedLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.changedBefore {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.changedArrow {
+  flex: none;
+  color: var(--color-accent);
+}
+
+.changedAfter {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+/* Try 2-2: the approval as its own card, the positive record. */
+.approvalRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-safe);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.approvalIcon {
+  flex: none;
+  color: var(--color-safe);
+}
+
+/* Try 2-5: a try's answer and its right or wrong in one cell. */
+.tryCell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Try 2-7: the record named before the flow, the three steps and the time line. */
+.exampleTag {
+  align-self: flex-start;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.checkSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkStep {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-safe);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.checkDot {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  color: var(--color-safe);
+  font-size: var(--text-lg);
+}
+
+/* The measured value of a check step, under its name: what that step took in the stored record. */
+.checkValue {
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* Tablets: the choices two by two, the follow-up two by two. */
+@media (width <= 64rem) {
+  .choices,
+  .flowFigure {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flowStep:nth-child(2n) .flowArrow {
+    display: none;
+  }
+}
+
+/* Phones (mobile slide): one column, no table scrolling sideways. */
+@media (width <= 40rem) {
+  /* The reasons figure reads top to bottom on phones: the facts one under another, then the verdict they lead to. */
+  .reasonFigure {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-4);
+  }
+
+  .reasonFacts {
+    flex-direction: column;
+  }
+
+  .reasonArrow {
+    align-self: center;
+    transform: rotate(90deg);
+  }
+
+  .reasonFigure > :last-child {
+    align-self: center;
+  }
+
+  .sceneGrid,
+  .compareGrid,
+  .runGrid,
+  .flowFigure,
+  .checkSteps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flowFigure {
+    gap: var(--space-6);
+  }
+
+  /* One column: the arrow points down to the next step. */
+  .flowStep .flowArrow,
+  .flowStep:nth-child(2n) .flowArrow {
+    inset: auto auto calc(-1 * var(--space-6)) 50%;
+    display: block;
+    width: var(--space-6);
+    transform: translateX(-50%) rotate(90deg);
+  }
+
+  .factRow,
+  .marker dd {
+    font-size: var(--text-md);
+  }
+
+  .diff {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .diffName {
+    grid-column: 1 / -1;
+  }
+
+  .bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .barLabel {
+    grid-column: 1;
+  }
+
+  .axis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .results thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .results,
+  .results tbody {
+    display: block;
+  }
+
+  /* One card per approach: its name and right or wrong on the first line, its answer and what went out under it. */
+  .results tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .results th,
+  .results td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .results tbody th {
+    grid-area: 1 / 1;
+  }
+
+  .results td:nth-of-type(1) {
+    grid-area: 2 / 1;
+  }
+
+  .results td:nth-of-type(2) {
+    grid-area: 2 / 2;
+    text-align: right;
+  }
+
+  .results td:nth-of-type(3) {
+    grid-area: 1 / 2;
+    text-align: right;
+  }
+
+  .results tr[data-contexa] {
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-accent);
+  }
+
+  /* The two tries one under the other on phones, each cell naming its try, since the column heads are hidden. */
+  .results[data-tries='two'] tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .results[data-tries='two'] tbody th,
+  .results[data-tries='two'] td:nth-of-type(1),
+  .results[data-tries='two'] td:nth-of-type(2) {
+    grid-area: auto;
+    text-align: left;
+  }
+
+  .results[data-tries='two'] td::before {
+    display: block;
+    margin-bottom: var(--space-1);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    content: attr(data-label);
+  }
+}
+
+/* Phones (mobile slide): a fold's summary reaches 44 px. */
+@media (width <= 40rem) {
+  .more summary {
+    min-height: 2.75rem;
+  }
+}

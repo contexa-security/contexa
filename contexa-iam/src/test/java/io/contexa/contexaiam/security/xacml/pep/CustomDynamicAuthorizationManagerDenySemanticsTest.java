@@ -82,6 +82,11 @@ class CustomDynamicAuthorizationManagerDenySemanticsTest {
             "alice", "n/a", AuthorityUtils.createAuthorityList("ROLE_USER"));
     private final Authentication blockedUser = UsernamePasswordAuthenticationToken.authenticated(
             "mallory", "n/a", AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_BLOCKED"));
+    private final Authentication administrator = UsernamePasswordAuthenticationToken.authenticated(
+            "root", "n/a", AuthorityUtils.createAuthorityList("ROLE_ADMIN"));
+    /** A block replaces every authority with ROLE_BLOCKED (AbstractZeroTrustSecurityService). */
+    private final Authentication blockedOnly = UsernamePasswordAuthenticationToken.authenticated(
+            "bob", "n/a", AuthorityUtils.createAuthorityList("ROLE_BLOCKED"));
 
     @BeforeEach
     void setUp() {
@@ -275,16 +280,27 @@ class CustomDynamicAuthorizationManagerDenySemanticsTest {
         }
 
         @Test
-        @DisplayName("Seed policies keep working")
+        @DisplayName("Seed policies keep the admin area to administrators and the self-service paths open")
         void seedPoliciesKeepWorking() {
+            Policy selfService = policy(3L, Policy.Effect.ALLOW, 20, "/contexa/admin/api/aiam/zero-trust/**",
+                    "isAuthenticated()");
+            selfService.getTargets().add(PolicyTarget.builder().policy(selfService).targetType("URL")
+                    .targetIdentifier("/contexa/admin/api/aiam/sse/zero-trust/**").httpMethod("ANY").build());
             CustomDynamicAuthorizationManager manager = manager(CombiningAlgorithm.FIRST_APPLICABLE,
                     NoPolicyDecision.PERMIT,
                     policy(1L, Policy.Effect.ALLOW, 10, "/contexa/admin/login", "permitAll"),
-                    policy(2L, Policy.Effect.ALLOW, 100, "/contexa/admin/**", "isAuthenticated()"));
+                    selfService,
+                    policy(2L, Policy.Effect.ALLOW, 100, "/contexa/admin/**", "hasRole('ADMIN')"));
 
             assertThat(granted(manager, anonymous, "/contexa/admin/login")).isTrue();
             assertThat(granted(manager, anonymous, "/contexa/admin/users")).isFalse();
-            assertThat(granted(manager, user, "/contexa/admin/users")).isTrue();
+            assertThat(granted(manager, user, "/contexa/admin/users"))
+                    .as("a signed-in user without the administrator role stays out of the admin area").isFalse();
+            assertThat(granted(manager, administrator, "/contexa/admin/users")).isTrue();
+            assertThat(granted(manager, blockedOnly, "/contexa/admin/api/aiam/zero-trust/unblock-request"))
+                    .as("a blocked user asks for the release").isTrue();
+            assertThat(granted(manager, user, "/contexa/admin/api/aiam/sse/zero-trust/subscribe")).isTrue();
+            assertThat(granted(manager, anonymous, "/contexa/admin/api/aiam/zero-trust/unblock-request")).isFalse();
         }
     }
 }

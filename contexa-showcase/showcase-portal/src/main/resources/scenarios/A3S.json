@@ -1,6 +1,7 @@
 {
   "key": "A3S",
-  "version": 1,
+  "version": 2,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "내부자 대량 반출(스트림)",
     "en": "Insider bulk export (stream)"
@@ -23,6 +24,22 @@
         "C1": "DENY",
         "C2": "DENY"
       }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "GB-500",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 60,
+      "visitorSends": true,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
     }
   ],
   "oracle": {
@@ -31,6 +48,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: A3와 같은 반출(새벽 3시 17분, 맡지 않은 GB-500 자료 4,831건)을 스트림으로 받고, 1분 뒤 같은 프로젝트 도면을 다시 내려받는다. 회사 기록에는 이 작업을 덮는 승인·티켓·당번이 없다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: the export of A3 (03:17, 4,831 records of GB-500, which A is not assigned to) received as a stream, followed a minute later by a download of a drawing of the same project. No approval, ticket or on-call duty covers the work. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 관리자가 급한 이관 지시를 받고 기록 없이 작업했을 수 있다. 회사 규정이 이 반출에 승인을 요구하고 그 기록이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the administrator may have been told to transfer the data urgently without a record. The policy requires an approval for this export and there is none, so the case is an attack."
+    }
   }
 }

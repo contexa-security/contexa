@@ -1,0 +1,280 @@
+.scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-areas:
+    'head head'
+    'state state'
+    'console baseline'
+    'next next';
+  gap: var(--space-5);
+}
+
+.scene[data-phase='live'] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'head head head'
+    'conclusion conclusion counters'
+    'state state state'
+    'console analysis baseline'
+    'lanes lanes lanes'
+    'assess assess assess'
+    'next next next';
+}
+
+.scene[data-phase='live'][data-role='owner'] {
+  grid-template-areas:
+    'head head head'
+    'conclusion conclusion conclusion'
+    'state state state'
+    'console analysis baseline'
+    'lanes lanes lanes'
+    'assess assess assess'
+    'next next next';
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  grid-area: head;
+}
+
+.title {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  word-break: keep-all;
+}
+
+.lead {
+  max-width: 48rem;
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+  word-break: keep-all;
+}
+
+.scene[data-phase='live'] .lead {
+  display: none;
+}
+
+.changed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  word-break: keep-all;
+}
+
+.changedTag {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.conclusion {
+  grid-area: conclusion;
+}
+
+.counters {
+  align-self: center;
+  grid-area: counters;
+}
+
+.state {
+  grid-area: state;
+}
+
+.analysis {
+  grid-area: analysis;
+}
+
+.console {
+  grid-area: console;
+}
+
+.baseline {
+  grid-area: baseline;
+}
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  grid-area: lanes;
+}
+
+.next {
+  display: flex;
+  justify-content: flex-end;
+  grid-area: next;
+}
+
+.assess {
+  grid-area: assess;
+}
+
+/* Why the act matters: one line, the rest folded (5A.1, the enterprise demo's drawer idea). */
+.why {
+  max-width: 60rem;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.why > summary {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.why > p {
+  margin: var(--space-2) 0 0;
+  word-break: keep-all;
+}
+
+/* The visitor's call before sending (5A.3). */
+.predict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.predict > legend {
+  margin-block-end: var(--space-2);
+  padding: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.predictChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.predictChoice[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.anatomyLink {
+  align-self: flex-start;
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.callResult {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  word-break: keep-all;
+}
+
+.send {
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--color-loss);
+  color: var(--color-signal-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scene[data-role='owner'] .send {
+  background-color: var(--color-safe);
+}
+
+.note {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  word-break: keep-all;
+}
+
+.retryResult {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  word-break: keep-all;
+}
+
+.retryResult[data-tone='loss'] {
+  color: var(--color-loss);
+}
+
+.primary {
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+  animation: arrive var(--duration-slow) var(--ease-standard);
+}
+
+/* Text keeps its full contrast while it arrives: only position and size move (docs/showcase/화면설계서.md 1.3). */
+@keyframes arrive {
+  from {
+    transform: translateY(4px);
+  }
+}
+
+@media (width <= 60rem) {
+  .scene,
+  .scene[data-phase='live'],
+  .scene[data-phase='live'][data-role='owner'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: none;
+  }
+
+  .head,
+  .conclusion,
+  .counters,
+  .state,
+  .analysis,
+  .console,
+  .baseline,
+  .lanes,
+  .assess,
+  .next {
+    grid-area: auto;
+  }
+
+  .next {
+    justify-content: stretch;
+  }
+
+  .primary {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary {
+    animation: none;
+  }
+}

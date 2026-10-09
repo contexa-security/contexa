@@ -1,0 +1,125 @@
+/* One lane per case: the kind (real work or attack), its name and where its values come from (live or replay). */
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.lane[data-kind='work'] {
+  border-color: var(--color-safe);
+}
+
+.lane[data-kind='attack'] {
+  border-color: var(--color-loss);
+}
+
+.laneTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.laneKind {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.lane[data-kind='work'] .laneKind {
+  color: var(--color-safe);
+}
+
+.lane[data-kind='attack'] .laneKind {
+  color: var(--color-loss);
+}
+
+.laneTag {
+  margin-inline-start: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.cells {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.cell[data-state='waiting'] {
+  color: var(--color-text-subtle);
+}
+
+.cell[data-state='prior'] {
+  color: var(--color-text-muted);
+}
+
+.cellNumber {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-bold);
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.runningNote {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+@media (width <= 40rem) {
+  /* One request per row on phones: the number, then its decision on the same line. */
+  .cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cell {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .laneTag {
+    margin-inline-start: 0;
+  }
+}

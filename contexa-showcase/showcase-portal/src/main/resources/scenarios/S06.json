@@ -1,6 +1,7 @@
 {
   "key": "S06",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "낮은 속도의 누적 자료 수집",
     "en": "Slow accumulation of documents"
@@ -91,6 +92,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정이 자신이 맡지 않은 CP-220 도면을 10분 간격으로 네 건 열고, 45분 뒤 자료 12건을 반출한다. 하나씩 보면 작은 요청이지만 맡지 않은 프로젝트의 자료를 천천히 모은다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: engineer K's account opens four drawings of CP-220, a project K is not assigned to, ten minutes apart, and exports twelve records 45 minutes after the first. Each request is small, but together they slowly gather data of a project that is not K's. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 다른 프로그램의 설계를 참고하려던 것일 수 있다. 배정·티켓이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: K may have wanted to consult another program's design. There is no assignment or ticket, so the case is an attack."
+    }
   }
 }

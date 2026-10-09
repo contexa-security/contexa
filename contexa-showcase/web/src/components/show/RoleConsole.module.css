@@ -1,0 +1,148 @@
+.console {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  overflow: hidden;
+}
+
+.band {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-5);
+  background-color: var(--color-loss);
+}
+
+.console[data-role='owner'] .band {
+  background-color: var(--color-safe);
+}
+
+.badge {
+  color: var(--color-signal-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+}
+
+.window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.title {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.row dt {
+  color: var(--color-text-subtle);
+}
+
+.row dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  word-break: keep-all;
+}
+
+.row[data-changed='true'] dd {
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  background-color: var(--color-lock-veil);
+  backdrop-filter: blur(3px);
+  text-align: center;
+  animation: veil var(--duration-slow) var(--ease-standard);
+}
+
+.lockIcon {
+  width: var(--space-10);
+  height: var(--space-10);
+  color: var(--color-lock-ink);
+}
+
+.lockTitle {
+  color: var(--color-lock-ink);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  word-break: keep-all;
+}
+
+.lockDetail {
+  max-width: 28rem;
+  color: var(--color-lock-ink);
+  font-size: var(--text-md);
+  word-break: keep-all;
+}
+
+.lockAction {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--color-lock-ink);
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--color-lock-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+
+.lockMeta {
+  color: var(--color-lock-ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* Text keeps its full contrast while it arrives: only position and size move (docs/showcase/화면설계서.md 1.3). */
+@keyframes veil {
+  from {
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lock {
+    animation: none;
+  }
+}

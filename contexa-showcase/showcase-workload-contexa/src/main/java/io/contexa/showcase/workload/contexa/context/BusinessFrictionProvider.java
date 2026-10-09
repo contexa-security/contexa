@@ -4,7 +4,9 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
 import io.contexa.contexacore.autonomous.context.enricher.FrictionContextProvider;
+import io.contexa.showcase.business.context.AccessApprovalPolicy;
 import io.contexa.showcase.business.context.BusinessContextLookup;
+import io.contexa.showcase.business.context.ExportApprovalPolicy;
 import io.contexa.showcase.business.context.BusinessContextLookup.AccessHistory;
 import io.contexa.showcase.business.context.BusinessContextLookup.ApprovalCoverage;
 import io.contexa.showcase.business.context.BusinessContextLookup.AssignmentStatus;
@@ -76,17 +78,45 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
             if (principal.isEmpty()) {
                 return;
             }
-            Instant at = event.getTimestamp() == null ? Instant.now() : event.getTimestamp().toInstant(ZoneOffset.UTC);
+            if (event.getTimestamp() == null) {
+                // The company facts depend on the request time; without it nothing is looked up (survey D3).
+                apply(context, Facts.notLookedUp("The request time is unknown; the company facts of this request, "
+                        + "which depend on it, were not looked up."));
+                return;
+            }
+            Instant at = event.getTimestamp().toInstant(ZoneOffset.UTC);
             apply(context, facts(rule.get().operation(), event.getUserId(), path, text(metadata.get("queryString")),
                     event.getSourceIp(), at));
         } catch (RuntimeException e) {
             log.error("Business context lookup failed: userId={}, path={}", event.getUserId(), path, e);
-            apply(context, new Facts(List.of("Business context lookup failed; the company facts of this request are "
-                    + "unknown."), null, null, null));
+            apply(context, Facts.notLookedUp("Business context lookup failed; the company facts of this request are "
+                    + "unknown."));
         }
     }
 
-    record Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at) {
+    /**
+     * @param approval         the approval record of an export; null for the other operations, whose approval record
+     *                         is a ticket that covers the request (Q-A4)
+     * @param approvalRequired whether the company requires an approval for this request, by the same policy row the
+     *                         business-record control applies (ContextLookupRules): the export rule (H-15) or the
+     *                         access rule of role grants, customers and documents (Q-A4); null when no rule applies
+     * @param lookedUp         whether the business database was read for these facts (survey D2)
+     */
+    record Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at,
+                 Boolean approvalRequired, boolean lookedUp) {
+
+        Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at,
+              Boolean approvalRequired) {
+            this(lines, approval, ticket, at, approvalRequired, true);
+        }
+
+        Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at) {
+            this(lines, approval, ticket, at, null, true);
+        }
+
+        static Facts notLookedUp(String line) {
+            return new Facts(List.of(line), null, null, null, null, false);
+        }
     }
 
     private Facts facts(BusinessOperation operation, String username, String path, String query, String clientIp,
@@ -95,15 +125,23 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
         String target = segments.length > 3 ? segments[3] : null;
         List<String> lines = new ArrayList<>();
         switch (operation) {
-            case EXPORT, EXPORT_STREAM -> {
-                int items = items(query);
+            case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> {
+                Integer items = items(query);
+                if (items == null) {
+                    // Control C2 refuses such an export without looking anything up; the engine is told the same.
+                    return Facts.notLookedUp("The export names no valid item count; its company facts were not "
+                            + "looked up.");
+                }
                 AssignmentStatus assigned = lookup.projectAssigned(username, target, at);
                 ApprovalCoverage approval = lookup.approvalExists(username, target, items, at);
                 TicketCoverage ticket = lookup.ticketCovers(username, target, operation, at);
                 OncallStatus oncall = lookup.oncallHas(username, at);
                 AccessHistory history = lookup.historyDays(username, target, at, 30);
+                ExportApprovalPolicy policy = lookup.exportApprovalPolicy();
+                boolean required = policy.requiresApproval(assigned.assigned(), items, ticket.covered(),
+                        oncall.onCall());
                 lines.add(VERIFIED + "requester assigned to project " + target + ": " + yesNo(assigned.assigned()));
-                lines.add(VERIFIED + approvalLine(approval, items));
+                lines.add(VERIFIED + approvalLine(approval, items, at));
                 lines.add(VERIFIED + ticketLine(ticket));
                 lines.add(VERIFIED + oncallLine(oncall));
                 lines.add(VERIFIED + historyLine(history, target));
@@ -114,44 +152,57 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                     lines.add(VERIFIED + claimLine(claim));
                 }
                 lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                lines.add(VERIFIED + policyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, approval, ticket, at);
+                return new Facts(lines, approval, ticket, at, required);
             }
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> {
                 String project = projectOfDocument(target);
                 if (project == null) {
                     return new Facts(List.of(VERIFIED + "document " + target + " does not exist."), null, null, at);
                 }
+                AccessApprovalPolicy policy = lookup.accessApprovalPolicy(operation);
+                int window = policy.recentWorkDays() != null ? policy.recentWorkDays() : 90;
                 AssignmentStatus assigned = lookup.projectAssigned(username, project, at);
                 TicketCoverage ticket = lookup.ticketCovers(username, project, operation, at);
-                AccessHistory history = lookup.historyDays(username, project, at, 90);
+                AccessHistory history = lookup.historyDays(username, project, at, window);
+                boolean required = policy.requiresApproval(false, assigned.assigned(), history.days());
                 lines.add(VERIFIED + "requester assigned to project " + project + ": " + yesNo(assigned.assigned()));
                 lines.add(VERIFIED + ticketLine(ticket));
                 lines.add(VERIFIED + historyLine(history, project));
                 lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, ticket, at);
+                return new Facts(lines, null, ticket, at, required);
             }
             case ROLE_GRANT -> {
                 String project = parameter(query, "project");
                 String grantee = parameter(query, "grantee");
+                AccessApprovalPolicy policy = lookup.accessApprovalPolicy(operation);
                 TicketCoverage ticket = lookup.ticketCovers(username, project, operation, at);
+                boolean required = policy.requiresApproval(false, false, 0);
                 lines.add(VERIFIED + "the request gives employee " + grantee + " a role on project " + project + ".");
                 lines.add(VERIFIED + changeTicketLine(ticket));
                 lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, ticket, at);
+                return new Facts(lines, null, ticket, at, required);
             }
             case CUSTOMER_READ -> {
+                AccessApprovalPolicy policy = lookup.accessApprovalPolicy(operation);
                 CustomerOwnership ownership = lookup.customerOwner(username, target);
+                TicketCoverage ticket = ownership.projectKey() == null ? null
+                        : lookup.ticketCovers(username, ownership.projectKey(), operation, at);
+                boolean required = policy.requiresApproval(ownership.owner(), false, 0);
                 lines.add(VERIFIED + "requester is the account manager of customer " + target + ": "
                         + yesNo(ownership.owner()));
-                if (ownership.projectKey() != null) {
-                    lines.add(VERIFIED + ticketLine(lookup.ticketCovers(username, ownership.projectKey(), operation, at)));
+                if (ticket != null) {
+                    lines.add(VERIFIED + ticketLine(ticket));
                 }
                 lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, null, at);
+                return new Facts(lines, null, ticket, at, required);
             }
             default -> {
                 return new Facts(List.of(), null, null, at);
@@ -172,25 +223,78 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 : profile.getApprovalLineage());
         lineage.addAll(facts.lines());
         profile.setApprovalLineage(lineage);
+        if (facts.approval() == null && facts.approvalRequired() != null) {
+            // A ticket that covers the request is the approval record of the company's access rules (Q-A4).
+            boolean covered = facts.ticket() != null && facts.ticket().covered();
+            profile.setApprovalRequired(facts.approvalRequired());
+            profile.setApprovalMissing(facts.approvalRequired() && !covered);
+            if (covered || facts.approvalRequired()) {
+                profile.setApprovalGranted(covered);
+                profile.setApprovalStatus(covered ? "APPROVED" : "NO_COVERING_APPROVAL");
+            }
+            if (covered) {
+                profile.setApprovalTicketId(facts.ticket().ticketKey());
+            }
+        }
         if (facts.approval() != null) {
             profile.setApprovalGranted(facts.approval().covered());
             profile.setApprovalStatus(facts.approval().covered() ? "APPROVED" : "NO_COVERING_APPROVAL");
+            if (facts.approvalRequired() != null) {
+                profile.setApprovalRequired(facts.approvalRequired());
+                profile.setApprovalMissing(facts.approvalRequired() && !facts.approval().covered());
+            }
             if (facts.approval().covered()) {
                 profile.setApprovalTicketId(facts.approval().approvalKey());
-                if (facts.approval().validFrom() != null && facts.at() != null) {
-                    profile.setApprovalDecisionAgeMinutes((int) Math.max(0,
-                            Duration.between(facts.approval().validFrom(), facts.at()).toMinutes()));
+                // Only a recorded decision time gives a decision age; the start of validity is not one (survey D5).
+                // A decision recorded after the request has no age at the request time: the approval line states
+                // when it was recorded instead of an age clipped to zero (W2-5, case S12).
+                if (facts.approval().approvedAt() != null && facts.at() != null
+                        && !facts.approval().approvedAt().isAfter(facts.at())) {
+                    profile.setApprovalDecisionAgeMinutes((int) Duration.between(facts.approval().approvedAt(),
+                            facts.at()).toMinutes());
                 }
             }
         }
-        profile.setSummary("Company facts of this request were looked up in the business database.");
+        profile.setSummary(facts.lookedUp() ? "Company facts of this request were looked up in the business database."
+                : "Company facts of this request were not looked up in the business database.");
+    }
+
+    /** The company's export approval policy and whether it requires an approval here, as the policy row states it. */
+    /** The company's access rule and whether it requires an approval for this request (Q-A4). */
+    static String accessPolicyLine(AccessApprovalPolicy policy, boolean required) {
+        return "company policy " + policy.policyKey() + " (" + policy.description()
+                + ") requires an approval for this request: " + yesNo(required);
+    }
+
+    static String policyLine(ExportApprovalPolicy policy, boolean required) {
+        return "company policy " + policy.policyKey() + " (" + policy.description() + " Assigned export limit: "
+                + policy.assignedExportLimit() + " items.) requires an approval for this export: " + yesNo(required);
     }
 
     static String approvalLine(ApprovalCoverage approval, int items) {
+        return approvalLine(approval, items, null);
+    }
+
+    /**
+     * The covering approval as the record states it, with when its decision was recorded when the record says so: a
+     * decision recorded after the request is stated as such, with the minutes between them (W2-5, case S12).
+     */
+    static String approvalLine(ApprovalCoverage approval, int items, Instant at) {
         if (approval.covered()) {
-            return "approval " + approval.approvalKey() + " by " + approval.approver() + " for purpose "
+            String line = "approval " + approval.approvalKey() + " by " + approval.approver() + " for purpose "
                     + approval.purpose() + " covers up to " + approval.maxItems() + " items (requested " + items
                     + "), valid " + approval.validFrom() + " to " + approval.validUntil() + ".";
+            Instant decided = approval.approvedAt();
+            if (decided == null || at == null) {
+                return line;
+            }
+            if (!decided.isAfter(at)) {
+                return line + " Its decision was recorded at " + decided + ", before this request.";
+            }
+            return line + " Its decision was recorded at " + decided + ", "
+                    + Duration.between(at, decided).toMinutes() + " minutes after this request"
+                    + (approval.validFrom() != null && approval.validFrom().isBefore(decided)
+                    ? ", with a validity that starts before the decision was recorded." : ".");
         }
         if (approval.approvalKey() == null) {
             return "no approval of the requester exists for this project.";
@@ -232,20 +336,22 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 new MapSqlParameterSource("key", documentKey), String.class).stream().findFirst().orElse(null);
     }
 
-    private static int items(String query) {
+    /** The export's item count; null when the request names none or an invalid one (survey D4). */
+    static Integer items(String query) {
         if (query == null) {
-            return 1;
+            return null;
         }
         for (String pair : query.split("&")) {
             if (pair.startsWith("items=")) {
                 try {
-                    return Integer.parseInt(pair.substring("items=".length()));
+                    int items = Integer.parseInt(pair.substring("items=".length()).trim());
+                    return items > 0 ? items : null;
                 } catch (NumberFormatException e) {
-                    return 1;
+                    return null;
                 }
             }
         }
-        return 1;
+        return null;
     }
 
     private static String yesNo(boolean value) {

@@ -3,6 +3,8 @@ package io.contexa.showcase.business.run;
 import io.contexa.showcase.business.work.WorkDatabase;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -49,14 +51,17 @@ public class RunRegistry {
             for (RunFacts.Approval approval : facts.approvals()) {
                 database.jdbc().update("""
                                 insert into approval (approval_key, run_id, requester, approver, project_key, purpose,
-                                                      max_items, valid_from, valid_until, status)
-                                values (:k, :run, :req, :appr, :project, :purpose, :max, :from, :until, :status)""",
+                                                      max_items, valid_from, valid_until, status, approved_at)
+                                values (:k, :run, :req, :appr, :project, :purpose, :max, :from, :until, :status,
+                                        :approved)""",
                         params().addValue("k", approval.approvalKey()).addValue("run", runId)
                                 .addValue("req", approval.requester()).addValue("appr", approval.approver())
                                 .addValue("project", approval.projectKey()).addValue("purpose", approval.purpose())
                                 .addValue("max", approval.maxItems()).addValue("from", timestamp(approval.validFrom()))
                                 .addValue("until", timestamp(approval.validUntil()))
-                                .addValue("status", approval.status()));
+                                .addValue("status", approval.status())
+                                .addValue("approved", approval.approvedAt() == null ? null
+                                        : timestamp(approval.approvedAt())));
             }
             for (RunFacts.TravelPlan trip : facts.travel()) {
                 database.jdbc().update("""
@@ -68,6 +73,21 @@ public class RunRegistry {
                                 .addValue("country", trip.country()).addValue("network", trip.networkCidr())
                                 .addValue("from", timestamp(trip.validFrom()))
                                 .addValue("until", timestamp(trip.validUntil())));
+            }
+            for (RunFacts.Document document : facts.documents()) {
+                database.jdbc().update("""
+                                insert into document (document_key, project_key, document_type, title, revision,
+                                                      sensitivity, size_bytes, body, updated_on, run_id, author_name,
+                                                      author_summary)
+                                values (:k, :project, :type, :title, :revision, :sensitivity, :size, :body, :updated,
+                                        :run, :author, :summary)""",
+                        params().addValue("k", document.documentKey()).addValue("project", document.projectKey())
+                                .addValue("type", document.documentType()).addValue("title", document.title())
+                                .addValue("revision", document.revision()).addValue("sensitivity", document.sensitivity())
+                                .addValue("size", document.body().getBytes(StandardCharsets.UTF_8).length)
+                                .addValue("body", document.body()).addValue("updated", Date.valueOf(document.updatedOn()))
+                                .addValue("run", runId).addValue("author", document.authorName())
+                                .addValue("summary", document.authorSummary()));
             }
             for (RunFacts.Oncall oncall : facts.oncall()) {
                 database.jdbc().update("""
@@ -107,6 +127,7 @@ public class RunRegistry {
             rows += database.jdbc().update("delete from oncall_roster where run_id = :run", run);
             rows += database.jdbc().update("delete from travel_plan where run_id = :run", run);
             rows += database.jdbc().update("delete from role_grant where run_id = :run", run);
+            rows += database.jdbc().update("delete from document where run_id = :run", run);
             rows += database.jdbc().update("delete from run_principal where run_id = :run", run);
             return rows;
         });
@@ -123,6 +144,7 @@ public class RunRegistry {
                      + (select count(*) from oncall_roster where run_id = :run)
                      + (select count(*) from travel_plan where run_id = :run)
                      + (select count(*) from role_grant where run_id = :run)
+                     + (select count(*) from document where run_id = :run)
                      + (select count(*) from run_principal where run_id = :run)""",
                 params().addValue("run", runId), Integer.class);
         return count == null ? 0 : count;

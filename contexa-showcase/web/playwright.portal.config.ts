@@ -17,6 +17,8 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'chromium-360', use: { ...devices['Desktop Chrome'], viewport: { width: 360, height: 780 } } },
+    // The phone width of the design (mobile slide, S11); 360 stays as the narrowest.
+    { name: 'chromium-390', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
     { name: 'webkit-360', use: { ...devices['iPhone 13 Mini'], viewport: { width: 360, height: 780 } } },
   ],

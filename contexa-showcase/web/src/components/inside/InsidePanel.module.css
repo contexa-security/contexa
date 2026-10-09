@@ -1,0 +1,250 @@
+.panel {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.cells {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cell {
+  border-radius: var(--radius-md);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+}
+
+button.head {
+  cursor: pointer;
+}
+
+button.head:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cell[data-state='active'] .head,
+.cell[data-state='done'] .head {
+  color: var(--color-text);
+}
+
+.cell[data-state='decision'] .head {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.number {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.name {
+  font-weight: var(--weight-medium);
+}
+
+.state[data-state='done'] {
+  color: var(--color-safe);
+}
+
+.state[data-state='decision'] {
+  color: var(--color-halt);
+}
+
+.state[data-state='active'] {
+  color: var(--color-accent);
+}
+
+.summary {
+  grid-column: 2 / 4;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.detail {
+  padding: var(--space-3) var(--space-4);
+}
+
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.plain {
+  margin: 0;
+  color: var(--color-text);
+  line-height: var(--leading-normal);
+}
+
+.originalTag {
+  min-height: 1.75rem;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.original {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.cited {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.citedTitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ref {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+.scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.score dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.score dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.meter {
+  width: 100%;
+}
+
+.scoreValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.inspector {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.strip {
+  display: none;
+}
+
+.stripButton {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2);
+  border: 0;
+  background-color: var(--color-surface-raised);
+  cursor: pointer;
+}
+
+.stripCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.stripCell[data-state='done'] {
+  color: var(--color-safe);
+}
+
+.stripCell[data-state='decision'] {
+  background-color: var(--color-surface-accent);
+  color: var(--color-halt);
+}
+
+.stripCell[data-state='active'] {
+  color: var(--color-accent);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Phones: the panel becomes a nine-cell strip fixed at the bottom; tapping it opens the sheet (panel slide). */
+@media (width <= 40rem) {
+  .panel {
+    display: none;
+  }
+
+  .strip {
+    display: block;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--layer-raised);
+  }
+}

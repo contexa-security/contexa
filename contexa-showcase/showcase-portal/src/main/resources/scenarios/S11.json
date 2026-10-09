@@ -1,0 +1,105 @@
+{
+  "key": "S11",
+  "version": 2,
+  "frozenOn": "2026-10-08",
+  "title": {
+    "ko": "승인 범위를 나눠 넘기는 반복 반출",
+    "en": "Repeated exports that add up beyond an approval"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "APPROVAL",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFromOffset": "-P1D",
+      "validUntilOffset": "P1D",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 480,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 480,
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 480,
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 480,
+      "offsetSeconds": 180,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 480,
+      "offsetSeconds": 240,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 관리자 A가 GB-500 자료 500건 반출 승인(감사 표본)을 받아 두고 480건 반출을 1분 간격으로 다섯 번 보낸다. 요청 하나하나는 승인 범위(500건) 안이지만 합치면 2,400건으로 승인된 양을 넘는다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: administrator A holds an approval to export 500 GB-500 records (an audit sample) and sends a 480-item export five times, a minute apart. Each request is within the approved 500 items; together they hand out 2,400 items, more than was approved. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 승인 범위를 여러 번 나눠 쓰는 것이 허용된 관행일 수 있다. 이 사례의 승인은 500건이므로 합계 2,400건은 범위를 넘는다고 정했다.",
+      "en": "Counterpoint: splitting an approval over several exports may be an accepted practice. This approval covers 500 records, so 2,400 in total is beyond it."
+    }
+  },
+  "suite": "RULE_BLIND"
+}

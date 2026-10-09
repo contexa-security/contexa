@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** The specification of a run is built from what control D and the rule controls report, and hashes stably. */
 class ExecutionSpecStoreTest {
@@ -31,5 +32,17 @@ class ExecutionSpecStoreTest {
                         "b".repeat(64), null)))
                 .isNotEqualTo(ExecutionSpecHasher.hash(ExecutionSpecStore.build(engine, rules, "tpl-eng-k-2",
                         "b".repeat(64), null)));
+    }
+
+    @Test
+    void aSpecificationIsNeverRecordedWithAFilledInBuildFact() throws Exception {
+        JsonNode rules = json.readTree("{\"sha256\":\"" + "a".repeat(64) + "\"}");
+        for (String engine : new String[]{
+                "{\"codeCommit\":\"abc\",\"effectiveMode\":\"ENFORCE\"}",
+                "{\"engineVersion\":\"unknown\",\"codeCommit\":\"abc\"}",
+                "{\"engineVersion\":\"0.1.0\",\"codeCommit\":null}"}) {
+            assertThatThrownBy(() -> ExecutionSpecStore.build(json.readTree(engine), rules, "tpl", "b".repeat(64),
+                    null)).as(engine).isInstanceOf(IllegalStateException.class);
+        }
     }
 }

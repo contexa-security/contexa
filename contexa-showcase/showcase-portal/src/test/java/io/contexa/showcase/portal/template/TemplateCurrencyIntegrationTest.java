@@ -15,6 +15,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -75,9 +76,13 @@ class TemplateCurrencyIntegrationTest {
     void onlyATemplateLearnedUnderTheVersionsInForceIsCurrentAndANewOneRetiresTheOld() {
         jdbc.update("delete from engine_template");
         TemplateStore store = new TemplateStore(new NamedParameterJdbcTemplate(jdbc), JSON);
-        store.start("tpl-old", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k1");
+        store.start("tpl-old", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k1", null);
         store.ready("tpl-old", JSON.createObjectNode(), null);
-        store.start("tpl-new", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k2");
+        store.start("tpl-new", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k2",
+                Map.of("layer1Model", Map.of("reasoningEffort", "low", "maxOutputTokens", 2048)));
+        assertThat(jdbc.queryForObject("select model_settings #>> '{layer1Model,reasoningEffort}' || ' ' || "
+                + "(model_settings #>> '{layer1Model,maxOutputTokens}') from engine_template where template_id = 'tpl-new'",
+                String.class)).as("the settings it was learned under (W1-3c)").isEqualTo("low 2048");
 
         assertThat(store.current("adm-a", "k1")).map(TemplateStore.ReadyTemplate::templateId).contains("tpl-old");
         assertThat(store.current("adm-a", "k2")).as("still learning").isEmpty();
@@ -91,7 +96,7 @@ class TemplateCurrencyIntegrationTest {
                 + "where template_id = 'tpl-old'", String.class)).isEqualTo("RETIRED true");
         assertThat(store.learningSince("adm-a", Instant.now().minus(Duration.ofMinutes(5)))).isFalse();
 
-        store.start("tpl-broken", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k2");
+        store.start("tpl-broken", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k2", null);
         store.failed("tpl-broken", "engine said no");
         assertThat(store.failedSince("eng-k", Instant.now().minus(Duration.ofMinutes(5)))).isTrue();
         assertThat(store.failedSince("adm-a", Instant.now().minus(Duration.ofMinutes(5)))).isFalse();
@@ -101,9 +106,9 @@ class TemplateCurrencyIntegrationTest {
     void theMaintainerLearnsOnlyEmployeesWithoutACurrentTemplate() throws Exception {
         jdbc.update("delete from engine_template");
         TemplateStore store = new TemplateStore(new NamedParameterJdbcTemplate(jdbc), JSON);
-        store.start("tpl-adm", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-now");
+        store.start("tpl-adm", "adm-a", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-now", null);
         store.ready("tpl-adm", JSON.createObjectNode(), null);
-        store.start("tpl-eng", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-before");
+        store.start("tpl-eng", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-before", null);
         store.ready("tpl-eng", JSON.createObjectNode(), null);
         TemplateCurrency currency = new TemplateCurrency(null, store, Clock.systemUTC()) {
             @Override
@@ -124,12 +129,34 @@ class TemplateCurrencyIntegrationTest {
         assertThat(learned).as("eng-k's template was learned under other versions").containsExactly("eng-k");
         assertThat(check.employees()).isEqualTo(Map.of("adm-a", "CURRENT", "eng-k", "LEARNED"));
 
-        store.start("tpl-eng-2", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-now");
+        store.start("tpl-eng-2", "eng-k", 1, LocalDate.of(2026, 10, 5), "c".repeat(64), 1, "m", "e", "k-now", null);
         store.failed("tpl-eng-2", "engine said no");
         learned.clear();
         assertThat(maintainer.check().employees()).containsEntry("eng-k", "WAITING_AFTER_FAILURE");
         assertThat(learned).as("no loop on a failing engine").isEmpty();
         maintainer.close();
+    }
+
+    /**
+     * W2-7: the protagonists the business database scripts work for (the lab's employees) are kept current as well;
+     * when the business database cannot be read, the scenarios' protagonists still are.
+     */
+    @Test
+    void theMaintainerAlsoKeepsTheBusinessDatabasesProtagonists() throws Exception {
+        TemplateStore store = new TemplateStore(new NamedParameterJdbcTemplate(jdbc), JSON);
+        TemplateCurrency currency = new TemplateCurrency(null, store, Clock.systemUTC());
+        TemplateMaintainer.Learner none = employee -> null;
+
+        TemplateMaintainer withBusiness = new TemplateMaintainer(new ScenarioCatalog(springJson),
+                () -> List.of("adm-a", "adm-c", "eng-01"), currency, store, none, Clock.systemUTC());
+        TemplateMaintainer unreadable = new TemplateMaintainer(new ScenarioCatalog(springJson), () -> {
+            throw new IOException("business application down");
+        }, currency, store, none, Clock.systemUTC());
+
+        assertThat(withBusiness.employees()).containsExactly("adm-a", "adm-c", "eng-01", "eng-k");
+        assertThat(unreadable.employees()).containsExactly("adm-a", "eng-k");
+        withBusiness.close();
+        unreadable.close();
     }
 
     private static JsonNode engine(String chatModel, String commit) {

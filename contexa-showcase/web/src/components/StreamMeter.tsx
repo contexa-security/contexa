@@ -15,7 +15,9 @@ const SECONDS = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maxim
 const TICK_MS = 100;
 
 function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 /**
@@ -47,9 +49,10 @@ export function StreamMeter({ stream, play = false }: StreamMeterProps) {
   const state = finished ? streamState(stream) : 'flowing';
   const span = stream.total ?? stream.delivered;
   const share = span > 0 ? Math.min(1, items / span) : 0;
-  const count = stream.total === null
-    ? t('stream.countNoTotal', { items: COUNT.format(items) })
-    : t('stream.count', { items: COUNT.format(items), total: COUNT.format(stream.total) });
+  const count =
+    stream.total === null
+      ? t('stream.countNoTotal', { items: COUNT.format(items) })
+      : t('stream.count', { items: COUNT.format(items), total: COUNT.format(stream.total) });
 
   return (
     <section className={styles.meter} data-state={state} aria-labelledby="stream-title">

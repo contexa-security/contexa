@@ -9,6 +9,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.Generation;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,30 +22,90 @@ import java.util.HexFormat;
  * in the advisor context (docs/showcase/ADR.md ADR-25). It only measures: it never refuses or changes a call, so
  * a budget decision can never turn an analysis into a technical fallback (plan section 2). Ordered after the
  * engine's structured output validation, so every retry is counted.
+ * <p>
+ * It also opens each call in {@link ModelExchanges}, so the prompt messages as sent and the provider exchange the
+ * {@link ProviderHttpCapture} sees are kept per call (docs/showcase/데모-재설계.md 5.1).
  */
 public class LlmUsageMeter extends BaseAdvisor {
 
     private static final char LINE_END = 0x0a;
 
     private final UsageLedger ledger;
+    private final ModelExchanges exchanges;
     private final Clock clock;
 
-    public LlmUsageMeter(UsageLedger ledger, Clock clock) {
+    public LlmUsageMeter(UsageLedger ledger, ModelExchanges exchanges, Clock clock) {
         super("showcase", "llm-usage-meter", Integer.MAX_VALUE - 100);
         this.ledger = ledger;
+        this.exchanges = exchanges;
         this.clock = clock;
     }
 
     @Override
     public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
         long started = System.nanoTime();
+        exchanges.begin(decisionId(request), messages(request, MessageType.SYSTEM),
+                messages(request, MessageType.USER));
         ChatClientResponse response = null;
+        Throwable failure = null;
         try {
             response = chain.nextCall(request);
             return response;
+        } catch (RuntimeException | Error e) {
+            failure = e;
+            throw e;
         } finally {
             record(request, response, (System.nanoTime() - started) / 1_000_000L);
+            completeExchange(response, failure);
         }
+    }
+
+    private void completeExchange(ChatClientResponse response, Throwable failure) {
+        boolean success = response != null && response.chatResponse() != null;
+        String model = null;
+        String answer = null;
+        String finishReason = null;
+        Long promptTokens = null;
+        Long completionTokens = null;
+        if (success) {
+            ChatResponseMetadata metadata = response.chatResponse().getMetadata();
+            model = metadata.getModel();
+            Usage usage = metadata.getUsage();
+            if (usage != null) {
+                promptTokens = usage.getPromptTokens() == null ? null : usage.getPromptTokens().longValue();
+                completionTokens = usage.getCompletionTokens() == null ? null
+                        : usage.getCompletionTokens().longValue();
+            }
+            Generation result = response.chatResponse().getResult();
+            if (result != null) {
+                answer = result.getOutput() == null ? null : result.getOutput().getText();
+                finishReason = result.getMetadata() == null ? null : result.getMetadata().getFinishReason();
+            }
+        }
+        exchanges.complete(model, answer, finishReason, promptTokens, completionTokens, success,
+                failure == null ? null : failure.getClass().getSimpleName());
+    }
+
+    private static String decisionId(ChatClientRequest request) {
+        Object observation = request.context().get(LlmObservationContext.CONTEXT_KEY);
+        return observation instanceof LlmObservationContext context ? context.requestId() : null;
+    }
+
+    /** The texts of the prompt's messages of one type, in order, as sent. */
+    private static String messages(ChatClientRequest request, MessageType type) {
+        if (request.prompt() == null) {
+            return null;
+        }
+        StringBuilder text = new StringBuilder();
+        for (Message message : request.prompt().getInstructions()) {
+            if (message.getMessageType() == type && message.getText() != null) {
+                if (text.length() > 0) {
+                    text.append(LINE_END);
+                }
+                text.append(message.getText());
+            }
+        }
+        return text.length() == 0 ? null : text.toString();
     }
 
     @Override

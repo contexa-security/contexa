@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useStats } from '../api/queries';
 import { AppHeader } from '../components/AppHeader';
+import { SourceMark } from '../components/common/SourceMark';
+import { utcTime } from '../journey/format';
 import styles from './AdoptPage.module.css';
 
 const REPOSITORY = 'https://github.com/contexa-security/contexa';
@@ -44,13 +46,10 @@ export default function AdoptPage() {
   const stats = useStats();
   const count = new Intl.NumberFormat(i18n.language === 'ko' ? 'ko-KR' : 'en-US');
   const actions = stats.data?.engineActions;
-  const decisions = actions ? actions.ALLOW + actions.CHALLENGE + actions.BLOCK + actions.ESCALATE : null;
+  const decisions = stats.data?.engineDecisions ?? null;
 
   return (
     <>
-      <a className="skip-link" href="#main">
-        {t('app.skipToContent')}
-      </a>
       <AppHeader />
       <main id="main" className={styles.page}>
         <header className={styles.header}>
@@ -60,7 +59,9 @@ export default function AdoptPage() {
         <ol className={styles.steps}>
           <li className={styles.step}>
             <h2 className={styles.stepTitle}>{t('adopt.attach.title')}</h2>
-            <p className={styles.text}>{t('adopt.attach.body')}</p>
+            <p className={styles.text}>
+              <Trans i18nKey="adopt.attach.body" components={{ code: <code data-original /> }} />
+            </p>
             <CodeBlock code={STEP_CODE.attach} label={t('adopt.attach.title')} />
           </li>
           <li className={styles.step}>
@@ -84,7 +85,15 @@ export default function AdoptPage() {
               </dl>
             ) : null}
             {decisions !== null && decisions > 0 ? (
-              <p className={styles.note}>{t('adopt.observe.note', { count: count.format(decisions) })}</p>
+              <p className={styles.note}>
+                {t('adopt.observe.note', { count: count.format(decisions) })}{' '}
+                <SourceMark kind="ENGINE">
+                  {t('adopt.observe.source', {
+                    from: stats.data?.runs.firstAt ? utcTime(stats.data.runs.firstAt) : '-',
+                    to: stats.data?.runs.lastAt ? utcTime(stats.data.runs.lastAt) : '-',
+                  })}
+                </SourceMark>
+              </p>
             ) : null}
           </li>
           <li className={styles.step}>
@@ -118,6 +127,10 @@ export default function AdoptPage() {
   );
 }
 
+/** The lines that turn Contexa on or protect a method are the only ones lit, as in the demo's last scene. */
+const NEWLINE = String.fromCharCode(10);
+const LIT = /^\s*(@EnableAISecurity|@Protectable|mode: (SHADOW|ENFORCE))/;
+
 function CodeBlock({ code, label }: { readonly code: string; readonly label: string }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -133,8 +146,15 @@ function CodeBlock({ code, label }: { readonly code: string; readonly label: str
 
   return (
     <div className={styles.code}>
-      <pre className={styles.pre} tabIndex={0} aria-label={label}>
-        <code>{code}</code>
+      <pre className={styles.pre} tabIndex={0} aria-label={label} data-original>
+        <code>
+          {code.split(NEWLINE).map((line, index) => (
+            <span key={index} className={LIT.test(line) ? styles.lineOn : undefined}>
+              {line}
+              {NEWLINE}
+            </span>
+          ))}
+        </code>
       </pre>
       <div className={styles.codeActions}>
         <button type="button" className={styles.copy} onClick={() => void copy()}>

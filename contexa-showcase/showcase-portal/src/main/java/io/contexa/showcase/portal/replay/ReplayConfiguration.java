@@ -2,6 +2,7 @@ package io.contexa.showcase.portal.replay;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
+import io.contexa.showcase.portal.scoring.RunScores;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.visitor.VisitorCookies;
@@ -49,8 +50,8 @@ public class ReplayConfiguration {
     }
 
     @Bean
-    ReplayViews replayViews(PairCatalog pairs, ReplayStore store, ObjectMapper objectMapper) {
-        return new ReplayViews(pairs, store, objectMapper);
+    ReplayViews replayViews(PairCatalog pairs, ReplayStore store, ObjectMapper objectMapper, RunScores scores) {
+        return new ReplayViews(pairs, store, objectMapper, scores);
     }
 
     @Bean

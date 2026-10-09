@@ -21,6 +21,9 @@ public class ExecutionSpecStore {
 
     private static final TypeReference<Map<String, String>> PROTECTION = new TypeReference<>() {
     };
+    private static final TypeReference<Map<String, Object>> SETTINGS = new TypeReference<>() {
+    };
+    private static final ObjectMapper SETTINGS_READER = new ObjectMapper();
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -36,8 +39,8 @@ public class ExecutionSpecStore {
         engine.path("endpointProtection").fields()
                 .forEachRemaining(entry -> protection.put(entry.getKey(), entry.getValue().asText()));
         return new ExecutionSpec(
-                engine.path("codeCommit").asText("unknown"),
-                engine.path("engineVersion").asText("unknown"),
+                required(engine, "codeCommit"),
+                required(engine, "engineVersion"),
                 engine.path("effectiveMode").asText(),
                 protection,
                 engine.path("chatModel").asText(),
@@ -47,7 +50,31 @@ public class ExecutionSpecStore {
                 templateId,
                 rules.path("sha256").asText(),
                 contractVersion,
-                engine.path("timeZone").asText());
+                engine.path("timeZone").asText(),
+                modelSettings(engine));
+    }
+
+    /** A build fact control D must report; a specification is never recorded with a filled-in value (survey P1). */
+    static String required(JsonNode engine, String field) {
+        JsonNode value = engine.path(field);
+        if (!value.isTextual() || value.asText().isBlank() || "unknown".equalsIgnoreCase(value.asText())) {
+            throw new IllegalStateException("Control D did not report " + field + "; the execution specification is"
+                    + " not recorded");
+        }
+        return value.asText();
+    }
+
+    /** Control D's model settings per layer as it reported them; null when it reported none. */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> modelSettings(JsonNode engine) {
+        Map<String, Object> settings = new LinkedHashMap<>();
+        for (String layer : new String[]{"layer1Model", "layer2Model"}) {
+            JsonNode node = engine.path(layer);
+            if (node.isObject()) {
+                settings.put(layer, SETTINGS_READER.convertValue(node, Map.class));
+            }
+        }
+        return settings.isEmpty() ? null : settings;
     }
 
     /** Stores the specification if its hash is new and returns the hash. */
@@ -57,9 +84,10 @@ public class ExecutionSpecStore {
                         insert into execution_spec (spec_id, spec_hash, code_commit, engine_version, effective_mode,
                                                     endpoint_protection, chat_model, embedding_model,
                                                     embedding_dimensions, prompt_hash, template_id, rule_version,
-                                                    contract_version, time_zone)
+                                                    contract_version, time_zone, model_settings)
                         values (:id, :hash, :commit, :engine, :mode, cast(:protection as jsonb), :chat, :embedding,
-                                :dimensions, :prompt, :template, :rule, :contract, :zone)
+                                :dimensions, :prompt, :template, :rule, :contract, :zone,
+                                cast(:modelSettings as jsonb))
                         on conflict (spec_hash) do nothing""",
                 new MapSqlParameterSource("id", UUID.randomUUID()).addValue("hash", hash)
                         .addValue("commit", spec.codeCommit()).addValue("engine", spec.engineVersion())
@@ -67,7 +95,8 @@ public class ExecutionSpecStore {
                         .addValue("chat", spec.chatModel()).addValue("embedding", spec.embeddingModel())
                         .addValue("dimensions", spec.embeddingDimensions()).addValue("prompt", spec.promptHash())
                         .addValue("template", spec.templateId()).addValue("rule", spec.ruleVersion())
-                        .addValue("contract", spec.contractVersion()).addValue("zone", spec.timeZone()));
+                        .addValue("contract", spec.contractVersion()).addValue("zone", spec.timeZone())
+                        .addValue("modelSettings", spec.modelSettings() == null ? null : write(spec.modelSettings())));
         return hash;
     }
 
@@ -76,13 +105,24 @@ public class ExecutionSpecStore {
         return jdbc.query("""
                         select code_commit, engine_version, effective_mode, endpoint_protection::text, chat_model,
                                embedding_model, embedding_dimensions, prompt_hash, template_id, rule_version,
-                               contract_version, time_zone
+                               contract_version, time_zone, model_settings::text
                           from execution_spec where spec_hash = :hash""",
                 new MapSqlParameterSource("hash", specHash), (rs, n) -> new ExecutionSpec(rs.getString(1),
                         rs.getString(2), rs.getString(3), readProtection(rs.getString(4)), rs.getString(5),
                         rs.getString(6), rs.getInt(7), rs.getString(8), rs.getString(9), rs.getString(10),
-                        rs.getString(11), rs.getString(12)))
+                        rs.getString(11), rs.getString(12), readSettings(rs.getString(13))))
                 .stream().findFirst();
+    }
+
+    private Map<String, Object> readSettings(String text) {
+        if (text == null) {
+            return null;
+        }
+        try {
+            return json.readValue(text, SETTINGS);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Unreadable model settings", e);
+        }
     }
 
     private Map<String, String> readProtection(String text) {

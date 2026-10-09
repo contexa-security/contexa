@@ -49,7 +49,7 @@ public class BusinessService implements BusinessOperations {
     public List<ProjectSummary> listProjects(BusinessRequest request) {
         return database.jdbc().query("""
                         select p.project_key, p.display_name, p.program, p.sensitivity, count(d.document_key)
-                          from project p left join document d on d.project_key = p.project_key
+                          from project p left join document d on d.project_key = p.project_key and d.run_id is null
                          group by p.project_key, p.display_name, p.program, p.sensitivity
                          order by p.project_key""",
                 new MapSqlParameterSource(),
@@ -87,6 +87,11 @@ public class BusinessService implements BusinessOperations {
         String manifest = manifest(documents.stream().map(ExportedDocument::documentKey).toList());
         finishJob(jobId, documents.size(), "COMPLETED", manifest);
         return new ExportResult(jobId, projectKey, items, documents.size(), manifest, documents);
+    }
+
+    @Override
+    public ExportResult exportDocumentsAsync(BusinessRequest request, String projectKey, int items) {
+        return exportDocuments(request, projectKey, items);
     }
 
     @Override
@@ -182,7 +187,7 @@ public class BusinessService implements BusinessOperations {
     private List<ExportedDocument> selectDocuments(String projectKey, int items) {
         return database.jdbc().query("""
                         select document_key, title, revision from document
-                         where project_key = :project order by document_key limit :items""",
+                         where project_key = :project and run_id is null order by document_key limit :items""",
                 new MapSqlParameterSource("project", projectKey).addValue("items", items),
                 (rs, n) -> new ExportedDocument(rs.getString(1), rs.getString(2), rs.getString(3)));
     }

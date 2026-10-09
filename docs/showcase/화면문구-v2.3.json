@@ -1,0 +1,7912 @@
+[
+ {
+  "key": "hook.01",
+  "slide": "hook",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /",
+  "en": "Contexa demo · /"
+ },
+ {
+  "key": "hook.02",
+  "slide": "hook",
+  "kind": "chrome",
+  "ko": "실제 실행 기록 재생 · 15초",
+  "en": "Replay of a real run · 15 s"
+ },
+ {
+  "key": "hook.03",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "같은 비밀번호, 같은 권한, 같은 요청",
+  "en": "Same password, same permissions, same request"
+ },
+ {
+  "key": "hook.04",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "새벽 03:17, 담당이 아닌 프로젝트의 설계 자료 4,831건 반출",
+  "en": "03:17 at night: exporting 4,831 design records from a project not assigned to this person"
+ },
+ {
+  "key": "hook.05",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "계정을 훔친 사람",
+  "en": "Someone using a stolen account"
+ },
+ {
+  "key": "hook.06",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "경계·로그인·권한",
+  "en": "Perimeter · sign-in · permissions"
+ },
+ {
+  "key": "hook.07",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "통과",
+  "en": "Passed"
+ },
+ {
+  "key": "hook.08",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "숫자 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "hook.09",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "막음",
+  "en": "Stopped"
+ },
+ {
+  "key": "hook.10",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "업무 기록 규칙 *",
+  "en": "Business-record rules *"
+ },
+ {
+  "key": "hook.11",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "hook.12",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "본인 확인 · 0건",
+  "en": "Identity check · 0 records"
+ },
+ {
+  "key": "hook.13",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "3회 측정 모두 같은 결과",
+  "en": "Same result in all 3 runs"
+ },
+ {
+  "key": "hook.14",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "진짜 직원 · 회사 승인 있음",
+  "en": "The real employee · company approval on file"
+ },
+ {
+  "key": "hook.15",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "막음 · 업무 중단",
+  "en": "Stopped · work blocked"
+ },
+ {
+  "key": "hook.16",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "통과 · 4,831건",
+  "en": "Passed · 4,831 records"
+ },
+ {
+  "key": "hook.17",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "3회 중 1회는 확인 뒤 통과",
+  "en": "Passed after a check in 1 of 3 runs"
+ },
+ {
+  "key": "hook.18",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "* 이 사례의 조건(승인)을 보고 미리 써 둔 규칙 · Contexa에는 이런 사례 규칙이 없습니다",
+  "en": "* A rule written in advance for this case's condition (approval) · Contexa has no case rules like this"
+ },
+ {
+  "key": "hook.19",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "미리 써 둔 규칙 없이 둘을 구별했습니다. Contexa는 어떻게 알았을까요?",
+  "en": "It told the two apart without rules written in advance. How did Contexa know?"
+ },
+ {
+  "key": "hook.20",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "직접 해 보기 · 2분",
+  "en": "Try it yourself · 2 min"
+ },
+ {
+  "key": "hook.21",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "개념부터 차근차근",
+  "en": "Concepts first, step by step"
+ },
+ {
+  "key": "hook.22",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "벤치마크만",
+  "en": "Benchmark only"
+ },
+ {
+  "key": "hook.23",
+  "slide": "hook",
+  "kind": "screen",
+  "ko": "Contexa · 로그인 이후 요청마다, 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리",
+  "en": "Contexa · an AI security library that judges every request after sign-in by usual behaviour and company records"
+ },
+ {
+  "key": "e1-scene.01",
+  "slide": "e1-scene",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-scene.02",
+  "slide": "e1-scene",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 확인한 차이 0/6",
+  "en": "Act 1 · Try 1 · Differences seen 0/6"
+ },
+ {
+  "key": "e1-scene.03",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "상황",
+  "en": "Situation"
+ },
+ {
+  "key": "e1-scene.04",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "비교",
+  "en": "Compare"
+ },
+ {
+  "key": "e1-scene.05",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "판단",
+  "en": "Decide"
+ },
+ {
+  "key": "e1-scene.06",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "실행",
+  "en": "Run"
+ },
+ {
+  "key": "e1-scene.07",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "결과",
+  "en": "Result"
+ },
+ {
+  "key": "e1-scene.08",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "근거",
+  "en": "Reasons"
+ },
+ {
+  "key": "e1-scene.09",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "후속",
+  "en": "Follow-up"
+ },
+ {
+  "key": "e1-scene.10",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "당신은 Administrator A의 계정을 손에 넣었습니다",
+  "en": "You have got hold of Administrator A's account"
+ },
+ {
+  "key": "e1-scene.11",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "관리자 권한으로 로그인됨",
+  "en": "Signed in with admin rights"
+ },
+ {
+  "key": "e1-scene.12",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "회사 시각 수요일 03:17",
+  "en": "Company time: Wednesday 03:17"
+ },
+ {
+  "key": "e1-scene.13",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "사무실 네트워크 · 평소 PC",
+  "en": "Office network · usual PC"
+ },
+ {
+  "key": "e1-scene.14",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "GB-500 자료 4,831건 반출",
+  "en": "Export 4,831 GB-500 records"
+ },
+ {
+  "key": "e1-scene.15",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "이 장면",
+  "en": "This scene"
+ },
+ {
+  "key": "e1-scene.16",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "목표 4,831건 빼내기",
+  "en": "Goal: take 4,831 records out"
+ },
+ {
+  "key": "e1-scene.17",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "정답 보안이 막아야 함",
+  "en": "Right answer: security should stop it"
+ },
+ {
+  "key": "e1-scene.18",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "비교 다섯 방식에 동시에",
+  "en": "Compared: sent to five approaches at once"
+ },
+ {
+  "key": "e1-scene.19",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "e1-scene.20",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "e1-scene.21",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "숫자 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "e1-scene.22",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "업무 기록 규칙",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "e1-scene.23",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "e1-scene.24",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "이 체험에서 확인할 차이",
+  "en": "Differences to see in this try"
+ },
+ {
+  "key": "e1-scene.25",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "① 요청마다 판단",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "e1-scene.26",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "② 사람을 안다",
+  "en": "② Knows the person"
+ },
+ {
+  "key": "e1-scene.27",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "④ 이유",
+  "en": "④ Reasons"
+ },
+ {
+  "key": "e1-scene.28",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않음",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "e1-scene.29",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "판정 방식",
+  "en": "Decision mode"
+ },
+ {
+  "key": "e1-scene.30",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "동기식 · 응답 전에 판정",
+  "en": "Synchronous · decide before responding"
+ },
+ {
+  "key": "e1-scene.31",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "비동기식 · 바로 응답",
+  "en": "Asynchronous · respond now"
+ },
+ {
+  "key": "e1-scene.32",
+  "slide": "e1-scene",
+  "kind": "screen",
+  "ko": "다음 · 평소와 비교",
+  "en": "Next · Compare with usual behaviour"
+ },
+ {
+  "key": "e1-compare.01",
+  "slide": "e1-compare",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-compare.02",
+  "slide": "e1-compare",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 비교",
+  "en": "Act 1 · Try 1 · Compare"
+ },
+ {
+  "key": "e1-compare.03",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "평소와 다른 점 3가지, 회사 기록에 걸리는 점 2가지",
+  "en": "3 things differ from usual, 2 things are flagged by company records"
+ },
+ {
+  "key": "e1-compare.04",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "항목",
+  "en": "Item"
+ },
+ {
+  "key": "e1-compare.05",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "평소",
+  "en": "Usual"
+ },
+ {
+  "key": "e1-compare.06",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "이번",
+  "en": "This time"
+ },
+ {
+  "key": "e1-compare.07",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "시각",
+  "en": "Time"
+ },
+ {
+  "key": "e1-compare.08",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "평일 낮",
+  "en": "Weekday daytime"
+ },
+ {
+  "key": "e1-compare.09",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "새벽 3시",
+  "en": "3 a.m."
+ },
+ {
+  "key": "e1-compare.10",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "다름",
+  "en": "Different"
+ },
+ {
+  "key": "e1-compare.11",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "요일",
+  "en": "Day"
+ },
+ {
+  "key": "e1-compare.12",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "월~금",
+  "en": "Mon–Fri"
+ },
+ {
+  "key": "e1-compare.13",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "수요일",
+  "en": "Wednesday"
+ },
+ {
+  "key": "e1-compare.14",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "같음",
+  "en": "Same"
+ },
+ {
+  "key": "e1-compare.15",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "장소",
+  "en": "Location"
+ },
+ {
+  "key": "e1-compare.16",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "사무실",
+  "en": "Office"
+ },
+ {
+  "key": "e1-compare.17",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "기기",
+  "en": "Device"
+ },
+ {
+  "key": "e1-compare.18",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "Windows·Chrome",
+  "en": "Windows · Chrome"
+ },
+ {
+  "key": "e1-compare.19",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "같은 PC",
+  "en": "Same PC"
+ },
+ {
+  "key": "e1-compare.20",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "로그인",
+  "en": "Sign-in"
+ },
+ {
+  "key": "e1-compare.21",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "토큰",
+  "en": "Token"
+ },
+ {
+  "key": "e1-compare.22",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "경로",
+  "en": "Path"
+ },
+ {
+  "key": "e1-compare.23",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "PLM-OPS",
+  "en": "PLM-OPS"
+ },
+ {
+  "key": "e1-compare.24",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "GB-500 반출",
+  "en": "GB-500 export"
+ },
+ {
+  "key": "e1-compare.25",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "행동",
+  "en": "Action"
+ },
+ {
+  "key": "e1-compare.26",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "조회·쓰기",
+  "en": "Read · write"
+ },
+ {
+  "key": "e1-compare.27",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "쓰기",
+  "en": "Write"
+ },
+ {
+  "key": "e1-compare.28",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "민감도",
+  "en": "Sensitivity"
+ },
+ {
+  "key": "e1-compare.29",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "보통",
+  "en": "Normal"
+ },
+ {
+  "key": "e1-compare.30",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "최고",
+  "en": "Highest"
+ },
+ {
+  "key": "e1-compare.31",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "회사 기록 (업무 DB)",
+  "en": "Company records (business DB)"
+ },
+ {
+  "key": "e1-compare.32",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "이 반출은 승인이 필요함",
+  "en": "This export needs approval"
+ },
+ {
+  "key": "e1-compare.33",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "승인 없음",
+  "en": "No approval"
+ },
+ {
+  "key": "e1-compare.34",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "GB-500 담당 아님",
+  "en": "Not assigned to GB-500"
+ },
+ {
+  "key": "e1-compare.35",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "최근 30일 접근 0일",
+  "en": "Accessed on 0 of the last 30 days"
+ },
+ {
+  "key": "e1-compare.36",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "4줄 더 보기",
+  "en": "Show 4 more rows"
+ },
+ {
+  "key": "e1-compare.37",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ② 전통 보안은 계정과 역할만 봤습니다. Contexa는 평소와 다른 점 3가지를 찾았습니다.",
+  "en": "What you just saw · Difference ② Traditional security looked only at the account and role. Contexa found 3 things that differ from usual."
+ },
+ {
+  "key": "e1-compare.38",
+  "slide": "e1-compare",
+  "kind": "screen",
+  "ko": "다음 · 내 판단",
+  "en": "Next · Your call"
+ },
+ {
+  "key": "e1-predict.01",
+  "slide": "e1-predict",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-predict.02",
+  "slide": "e1-predict",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 판단",
+  "en": "Act 1 · Try 1 · Decide"
+ },
+ {
+  "key": "e1-predict.03",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "당신이 Contexa라면 어떻게 대응하겠습니까?",
+  "en": "If you were Contexa, how would you respond?"
+ },
+ {
+  "key": "e1-predict.04",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "e1-predict.05",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "그대로 내보낸다",
+  "en": "Let it go out"
+ },
+ {
+  "key": "e1-predict.06",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "e1-predict.07",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "확인한 뒤에만",
+  "en": "Only after a check"
+ },
+ {
+  "key": "e1-predict.08",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "검토로 넘김",
+  "en": "Escalate to review"
+ },
+ {
+  "key": "e1-predict.09",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "사람이 본다",
+  "en": "A person looks at it"
+ },
+ {
+  "key": "e1-predict.10",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "차단",
+  "en": "Block"
+ },
+ {
+  "key": "e1-predict.11",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "막는다",
+  "en": "Stop it"
+ },
+ {
+  "key": "e1-predict.12",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "기존 보안 네 곳(경계 보안·권한 검사·숫자 기준·업무 기록)은 막을까요?",
+  "en": "Will the four existing defences stop it: perimeter security (WAF), permission check, threshold rules, business-record rules?"
+ },
+ {
+  "key": "e1-predict.13",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "모두 막는다",
+  "en": "All stop it"
+ },
+ {
+  "key": "e1-predict.14",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "일부만 막는다",
+  "en": "Only some stop it"
+ },
+ {
+  "key": "e1-predict.15",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "하나도 못 막는다",
+  "en": "None stop it"
+ },
+ {
+  "key": "e1-predict.16",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "보내기 · 4,831건 반출",
+  "en": "Send · export 4,831 records"
+ },
+ {
+  "key": "e1-predict.17",
+  "slide": "e1-predict",
+  "kind": "screen",
+  "ko": "판단 없이 보내기",
+  "en": "Send without deciding"
+ },
+ {
+  "key": "e1-run.01",
+  "slide": "e1-run",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-run.02",
+  "slide": "e1-run",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 실행 · 동기식",
+  "en": "Act 1 · Try 1 · Run · Synchronous"
+ },
+ {
+  "key": "e1-run.03",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "같은 요청이 다섯 곳에 동시에 도착했습니다",
+  "en": "The same request reached five places at once"
+ },
+ {
+  "key": "e1-run.04",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "e1-run.05",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "0.07초 · 4,831건 나감",
+  "en": "0.07 s · 4,831 records out"
+ },
+ {
+  "key": "e1-run.06",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "e1-run.07",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "0.04초 · 4,831건 나감",
+  "en": "0.04 s · 4,831 records out"
+ },
+ {
+  "key": "e1-run.08",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "e1-run.09",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "0.01초 · 거부",
+  "en": "0.01 s · Denied"
+ },
+ {
+  "key": "e1-run.10",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "e1-run.11",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "0.02초 · 거부",
+  "en": "0.02 s · Denied"
+ },
+ {
+  "key": "e1-run.12",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "e1-run.13",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "8.1초 · 본인 확인",
+  "en": "8.1 s · Identity check"
+ },
+ {
+  "key": "e1-run.14",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "0초",
+  "en": "0 s"
+ },
+ {
+  "key": "e1-run.15",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "4초",
+  "en": "4 s"
+ },
+ {
+  "key": "e1-run.16",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "8초",
+  "en": "8 s"
+ },
+ {
+  "key": "e1-run.17",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "빗금 막대는 Contexa가 판단하는 동안 응답을 붙잡아 둔 시간입니다(동기식). 그동안 자료는 나가지 않습니다.",
+  "en": "The hatched bar is the time Contexa held the response while it decided (synchronous). No records go out in the meantime."
+ },
+ {
+  "key": "e1-run.18",
+  "slide": "e1-run",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ① 로그인과 권한은 모두 통과했지만, Contexa는 이 요청을 다시 판단했습니다.",
+  "en": "What you just saw · Difference ① Sign-in and permissions both passed, but Contexa judged this request again."
+ },
+ {
+  "key": "e1-result.01",
+  "slide": "e1-result",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-result.02",
+  "slide": "e1-result",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 결과",
+  "en": "Act 1 · Try 1 · Result"
+ },
+ {
+  "key": "e1-result.03",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "Contexa는 8초 판단 뒤 본인 확인을 요구했고, 자료는 한 건도 나가지 않았습니다",
+  "en": "After deciding for 8 s, Contexa asked for an identity check, and not one record went out"
+ },
+ {
+  "key": "e1-result.04",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "방식",
+  "en": "Approach"
+ },
+ {
+  "key": "e1-result.05",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "결과",
+  "en": "Result"
+ },
+ {
+  "key": "e1-result.06",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "나간 자료",
+  "en": "Records out"
+ },
+ {
+  "key": "e1-result.07",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "정답 대비",
+  "en": "Vs. right answer"
+ },
+ {
+  "key": "e1-result.08",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "e1-result.09",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "e1-result.10",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "4,831건",
+  "en": "4,831 records"
+ },
+ {
+  "key": "e1-result.11",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "틀림",
+  "en": "Wrong"
+ },
+ {
+  "key": "e1-result.12",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "e1-result.13",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "e1-result.14",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "거부 · 밤 시간",
+  "en": "Denied · night time"
+ },
+ {
+  "key": "e1-result.15",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "0건",
+  "en": "0 records"
+ },
+ {
+  "key": "e1-result.16",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "맞음",
+  "en": "Correct"
+ },
+ {
+  "key": "e1-result.17",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "e1-result.18",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "거부 · 승인 없음",
+  "en": "Denied · no approval"
+ },
+ {
+  "key": "e1-result.19",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "e1-result.20",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "e1-result.21",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "내 판단 · 본인 확인 · 맞음",
+  "en": "Your call · Identity check · Correct"
+ },
+ {
+  "key": "e1-result.22",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "정답 · 막거나, 본인 확인하거나, 검토로 넘김",
+  "en": "Right answer · Block, Identity check or Escalate to review"
+ },
+ {
+  "key": "e1-result.23",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "이 공격은 숫자·기록 규칙도 막았습니다. 차이는 같은 요청이 정상 업무일 때 드러납니다(체험 2).",
+  "en": "Threshold rules and business-record rules also stopped this attack. The difference shows when the same request is legitimate work (Try 2)."
+ },
+ {
+  "key": "e1-result.24",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "다음 · 왜 막혔을까? 걸린 사실 3가지",
+  "en": "Next · Why was it stopped? The 3 facts that caught it"
+ },
+ {
+  "key": "e1-result.25",
+  "slide": "e1-result",
+  "kind": "screen",
+  "ko": "비동기식으로 다시 보내기",
+  "en": "Send again asynchronously"
+ },
+ {
+  "key": "e1-reason.01",
+  "slide": "e1-reason",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-reason.02",
+  "slide": "e1-reason",
+  "kind": "chrome",
+  "ko": "막 1 · 체험 1 · 근거",
+  "en": "Act 1 · Try 1 · Reasons"
+ },
+ {
+  "key": "e1-reason.03",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "왜 본인 확인인가: 세 사실이 꼭 지키는 선에 걸렸습니다",
+  "en": "Why an identity check: three facts crossed a hard line"
+ },
+ {
+  "key": "e1-reason.04",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "평소와 다름 3",
+  "en": "Differs from usual · 3"
+ },
+ {
+  "key": "e1-reason.05",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "민감도 최고",
+  "en": "Highest sensitivity"
+ },
+ {
+  "key": "e1-reason.06",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "승인 없음",
+  "en": "No approval"
+ },
+ {
+  "key": "e1-reason.07",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "e1-reason.08",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "AI가 쓴 근거",
+  "en": "Reasons the AI wrote"
+ },
+ {
+  "key": "e1-reason.09",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "원문",
+  "en": "Original"
+ },
+ {
+  "key": "e1-reason.10",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "민감한 자료 접근이 확립된 평소 모습과 다르고, 필요한 승인이 없습니다. 본인 확인이 필요합니다.",
+  "en": "High-sensitivity access departs from the established personal baseline without a required approval; challenge is required."
+ },
+ {
+  "key": "e1-reason.11",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "판단 규칙이 이 상황에 쓰라고 정한 문장입니다.",
+  "en": "This is the sentence the decision rules set for this situation."
+ },
+ {
+  "key": "e1-reason.12",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "AI가 인용한 근거",
+  "en": "Evidence the AI cited"
+ },
+ {
+  "key": "e1-reason.13",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "평소 모습",
+  "en": "Usual behaviour"
+ },
+ {
+  "key": "e1-reason.14",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "자료 민감도",
+  "en": "Data sensitivity"
+ },
+ {
+  "key": "e1-reason.15",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "권한",
+  "en": "Permissions"
+ },
+ {
+  "key": "e1-reason.16",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "대상 자원",
+  "en": "Target resource"
+ },
+ {
+  "key": "e1-reason.17",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "세션",
+  "en": "Session"
+ },
+ {
+  "key": "e1-reason.18",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "승인",
+  "en": "Approval"
+ },
+ {
+  "key": "e1-reason.19",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "검사기 · 불리한 조건 17개 중 2개 충족(승인 필요, 승인 없음) · 위험도와 확신도는 이번 응답에 값 없음",
+  "en": "Checker · 2 of 17 adverse conditions met (approval needed, no approval) · risk and confidence had no value in this response"
+ },
+ {
+  "key": "e1-reason.20",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ④ 규칙 번호가 아니라, 어떤 사실이 어떤 규칙에 걸렸는지 근거로 남깁니다.",
+  "en": "What you just saw · Difference ④ It leaves as its reasons which facts hit which rules, not rule numbers."
+ },
+ {
+  "key": "e1-reason.21",
+  "slide": "e1-reason",
+  "kind": "screen",
+  "ko": "다음 · 막힌 공격자는 이제? 코드는 진짜 직원에게",
+  "en": "Next · What now for the stopped attacker? The code goes to the real employee"
+ },
+ {
+  "key": "e1-after.01",
+  "slide": "e1-after",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/attacker",
+  "en": "Contexa demo · /try/attacker"
+ },
+ {
+  "key": "e1-after.02",
+  "slide": "e1-after",
+  "kind": "chrome",
+  "ko": "막 1 끝 · 체험 1 · 후속 · 확인한 차이 4/6",
+  "en": "End of Act 1 · Try 1 · Follow-up · Differences seen 4/6"
+ },
+ {
+  "key": "e1-after.03",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "본인 확인 코드는 진짜 직원의 메일함으로 갔습니다",
+  "en": "The identity check code went to the real employee's mailbox"
+ },
+ {
+  "key": "e1-after.04",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "본인 확인 요구",
+  "en": "Identity check requested"
+ },
+ {
+  "key": "e1-after.05",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "A의 메일함",
+  "en": "A's mailbox"
+ },
+ {
+  "key": "e1-after.06",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "공격자는 못 받음",
+  "en": "The attacker cannot get it"
+ },
+ {
+  "key": "e1-after.07",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "보류 · 0건",
+  "en": "On hold · 0 records"
+ },
+ {
+  "key": "e1-after.08",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "이번 · 계정을 훔친 사람",
+  "en": "This time · Someone using a stolen account"
+ },
+ {
+  "key": "e1-after.09",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "코드를 받을 수 없어 요청이 보류됩니다. 이 계정의 다음 요청도 30분 동안 본인 확인을 거칩니다.",
+  "en": "Without the code, the request stays on hold. This account's next requests also go through an identity check for 30 minutes."
+ },
+ {
+  "key": "e1-after.10",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "진짜 직원이었다면",
+  "en": "If it were the real employee"
+ },
+ {
+  "key": "e1-after.11",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "코드를 넣으면 원래 요청이 저절로 다시 나가 업무가 이어집니다. 체험 2에서 실제로 봅니다.",
+  "en": "Entering the code sends the original request again by itself, and work continues. You will see this for real in Try 2."
+ },
+ {
+  "key": "e1-after.12",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "실측 · 본인 확인 332건 중 메일함 없음(공격자) 166건, 통과 뒤 업무 재개 24건",
+  "en": "Measured · Of 332 identity checks, 166 had no mailbox (attacker) and 24 resumed work after passing"
+ },
+ {
+  "key": "e1-after.13",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ⑤ 전통 보안은 거부로 끝납니다. Contexa는 진짜 주인만 통과할 길을 엽니다.",
+  "en": "What you just saw · Difference ⑤ Traditional security ends with a denial. Contexa opens a path that only the real owner can pass."
+ },
+ {
+  "key": "e1-after.14",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "막 1 끝 다음 · 진짜 직원이 하면? 숫자 규칙은 막았습니다",
+  "en": "End of Act 1 · Next · What if the real employee does it? Threshold rules stopped it"
+ },
+ {
+  "key": "e1-after.15",
+  "slide": "e1-after",
+  "kind": "screen",
+  "ko": "비동기식으로 다시 보내기",
+  "en": "Send again asynchronously"
+ },
+ {
+  "key": "act-end.01",
+  "slide": "act-end",
+  "kind": "chrome",
+  "ko": "막 1 끝 · 약 3분",
+  "en": "End of Act 1 · about 3 min"
+ },
+ {
+  "key": "act-end.02",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "확인한 차이 4/6",
+  "en": "Differences seen 4/6"
+ },
+ {
+  "key": "act-end.03",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa는 8초 판단 뒤 본인 확인을 요구해 0건에서 멈췄습니다.",
+  "en": "You tried to take out 4,831 records with the correct password; Contexa decided for 8 s, asked for an identity check and stopped it at 0 records."
+ },
+ {
+  "key": "act-end.04",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "Contexa · 로그인 이후 요청마다, 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리",
+  "en": "Contexa · an AI security library that judges every request after sign-in by usual behaviour and company records"
+ },
+ {
+  "key": "act-end.05",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "① 요청마다 판단",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "act-end.06",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "② 사람을 안다",
+  "en": "② Knows the person"
+ },
+ {
+  "key": "act-end.07",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "③ ? 진짜 직원이면",
+  "en": "③ ? If it is the real employee"
+ },
+ {
+  "key": "act-end.08",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "④ 이유를 남긴다",
+  "en": "④ Leaves its reasons"
+ },
+ {
+  "key": "act-end.09",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않음",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "act-end.10",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "⑥ ? 쓸수록",
+  "en": "⑥ ? With use"
+ },
+ {
+  "key": "act-end.11",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "막 2 · 약 3분",
+  "en": "Act 2 · about 3 min"
+ },
+ {
+  "key": "act-end.12",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "같은 반출을 진짜 직원이 하면? 숫자 규칙은 막았습니다",
+  "en": "What if the real employee makes the same export? Threshold rules stopped it"
+ },
+ {
+  "key": "act-end.13",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "이어 보기",
+  "en": "Continue"
+ },
+ {
+  "key": "act-end.14",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "비동기식으로 다시 보내기",
+  "en": "Send again asynchronously"
+ },
+ {
+  "key": "act-end.15",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "여기까지 링크 복사",
+  "en": "Copy a link to this point"
+ },
+ {
+  "key": "act-end.16",
+  "slide": "act-end",
+  "kind": "screen",
+  "ko": "벤치마크로",
+  "en": "Go to Benchmark"
+ },
+ {
+  "key": "e2-scene.01",
+  "slide": "e2-scene",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/owner",
+  "en": "Contexa demo · /try/owner"
+ },
+ {
+  "key": "e2-scene.02",
+  "slide": "e2-scene",
+  "kind": "chrome",
+  "ko": "막 2 · 체험 2 · 상황",
+  "en": "Act 2 · Try 2 · Situation"
+ },
+ {
+  "key": "e2-scene.03",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "역할이 바뀌었습니다 · 이번엔 당신이 진짜 Administrator A입니다",
+  "en": "Roles have changed · This time you are the real Administrator A"
+ },
+ {
+  "key": "e2-scene.04",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "같은 시각, 같은 PC, 같은 4,831건 반출",
+  "en": "Same time, same PC, same export of 4,831 records"
+ },
+ {
+  "key": "e2-scene.05",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "체험 1",
+  "en": "Try 1"
+ },
+ {
+  "key": "e2-scene.06",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "회사 승인 없음",
+  "en": "No company approval"
+ },
+ {
+  "key": "e2-scene.07",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "체험 2",
+  "en": "Try 2"
+ },
+ {
+  "key": "e2-scene.08",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "프로젝트 이관 승인 · 5,000건까지",
+  "en": "Project handover approved · up to 5,000 records"
+ },
+ {
+  "key": "e2-scene.09",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "그대로인 것",
+  "en": "What stays the same"
+ },
+ {
+  "key": "e2-scene.10",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "계정",
+  "en": "Account"
+ },
+ {
+  "key": "e2-scene.11",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "새벽 3:17",
+  "en": "3:17 a.m."
+ },
+ {
+  "key": "e2-scene.12",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "사무실",
+  "en": "Office"
+ },
+ {
+  "key": "e2-scene.13",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "평소 PC",
+  "en": "Usual PC"
+ },
+ {
+  "key": "e2-scene.14",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "GB-500 4,831건",
+  "en": "GB-500 · 4,831 records"
+ },
+ {
+  "key": "e2-scene.15",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "이 체험에서 확인할 차이",
+  "en": "Differences to see in this try"
+ },
+ {
+  "key": "e2-scene.16",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "③ 정당한 업무는 통과",
+  "en": "③ Lets legitimate work through"
+ },
+ {
+  "key": "e2-scene.17",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않음",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "e2-scene.18",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "정답 업무를 막지 않아야 합니다 (허용 또는 본인 확인 뒤 허용)",
+  "en": "Right answer: do not block the work (Allow, or Allow after an Identity check)"
+ },
+ {
+  "key": "e2-scene.19",
+  "slide": "e2-scene",
+  "kind": "screen",
+  "ko": "다음 · 평소와 비교",
+  "en": "Next · Compare with usual behaviour"
+ },
+ {
+  "key": "e2-compare.01",
+  "slide": "e2-compare",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/owner",
+  "en": "Contexa demo · /try/owner"
+ },
+ {
+  "key": "e2-compare.02",
+  "slide": "e2-compare",
+  "kind": "chrome",
+  "ko": "막 2 · 체험 2 · 비교",
+  "en": "Act 2 · Try 2 · Compare"
+ },
+ {
+  "key": "e2-compare.03",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "평소와 다른 점 3가지 그대로 · 회사 기록 걸림 0가지",
+  "en": "Still 3 differences from usual · 0 flags in company records"
+ },
+ {
+  "key": "e2-compare.04",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "평소와 다른 점",
+  "en": "Differences from usual"
+ },
+ {
+  "key": "e2-compare.05",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "시각 · 새벽 3시",
+  "en": "Time · 3 a.m."
+ },
+ {
+  "key": "e2-compare.06",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "경로 · GB-500 반출",
+  "en": "Path · GB-500 export"
+ },
+ {
+  "key": "e2-compare.07",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "민감도 · 최고",
+  "en": "Sensitivity · Highest"
+ },
+ {
+  "key": "e2-compare.08",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "나머지 5개 같음 (체험 1과 동일)",
+  "en": "The other 5 are the same (as in Try 1)"
+ },
+ {
+  "key": "e2-compare.09",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "회사 기록 (업무 DB)",
+  "en": "Company records (business DB)"
+ },
+ {
+  "key": "e2-compare.10",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "승인 있음 · pm-11 · 프로젝트 이관",
+  "en": "Approval on file · pm-11 · project handover"
+ },
+ {
+  "key": "e2-compare.11",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "5,000건까지 · 요청 4,831건",
+  "en": "Up to 5,000 records · 4,831 requested"
+ },
+ {
+  "key": "e2-compare.12",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "GB-500 담당은 아님",
+  "en": "Still not assigned to GB-500"
+ },
+ {
+  "key": "e2-compare.13",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "평소와는 다르지만, 회사가 허락한 일입니다.",
+  "en": "It differs from usual, but the company allowed it."
+ },
+ {
+  "key": "e2-compare.14",
+  "slide": "e2-compare",
+  "kind": "screen",
+  "ko": "다음 · 내 판단",
+  "en": "Next · Your call"
+ },
+ {
+  "key": "e2-result.01",
+  "slide": "e2-result",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/owner",
+  "en": "Contexa demo · /try/owner"
+ },
+ {
+  "key": "e2-result.02",
+  "slide": "e2-result",
+  "kind": "chrome",
+  "ko": "막 2 · 체험 2 · 결과",
+  "en": "Act 2 · Try 2 · Result"
+ },
+ {
+  "key": "e2-result.03",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "숫자 기준 규칙은 승인된 업무까지 막았고, Contexa는 통과시켰습니다",
+  "en": "Threshold rules blocked even the approved work, and Contexa let it through"
+ },
+ {
+  "key": "e2-result.04",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "방식",
+  "en": "Approach"
+ },
+ {
+  "key": "e2-result.05",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "체험 1 · 막아야 정답",
+  "en": "Try 1 · Right answer: stop it"
+ },
+ {
+  "key": "e2-result.06",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "체험 2 · 통과가 정답",
+  "en": "Try 2 · Right answer: let it pass"
+ },
+ {
+  "key": "e2-result.07",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "e2-result.08",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "허용 · 틀림",
+  "en": "Allow · Wrong"
+ },
+ {
+  "key": "e2-result.09",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "허용 · 맞음",
+  "en": "Allow · Correct"
+ },
+ {
+  "key": "e2-result.10",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "e2-result.11",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "e2-result.12",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "거부 · 맞음",
+  "en": "Denied · Correct"
+ },
+ {
+  "key": "e2-result.13",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "거부 · 틀림 (업무 막음)",
+  "en": "Denied · Wrong (work blocked)"
+ },
+ {
+  "key": "e2-result.14",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "e2-result.15",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "e2-result.16",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "본인 확인 · 맞음",
+  "en": "Identity check · Correct"
+ },
+ {
+  "key": "e2-result.17",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "업무 기록 규칙도 둘 다 맞혔습니다. 이 사례에 맞춰 미리 써 둔 규칙이기 때문입니다. 미리 써 두지 않은 상황은 벤치마크에서 봅니다.",
+  "en": "Business-record rules also got both right, because they were written in advance for this case. Situations with no rule written in advance are shown in the Benchmark."
+ },
+ {
+  "key": "e2-result.18",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "Contexa 3회: 허용 2회(9.8초, 5.0초), 본인 확인 뒤 허용 1회(12.4초 + 재개 0.05초)",
+  "en": "Contexa, 3 runs: Allow twice (9.8 s, 5.0 s), Allow after an Identity check once (12.4 s + 0.05 s to resume)"
+ },
+ {
+  "key": "e2-result.19",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ③ 같은 요청에 숫자 규칙은 업무를 막았고, Contexa는 회사 승인을 보고 통과시켰습니다.",
+  "en": "What you just saw · Difference ③ For the same request, threshold rules blocked the work, and Contexa saw the company approval and let it through."
+ },
+ {
+  "key": "e2-result.20",
+  "slide": "e2-result",
+  "kind": "screen",
+  "ko": "다음 · 왜 이번엔 통과? 바뀐 것은 승인 한 줄",
+  "en": "Next · Why did it pass this time? The only change is one line: the approval"
+ },
+ {
+  "key": "e2-reason.01",
+  "slide": "e2-reason",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/owner",
+  "en": "Contexa demo · /try/owner"
+ },
+ {
+  "key": "e2-reason.02",
+  "slide": "e2-reason",
+  "kind": "chrome",
+  "ko": "막 2 · 체험 2 · 근거",
+  "en": "Act 2 · Try 2 · Reasons"
+ },
+ {
+  "key": "e2-reason.03",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "왜 통과시켰나: 같은 차이에 승인이 더해졌습니다",
+  "en": "Why it passed: the same differences, plus an approval"
+ },
+ {
+  "key": "e2-reason.04",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "평소와 다름 3",
+  "en": "Differs from usual · 3"
+ },
+ {
+  "key": "e2-reason.05",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "민감도 최고",
+  "en": "Highest sensitivity"
+ },
+ {
+  "key": "e2-reason.06",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "승인 있음",
+  "en": "Approval on file"
+ },
+ {
+  "key": "e2-reason.07",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "e2-reason.08",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "허용 2회 · AI가 쓴 근거",
+  "en": "Allow (2 runs) · Reasons the AI wrote"
+ },
+ {
+  "key": "e2-reason.09",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "권한이 허용하고, 평소 모습이 확립되어 있으며, 같은 자원의 과거 기록이 있습니다.",
+  "en": "Permissions allow it, usual behaviour is established, and there are past records for the same resource."
+ },
+ {
+  "key": "e2-reason.10",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "규칙이 정한 문장이라 승인을 말하지 않음",
+  "en": "A sentence set by the rules, so it does not mention the approval"
+ },
+ {
+  "key": "e2-reason.11",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "본인 확인 1회 · AI가 든 근거",
+  "en": "Identity check (1 run) · Evidence the AI gave"
+ },
+ {
+  "key": "e2-reason.12",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "인용 근거 일곱: 평소 모습 · 자료 민감도 · 권한 · 대상 자원 · 세션 · 위치 · 과거 기록 · 위험도 0.65",
+  "en": "Seven pieces of cited evidence: usual behaviour · data sensitivity · permissions · target resource · session · location · past records · risk 0.65"
+ },
+ {
+  "key": "e2-reason.13",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "모델이 직접 쓴 문장 · 원문 보기",
+  "en": "A sentence the model wrote itself · View original"
+ },
+ {
+  "key": "e2-reason.14",
+  "slide": "e2-reason",
+  "kind": "screen",
+  "ko": "AI가 받은 자료에는 승인이 있었습니다 · ApprovalMissing: false · 위험도 0.25 · 확신도 0.8",
+  "en": "The data the AI received included the approval · ApprovalMissing: false · risk 0.25 · confidence 0.8"
+ },
+ {
+  "key": "g-rules.01",
+  "slide": "g-rules",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/how",
+  "en": "Contexa demo · /intro/how"
+ },
+ {
+  "key": "g-rules.02",
+  "slide": "g-rules",
+  "kind": "chrome",
+  "ko": "막 2 · 판단 규칙",
+  "en": "Act 2 · Decision rules"
+ },
+ {
+  "key": "g-rules.03",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "AI는 공개된 규칙으로 판단합니다",
+  "en": "The AI decides by published rules"
+ },
+ {
+  "key": "g-rules.04",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "g-rules.05",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "정당하고 위험이 낮음",
+  "en": "Legitimate and low risk"
+ },
+ {
+  "key": "g-rules.06",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "g-rules.07",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "확인하면 풀리는 위험",
+  "en": "Risk that a check can clear"
+ },
+ {
+  "key": "g-rules.08",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "검토로 넘김",
+  "en": "Escalate to review"
+ },
+ {
+  "key": "g-rules.09",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "정보가 모자라거나 모순",
+  "en": "Information is missing or contradictory"
+ },
+ {
+  "key": "g-rules.10",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "차단",
+  "en": "Block"
+ },
+ {
+  "key": "g-rules.11",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "명백히 해로운 행동",
+  "en": "Clearly harmful action"
+ },
+ {
+  "key": "g-rules.12",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "꼭 지키는 선",
+  "en": "Hard lines"
+ },
+ {
+  "key": "g-rules.13",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "민감한 자료 + 평소와 다름 + 승인 없음 → 허용하지 않는다",
+  "en": "Sensitive data + different from usual + no approval → do not Allow"
+ },
+ {
+  "key": "g-rules.14",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "위험 신호가 없으면 → 막지 않는다",
+  "en": "No risk signals → do not stop it"
+ },
+ {
+  "key": "g-rules.15",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "그 밖에는 증거로 정당화되는 가장 덜 방해되는 대응",
+  "en": "Otherwise, the least disruptive response the evidence justifies"
+ },
+ {
+  "key": "g-rules.16",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "다음 · 진짜 직원이 확인을 받으면? 재개 0.05초",
+  "en": "Next · What if the real employee passes the check? Resumes in 0.05 s"
+ },
+ {
+  "key": "g-rules.17",
+  "slide": "g-rules",
+  "kind": "screen",
+  "ko": "규칙 원문 117줄 보기",
+  "en": "View the full rules (117 lines)"
+ },
+ {
+  "key": "e2-check.01",
+  "slide": "e2-check",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/owner · 모달",
+  "en": "Contexa demo · /try/owner · modal"
+ },
+ {
+  "key": "e2-check.02",
+  "slide": "e2-check",
+  "kind": "chrome",
+  "ko": "막 2 · 체험 2 · 후속 · 확인한 차이 5/6",
+  "en": "Act 2 · Try 2 · Follow-up · Differences seen 5/6"
+ },
+ {
+  "key": "e2-check.03",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "Contexa가 본인 확인을 요구했습니다",
+  "en": "Contexa asked for an identity check"
+ },
+ {
+  "key": "e2-check.04",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "1 코드 받기 ✓",
+  "en": "1 Get the code ✓"
+ },
+ {
+  "key": "e2-check.05",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "2 코드 입력 ✓",
+  "en": "2 Enter the code ✓"
+ },
+ {
+  "key": "e2-check.06",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "3 원래 요청 이어 보내기",
+  "en": "3 Send the original request on"
+ },
+ {
+  "key": "e2-check.07",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "판단",
+  "en": "Decision"
+ },
+ {
+  "key": "e2-check.08",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "12.4초",
+  "en": "12.4 s"
+ },
+ {
+  "key": "e2-check.09",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "코드 확인",
+  "en": "Code check"
+ },
+ {
+  "key": "e2-check.10",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "통과",
+  "en": "Passed"
+ },
+ {
+  "key": "e2-check.11",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "재전송",
+  "en": "Resend"
+ },
+ {
+  "key": "e2-check.12",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "0.05초",
+  "en": "0.05 s"
+ },
+ {
+  "key": "e2-check.13",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "전달",
+  "en": "Delivered"
+ },
+ {
+  "key": "e2-check.14",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "4,831건",
+  "en": "4,831 records"
+ },
+ {
+  "key": "e2-check.15",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "확인을 통과하자 엔진이 이 사용자를 허용으로 바꾸고, 원래 요청이 저절로 다시 나갔습니다. 이 확인도 평소 모습으로 한 번 배웁니다.",
+  "en": "Once the check was passed, the engine switched this user to Allow and the original request went out again by itself. This check is also learned once as usual behaviour."
+ },
+ {
+  "key": "e2-check.16",
+  "slide": "e2-check",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ⑤ 의심받은 진짜 직원이 치른 비용은 코드 한 번, 업무는 0.05초 만에 다시 나갔습니다.",
+  "en": "What you just saw · Difference ⑤ The suspected real employee paid only one code entry, and the work went out again in 0.05 s."
+ },
+ {
+  "key": "follow.01",
+  "slide": "follow",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/follow",
+  "en": "Contexa demo · /try/follow"
+ },
+ {
+  "key": "follow.02",
+  "slide": "follow",
+  "kind": "chrome",
+  "ko": "막 2 끝 · 후속 처리 지도",
+  "en": "End of Act 2 · Follow-up map"
+ },
+ {
+  "key": "follow.03",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "판정마다 다음에 일어나는 일",
+  "en": "What happens next after each decision"
+ },
+ {
+  "key": "follow.04",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "허용 · 15초",
+  "en": "Allow · 15 s"
+ },
+ {
+  "key": "follow.05",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "응답",
+  "en": "Response"
+ },
+ {
+  "key": "follow.06",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "평소 모습에 더함",
+  "en": "Added to usual behaviour"
+ },
+ {
+  "key": "follow.07",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "실측 2,462건",
+  "en": "Measured: 2,462"
+ },
+ {
+  "key": "follow.08",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "본인 확인 · 30분",
+  "en": "Identity check · 30 min"
+ },
+ {
+  "key": "follow.09",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "코드 메일",
+  "en": "Code by email"
+ },
+ {
+  "key": "follow.10",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "통과: 원래 요청 자동 재전송",
+  "en": "Passed: original request resent automatically"
+ },
+ {
+  "key": "follow.11",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "실측 655건 · 재개 24",
+  "en": "Measured: 655 · resumed 24"
+ },
+ {
+  "key": "follow.12",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "검토로 넘김 · 5분",
+  "en": "Escalate to review · 5 min"
+ },
+ {
+  "key": "follow.13",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "보류",
+  "en": "On hold"
+ },
+ {
+  "key": "follow.14",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "보안 관리자 검토",
+  "en": "Security admin review"
+ },
+ {
+  "key": "follow.15",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "실측 0건",
+  "en": "Measured: 0"
+ },
+ {
+  "key": "follow.16",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "차단 · 만료 없음",
+  "en": "Block · no expiry"
+ },
+ {
+  "key": "follow.17",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "해제 요청",
+  "en": "Unblock request"
+ },
+ {
+  "key": "follow.18",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "follow.19",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "관리자 승인",
+  "en": "Admin approval"
+ },
+ {
+  "key": "follow.20",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "재전송",
+  "en": "Resend"
+ },
+ {
+  "key": "follow.21",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "엔진 차단 0 · 해제 0",
+  "en": "Engine blocks 0 · unblocks 0"
+ },
+ {
+  "key": "follow.22",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "판정은 이 사용자에게 걸리고, 더 느슨한 판정으로 덮어쓰지 않습니다.",
+  "en": "The decision applies to this user and is not overwritten by a looser decision."
+ },
+ {
+  "key": "follow.23",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "기존 보안은 거부(403)로 끝납니다. Contexa는 복구 길을 엽니다.",
+  "en": "Existing security ends with a denial (403). Contexa opens a way to recover."
+ },
+ {
+  "key": "follow.24",
+  "slide": "follow",
+  "kind": "screen",
+  "ko": "막 2 끝 · 확인한 차이 5/6 다음 · Contexa는 평소를 어떻게 알까? 학습한 요청 25건",
+  "en": "End of Act 2 · Differences seen 5/6 · Next · How does Contexa know what is usual? 25 learned requests"
+ },
+ {
+  "key": "g-learn-why.01",
+  "slide": "g-learn-why",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/learning",
+  "en": "Contexa demo · /intro/learning"
+ },
+ {
+  "key": "g-learn-why.02",
+  "slide": "g-learn-why",
+  "kind": "chrome",
+  "ko": "막 3 · 사전 학습",
+  "en": "Act 3 · Prior learning"
+ },
+ {
+  "key": "g-learn-why.03",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "새벽 3시의 반출, 이상한 일일까요?",
+  "en": "An export at 3 a.m.: is it strange?"
+ },
+ {
+  "key": "g-learn-why.04",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "평소를 모르면",
+  "en": "If you do not know what is usual"
+ },
+ {
+  "key": "g-learn-why.05",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "?",
+  "en": "?"
+ },
+ {
+  "key": "g-learn-why.06",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "비교할 기준이 없어 판단할 수 없습니다",
+  "en": "With nothing to compare against, you cannot judge"
+ },
+ {
+  "key": "g-learn-why.07",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "평소를 알면",
+  "en": "If you know what is usual"
+ },
+ {
+  "key": "g-learn-why.08",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "평일 낮에만 일하던 사람 새벽 3시는 평소와 다름",
+  "en": "Someone who only worked weekday daytime: 3 a.m. differs from usual"
+ },
+ {
+  "key": "g-learn-why.09",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "그래서 Contexa는 먼저 직원마다 평소 업무를 배웁니다.",
+  "en": "So Contexa first learns each employee's usual work."
+ },
+ {
+  "key": "g-learn-why.10",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "데모: 미리 보낸 평소 업무 요청으로 배움",
+  "en": "Demo: learns from usual work requests sent in advance"
+ },
+ {
+  "key": "g-learn-why.11",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "실제 서비스: 허용된 요청이 저절로 쌓임",
+  "en": "Real service: allowed requests build up by themselves"
+ },
+ {
+  "key": "g-learn-why.12",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "다음 · 실제로 무엇을 배웠을까? 조회 15 · 내려받기 5 · 반출 5",
+  "en": "Next · What did it actually learn? Reads 15 · downloads 5 · exports 5"
+ },
+ {
+  "key": "g-learn-why.13",
+  "slide": "g-learn-why",
+  "kind": "screen",
+  "ko": "건너뛰기",
+  "en": "Skip"
+ },
+ {
+  "key": "g-learned.01",
+  "slide": "g-learned",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/learning",
+  "en": "Contexa demo · /intro/learning"
+ },
+ {
+  "key": "g-learned.02",
+  "slide": "g-learned",
+  "kind": "chrome",
+  "ko": "막 3 · 사전 학습",
+  "en": "Act 3 · Prior learning"
+ },
+ {
+  "key": "g-learned.03",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "평일 낮, 사무실에서, 늘 쓰던 PC로, 담당 PLM-OPS 자료만 다룹니다",
+  "en": "Weekday daytime, in the office, on the usual PC, working only on the PLM-OPS data assigned to them"
+ },
+ {
+  "key": "g-learned.04",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "0시 ─ 12시 ─ 23시 · 월~금 각 5건, 주말 0건",
+  "en": "00:00 ─ 12:00 ─ 23:00 · 5 each Mon–Fri, 0 at weekends"
+ },
+ {
+  "key": "g-learned.05",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "기간 9/23~9/29",
+  "en": "Period 9/23–9/29"
+ },
+ {
+  "key": "g-learned.06",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "사무실 10.40.12",
+  "en": "Office 10.40.12"
+ },
+ {
+  "key": "g-learned.07",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "Windows · Chrome",
+  "en": "Windows · Chrome"
+ },
+ {
+  "key": "g-learned.08",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "조회 15 · 내려받기 5",
+  "en": "Reads 15 · downloads 5"
+ },
+ {
+  "key": "g-learned.09",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "반출 5회 · 1회 14~29건",
+  "en": "Exports 5 times · 14–29 records each"
+ },
+ {
+  "key": "g-learned.10",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "평소 모습: 충분히 배움",
+  "en": "Usual behaviour: well learned"
+ },
+ {
+  "key": "g-learned.11",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "업무 범위: 아직 배우는 중",
+  "en": "Work scope: still learning"
+ },
+ {
+  "key": "g-learned.12",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "다음 · 배운 것을 AI에게 어떻게? 판단 흐름",
+  "en": "Next · How does what it learned reach the AI? The decision flow"
+ },
+ {
+  "key": "g-learned.13",
+  "slide": "g-learned",
+  "kind": "screen",
+  "ko": "학습 요청 25건 모두 보기",
+  "en": "View all 25 learned requests"
+ },
+ {
+  "key": "g-how.01",
+  "slide": "g-how",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/how",
+  "en": "Contexa demo · /intro/how"
+ },
+ {
+  "key": "g-how.02",
+  "slide": "g-how",
+  "kind": "chrome",
+  "ko": "막 3 · 판단 흐름",
+  "en": "Act 3 · Decision flow"
+ },
+ {
+  "key": "g-how.03",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "Contexa는 요청마다 이 아홉 칸을 지납니다",
+  "en": "In Contexa, every request goes through these nine steps"
+ },
+ {
+  "key": "g-how.04",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "요청",
+  "en": "Request"
+ },
+ {
+  "key": "g-how.05",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "평소",
+  "en": "Usual"
+ },
+ {
+  "key": "g-how.06",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "회사",
+  "en": "Company"
+ },
+ {
+  "key": "g-how.07",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "과거",
+  "en": "Past"
+ },
+ {
+  "key": "g-how.08",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "프롬프트",
+  "en": "Prompt"
+ },
+ {
+  "key": "g-how.09",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "AI 판단",
+  "en": "AI decision"
+ },
+ {
+  "key": "g-how.10",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "판정·근거",
+  "en": "Decision · reasons"
+ },
+ {
+  "key": "g-how.11",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "후속 처리",
+  "en": "Follow-up"
+ },
+ {
+  "key": "g-how.12",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "학습 ↺ 평소",
+  "en": "Learning ↺ usual"
+ },
+ {
+  "key": "g-how.13",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "기존 보안",
+  "en": "Existing security"
+ },
+ {
+  "key": "g-how.14",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "규칙에 맞나? → 통과 아니면 거부, 끝",
+  "en": "Does it match the rules? → Passed or Denied, the end"
+ },
+ {
+  "key": "g-how.15",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "g-how.16",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "이 사람다운가? 회사가 허락했나? → 판단·확인·복구·학습",
+  "en": "Is this like the person? Did the company allow it? → decide · check · recover · learn"
+ },
+ {
+  "key": "g-how.17",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "다음 · AI에게 실제로 보낸 글은? 369줄",
+  "en": "Next · What text was actually sent to the AI? 369 lines"
+ },
+ {
+  "key": "g-how.18",
+  "slide": "g-how",
+  "kind": "screen",
+  "ko": "건너뛰기",
+  "en": "Skip"
+ },
+ {
+  "key": "e1-prompt.01",
+  "slide": "e1-prompt",
+  "kind": "chrome",
+  "ko": "막 3 · 프롬프트 들여다보기 · 체험 1의 실제 프롬프트 · 실제 값: run-d9e438853e46 프롬프트 원문",
+  "en": "Act 3 · Inside the prompt · The real prompt from Try 1 · Real values: run-d9e438853e46 original prompt"
+ },
+ {
+  "key": "e1-prompt.02",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "프롬프트: AI에게 실제로 보낸 것을 일곱 묶음으로, 원문과 연결해서",
+  "en": "The prompt: what was actually sent to the AI, in seven groups, linked to the original text"
+ },
+ {
+  "key": "e1-prompt.03",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "AI에게 보낸 것",
+  "en": "Sent to the AI"
+ },
+ {
+  "key": "e1-prompt.04",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "판단 규칙",
+  "en": "Decision rules"
+ },
+ {
+  "key": "e1-prompt.05",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "판정 4가지 · 꼭 지키는 선",
+  "en": "4 decisions · hard lines"
+ },
+ {
+  "key": "e1-prompt.06",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "117줄",
+  "en": "117 lines"
+ },
+ {
+  "key": "e1-prompt.07",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "지금 요청",
+  "en": "Current request"
+ },
+ {
+  "key": "e1-prompt.08",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "3:17 · 반출 4,831건 · 최고 민감",
+  "en": "3:17 · export of 4,831 records · highest sensitivity"
+ },
+ {
+  "key": "e1-prompt.09",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "30줄",
+  "en": "30 lines"
+ },
+ {
+  "key": "e1-prompt.10",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "신원·인증",
+  "en": "Identity · authentication"
+ },
+ {
+  "key": "e1-prompt.11",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "관리자 · 권한 허용",
+  "en": "Admin · permissions allow it"
+ },
+ {
+  "key": "e1-prompt.12",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "23줄",
+  "en": "23 lines"
+ },
+ {
+  "key": "e1-prompt.13",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "평소 모습",
+  "en": "Usual behaviour"
+ },
+ {
+  "key": "e1-prompt.14",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "관측 25 · 다른 점 3",
+  "en": "25 observations · 3 differences"
+ },
+ {
+  "key": "e1-prompt.15",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "93줄",
+  "en": "93 lines"
+ },
+ {
+  "key": "e1-prompt.16",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "과거 기록",
+  "en": "Past records"
+ },
+ {
+  "key": "e1-prompt.17",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "같은 자원 관련 5건",
+  "en": "5 related to the same resource"
+ },
+ {
+  "key": "e1-prompt.18",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "25줄",
+  "en": "25 lines"
+ },
+ {
+  "key": "e1-prompt.19",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "회사 기록",
+  "en": "Company records"
+ },
+ {
+  "key": "e1-prompt.20",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "승인 필요 · 승인 없음",
+  "en": "Approval needed · no approval"
+ },
+ {
+  "key": "e1-prompt.21",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "7줄",
+  "en": "7 lines"
+ },
+ {
+  "key": "e1-prompt.22",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "모르는 것",
+  "en": "Unknowns"
+ },
+ {
+  "key": "e1-prompt.23",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "모르면 모른다고 적음",
+  "en": "Says so when something is unknown"
+ },
+ {
+  "key": "e1-prompt.24",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "57줄",
+  "en": "57 lines"
+ },
+ {
+  "key": "e1-prompt.25",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "입력 7,631토큰 · 응답 583토큰 · gpt-5-nano · 8.0초",
+  "en": "Input 7,631 tokens · response 583 tokens · gpt-5-nano · 8.0 s"
+ },
+ {
+  "key": "e1-prompt.26",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "회사 기록 · 원문과 쉬운 말",
+  "en": "Company records · original and plain words"
+ },
+ {
+  "key": "e1-prompt.27",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "ApprovalRequired: true",
+  "en": "ApprovalRequired: true"
+ },
+ {
+  "key": "e1-prompt.28",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "이 반출은 승인이 필요합니다",
+  "en": "This export needs approval"
+ },
+ {
+  "key": "e1-prompt.29",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "ApprovalMissing: true",
+  "en": "ApprovalMissing: true"
+ },
+ {
+  "key": "e1-prompt.30",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "맞는 승인이 없습니다",
+  "en": "There is no matching approval"
+ },
+ {
+  "key": "e1-prompt.31",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "ApprovalStatus: NO_COVERING_APPROVAL",
+  "en": "ApprovalStatus: NO_COVERING_APPROVAL"
+ },
+ {
+  "key": "e1-prompt.32",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "이 요청을 덮는 승인이 없습니다",
+  "en": "No approval covers this request"
+ },
+ {
+  "key": "e1-prompt.33",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "requester assigned to project GB-500: no",
+  "en": "requester assigned to project GB-500: no"
+ },
+ {
+  "key": "e1-prompt.34",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "요청자는 GB-500 담당이 아닙니다",
+  "en": "The requester is not assigned to GB-500"
+ },
+ {
+  "key": "e1-prompt.35",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "왼쪽 묶음을 누르면 이 칸이 그 묶음의 원문으로 바뀌고 해당 줄이 강조됩니다",
+  "en": "Click a group on the left to switch this panel to that group's original text and highlight the matching lines"
+ },
+ {
+  "key": "e1-prompt.36",
+  "slide": "e1-prompt",
+  "kind": "screen",
+  "ko": "원문 전체(판단 규칙 14,394자 + 상황 18구역 19,487자)와 모델 응답 원문은 '원문 전체 보기'와 기록 내려받기로 제공",
+  "en": "The full original (decision rules, 14,394 characters + situation in 18 sections, 19,487 characters) and the model's original response are available via 'View full original' and the record download"
+ },
+ {
+  "key": "sync-concept.01",
+  "slide": "sync-concept",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/timing",
+  "en": "Contexa demo · /try/timing"
+ },
+ {
+  "key": "sync-concept.02",
+  "slide": "sync-concept",
+  "kind": "chrome",
+  "ko": "막 3 · 판정 방식",
+  "en": "Act 3 · Decision mode"
+ },
+ {
+  "key": "sync-concept.03",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "같은 반출 4,831건, 시간 축으로 보면",
+  "en": "The same export of 4,831 records, on a timeline"
+ },
+ {
+  "key": "sync-concept.04",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "동기식",
+  "en": "Synchronous"
+ },
+ {
+  "key": "sync-concept.05",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "8.1초 판단 → 보류, 0건",
+  "en": "8.1 s decision → on hold, 0 records"
+ },
+ {
+  "key": "sync-concept.06",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "판단이 끝날 때까지 응답을 붙잡아 둡니다",
+  "en": "Holds the response until the decision is done"
+ },
+ {
+  "key": "sync-concept.07",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "비동기식",
+  "en": "Asynchronous"
+ },
+ {
+  "key": "sync-concept.08",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "37초 전송 · 4,831건",
+  "en": "37 s transfer · 4,831 records"
+ },
+ {
+  "key": "sync-concept.09",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "뒤에서 판단",
+  "en": "Decides in the background"
+ },
+ {
+  "key": "sync-concept.10",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "9.4초 → 다음 요청부터",
+  "en": "9.4 s → from the next request"
+ },
+ {
+  "key": "sync-concept.11",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "응답은 바로 나가고, 판정은 다음 요청부터 걸립니다",
+  "en": "The response goes out at once, and the decision applies from the next request"
+ },
+ {
+  "key": "sync-concept.12",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "0초",
+  "en": "0 s"
+ },
+ {
+  "key": "sync-concept.13",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "10초",
+  "en": "10 s"
+ },
+ {
+  "key": "sync-concept.14",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "20초",
+  "en": "20 s"
+ },
+ {
+  "key": "sync-concept.15",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "30초",
+  "en": "30 s"
+ },
+ {
+  "key": "sync-concept.16",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "40초",
+  "en": "40 s"
+ },
+ {
+  "key": "sync-concept.17",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "@Protectable(sync = true)",
+  "en": "@Protectable(sync = true)"
+ },
+ {
+  "key": "sync-concept.18",
+  "slide": "sync-concept",
+  "kind": "screen",
+  "ko": "@Protectable",
+  "en": "@Protectable"
+ },
+ {
+  "key": "sync-try.01",
+  "slide": "sync-try",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/timing",
+  "en": "Contexa demo · /try/timing"
+ },
+ {
+  "key": "sync-try.02",
+  "slide": "sync-try",
+  "kind": "chrome",
+  "ko": "막 3 · 판정 방식",
+  "en": "Act 3 · Decision mode"
+ },
+ {
+  "key": "sync-try.03",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "판정 방식",
+  "en": "Decision mode"
+ },
+ {
+  "key": "sync-try.04",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "동기식",
+  "en": "Synchronous"
+ },
+ {
+  "key": "sync-try.05",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "비동기식",
+  "en": "Asynchronous"
+ },
+ {
+  "key": "sync-try.06",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "같은 공격 다시 보내기",
+  "en": "Send the same attack again"
+ },
+ {
+  "key": "sync-try.07",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "방금 · 동기식",
+  "en": "Just now · Synchronous"
+ },
+ {
+  "key": "sync-try.08",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "0건",
+  "en": "0 records"
+ },
+ {
+  "key": "sync-try.09",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "8.1초 기다림 본인 확인 요구 · 보류",
+  "en": "Waited 8.1 s · identity check requested · on hold"
+ },
+ {
+  "key": "sync-try.10",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "다시 보냄 · 비동기식",
+  "en": "Sent again · Asynchronous"
+ },
+ {
+  "key": "sync-try.11",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "4,831건",
+  "en": "4,831 records"
+ },
+ {
+  "key": "sync-try.12",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "0.05초에 응답 시작, 37초 전송 9.4초에 본인 확인 판정 → 다음 요청 거부",
+  "en": "Response started at 0.05 s, 37 s transfer · identity check decided at 9.4 s → next request denied"
+ },
+ {
+  "key": "sync-try.13",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "비동기식은 기다림이 없지만, 판정 전에 시작된 전송은 막지 못했습니다.",
+  "en": "Asynchronous has no wait, but it could not stop the transfer that started before the decision."
+ },
+ {
+  "key": "sync-try.14",
+  "slide": "sync-try",
+  "kind": "screen",
+  "ko": "다음 · 정상 업무도 비교하기",
+  "en": "Next · Compare legitimate work too"
+ },
+ {
+  "key": "sync-compare.01",
+  "slide": "sync-compare",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/timing",
+  "en": "Contexa demo · /try/timing"
+ },
+ {
+  "key": "sync-compare.02",
+  "slide": "sync-compare",
+  "kind": "chrome",
+  "ko": "막 3 · 판정 방식",
+  "en": "Act 3 · Decision mode"
+ },
+ {
+  "key": "sync-compare.03",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "동기식 · 응답 전에 판정",
+  "en": "Synchronous · decide before responding"
+ },
+ {
+  "key": "sync-compare.04",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "비동기식 · 바로 응답",
+  "en": "Asynchronous · respond now"
+ },
+ {
+  "key": "sync-compare.05",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "공격",
+  "en": "Attack"
+ },
+ {
+  "key": "sync-compare.06",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "0건 나감",
+  "en": "0 records out"
+ },
+ {
+  "key": "sync-compare.07",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "6.9~8.1초 기다린 뒤 보류",
+  "en": "On hold after a 6.9–8.1 s wait"
+ },
+ {
+  "key": "sync-compare.08",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "4,831건 나감",
+  "en": "4,831 records out"
+ },
+ {
+  "key": "sync-compare.09",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "판정 6~9초, 다음 요청부터 거부",
+  "en": "Decision in 6–9 s, denied from the next request"
+ },
+ {
+  "key": "sync-compare.10",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "정상 업무",
+  "en": "Legitimate work"
+ },
+ {
+  "key": "sync-compare.11",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "5.0~12.4초",
+  "en": "5.0–12.4 s"
+ },
+ {
+  "key": "sync-compare.12",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "직원이 기다림 · 1회는 본인 확인",
+  "en": "The employee waits · identity check in 1 run"
+ },
+ {
+  "key": "sync-compare.13",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "기다림 없음",
+  "en": "No wait"
+ },
+ {
+  "key": "sync-compare.14",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "0.04~0.08초에 전송 시작",
+  "en": "Transfer starts at 0.04–0.08 s"
+ },
+ {
+  "key": "sync-compare.15",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "동기식 판정 전에 한 건도 안 나감. 대신 그 요청만 판단 시간만큼 늦음",
+  "en": "Synchronous: nothing goes out before the decision, but that request alone is delayed by the decision time"
+ },
+ {
+  "key": "sync-compare.16",
+  "slide": "sync-compare",
+  "kind": "screen",
+  "ko": "비동기식 업무 속도 그대로. 대신 판정 전 요청과 이미 시작된 전송은 나감",
+  "en": "Asynchronous: work runs at full speed, but requests before the decision and transfers already started go out"
+ },
+ {
+  "key": "sync-when.01",
+  "slide": "sync-when",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/timing",
+  "en": "Contexa demo · /try/timing"
+ },
+ {
+  "key": "sync-when.02",
+  "slide": "sync-when",
+  "kind": "chrome",
+  "ko": "막 3 · 판정 방식",
+  "en": "Act 3 · Decision mode"
+ },
+ {
+  "key": "sync-when.03",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "한 번 나가면 되돌릴 수 없나?",
+  "en": "Is it impossible to undo once it goes out?"
+ },
+ {
+  "key": "sync-when.04",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "예 →",
+  "en": "Yes →"
+ },
+ {
+  "key": "sync-when.05",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "동기식",
+  "en": "Synchronous"
+ },
+ {
+  "key": "sync-when.06",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "아니오 → 자주 쓰고 빨라야 하나? 예 →",
+  "en": "No → Is it frequent and does it need to be fast? Yes →"
+ },
+ {
+  "key": "sync-when.07",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "비동기식",
+  "en": "Asynchronous"
+ },
+ {
+  "key": "sync-when.08",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "동기식이 맞는 일",
+  "en": "Work that suits synchronous"
+ },
+ {
+  "key": "sync-when.09",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "대량 반출, 권한 부여처럼 한 번에 큰 피해",
+  "en": "Big damage in one go, such as bulk exports or granting permissions"
+ },
+ {
+  "key": "sync-when.10",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "데모 설정 · 반출, 권한 부여",
+  "en": "Demo setting · exports, granting permissions"
+ },
+ {
+  "key": "sync-when.11",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "대가 · 그 요청만 5~12초 늦어짐 (실측)",
+  "en": "Cost · only that request is delayed by 5–12 s (measured)"
+ },
+ {
+  "key": "sync-when.12",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "비동기식이 맞는 일",
+  "en": "Work that suits asynchronous"
+ },
+ {
+  "key": "sync-when.13",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "문서 열람, 내려받기, 고객 조회처럼 잦고 한 건 피해가 작은 일",
+  "en": "Frequent work where one request does little damage, such as viewing documents, downloads or customer lookups"
+ },
+ {
+  "key": "sync-when.14",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "데모 설정 · 열람, 내려받기, 고객 조회, 스트리밍 반출",
+  "en": "Demo setting · viewing, downloads, customer lookups, streaming exports"
+ },
+ {
+  "key": "sync-when.15",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "대가 · 첫 요청은 나감, 연속이면 두 번째부터 막음 (실측 1건 뒤 4건 거부)",
+  "en": "Cost · the first request goes out; in a series, it stops from the second (measured: 4 denied after 1)"
+ },
+ {
+  "key": "sync-when.16",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "주의 긴 스트리밍을 비동기식으로 두면 본인 확인 판정으로는 전송을 멈출 수 없습니다(실측 4,831건). 이런 업무는 동기식으로 두는 것이 맞습니다.",
+  "en": "Caution: if a long stream is set to asynchronous, an Identity check decision cannot stop the transfer (measured: 4,831 records). Such work should be set to synchronous."
+ },
+ {
+  "key": "sync-when.17",
+  "slide": "sync-when",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ① Contexa는 요청마다 판단하고, 그 판단을 언제 적용할지도 업무마다 고릅니다.",
+  "en": "What you just saw · Difference ① Contexa judges every request, and also chooses, for each type of work, when to apply that judgment."
+ },
+ {
+  "key": "e3-stack.01",
+  "slide": "e3-stack",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/stack",
+  "en": "Contexa demo · /try/stack"
+ },
+ {
+  "key": "e3-stack.02",
+  "slide": "e3-stack",
+  "kind": "chrome",
+  "ko": "막 3 · 체험 3 · 확인한 차이 6/6",
+  "en": "Act 3 · Try 3 · Differences seen 6/6"
+ },
+ {
+  "key": "e3-stack.03",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "Administrator A가 고객 기록을 다섯 번 조회합니다 (비동기식)",
+  "en": "Administrator A looks up customer records five times (asynchronous)"
+ },
+ {
+  "key": "e3-stack.04",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "이 체험에서 확인할 차이",
+  "en": "Differences to see in this try"
+ },
+ {
+  "key": "e3-stack.05",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "⑥ 쓸수록 배운다",
+  "en": "⑥ Learns with use"
+ },
+ {
+  "key": "e3-stack.06",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "① 요청마다 판단",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "e3-stack.07",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "정상 · 장애 티켓 범위 안",
+  "en": "Legitimate · within the incident ticket's scope"
+ },
+ {
+  "key": "e3-stack.08",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "1 허용",
+  "en": "1 Allow"
+ },
+ {
+  "key": "e3-stack.09",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "2 허용",
+  "en": "2 Allow"
+ },
+ {
+  "key": "e3-stack.10",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "3 허용",
+  "en": "3 Allow"
+ },
+ {
+  "key": "e3-stack.11",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "4 허용",
+  "en": "4 Allow"
+ },
+ {
+  "key": "e3-stack.12",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "5 허용",
+  "en": "5 Allow"
+ },
+ {
+  "key": "e3-stack.13",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "관측 21 → 25",
+  "en": "Observations 21 → 25"
+ },
+ {
+  "key": "e3-stack.14",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "평소와 다른 점 2 → 1",
+  "en": "Differences from usual 2 → 1"
+ },
+ {
+  "key": "e3-stack.15",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "학습 25 → 30건",
+  "en": "Learned 25 → 30 requests"
+ },
+ {
+  "key": "e3-stack.16",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "공격 · 담당 아닌 고객 연속 조회",
+  "en": "Attack · repeated lookups of customers not assigned to them"
+ },
+ {
+  "key": "e3-stack.17",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "1 확인",
+  "en": "1 Check"
+ },
+ {
+  "key": "e3-stack.18",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "2 거부",
+  "en": "2 Denied"
+ },
+ {
+  "key": "e3-stack.19",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "3 거부",
+  "en": "3 Denied"
+ },
+ {
+  "key": "e3-stack.20",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "4 거부",
+  "en": "4 Denied"
+ },
+ {
+  "key": "e3-stack.21",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "5 거부",
+  "en": "5 Denied"
+ },
+ {
+  "key": "e3-stack.22",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "1번에서 본인 확인 판정(위험도 0.65)",
+  "en": "Identity check decided at #1 (risk 0.65)"
+ },
+ {
+  "key": "e3-stack.23",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "2~5번은 새로 분석하지 않고 앞선 판정으로 거부",
+  "en": "#2–5 denied by the earlier decision, without new analysis"
+ },
+ {
+  "key": "e3-stack.24",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "판정 전에 나간 고객 기록 1건 · 학습 25 → 25건",
+  "en": "1 customer record out before the decision · learned 25 → 25 requests"
+ },
+ {
+  "key": "e3-stack.25",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "방금 본 것 · 차이 ⑥ 전통 보안은 사람이 규칙을 고칠 때까지 그대로입니다. Contexa는 허용된 요청을 배워 다음 판단의 기준으로 삼습니다.",
+  "en": "What you just saw · Difference ⑥ Traditional security stays the same until a person changes the rules. Contexa learns from allowed requests and uses them as the basis for its next decisions."
+ },
+ {
+  "key": "e3-stack.26",
+  "slide": "e3-stack",
+  "kind": "screen",
+  "ko": "데모는 공정한 비교를 위해 실행마다 같은 학습 상태(25건)에서 시작하고, 끝나면 늘어난 학습을 지웁니다. 실제 서비스에서는 계속 쌓입니다.",
+  "en": "For a fair comparison, the demo starts every run from the same learned state (25 requests) and erases the added learning at the end. In a real service, it keeps building up."
+ },
+ {
+  "key": "learn-after.01",
+  "slide": "learn-after",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/summary",
+  "en": "Contexa demo · /try/summary"
+ },
+ {
+  "key": "learn-after.02",
+  "slide": "learn-after",
+  "kind": "chrome",
+  "ko": "막 3 끝 · 판정 뒤 학습",
+  "en": "End of Act 3 · Learning after decisions"
+ },
+ {
+  "key": "learn-after.03",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "오늘 본 실행에서 학습은 이렇게 바뀌었습니다",
+  "en": "In the runs you saw today, learning changed like this"
+ },
+ {
+  "key": "learn-after.04",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "learn-after.05",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "평소 모습에 더함 · 다음 요청부터 반영",
+  "en": "Added to usual behaviour · applied from the next request"
+ },
+ {
+  "key": "learn-after.06",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "체험 3 정상 · 25 → 30건",
+  "en": "Try 3 legitimate · 25 → 30 requests"
+ },
+ {
+  "key": "learn-after.07",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "본인 확인 통과",
+  "en": "Identity check passed"
+ },
+ {
+  "key": "learn-after.08",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "한 번 배움",
+  "en": "Learned once"
+ },
+ {
+  "key": "learn-after.09",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "체험 2 · 25 → 26건",
+  "en": "Try 2 · 25 → 26 requests"
+ },
+ {
+  "key": "learn-after.10",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "본인 확인·차단된 요청",
+  "en": "Requests sent to Identity check or Block"
+ },
+ {
+  "key": "learn-after.11",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "평소 모습에 더하지 않음",
+  "en": "Not added to usual behaviour"
+ },
+ {
+  "key": "learn-after.12",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "체험 1 · 체험 3 공격 · 25건 그대로",
+  "en": "Try 1 · Try 3 attack · stays at 25"
+ },
+ {
+  "key": "learn-after.13",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "관리자 해제",
+  "en": "Admin unblock"
+ },
+ {
+  "key": "learn-after.14",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "해제한 요청을 배움",
+  "en": "Learns the unblocked request"
+ },
+ {
+  "key": "learn-after.15",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "코어 동작",
+  "en": "Core behaviour"
+ },
+ {
+  "key": "learn-after.16",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "한 번 허용되면 바로 '평소'가 됩니다. 잘못 허용한 공격도 배울 수 있어, 학습을 지켜보는 장치가 필요합니다.",
+  "en": "Once a request is allowed, it becomes 'usual' at once. A wrongly allowed attack can be learned too, so something must watch over the learning."
+ },
+ {
+  "key": "learn-after.17",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "다시 보는 차이 ⑥ 무엇을 배우고 무엇은 배우지 않는지가 정해져 있어, 공격이 평소 모습이 되지 않게 합니다.",
+  "en": "Difference revisited ⑥ What is learned and what is not is clearly set, so attacks do not become usual behaviour."
+ },
+ {
+  "key": "learn-after.18",
+  "slide": "learn-after",
+  "kind": "screen",
+  "ko": "막 3 끝 · 확인한 차이 6/6 다음 · 결국 전통 보안과 무엇이 다를까? 정상 업무 막음 15회 대 0회",
+  "en": "End of Act 3 · Differences seen 6/6 · Next · So how is it different from traditional security? Legitimate work blocked 15 times vs 0"
+ },
+ {
+  "key": "g3-five.01",
+  "slide": "g3-five",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/approaches",
+  "en": "Contexa demo · /intro/approaches"
+ },
+ {
+  "key": "g3-five.02",
+  "slide": "g3-five",
+  "kind": "chrome",
+  "ko": "막 4 · 다섯 방식",
+  "en": "Act 4 · Five approaches"
+ },
+ {
+  "key": "g3-five.03",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "이 요청을 판단할 다섯 가지 보안 방식",
+  "en": "Five security approaches that will judge this request"
+ },
+ {
+  "key": "g3-five.04",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "경계 보안 (WAF)",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "g3-five.05",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "봅니다 · 요청 안에 공격 문자열이 있는지",
+  "en": "Sees · whether the request contains attack strings"
+ },
+ {
+  "key": "g3-five.06",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "못 봅니다 · 평범한 문장으로 된 요청",
+  "en": "Misses · requests written as ordinary text"
+ },
+ {
+  "key": "g3-five.07",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "g3-five.08",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "봅니다 · 로그인했는지, 그 역할에 권한이 있는지",
+  "en": "Sees · whether you are signed in and whether your role has the permission"
+ },
+ {
+  "key": "g3-five.09",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "못 봅니다 · 계정을 쓰는 사람이 바뀐 것",
+  "en": "Misses · a change in who is using the account"
+ },
+ {
+  "key": "g3-five.10",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "숫자 기준 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "g3-five.11",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "봅니다 · 밤 시간, 건수 상한 같은 정해 둔 숫자",
+  "en": "Sees · preset numbers such as night hours and count limits"
+ },
+ {
+  "key": "g3-five.12",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "못 봅니다 · 숫자 기준 안쪽의 요청",
+  "en": "Misses · requests that stay within the threshold rules' limits"
+ },
+ {
+  "key": "g3-five.13",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "업무 기록 규칙",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "g3-five.14",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "봅니다 · 승인·담당·당번 기록이 있는지",
+  "en": "Sees · whether there are approval, assignment and on-call records"
+ },
+ {
+  "key": "g3-five.15",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "못 봅니다 · 규칙으로 미리 써 두지 않은 상황",
+  "en": "Misses · situations not written into the rules in advance"
+ },
+ {
+  "key": "g3-five.16",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "g3-five.17",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "봅니다 · 누가·언제·무엇을, 평소 모습·회사 기록과 비교",
+  "en": "Sees · who, when and what, compared with usual behaviour and company records"
+ },
+ {
+  "key": "g3-five.18",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "못 봅니다 · 평소와 다른 점만 있는 행동 (실측 S10)",
+  "en": "Misses · actions whose only signal is being different from usual (measured S10)"
+ },
+ {
+  "key": "g3-five.19",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "다음 · 어디에 있나",
+  "en": "Next · Where they sit"
+ },
+ {
+  "key": "g3-five.20",
+  "slide": "g3-five",
+  "kind": "screen",
+  "ko": "행을 누르면 이 데모에서의 설정을 봅니다",
+  "en": "Click a row to see its setup in this demo"
+ },
+ {
+  "key": "g-where.01",
+  "slide": "g-where",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/approaches",
+  "en": "Contexa demo · /intro/approaches"
+ },
+ {
+  "key": "g-where.02",
+  "slide": "g-where",
+  "kind": "chrome",
+  "ko": "막 4 · 다섯 방식",
+  "en": "Act 4 · Five approaches"
+ },
+ {
+  "key": "g-where.03",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "다섯 방식은 어디에서 판단할까요?",
+  "en": "Where does each of the five approaches judge?"
+ },
+ {
+  "key": "g-where.04",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "요청",
+  "en": "Request"
+ },
+ {
+  "key": "g-where.05",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "g-where.06",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "앱 밖 문 앞",
+  "en": "At the door, outside the app"
+ },
+ {
+  "key": "g-where.07",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "Spring 앱 안",
+  "en": "Inside the Spring app"
+ },
+ {
+  "key": "g-where.08",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "로그인",
+  "en": "Sign-in"
+ },
+ {
+  "key": "g-where.09",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "g-where.10",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "규칙",
+  "en": "Rules"
+ },
+ {
+  "key": "g-where.11",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "g-where.12",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "업무",
+  "en": "Business logic"
+ },
+ {
+  "key": "g-where.13",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "회사 기록(업무 DB)의 승인·담당·당번을 앱이 Contexa에 넘겨 줍니다",
+  "en": "The app passes approval, assignment and on-call data from company records (business DB) to Contexa"
+ },
+ {
+  "key": "g-where.14",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "Contexa는 따로 두는 장비가 아니라 앱에 넣는 라이브러리입니다. 보호할 업무 메서드에 @Protectable 한 줄을 붙이면, 그 업무가 실행되기 직전에 판단합니다.",
+  "en": "Contexa is not a separate appliance but a library you put in the app. Add one line, @Protectable, to a business method you want to protect, and it judges just before that work runs."
+ },
+ {
+  "key": "g-where.15",
+  "slide": "g-where",
+  "kind": "screen",
+  "ko": "다음 · 규칙을 더 잘 쓰면? 업무 기록 규칙 33회 막음",
+  "en": "Next · What if the rules were written better? Business-record rules stopped 33 times"
+ },
+ {
+  "key": "dilemma.01",
+  "slide": "dilemma",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/summary",
+  "en": "Contexa demo · /try/summary"
+ },
+ {
+  "key": "dilemma.02",
+  "slide": "dilemma",
+  "kind": "chrome",
+  "ko": "막 4 · 정리 · 확인한 차이 6/6",
+  "en": "Act 4 · Wrap-up · Differences seen 6/6"
+ },
+ {
+  "key": "dilemma.03",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "같은 사례 27개에서 규칙은 이렇게 했습니다",
+  "en": "On the same 27 cases, the rules did this"
+ },
+ {
+  "key": "dilemma.04",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "숫자 기준 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "dilemma.05",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "정상 업무 15회를 막고도, 공격 12회를 놓쳤습니다",
+  "en": "They blocked legitimate work 15 times and still missed attacks 12 times"
+ },
+ {
+  "key": "dilemma.06",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "업무 기록 규칙",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "dilemma.07",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "이 사례들을 보고 미리 써서 33회 막음. 규칙에 없던 3사례 9회는 놓침. 막으면 거부로 끝",
+  "en": "Written in advance from these cases, so stopped 33 times. Missed 9 times on 3 cases the rules did not cover. When it stops something, it ends with a denial"
+ },
+ {
+  "key": "dilemma.08",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "dilemma.09",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "정상 업무 0회 막음. 위험이라 판단한 31회 모두 막음. 규칙을 미리 쓰지 않음",
+  "en": "Blocked legitimate work 0 times. Stopped all 31 it judged risky. No rules written in advance"
+ },
+ {
+  "key": "dilemma.10",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "Contexa의 차이는 더 많이 막는 것이 아닙니다. 정상 업무를 지키며 맞게 막고, 이유를 남기고, 업무를 돌려보내는 것입니다.",
+  "en": "Contexa's difference is not stopping more. It stops the right things while protecting legitimate work, leaves its reasons, and gets work going again."
+ },
+ {
+  "key": "dilemma.11",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "같은 3사례는 Contexa도 놓쳤습니다 (한계에서 공개) · 규칙을 직접 조여 보려면 실험실",
+  "en": "Contexa also missed the same 3 cases (disclosed in Limits) · To tighten the rules yourself, go to the Lab"
+ },
+ {
+  "key": "dilemma.12",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "다음 · 당신이 확인한 것은? 차이 6/6",
+  "en": "Next · What did you see? Differences 6/6"
+ },
+ {
+  "key": "dilemma.13",
+  "slide": "dilemma",
+  "kind": "screen",
+  "ko": "규칙 조여 보기",
+  "en": "Try tightening the rules"
+ },
+ {
+  "key": "recap.01",
+  "slide": "recap",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/summary",
+  "en": "Contexa demo · /try/summary"
+ },
+ {
+  "key": "recap.02",
+  "slide": "recap",
+  "kind": "chrome",
+  "ko": "막 4 · 정리 · 확인한 차이 6/6",
+  "en": "Act 4 · Wrap-up · Differences seen 6/6"
+ },
+ {
+  "key": "recap.03",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "당신이 한 것",
+  "en": "What you did"
+ },
+ {
+  "key": "recap.04",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "Contexa가 한 것",
+  "en": "What Contexa did"
+ },
+ {
+  "key": "recap.05",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "전통 보안",
+  "en": "Traditional security"
+ },
+ {
+  "key": "recap.06",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "차이",
+  "en": "Differences"
+ },
+ {
+  "key": "recap.07",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "훔친 계정으로 4,831건 반출",
+  "en": "Exported 4,831 records with a stolen account"
+ },
+ {
+  "key": "recap.08",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "다른 점 3 + 승인 없음 → 본인 확인, 0건",
+  "en": "3 differences + no approval → Identity check, 0 records"
+ },
+ {
+  "key": "recap.09",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "경계·권한 통과",
+  "en": "Perimeter and permissions: Passed"
+ },
+ {
+  "key": "recap.10",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "①②④⑤",
+  "en": "①②④⑤"
+ },
+ {
+  "key": "recap.11",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "같은 반출을 비동기식으로",
+  "en": "The same export, asynchronous"
+ },
+ {
+  "key": "recap.12",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "위험 판단 뒤 다음 요청부터 막음",
+  "en": "Judged it risky, then stopped it from the next request"
+ },
+ {
+  "key": "recap.13",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "—",
+  "en": "—"
+ },
+ {
+  "key": "recap.14",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "①",
+  "en": "①"
+ },
+ {
+  "key": "recap.15",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "진짜 직원이 승인을 갖고 반출",
+  "en": "The real employee exported with approval"
+ },
+ {
+  "key": "recap.16",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "승인을 보고 통과, 확인 뒤 0.05초 재개",
+  "en": "Saw the approval and let it pass; resumed 0.05 s after a check"
+ },
+ {
+  "key": "recap.17",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "숫자 규칙이 막음",
+  "en": "Threshold rules blocked it"
+ },
+ {
+  "key": "recap.18",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "③⑤",
+  "en": "③⑤"
+ },
+ {
+  "key": "recap.19",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "고객 조회 다섯 번",
+  "en": "Five customer lookups"
+ },
+ {
+  "key": "recap.20",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "정상은 배우고, 공격은 1건 뒤 거부",
+  "en": "Learned the legitimate ones; denied the attack after 1"
+ },
+ {
+  "key": "recap.21",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "⑥",
+  "en": "⑥"
+ },
+ {
+  "key": "recap.22",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "① 요청마다 판단",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "recap.23",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "② 사람을 안다",
+  "en": "② Knows the person"
+ },
+ {
+  "key": "recap.24",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "③ 정당한 업무는 통과",
+  "en": "③ Lets legitimate work through"
+ },
+ {
+  "key": "recap.25",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "④ 이유를 남긴다",
+  "en": "④ Leaves its reasons"
+ },
+ {
+  "key": "recap.26",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않는다",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "recap.27",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "⑥ 쓸수록 배운다",
+  "en": "⑥ Learns with use"
+ },
+ {
+  "key": "recap.28",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "처음에 본 정의를 오늘 직접 확인했습니다. Contexa는 로그인 이후의 요청마다, 그 사람의 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리입니다.",
+  "en": "Today you checked for yourself the definition you saw at the start. Contexa is an AI security library that judges every request after sign-in by the person's usual behaviour and the company's records."
+ },
+ {
+  "key": "recap.29",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "다음 · 이해 확인 세 문항",
+  "en": "Next · Three quick questions"
+ },
+ {
+  "key": "recap.30",
+  "slide": "recap",
+  "kind": "screen",
+  "ko": "조건을 바꿔 해 보기",
+  "en": "Try it with different conditions"
+ },
+ {
+  "key": "quiz.01",
+  "slide": "quiz",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/summary",
+  "en": "Contexa demo · /try/summary"
+ },
+ {
+  "key": "quiz.02",
+  "slide": "quiz",
+  "kind": "chrome",
+  "ko": "막 4 · 정리",
+  "en": "Act 4 · Wrap-up"
+ },
+ {
+  "key": "quiz.03",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "1. Contexa는 무엇으로 판단하나요?",
+  "en": "1. What does Contexa judge by?"
+ },
+ {
+  "key": "quiz.04",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "비밀번호와 역할",
+  "en": "Password and role"
+ },
+ {
+  "key": "quiz.05",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "평소 모습과 회사 기록 · 맞음",
+  "en": "Usual behaviour and company records · Correct"
+ },
+ {
+  "key": "quiz.06",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "요청 속 공격 문자열",
+  "en": "Attack strings in the request"
+ },
+ {
+  "key": "quiz.07",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "2. 체험 2에서 Contexa가 통과시킨 이유는?",
+  "en": "2. Why did Contexa let it through in Try 2?"
+ },
+ {
+  "key": "quiz.08",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "평소와 같아서",
+  "en": "Because it was the same as usual"
+ },
+ {
+  "key": "quiz.09",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "회사 승인이 있어서 · 맞음",
+  "en": "Because there was company approval · Correct"
+ },
+ {
+  "key": "quiz.10",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "비밀번호가 맞아서",
+  "en": "Because the password was correct"
+ },
+ {
+  "key": "quiz.11",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "3. 한 번에 큰 피해가 나는 반출에 맞는 판정 방식은?",
+  "en": "3. Which decision mode suits an export that can do big damage in one go?"
+ },
+ {
+  "key": "quiz.12",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "비동기식 · 다시 보기",
+  "en": "Asynchronous · See again"
+ },
+ {
+  "key": "quiz.13",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "동기식 · 정답",
+  "en": "Synchronous · Right answer"
+ },
+ {
+  "key": "quiz.14",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "3문항 중 2개 맞음 · 틀린 문항은 해당 화면으로",
+  "en": "2 of 3 correct · Wrong answers take you to their screen"
+ },
+ {
+  "key": "quiz.15",
+  "slide": "quiz",
+  "kind": "screen",
+  "ko": "다음 · Contexa의 가치",
+  "en": "Next · Contexa's value"
+ },
+ {
+  "key": "value.01",
+  "slide": "value",
+  "kind": "chrome",
+  "ko": "막 4 · 정리 4/5 · 핵심 가치 · /try/summary · 화면 그대로",
+  "en": "Act 4 · Wrap-up 4/5 · Core value · /try/summary · as on screen"
+ },
+ {
+  "key": "value.02",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "Contexa는 단순한 보안 도구가 아닙니다",
+  "en": "Contexa is not just a security tool"
+ },
+ {
+  "key": "value.03",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "① 요청마다 판단합니다",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "value.04",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "로그인 뒤에도, 보호한 업무 요청마다",
+  "en": "Even after sign-in, on every protected work request"
+ },
+ {
+  "key": "value.05",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "판정 134건 · 시점은 업무마다 선택",
+  "en": "134 decisions · timing chosen for each type of work"
+ },
+ {
+  "key": "value.06",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "② 사람을 압니다",
+  "en": "② Knows the person"
+ },
+ {
+  "key": "value.07",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "평소 모습을 배워 다른 점을 찾습니다",
+  "en": "Learns usual behaviour and finds what differs"
+ },
+ {
+  "key": "value.08",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "학습 25건 · 다른 점 3개",
+  "en": "25 learned requests · 3 differences"
+ },
+ {
+  "key": "value.09",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "③ 정당한 업무는 통과",
+  "en": "③ Lets legitimate work through"
+ },
+ {
+  "key": "value.10",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "회사가 허락했는지까지 봅니다",
+  "en": "Also checks whether the company allowed it"
+ },
+ {
+  "key": "value.11",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "정상 막음 0/30 · 숫자 규칙 15/30",
+  "en": "Legitimate work blocked 0/30 · threshold rules 15/30"
+ },
+ {
+  "key": "value.12",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "④ 이유를 남깁니다",
+  "en": "④ Leaves its reasons"
+ },
+ {
+  "key": "value.13",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "규칙·프롬프트·응답 원문을 공개",
+  "en": "Publishes the original rules, prompt and response"
+ },
+ {
+  "key": "value.14",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "응답마다 17개 조건 검사",
+  "en": "Checks 17 conditions on every response"
+ },
+ {
+  "key": "value.15",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않습니다",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "value.16",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "본인 확인·해제로 업무를 복구",
+  "en": "Restores work through identity checks and unblocking"
+ },
+ {
+  "key": "value.17",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "확인 뒤 0.05초 재개 · 재개 24건",
+  "en": "Resumes 0.05 s after a check · 24 resumed"
+ },
+ {
+  "key": "value.18",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "⑥ 쓸수록 배웁니다",
+  "en": "⑥ Learns with use"
+ },
+ {
+  "key": "value.19",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "허용될 때마다 평소 모습을 갱신",
+  "en": "Updates usual behaviour every time a request is allowed"
+ },
+ {
+  "key": "value.20",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "관측 21 → 25",
+  "en": "Observations 21 → 25"
+ },
+ {
+  "key": "value.21",
+  "slide": "value",
+  "kind": "screen",
+  "ko": "위험이라고 판단한 공격은 31회 모두 막았습니다 · 판단이 허용이라 놓친 11회와 그 이유는 '한계'에서",
+  "en": "It stopped all 31 attacks it judged risky · The 11 it missed because it decided Allow, and why, are in 'Limits'"
+ },
+ {
+  "key": "adopt-change.01",
+  "slide": "adopt-change",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /try/summary",
+  "en": "Contexa demo · /try/summary"
+ },
+ {
+  "key": "adopt-change.02",
+  "slide": "adopt-change",
+  "kind": "chrome",
+  "ko": "막 4 · 정리",
+  "en": "Act 4 · Wrap-up"
+ },
+ {
+  "key": "adopt-change.03",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "코드",
+  "en": "Code"
+ },
+ {
+  "key": "adopt-change.04",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "의존성 하나, 보호할 메서드에 @Protectable",
+  "en": "One dependency, plus @Protectable on the methods to protect"
+ },
+ {
+  "key": "adopt-change.05",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "요청 흐름",
+  "en": "Request flow"
+ },
+ {
+  "key": "adopt-change.06",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "보호한 요청마다 아홉 칸 판단이 붙음",
+  "en": "Every protected request gets the nine-step decision"
+ },
+ {
+  "key": "adopt-change.07",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "시간",
+  "en": "Time"
+ },
+ {
+  "key": "adopt-change.08",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "판단 중앙값 6.3초, 느린 쪽 9.4초. 동기식 요청만 기다림",
+  "en": "Median decision 6.3 s, slow end 9.4 s. Only synchronous requests wait"
+ },
+ {
+  "key": "adopt-change.09",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "비용",
+  "en": "Cost"
+ },
+ {
+  "key": "adopt-change.10",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "판정 한 번에 약 0.0006달러 (약 9,750토큰)",
+  "en": "About $0.0006 per decision (about 9,750 tokens)"
+ },
+ {
+  "key": "adopt-change.11",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "쌓이는 데이터",
+  "en": "Data that builds up"
+ },
+ {
+  "key": "adopt-change.12",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "직원별 평소 모습, 판정과 근거, 행동 기록",
+  "en": "Each employee's usual behaviour, decisions and reasons, and activity records"
+ },
+ {
+  "key": "adopt-change.13",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "직원 경험",
+  "en": "Employee experience"
+ },
+ {
+  "key": "adopt-change.14",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "의심될 때만 본인 확인 · 정상 30회 중 막음 0, 확인 2",
+  "en": "Identity check only when something looks suspicious · of 30 legitimate runs: 0 blocked, 2 checks"
+ },
+ {
+  "key": "adopt-change.15",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "보안 담당자",
+  "en": "Security team"
+ },
+ {
+  "key": "adopt-change.16",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "판정 근거 열람, 차단 해제 승인",
+  "en": "View decision reasons, approve unblocking"
+ },
+ {
+  "key": "adopt-change.17",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "시작 방법",
+  "en": "How to start"
+ },
+ {
+  "key": "adopt-change.18",
+  "slide": "adopt-change",
+  "kind": "screen",
+  "ko": "기록만 하는 모드 → 검토 → 집행",
+  "en": "Record-only mode → review → enforce"
+ },
+ {
+  "key": "g1-start.01",
+  "slide": "g1-start",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro",
+  "en": "Contexa demo · /intro"
+ },
+ {
+  "key": "g1-start.02",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "처음부터 보기 · 실험실 · 벤치마크",
+  "en": "Start from the beginning · Lab · Benchmark"
+ },
+ {
+  "key": "g1-start.03",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "Contexa · 로그인 이후 요청마다, 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리",
+  "en": "Contexa · an AI security library that judges every request after sign-in by usual behaviour and company records"
+ },
+ {
+  "key": "g1-start.04",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "개념 경로 1 / 9 · 소개 · 전체 약 15분",
+  "en": "Concept path 1 / 9 · Introduction · about 15 min in total"
+ },
+ {
+  "key": "g1-start.05",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "확인한 차이 0/6",
+  "en": "Differences seen 0/6"
+ },
+ {
+  "key": "g1-start.06",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "비밀번호가 맞으면, 정말 그 사람일까요?",
+  "en": "If the password is right, is it really that person?"
+ },
+ {
+  "key": "g1-start.07",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "Contexa는 로그인 이후의 요청마다, 그 사람의 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리입니다.",
+  "en": "Contexa is an AI security library that judges every request after sign-in by the person's usual behaviour and the company's records."
+ },
+ {
+  "key": "g1-start.08",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "이 데모에서 직접 확인할 차이 여섯 가지",
+  "en": "Six differences you will see for yourself in this demo"
+ },
+ {
+  "key": "g1-start.09",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "① 요청마다 판단",
+  "en": "① Judges every request"
+ },
+ {
+  "key": "g1-start.10",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "② 사람을 안다",
+  "en": "② Knows the person"
+ },
+ {
+  "key": "g1-start.11",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "③ 정당한 업무는 통과",
+  "en": "③ Lets legitimate work through"
+ },
+ {
+  "key": "g1-start.12",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "④ 이유를 남긴다",
+  "en": "④ Leaves its reasons"
+ },
+ {
+  "key": "g1-start.13",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "⑤ 막고 끝내지 않는다",
+  "en": "⑤ Does not stop at blocking"
+ },
+ {
+  "key": "g1-start.14",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "⑥ 쓸수록 배운다",
+  "en": "⑥ Learns with use"
+ },
+ {
+  "key": "g1-start.15",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "처음부터 차근차근 보기",
+  "en": "Go step by step from the start"
+ },
+ {
+  "key": "g1-start.16",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "바로 직접 해 보기",
+  "en": "Try it yourself now"
+ },
+ {
+  "key": "g1-start.17",
+  "slide": "g1-start",
+  "kind": "screen",
+  "ko": "벤치마크만",
+  "en": "Benchmark only"
+ },
+ {
+  "key": "g2-concept.01",
+  "slide": "g2-concept",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/concept",
+  "en": "Contexa demo · /intro/concept"
+ },
+ {
+  "key": "g2-concept.02",
+  "slide": "g2-concept",
+  "kind": "chrome",
+  "ko": "개념 경로 2 / 9 · 문제",
+  "en": "Concept path 2 / 9 · The problem"
+ },
+ {
+  "key": "g2-concept.03",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "로그인은 문을 여는 순간만 확인합니다",
+  "en": "Sign-in checks only at the moment the door opens"
+ },
+ {
+  "key": "g2-concept.04",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "층 1 · 처음 보이는 그림",
+  "en": "Layer 1 · The first picture you see"
+ },
+ {
+  "key": "g2-concept.05",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "비밀번호 확인함",
+  "en": "Password checked"
+ },
+ {
+  "key": "g2-concept.06",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "로그인",
+  "en": "Sign-in"
+ },
+ {
+  "key": "g2-concept.07",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "다시 묻지 않음",
+  "en": "Never asks again"
+ },
+ {
+  "key": "g2-concept.08",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "메뉴 열기",
+  "en": "Open menu"
+ },
+ {
+  "key": "g2-concept.09",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "문서 조회",
+  "en": "View documents"
+ },
+ {
+  "key": "g2-concept.10",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "[N]건 내보내기",
+  "en": "Export [N] records"
+ },
+ {
+  "key": "g2-concept.11",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "층 2 · '다음'을 누르면 같은 그림 위에 덧칠",
+  "en": "Layer 2 · Clicking 'Next' draws over the same picture"
+ },
+ {
+  "key": "g2-concept.12",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "진짜 직원",
+  "en": "The real employee"
+ },
+ {
+  "key": "g2-concept.13",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "와",
+  "en": "and"
+ },
+ {
+  "key": "g2-concept.14",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "계정을 훔친 사람",
+  "en": "someone using a stolen account"
+ },
+ {
+  "key": "g2-concept.15",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "이 같은 요청을 보냅니다",
+  "en": "send the same request"
+ },
+ {
+  "key": "g2-concept.16",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "계정과 권한이 같으면, 요청만 보고는 둘을 가를 수 없습니다.",
+  "en": "If the account and permissions are the same, you cannot tell the two apart from the request alone."
+ },
+ {
+  "key": "g2-concept.17",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "다음 · 누가 이것을 판단하나",
+  "en": "Next · Who judges this"
+ },
+ {
+  "key": "g2-concept.18",
+  "slide": "g2-concept",
+  "kind": "screen",
+  "ko": "건너뛰기",
+  "en": "Skip"
+ },
+ {
+  "key": "g4-compare.01",
+  "slide": "g4-compare",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/compare",
+  "en": "Contexa demo · /intro/compare"
+ },
+ {
+  "key": "g4-compare.02",
+  "slide": "g4-compare",
+  "kind": "chrome",
+  "ko": "개념 경로 6 / 9 · 비교 방법",
+  "en": "Concept path 6 / 9 · How we compare"
+ },
+ {
+  "key": "g4-compare.03",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "같은 요청을 다섯 곳에 동시에 보냅니다",
+  "en": "We send the same request to five places at once"
+ },
+ {
+  "key": "g4-compare.04",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "요청 1건 [N]건 내보내기",
+  "en": "1 request · Export [N] records"
+ },
+ {
+  "key": "g4-compare.05",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "경계 보안 (WAF)",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "g4-compare.06",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "→ 회사 시스템 복사본 →",
+  "en": "→ copy of the company system →"
+ },
+ {
+  "key": "g4-compare.07",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "?",
+  "en": "?"
+ },
+ {
+  "key": "g4-compare.08",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "g4-compare.09",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "숫자 기준 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "g4-compare.10",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "업무 기록 규칙",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "g4-compare.11",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "g4-compare.12",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "g4-compare.13",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "자료가 나갑니다",
+  "en": "Records go out"
+ },
+ {
+  "key": "g4-compare.14",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "g4-compare.15",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "본인 확인까지 보류",
+  "en": "On hold until the identity check"
+ },
+ {
+  "key": "g4-compare.16",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "차단",
+  "en": "Block"
+ },
+ {
+  "key": "g4-compare.17",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "막습니다",
+  "en": "Stops it"
+ },
+ {
+  "key": "g4-compare.18",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "정답 계정을 훔친 사람의 요청은 막아야, 진짜 직원의 요청은 통과시켜야 정답입니다. 정답은 회사 기록(승인·담당)으로 미리 정해 둡니다.",
+  "en": "Right answer: a request from someone using a stolen account must be stopped, and a request from the real employee must pass. The right answer is set in advance from company records (approvals, assignments)."
+ },
+ {
+  "key": "g4-compare.19",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "다음 · 진행 순서",
+  "en": "Next · The order of steps"
+ },
+ {
+  "key": "g4-compare.20",
+  "slide": "g4-compare",
+  "kind": "screen",
+  "ko": "정말 같은 조건인가요?",
+  "en": "Are the conditions really the same?"
+ },
+ {
+  "key": "g5-order.01",
+  "slide": "g5-order",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /intro/order",
+  "en": "Contexa demo · /intro/order"
+ },
+ {
+  "key": "g5-order.02",
+  "slide": "g5-order",
+  "kind": "chrome",
+  "ko": "개념 경로 6 / 9 · 비교 방법",
+  "en": "Concept path 6 / 9 · How we compare"
+ },
+ {
+  "key": "g5-order.03",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "이제 세 가지를 직접 해 봅니다",
+  "en": "Now you will try three things yourself"
+ },
+ {
+  "key": "g5-order.04",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "체험 1 · 계정을 훔친 사람",
+  "en": "Try 1 · Someone using a stolen account"
+ },
+ {
+  "key": "g5-order.05",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "A의 계정으로 새벽 3시, GB-500 자료 4,831건 반출",
+  "en": "Using A's account at 3 a.m., export 4,831 GB-500 records"
+ },
+ {
+  "key": "g5-order.06",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "정답 막아야 함",
+  "en": "Right answer: stop it"
+ },
+ {
+  "key": "g5-order.07",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "체험 2 · 진짜 직원",
+  "en": "Try 2 · The real employee"
+ },
+ {
+  "key": "g5-order.08",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "같은 반출, 이번엔 회사 승인이 있음",
+  "en": "The same export, but this time with company approval"
+ },
+ {
+  "key": "g5-order.09",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "정답 막지 않아야 함",
+  "en": "Right answer: do not stop it"
+ },
+ {
+  "key": "g5-order.10",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "체험 3 · 다섯 번 반복",
+  "en": "Try 3 · Five in a row"
+ },
+ {
+  "key": "g5-order.11",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "고객 기록 조회 5건, 정상과 공격",
+  "en": "5 customer record lookups, legitimate and attack"
+ },
+ {
+  "key": "g5-order.12",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "보는 것 쌓이는 학습",
+  "en": "What you see: learning that builds up"
+ },
+ {
+  "key": "g5-order.13",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "계정을 훔친 사람: 다른 직원의 계정과 비밀번호를 손에 넣은 사람. 로그인도 권한도 정상이라 겉으로는 직원과 같습니다.",
+  "en": "Someone using a stolen account: a person who has got hold of another employee's account and password. Sign-in and permissions are both normal, so from the outside they look just like the employee."
+ },
+ {
+  "key": "g5-order.14",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "보내기 전에 내가 먼저 판단",
+  "en": "Make your own call before sending"
+ },
+ {
+  "key": "g5-order.15",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "결과는 지금 실제로 실행",
+  "en": "Results come from a real run, right now"
+ },
+ {
+  "key": "g5-order.16",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "판정 방식(동기식·비동기식) 선택",
+  "en": "Choose the decision mode (synchronous or asynchronous)"
+ },
+ {
+  "key": "g5-order.17",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "체험 1 시작",
+  "en": "Start Try 1"
+ },
+ {
+  "key": "g5-order.18",
+  "slide": "g5-order",
+  "kind": "screen",
+  "ko": "다섯 방식 다시 보기",
+  "en": "See the five approaches again"
+ },
+ {
+  "key": "lab-0.01",
+  "slide": "lab-0",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab",
+  "en": "Contexa demo · /lab"
+ },
+ {
+  "key": "lab-0.02",
+  "slide": "lab-0",
+  "kind": "chrome",
+  "ko": "실험실",
+  "en": "Lab"
+ },
+ {
+  "key": "lab-0.03",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "실험실: 조건 하나를 바꾸면 판정이 달라질까요?",
+  "en": "Lab: if you change one condition, does the decision change?"
+ },
+ {
+  "key": "lab-0.04",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "사례를 하나 골라 시각이나 장소 같은 조건 하나를 바꿔 다시 보냅니다. 직전 실행과 무엇이 달라졌는지 나란히 보여 줍니다.",
+  "en": "Pick a case and send it again with one condition changed, such as time or location. You see side by side what changed from the previous run."
+ },
+ {
+  "key": "lab-0.05",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "사례 고르기",
+  "en": "Pick a case"
+ },
+ {
+  "key": "lab-0.06",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "조건 하나 바꾸기",
+  "en": "Change one condition"
+ },
+ {
+  "key": "lab-0.07",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "예측하고 보내기, 직전과 비교",
+  "en": "Predict and send, then compare with the previous run"
+ },
+ {
+  "key": "lab-0.08",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "바꾼 조건은 이번 실행에만 쓰입니다. 데모 회사의 설정과 다른 방문자의 기록은 바뀌지 않습니다. · 오늘 남은 실행 [n]회",
+  "en": "The changed condition is used only in this run. The demo company's settings and other visitors' records do not change. · Runs left today: [n]"
+ },
+ {
+  "key": "lab-0.09",
+  "slide": "lab-0",
+  "kind": "screen",
+  "ko": "규칙을 직접 조여 보기",
+  "en": "Tighten the rules yourself"
+ },
+ {
+  "key": "lab-1.01",
+  "slide": "lab-1",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab",
+  "en": "Contexa demo · /lab"
+ },
+ {
+  "key": "lab-1.02",
+  "slide": "lab-1",
+  "kind": "chrome",
+  "ko": "실험실",
+  "en": "Lab"
+ },
+ {
+  "key": "lab-1.03",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "1 사례",
+  "en": "1 Case"
+ },
+ {
+  "key": "lab-1.04",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "2 조건",
+  "en": "2 Condition"
+ },
+ {
+  "key": "lab-1.05",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "3 보내기·비교",
+  "en": "3 Send · compare"
+ },
+ {
+  "key": "lab-1.06",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "어떤 사례로 해 볼까요?",
+  "en": "Which case do you want to try?"
+ },
+ {
+  "key": "lab-1.07",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "모두",
+  "en": "All"
+ },
+ {
+  "key": "lab-1.08",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "공격",
+  "en": "Attack"
+ },
+ {
+  "key": "lab-1.09",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "정상 업무",
+  "en": "Legitimate work"
+ },
+ {
+  "key": "lab-1.10",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "[직원] · [상황 한 줄]",
+  "en": "[employee] · [one-line situation]"
+ },
+ {
+  "key": "lab-1.11",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "정답 · 막아야 함",
+  "en": "Right answer · stop it"
+ },
+ {
+  "key": "lab-1.12",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "Contexa 최근 [k]/[n] 맞음",
+  "en": "Contexa recently: [k]/[n] correct"
+ },
+ {
+  "key": "lab-1.13",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "정답 · 통과시켜야 함",
+  "en": "Right answer · let it pass"
+ },
+ {
+  "key": "lab-1.14",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "다음 · 조건 바꾸기",
+  "en": "Next · Change a condition"
+ },
+ {
+  "key": "lab-1.15",
+  "slide": "lab-1",
+  "kind": "screen",
+  "ko": "사례 [n]개 중 6개 · 더 보기",
+  "en": "6 of [n] cases · Show more"
+ },
+ {
+  "key": "lab-2.01",
+  "slide": "lab-2",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab",
+  "en": "Contexa demo · /lab"
+ },
+ {
+  "key": "lab-2.02",
+  "slide": "lab-2",
+  "kind": "chrome",
+  "ko": "실험실",
+  "en": "Lab"
+ },
+ {
+  "key": "lab-2.03",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "1 사례",
+  "en": "1 Case"
+ },
+ {
+  "key": "lab-2.04",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "2 조건",
+  "en": "2 Condition"
+ },
+ {
+  "key": "lab-2.05",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "3 보내기·비교",
+  "en": "3 Send · compare"
+ },
+ {
+  "key": "lab-2.06",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "무엇을 바꿔 볼까요?",
+  "en": "What do you want to change?"
+ },
+ {
+  "key": "lab-2.07",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "원래 사례",
+  "en": "Original case"
+ },
+ {
+  "key": "lab-2.08",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "[직원] · [역할]",
+  "en": "[employee] · [role]"
+ },
+ {
+  "key": "lab-2.09",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "시각 · [시각]",
+  "en": "Time · [time]"
+ },
+ {
+  "key": "lab-2.10",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "장소 · [네트워크]",
+  "en": "Location · [network]"
+ },
+ {
+  "key": "lab-2.11",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "기기 · [기기]",
+  "en": "Device · [device]"
+ },
+ {
+  "key": "lab-2.12",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "대상 · [N]건",
+  "en": "Target · [N] records"
+ },
+ {
+  "key": "lab-2.13",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "승인 기록 · [있음/없음]",
+  "en": "Approval record · [yes/no]"
+ },
+ {
+  "key": "lab-2.14",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "바꿀 항목 하나 고르기",
+  "en": "Pick one item to change"
+ },
+ {
+  "key": "lab-2.15",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "시각",
+  "en": "Time"
+ },
+ {
+  "key": "lab-2.16",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "장소",
+  "en": "Location"
+ },
+ {
+  "key": "lab-2.17",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "기기",
+  "en": "Device"
+ },
+ {
+  "key": "lab-2.18",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "건수",
+  "en": "Count"
+ },
+ {
+  "key": "lab-2.19",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "승인 기록",
+  "en": "Approval record"
+ },
+ {
+  "key": "lab-2.20",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "원래 [시각]",
+  "en": "Original [time]"
+ },
+ {
+  "key": "lab-2.21",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "[바꿀 값] ▾",
+  "en": "[new value] ▾"
+ },
+ {
+  "key": "lab-2.22",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "한 번에 하나만 바꿉니다. 둘 이상 바꾸면 무엇 때문에 결과가 달라졌는지 알 수 없습니다.",
+  "en": "Change only one at a time. If you change two or more, you cannot tell what made the result different."
+ },
+ {
+  "key": "lab-2.23",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "[직원]의 평소 모습 보기 · 여러 조건 한꺼번에 바꾸기 (고급)",
+  "en": "View [employee]'s usual behaviour · Change several conditions at once (advanced)"
+ },
+ {
+  "key": "lab-2.24",
+  "slide": "lab-2",
+  "kind": "screen",
+  "ko": "다음 · 예측하고 보내기",
+  "en": "Next · Predict and send"
+ },
+ {
+  "key": "lab-compare.01",
+  "slide": "lab-compare",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab",
+  "en": "Contexa demo · /lab"
+ },
+ {
+  "key": "lab-compare.02",
+  "slide": "lab-compare",
+  "kind": "chrome",
+  "ko": "실험실 · 2 조건 · 비교",
+  "en": "Lab · 2 Condition · Compare"
+ },
+ {
+  "key": "lab-compare.03",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "바꾼 조건 · 회사 승인 없음 → 프로젝트 이관 승인 (5,000건까지)",
+  "en": "Changed condition · no company approval → project handover approved (up to 5,000 records)"
+ },
+ {
+  "key": "lab-compare.04",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "평소와 다른 점",
+  "en": "Differences from usual"
+ },
+ {
+  "key": "lab-compare.05",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "그대로",
+  "en": "Unchanged"
+ },
+ {
+  "key": "lab-compare.06",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "회사 기록 걸림",
+  "en": "Flagged by company records"
+ },
+ {
+  "key": "lab-compare.07",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "승인 필요 · 승인 있음",
+  "en": "Approval needed · approval on file"
+ },
+ {
+  "key": "lab-compare.08",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "꼭 지키는 선",
+  "en": "Hard lines"
+ },
+ {
+  "key": "lab-compare.09",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "벗어남",
+  "en": "No longer crossed"
+ },
+ {
+  "key": "lab-compare.10",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "승인이 있어 해당 없음",
+  "en": "Does not apply: approval on file"
+ },
+ {
+  "key": "lab-compare.11",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "이 비교로 보면 올바른 판단은 통과입니다. 보내서 AI도 그렇게 판단하는지 봅시다.",
+  "en": "By this comparison, the right decision is to let it pass. Let's send it and see if the AI decides the same way."
+ },
+ {
+  "key": "lab-compare.12",
+  "slide": "lab-compare",
+  "kind": "screen",
+  "ko": "예측하고 보내기",
+  "en": "Predict and send"
+ },
+ {
+  "key": "lab-3.01",
+  "slide": "lab-3",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab",
+  "en": "Contexa demo · /lab"
+ },
+ {
+  "key": "lab-3.02",
+  "slide": "lab-3",
+  "kind": "chrome",
+  "ko": "실험실 · 3 보내기·비교",
+  "en": "Lab · 3 Send · compare"
+ },
+ {
+  "key": "lab-3.03",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "승인 하나만 바꿨더니 Contexa는 본인 확인에서 허용으로 바뀌었습니다",
+  "en": "Changing only the approval moved Contexa from Identity check to Allow"
+ },
+ {
+  "key": "lab-3.04",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "방식",
+  "en": "Approach"
+ },
+ {
+  "key": "lab-3.05",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "직전 · 승인 없음",
+  "en": "Previous · no approval"
+ },
+ {
+  "key": "lab-3.06",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "이번 · 승인 있음",
+  "en": "This time · approval on file"
+ },
+ {
+  "key": "lab-3.07",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "lab-3.08",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "허용",
+  "en": "Allow"
+ },
+ {
+  "key": "lab-3.09",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "lab-3.10",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "lab-3.11",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "거부",
+  "en": "Denied"
+ },
+ {
+  "key": "lab-3.12",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "거부 · 정상 업무 막음",
+  "en": "Denied · legitimate work blocked"
+ },
+ {
+  "key": "lab-3.13",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "lab-3.14",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "허용 · 바뀜",
+  "en": "Allow · changed"
+ },
+ {
+  "key": "lab-3.15",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "lab-3.16",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "본인 확인",
+  "en": "Identity check"
+ },
+ {
+  "key": "lab-3.17",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "직전 근거 민감한 자료, 평소와 다름, 승인 없음 → 본인 확인",
+  "en": "Previous reasons: sensitive data, different from usual, no approval → Identity check"
+ },
+ {
+  "key": "lab-3.18",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "이번 근거 같은 차이 + 승인 있음 → 허용 (문장은 규칙 지정)",
+  "en": "This time's reasons: same differences + approval on file → Allow (sentence set by the rules)"
+ },
+ {
+  "key": "lab-3.19",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "다른 조건 바꿔 보기",
+  "en": "Try changing another condition"
+ },
+ {
+  "key": "lab-3.20",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "판정 자세히 보기",
+  "en": "Decision details"
+ },
+ {
+  "key": "lab-3.21",
+  "slide": "lab-3",
+  "kind": "screen",
+  "ko": "이 판정 평가하기 (선택)",
+  "en": "Rate this decision (optional)"
+ },
+ {
+  "key": "lab-rules.01",
+  "slide": "lab-rules",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /lab/rules",
+  "en": "Contexa demo · /lab/rules"
+ },
+ {
+  "key": "lab-rules.02",
+  "slide": "lab-rules",
+  "kind": "chrome",
+  "ko": "실험실",
+  "en": "Lab"
+ },
+ {
+  "key": "lab-rules.03",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "규칙을 조이면 무엇이 막히고, 풀면 무엇이 지나갈까요?",
+  "en": "If you tighten the rules, what gets stopped, and if you loosen them, what gets through?"
+ },
+ {
+  "key": "lab-rules.04",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "사례는 모두 이 데모의 실제 실행 기록입니다. 서버의 실제 규칙으로 다시 판정합니다.",
+  "en": "All cases are real run records from this demo. They are decided again with the server's real rules."
+ },
+ {
+  "key": "lab-rules.05",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "숫자 기준 규칙",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "lab-rules.06",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "lab-rules.07",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "밤 시간대",
+  "en": "Night hours"
+ },
+ {
+  "key": "lab-rules.08",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "[시작]시 ~ [끝]시",
+  "en": "[start]:00 to [end]:00"
+ },
+ {
+  "key": "lab-rules.09",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "건수 상한",
+  "en": "Count limit"
+ },
+ {
+  "key": "lab-rules.10",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "[N]건",
+  "en": "[N] records"
+ },
+ {
+  "key": "lab-rules.11",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "오래 안 쓴 계정 검사",
+  "en": "Dormant account check"
+ },
+ {
+  "key": "lab-rules.12",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "켬",
+  "en": "On"
+ },
+ {
+  "key": "lab-rules.13",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "규칙 더 보기 · 기본값으로",
+  "en": "More rules · Reset to defaults"
+ },
+ {
+  "key": "lab-rules.14",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "막은 공격",
+  "en": "Attacks stopped"
+ },
+ {
+  "key": "lab-rules.15",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "[k] / [n]",
+  "en": "[k] / [n]"
+ },
+ {
+  "key": "lab-rules.16",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "막힌 정상 업무",
+  "en": "Legitimate work blocked"
+ },
+ {
+  "key": "lab-rules.17",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "[m] / [p]",
+  "en": "[m] / [p]"
+ },
+ {
+  "key": "lab-rules.18",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "같은 사례에서 Contexa (기록) · 막은 공격 [k]/[n] · 막힌 정상 [m]/[p]",
+  "en": "Contexa on the same cases (recorded) · attacks stopped [k]/[n] · legitimate work blocked [m]/[p]"
+ },
+ {
+  "key": "lab-rules.19",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "바뀐 사례",
+  "en": "Cases that changed"
+ },
+ {
+  "key": "lab-rules.20",
+  "slide": "lab-rules",
+  "kind": "screen",
+  "ko": "[사례] · 기본 [결과] → 지금 [결과]",
+  "en": "[case] · default [result] → now [result]"
+ },
+ {
+  "key": "anat-1.01",
+  "slide": "anat-1",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /run/run-d9e438853e46/detail",
+  "en": "Contexa demo · /run/run-d9e438853e46/detail"
+ },
+ {
+  "key": "anat-1.02",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "모달",
+  "en": "Modal"
+ },
+ {
+  "key": "anat-1.03",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "판정 자세히 보기 · 내부자 대량 반출 · 요청 1/1",
+  "en": "Decision details · Insider bulk export · Request 1/1"
+ },
+ {
+  "key": "anat-1.04",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "닫기",
+  "en": "Close"
+ },
+ {
+  "key": "anat-1.05",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "요약",
+  "en": "Summary"
+ },
+ {
+  "key": "anat-1.06",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "받은 것",
+  "en": "Received"
+ },
+ {
+  "key": "anat-1.07",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "판단 과정",
+  "en": "Decision process"
+ },
+ {
+  "key": "anat-1.08",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "프롬프트",
+  "en": "Prompt"
+ },
+ {
+  "key": "anat-1.09",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "정답",
+  "en": "Right answer"
+ },
+ {
+  "key": "anat-1.10",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "원문",
+  "en": "Original"
+ },
+ {
+  "key": "anat-1.11",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "본인 확인 요구",
+  "en": "Identity check requested"
+ },
+ {
+  "key": "anat-1.12",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "· 정답(막거나, 본인 확인하거나, 검토로 넘김)에 맞음",
+  "en": "· matches the right answer (Block, Identity check or Escalate to review)"
+ },
+ {
+  "key": "anat-1.13",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "평소와 다름 3",
+  "en": "Differs from usual · 3"
+ },
+ {
+  "key": "anat-1.14",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "민감도 최고",
+  "en": "Highest sensitivity"
+ },
+ {
+  "key": "anat-1.15",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "승인 없음",
+  "en": "No approval"
+ },
+ {
+  "key": "anat-1.16",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "응답 전 판정 · 8.0초",
+  "en": "Decided before responding · 8.0 s"
+ },
+ {
+  "key": "anat-1.17",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "나간 자료 0건",
+  "en": "0 records out"
+ },
+ {
+  "key": "anat-1.18",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "학습 25 → 25",
+  "en": "Learned 25 → 25"
+ },
+ {
+  "key": "anat-1.19",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "민감한 자료 접근이 확립된 평소 모습과 다르고, 필요한 승인이 없습니다. 본인 확인이 필요합니다.",
+  "en": "High-sensitivity access departs from the established personal baseline without a required approval; challenge is required."
+ },
+ {
+  "key": "anat-1.20",
+  "slide": "anat-1",
+  "kind": "screen",
+  "ko": "위험도·확신도: 이번 응답에 값 없음 · 후속: 코드를 받을 메일함 없음, 보류",
+  "en": "Risk and confidence: no value in this response · Follow-up: no mailbox to receive the code, on hold"
+ },
+ {
+  "key": "anat-2.01",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "판정 자세히 보기 · 탭 상세 · 실제 값: run-d9e438853e46",
+  "en": "Decision details · Tab detail · Real values: run-d9e438853e46"
+ },
+ {
+  "key": "anat-2.02",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "탭 상세: 다른 것만 강조하고, 원문은 끝까지 열어 볼 수 있게",
+  "en": "Tab detail: highlight only what differs, and let the original be opened in full"
+ },
+ {
+  "key": "anat-2.03",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "받은 것",
+  "en": "Received"
+ },
+ {
+  "key": "anat-2.04",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "시각 · 평일 낮 → 3시",
+  "en": "Time · weekday daytime → 3 a.m."
+ },
+ {
+  "key": "anat-2.05",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "경로 · PLM-OPS → GB-500",
+  "en": "Path · PLM-OPS → GB-500"
+ },
+ {
+  "key": "anat-2.06",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "민감도 · 보통 → 최고",
+  "en": "Sensitivity · Normal → Highest"
+ },
+ {
+  "key": "anat-2.07",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "같은 항목 6개 더 보기",
+  "en": "Show 6 more items that are the same"
+ },
+ {
+  "key": "anat-2.08",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "회사 기록 8줄 · 과거 기록 5건",
+  "en": "Company records: 8 lines · past records: 5"
+ },
+ {
+  "key": "anat-2.09",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "판단 과정",
+  "en": "Decision process"
+ },
+ {
+  "key": "anat-2.10",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "맥락 모으기 · 0초",
+  "en": "Gather context · 0 s"
+ },
+ {
+  "key": "anat-2.11",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "AI 1차 분석 · 8.0초",
+  "en": "AI analysis, round 1 · 8.0 s"
+ },
+ {
+  "key": "anat-2.12",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "판정 적용 · 응답 전",
+  "en": "Apply decision · before responding"
+ },
+ {
+  "key": "anat-2.13",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "모델 호출 1회 · 2차 분석 없음 (1차에서 끝남)",
+  "en": "1 model call · no round 2 (finished in round 1)"
+ },
+ {
+  "key": "anat-2.14",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "원문",
+  "en": "Original"
+ },
+ {
+  "key": "anat-2.15",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "판단 규칙 117줄",
+  "en": "Decision rules · 117 lines"
+ },
+ {
+  "key": "anat-2.16",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "상황 18구역 252줄",
+  "en": "Situation · 18 sections, 252 lines"
+ },
+ {
+  "key": "anat-2.17",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "모델 응답 JSON",
+  "en": "Model response JSON"
+ },
+ {
+  "key": "anat-2.18",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "입력 7,631 · 출력 583토큰",
+  "en": "Input 7,631 · output 583 tokens"
+ },
+ {
+  "key": "anat-2.19",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "기록 내려받기 · SHA-256",
+  "en": "Download record · SHA-256"
+ },
+ {
+  "key": "anat-2.20",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "프롬프트 탭 체험의 '프롬프트 들여다보기'와 같은 일곱 묶음, 원문 줄 연결",
+  "en": "Prompt tab: the same seven groups as 'Inside the prompt' in the tries, linked to the original lines"
+ },
+ {
+  "key": "anat-2.21",
+  "slide": "anat-2",
+  "kind": "screen",
+  "ko": "정답 탭 정답과 출처, 맞는 대응(차단·본인 확인·검토), 정답 근거 문장",
+  "en": "Right answer tab: the right answer and its source, the correct responses (Block, Identity check, Escalate to review) and the sentence behind the right answer"
+ },
+ {
+  "key": "bench-1.01",
+  "slide": "bench-1",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /benchmark",
+  "en": "Contexa demo · /benchmark"
+ },
+ {
+  "key": "bench-1.02",
+  "slide": "bench-1",
+  "kind": "chrome",
+  "ko": "벤치마크",
+  "en": "Benchmark"
+ },
+ {
+  "key": "bench-1.03",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "10월 7일 06:01~07:31 · 사례 27개 · 실행 81회(사례마다 3회) · 판정 못 함 0회 · 원자료 내려받기",
+  "en": "Oct 7, 06:01–07:31 · 27 cases · 81 runs (3 per case) · 0 undecided · Download raw data"
+ },
+ {
+  "key": "bench-1.04",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "공격을 가장 많이 막은 것은? 업무 기록 규칙 33/45 · 사례에 맞춰 미리 쓴 규칙",
+  "en": "Which stopped the most attacks? Business-record rules, 33/45 · rules written in advance to fit the cases"
+ },
+ {
+  "key": "bench-1.05",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "정상 업무를 가장 많이 막은 것은? 숫자 기준 규칙 30회 중 15회",
+  "en": "Which blocked the most legitimate work? Threshold rules, 15 of 30 runs"
+ },
+ {
+  "key": "bench-1.06",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "정상을 막지 않고 공격에 반응한 것은? Contexa 34/45, 정상 막음 0",
+  "en": "Which reacted to attacks without blocking legitimate work? Contexa, 34/45, legitimate work blocked 0"
+ },
+ {
+  "key": "bench-1.07",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "방식",
+  "en": "Approach"
+ },
+ {
+  "key": "bench-1.08",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "공격을 처음부터 다 막음",
+  "en": "Stopped the attack from the start"
+ },
+ {
+  "key": "bench-1.09",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "일부라도 막음",
+  "en": "Stopped at least part"
+ },
+ {
+  "key": "bench-1.10",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "정상 업무를 막지 않음",
+  "en": "Did not block legitimate work"
+ },
+ {
+  "key": "bench-1.11",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "bench-1.12",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "bench-1.13",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "bench-1.14",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "업무 기록 *",
+  "en": "Business-record rules *"
+ },
+ {
+  "key": "bench-1.15",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "bench-1.16",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "30 / 30 · 본인 확인 2",
+  "en": "30 / 30 · Identity check 2"
+ },
+ {
+  "key": "bench-1.17",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "* 이 사례들의 조건을 보고 미리 써 둔 규칙",
+  "en": "* Rules written in advance from these cases' conditions"
+ },
+ {
+  "key": "bench-1.18",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "사례별로 보기",
+  "en": "View by case"
+ },
+ {
+  "key": "bench-1.19",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "판단과 시점",
+  "en": "Judgment and timing"
+ },
+ {
+  "key": "bench-1.20",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "한계",
+  "en": "Limits"
+ },
+ {
+  "key": "bench-1.21",
+  "slide": "bench-1",
+  "kind": "screen",
+  "ko": "측정 방법",
+  "en": "How we measured"
+ },
+ {
+  "key": "bench-judge.01",
+  "slide": "bench-judge",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /benchmark",
+  "en": "Contexa demo · /benchmark"
+ },
+ {
+  "key": "bench-judge.02",
+  "slide": "bench-judge",
+  "kind": "chrome",
+  "ko": "벤치마크 · 판단과 시점",
+  "en": "Benchmark · Judgment and timing"
+ },
+ {
+  "key": "bench-judge.03",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "Contexa가 받은 공격 45회는 이렇게 끝났습니다",
+  "en": "This is how the 45 attacks Contexa received ended"
+ },
+ {
+  "key": "bench-judge.04",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "권한 검사가 먼저 거부",
+  "en": "Permission check denied it first"
+ },
+ {
+  "key": "bench-judge.05",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "응답 전 판정 · 첫 건부터 막음",
+  "en": "Decided before responding · stopped from the first one"
+ },
+ {
+  "key": "bench-judge.06",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "위험 판단 뒤 다음 요청부터 막음",
+  "en": "Judged it risky, then stopped it from the next request"
+ },
+ {
+  "key": "bench-judge.07",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "판단이 허용 · 놓침",
+  "en": "Decided Allow · missed"
+ },
+ {
+  "key": "bench-judge.08",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "시점 22회는 위험 판단이 나온 요청까지 나갔습니다 → 되돌릴 수 없는 업무는 동기식으로",
+  "en": "Timing: in 22 runs, requests went out up to the one judged risky → use synchronous for work that cannot be undone"
+ },
+ {
+  "key": "bench-judge.09",
+  "slide": "bench-judge",
+  "kind": "screen",
+  "ko": "판단 11회는 허용으로 판단했습니다 → 이유와 함께 '한계'에서 공개",
+  "en": "Judgment: in 11 runs it decided Allow → disclosed with the reasons in 'Limits'"
+ },
+ {
+  "key": "bench-2.01",
+  "slide": "bench-2",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /benchmark/cases",
+  "en": "Contexa demo · /benchmark/cases"
+ },
+ {
+  "key": "bench-2.02",
+  "slide": "bench-2",
+  "kind": "chrome",
+  "ko": "벤치마크",
+  "en": "Benchmark"
+ },
+ {
+  "key": "bench-2.03",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "공격 사례 [n]",
+  "en": "Attack cases [n]"
+ },
+ {
+  "key": "bench-2.04",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "정상 업무 사례 [m]",
+  "en": "Legitimate work cases [m]"
+ },
+ {
+  "key": "bench-2.05",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "운영 지표",
+  "en": "Operating metrics"
+ },
+ {
+  "key": "bench-2.06",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "모두",
+  "en": "All"
+ },
+ {
+  "key": "bench-2.07",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "Contexa가 틀린 사례만 · [k]건",
+  "en": "Only cases Contexa got wrong · [k]"
+ },
+ {
+  "key": "bench-2.08",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "사례",
+  "en": "Case"
+ },
+ {
+  "key": "bench-2.09",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "bench-2.10",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "bench-2.11",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "bench-2.12",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "업무 기록",
+  "en": "Business-record rules"
+ },
+ {
+  "key": "bench-2.13",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "bench-2.14",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "[사례 한 줄]",
+  "en": "[one-line case]"
+ },
+ {
+  "key": "bench-2.15",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "[k]/[n]",
+  "en": "[k]/[n]"
+ },
+ {
+  "key": "bench-2.16",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "칸은 정답대로 처리한 실행 수 / 채점한 실행 수 · 1 / [p]쪽 · 다음 쪽",
+  "en": "Each cell: runs handled correctly / runs scored · page 1 / [p] · Next page"
+ },
+ {
+  "key": "bench-2.17",
+  "slide": "bench-2",
+  "kind": "screen",
+  "ko": "행을 누르면 사례 모달이 열립니다",
+  "en": "Click a row to open the case modal"
+ },
+ {
+  "key": "bench-3.01",
+  "slide": "bench-3",
+  "kind": "chrome",
+  "ko": "벤치마크 · B3 모달",
+  "en": "Benchmark · B3 modals"
+ },
+ {
+  "key": "bench-3.02",
+  "slide": "bench-3",
+  "kind": "chrome",
+  "ko": "벤치마크 3층: 자세한 것은 모두 눌러서 여는 모달로",
+  "en": "Benchmark layer 3: every detail opens in a modal on click"
+ },
+ {
+  "key": "bench-3.03",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "사례 모달",
+  "en": "Case modal"
+ },
+ {
+  "key": "bench-3.04",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "2층의 행을 누르면",
+  "en": "Click a row in layer 2"
+ },
+ {
+  "key": "bench-3.05",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "사례 설명 · 정답과 출처(회사 기록) · 방식별 결과 [k]/[n] · 최근 실행 목록 → 판정 자세히 보기",
+  "en": "Case description · right answer and source (company records) · result per approach [k]/[n] · recent runs → Decision details"
+ },
+ {
+  "key": "bench-3.06",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "방식 카드 모달",
+  "en": "Approach card modal"
+ },
+ {
+  "key": "bench-3.07",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "1층 표의 행을 누르면",
+  "en": "Click a row in the layer 1 table"
+ },
+ {
+  "key": "bench-3.08",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "점수 셋 · 틀린 유형별 건수(공격을 놓침, 일부 나간 뒤 막음, 정상 업무를 막음, 판정 못 함) · 이 데모의 설정",
+  "en": "Three scores · counts by error type (missed the attack, stopped after some went out, blocked legitimate work, undecided) · setup in this demo"
+ },
+ {
+  "key": "bench-3.09",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "측정 방법 모달",
+  "en": "How-we-measured modal"
+ },
+ {
+  "key": "bench-3.10",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "1층의 '측정 방법'",
+  "en": "'How we measured' in layer 1"
+ },
+ {
+  "key": "bench-3.11",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "계산식: 공격을 막은 비율 = 막음 ÷ (공격 실행 − 판정 못 함) · 정답 기준 · 오차 범위의 뜻 · 측정 환경",
+  "en": "Formula: share of attacks stopped = stopped ÷ (attack runs − undecided) · basis for right answers · what the error range means · test environment"
+ },
+ {
+  "key": "bench-3.12",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "이 결과 읽는 법 (접는 상자)",
+  "en": "How to read these results (collapsible box)"
+ },
+ {
+  "key": "bench-3.13",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "1층 표 바로 옆",
+  "en": "Right next to the layer 1 table"
+ },
+ {
+  "key": "bench-3.14",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "높을수록 좋은 숫자와 낮을수록 좋은 숫자 · 실행이 적은 칸은 '예비' 표시 · 다섯 방식 모두 같은 사례·같은 시각·같은 데이터",
+  "en": "Which numbers are better high and which are better low · cells with few runs are marked 'preliminary' · all five approaches use the same cases, same times and same data"
+ },
+ {
+  "key": "bench-3.15",
+  "slide": "bench-3",
+  "kind": "screen",
+  "ko": "모달 규칙 모달 안에서 또 모달을 열지 않습니다. 사례 모달의 실행을 누르면 판정 자세히 보기가 모달 자리를 바꿔 열리고, '뒤로'로 사례 모달에 돌아옵니다.",
+  "en": "Modal rule: no modal opens inside another modal. Clicking a run in the case modal opens Decision details in its place, and 'Back' returns to the case modal."
+ },
+ {
+  "key": "honest.01",
+  "slide": "honest",
+  "kind": "chrome",
+  "ko": "Contexa 데모 · /benchmark/limits",
+  "en": "Contexa demo · /benchmark/limits"
+ },
+ {
+  "key": "honest.02",
+  "slide": "honest",
+  "kind": "chrome",
+  "ko": "벤치마크 · 한계",
+  "en": "Benchmark · Limits"
+ },
+ {
+  "key": "honest.03",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "세 번 모두 놓친 공격 3가지",
+  "en": "3 attacks missed in all three runs"
+ },
+ {
+  "key": "honest.04",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "기록은 정상, 행동만 이상",
+  "en": "Records normal, only behaviour unusual"
+ },
+ {
+  "key": "honest.05",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "새벽, 새 기기로 담당 문서 6건. 평소와 다른 점 4개였지만 허용",
+  "en": "At night, on a new device, 6 documents assigned to them. 4 differences from usual, but allowed"
+ },
+ {
+  "key": "honest.06",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "승인 범위를 나눠 넘김",
+  "en": "Going past the approval in split batches"
+ },
+ {
+  "key": "honest.07",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "500건 승인으로 480건씩 5번. 한 번씩은 범위 안이라 허용",
+  "en": "With approval for 500 records, 480 records 5 times. Each one was within the approval, so allowed"
+ },
+ {
+  "key": "honest.08",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "요청 뒤에 기록된 승인",
+  "en": "Approval recorded after the request"
+ },
+ {
+  "key": "honest.09",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "20분 뒤 소급 승인. 회사 기록에 적혀 있었지만 허용",
+  "en": "Back-dated approval 20 minutes later. It was in company records, but allowed"
+ },
+ {
+  "key": "honest.10",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "공격을 처음부터 다 막은 횟수",
+  "en": "Times the attack was stopped from the start"
+ },
+ {
+  "key": "honest.11",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "일부라도 막은 횟수",
+  "en": "Times at least part was stopped"
+ },
+ {
+  "key": "honest.12",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "22,637건",
+  "en": "22,637 records"
+ },
+ {
+  "key": "honest.13",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "판정 전에 나간 자료 합계",
+  "en": "Total records out before the decision"
+ },
+ {
+  "key": "honest.14",
+  "slide": "honest",
+  "kind": "screen",
+  "ko": "'처음부터 다 막음'이 낮은 이유 · 22회는 판단 시점(비동기식), 11회는 판단 자체 · 설명의 한계: 허용 근거가 승인을 말하지 못함, 검사기는 꼭 지키는 선을 어긴 허용을 잡지 않음",
+  "en": "Why 'stopped from the start' is low · 22 runs due to decision timing (asynchronous), 11 due to the judgment itself · Limits of the explanations: Allow reasons cannot mention the approval, and the checker does not catch an Allow that breaks a hard line"
+ },
+ {
+  "key": "panel.01",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "핵심 부품 1/3 · 들여다보기 패널",
+  "en": "Core component 1/3 · Inside-view panel"
+ },
+ {
+  "key": "panel.02",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "요청 하나가 Contexa 안에서 지나는 아홉 칸을 실시간으로",
+  "en": "The nine steps one request goes through inside Contexa, live"
+ },
+ {
+  "key": "panel.03",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "Contexa 안에서 지금",
+  "en": "Inside Contexa now"
+ },
+ {
+  "key": "panel.04",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "1 요청",
+  "en": "1 Request"
+ },
+ {
+  "key": "panel.05",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "새벽 3:17 · 4,831건 반출",
+  "en": "3:17 a.m. · export of 4,831 records"
+ },
+ {
+  "key": "panel.06",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "2 평소 모습",
+  "en": "2 Usual behaviour"
+ },
+ {
+  "key": "panel.07",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "다른 점 3개",
+  "en": "3 differences"
+ },
+ {
+  "key": "panel.08",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "3 회사 기록",
+  "en": "3 Company records"
+ },
+ {
+  "key": "panel.09",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "승인 없음",
+  "en": "No approval"
+ },
+ {
+  "key": "panel.10",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "4 과거 기록",
+  "en": "4 Past records"
+ },
+ {
+  "key": "panel.11",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "관련 기록 0건",
+  "en": "0 related records"
+ },
+ {
+  "key": "panel.12",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "5 프롬프트",
+  "en": "5 Prompt"
+ },
+ {
+  "key": "panel.13",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "18구역 · 6,827토큰",
+  "en": "18 sections · 6,827 tokens"
+ },
+ {
+  "key": "panel.14",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "6 AI 판단",
+  "en": "6 AI decision"
+ },
+ {
+  "key": "panel.15",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "9.4초",
+  "en": "9.4 s"
+ },
+ {
+  "key": "panel.16",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "7 판정",
+  "en": "7 Decision"
+ },
+ {
+  "key": "panel.17",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "본인 확인 요구",
+  "en": "Identity check requested"
+ },
+ {
+  "key": "panel.18",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "8 후속 처리",
+  "en": "8 Follow-up"
+ },
+ {
+  "key": "panel.19",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "다음 요청부터 막음",
+  "en": "Stops from the next request"
+ },
+ {
+  "key": "panel.20",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "9 학습",
+  "en": "9 Learning"
+ },
+ {
+  "key": "panel.21",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "25건 그대로",
+  "en": "Stays at 25"
+ },
+ {
+  "key": "panel.22",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "7번 칸을 누르면",
+  "en": "Click step 7"
+ },
+ {
+  "key": "panel.23",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "원문",
+  "en": "Original"
+ },
+ {
+  "key": "panel.24",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "민감한 자료를 평소와 다르게, 승인 없이 내보내려 합니다",
+  "en": "Trying to export sensitive data, unlike usual, without approval"
+ },
+ {
+  "key": "panel.25",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "평소 모습",
+  "en": "Usual behaviour"
+ },
+ {
+  "key": "panel.26",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "자료 민감도",
+  "en": "Data sensitivity"
+ },
+ {
+  "key": "panel.27",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "권한",
+  "en": "Permissions"
+ },
+ {
+  "key": "panel.28",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "승인",
+  "en": "Approval"
+ },
+ {
+  "key": "panel.29",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "위험도",
+  "en": "Risk"
+ },
+ {
+  "key": "panel.30",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "확신도",
+  "en": "Confidence"
+ },
+ {
+  "key": "panel.31",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "검사기가 본 불리한 조건 17개 중 2개 충족 · 승인 필요, 승인 없음",
+  "en": "Checker: 2 of 17 adverse conditions met · approval needed, no approval"
+ },
+ {
+  "key": "panel.32",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "실행 중에는 칸이 차례로 켜지고, 누른 칸만 이렇게 펼쳐집니다.",
+  "en": "While it runs, the steps light up in order, and only the step you click opens like this."
+ },
+ {
+  "key": "panel.33",
+  "slide": "panel",
+  "kind": "component",
+  "ko": "실제 값 · 비동기식 비교 사례 A3S 실행 run-a81f8672e2c2 요청 1 · 2026-10-07 06:02 (체험 1 A3의 값은 노트) · 휴대폰에서는 아래쪽 아홉 칸 띠, 누르면 시트",
+  "en": "Real values · asynchronous comparison case A3S, run run-a81f8672e2c2, request 1 · 2026-10-07 06:02 (values for Try 1 A3 are in the notes) · On phones, a nine-step strip at the bottom; tap it to open a sheet"
+ },
+ {
+  "key": "meter.01",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "핵심 부품 2/3 · 누적 계기판 · 실제 값: A6T run-5912b4ab49ee, A6 run-c2a358ad7e3e (2026-10-07)",
+  "en": "Core component 2/3 · Cumulative meter · Real values: A6T run-5912b4ab49ee, A6 run-c2a358ad7e3e (2026-10-07)"
+ },
+ {
+  "key": "meter.02",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "누적 계기판: 요청이 쌓일 때 무엇이 바뀌는지 줄마다 보여 줍니다",
+  "en": "Cumulative meter: shows, row by row, what changes as requests add up"
+ },
+ {
+  "key": "meter.03",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "정상 업무 · 장애 티켓 범위 안의 고객 확인 5건",
+  "en": "Legitimate work · 5 customer checks within the incident ticket's scope"
+ },
+ {
+  "key": "meter.04",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "요청",
+  "en": "Request"
+ },
+ {
+  "key": "meter.05",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "엔진이 본 관측",
+  "en": "Observations the engine saw"
+ },
+ {
+  "key": "meter.06",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "평소와 다른 항목",
+  "en": "Items different from usual"
+ },
+ {
+  "key": "meter.07",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "판정",
+  "en": "Decision"
+ },
+ {
+  "key": "meter.08",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "허용 · 0.25",
+  "en": "Allow · 0.25"
+ },
+ {
+  "key": "meter.09",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "허용 · 값 없음",
+  "en": "Allow · no value"
+ },
+ {
+  "key": "meter.10",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "허용될 때마다 관측이 하나씩 늘고, 두 번째부터 '평소와 다른 항목'이 2개에서 1개로 줄었습니다. 실행 동안 기준선 학습 25 → 30건.",
+  "en": "Each Allow added one observation, and from the second request 'items different from usual' dropped from 2 to 1. During the run, baseline learning went 25 → 30 requests."
+ },
+ {
+  "key": "meter.11",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "공격 · 담당이 아닌 고객 레코드 연속 조회 5건",
+  "en": "Attack · 5 repeated lookups of customer records not assigned to them"
+ },
+ {
+  "key": "meter.12",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "본인 확인 · 0.65",
+  "en": "Identity check · 0.65"
+ },
+ {
+  "key": "meter.13",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "—",
+  "en": "—"
+ },
+ {
+  "key": "meter.14",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "앞선 판정으로 거부",
+  "en": "Denied by the earlier decision"
+ },
+ {
+  "key": "meter.15",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "첫 판정이 다음 요청부터 걸려, 2~5번은 새로 분석하지 않고 거부했습니다. 첫 요청 1건은 판정 전에 나갔습니다. 기준선 학습 25 → 25건.",
+  "en": "The first decision applied from the next request, so #2–5 were denied without new analysis. 1 request, the first, went out before the decision. Baseline learning 25 → 25 requests."
+ },
+ {
+  "key": "meter.16",
+  "slide": "meter",
+  "kind": "component",
+  "ko": "동작 요청이 여러 개인 실행(체험 3, 실험실 연속 보내기)에서 위쪽에 고정됩니다. 요청마다 한 줄이 실시간으로 추가되고, 바뀐 칸은 잠깐 강조됩니다. '—'는 엔진이 새로 분석하지 않아 값이 없다는 뜻이며 이유를 함께 씁니다.",
+  "en": "Behaviour: in runs with several requests (Try 3, Lab series sends), it stays pinned at the top. One row is added live for each request, and changed cells are briefly highlighted. '—' means there is no value because the engine did not analyse again, and the reason is shown with it."
+ },
+ {
+  "key": "source.01",
+  "slide": "source",
+  "kind": "component",
+  "ko": "핵심 부품 3/3 · 출처 표식과 원문 보기",
+  "en": "Core component 3/3 · Source tags and original view"
+ },
+ {
+  "key": "source.02",
+  "slide": "source",
+  "kind": "component",
+  "ko": "출처 표식: 어떤 값이든 눌러서 어디서 왔는지 확인합니다",
+  "en": "Source tag: click any value to see where it came from"
+ },
+ {
+  "key": "source.03",
+  "slide": "source",
+  "kind": "component",
+  "ko": "위험도 0.6",
+  "en": "Risk 0.6"
+ },
+ {
+  "key": "source.04",
+  "slide": "source",
+  "kind": "component",
+  "ko": "기록",
+  "en": "Record"
+ },
+ {
+  "key": "source.05",
+  "slide": "source",
+  "kind": "component",
+  "ko": "출처 엔진 판정 기록 · AI 판단 응답",
+  "en": "Source: engine decision record · AI decision response"
+ },
+ {
+  "key": "source.06",
+  "slide": "source",
+  "kind": "component",
+  "ko": "실행 run-a81f8672e2c2 · 요청 1",
+  "en": "Run run-a81f8672e2c2 · request 1"
+ },
+ {
+  "key": "source.07",
+  "slide": "source",
+  "kind": "component",
+  "ko": "기록 시각 2026-10-07 06:02:43 (UTC)",
+  "en": "Recorded at 2026-10-07 06:02:43 (UTC)"
+ },
+ {
+  "key": "source.08",
+  "slide": "source",
+  "kind": "component",
+  "ko": "원문 \"riskScore\": 0.6",
+  "en": "Original \"riskScore\": 0.6"
+ },
+ {
+  "key": "source.09",
+  "slide": "source",
+  "kind": "component",
+  "ko": "원문 전체 보기 · 실행 기록 내려받기(SHA-256)",
+  "en": "View full original · Download run record (SHA-256)"
+ },
+ {
+  "key": "source.10",
+  "slide": "source",
+  "kind": "component",
+  "ko": "화면의 숫자와 문장 옆에는 모두 이 표식이 붙습니다. 누르면 위 상자가 그 자리에 열립니다.",
+  "en": "Every number and sentence on screen has this tag next to it. Click it and the box above opens in place."
+ },
+ {
+  "key": "source.11",
+  "slide": "source",
+  "kind": "component",
+  "ko": "출처는 네 가지뿐입니다",
+  "en": "There are only four sources"
+ },
+ {
+  "key": "source.12",
+  "slide": "source",
+  "kind": "component",
+  "ko": "엔진 판정 기록 요청 정보, 평소 대 이번, 프롬프트, 모델 응답, 적용 시점, 학습 수치",
+  "en": "Engine decision record: request info, usual vs this time, prompt, model response, when applied, learning figures"
+ },
+ {
+  "key": "source.13",
+  "slide": "source",
+  "kind": "component",
+  "ko": "업무 DB 담당, 승인, 티켓, 당번, 회사 정책 같은 회사 기록",
+  "en": "Business DB: company records such as assignments, approvals, tickets, on-call and company policy"
+ },
+ {
+  "key": "source.14",
+  "slide": "source",
+  "kind": "component",
+  "ko": "사례 정의 정답과 그 근거, 사례 조건",
+  "en": "Case definition: the right answer and its basis, case conditions"
+ },
+ {
+  "key": "source.15",
+  "slide": "source",
+  "kind": "component",
+  "ko": "측정 기록 벤치마크 비율과 계산식, 측정 설정",
+  "en": "Measurement record: benchmark rates and formulas, measurement settings"
+ },
+ {
+  "key": "source.16",
+  "slide": "source",
+  "kind": "component",
+  "ko": "비율처럼 계산이 필요한 값은 측정 기록이 계산하고 계산식을 같이 보여 줍니다. 화면이 만든 값은 없습니다.",
+  "en": "Values that need calculating, such as rates, are calculated by the measurement record, and the formula is shown with them. The screen makes up no values."
+ },
+ {
+  "key": "common-1.01",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "공통 부품 1/2",
+  "en": "Shared component 1/2"
+ },
+ {
+  "key": "common-1.02",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "위쪽 메뉴, 진행 표시, 용어 툴팁과 사전",
+  "en": "Top menu, progress bar, term tooltips and Glossary"
+ },
+ {
+  "key": "common-1.03",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "Contexa 데모",
+  "en": "Contexa demo"
+ },
+ {
+  "key": "common-1.04",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "직접 해 보기 · 개념부터 · 실험실 · 벤치마크 · 도입하기",
+  "en": "Try it yourself · Concepts first · Lab · Benchmark · Adopt"
+ },
+ {
+  "key": "common-1.05",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "용어 사전 · 한국어",
+  "en": "Glossary · English"
+ },
+ {
+  "key": "common-1.06",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "진행 표시 · 네 막",
+  "en": "Progress bar · four acts"
+ },
+ {
+  "key": "common-1.07",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "막 1 · 비밀번호가 맞아도 막힌다 · 차이 2/6",
+  "en": "Act 1 · Stopped even with the right password · Differences 2/6"
+ },
+ {
+  "key": "common-1.08",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "다음 막으로",
+  "en": "To the next act"
+ },
+ {
+  "key": "common-1.09",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "막대 네 칸이 막 1~4입니다. 지난 막을 누르면 그 막의 처음으로, 앞 막은 '다음 막으로'로만 갑니다.",
+  "en": "The bar's four segments are Acts 1–4. Clicking a past act goes to its start; later acts are reached only with 'To the next act'."
+ },
+ {
+  "key": "common-1.10",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "체험 안에서는 아래에 '상황·비교·판단·실행·결과·근거·후속' 7칸 표시가 하나 더 붙습니다.",
+  "en": "Inside a try, a second 7-step bar is added below: 'Situation · Compare · Decide · Run · Result · Reasons · Follow-up'."
+ },
+ {
+  "key": "common-1.11",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "개념 경로는 9칸 단계 표시를, 실험실과 벤치마크는 자기 단계 표시만 씁니다.",
+  "en": "The concept path uses a 9-step bar, and the Lab and Benchmark use only their own step bars."
+ },
+ {
+  "key": "common-1.12",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "용어 툴팁과 사전",
+  "en": "Term tooltips and Glossary"
+ },
+ {
+  "key": "common-1.13",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "계정과 권한이 같으면…",
+  "en": "If the account and permissions are the same…"
+ },
+ {
+  "key": "common-1.14",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "권한 · 이 역할이 이 메뉴를 쓸 수 있는지 용어 사전에서 더 보기",
+  "en": "Permissions · whether this role can use this menu · More in the Glossary"
+ },
+ {
+  "key": "common-1.15",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "한 화면에 처음 나오는 용어는 2개까지. 같은 용어는 처음 한 번만 밑줄을 긋습니다.",
+  "en": "At most 2 new terms per screen. The same term is underlined only the first time."
+ },
+ {
+  "key": "common-1.16",
+  "slide": "common-1",
+  "kind": "component",
+  "ko": "용어 사전은 위쪽 메뉴에서 여는 모달입니다. 검색 상자와 가나다 목록, 쉬운 말 대응표와 같은 내용.",
+  "en": "The Glossary is a modal opened from the top menu. It has a search box and an A–Z list, with the same content as the plain-words table."
+ },
+ {
+  "key": "common-2.01",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "공통 부품 2/2",
+  "en": "Shared component 2/2"
+ },
+ {
+  "key": "common-2.02",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "모달 규칙과 상태 화면",
+  "en": "Modal rules and status screens"
+ },
+ {
+  "key": "common-2.03",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "모달 규칙",
+  "en": "Modal rules"
+ },
+ {
+  "key": "common-2.04",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "크기 넓은 화면에서 폭 720~960픽셀, 높이는 화면의 85% 이하, 넘치면 안쪽 스크롤",
+  "en": "Size: on wide screens, 720–960 px wide and at most 85% of the screen high; scrolls inside if it overflows"
+ },
+ {
+  "key": "common-2.05",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "닫기 오른쪽 위 닫기, Esc 키, 바깥 누르기, 브라우저 뒤로 가기",
+  "en": "Close: close button at top right, Esc key, click outside, browser Back"
+ },
+ {
+  "key": "common-2.06",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "주소 판정 자세히 보기와 사례 모달은 자기 주소가 있어 공유할 수 있습니다",
+  "en": "Address: Decision details and the case modal have their own addresses, so they can be shared"
+ },
+ {
+  "key": "common-2.07",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "돌아오기 닫으면 연 자리와 스크롤 위치로 돌아옵니다",
+  "en": "Return: closing goes back to where it was opened, at the same scroll position"
+ },
+ {
+  "key": "common-2.08",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "초점 열면 모달 제목으로, 닫으면 연 버튼으로 (키보드·화면 낭독기)",
+  "en": "Focus: moves to the modal title on open, and back to the button that opened it on close (keyboard, screen readers)"
+ },
+ {
+  "key": "common-2.09",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "겹치지 않기 모달 안에서 또 모달을 열지 않습니다. 탭이나 접기로 대신합니다",
+  "en": "No stacking: no modal opens inside another modal. Tabs or collapsing are used instead"
+ },
+ {
+  "key": "common-2.10",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "휴대폰 아래에서 올라오는 시트로 엽니다",
+  "en": "Phones: opens as a sheet that slides up from the bottom"
+ },
+ {
+  "key": "common-2.11",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "대기",
+  "en": "Waiting"
+ },
+ {
+  "key": "common-2.12",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "대기 순서 [n]번 · 약 [s]초",
+  "en": "Queue position [n] · about [s] s"
+ },
+ {
+  "key": "common-2.13",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "순서가 되면 알림 받기",
+  "en": "Notify me when it is my turn"
+ },
+ {
+  "key": "common-2.14",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "오늘 실행 소진",
+  "en": "Today's runs used up"
+ },
+ {
+  "key": "common-2.15",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "오늘의 실시간 실행을 모두 썼습니다.",
+  "en": "All of today's live runs have been used."
+ },
+ {
+  "key": "common-2.16",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "저장된 실제 기록 보기",
+  "en": "View saved real records"
+ },
+ {
+  "key": "common-2.17",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "장애",
+  "en": "Outage"
+ },
+ {
+  "key": "common-2.18",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "일시적 장애로 판정을 받지 못했습니다.",
+  "en": "A temporary outage stopped the decision from arriving."
+ },
+ {
+  "key": "common-2.19",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "다시 시도",
+  "en": "Try again"
+ },
+ {
+  "key": "common-2.20",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "판정 대기",
+  "en": "Waiting for decision"
+ },
+ {
+  "key": "common-2.21",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "판단을 기다리는 중입니다 · 약 [s]초 남았습니다",
+  "en": "Waiting for the decision · about [s] s left"
+ },
+ {
+  "key": "common-2.22",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "(버튼 없음, 자동으로 이어짐)",
+  "en": "(No button; continues automatically)"
+ },
+ {
+  "key": "common-2.23",
+  "slide": "common-2",
+  "kind": "component",
+  "ko": "상태 화면 규칙 원래 내용이 있던 자리에 같은 크기로 뜹니다. 화면 전체를 바꾸지 않고, 다음에 할 일을 버튼 하나로 알려 줍니다. 문구는 지금 쓰는 문구를 그대로 씁니다.",
+  "en": "Status screen rule: it appears at the same size in the place of the original content. It does not replace the whole screen, and it shows the next step with a single button. It reuses the wording already in use."
+ },
+ {
+  "key": "mobile.01",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "모바일 배치 · 390픽셀 폭",
+  "en": "Mobile layout · 390 px wide"
+ },
+ {
+  "key": "mobile.02",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "휴대폰: 한 단계씩 세로로, 표는 카드로, 모달은 시트로",
+  "en": "Phones: one step at a time, top to bottom; tables become cards, modals become sheets"
+ },
+ {
+  "key": "mobile.03",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "막 4 · 다섯 방식",
+  "en": "Act 4 · Five approaches"
+ },
+ {
+  "key": "mobile.04",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "다섯 가지 보안 방식",
+  "en": "Five security approaches"
+ },
+ {
+  "key": "mobile.05",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "경계 보안 (WAF)",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "mobile.06",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "봅니다 · 요청 안의 공격 문자열",
+  "en": "Sees · attack strings in the request"
+ },
+ {
+  "key": "mobile.07",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "못 봅니다 · 평범한 문장",
+  "en": "Misses · ordinary text"
+ },
+ {
+  "key": "mobile.08",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "1 / 5 · 옆으로 넘기기",
+  "en": "1 / 5 · Swipe sideways"
+ },
+ {
+  "key": "mobile.09",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "다음",
+  "en": "Next"
+ },
+ {
+  "key": "mobile.10",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "막 1 · 체험 1 · 결과",
+  "en": "Act 1 · Try 1 · Result"
+ },
+ {
+  "key": "mobile.11",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "Contexa는 [n]초 판단 뒤 본인 확인을 요구했고, 자료는 한 건도 나가지 않았습니다",
+  "en": "After deciding for [n] s, Contexa asked for an identity check, and not one record went out"
+ },
+ {
+  "key": "mobile.12",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "경계 보안",
+  "en": "Perimeter security (WAF)"
+ },
+ {
+  "key": "mobile.13",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "허용 · [N]건",
+  "en": "Allow · [N] records"
+ },
+ {
+  "key": "mobile.14",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "권한 검사",
+  "en": "Permission check"
+ },
+ {
+  "key": "mobile.15",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "숫자 기준",
+  "en": "Threshold rules"
+ },
+ {
+  "key": "mobile.16",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "거부",
+  "en": "Denied"
+ },
+ {
+  "key": "mobile.17",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "업무 기록 *",
+  "en": "Business-record rules *"
+ },
+ {
+  "key": "mobile.18",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "Contexa",
+  "en": "Contexa"
+ },
+ {
+  "key": "mobile.19",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "본인 확인 · 0건",
+  "en": "Identity check · 0 records"
+ },
+ {
+  "key": "mobile.20",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "비동기식으로 다시 보내기",
+  "en": "Send again asynchronously"
+ },
+ {
+  "key": "mobile.21",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "다음 · 왜 막혔을까? 걸린 사실 3가지",
+  "en": "Next · Why was it stopped? The 3 facts that caught it"
+ },
+ {
+  "key": "mobile.22",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "벤치마크",
+  "en": "Benchmark"
+ },
+ {
+  "key": "mobile.23",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "같은 사례 [N]개로 잰 결과",
+  "en": "Results measured on the same [N] cases"
+ },
+ {
+  "key": "mobile.24",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "공격 일부라도 막음 [k]/[n]",
+  "en": "Stopped at least part of the attack [k]/[n]"
+ },
+ {
+  "key": "mobile.25",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "정상 업무를 막지 않음 [m]/[p]",
+  "en": "Did not block legitimate work [m]/[p]"
+ },
+ {
+  "key": "mobile.26",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "업무 기록 규칙 *",
+  "en": "Business-record rules *"
+ },
+ {
+  "key": "mobile.27",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "아래에서 올라오는 시트",
+  "en": "Sheet that slides up from the bottom"
+ },
+ {
+  "key": "mobile.28",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "방식 카드 모달",
+  "en": "Approach card modal"
+ },
+ {
+  "key": "mobile.29",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "휴대폰 규칙",
+  "en": "Phone rules"
+ },
+ {
+  "key": "mobile.30",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "가로 스크롤 표를 쓰지 않습니다. 표는 카드로 바뀝니다.",
+  "en": "No sideways-scrolling tables. Tables become cards."
+ },
+ {
+  "key": "mobile.31",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "주 버튼은 엄지가 닿는 아래쪽에 고정합니다.",
+  "en": "The main button is fixed at the bottom, within thumb reach."
+ },
+ {
+  "key": "mobile.32",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "다섯 방식 카드는 옆으로 넘깁니다.",
+  "en": "The cards for the five approaches are swiped sideways."
+ },
+ {
+  "key": "mobile.33",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "모달은 아래에서 올라오는 시트로 엽니다.",
+  "en": "Modals open as sheets that slide up from the bottom."
+ },
+ {
+  "key": "mobile.34",
+  "slide": "mobile",
+  "kind": "component",
+  "ko": "실제 글자는 16픽셀 이상, 누르는 곳은 44픽셀 이상.",
+  "en": "Body text at least 16 px, tap targets at least 44 px."
+ },
+ {
+  "key": "curiosity.01",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "궁금증 사슬 · 다음 화면이 보고 싶어지게",
+  "en": "Curiosity chain · making people want to see the next screen"
+ },
+ {
+  "key": "curiosity.02",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "'다음' 버튼 대신 예고 카드 15곳: 질문 하나, 실측 숫자 하나, 답은 숨김",
+  "en": "Teaser cards in 15 places instead of a 'Next' button: one question, one measured number, answer hidden"
+ },
+ {
+  "key": "curiosity.03",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "다음",
+  "en": "Next"
+ },
+ {
+  "key": "curiosity.04",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "같은 반출을 진짜 직원이 하면?",
+  "en": "What if the real employee makes the same export?"
+ },
+ {
+  "key": "curiosity.05",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "숫자 규칙은 막았습니다",
+  "en": "Threshold rules stopped it"
+ },
+ {
+  "key": "curiosity.06",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "보기",
+  "en": "See"
+ },
+ {
+  "key": "curiosity.07",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "이 화면 끝",
+  "en": "End of this screen"
+ },
+ {
+  "key": "curiosity.08",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "예고 질문",
+  "en": "Teaser question"
+ },
+ {
+  "key": "curiosity.09",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "실측 티저",
+  "en": "Measured teaser"
+ },
+ {
+  "key": "curiosity.10",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "훅",
+  "en": "Hook"
+ },
+ {
+  "key": "curiosity.11",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "직접 해 보면?",
+  "en": "What if you try it yourself?"
+ },
+ {
+  "key": "curiosity.12",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "당신이 4,831건을 빼내 봅니다",
+  "en": "You try to take out 4,831 records"
+ },
+ {
+  "key": "curiosity.13",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "체험 1 결과",
+  "en": "Try 1 result"
+ },
+ {
+  "key": "curiosity.14",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "왜 막혔을까?",
+  "en": "Why was it stopped?"
+ },
+ {
+  "key": "curiosity.15",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "걸린 사실 3가지",
+  "en": "The 3 facts that caught it"
+ },
+ {
+  "key": "curiosity.16",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "체험 1 근거",
+  "en": "Try 1 reasons"
+ },
+ {
+  "key": "curiosity.17",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "막힌 공격자는 이제?",
+  "en": "What now for the stopped attacker?"
+ },
+ {
+  "key": "curiosity.18",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "코드는 진짜 직원에게",
+  "en": "The code goes to the real employee"
+ },
+ {
+  "key": "curiosity.19",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "체험 1 후속 · 막 1 끝",
+  "en": "Try 1 follow-up · End of Act 1"
+ },
+ {
+  "key": "curiosity.20",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "진짜 직원이 하면?",
+  "en": "What if the real employee does it?"
+ },
+ {
+  "key": "curiosity.21",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "체험 2 결과",
+  "en": "Try 2 result"
+ },
+ {
+  "key": "curiosity.22",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "왜 이번엔 통과?",
+  "en": "Why did it pass this time?"
+ },
+ {
+  "key": "curiosity.23",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "바뀐 것은 승인 한 줄",
+  "en": "The only change is one line: the approval"
+ },
+ {
+  "key": "curiosity.24",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "판단 규칙",
+  "en": "Decision rules"
+ },
+ {
+  "key": "curiosity.25",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "진짜 직원이 확인을 받으면?",
+  "en": "What if the real employee passes the check?"
+ },
+ {
+  "key": "curiosity.26",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "재개 0.05초",
+  "en": "Resumes in 0.05 s"
+ },
+ {
+  "key": "curiosity.27",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "후속 지도 · 막 2 끝",
+  "en": "Follow-up map · End of Act 2"
+ },
+ {
+  "key": "curiosity.28",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "Contexa는 평소를 어떻게 알까?",
+  "en": "How does Contexa know what is usual?"
+ },
+ {
+  "key": "curiosity.29",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "학습한 요청 25건",
+  "en": "25 learned requests"
+ },
+ {
+  "key": "curiosity.30",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "사전 학습 ①",
+  "en": "Prior learning ①"
+ },
+ {
+  "key": "curiosity.31",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "실제로 무엇을 배웠을까?",
+  "en": "What did it actually learn?"
+ },
+ {
+  "key": "curiosity.32",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "조회 15 · 내려받기 5 · 반출 5",
+  "en": "Reads 15 · downloads 5 · exports 5"
+ },
+ {
+  "key": "curiosity.33",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "사전 학습 ②",
+  "en": "Prior learning ②"
+ },
+ {
+  "key": "curiosity.34",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "배운 것을 AI에게 어떻게?",
+  "en": "How does what it learned reach the AI?"
+ },
+ {
+  "key": "curiosity.35",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "판단 흐름",
+  "en": "Decision flow"
+ },
+ {
+  "key": "curiosity.36",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "AI에게 실제로 보낸 글은?",
+  "en": "What text was actually sent to the AI?"
+ },
+ {
+  "key": "curiosity.37",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "369줄",
+  "en": "369 lines"
+ },
+ {
+  "key": "curiosity.38",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "프롬프트",
+  "en": "Prompt"
+ },
+ {
+  "key": "curiosity.39",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "판단에 8초, 그동안 자료는?",
+  "en": "8 s to decide: what happens to the records meanwhile?"
+ },
+ {
+  "key": "curiosity.40",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "4,831건이 나간 방식",
+  "en": "The mode in which 4,831 records went out"
+ },
+ {
+  "key": "curiosity.41",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "동기식·비동기식",
+  "en": "Synchronous · asynchronous"
+ },
+ {
+  "key": "curiosity.42",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "쓸수록 정말 배울까?",
+  "en": "Does it really learn with use?"
+ },
+ {
+  "key": "curiosity.43",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "판정 뒤 학습 · 막 3 끝",
+  "en": "Learning after decisions · End of Act 3"
+ },
+ {
+  "key": "curiosity.44",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "결국 전통 보안과 무엇이 다를까?",
+  "en": "So how is it different from traditional security?"
+ },
+ {
+  "key": "curiosity.45",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "정상 업무 막음 15회 대 0회",
+  "en": "Legitimate work blocked 15 times vs 0"
+ },
+ {
+  "key": "curiosity.46",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "어디에 있나",
+  "en": "Where they sit"
+ },
+ {
+  "key": "curiosity.47",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "규칙을 더 잘 쓰면?",
+  "en": "What if the rules were written better?"
+ },
+ {
+  "key": "curiosity.48",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "업무 기록 규칙 33회 막음",
+  "en": "Business-record rules stopped 33 times"
+ },
+ {
+  "key": "curiosity.49",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "규칙의 딜레마",
+  "en": "The rules dilemma"
+ },
+ {
+  "key": "curiosity.50",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "당신이 확인한 것은?",
+  "en": "What did you see?"
+ },
+ {
+  "key": "curiosity.51",
+  "slide": "curiosity",
+  "kind": "component",
+  "ko": "차이 6/6",
+  "en": "Differences 6/6"
+ }
+]

@@ -1,0 +1,112 @@
+.mark {
+  display: inline;
+  position: relative;
+}
+
+/* A small badge: visible as something to press, yet lighter than the content it explains (U-4). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.75rem;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.button:hover,
+.button[aria-expanded='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.line {
+  display: block;
+}
+
+.original {
+  display: block;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.originalLabel {
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.closeBox {
+  align-self: flex-start;
+}
+
+.links a,
+.download,
+.closeBox {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.links a:hover,
+.download:hover,
+.closeBox:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.hash {
+  display: block;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Phones (mobile slide): the source tag reaches 44 px. */
+@media (width <= 40rem) {
+  .button {
+    min-height: 2.75rem;
+  }
+}

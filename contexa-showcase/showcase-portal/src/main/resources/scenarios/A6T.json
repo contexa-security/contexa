@@ -1,6 +1,7 @@
 {
   "key": "A6T",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "장애 대응 티켓 범위 안의 고객 일괄 확인",
     "en": "Checking customers under an incident ticket"
@@ -84,6 +85,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 관리자 A가 열려 있는 HX-200 장애 대응 티켓(유효 기간 안)의 범위에서 그 프로젝트 고객 5건을 1분 간격으로 확인한다. 조회한 고객은 모두 HX-200 고객이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: under an open incident ticket of HX-200, within its validity, administrator A checks five customers of that project, one a minute. All five are HX-200 customers. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 장애 대응이라도 고객 5건을 연달아 조회하는 것은 과하다고 볼 수 있다. 티켓이 이 고객들의 프로젝트를 덮으므로 정상으로 정했다.",
+      "en": "Counterpoint: five customer reads in a row may look excessive even during an incident. The ticket covers these customers' project, so the case is normal."
+    }
   }
 }

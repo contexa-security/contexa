@@ -1,6 +1,7 @@
 {
   "key": "A1",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "새 기기·회사 밖 네트워크에서 쓰는 계정",
     "en": "An account used from a new device outside the company"
@@ -50,6 +51,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정 정보를 손에 넣은 사람이 처음 보는 기기(Mac·Safari)로 회사 밖 네트워크에서 K의 담당 도면 두 건을 연다. 이 시각을 덮는 K의 출장 기록은 없다. 담당 프로젝트라 권한상으로는 열 수 있지만, 기기와 네트워크가 모두 평소와 다르고 그것을 설명하는 회사 기록이 없다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: someone holding engineer K's credentials opens two of K's own drawings from a device never seen before (Mac, Safari) on a network outside the company. No business trip of K covers the time. The project is K's, so the permission allows it, but both the device and the network differ from usual and no company record explains them. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 직원이 출장 등록 없이 새 노트북으로 집에서 일했을 수 있다. 이 사례는 그런 사정을 뒷받침하는 회사 기록이 없다는 점을 근거로 공격으로 정했다.",
+      "en": "Counterpoint: the employee may have worked from home on a new laptop without registering it. The case is an attack because no company record supports such an explanation."
+    }
   }
 }

@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
+import { loadLanguage } from '../i18n';
+
+// The application reads one dictionary at a time; the tests switch between both.
+await Promise.all([loadLanguage('ko'), loadLanguage('en')]);
 
 // Vitest globals are disabled, so Testing Library cannot register its automatic cleanup itself.
 afterEach(() => {

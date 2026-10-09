@@ -1,0 +1,147 @@
+/* The request, the door outside the application, then the application with its steps and the company records. */
+.figure {
+  display: grid;
+  grid-template-columns: auto auto auto auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.arrow {
+  align-self: center;
+  color: var(--color-text-muted);
+}
+
+.request {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.outside,
+.inside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.inside {
+  border-style: solid;
+  border-color: var(--color-accent);
+}
+
+.zone {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A step is a label, not a button: square corners and a tint; Contexa's step carries the accent. */
+.step {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.step[data-step='contexa'] {
+  background-color: var(--color-surface-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.company {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.library {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.inline {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.honest {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.excerpt {
+  margin: 0 0 var(--space-4);
+}
+
+.excerptPath {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.line[data-highlight] {
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
+}
+
+@media (width <= 64rem) {
+  .figure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .request {
+    justify-self: start;
+  }
+}

@@ -1,6 +1,7 @@
 {
   "key": "S01",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "담당 업무의 정상 반복",
     "en": "Routine work on an assigned project"
@@ -60,6 +61,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 엔지니어 K가 평소 시간대에 자기 담당 도면 두 건을 보고, 10분 뒤 같은 프로젝트 자료 20건을 반출한다. 담당 프로젝트의 이 규모 반출은 회사 규정상 승인이 필요 없다(담당 반출 한도 500건). 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: during usual hours engineer K views two of K's own drawings and, ten minutes later, exports 20 records of the same project. An export of this size from an assigned project needs no approval under the company policy (assigned export limit 500). The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 반출은 언제나 위험하다는 시각이 있다. 담당 프로젝트·평소 시간·작은 규모라 정상으로 정했다.",
+      "en": "Counterpoint: any export can be seen as a risk. This one is from an assigned project, at a usual hour and small, so the case is normal."
+    }
   }
 }

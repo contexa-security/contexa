@@ -1,6 +1,7 @@
 {
   "key": "A3",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "내부자 대량 반출",
     "en": "Insider bulk export"
@@ -31,6 +32,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 관리자 A가 새벽 3시 17분에 자신이 맡지 않은 GB-500(제한 등급) 자료 4,831건을 한 번에 반출한다. 회사 기록에는 이 반출을 덮는 승인·티켓·당번이 없고, 최근 30일 동안 GB-500에 접근한 적도 없다. 회사 규정은 이 반출에 승인을 요구한다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: at 03:17 administrator A exports 4,831 records of GB-500, a restricted project A is not assigned to, in one request. No approval, ticket or on-call duty covers it, and A has not accessed GB-500 in the last 30 days. The company policy requires an approval for this export. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 관리자가 급한 이관 지시를 받고 기록 없이 작업했을 수 있다. 회사 규정이 이 반출에 승인을 요구하고 그 기록이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the administrator may have been told to transfer the data urgently without a record. The policy requires an approval for this export and there is none, so the case is an attack."
+    }
   }
 }

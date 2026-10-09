@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/contexa/admin/groups")
 @RequiredArgsConstructor
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+@PreAuthorize("hasRole('ADMIN')")
 public class GroupController {
 
     private final GroupService groupService;

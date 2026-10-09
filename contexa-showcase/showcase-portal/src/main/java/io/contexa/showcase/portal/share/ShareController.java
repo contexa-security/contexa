@@ -36,14 +36,13 @@ public class ShareController {
     public record ShareResponse(String shareKey, String url, String image) {
     }
 
-    /** The link page's words per language. */
-    private record Page(String title, String me, String invite, String action) {
+    /** The link page's words per language; its title is the pair's own question (H-09 #30). */
+    private record Page(String me, String invite, String action) {
     }
 
     private static final Map<String, Page> PAGES = Map.of(
-            "ko", new Page("같은 요청, 다섯 개의 판정", "나", "겉모습이 같은 두 요청을 직접 판정해 보세요.", "직접 판정해 보기"),
-            "en", new Page("Same request, five verdicts", "Me", "Judge two look-alike requests yourself.",
-                    "Try it yourself"));
+            "ko", new Page("나", "같은 요청을 다섯 보안 방식에 직접 보내 보세요.", "직접 해 보기"),
+            "en", new Page("Me", "Send the same request to five security approaches yourself.", "Try it yourself"));
 
     private final ExperienceScores scores;
     private final ShareStore store;
@@ -80,8 +79,9 @@ public class ShareController {
         String host = URI.create(base).getAuthority();
         Score mine = result.get().mine();
         Score contexa = result.get().contexa();
+        String question = scores.question(share.pairKey()).map(text -> text.get(share.language())).orElse(null);
         String key = store.keep(share.pairKey(), share.language(), mine, contexa, host,
-                () -> renderer.render(share.language(), mine, contexa, host));
+                () -> renderer.render(share.language(), question, mine, contexa, host));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ShareResponse(key, base + "/s/" + key, base + "/s/" + key + "/card.png"));
     }
@@ -96,7 +96,8 @@ public class ShareController {
         }
         return ResponseEntity.ok().contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
-                .body(html(card.get(), base(request)));
+                .body(html(card.get(), base(request), scores.question(card.get().pairKey())
+                        .map(text -> text.get(card.get().language())).orElse(null)));
     }
 
     @GetMapping(value = "/s/{key}/card.png", produces = MediaType.IMAGE_PNG_VALUE)
@@ -107,15 +108,16 @@ public class ShareController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    static String html(ShareStore.Card card, String base) {
+    static String html(ShareStore.Card card, String base, String question) {
         Page words = PAGES.get(card.language());
+        String heading = question == null || question.isBlank() ? "Contexa Demo" : question;
         String score = (card.mine() == null ? "" : words.me() + " " + card.mine().hits() + "/" + card.mine().total()
                 + " · ") + "Contexa " + card.contexa().hits() + "/" + card.contexa().total();
-        String title = escape(words.title() + " · Contexa Demo");
+        String title = escape(heading + " · Contexa Demo");
         String description = escape(score + " — " + words.invite());
         String url = escape(base + "/s/" + card.key());
         String image = escape(base + "/s/" + card.key() + "/card.png");
-        String alt = escape("CONTEXA DEMO · " + words.title() + " · " + score);
+        String alt = escape("CONTEXA DEMO · " + heading + " · " + score);
         return """
                 <!doctype html>
                 <html lang="%s">

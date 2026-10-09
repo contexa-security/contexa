@@ -1,0 +1,120 @@
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.input {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.empty {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.entry {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.entry[data-focus] {
+  border-color: var(--color-accent);
+}
+
+.term {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.plain {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-body);
+}
+
+.termWrap {
+  position: relative;
+}
+
+/*
+ * A term to press: a tinted background and a dotted underline, so it reads as something to open (common-1). The side
+ * padding is a hairline, so a Korean particle after the term stays joined to it.
+ */
+.termButton {
+  display: inline;
+  padding: 0 var(--space-hairline);
+  border: 0;
+  border-bottom: 1px dotted var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: inherit;
+  font: inherit;
+  cursor: help;
+}
+
+.termButton:hover,
+.termButton[aria-expanded='true'] {
+  border-bottom-style: solid;
+}
+
+.termButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.tip {
+  display: block;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.tipTerm {
+  font-weight: var(--weight-semibold);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.more:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}

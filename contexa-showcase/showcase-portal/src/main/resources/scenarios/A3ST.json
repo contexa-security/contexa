@@ -1,0 +1,55 @@
+{
+  "key": "A3ST",
+  "version": 1,
+  "frozenOn": "2026-10-07",
+  "title": {
+    "ko": "승인된 프로젝트 이관(스트림)",
+    "en": "Approved project transfer (stream)"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "APPROVAL",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 5000,
+      "validFromOffset": "-P1D",
+      "validUntilOffset": "P1D",
+      "status": "APPROVED"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "EXPORT_STREAM",
+      "project": "GB-500",
+      "items": 4831,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "NORMAL",
+    "allowedEngineActions": [
+      "ALLOW",
+      "CHALLENGE"
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: A3T와 같은 승인된 이관(GB-500 담당 PM pm-11 승인, 최대 5,000건, 유효 기간 안)으로 새벽에 4,831건을 스트림으로 받는다. 승인이 프로젝트·건수·기간을 모두 덮는다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: the approved transfer of A3T (approved by GB-500's project manager pm-11, up to 5,000 records, within its validity) received as a stream at dawn. The approval covers the project, the count and the time. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 승인이 있어도 새벽의 대량 반출은 한 번 더 확인하는 편이 안전하다는 시각이 있다. 그래서 이 사례는 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: even with an approval, a bulk export at dawn may deserve one more check. The case therefore also counts an identity check by the engine as right."
+    }
+  }
+}

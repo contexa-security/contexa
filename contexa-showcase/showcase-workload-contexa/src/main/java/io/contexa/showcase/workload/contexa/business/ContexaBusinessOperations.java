@@ -60,6 +60,12 @@ public class ContexaBusinessOperations implements BusinessOperations {
 
     @Override
     @Protectable
+    public ExportResult exportDocumentsAsync(BusinessRequest request, String projectKey, int items) {
+        return delegate.exportDocumentsAsync(request, projectKey, items);
+    }
+
+    @Override
+    @Protectable
     public CustomerView readCustomer(BusinessRequest request, String customerKey) {
         return delegate.readCustomer(request, customerKey);
     }

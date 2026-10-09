@@ -21,7 +21,10 @@ export function RecoveryFlow({ challenge }: RecoveryFlowProps) {
     {
       key: 'verify',
       title: t('flow.verify'),
-      note: t('flow.verifyNote', { requested: ms(challenge.codeRequestedMs), verified: ms(challenge.verifiedMs) }),
+      note: t('flow.verifyNote', {
+        requested: ms(challenge.codeRequestedMs),
+        verified: ms(challenge.verifiedMs),
+      }),
       at: challenge.verifiedMs,
     },
     {

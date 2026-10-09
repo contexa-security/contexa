@@ -67,7 +67,8 @@ public class ControlAuthorizationManager implements AuthorizationManager<Request
         rbacFacts.put("method", request.getMethod());
         rbacFacts.put("path", path);
         if (rule.isEmpty()) {
-            return decide(request, business, BusinessOperation.PROJECT_LIST.name(),
+            // Recorded as UNKNOWN: no role rule names it, so it is no known operation (survey L1).
+            return decide(request, business, "UNKNOWN",
                     RuleDecision.deny("RBAC-NO-RULE", "No role rule names this request", rbacFacts));
         }
         BusinessOperation operation = rule.get().operation();
@@ -97,20 +98,22 @@ public class ControlAuthorizationManager implements AuthorizationManager<Request
         String target = operation == BusinessOperation.ROLE_GRANT ? request.getParameter("grantee")
                 : segments.size() > 3 ? segments.get(3) : null;
         String project = switch (operation) {
-            case EXPORT, EXPORT_STREAM -> target;
+            case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> target;
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD ->
                     lookupProject("select project_key from document where document_key = :key", target);
             case CUSTOMER_READ -> lookupProject("select project_key from customer where customer_key = :key", target);
             case ROLE_GRANT -> request.getParameter("project");
             case PROJECT_LIST -> null;
         };
-        int items = 1;
+        // A missing or invalid item count stays unknown (null); it is never filled in (survey L2).
+        Integer items = null;
         String itemsParameter = request.getParameter("items");
         if (itemsParameter != null) {
             try {
-                items = Integer.parseInt(itemsParameter);
+                int parsed = Integer.parseInt(itemsParameter.trim());
+                items = parsed > 0 ? parsed : null;
             } catch (NumberFormatException e) {
-                items = Integer.MAX_VALUE;
+                items = null;
             }
         }
         String claimedTicket = request.getParameter("claimedTicket");

@@ -1,6 +1,7 @@
 {
   "key": "A1T",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "등록된 출장지에서의 정상 접속",
     "en": "A normal sign-in from a registered business trip"
@@ -58,6 +59,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 엔지니어 K가 회사에 등록한 싱가포르 출장 중에 평소 기기로 출장지 네트워크(198.51.100.0/24)에서 자기 담당 도면 두 건을 연다. 네트워크는 평소와 다르지만 회사 출장 기록이 그 네트워크와 기간을 덮는다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: during a business trip to Singapore registered with the company, engineer K opens two of K's own drawings with the usual device from the trip network (198.51.100.0/24). The network differs from usual, but the company's trip record covers that network and period. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 출장 기록이 있어도 계정이 탈취됐을 수 있다. 이 사례는 기기가 평소와 같고 출장 기록이 접속을 설명한다는 점을 근거로 정상으로 정했다. 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: the account may be stolen even during a registered trip. The case is normal because the device is the usual one and the trip record explains the network; an identity check by the engine also counts as right."
+    }
   }
 }

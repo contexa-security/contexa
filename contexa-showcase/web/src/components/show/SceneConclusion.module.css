@@ -1,0 +1,82 @@
+.conclusion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 5.5rem;
+}
+
+.headline {
+  color: var(--color-accent);
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  word-break: keep-all;
+  animation: arrive var(--duration-slow) var(--ease-standard);
+}
+
+.headline[data-tone='safe'] {
+  color: var(--color-safe);
+}
+
+.headline[data-tone='loss'] {
+  color: var(--color-loss);
+}
+
+.headline[data-tone='halt'] {
+  color: var(--color-halt);
+}
+
+.headline[data-tone='idle'] {
+  color: var(--color-text-muted);
+}
+
+.waiting {
+  color: var(--color-text-subtle);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.detail {
+  color: var(--color-text-body);
+  font-size: var(--text-lg);
+  word-break: keep-all;
+}
+
+.detail[data-tone='loss'] {
+  color: var(--color-loss);
+  font-weight: var(--weight-semibold);
+}
+
+.detail[data-tone='safe'] {
+  color: var(--color-safe);
+  font-weight: var(--weight-semibold);
+}
+
+.detail[data-tone='halt'] {
+  color: var(--color-halt);
+  font-weight: var(--weight-semibold);
+}
+
+/* Text keeps its full contrast while it arrives: only position and size move (docs/showcase/화면설계서.md 1.3). */
+@keyframes arrive {
+  from {
+    transform: scale(1.04);
+  }
+}
+
+@media (width <= 48rem) {
+  .headline {
+    font-size: var(--text-2xl);
+  }
+
+  .detail {
+    font-size: var(--text-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headline {
+    animation: none;
+  }
+}

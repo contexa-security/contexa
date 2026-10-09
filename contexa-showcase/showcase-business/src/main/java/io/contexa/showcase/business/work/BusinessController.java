@@ -83,6 +83,14 @@ public class BusinessController {
         return operations.exportDocuments(request(http, authentication), projectKey, items);
     }
 
+    @PostMapping("/api/projects/{projectKey}/exports/async")
+    public ExportResult exportAsync(@PathVariable("projectKey") String projectKey, @RequestParam("items") int items,
+                                    HttpServletRequest http, Authentication authentication) {
+        requireItems(items);
+        attributes.describeExport(http, projectKey, items);
+        return operations.exportDocumentsAsync(request(http, authentication), projectKey, items);
+    }
+
     @GetMapping(value = "/api/projects/{projectKey}/exports/stream", produces = MediaType.APPLICATION_NDJSON_VALUE)
     public ResponseEntity<StreamingResponseBody> exportStream(@PathVariable("projectKey") String projectKey,
                                                               @RequestParam("items") int items,

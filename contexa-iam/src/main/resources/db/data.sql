@@ -70,7 +70,8 @@ ON CONFLICT (hierarchy_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
 -- POLICY — canonical seed policies.
--- id=1 is the public login page. id=2 protects the remaining admin area.
+-- id=1 is the public login page. id=2 keeps the remaining admin area to administrators (ROLE_ADMIN).
+-- The self-service paths a signed-in user needs under /contexa/admin are seeded by name at the end of this file.
 -- NOT NULL: is_active, priority, created_at, effect, name.
 -- ----------------------------------------------------------------
 INSERT INTO POLICY (
@@ -91,14 +92,14 @@ INSERT INTO POLICY (
     ),
     (
         2,
-        'ALLOW_CONTEXA_ADMIN_AUTHENTICATED',
-        '/contexa/admin/** 관리자 영역은 인증된 사용자만 접근할 수 있습니다.',
+        'ALLOW_CONTEXA_ADMIN_ADMINISTRATORS',
+        '/contexa/admin/** 관리자 영역은 관리자 역할(ROLE_ADMIN)이 있는 사용자만 접근할 수 있습니다.',
         'ALLOW',
         100,
         TRUE,
         'MANUAL',
         'NOT_REQUIRED',
-        '인증된 사용자만 관리자 보호 리소스에 접근할 수 있습니다.',
+        '관리자 역할이 있는 사용자만 관리자 보호 리소스에 접근할 수 있습니다.',
         CURRENT_TIMESTAMP
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -134,7 +135,7 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO POLICY_RULE (id, policy_id, description)
 VALUES
     (1, 1, '로그인 화면은 인증 전 접근을 허용합니다.'),
-    (2, 2, '인증된 사용자만 관리자 영역에 접근할 수 있습니다.')
+    (2, 2, '관리자 역할이 있는 사용자만 관리자 영역에 접근할 수 있습니다.')
 ON CONFLICT (id) DO UPDATE SET
                                policy_id = EXCLUDED.policy_id,
                                description = EXCLUDED.description;
@@ -155,9 +156,9 @@ INSERT INTO POLICY_CONDITION (
     (
         2,
         2,
-        'isAuthenticated()',
+        'hasRole(''ADMIN'')',
         'PRE_AUTHORIZE',
-        '요청 사용자가 인증되어 있어야 합니다.'
+        '요청 사용자에게 관리자 역할(ROLE_ADMIN)이 있어야 합니다.'
     )
 ON CONFLICT (id) DO UPDATE SET
                                rule_id = EXCLUDED.rule_id,
@@ -251,3 +252,60 @@ WHERE to_regclass('official_prompt_signal_contract_id_seq') IS NOT NULL;
 -- Source of truth: classpath:pqa/final-prompt-metric-contracts.json.
 -- OfficialMetricPurposeContractCatalogWriter persists the complete official_metric_*
 -- contract catalog at startup/runtime. Do not duplicate contract rows here.
+
+-- ----------------------------------------------------------------
+-- Self-service paths under the admin area.
+-- A blocked user (whose only authority is ROLE_BLOCKED) asks for the release of the block, and a user whose request
+-- waits for the analysis follows it, through /contexa/admin/api/aiam/... These stay open to every signed-in user and
+-- come before the administrators-only policy (priority 20 < 100).
+-- Seeded by name with ids from the sequences, so rows an installation created never collide with them.
+-- ----------------------------------------------------------------
+INSERT INTO POLICY (
+    name, description, effect, priority, is_active,
+    source, approval_status, friendly_description, created_at
+) VALUES (
+    'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE',
+    '/contexa/admin/api/aiam/zero-trust/**, /contexa/admin/api/aiam/sse/zero-trust/** 는 인증된 사용자가 스스로 쓰는 경로입니다.',
+    'ALLOW',
+    20,
+    TRUE,
+    'MANUAL',
+    'NOT_REQUIRED',
+    '차단 해제 요청과 분석 대기 알림은 인증된 사용자 누구나 쓸 수 있습니다.',
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (name) DO UPDATE SET
+                               description = EXCLUDED.description,
+                               effect = EXCLUDED.effect,
+                               priority = EXCLUDED.priority,
+                               is_active = EXCLUDED.is_active,
+                               source = EXCLUDED.source,
+                               approval_status = EXCLUDED.approval_status,
+                               friendly_description = EXCLUDED.friendly_description;
+
+INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
+SELECT p.id, 'URL', '/contexa/admin/api/aiam/zero-trust/**', 'ANY', 1, 'MANUAL'
+FROM POLICY p
+WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
+  AND NOT EXISTS (SELECT 1 FROM POLICY_TARGET t
+                  WHERE t.policy_id = p.id AND t.target_identifier = '/contexa/admin/api/aiam/zero-trust/**');
+
+INSERT INTO POLICY_TARGET (policy_id, target_type, target_identifier, http_method, target_order, source_type)
+SELECT p.id, 'URL', '/contexa/admin/api/aiam/sse/zero-trust/**', 'ANY', 2, 'MANUAL'
+FROM POLICY p
+WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
+  AND NOT EXISTS (SELECT 1 FROM POLICY_TARGET t
+                  WHERE t.policy_id = p.id AND t.target_identifier = '/contexa/admin/api/aiam/sse/zero-trust/**');
+
+INSERT INTO POLICY_RULE (policy_id, description)
+SELECT p.id, '인증된 사용자는 자신의 차단 해제 요청과 분석 대기 알림을 쓸 수 있습니다.'
+FROM POLICY p
+WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
+  AND NOT EXISTS (SELECT 1 FROM POLICY_RULE r WHERE r.policy_id = p.id);
+
+INSERT INTO POLICY_CONDITION (rule_id, condition_expression, authorization_phase, description)
+SELECT r.id, 'isAuthenticated()', 'PRE_AUTHORIZE', '요청 사용자가 인증되어 있어야 합니다.'
+FROM POLICY_RULE r
+JOIN POLICY p ON p.id = r.policy_id
+WHERE p.name = 'ALLOW_CONTEXA_ZERO_TRUST_SELF_SERVICE'
+  AND NOT EXISTS (SELECT 1 FROM POLICY_CONDITION c WHERE c.rule_id = r.id);

@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
@@ -102,6 +103,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -530,10 +532,18 @@ public class CoreAutonomousAutoConfiguration {
                 securityPlaneAgent,
                 actionRepository);
     }
+    /**
+     * The step-up flow of a CHALLENGE decided in the request starts through the identity module's starter (its
+     * challenge filter), looked up when the answer is written so the bean order does not matter.
+     */
     @Bean
     @ConditionalOnMissingBean
-    public ZeroTrustExceptionHandler zeroTrustExceptionHandler() {
-        return new ZeroTrustExceptionHandler();
+    public ZeroTrustExceptionHandler zeroTrustExceptionHandler(
+            ObjectProvider<ZeroTrustChallengeFlowStarter> challengeFlowStarters) {
+        return new ZeroTrustExceptionHandler((request, response) -> {
+            ZeroTrustChallengeFlowStarter starter = challengeFlowStarters.getIfUnique();
+            return starter == null ? Optional.empty() : starter.start(request, response);
+        });
     }
 
 

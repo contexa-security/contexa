@@ -152,7 +152,15 @@ class ReplayAndVisitorIntegrationTest {
         assertThat(scene.path("agreeing").asInt()).isEqualTo(1);
         assertThat(scene.path("layers")).extracting(layer -> layer.path("control").asText())
                 .containsExactly("A", "B", "C1", "C2", "D");
-        assertThat(scene.path("layers").get(2).path("verdict").asText()).isEqualTo("BLOCK");
+        JsonNode night = scene.path("layers").get(2);
+        assertThat(night.path("verdict").isNull()).as("a rule control makes no verdict (survey #25)").isTrue();
+        assertThat(night.path("ruleId").asText()).isEqualTo("C1-NIGHT");
+        assertThat(night.path("httpStatus").asInt()).isEqualTo(403);
+        // F-13: the ground truth is there whatever company facts the scene has; this run predates the stored
+        // definition, so it comes from the catalog's definition of the same version.
+        assertThat(scene.path("truth").path("source").asText()).isEqualTo("CATALOG_SAME_VERSION");
+        assertThat(scene.path("truth").path("classification").asText()).isEqualTo("THREAT");
+        assertThat(scene.path("truth").path("rationale").path("ko").asText()).isNotBlank();
         JsonNode engine = scene.path("layers").get(4).path("evidence");
         assertThat(engine.path("decisionId").asText()).isEqualTo("00000000-0000-0000-0000-00000000000d");
         assertThat(engine.path("responseMs").asLong()).isEqualTo(1702);
@@ -316,7 +324,7 @@ class ReplayAndVisitorIntegrationTest {
 
     private static ExecutionSpec spec() {
         return new ExecutionSpec("test-commit", "0.1.0", "ENFORCE", Map.of("POST /api/projects/*/exports", "sync"),
-                "gpt-5-nano", "text-embedding-3-small", 1024, "p".repeat(64), null, "r".repeat(64), null, "UTC");
+                "gpt-5-nano", "text-embedding-3-small", 1024, "p".repeat(64), null, "r".repeat(64), null, "UTC", null);
     }
 
     private String run(String scenario, String spec, boolean approved) {

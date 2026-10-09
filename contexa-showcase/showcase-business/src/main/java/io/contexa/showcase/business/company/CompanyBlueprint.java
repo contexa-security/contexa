@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * Fixed shape of the virtual company (docs/showcase/ADR.md ADR-19): roles and head counts from the v5 deck,
- * the design projects of a manufacturer, the two protagonists and their usual devices and networks.
+ * the design projects of a manufacturer, the protagonists and their usual devices and networks.
  * Changing anything here changes the generated data; bump {@link CompanyGenerator#VERSION} with it.
  */
 public final class CompanyBlueprint {
@@ -22,11 +22,33 @@ public final class CompanyBlueprint {
     /** Protagonist of the control and recovery scene: design engineer K (deck p.12). */
     public static final String ENGINEER_K = "eng-k";
 
+    /**
+     * Baseline variant of administrator A (W2-7): the night-shift administrator of the same operations project, whose
+     * usual hours are 22:00 to 04:00, so the same dawn request is inside one baseline and outside the other.
+     */
+    public static final String ADMIN_NIGHT = "adm-c";
+
+    /**
+     * Baseline variant of engineer K (W2-7): a field support engineer of the same program who worked the first learned
+     * week from a registered business trip, so the trip network is part of the usual pattern.
+     */
+    public static final String ENGINEER_FIELD = "eng-01";
+
     /** Internal project of the IT administration team that administrator A works on. */
     public static final String PLM_OPERATIONS = "PLM-OPS";
 
     /** Design project of engineer K. */
     public static final String K_PROJECT = "HX-310";
+
+    /** Design project of the field support engineer, in engineer K's program. */
+    public static final String FIELD_PROJECT = "HX-200";
+
+    /** Network of the field support engineer's registered business trip in the first learned week. */
+    public static final String FIELD_TRIP_NETWORK = "198.51.100.0/24";
+
+    static final String FIELD_TRIP_CITY = "Singapore";
+
+    static final String FIELD_TRIP_COUNTRY = "SG";
 
     /** Large restricted project administrator A is not assigned to (the bulk export target of scene A3). */
     public static final String A3_TARGET = "GB-500";
@@ -40,6 +62,14 @@ public final class CompanyBlueprint {
     /** Usual device of engineer K, a design workstation. */
     public static final String ENGINEER_K_DEVICE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             + "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0";
+
+    /** Usual device of the night-shift administrator. */
+    public static final String ADMIN_NIGHT_DEVICE = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) "
+            + "Gecko/20100101 Firefox/131.0";
+
+    /** Usual device of the field support engineer, a laptop taken on site. */
+    public static final String ENGINEER_FIELD_DEVICE = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            + "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
     /** Device that no employee has used before; the "new device" condition (deck p.13). */
     public static final String NEW_DEVICE = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 "
@@ -103,8 +133,8 @@ public final class CompanyBlueprint {
     static final List<String> DEVICE_AGENTS = List.of(
             ADMIN_A_DEVICE,
             ENGINEER_K_DEVICE,
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36");
+            ADMIN_NIGHT_DEVICE,
+            ENGINEER_FIELD_DEVICE);
 
     static final List<String> DOCUMENT_SENTENCES = List.of(
             "Dimensions follow the released interface control document.",

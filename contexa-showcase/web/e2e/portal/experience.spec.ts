@@ -1,135 +1,222 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 /**
- * The hands-on experience on the real portal (docs/showcase/체험우선-설계.md, UX-FE-02): the visitor presses the
- * button and the export really goes to the five security approaches, as the attacker, then as the real owner, then
- * under a changed condition. It needs a portal with live runs on and limits high enough for the runs of a whole pass.
+ * Act 1 on the real portal (screen design v2.3, 7.1): the first screen replays the designated measured runs, and try
+ * 1 sends one real export through the visitor's own gate and shows it in seven steps and the act-end screen (D-41). Every value
+ * on screen is checked against the portal's own answer for the same run. It needs a portal with live runs of A3 on and
+ * limits high enough for one run per language.
  */
-const COPY = {
-  ko: {
-    send: /건 내보내기 요청 보내기/,
-    done: '응답이 모두 도착했습니다',
-    giveUp: '포기하고 결과 보기',
-    next1: '장면 2: 진짜 담당자라면?',
-    next2: '두 장면 비교하기',
-    winners: /^둘 다 맞힌 곳:/,
-    time: '오후 2:20',
-    changed: /바꾼 조건: 회사 시각 새벽 3:17 → 오후 2:20/,
-  },
-  en: {
-    send: /Send the request to export/,
-    done: 'All answers are in',
-    giveUp: 'Give up and see the result',
-    next1: 'Scene 2: what if it is the real owner?',
-    next2: 'Compare the two scenes',
-    winners: /^Got both right:/,
-    time: '2:20 pm',
-    changed: /Changed: Company time 3:17 am, dawn → 2:20 pm/,
-  },
-} as const;
+const MESSAGES = {
+  ko: JSON.parse(readFileSync(new URL('../../src/i18n/ko.json', import.meta.url), 'utf-8')) as Record<
+    string,
+    string
+  >,
+  en: JSON.parse(readFileSync(new URL('../../src/i18n/en.json', import.meta.url), 'utf-8')) as Record<
+    string,
+    string
+  >,
+};
+const RUN_TIMEOUT = 180_000;
+const CONTROLS = ['A', 'B', 'C1', 'C2', 'D'] as const;
 
-const RUN_TIMEOUT = 120_000;
+interface HookLayer {
+  readonly control: string;
+  readonly outcome: string;
+  readonly verdict: string | null;
+  readonly evidence: { readonly deliveredItems: number };
+}
 
-const evidenceDir = process.env.SHOWCASE_EVIDENCE_DIR;
-if (evidenceDir) {
-  mkdirSync(evidenceDir, { recursive: true });
+interface HookColumn {
+  readonly runId: string;
+  readonly correct: Readonly<Record<string, boolean>>;
+  readonly result: { readonly layers: readonly HookLayer[] };
+  readonly measurement: {
+    readonly runs: number;
+    readonly sameResult: number;
+    readonly passedAfterCheck: number;
+  };
+}
+
+interface RunScore {
+  readonly business: Readonly<Record<string, { readonly result: string; readonly exposedItems: number }>>;
+  readonly correct: Readonly<Record<string, boolean>>;
 }
 
 test.describe.configure({ mode: 'serial' });
 
 async function seriousViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
   return results.violations
     .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`);
+    .map(
+      (violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+    );
 }
 
 async function noHorizontalScroll(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 }
 
-/** Presses the scene's button and waits for every live answer; the attacker gives up an identity check. */
-async function send(scene: Locator, copy: (typeof COPY)['ko' | 'en']) {
-  await scene.getByRole('button', { name: copy.send }).click();
-  const done = scene.getByText(copy.done);
-  const giveUp = scene.getByRole('button', { name: copy.giveUp });
-  await expect(done.or(giveUp)).toBeVisible({ timeout: RUN_TIMEOUT });
-  if (await giveUp.isVisible()) {
-    await giveUp.click();
-    await expect(done).toBeVisible({ timeout: RUN_TIMEOUT });
-  }
-  // Every lane holds a real answer: an outcome, never a waiting or sending lane.
-  await expect(scene.locator('li[data-control][data-state="done"]')).toHaveCount(5);
+function format(template: string, values: Readonly<Record<string, string | number>>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key] ?? ''));
+}
+
+function items(value: number, language: 'ko' | 'en'): string {
+  return value.toLocaleString(language === 'ko' ? 'ko-KR' : 'en-US');
 }
 
 for (const language of ['ko', 'en'] as const) {
-  test(`experience ${language}: attacker, real owner, comparison, a changed condition`, async ({ page }, info) => {
-    test.setTimeout(4 * RUN_TIMEOUT);
-    const copy = COPY[language];
+  const m = MESSAGES[language];
+
+  test(`the first screen replays the designated measured runs as recorded (${language})`, async ({
+    page,
+  }) => {
     await page.goto(`/?lng=${language}`);
+    const hook = await page.evaluate(() => fetch('/api/hook').then((r) => (r.ok ? r.json() : null)));
+    test.skip(hook === null, 'no designated runs on this portal');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload();
+    for (const side of ['attacker', 'owner'] as const) {
+      const column = hook[side] as HookColumn;
+      const contexa = column.result.layers.find((layer) => layer.control === 'D');
+      expect(contexa, side).toBeTruthy();
+      const row = page.locator(`[data-side="${side}"] [data-contexa]`);
+      await expect(row).toContainText(items(contexa?.evidence.deliveredItems ?? -1, language));
+      const measured = column.measurement;
+      const line =
+        side === 'owner' && measured.passedAfterCheck > 0
+          ? format(m['hook.measuredAfterCheck'] ?? '', { runs: measured.runs, n: measured.passedAfterCheck })
+          : measured.sameResult === measured.runs
+            ? format(m['hook.measuredSame'] ?? '', { runs: measured.runs })
+            : format(m['hook.measuredSome'] ?? '', { runs: measured.runs, same: measured.sameResult });
+      await expect(page.locator(`[data-side="${side}"]`)).toContainText(line);
+      await expect(page.locator(`[data-side="${side}"]`)).toContainText(
+        m[side === 'attacker' ? 'hook.answer.stop' : 'hook.answer.pass'] ?? '',
+      );
+      // Contexa's row carries the server's score as a word next to its icon.
+      await expect(row).toContainText(m[column.correct['D'] ? 'mark.right' : 'mark.wrong'] ?? '');
+    }
+    await expect(
+      page.getByText(m[hook.distinguished ? 'hook.question' : 'hook.questionFallback'] ?? ''),
+    ).toBeVisible();
+    expect(await seriousViolations(page)).toEqual([]);
+    expect(await noHorizontalScroll(page)).toBe(true);
+  });
+
+  test(`try 1 sends one live run and every step shows its records (${language})`, async ({ page }) => {
+    test.setTimeout(RUN_TIMEOUT + 120_000);
+    await page.goto(`/try/attacker/scene?lng=${language}`);
+    const options = await page.evaluate(() => fetch('/api/lab/options').then((r) => r.json()));
+    const a3 = options.cases.find((candidate: { key: string }) => candidate.key === 'A3');
+    const employee = options.employees.find(
+      (candidate: { key: string }) => candidate.key === a3.conditions.employee,
+    );
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      format(m['e1.scene.title'] ?? '', { name: employee.displayName }),
+    );
+
+    await page.goto(`/try/attacker/compare?lng=${language}`);
+    const before = await page.evaluate(() => fetch('/api/live/before/A3?step=1').then((r) => r.json()));
+    if (before.comparison) {
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+        format(m['e1.compare.title'] ?? '', {
+          usual: before.comparison.departureCount,
+          company: before.comparison.companyAdverseCount,
+        }),
+      );
+    }
+
+    await page.goto(`/try/attacker/predict?lng=${language}`);
+    await page
+      .getByText(m['e1.predict.CHALLENGE'] ?? '', { exact: true })
+      .first()
+      .click();
+    await page.getByText(m['e1.predict.existing.SOME'] ?? '', { exact: true }).click();
+    await page
+      .getByRole('button', {
+        name: format(m['e1.predict.send'] ?? '', { items: items(a3.requests[0].items, language) }),
+      })
+      .click();
+    await page.waitForURL(/\/try\/attacker\/run/);
+    await page.getByRole('link', { name: m['e1.next.result'] ?? '' }).waitFor({ timeout: RUN_TIMEOUT });
+    expect(await seriousViolations(page)).toEqual([]);
+
+    const live = await page.evaluate(() => fetch('/api/live/runs/current').then((r) => r.json()));
+    const score = (await page.evaluate(
+      (runId) => fetch(`/api/runs/${runId}/score`).then((r) => r.json()),
+      live.runId,
+    )) as RunScore;
+    await page.goto(`/try/attacker/result?lng=${language}`);
+    const rows = page.locator('table tbody tr');
+    await expect(rows).toHaveCount(CONTROLS.length);
+    for (const [index, control] of CONTROLS.entries()) {
+      const right = score.correct[control];
+      const mark = right === undefined ? m['mark.neither'] : right ? m['mark.right'] : m['mark.wrong'];
+      await expect(rows.nth(index)).toContainText(mark ?? '');
+      await expect(rows.nth(index)).toContainText(
+        format(m['e1.result.items'] ?? '', {
+          items: items(score.business[control]?.exposedItems ?? -1, language),
+        }),
+      );
+    }
+    const journey = await page.evaluate(() => fetch('/api/journey').then((r) => r.json()));
+    const call = journey.predictions.find((prediction: { caseKey: string }) => prediction.caseKey === 'A3');
+    expect(call?.call.engine).toBe('CHALLENGE');
+    // S9-05: the run's decision details open over the result and close back to it, the focus on their button.
+    const resultAddress = page.url();
+    const openDetail = page.getByRole('button', { name: m['e1.result.detail'] ?? '' });
+    await openDetail.click();
+    await expect(page).toHaveURL(new RegExp(`detailRun=${live.runId}&detailStep=1`));
+    await expect(page.getByRole('dialog').getByRole('tab')).toHaveCount(6);
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: m['modal.close'] ?? '' })
+      .click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    expect(page.url()).toBe(resultAddress);
+    await expect(openDetail).toBeFocused();
+
+    await page.goto(`/try/attacker/reason?lng=${language}`);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.locator('section[aria-labelledby="scene-attack"] li[data-state="waiting"]')).toHaveCount(5);
-    expect(await seriousViolations(page)).toEqual([]);
-    expect(await noHorizontalScroll(page)).toBe(true);
-
-    const attack = page.locator('section[aria-labelledby="scene-attack"]');
-    await send(attack, copy);
-    await expect(attack.locator('[class*="expect"]')).toBeVisible();
-    expect(await seriousViolations(page)).toEqual([]);
-    expect(await noHorizontalScroll(page)).toBe(true);
-
-    await page.getByRole('button', { name: copy.next1 }).click();
-    const owner = page.locator('section[aria-labelledby="scene-owner"]');
-    await send(owner, copy);
-    await page.getByRole('button', { name: copy.next2 }).click();
-    await expect(page.getByText(copy.winners)).toBeVisible();
-    expect(await seriousViolations(page)).toEqual([]);
-
-    if (info.project.name === 'chromium') {
-      const free = page.locator('section[aria-labelledby="scene-free"]');
-      await free.getByRole('button', { name: copy.time, exact: true }).click();
-      await send(free, copy);
-      await expect(free.getByText(copy.changed)).toBeVisible();
-      await free.locator('li[data-control="D"]').getByRole('button').click();
-      await expect(page.getByRole('dialog')).toBeVisible();
-      expect(await seriousViolations(page)).toEqual([]);
+    // Difference 4 counts as seen once the reasons are drawn; leave only after the server has it.
+    await expect
+      .poll(
+        async () =>
+          (await page.evaluate(() => fetch('/api/journey').then((r) => r.json()))).state.differences,
+      )
+      .toContain(4);
+    // S9-05: from the reasons too; Esc closes the details and leaves the reasons.
+    const reasonAddress = page.url();
+    await page.getByRole('button', { name: m['e1.result.detail'] ?? '' }).click();
+    await expect(page).toHaveURL(new RegExp(`detailRun=${live.runId}`));
+    await expect(page.getByRole('dialog').getByRole('tab')).toHaveCount(6);
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+    expect(page.url()).toBe(reasonAddress);
+    await page.goto(`/try/attacker/after?lng=${language}`);
+    const ended = await page.evaluate(() => fetch('/api/live/runs/current').then((r) => r.json()));
+    if (ended.challenge) {
+      expect(ended.challenge.stage).toBe('NO_MAILBOX');
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(m['e1.after.title'] ?? '');
     }
+    await expect(
+      page.getByRole('button', { name: format(m['difference.badgeAria'] ?? '', { n: 4 }) }),
+    ).toBeVisible();
+    expect(await seriousViolations(page)).toEqual([]);
+    // The act-end card is a screen of its own, opened by the follow-up's one next button (D-41).
+    await page.getByRole('link', { name: m['e1.next.end'] ?? '' }).click();
+    await page.waitForURL(/\/try\/attacker\/end/);
+    await expect(page.locator('section[aria-labelledby="act-end-1"]')).toBeVisible();
+    // The act-end screen's one main button starts act 2, and its way back is the follow-up.
+    await expect(page.getByRole('link', { name: format(m['actEnd.start'] ?? '', { n: 2 }) })).toHaveAttribute(
+      'href',
+      '/try/owner/scene',
+    );
+    expect(await seriousViolations(page)).toEqual([]);
     expect(await noHorizontalScroll(page)).toBe(true);
-    if (evidenceDir) {
-      await page.screenshot({
-        path: join(evidenceDir, `experience-${info.project.name}-${language}.png`),
-        fullPage: true,
-      });
-    }
   });
 }
-
-test('experience with the keyboard only', async ({ page }, info) => {
-  test.skip(info.project.name !== 'chromium', 'keyboard path is checked once on desktop');
-  test.setTimeout(2 * RUN_TIMEOUT);
-  await page.goto('/?lng=en');
-  const sendButton = page
-    .locator('section[aria-labelledby="scene-attack"]')
-    .getByRole('button', { name: COPY.en.send });
-  for (let presses = 0; presses < 30 && !(await sendButton.evaluate((element) => element === document.activeElement)); presses++) {
-    await page.keyboard.press('Tab');
-  }
-  await expect(sendButton).toBeFocused();
-  await page.keyboard.press('Enter');
-  const next = page.getByRole('button', { name: COPY.en.next1 });
-  const giveUp = page.getByRole('button', { name: COPY.en.giveUp });
-  await expect(next.or(giveUp)).toBeVisible({ timeout: RUN_TIMEOUT });
-  if (await giveUp.isVisible()) {
-    await giveUp.focus();
-    await page.keyboard.press('Enter');
-  }
-  for (let presses = 0; presses < 80 && !(await next.evaluate((element) => element === document.activeElement)); presses++) {
-    await page.keyboard.press('Tab');
-  }
-  await expect(next).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('section[aria-labelledby="scene-owner"]')).toBeVisible();
-});

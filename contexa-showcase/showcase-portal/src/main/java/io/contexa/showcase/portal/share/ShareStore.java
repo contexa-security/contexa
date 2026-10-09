@@ -29,16 +29,17 @@ public class ShareStore {
     }
 
     /**
-     * The key of the card with these values, created with the image only when no card has them yet.
+     * The key of the card with these values: the same values keep the same key, and the image is drawn again each
+     * time, so a card shared again carries the current words (H-09 #30) instead of what an earlier version drew.
      */
     public String keep(String pairKey, String language, Score mine, Score contexa, String host,
                        Supplier<byte[]> image) {
         MapSqlParameterSource values = new MapSqlParameterSource("pair", pairKey).addValue("language", language)
                 .addValue("myHits", mine == null ? 0 : mine.hits()).addValue("myTotal", mine == null ? 0 : mine.total())
                 .addValue("contexaHits", contexa.hits()).addValue("contexaTotal", contexa.total())
-                .addValue("host", host);
+                .addValue("host", host).addValue("image", image.get());
         Optional<String> existing = jdbc.query("""
-                        update share_card set last_shared_at = now()
+                        update share_card set last_shared_at = now(), image = :image
                          where pair_key = :pair and language = :language and my_hits = :myHits
                            and my_total = :myTotal and contexa_hits = :contexaHits
                            and contexa_total = :contexaTotal and host = :host
@@ -46,13 +47,13 @@ public class ShareStore {
         if (existing.isPresent()) {
             return existing.get();
         }
-        values.addValue("key", newKey()).addValue("image", image.get());
+        values.addValue("key", newKey());
         return jdbc.queryForObject("""
                 insert into share_card (share_key, pair_key, language, my_hits, my_total, contexa_hits,
                     contexa_total, host, image)
                 values (:key, :pair, :language, :myHits, :myTotal, :contexaHits, :contexaTotal, :host, :image)
                 on conflict (pair_key, language, my_hits, my_total, contexa_hits, contexa_total, host)
-                do update set last_shared_at = now()
+                do update set last_shared_at = now(), image = excluded.image
                 returning share_key""", values, String.class);
     }
 

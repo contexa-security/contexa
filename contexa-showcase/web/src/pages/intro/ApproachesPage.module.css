@@ -1,0 +1,127 @@
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Five pressable rows (each opens its settings): the name, what it sees, what it cannot see, and an open mark. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  inline-size: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:hover {
+  border-color: var(--color-accent);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.row[data-contexa] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.name {
+  font-weight: var(--weight-bold);
+}
+
+.row[data-contexa] .name {
+  color: var(--color-accent);
+}
+
+.sees,
+.misses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.seesIcon {
+  align-self: center;
+  color: var(--color-safe);
+}
+
+.missesIcon {
+  align-self: center;
+  color: var(--color-loss);
+}
+
+.open {
+  color: var(--color-text-muted);
+}
+
+/* The settings window: names and values, an original value in code. */
+@media (width <= 48rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .name {
+    grid-column: 1;
+  }
+
+  .open {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .sees,
+  .misses {
+    grid-column: 1 / -1;
+  }
+}
+
+/*
+ * Phones (mobile slide): the five approaches are cards side by side, swiped one at a time; the next card shows at the
+ * edge, so a visitor sees there is more. Each card is a button, so the keyboard moves through them as well.
+ */
+@media (width <= 40rem) {
+  .rows {
+    flex-direction: row;
+    gap: var(--space-3);
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+    scroll-snap-type: x mandatory;
+  }
+
+  .rows > li {
+    flex: 0 0 85%;
+    scroll-snap-align: start;
+  }
+
+  .row {
+    align-content: start;
+    block-size: 100%;
+  }
+}

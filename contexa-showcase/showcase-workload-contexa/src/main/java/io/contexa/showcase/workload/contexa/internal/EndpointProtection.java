@@ -20,6 +20,7 @@ public final class EndpointProtection {
             "DOCUMENT_DOWNLOAD", "downloadDocument",
             "EXPORT", "exportDocuments",
             "EXPORT_STREAM", "openExportStream",
+            "EXPORT_ASYNC", "exportDocumentsAsync",
             "CUSTOMER_READ", "readCustomer",
             "ROLE_GRANT", "grantRole");
 

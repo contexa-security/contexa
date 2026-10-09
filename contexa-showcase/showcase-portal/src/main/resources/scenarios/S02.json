@@ -1,6 +1,7 @@
 {
   "key": "S02",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "승인된 대량 처리",
     "en": "Approved bulk delivery"
@@ -41,6 +42,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 관리자 A가 GB-500 담당 PM(pm-11)이 승인한 이관(최대 500건, 유효 기간 안)에 따라 오후에 400건을 반출한다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: in the afternoon administrator A exports 400 records under a transfer approved by GB-500's project manager (pm-11), up to 500 records and within its validity. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 자신이 맡지 않은 프로젝트의 대량 반출이다. 승인이 프로젝트·건수·기간을 덮으므로 정상으로 정했다.",
+      "en": "Counterpoint: it is a bulk export from a project A is not assigned to. The approval covers the project, the count and the time, so the case is normal."
+    }
   }
 }

@@ -27,6 +27,7 @@ import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -80,6 +81,9 @@ class RetentionIntegrationTest {
         expected.put("visitors", 1);
         expected.put("runVisitorHashes", 1);
         expected.put("combinationVisitorHashes", 1);
+        expected.put("predictionVisitorHashes", 1);
+        expected.put("assessmentVisitorHashes", 1);
+        expected.put("anonymousTallies", 1);
         expected.put("dailyQuota", 1);
         expected.put("allotmentAlerts", 1);
         expected.put("shareCards", 1);
@@ -87,11 +91,22 @@ class RetentionIntegrationTest {
         expected.put("retiredRecordings", 2);
         expected.put("oldRuns", 1);
         expected.put("costLedger", 1);
+        expected.put("modelExchanges", 1);
         expected.put("retiredTemplates", 2);
         expected.put("retentionLog", 1);
         assertThat(pass.deleted()).containsExactlyEntriesOf(expected);
 
         assertThat(jdbc.queryForList("select visitor_hash from visitor", String.class)).containsExactly(RECENT_VISITOR);
+        assertThat(jdbc.queryForList("select visitor_hash from visitor_journey", String.class))
+                .as("the journey left with its visitor").containsExactly(RECENT_VISITOR);
+        assertThat(jdbc.queryForList("select count from anonymous_tally", Long.class)).containsExactly(2L);
+        assertThat(jdbc.queryForList("select run_id || ' ' || coalesce(visitor_hash, '-') from visitor_prediction "
+                + "order by run_id", String.class)).as("the call stays, only the visitor's hash leaves (R-27)")
+                .containsExactly("r-old -", "r-recent " + RECENT_VISITOR);
+        assertThat(jdbc.queryForList("select run_id || ' ' || coalesce(visitor_hash, '-') from visitor_assessment "
+                + "order by run_id", String.class)).containsExactly("r-old -", "r-recent " + RECENT_VISITOR);
+        assertThat(jdbc.queryForList("select call_no from run_model_exchange order by call_no", Integer.class))
+                .as("model call texts are kept 90 days").containsExactly(2);
         assertThat(jdbc.queryForList("select visitor_hash from prediction", String.class))
                 .containsExactly(RECENT_VISITOR);
         assertThat(jdbc.queryForList("select coalesce(live_visitor_hash, '-') || ' ' || live_run from run "
@@ -143,10 +158,29 @@ class RetentionIntegrationTest {
                 ago(40), ago(29));
         jdbc.update("insert into prediction (visitor_hash, scene_key, choice) values (?, 'A3:ATTACK', 'BLOCK')",
                 OLD_VISITOR);
+        // The journey leaves with its visitor; the anonymous counts leave after the visitor period (ADR-35).
+        for (String visitor : new String[]{OLD_VISITOR, RECENT_VISITOR}) {
+            jdbc.update("insert into visitor_journey (visitor_hash, route, act, step, updated_at) "
+                    + "values (?, 'DEFAULT', 1, 'scene', ?)", visitor, ago(31));
+        }
+        jdbc.update("insert into anonymous_tally (day, metric, item, value, count) values (?, 'QUIZ', 'Q1', 'RIGHT', 4)",
+                Date.valueOf(TODAY.minusDays(31)));
+        jdbc.update("insert into anonymous_tally (day, metric, item, value, count) values (?, 'QUIZ', 'Q1', 'RIGHT', 2)",
+                Date.valueOf(TODAY.minusDays(29)));
         jdbc.update("insert into prediction (visitor_hash, scene_key, choice) values (?, 'A3:ATTACK', 'ALLOW')",
                 RECENT_VISITOR);
         run("r-old", OLD_VISITOR);
         run("r-recent", RECENT_VISITOR);
+        for (String[] lab : new String[][]{{"r-old", OLD_VISITOR}, {"r-recent", RECENT_VISITOR}}) {
+            jdbc.update("insert into visitor_prediction (run_id, visitor_hash, call, predicted_at) "
+                    + "values (?, ?, 'ATTACK', ?)", lab[0], lab[1], ago(31));
+            jdbc.update("insert into visitor_assessment (run_id, step_no, visitor_hash, verdict) "
+                    + "values (?, 1, ?, 'UNSOUND')", lab[0], lab[1]);
+        }
+        for (int[] call : new int[][]{{1, 91}, {2, 89}}) {
+            jdbc.update("insert into run_model_exchange (request_id, call_no, run_id, step_no, success, captured_at) "
+                    + "values (?, ?, 'r-recent', 1, true, ?)", UUID.randomUUID(), call[0], ago(call[1]));
+        }
         // X: an old version superseded by a newer one (deleted after 90 days); the newer one stays.
         combination("X", CombinationCatalog.VERSION, "1", 100, OLD_VISITOR);
         combination("X", CombinationCatalog.VERSION, "2", 50, null);

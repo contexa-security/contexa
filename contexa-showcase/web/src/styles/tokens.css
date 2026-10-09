@@ -3,23 +3,8 @@
  * used by the application comes from this file; stylelint rejects literal values elsewhere.
  * Dark is the default theme; the light theme follows the system preference or data-theme="light".
  */
-@import url('pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
 @import url('@fontsource/jetbrains-mono/400.css');
 @import url('@fontsource/jetbrains-mono/600.css');
-
-/*
- * Every character the visitor screens use, in one preloaded file (scripts/font-subset.py, approval Q-36); anything
- * else falls back to the regular Pretendard pieces below it in the stack.
- */
-@font-face {
-  font-family: 'Pretendard Demo';
-  src:
-    url('/fonts/pretendard-demo.woff2') format('woff2-variations'),
-    url('/fonts/pretendard-demo.woff2') format('woff2');
-  font-weight: 45 920;
-  font-style: normal;
-  font-display: swap;
-}
 
 :root {
   /* Typography */
@@ -27,17 +12,26 @@
     'Pretendard Demo', 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI',
     roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, sfmono-regular, menlo, consolas, monospace;
+
+  /* Only the numbers inside small circles (the difference marks); never running text. */
+  --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
   --text-2xl: 2.5rem;
+
+  /* The one conclusion of a scene (docs/showcase/화면설계서.md 1.2 L1). */
+  --text-display: 3.5rem;
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
   --leading-tight: 1.2;
   --leading-normal: 1.5;
+
+  /* Only the numbers inside small circles, which sit centred in their circle. */
+  --leading-none: 1;
   --tracking-wide: 0.08em;
 
   /* Spacing (4 px grid) */
@@ -51,6 +45,19 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
+
+  /* Room kept under a phone page's content for the main button fixed at the bottom, and with the run's strip too. */
+  --space-reserve: 5.5rem;
+  --space-reserve-strip: 9rem;
+
+  /*
+   * Layout joins: the current act's tab overlaps by one line the border of the panel it opens into, and a table's
+   * note is pulled up to the table it belongs to.
+   */
+  --space-hairline: 1px;
+  --space-hairline-negative: -1px;
+  --space-pull: calc(var(--space-4) * -1);
+  --z-raised: 1;
 
   /* Shape */
   --radius-sm: 6px;
@@ -96,6 +103,28 @@
   --color-verdict-block: #b3261e;
   --color-verdict-ink: #fbfaf6;
   --color-verdict-pending: #3a4b6b;
+
+  /* Consequence colours of the experience, one meaning each (docs/showcase/화면설계서.md 1.1): protected or work done,
+     legitimate work halted, data leaking. Engine verdict colours stay in the evidence drawer. */
+  --color-safe: #3fb57f;
+  --color-halt: #e3923b;
+  --color-loss: #f4676b;
+
+  /* Text on a consequence colour; dark on the bright dark-theme colours, light on the deep light-theme ones (AA). */
+  --color-signal-ink: #0b1220;
+
+  /* The attacker's screen once the engine holds the account: a dark veil with light text in both themes. */
+  --color-lock-veil: rgb(4 8 16 / 92%);
+  --color-lock-ink: #f4f1e8;
+  --color-lock-ink-muted: #c9cfd9;
+}
+
+/* Phones (mobile slide): no running text under 16 px; the circles' numbers keep their own size. */
+@media (width <= 40rem) {
+  :root {
+    --text-sm: 1rem;
+    --text-md: 1.0625rem;
+  }
 }
 
 @media (prefers-color-scheme: light) {
@@ -114,6 +143,11 @@
     --color-accent-ink: #fbfaf6;
     --color-focus: #7a5c14;
     --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
+    --color-safe: #1d7a4e;
+    --color-halt: #9a5208;
+    --color-loss: #b3261e;
+    --color-signal-ink: #fbfaf6;
+    --color-lock-veil: rgb(14 23 38 / 90%);
   }
 }
 
@@ -132,6 +166,11 @@
   --color-accent-ink: #fbfaf6;
   --color-focus: #7a5c14;
   --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
+  --color-safe: #1d7a4e;
+  --color-halt: #9a5208;
+  --color-loss: #b3261e;
+  --color-signal-ink: #fbfaf6;
+  --color-lock-veil: rgb(14 23 38 / 90%);
 }
 
 @media (prefers-reduced-motion: reduce) {

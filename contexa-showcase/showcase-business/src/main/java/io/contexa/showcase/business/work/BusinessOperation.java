@@ -21,6 +21,13 @@ public enum BusinessOperation {
     /** {@code GET /api/projects/{projectKey}/exports/stream?items=N}: streamed export. */
     EXPORT_STREAM(true),
 
+    /**
+     * {@code POST /api/projects/{projectKey}/exports/async?items=N}: the same export as {@link #EXPORT}, whose Contexa
+     * decision is asynchronous (applied from the next request) so the two decision timings can be compared on one
+     * business operation.
+     */
+    EXPORT_ASYNC(true),
+
     /** {@code GET /api/customers/{customerKey}}. */
     CUSTOMER_READ(false),
 

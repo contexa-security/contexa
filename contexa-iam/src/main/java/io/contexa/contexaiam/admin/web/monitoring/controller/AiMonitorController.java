@@ -41,12 +41,14 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.Locale;
 
 @Controller
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AiMonitorController {
 
     private final AiSecurityDecisionMonitoringService aiSecurityDecisionMonitoringService;

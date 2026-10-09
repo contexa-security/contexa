@@ -15,7 +15,7 @@ public final class LookupPlan {
 
     public enum LookupFunction {
         PROJECT_ASSIGNED, APPROVAL_EXISTS, TICKET_COVERS, ONCALL_HAS, HISTORY_DAYS, CUSTOMER_OWNER, CLAIMED_TICKET,
-        NETWORK_CONTEXT
+        NETWORK_CONTEXT, EXPORT_POLICY, ACCESS_POLICY
     }
 
     private LookupPlan() {
@@ -25,7 +25,8 @@ public final class LookupPlan {
     public static Set<LookupFunction> forRequest(BusinessOperation operation, boolean claimsTicket) {
         Set<LookupFunction> plan = EnumSet.noneOf(LookupFunction.class);
         plan.addAll(forOperation(operation));
-        if (claimsTicket && (operation == BusinessOperation.EXPORT || operation == BusinessOperation.EXPORT_STREAM)) {
+        if (claimsTicket && (operation == BusinessOperation.EXPORT || operation == BusinessOperation.EXPORT_STREAM
+                || operation == BusinessOperation.EXPORT_ASYNC)) {
             plan.add(LookupFunction.CLAIMED_TICKET);
         }
         return plan;
@@ -33,14 +34,16 @@ public final class LookupPlan {
 
     public static Set<LookupFunction> forOperation(BusinessOperation operation) {
         return switch (operation) {
-            case EXPORT, EXPORT_STREAM -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED, LookupFunction.APPROVAL_EXISTS,
+            case EXPORT, EXPORT_STREAM, EXPORT_ASYNC -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED, LookupFunction.APPROVAL_EXISTS,
                     LookupFunction.TICKET_COVERS, LookupFunction.ONCALL_HAS, LookupFunction.HISTORY_DAYS,
-                    LookupFunction.NETWORK_CONTEXT);
+                    LookupFunction.NETWORK_CONTEXT, LookupFunction.EXPORT_POLICY);
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> EnumSet.of(LookupFunction.PROJECT_ASSIGNED,
-                    LookupFunction.TICKET_COVERS, LookupFunction.HISTORY_DAYS, LookupFunction.NETWORK_CONTEXT);
+                    LookupFunction.TICKET_COVERS, LookupFunction.HISTORY_DAYS, LookupFunction.NETWORK_CONTEXT,
+                    LookupFunction.ACCESS_POLICY);
             case CUSTOMER_READ -> EnumSet.of(LookupFunction.CUSTOMER_OWNER, LookupFunction.TICKET_COVERS,
-                    LookupFunction.NETWORK_CONTEXT);
-            case ROLE_GRANT -> EnumSet.of(LookupFunction.TICKET_COVERS, LookupFunction.NETWORK_CONTEXT);
+                    LookupFunction.NETWORK_CONTEXT, LookupFunction.ACCESS_POLICY);
+            case ROLE_GRANT -> EnumSet.of(LookupFunction.TICKET_COVERS, LookupFunction.NETWORK_CONTEXT,
+                    LookupFunction.ACCESS_POLICY);
             case PROJECT_LIST -> EnumSet.noneOf(LookupFunction.class);
         };
     }

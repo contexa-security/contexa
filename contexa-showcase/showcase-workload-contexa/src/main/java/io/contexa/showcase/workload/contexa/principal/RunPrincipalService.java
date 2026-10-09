@@ -17,11 +17,18 @@ import java.util.Optional;
  * employee's role, so a run principal and its template have exactly the same authorities; otherwise the engine
  * would see a permission change on the first request. Deletion purges the engine state through the public purge
  * API and then removes the account rows.
+ *
+ * <p>An approver is the security administrator of a run who approves the release of a block through the engine's own
+ * administrator API (ADR-33). It is a principal of another employee of the IT administration and holds the engine's
+ * administrator role besides; only the portal knows its password, and it goes with the run.</p>
  */
 public class RunPrincipalService {
 
+    /** The engine's administrator role an approver holds. */
+    public static final String ENGINE_ADMIN_ROLE = "ROLE_ADMIN";
+
     public record Principal(String username, String runId, String employeeKey, String roleKey, String displayName,
-                            String department, String organizationId, String tenantId) {
+                            String department, String organizationId, String tenantId, boolean approver) {
 
         public String email() {
             return username + "@" + CompanyBlueprint.EMAIL_DOMAIN;
@@ -61,6 +68,14 @@ public class RunPrincipalService {
                 + "select ?, group_id, 'showcase' from app_group where group_name = ? "
                 + "on conflict (user_id, group_id) do nothing", saved.getId(),
                 EngineRbacSeeder.engineGroup(principal.roleKey()));
+        if (principal.approver()) {
+            int granted = engine.update("insert into user_roles (role_id, user_id, assigned_at, assigned_by) "
+                    + "select role_id, ?, now(), 'showcase' from role where role_name = ? "
+                    + "on conflict (role_id, user_id) do nothing", saved.getId(), ENGINE_ADMIN_ROLE);
+            if (granted != 1) {
+                throw new IllegalStateException("The engine has no " + ENGINE_ADMIN_ROLE + " role to grant an approver");
+            }
+        }
     }
 
     /** Purges the engine state of the principal, then deletes its account rows (foreign keys first). */

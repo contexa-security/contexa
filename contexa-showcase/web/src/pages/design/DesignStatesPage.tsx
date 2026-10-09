@@ -17,6 +17,7 @@ const KINDS: readonly StateKind[] = [
   'loading',
   'error',
   'notReady',
+  'queued',
   'waiting',
   'outage',
   'challengeCancelled',

@@ -1,0 +1,55 @@
+/* One approach's published settings: name over value on phones, side by side from tablets on. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr);
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.setting dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.setting dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.codeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  font-weight: var(--weight-regular);
+  list-style: none;
+}
+
+.settings code,
+.codeList code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.settingsNote {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (width <= 48rem) {
+  .setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

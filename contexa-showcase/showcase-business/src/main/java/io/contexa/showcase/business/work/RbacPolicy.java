@@ -40,6 +40,7 @@ public final class RbacPolicy {
     public static final List<Rule> RULES = List.of(
             new Rule(BusinessOperation.DOCUMENT_DOWNLOAD, "GET", "/api/documents/*/download", DESIGN_READERS),
             new Rule(BusinessOperation.EXPORT_STREAM, "GET", "/api/projects/*/exports/stream", DESIGN_EXPORTERS),
+            new Rule(BusinessOperation.EXPORT_ASYNC, "POST", "/api/projects/*/exports/async", DESIGN_EXPORTERS),
             new Rule(BusinessOperation.EXPORT, "POST", "/api/projects/*/exports", DESIGN_EXPORTERS),
             new Rule(BusinessOperation.DOCUMENT_READ, "GET", "/api/documents/*", DESIGN_READERS),
             new Rule(BusinessOperation.CUSTOMER_READ, "GET", "/api/customers/*", CUSTOMER_READERS),

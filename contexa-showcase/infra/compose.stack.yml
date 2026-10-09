@@ -75,7 +75,7 @@ services:
 
   # Control A: OWASP Coraza WAF with the OWASP Core Rule Set at its defaults, in front of control B (ADR-07, ADR-20).
   waf:
-    image: ghcr.io/coreruleset/coraza-crs:caddy-alpine@sha256:572f727887e9c8234ded1466fe56fec3a0470a6375f1263c4200a13c4324dc59
+    image: &waf-image ghcr.io/coreruleset/coraza-crs:caddy-alpine@sha256:572f727887e9c8234ded1466fe56fec3a0470a6375f1263c4200a13c4324dc59
     environment:
       BACKEND: workload-plain-b:19181
       PORT: "8080"
@@ -112,6 +112,9 @@ services:
       SHOWCASE_PORTAL_CONTROLS_C1: http://workload-plain-c1:19181/
       SHOWCASE_PORTAL_CONTROLS_C2: http://workload-plain-c2:19181/
       SHOWCASE_PORTAL_CONTROLS_D: http://workload-contexa:19182/
+      # What control A runs, as the G3 settings window shows it: the same image as the waf service above.
+      SHOWCASE_CONTROLS_WAF_IMAGE: *waf-image
+      SHOWCASE_CONTROLS_WAF_RULE_SET: OWASP Core Rule Set, defaults
       # Operator API: listens on the internal network only and is never published (deck p.37 criterion 6).
       SHOWCASE_PORTAL_OPS_PORT: "19190"
       SHOWCASE_PORTAL_OPS_ADDRESS: 0.0.0.0

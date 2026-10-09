@@ -15,7 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +32,23 @@ import java.time.Instant;
 @Slf4j
 public class ZeroTrustExceptionHandler {
 
+    private final ZeroTrustChallengeFlowStarter challengeFlowStarter;
+
+    public ZeroTrustExceptionHandler() {
+        this(null);
+    }
+
+    /**
+     * @param challengeFlowStarter starts the step-up flow when a synchronous decision answers CHALLENGE; may be null,
+     *                             and then the flow starts on the user's next request
+     */
+    public ZeroTrustExceptionHandler(ZeroTrustChallengeFlowStarter challengeFlowStarter) {
+        this.challengeFlowStarter = challengeFlowStarter;
+    }
+
     @ExceptionHandler(ZeroTrustAccessDeniedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleZeroTrustDenied(
-            ZeroTrustAccessDeniedException ex) {
+            ZeroTrustAccessDeniedException ex, HttpServletRequest request, HttpServletResponse servletResponse) {
 
         log.error("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
             ex.getAction(), ex.getResourceId(), ex.getRiskScore(), ex.getReason());
@@ -45,6 +62,7 @@ public class ZeroTrustExceptionHandler {
             .riskScore(ex.getRiskScore())
             .analysisTimeout(ex.isAnalysisTimeout())
             .timestamp(Instant.now())
+            .mfaUrl(startChallengeFlow(ex, request, servletResponse))
             .build();
 
         return ResponseEntity
@@ -97,6 +115,24 @@ public class ZeroTrustExceptionHandler {
             .status(response.getStatus())
             .body(response);
     }
+    /**
+     * A CHALLENGE decided in the request starts the step-up flow here, as the request filters do for an earlier
+     * CHALLENGE, so the user can step up at once; the answer then says where to continue it.
+     */
+    private String startChallengeFlow(ZeroTrustAccessDeniedException ex, HttpServletRequest request,
+                                      HttpServletResponse servletResponse) {
+        if (challengeFlowStarter == null || !ZeroTrustAction.CHALLENGE.name().equals(ex.getAction())) {
+            return null;
+        }
+        try {
+            return challengeFlowStarter.start(request, servletResponse).orElse(null);
+        } catch (RuntimeException e) {
+            log.error("Could not start the step-up flow for a CHALLENGE decided in the request: resource={}",
+                ex.getResourceId(), e);
+            return null;
+        }
+    }
+
     @Builder
     @Getter
     public static class ZeroTrustErrorResponse {
@@ -116,5 +152,9 @@ public class ZeroTrustExceptionHandler {
         private final boolean analysisTimeout;
 
         private final Instant timestamp;
+
+        /** Where the user continues the step-up of a CHALLENGE decided in the request; absent otherwise. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private final String mfaUrl;
     }
 }

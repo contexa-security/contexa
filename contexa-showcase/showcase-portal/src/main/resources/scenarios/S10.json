@@ -1,0 +1,124 @@
+{
+  "key": "S10",
+  "version": 2,
+  "frozenOn": "2026-10-08",
+  "title": {
+    "ko": "기록은 정상, 행동만 이상한 새벽 내려받기",
+    "en": "Records in order, only the behaviour is unusual"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "NEW",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 2
+      },
+      "offsetSeconds": 30,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 3
+      },
+      "offsetSeconds": 60,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 4
+      },
+      "offsetSeconds": 90,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 5
+      },
+      "offsetSeconds": 120,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "HX-310",
+        "type": "DRAWING",
+        "position": 6
+      },
+      "offsetSeconds": 150,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정을 손에 넣은 사람이 사무실망의 다른 PC에서 새벽에 K의 담당 도면을 30초 간격으로 여섯 건 내려받는다. 회사 기록으로는 담당 프로젝트라 요청마다 정당하고, K가 그 주 HX 당번이지만 이 작업을 덮는 장애 티켓은 없다. 평소와 다른 것은 시각, 기기, 짧은 간격의 연속 내려받기라는 행동뿐이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: someone holding engineer K's account downloads six of K's own drawings 30 seconds apart at dawn from another PC in the office network. By the company records each request is legitimate (K is assigned to the project); K holds the HX on-call that week, but no incident ticket covers this work. Only the behaviour differs from usual: the hour, the device and the quick succession of downloads. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: K가 당번이라 새벽에 급히 도면이 필요했을 수 있다. 이 작업을 덮는 장애 티켓이 없고 기기도 처음 보는 것이므로 공격으로 정했다.",
+      "en": "Counterpoint: K is on call and may have needed the drawings urgently at dawn. No incident ticket covers the work and the device has never been seen, so the case is an attack."
+    }
+  },
+  "suite": "RULE_BLIND"
+}

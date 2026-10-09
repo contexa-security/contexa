@@ -1,0 +1,65 @@
+.meter {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.meter[data-pinned] {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-raised);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  margin-bottom: var(--space-2);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.table td[data-changed] {
+  background-color: var(--color-surface-accent);
+  transition-duration: var(--duration-slow);
+  transition-property: background-color;
+  transition-timing-function: var(--ease-standard);
+}
+
+.footnote {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* Phones: the five columns stay one row per request (they fit at 390 px); only the cells get tighter. */
+@media (width <= 40rem) {
+  .meter {
+    padding: var(--space-3);
+  }
+
+  .table th,
+  .table td {
+    padding: var(--space-1);
+  }
+}

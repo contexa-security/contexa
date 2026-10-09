@@ -14,7 +14,7 @@ import java.time.Instant;
  * @param clientIp      the requester's address as the signed internal context gives it
  */
 public record RequestFacts(BusinessOperation operation, String username, String targetKey, String projectKey,
-                           int items, Instant companyTime, String claimedTicket, String clientIp) {
+                           Integer items, Instant companyTime, String claimedTicket, String clientIp) {
 
     public RequestFacts(BusinessOperation operation, String username, String targetKey, String projectKey, int items,
                         Instant companyTime) {

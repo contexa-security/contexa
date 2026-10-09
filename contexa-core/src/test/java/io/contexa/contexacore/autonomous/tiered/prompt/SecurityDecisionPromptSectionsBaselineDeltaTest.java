@@ -149,6 +149,17 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
         assertThat(section).contains("CurrentRequestCombinationSummary: hour=16 | auth=PASSWORD | browser=Chrome/120 | action=READ | resource=SENSITIVE | path=/admin/api/*");
         assertThat(section).contains("ObservedComparableCombination1: count=1 | hour=10 | auth=PASSWORD | browser=Chrome/120 | action=READ | resource=SENSITIVE | path=/admin/api/*");
         assertThat(section).contains("BaselineObservations: 20");
+
+        String withoutRepeatedState = sections.buildUserProfileNarrative(
+                event,
+                patterns,
+                behaviorAnalysis,
+                BaselineStatus.ESTABLISHED,
+                false);
+
+        assertThat(withoutRepeatedState).contains("BaselineProfileStatus: ESTABLISHED")
+                .contains("CurrentAccessHourPresentInObservedHours: false")
+                .doesNotContain("WorkProfileEvidenceState:");
     }
 
     @Test

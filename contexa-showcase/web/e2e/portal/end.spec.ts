@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -54,13 +54,25 @@ for (const language of ['ko', 'en'] as const) {
     const result = (await (await page.request.get('/api/results/A3')).json()) as {
       mine: Score | null;
       contexa: Score;
+      scenes: { truth: { classification: string | null } }[];
     };
     expect(result.mine).toBeNull();
+    // F-13: each scene states the ground truth its run recorded.
+    const words = JSON.parse(
+      readFileSync(join(process.cwd(), `src/i18n/${language}.json`), 'utf-8'),
+    ) as Record<string, string>;
+    for (const scene of result.scenes) {
+      await expect(page.getByRole('main')).toContainText(
+        words[`anatomy.class.${scene.truth.classification ?? 'NONE'}`] ?? 'missing class',
+      );
+    }
     await expect(page.locator('dl dd')).toHaveText([`${result.contexa.hits}/${result.contexa.total}`]);
-    await expect(page.getByRole('main').getByRole('link', { name: /직접 해보기|try it/i }).first()).toHaveAttribute(
-      'href',
-      '/',
-    );
+    await expect(
+      page
+        .getByRole('main')
+        .getByRole('link', { name: /직접 해보기|try it/i })
+        .first(),
+    ).toHaveAttribute('href', '/');
     expect(await seriousViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(
       true,

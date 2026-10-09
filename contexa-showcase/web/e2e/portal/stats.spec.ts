@@ -1,70 +1,35 @@
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * P5-BE-01 and the statistics part of P5-FE-01 on a real portal: the page shows the numbers the server counted from
- * the stored runs (the same answer of /api/stats, cached for a minute), in Korean and English, without horizontal
- * scrolling and without serious accessibility violations. The server count itself is checked against the raw rows
- * by .contexa-verify/showcase/p5-stats-check.py.
+ * Where the statistics went (W4-5): the run statistics gave way to the benchmark, which counts the same runs by the one
+ * scoring rule and is checked against the stored rows by quality/w5_benchmark_check.py. The old address and every menu
+ * lead there, in Korean and English.
  */
-const evidenceDir = process.env.SHOWCASE_EVIDENCE_DIR;
-if (evidenceDir) {
-  mkdirSync(evidenceDir, { recursive: true });
-}
-
-interface Stats {
-  readonly runs: { readonly completed: number };
-  readonly layers: readonly {
-    readonly control: string;
-    readonly threat: { readonly runs: number; readonly leaked: number; readonly stopped: number };
-    readonly normal: { readonly runs: number; readonly challenged: number; readonly blocked: number };
-  }[];
-}
-
-function cell(part: number, whole: number) {
-  return whole > 0 ? `${part}/${whole} (${Math.round((part / whole) * 100)}%)` : '—';
-}
-
-async function seriousViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  return results.violations
-    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => violation.id);
-}
+const MESSAGES = {
+  ko: JSON.parse(readFileSync(join(process.cwd(), 'src/i18n/ko.json'), 'utf-8')) as Record<string, string>,
+  en: JSON.parse(readFileSync(join(process.cwd(), 'src/i18n/en.json'), 'utf-8')) as Record<string, string>,
+};
 
 for (const language of ['ko', 'en'] as const) {
-  test(`statistics page shows the server count (${language})`, async ({ page }, testInfo) => {
+  test(`the old statistics address and the menus lead to the benchmark (${language})`, async ({ page }) => {
+    const words = MESSAGES[language];
     await page.goto(`/stats?lng=${language}`);
-    const stats = (await (await page.request.get('/api/stats')).json()) as Stats;
-    const format = new Intl.NumberFormat(language === 'ko' ? 'ko-KR' : 'en-US');
+    await expect(page).toHaveURL(/\/benchmark(\?.*)?$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(words['benchmark.summary.title'] ?? 'missing');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      language === 'ko' ? '실행 통계' : 'Run statistics',
+    const menu = page.getByRole('navigation', { name: words['nav.label'] });
+    await expect(menu.getByRole('link', { name: words['nav.lab'] })).toHaveAttribute('href', '/lab');
+    await expect(menu.getByRole('link', { name: words['nav.benchmark'] })).toHaveAttribute(
+      'href',
+      '/benchmark',
     );
-    await expect(page.locator('dl dd').first()).toHaveText(format.format(stats.runs.completed));
-    for (const layer of stats.layers) {
-      await expect(page.locator(`tr[data-control="${layer.control}"] td [data-part="value"]`)).toHaveText([
-        cell(layer.threat.leaked, layer.threat.runs),
-        cell(layer.threat.stopped, layer.threat.runs),
-        cell(layer.normal.blocked, layer.normal.runs),
-        cell(layer.normal.challenged, layer.normal.runs),
-      ]);
-    }
-
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    const footer = page.getByRole('contentinfo');
+    await expect(footer.getByRole('link', { name: words['footer.benchmark'] })).toHaveAttribute(
+      'href',
+      '/benchmark',
     );
-    expect(overflow, 'horizontal page scroll').toBeLessThanOrEqual(0);
-    expect(await seriousViolations(page)).toEqual([]);
-    if (evidenceDir) {
-      await page.screenshot({
-        path: join(evidenceDir, `stats-${language}-${testInfo.project.name}.png`),
-        fullPage: true,
-      });
-    }
+    await expect(footer.getByRole('link', { name: words['footer.lab'] })).toHaveAttribute('href', '/lab');
   });
 }

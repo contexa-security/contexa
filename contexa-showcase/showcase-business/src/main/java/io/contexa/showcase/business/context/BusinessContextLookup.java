@@ -33,6 +33,15 @@ public interface BusinessContextLookup {
     /** deck {@code approval.exists}: an approved request covers the project, the item count and the time. */
     ApprovalCoverage approvalExists(String username, String projectKey, int items, Instant at);
 
+    /** The company's export approval policy (table company_policy); fails when the row is missing. */
+    ExportApprovalPolicy exportApprovalPolicy();
+
+    /**
+     * The company's access approval rule of a role grant, a customer read or a document read or download (table
+     * company_policy, Q-A4); fails for any other operation and when the row is missing.
+     */
+    AccessApprovalPolicy accessApprovalPolicy(BusinessOperation operation);
+
     /** deck {@code history.days}: days with access to the project within the window before that day. */
     AccessHistory historyDays(String username, String projectKey, Instant at, int windowDays);
 
@@ -75,8 +84,14 @@ public interface BusinessContextLookup {
     record AssignmentStatus(boolean assigned, String responsibility) {
     }
 
+    /** @param approvedAt when the approval was decided; null when the record does not say (survey D5) */
     record ApprovalCoverage(boolean covered, String approvalKey, String approver, String purpose, int maxItems,
-                            Instant validFrom, Instant validUntil, List<String> mismatches) {
+                            Instant validFrom, Instant validUntil, List<String> mismatches, Instant approvedAt) {
+
+        public ApprovalCoverage(boolean covered, String approvalKey, String approver, String purpose, int maxItems,
+                                Instant validFrom, Instant validUntil, List<String> mismatches) {
+            this(covered, approvalKey, approver, purpose, maxItems, validFrom, validUntil, mismatches, null);
+        }
 
         public static ApprovalCoverage none() {
             return new ApprovalCoverage(false, null, null, null, 0, null, null, List.of("NO_APPROVAL"));

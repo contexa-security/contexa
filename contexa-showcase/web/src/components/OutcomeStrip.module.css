@@ -18,7 +18,8 @@
   background-color: var(--color-surface);
 }
 
-.item[data-outcome='DELIVERED'] {
+.item[data-outcome='DELIVERED'],
+.item[data-outcome='BROKEN'] {
   border-inline-start-color: var(--color-verdict-allow);
 }
 

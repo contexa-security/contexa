@@ -79,19 +79,54 @@ public class ReplayRecorder {
             return failed(pair, scene, repetitions, "runs have no or different execution specifications: " + specs);
         }
         List<String> signatures = runs.stream().map(OutcomeSignature::of).toList();
+        return save(pair, scene, scenario, runs.stream().map(RunSummary::runId).toList(), signatures, specs.get(0));
+    }
+
+    /**
+     * Records a pair from the runs a measurement protocol already made (work 6 of
+     * docs/showcase/화면설계서-v2-구현계획.md): the replay shows the same runs the benchmark counts, with no new model
+     * call. Each scene takes every completed, unforced run of its case in the protocol; its signatures are made from
+     * the stored rows exactly as a finished run signs. The record is a draft until it is published.
+     */
+    public List<SceneResult> recordFromMeasurement(String pairKey, String protocolId) {
+        PairDefinition pair = pairs.find(pairKey)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown pair " + pairKey));
+        List<SceneResult> results = new ArrayList<>();
+        for (Scene scene : pair.scenes()) {
+            ScenarioDefinition scenario = scenarios.find(scene.scenario()).orElseThrow();
+            List<String> runs = store.measuredRuns(protocolId, scenario.key());
+            if (runs.isEmpty()) {
+                results.add(failed(pair, scene, 0, "no completed, unforced run of " + scenario.key() + " in "
+                        + protocolId));
+                continue;
+            }
+            List<String> specs = runs.stream().map(run -> store.specHashOf(run).orElse(null)).toList();
+            if (specs.stream().anyMatch(Objects::isNull) || specs.stream().distinct().count() != 1) {
+                results.add(failed(pair, scene, runs.size(), "runs have no or different execution specifications: "
+                        + specs));
+                continue;
+            }
+            List<String> signatures = runs.stream()
+                    .map(run -> OutcomeSignature.of("COMPLETED", store.signatureSteps(run))).toList();
+            results.add(save(pair, scene, scenario, runs, signatures, specs.get(0)));
+        }
+        return results;
+    }
+
+    private SceneResult save(PairDefinition pair, Scene scene, ScenarioDefinition scenario, List<String> runIds,
+                             List<String> signatures, String spec) {
         OutcomeSignature.Mode mode = OutcomeSignature.mode(signatures);
-        String representative = runs.get(signatures.indexOf(mode.signature())).runId();
+        String representative = runIds.get(signatures.indexOf(mode.signature()));
         String recordId = "rec-" + pair.key().toLowerCase() + "-" + scene.kind().name().toLowerCase().charAt(0) + "-"
                 + STAMP.format(clock.instant()) + "-" + HexFormat.of().formatHex(bytes());
         List<ReplayStore.RecordedRun> recorded = new ArrayList<>();
-        for (int i = 0; i < runs.size(); i++) {
-            recorded.add(new ReplayStore.RecordedRun(runs.get(i).runId(), i + 1, signatures.get(i)));
+        for (int i = 0; i < runIds.size(); i++) {
+            recorded.add(new ReplayStore.RecordedRun(runIds.get(i), i + 1, signatures.get(i)));
         }
         store.save(new ReplayStore.RecordRow(recordId, pair.key(), scene.kind(), scenario.key(), scenario.version(),
-                specs.get(0), repetitions, mode.agreeing(), representative, mode.signature(), "DRAFT", null, null),
+                spec, runIds.size(), mode.agreeing(), representative, mode.signature(), "DRAFT", null, null),
                 recorded);
-        return new SceneResult(pair.key(), scene.kind().name(), recordId, mode.agreeing(), repetitions, specs.get(0),
-                null);
+        return new SceneResult(pair.key(), scene.kind().name(), recordId, mode.agreeing(), runIds.size(), spec, null);
     }
 
     private static SceneResult failed(PairDefinition pair, Scene scene, int repetitions, String failure) {

@@ -17,18 +17,25 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 public class SecurityBehaviorProfileUserSectionBuilder implements SecurityPromptSectionBuilder {
 
+    private static final String WORK_PROFILE_EVIDENCE_STATE_LABEL = "WorkProfileEvidenceState:";
+
     @Override
     public String build(SecurityDecisionPromptSections template, SecurityPromptBuildContext context) {
         StringBuilder section = new StringBuilder();
         String observedWorkPatternSection = template.buildObservedWorkPatternContextSection(context.getCanonicalSecurityContext());
         String personalWorkProfileSection = template.buildPersonalWorkProfileContextSection(context);
+        // The work-profile section already states WorkProfileEvidenceState; repeating a value derived from the
+        // baseline here would give the same label two different values in one prompt.
+        boolean workProfileStateStated = personalWorkProfileSection != null
+                && personalWorkProfileSection.contains(WORK_PROFILE_EVIDENCE_STATE_LABEL);
         String historicalBaselineSupport = template.buildSupportingPromptBlock(
                         "HistoricalBaselineSupport",
                         template.buildUserProfileNarrative(
                                 context.getEvent(),
                                 context.getDetectedPatterns(),
                                 context.getBehaviorAnalysis(),
-                                context.getBaselineStatus()
+                                context.getBaselineStatus(),
+                                !workProfileStateStated
                         )
                 );
 

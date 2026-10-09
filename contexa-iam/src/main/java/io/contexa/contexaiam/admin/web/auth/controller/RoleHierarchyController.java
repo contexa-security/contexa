@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+@PreAuthorize("hasRole('ADMIN')")
 public class RoleHierarchyController {
 
     private final RoleHierarchyService roleHierarchyService;

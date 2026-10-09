@@ -1,9 +1,10 @@
+/* A verdict is a label, never a button: square corners, while everything that can be pressed is a pill. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   color: var(--color-verdict-ink);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
@@ -31,6 +32,18 @@
   background-color: var(--color-verdict-pending);
 }
 
+.chip[data-verdict='NONE'] {
+  background-color: var(--color-verdict-pending);
+}
+
+.chip[data-size='lg'] {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
 .icon {
   flex: none;
 }
@@ -39,5 +52,4 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: var(--weight-regular);
-  opacity: 0.85;
 }

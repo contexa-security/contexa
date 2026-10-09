@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.orchestrator.EngineDecision;
 import io.contexa.showcase.portal.replay.PairDefinition.SceneKind;
 import io.contexa.showcase.portal.replay.ReplayStore.ArmRow;
 import io.contexa.showcase.portal.replay.ReplayStore.DecisionRow;
@@ -12,6 +13,7 @@ import io.contexa.showcase.portal.replay.ReplayView.EngineReason;
 import io.contexa.showcase.portal.replay.ReplayView.Evidence;
 import io.contexa.showcase.portal.replay.ReplayView.Fact;
 import io.contexa.showcase.portal.replay.ReplayView.Layer;
+import io.contexa.showcase.portal.scoring.RunScores;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -46,22 +48,39 @@ public class ReplayViews {
             "Authorization allows access, and authorized RAG is relevant to the same resource.",
             "ALLOW_SAME_RESOURCE_HISTORY",
             "Fresh verification is required before allowing access; challenge is safer than allow.",
-            "CHALLENGE_FRESH_VERIFICATION");
+            "CHALLENGE_FRESH_VERIFICATION",
+            "High-sensitivity access departs from the established personal baseline without a required approval; "
+                    + "challenge is required.", "CHALLENGE_ELEVATED_RISK_BOUNDARY");
+
+    /**
+     * The code of a fixed sentence of the engine's output contract, so a screen shows its fixed translation; null for
+     * a sentence the model wrote itself.
+     */
+    public static String canonicalCode(String reasoning) {
+        return reasoning == null ? null : CANONICAL_REASONS.get(reasoning.trim());
+    }
 
     private final PairCatalog pairs;
     private final ReplayStore store;
     private final ObjectMapper json;
+    private final RunScores scores;
 
-    public ReplayViews(PairCatalog pairs, ReplayStore store, ObjectMapper json) {
+    public ReplayViews(PairCatalog pairs, ReplayStore store, ObjectMapper json, RunScores scores) {
         this.pairs = pairs;
         this.store = store;
         this.json = json;
+        this.scores = scores;
     }
 
     public List<ReplayView.PairSummary> summaries() {
         return pairs.all().stream().map(pair -> new ReplayView.PairSummary(pair.key(), pair.order(), pair.question(),
                 Arrays.stream(SceneKind.values()).allMatch(kind -> store.published(pair.key(), kind).isPresent())))
                 .toList();
+    }
+
+    /** The pair's question per language (deck p.9); empty for an unknown pair. */
+    public Optional<Map<String, String>> question(String pairKey) {
+        return pairs.find(pairKey).map(PairDefinition::question);
     }
 
     /** The published pair, present only when both scenes have a published record. */
@@ -91,12 +110,29 @@ public class ReplayViews {
         String runId = record.representativeRunId();
         int step = scene.featuredStep();
         ReplayView.StepResult result = step(runId, step);
-        return new ReplayView.Scene(scene.kind().name(), scene.sentence(), record.recordId(), record.agreeing(),
+        ReplayView.Truth truth = scores.groundTruth(runId)
+                .map(found -> new ReplayView.Truth(found.source().name(), found.classification(), found.rationale(),
+                        found.counterpoint(), found.allowedActions()))
+                .orElse(new ReplayView.Truth(RunScores.TruthSource.NONE.name(), null, null, null, List.of()));
+        return new ReplayView.Scene(scene.kind().name(), scene.sentence(), record.recordId(), runId,
+                record.agreeing(),
                 record.repetitions(), record.recordedAt(), record.specHash(), result.companyTime(), step,
-                store.stepCount(runId), result.layers(), result.engineReason(), result.companyFacts());
+                store.stepCount(runId), result.layers(), result.engineReason(), result.companyFacts(), truth);
     }
 
     /** One step of a stored run as the visitor sees it: replays and combination records share this view. */
+    /**
+     * The stored result of a step of any run (the lab's comparison with an earlier run and the benchmark's run list,
+     * docs/showcase/데모-재설계.md 5A.1, 5A.2); empty when the run has no complete result for that step.
+     */
+    public Optional<ReplayView.StepResult> storedStep(String runId, int step) {
+        Map<String, ArmRow> arms = store.arms(runId, step);
+        if (!arms.keySet().containsAll(OutcomeSignature.CONTROLS)) {
+            return Optional.empty();
+        }
+        return Optional.of(step(runId, step));
+    }
+
     public ReplayView.StepResult step(String runId, int step) {
         Map<String, ArmRow> arms = store.arms(runId, step);
         Optional<DecisionRow> decision = store.decision(runId, step);
@@ -107,7 +143,8 @@ public class ReplayViews {
             if (arm == null) {
                 throw new IllegalStateException("Run " + runId + " step " + step + " has no result of " + control);
             }
-            layers.add("D".equals(control) ? engineLayer(arm, decision)
+            layers.add("D".equals(control)
+                    ? engineLayer(arm, decision, decision.map(row -> store.modelCalls(row.requestId())).orElse(List.of()))
                     : ruleLayer(arm, ruleDecisions.get(arm.requestId()), json));
         }
         ArmRow context = arms.get("C2");
@@ -116,12 +153,12 @@ public class ReplayViews {
     }
 
     /**
-     * A rule control's layer. Its own decision record of the request gives the rule and the facts it looked at; a
-     * refusal without such a record came from in front of the control (the WAF of control A).
+     * A rule control's layer: what its response and its own decision record of the request say (the rule and the facts
+     * it looked at). A rule control makes no verdict and has no decision timing of its own, so neither is derived from
+     * the response (fabricated-data survey #25, H-08b): both stay null and the screen states the recorded values.
      */
     static Layer ruleLayer(ArmRow arm, JsonNode ruleDecision, ObjectMapper json) {
         String outcome = outcome(arm, false);
-        String verdict = "DELIVERED".equals(outcome) ? "ALLOW" : "UNRESOLVED".equals(outcome) ? "PENDING" : "BLOCK";
         String ruleId = arm.ruleId();
         String reason = arm.reason();
         Map<String, Object> facts = Map.of();
@@ -130,9 +167,10 @@ public class ReplayViews {
             reason = ruleDecision.path("reason").asText(reason);
             facts = facts(ruleDecision.path("facts").asText("{}"), json);
         }
-        return new Layer(arm.control(), outcome, verdict, arm.httpStatus(), ruleId, reason, facts,
-                new Evidence(arm.requestId(), verdict, "BEFORE_RESPONSE", arm.httpStatus(), outcome,
-                        arm.deliveredItems(), null, null, null, false, arm.elapsedMs(), List.of(), stream(arm)));
+        return new Layer(arm.control(), outcome, null, arm.httpStatus(), ruleId, reason, facts,
+                new Evidence(arm.requestId(), null, null, arm.httpStatus(), outcome,
+                        arm.deliveredItems(), null, null, null, false, arm.elapsedMs(), List.of(), stream(arm),
+                        List.of()));
     }
 
     private static Map<String, Object> facts(String text, ObjectMapper json) {
@@ -144,15 +182,22 @@ public class ReplayViews {
     }
 
     static Layer engineLayer(ArmRow arm, Optional<DecisionRow> decision) {
+        return engineLayer(arm, decision, List.of());
+    }
+
+    static Layer engineLayer(ArmRow arm, Optional<DecisionRow> decision, List<ReplayView.ModelCall> modelCalls) {
         boolean engineHeld = arm.httpStatus() != null && (arm.httpStatus() == 401 || arm.httpStatus() == 423);
         String outcome = outcome(arm, engineHeld);
         if (decision.isEmpty() || decision.get().finalAction() == null) {
-            boolean refused = !"DELIVERED".equals(outcome);
-            String verdict = refused ? "BLOCK" : "ALLOW";
-            String timing = refused ? "STATIC_AUTHORIZATION" : "NOT_ANALYSED";
-            return new Layer(arm.control(), outcome, verdict, arm.httpStatus(), arm.ruleId(), arm.reason(), Map.of(),
-                    new Evidence(null, verdict, timing, arm.httpStatus(), outcome, arm.deliveredItems(), null, null,
-                            null, false, arm.elapsedMs(), List.of(), stream(arm)));
+            // The engine made no decision for this request, so the verdict is NONE and nothing is made up in its
+            // place (docs/showcase/데모-재설계.md, fabricated-data survey #24). What the response says is kept: control
+            // D answered with the account's earlier decision (ACCOUNT_BLOCKED, MFA_CHALLENGE_REQUIRED), refused it in
+            // the permission check before any analysis, or let it pass unanalysed.
+            String timing = priorDecision(arm) ? "PRIOR_DECISION"
+                    : "STOPPED".equals(outcome) || "HELD".equals(outcome) ? "STATIC_AUTHORIZATION" : "NOT_ANALYSED";
+            return new Layer(arm.control(), outcome, NO_DECISION, arm.httpStatus(), arm.ruleId(), arm.reason(),
+                    Map.of(), new Evidence(null, NO_DECISION, timing, arm.httpStatus(), outcome, arm.deliveredItems(),
+                    null, null, null, false, arm.elapsedMs(), List.of(), stream(arm), List.of()));
         }
         DecisionRow engine = decision.get();
         String verdict = engine.unresolved() ? "PENDING" : engine.finalAction();
@@ -160,7 +205,16 @@ public class ReplayViews {
         return new Layer(arm.control(), outcome, verdict, arm.httpStatus(), null, null, Map.of(),
                 new Evidence(engine.requestId(), verdict, timing, arm.httpStatus(), outcome,
                         arm.deliveredItems(), engine.reasoning(), engine.riskScore(), engine.confidence(),
-                        engine.unresolved(), arm.elapsedMs(), timeline(arm.sentAt(), engine.events()), stream(arm)));
+                        engine.unresolved(), arm.elapsedMs(), timeline(arm.sentAt(), engine.events()), stream(arm),
+                        modelCalls));
+    }
+
+    /** The verdict of a request the engine made no decision for. */
+    static final String NO_DECISION = "NONE";
+
+    /** Control D refused the request because of an earlier decision of the engine on the same account. */
+    static boolean priorDecision(ArmRow arm) {
+        return "ACCOUNT_BLOCKED".equals(arm.ruleId()) || "MFA_CHALLENGE_REQUIRED".equals(arm.ruleId());
     }
 
     /** The stored progress of a streamed export, or null for other operations. */
@@ -197,10 +251,11 @@ public class ReplayViews {
         return timeline;
     }
 
+    /** A request that broke after data had left is BROKEN with that data, never unresolved. */
     static String outcome(ArmRow arm, boolean held) {
         return switch (arm.outcome()) {
             case "DELIVERED" -> "DELIVERED";
-            case "ERROR" -> "UNRESOLVED";
+            case "ERROR" -> arm.deliveredItems() > 0 ? "BROKEN" : "UNRESOLVED";
             case "CUT" -> "CUT";
             default -> held ? "HELD" : "STOPPED";
         };
@@ -210,8 +265,19 @@ public class ReplayViews {
         if (decision.isEmpty() || decision.get().finalAction() == null) {
             return null;
         }
-        DecisionRow engine = decision.get();
-        JsonNode metadata = metadata(engine.records());
+        return engineReason(decision.get().reasoning(), decision.get().records());
+    }
+
+    /** The engine's reason of a decision control D still holds, read from its answer as a stored row is. */
+    public EngineReason engineReason(EngineDecision decision) {
+        if (decision == null || decision.finalAction() == null) {
+            return null;
+        }
+        return engineReason(decision.reasoning(), decision.raw().path("records"));
+    }
+
+    private EngineReason engineReason(String reasoning, JsonNode records) {
+        JsonNode metadata = metadata(records);
         List<String> refs = new ArrayList<>();
         metadata.path("evidenceRefs").forEach(ref -> refs.add(ref.asText()));
         List<String> deltas = new ArrayList<>();
@@ -224,9 +290,11 @@ public class ReplayViews {
                 }
             }
         }
-        String reasoning = engine.reasoning();
-        return new EngineReason(reasoning == null ? null : CANONICAL_REASONS.get(reasoning.trim()), reasoning, refs,
-                deltas, metadata.path("resourceSensitivity").asText(null));
+        JsonNode baselineDeltas = metadata.path("renderedLabelMatrix").path("CurrentVsObservedDeltaCount");
+        Integer baselineDeltaCount = baselineDeltas.canConvertToInt() || baselineDeltas.asText("").matches("\\d+")
+                ? Integer.valueOf(baselineDeltas.asInt()) : null;
+        return new EngineReason(canonicalCode(reasoning), reasoning, refs,
+                deltas, metadata.path("resourceSensitivity").asText(null), baselineDeltaCount);
     }
 
     private JsonNode metadata(JsonNode records) {

@@ -43,7 +43,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -157,6 +159,13 @@ public class OpsController {
                 results -> results.addAll(recorder.record(pairKey, repetitions)));
     }
 
+    /** Records a pair from the runs of a measurement protocol, without new runs (work 6); drafts until published. */
+    @PostMapping("/ops/recordings/{pairKey}/from-measurement")
+    public List<ReplayRecorder.SceneResult> recordFromMeasurement(@PathVariable("pairKey") String pairKey,
+                                                                  @RequestParam("protocol") String protocolId) {
+        return recorder.recordFromMeasurement(pairKey, protocolId);
+    }
+
     @GetMapping("/ops/recordings")
     public List<ReplayStore.RecordRow> recordings() {
         return replays.list();
@@ -236,9 +245,11 @@ public class OpsController {
         Map<String, Object> current = new LinkedHashMap<>();
         current.put("versionKey", templateCurrency.currentKey());
         Map<String, Object> employees = new LinkedHashMap<>();
-        scenarios.all().stream().filter(ScenarioDefinition::template).map(ScenarioDefinition::protagonist).distinct()
-                .sorted().forEach(employee -> employees.put(employee, templateCurrency.currentOrFail(employee)
-                        .map(TemplateStore.ReadyTemplate::templateId).orElse(null)));
+        TreeSet<String> protagonists = new TreeSet<>(admin.protagonists());
+        scenarios.all().stream().filter(ScenarioDefinition::template).map(ScenarioDefinition::protagonist)
+                .forEach(protagonists::add);
+        protagonists.forEach(employee -> employees.put(employee, templateCurrency.currentOrFail(employee)
+                .map(TemplateStore.ReadyTemplate::templateId).orElse(null)));
         current.put("templates", employees);
         TemplateMaintainer maintainer = templateMaintainer.getIfAvailable();
         current.put("autoLearn", maintainer != null);
@@ -275,6 +286,39 @@ public class OpsController {
         return ResponseEntity.ok(submit("RUN", subject, results -> {
             for (int i = 0; i < repeat; i++) {
                 results.add(orchestrator.run(scenario, forcedAction));
+            }
+        }));
+    }
+
+    /**
+     * The measurement protocol (docs/showcase/데모-재설계.md W5-0, R-14): every designed case of the catalog (or the
+     * listed ones), {@code repeat} times, one after another under the engine setting in force. Its runs are the only
+     * source of the benchmark's scores; a forced decision is never allowed here.
+     */
+    @PostMapping("/ops/protocol")
+    public ResponseEntity<Job> protocol(@RequestParam(name = "repeat", defaultValue = "5") int repeat,
+                                        @RequestParam(name = "cases", required = false) List<String> cases) {
+        List<ScenarioDefinition> selected = cases == null || cases.isEmpty() ? List.copyOf(scenarios.all())
+                : cases.stream().map(key -> scenarios.find(key).orElse(null)).toList();
+        // An immutable list refuses contains(null), so an unknown case is looked for element by element.
+        if (repeat < 1 || repeat > 50 || selected.stream().anyMatch(Objects::isNull)) {
+            return ResponseEntity.badRequest().build();
+        }
+        String protocolId = "protocol-" + UUID.randomUUID().toString().substring(0, 8);
+        runs.protocolStarted(protocolId, repeat, selected.stream().map(ScenarioDefinition::key).toList());
+        return ResponseEntity.ok(submit("PROTOCOL", protocolId + " x" + repeat, results -> {
+            try {
+                for (int i = 0; i < repeat; i++) {
+                    for (ScenarioDefinition scenario : selected) {
+                        RunOrchestrator.RunSummary summary = orchestrator.run(scenario, null);
+                        if (summary.runId() != null) {
+                            runs.protocolRun(protocolId, summary.runId());
+                        }
+                        results.add(summary);
+                    }
+                }
+            } finally {
+                runs.protocolFinished(protocolId);
             }
         }));
     }

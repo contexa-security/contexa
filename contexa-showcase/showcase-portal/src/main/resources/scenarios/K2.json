@@ -1,6 +1,7 @@
 {
   "key": "K2",
-  "version": 1,
+  "version": 2,
+  "frozenOn": "2026-10-08",
   "title": {
     "ko": "처음 쓰는 기기에서 담당 도면 열기",
     "en": "Opening an assigned drawing on a new device"
@@ -33,6 +34,15 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
-  }
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 엔지니어 K가 사무실에서 처음 쓰는 기기(Mac·Safari)로 자기 담당 도면 한 건을 연다. 기기만 평소와 다르고 시각·네트워크·프로젝트는 평소와 같다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: in the office, engineer K opens one of K's own drawings on a device used for the first time (Mac, Safari). Only the device differs from usual; the hour, the network and the project are the usual ones. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 새 기기는 계정 탈취의 흔한 신호다. 다른 조건이 모두 평소와 같아 정상으로 정했고, 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: a new device is a common sign of a stolen account. Every other condition is the usual one, so the case is normal, and an identity check by the engine also counts as right."
+    }
+  },
+  "suite": "RULE_BLIND"
 }

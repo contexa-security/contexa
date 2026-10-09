@@ -2,6 +2,9 @@ package io.contexa.showcase.portal.orchestrator;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.showcase.business.client.WorkloadClient;
 import io.contexa.showcase.business.client.WorkloadClient.RunIdentity;
 import io.contexa.showcase.business.company.CompanyBlueprint;
@@ -9,16 +12,19 @@ import io.contexa.showcase.business.company.CompanyCalendar;
 import io.contexa.showcase.business.internal.InternalContextSigner;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.portal.anatomy.AnatomyStore;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import io.contexa.showcase.portal.spec.ExecutionSpec;
+import io.contexa.showcase.portal.spec.ExecutionSpecHasher;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.portal.spec.ScoringContract;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition.Fact;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition.Step;
 import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateStore;
+import io.contexa.showcase.portal.template.TemplateVersions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,8 +60,12 @@ public class RunOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(RunOrchestrator.class);
 
+    private final AnatomyStore anatomies;
+
     /** How long a refused step of control D is watched for a decision record before it counts as an earlier one's. */
     static final Duration REFUSED_DECISION_WAIT = Duration.ofSeconds(5);
+    /** Longest wait after the first decision record for the engine's closing event (R-22). */
+    static final Duration DECISION_SETTLE_WAIT = Duration.ofSeconds(5);
     /** How long to look for a decision record of a re-issued request (async analysis takes a few seconds). */
     static final Duration REISSUE_DECISION_WAIT = Duration.ofSeconds(10);
 
@@ -68,6 +82,17 @@ public class RunOrchestrator {
     public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                            RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
                            ObjectMapper json) {
+        this(endpoints, admin, signer, store, templates, specs, contract, json, null);
+    }
+
+    /**
+     * @param anatomies builds and stores the verdict anatomy of every step when a run ends (W1-4b); null leaves it to
+     *                  the first visitor request
+     */
+    public RunOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
+                           RunStore store, TemplateCurrency templates, ExecutionSpecStore specs, ScoringContract contract,
+                           ObjectMapper json, AnatomyStore anatomies) {
+        this.anatomies = anatomies;
         this.endpoints = endpoints;
         this.admin = admin;
         this.signer = signer;
@@ -130,6 +155,7 @@ public class RunOrchestrator {
         String failure = null;
         boolean started = false;
         String organization = "org-" + runHex;
+        RunApprover approver = null;
         try {
             JsonNode company = admin.company();
             LocalDate anchor = LocalDate.parse(company.path("anchorDate").asText());
@@ -149,9 +175,11 @@ public class RunOrchestrator {
                 throw new IllegalStateException("No template of " + scenario.protagonist()
                         + " learned under the versions in force");
             }
+            String definition = canonicalJson(json.valueToTree(scenario));
             store.start(new RunStore.RunStart(runId, scenario.key(), scenario.version(), scenario.protagonist(),
                     username, template.map(TemplateStore.ReadyTemplate::templateId).orElse(null), run.organization(),
-                    run.tenant(), run.clientIp(), run.device(), companyTime, forcedAction, listener.liveVisitor()));
+                    run.tenant(), run.clientIp(), run.device(), companyTime, forcedAction, listener.liveVisitor(),
+                    definition, RunStore.sha256(definition)));
             started = true;
             listener.runStarted(runId);
 
@@ -192,37 +220,32 @@ public class RunOrchestrator {
                 sessions.put(control, session);
             }
             listener.principalReady(stages);
+            approver = new RunApprover(admin, run, runHex, companyTime, () -> new ControlSession(Control.D,
+                    new WorkloadClient(endpoints.of(Control.D), signer, run, endpoints.requestTimeout()), json));
 
             for (int index = 0; index < scenario.steps().size(); index++) {
                 Step step = scenario.steps().get(index);
                 int stepNo = index + 1;
+                if (step.sentByVisitor() && !listener.awaitVisitor(stepNo)) {
+                    break;
+                }
                 String path = path(step, runHex);
                 Instant stepTime = companyTime.plusSeconds(step.offsetSeconds());
+                Map<Control, ControlResult> results = dispatch(new StepCall(runId, username, scenario, step, stepNo,
+                        path, stepTime, forcedAction, responder, listener, approver), sessions);
                 Map<String, String> outcomes = new LinkedHashMap<>();
-                StepOutcome engineOutcome = null;
-                ControlSession.ChallengeTrace challenge = null;
                 for (Control control : Control.values()) {
-                    if (control == Control.D && forcedAction != null) {
-                        admin.forceAction(username, forcedAction);
-                    }
-                    StepOutcome outcome = sessions.get(control).send(step.operation(), path, stepTime);
-                    store.armResult(runId, stepNo, control, step.operation().name(), outcome);
-                    outcomes.put(control.name(), outcome.outcome());
-                    listener.stepResult(stepNo, step.operation().name(), control, outcome);
-                    if (control == Control.D) {
-                        engineOutcome = outcome;
-                        if (ControlSession.challenged(outcome)) {
-                            challenge = responder.respond(new ChallengeResponder.Challenge(
-                                    scenario.oracle().classification(),
-                                    outcome.sentAt().plusMillis(outcome.elapsedMs()),
-                                    sessions.get(control).challengeActions(username,
-                                            username + "@" + CompanyBlueprint.EMAIL_DOMAIN, step.operation(), path,
-                                            stepTime, admin)));
-                        }
-                    }
+                    outcomes.put(control.name(), results.get(control).outcome().outcome());
                 }
+                StepOutcome engineOutcome = results.get(Control.D).outcome();
+                ControlSession.ChallengeTrace challenge = results.get(Control.D).challenge();
                 EngineDecision decision = engineDecision(step, engineOutcome);
                 store.decision(runId, stepNo, engineOutcome.requestId(), decision);
+                collectExchanges(runId, stepNo, engineOutcome.requestId());
+                ControlSession.ReleaseTrace release = results.get(Control.D).release();
+                if (release != null) {
+                    store.release(runId, stepNo, engineOutcome.requestId(), release);
+                }
                 ChallengeSummary challengeSummary = null;
                 if (challenge != null) {
                     Boolean reanalysed = challenge.reissue() == null ? null : reanalysed(challenge.reissue());
@@ -239,16 +262,41 @@ public class RunOrchestrator {
                         rulesAsExpected(step.expected(), outcomes), decision.finalAction(), decision.applied(),
                         decision.unresolved(), engineOutcome.requestId(), firstPromptSha(decision),
                         foreignPrincipals(decision, username), challengeSummary));
-                if (scenario.pace() == ScenarioDefinition.Pace.PACED && index < scenario.steps().size() - 1) {
+                // In a live run a step the visitor sends goes when the visitor presses, not after the pacing wait.
+                if (scenario.pace() == ScenarioDefinition.Pace.PACED && index < scenario.steps().size() - 1
+                        && !(scenario.steps().get(index + 1).sentByVisitor() && listener.liveVisitor() != null)) {
                     sleep(endpoints.allowWindow());
                 }
             }
-            store.businessEvidence(runId, admin.plainEvidence(runId));
-            if (!systemPromptHashes.isEmpty()) {
-                ExecutionSpec spec = ExecutionSpecStore.build(admin.engine(), admin.rules(), templateId,
-                        systemPromptHashes.get(0), contract.version());
-                store.spec(runId, specs.record(spec));
+            for (StepSummary summary : summaries) {
+                collectExchanges(runId, summary.stepNo(), summary.requestId());
             }
+            if (template.isPresent()) {
+                try {
+                    JsonNode atEnd = admin.snapshot(username, scenario.protagonist(), run.organization(),
+                            run.tenant());
+                    store.learning(runId, template.get().templateId(), RunLearning.summary(json,
+                            template.get().templateId(), template.get().snapshot(), atEnd));
+                } catch (IOException | RuntimeException e) {
+                    log.error("Run learning could not be read: runId={}", runId, e);
+                }
+            }
+            if (anatomies != null) {
+                try {
+                    anatomies.buildAll(runId);
+                } catch (RuntimeException e) {
+                    log.error("Verdict anatomies could not be built: runId={}", runId, e);
+                }
+            }
+            store.businessEvidence(runId, admin.plainEvidence(runId));
+            // A run with no model call still has a specification (H-22): the permission check or an earlier
+            // decision refused it before any analysis, under the same engine, rules and templates.
+            JsonNode engine = admin.engine();
+            ExecutionSpec spec = ExecutionSpecStore.build(engine, admin.rules(), templateId,
+                    systemPromptHashes.isEmpty() ? ExecutionSpec.NO_MODEL_CALL : systemPromptHashes.get(0),
+                    contract.version());
+            store.spec(runId, specs.record(spec),
+                    ExecutionSpecHasher.settingHash(spec, TemplateVersions.key(engine, admin.company())));
             for (JsonNode call : admin.embeddings(username)) {
                 store.cost(runId, null, null, call);
             }
@@ -258,11 +306,117 @@ public class RunOrchestrator {
             failure = e.getClass().getSimpleName() + ": " + e.getMessage();
         } finally {
             cleanup.putAll(cleanup(runId, username));
+            if (approver != null && approver.created()) {
+                try {
+                    cleanup.put("approver", admin.deleteEnginePrincipal(runId, approver.username()));
+                } catch (IOException | RuntimeException e) {
+                    log.error("Approver cleanup failed: runId={}", runId, e);
+                    cleanup.put("approverError", e.getMessage());
+                }
+            }
             if (started) {
                 store.finish(runId, status, failure, cleanup);
             }
         }
         return new RunSummary(runId, scenario.key(), username, organization, status, failure, summaries);
+    }
+
+    /** One step of a run as every control receives it. */
+    private record StepCall(String runId, String username, ScenarioDefinition scenario, Step step, int stepNo,
+                            String path, Instant stepTime, String forcedAction, ChallengeResponder responder,
+                            RunListener listener, Approver approver) {
+    }
+
+    /** A control's answer to a step and, for control D, how its additional check or the release of a block ended. */
+    private record ControlResult(StepOutcome outcome, ControlSession.ChallengeTrace challenge,
+                                 ControlSession.ReleaseTrace release) {
+    }
+
+    /**
+     * Sends the same request of a step to every control at once, so a visitor sees the five answers arrive side by
+     * side and a stream runs at every control in the same seconds. Each control has its own session; control D also
+     * waits for its additional check in its own task, while the other controls finish.
+     */
+    private Map<Control, ControlResult> dispatch(StepCall call, Map<Control, ControlSession> sessions)
+            throws IOException {
+        ExecutorService pool = Executors.newFixedThreadPool(Control.values().length, task -> {
+            Thread thread = new Thread(task, "run-step-" + call.runId());
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            Map<Control, Future<ControlResult>> futures = new EnumMap<>(Control.class);
+            for (Control control : Control.values()) {
+                futures.put(control, pool.submit(() -> sendOne(call, control, sessions.get(control))));
+            }
+            Map<Control, ControlResult> results = new EnumMap<>(Control.class);
+            for (Map.Entry<Control, Future<ControlResult>> entry : futures.entrySet()) {
+                results.put(entry.getKey(), await(entry.getValue()));
+            }
+            return results;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private ControlResult sendOne(StepCall call, Control control, ControlSession session) throws IOException {
+        if (control == Control.D && call.forcedAction() != null) {
+            admin.forceAction(call.username(), call.forcedAction());
+        }
+        RunListener listener = call.listener();
+        StepOutcome outcome = session.send(call.step().operation(), call.path(), call.stepTime(),
+                new ControlSession.SendListener() {
+                    @Override
+                    public void sent(String requestId, Instant sentAt) {
+                        listener.requestSent(call.stepNo(), control, call.step().operation(), requestId, sentAt);
+                    }
+
+                    @Override
+                    public void streamProgress(Integer total, long atMs, int delivered) {
+                        listener.streamProgress(call.stepNo(), control, total, atMs, delivered);
+                    }
+                });
+        store.armResult(call.runId(), call.stepNo(), control, call.step().operation().name(), outcome);
+        listener.stepResult(call.stepNo(), call.step().operation().name(), control, outcome);
+        ControlSession.ChallengeTrace challenge = null;
+        ControlSession.ReleaseTrace release = null;
+        String email = call.username() + "@" + CompanyBlueprint.EMAIL_DOMAIN;
+        if (control == Control.D && ControlSession.challenged(outcome)) {
+            challenge = call.responder().respond(new ChallengeResponder.Challenge(
+                    call.scenario().oracle().classification(),
+                    outcome.sentAt().plusMillis(outcome.elapsedMs()),
+                    session.challengeActions(call.username(), email, call.step().operation(), call.path(),
+                            call.stepTime(), admin)));
+        } else if (control == Control.D && ControlSession.blocked(outcome)) {
+            release = call.responder().release(new ChallengeResponder.Release(
+                    call.scenario().oracle().classification(),
+                    outcome.sentAt().plusMillis(outcome.elapsedMs()), call.username(),
+                    session.releaseActions(call.username(), email, call.step().operation(), call.path(),
+                            call.stepTime(), admin),
+                    call.approver()));
+        }
+        return new ControlResult(outcome, challenge, release);
+    }
+
+    private static ControlResult await(Future<ControlResult> future) throws IOException {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while a control answered", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IOException(cause);
+        }
     }
 
     /**
@@ -273,21 +427,81 @@ public class RunOrchestrator {
         if (step.operation() == BusinessOperation.PROJECT_LIST) {
             return EngineDecision.none(json.createObjectNode());
         }
-        boolean synchronous = step.operation() == BusinessOperation.EXPORT
-                || step.operation() == BusinessOperation.ROLE_GRANT;
+        boolean synchronous = EngineDecision.synchronous(step.operation());
         Duration wait = "REFUSED".equals(outcome.outcome()) && !synchronous ? REFUSED_DECISION_WAIT
                 : endpoints.decisionWait();
         Instant deadline = Instant.now().plus(wait);
+        Instant settleBy = null;
         JsonNode evidence;
         do {
             evidence = admin.decision(outcome.requestId());
             EngineDecision decision = EngineDecision.from(evidence, synchronous);
             if (decision != null) {
-                return decision;
+                // A record can appear before the engine closes the analysis (a retry still running); the decision
+                // is taken once the engine announced it applied or failed, or after a short settle wait (R-22).
+                if (settleBy == null) {
+                    settleBy = Instant.now().plus(DECISION_SETTLE_WAIT);
+                }
+                if (closed(evidence) || !Instant.now().isBefore(settleBy)) {
+                    return decision;
+                }
             }
             sleep(Duration.ofSeconds(1));
-        } while (Instant.now().isBefore(deadline));
-        return EngineDecision.none(evidence);
+        } while (Instant.now().isBefore(deadline) || settleBy != null && Instant.now().isBefore(settleBy));
+        EngineDecision late = EngineDecision.from(evidence, synchronous);
+        return late != null ? late : EngineDecision.none(evidence);
+    }
+
+    /** The engine announced the end of the analysis: the decision was applied or the analysis failed. */
+    static boolean closed(JsonNode evidence) {
+        for (JsonNode event : evidence.path("events")) {
+            String type = event.path("type").asText();
+            if ("DECISION_APPLIED".equals(type) || "ANALYSIS_ERROR".equals(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Stores the model calls control D kept for a decision; a failure is logged and never fails the run. */
+    private void collectExchanges(String runId, int stepNo, String requestId) {
+        if (requestId == null) {
+            return;
+        }
+        try {
+            store.exchanges(runId, stepNo, requestId, admin.exchanges(requestId));
+        } catch (IOException | RuntimeException e) {
+            log.error("Model exchanges could not be collected: runId={}, step={}", runId, stepNo, e);
+        }
+    }
+
+    /** The SHA-256 a run stores for its definition (run.scenario_sha256), so runs of the same definition are found. */
+    public static String definitionSha256(ObjectMapper json, ScenarioDefinition scenario) {
+        return RunStore.sha256(canonicalJson(json.valueToTree(scenario)));
+    }
+
+    /** JSON with object keys sorted at every level, so the same definition always has the same hash. */
+    static String canonicalJson(JsonNode node) {
+        return sorted(node).toString();
+    }
+
+    private static JsonNode sorted(JsonNode node) {
+        if (node.isObject()) {
+            ObjectNode copy = JsonNodeFactory.instance.objectNode();
+            List<String> names = new ArrayList<>();
+            node.fieldNames().forEachRemaining(names::add);
+            names.sort(null);
+            for (String name : names) {
+                copy.set(name, sorted(node.get(name)));
+            }
+            return copy;
+        }
+        if (node.isArray()) {
+            ArrayNode copy = JsonNodeFactory.instance.arrayNode();
+            node.forEach(element -> copy.add(sorted(element)));
+            return copy;
+        }
+        return node;
     }
 
     /**
@@ -367,10 +581,12 @@ public class RunOrchestrator {
     private String path(Step step, String runHex) throws IOException {
         return switch (step.operation()) {
             case PROJECT_LIST -> "/api/projects";
-            case DOCUMENT_READ -> "/api/documents/" + document(step);
-            case DOCUMENT_DOWNLOAD -> "/api/documents/" + document(step) + "/download";
+            case DOCUMENT_READ -> "/api/documents/" + document(step, runHex);
+            case DOCUMENT_DOWNLOAD -> "/api/documents/" + document(step, runHex) + "/download";
             case EXPORT -> "/api/projects/" + step.project() + "/exports?items=" + step.items() + claim(step, runHex);
             case EXPORT_STREAM -> "/api/projects/" + step.project() + "/exports/stream?items=" + step.items()
+                    + claim(step, runHex);
+            case EXPORT_ASYNC -> "/api/projects/" + step.project() + "/exports/async?items=" + step.items()
                     + claim(step, runHex);
             case CUSTOMER_READ -> "/api/customers/" + step.customer();
             case ROLE_GRANT -> "/api/admin/role-grants?project=" + step.project() + "&grantee=" + step.grantee()
@@ -409,7 +625,10 @@ public class RunOrchestrator {
         return prefix + "-" + runHex + "-" + number;
     }
 
-    private String document(Step step) throws IOException {
+    private String document(Step step, String runHex) throws IOException {
+        if (step.document().fact() != null) {
+            return factKey("DOC", runHex, step.document().fact());
+        }
         return admin.document(step.document().project(), step.document().type(), step.document().position());
     }
 
@@ -418,8 +637,16 @@ public class RunOrchestrator {
         List<RunFacts.Approval> approvals = new ArrayList<>();
         List<RunFacts.Oncall> oncall = new ArrayList<>();
         List<RunFacts.TravelPlan> travel = new ArrayList<>();
+        List<RunFacts.Document> documents = new ArrayList<>();
         int number = 1;
         for (Fact fact : scenario.facts()) {
+            if ("DOCUMENT".equals(fact.kind())) {
+                ScenarioDefinition.DocumentText text = fact.document();
+                documents.add(new RunFacts.Document(factKey("DOC", runHex, number++), fact.project(), text.type(),
+                        text.title().get("en"), "1", text.sensitivity(), text.body().get("en"), text.author(),
+                        text.summary().get("en"), LocalDate.parse(text.updatedOn())));
+                continue;
+            }
             Instant from = companyTime.plus(fact.validFromOffset());
             Instant until = companyTime.plus(fact.validUntilOffset());
             if ("TICKET".equals(fact.kind())) {
@@ -428,7 +655,8 @@ public class RunOrchestrator {
                         fact.purpose() + " on " + fact.project(), from, until, fact.status()));
             } else if ("APPROVAL".equals(fact.kind())) {
                 approvals.add(new RunFacts.Approval(factKey("APR", runHex, number++), scenario.protagonist(),
-                        fact.approver(), fact.project(), fact.purpose(), fact.maxItems(), from, until, fact.status()));
+                        fact.approver(), fact.project(), fact.purpose(), fact.maxItems(), from, until, fact.status(),
+                        fact.recordedAtOffset() == null ? null : companyTime.plus(fact.recordedAtOffset())));
             } else if ("ONCALL".equals(fact.kind())) {
                 oncall.add(new RunFacts.Oncall(factKey("ONC", runHex, number++), scenario.protagonist(), fact.team(),
                         from, until));
@@ -437,7 +665,7 @@ public class RunOrchestrator {
                         fact.city(), fact.country(), fact.network(), from, until));
             }
         }
-        return new RunFacts(tickets, approvals, oncall, travel);
+        return new RunFacts(tickets, approvals, oncall, travel, documents);
     }
 
     static boolean rulesAsExpected(Map<String, String> expected, Map<String, String> outcomes) {

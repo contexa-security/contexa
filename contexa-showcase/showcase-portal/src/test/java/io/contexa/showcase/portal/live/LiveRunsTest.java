@@ -68,6 +68,8 @@ class LiveRunsTest {
         gate(cell(0).key()).countDown();
         await(() -> first.view().status() == LiveRun.Status.COMPLETED);
         await(() -> third.view().status() != LiveRun.Status.QUEUED);
+        // The queue moves up on another thread: the third run can leave it a moment before the fourth's place is updated.
+        await(() -> fourth.view().queuePosition() == 1);
         assertThat(fourth.view().queuePosition()).isEqualTo(1);
         await(() -> finished.contains(cell(0).key()));
         assertThat(live.running()).isEqualTo(2);
@@ -96,6 +98,25 @@ class LiveRunsTest {
             assertThat(third.view().status()).isNotEqualTo(LiveRun.Status.QUEUED);
             assertThat(rated.startsInLastMinute()).isEqualTo(1);
         }
+    }
+
+    @Test
+    void aQueuedRunTellsAboutHowLongUntilItStartsFromTheTimesOfTheLatestRuns() throws Exception {
+        LiveRun first = start("v1", 0);
+        start("v2", 1);
+        LiveRun third = start("v3", 2);
+        LiveRun fourth = start("v4", 3);
+        assertThat(third.view().queueWaitSeconds()).as("no live run finished yet").isNull();
+
+        clock.move(Duration.ofSeconds(40));
+        gate(cell(0).key()).countDown();
+        await(() -> first.view().status() == LiveRun.Status.COMPLETED);
+        await(() -> fourth.view().queuePosition() == 1);
+        // One round of two runs ahead, each taking the 40 s the finished run took.
+        assertThat(fourth.view().queueWaitSeconds()).isEqualTo(40);
+        clock.move(Duration.ofSeconds(15));
+        assertThat(fourth.view().queueWaitSeconds()).as("counts down while waiting").isEqualTo(25);
+        assertThat(third.view().queueWaitSeconds()).as("started").isNull();
     }
 
     @Test

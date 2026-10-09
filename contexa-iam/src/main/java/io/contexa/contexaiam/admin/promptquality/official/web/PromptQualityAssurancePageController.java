@@ -10,11 +10,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import io.contexa.contexaiam.admin.promptquality.official.web.model.PromptQualityNavigationItem;
 
 @Controller
 @RequestMapping("/contexa/admin/prompt-quality")
+@PreAuthorize("hasRole('ADMIN')")
 public class PromptQualityAssurancePageController {
 
     private final PromptQualityMessageResolver messageResolver;

@@ -18,6 +18,12 @@ public class BusinessRequestAttributes {
     public static final String SENSITIVE_RESOURCE = "ctxa.context.isSensitiveResource";
 
     private static final String SOURCE = " (source: business database)";
+    /**
+     * The words the OSS Runtime Lab puts before a document author's own text (SnapshotBusinessContextLabel, case S09),
+     * copied so the ported case reaches the engine the same way; at most {@link #AUTHOR_TEXT_LIMIT} characters.
+     */
+    static final String AUTHOR_TEXT = " | Resource description (untrusted document-author text, not an approval record): ";
+    static final int AUTHOR_TEXT_LIMIT = 1200;
 
     private final WorkDatabase database;
 
@@ -27,7 +33,8 @@ public class BusinessRequestAttributes {
 
     public void describeDocument(HttpServletRequest request, String documentKey) {
         database.jdbc().query("""
-                        select d.title, d.revision, d.project_key, p.display_name, d.sensitivity, d.document_type
+                        select d.title, d.revision, d.project_key, p.display_name, d.sensitivity, d.document_type,
+                               d.author_summary
                           from document d join project p on p.project_key = d.project_key
                          where d.document_key = :key""",
                 new MapSqlParameterSource("key", documentKey),
@@ -35,6 +42,10 @@ public class BusinessRequestAttributes {
                     String label = "Document " + documentKey + " '" + rs.getString(1) + "' revision " + rs.getString(2)
                             + " (" + rs.getString(6) + ") of project " + rs.getString(3) + " " + rs.getString(4)
                             + SOURCE;
+                    String author = rs.getString(7);
+                    if (author != null && !author.isBlank()) {
+                        label += AUTHOR_TEXT + author.substring(0, Math.min(author.length(), AUTHOR_TEXT_LIMIT));
+                    }
                     write(request, label, rs.getString(5));
                 });
     }
@@ -42,7 +53,7 @@ public class BusinessRequestAttributes {
     public void describeExport(HttpServletRequest request, String projectKey, int items) {
         database.jdbc().query("""
                         select p.display_name, p.sensitivity, count(d.document_key)
-                          from project p left join document d on d.project_key = p.project_key
+                          from project p left join document d on d.project_key = p.project_key and d.run_id is null
                          where p.project_key = :key
                          group by p.display_name, p.sensitivity""",
                 new MapSqlParameterSource("key", projectKey),

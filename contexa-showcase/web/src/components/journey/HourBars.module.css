@@ -1,0 +1,64 @@
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+/* Twenty-four bars on one baseline; an hour without a learned request is a thin line, so the gaps read as zero. */
+.bars {
+  display: grid;
+  position: relative;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-hairline);
+  block-size: 6rem;
+  padding-block-start: var(--space-6);
+  border-block-end: 1px solid var(--color-border-strong);
+}
+
+.bar {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background-color: var(--color-accent);
+}
+
+.bar[data-empty] {
+  block-size: 2px;
+  border-radius: 0;
+  background-color: var(--color-border-strong);
+}
+
+/* The marked hour: a line over the whole chart with its label on top, in the colour of what is out of the usual. */
+.mark {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 2px;
+  background-color: var(--color-halt);
+  translate: -50% 0;
+}
+
+.markLabel {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-halt);
+  color: var(--color-accent-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+  translate: -50% 0;
+}
+
+.ticks {
+  position: relative;
+  block-size: 1.25rem;
+}
+
+.tick {
+  position: absolute;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  translate: -50% 0;
+}

@@ -1,6 +1,7 @@
 {
   "key": "A5T",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "승인된 변경 티켓에 따른 권한 부여",
     "en": "Granting a role under an approved change"
@@ -42,6 +43,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 관리자 A가 GB-500 담당 PM(pm-11)이 승인한 변경 티켓(권한 부여 목적, 유효 기간 안)에 따라 엔지니어 K에게 GB-500 검토 권한을 준다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: administrator A gives engineer K a review role on GB-500 under a change ticket approved by GB-500's project manager (pm-11) for that grant, within its validity. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 티켓이 있어도 주는 권한이 지나치게 넓을 수 있다. 이 사례의 티켓은 같은 프로젝트와 같은 목적을 덮으므로 정상으로 정했다.",
+      "en": "Counterpoint: a ticket does not prove the role is no wider than needed. The ticket covers this project and this purpose, so the case is normal."
+    }
   }
 }

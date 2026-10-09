@@ -34,12 +34,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
 @Controller
 @RequestMapping("/contexa/admin/menu-management")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminMenuController {
 
     private final AdminMenuManagementService adminMenuManagementService;

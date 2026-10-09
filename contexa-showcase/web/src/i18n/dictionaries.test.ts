@@ -3,7 +3,14 @@ import en from './en.json';
 import ko from './ko.json';
 
 /** Internal planning terms that must never reach the visitor screens (copy glossary, deck page 22). */
-const INTERNAL_TERMS_KO = ['조정에 쓰지 않은', '쌍둥이 요청', '업무 세계의 사실', '제어 전환', '보류 군', '집행 전 노출량'];
+const INTERNAL_TERMS_KO = [
+  '조정에 쓰지 않은',
+  '쌍둥이 요청',
+  '업무 세계의 사실',
+  '제어 전환',
+  '보류 군',
+  '집행 전 노출량',
+];
 const INTERNAL_TERMS_EN = ['held-out group', 'twin request', 'business world fact', 'control handover'];
 
 describe('visitor dictionaries', () => {

@@ -1,0 +1,75 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  text-decoration: none;
+  cursor: pointer;
+  transition-duration: var(--duration-fast);
+  transition-property: border-color, background-color;
+  transition-timing-function: var(--ease-standard);
+}
+
+.chip:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chip:disabled:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface);
+}
+
+.chip[data-size='sm'] {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+}
+
+/*
+ * Every chip that can be pressed keeps the outline, so it always reads as pressable; only its weight changes.
+ * "open" (more of the content above it) is a size smaller; "quiet" (offered, not urged: skip) has muted text.
+ */
+.chip[data-variant='open'] {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+}
+
+.chip[data-variant='quiet'] {
+  color: var(--color-text-muted);
+}
+
+.chip[data-variant='quiet']:hover {
+  color: var(--color-text);
+}
+
+@media (width <= 40rem) {
+  .chip[data-variant='open'],
+  .chip[data-size='sm'] {
+    min-height: 2.75rem;
+  }
+}
+
+.icon {
+  flex: none;
+  color: var(--color-accent);
+  font-size: var(--text-md);
+}

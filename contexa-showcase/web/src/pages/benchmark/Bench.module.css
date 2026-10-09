@@ -1,0 +1,647 @@
+/* The benchmark views (7.8): the summary's questions and table, the case list, the judgment bar, the limits, windows. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The same look as every other filter and tab row of the demo: pills, the chosen one in the accent. */
+.filter {
+  min-block-size: 2.5rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.filter[aria-pressed='true'],
+.filter[aria-selected='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.select {
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.filter:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* B1: three questions, each answered by the approaches the measurement names. */
+.questions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.questionText {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.questionAnswer {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.questionValue {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.tableArea {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.table tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.table tr[data-contexa] th,
+.table tr[data-contexa] td {
+  background-color: var(--color-surface-accent);
+}
+
+/* A cell's value and its notes, one under another (never side by side, so no note breaks alone). */
+.values {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.value {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+}
+
+.valueNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+
+/* A row's name opens its window: an outlined pill with a chevron, like everything pressable. */
+.rowButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowButton:hover {
+  border-color: var(--color-accent);
+}
+
+.rowButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rowIcon {
+  flex: none;
+  color: var(--color-accent);
+}
+
+/* The table's caption: what it is, then what a cell means, each on its own line. */
+.caption {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.caption > span {
+  display: block;
+}
+
+.caption > span:first-child {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.footnote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-wrap: pretty;
+}
+
+.plainList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-text-body);
+}
+
+/* B2: a cell's right over scored runs, coloured by the server's reading and always written out. */
+.cell[data-state='RIGHT'] .value {
+  color: var(--color-safe);
+}
+
+.cell[data-state='WRONG'] .value {
+  color: var(--color-halt);
+}
+
+.cell[data-state='MIXED'] .value {
+  color: var(--color-loss);
+}
+
+.caseKey {
+  /* Beside the name, so a row is one line high and ten rows fit one step (C-3, S12). */
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.pageNow {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* B1-2: one stacked bar of the attack runs, each part as wide as its count, with the legend under it. */
+.bar {
+  display: flex;
+  overflow: hidden;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.barPart {
+  min-width: 0.25rem;
+}
+
+.barPart[data-kind='STATIC_REFUSAL'] {
+  background-color: var(--color-verdict-review);
+}
+
+.barPart[data-kind='BEFORE_RESPONSE'] {
+  background-color: var(--color-safe);
+}
+
+.barPart[data-kind='NEXT_REQUEST'] {
+  background-color: var(--color-verdict-verify);
+}
+
+.barPart[data-kind='JUDGED_ALLOW'] {
+  background-color: var(--color-verdict-block);
+}
+
+.barPart[data-kind='OTHER'] {
+  background-color: var(--color-border-strong);
+}
+
+/* One kind a line: its colour, its name and its count at the line's end. */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 36rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-text-body);
+}
+
+.swatch {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: var(--radius-sm);
+}
+
+.legendCount {
+  margin-left: auto;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+.callouts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.callout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+/* B4: the cases missed every time, then three big numbers. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-halt);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.cardText {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.cardCount {
+  margin: 0;
+  color: var(--color-halt);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.card > :last-child {
+  align-self: flex-start;
+}
+
+.bigNumbers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.bigNumbers > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.bigNumbers dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.bigNumbers dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+/* Windows. */
+.window {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.windowPart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.facts code,
+.runChips code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.scoreCards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.scoreCards > div {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.scoreCards dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.scoreValue {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+.scoreNote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.answerLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.answer {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.answer[data-answer='stop'] {
+  border-color: var(--color-halt);
+  color: var(--color-halt);
+}
+
+.answer[data-answer='pass'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.caseCells {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.caseCells > div {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+}
+
+.caseCells dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.caseCells dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.caseCells > div[data-state='WRONG'] dd {
+  color: var(--color-halt);
+}
+
+.caseCells > div[data-state='RIGHT'] dd {
+  color: var(--color-safe);
+}
+
+.runChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tablets: the questions and the big numbers stay in a row, the reading guide goes under the table. */
+@media (width <= 64rem) {
+  .tableArea {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .caseCells {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Phones (mobile slide): one column; every table becomes one card per row, no table scrolling sideways. */
+@media (width <= 40rem) {
+  .questions,
+  .bigNumbers,
+  .scoreCards,
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .caseCells {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  /* The caption keeps the full width once the table is a block of cards. */
+  .table caption {
+    display: block;
+    margin-bottom: var(--space-3);
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+  }
+
+  .table th,
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .table tbody th {
+    grid-column: 1 / -1;
+  }
+
+  .table td {
+    grid-column: 1 / -1;
+  }
+
+  /* Each value says what it is: the column's name from the cell's own label. */
+  .table td::before {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
+    content: attr(data-label);
+  }
+
+  /* Contexa's card is lit as one card, not cell by cell. */
+  .table tr[data-contexa] {
+    border-color: var(--color-accent);
+    background-color: var(--color-surface-accent);
+  }
+
+  .table tr[data-contexa] th,
+  .table tr[data-contexa] td {
+    background-color: transparent;
+  }
+}
+
+/* Phones (mobile slide): the filters and tabs reach 44 px. */
+@media (width <= 40rem) {
+  .filter {
+    min-block-size: 2.75rem;
+  }
+}

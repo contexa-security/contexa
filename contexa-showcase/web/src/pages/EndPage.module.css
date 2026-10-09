@@ -168,10 +168,23 @@
 
 .proofLink,
 .link {
-  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
   font-size: var(--text-sm);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.proofLink,
+.link:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
 }
 
 .primary {

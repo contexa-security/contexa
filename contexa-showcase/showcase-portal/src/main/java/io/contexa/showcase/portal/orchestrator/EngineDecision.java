@@ -2,6 +2,7 @@ package io.contexa.showcase.portal.orchestrator;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.business.work.BusinessOperation;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -23,6 +24,15 @@ public record EngineDecision(String finalAction, String proposedAction, Double r
                              Instant decidedAt, JsonNode raw) {
 
     private static final ObjectMapper METADATA_READER = new ObjectMapper();
+
+    /**
+     * Whether control D decides an operation before it answers: the operations its business service marks
+     * {@code @Protectable(sync = true)} (ContexaBusinessOperations). Every other protected operation is decided after
+     * the answer and applies from the next request.
+     */
+    public static boolean synchronous(BusinessOperation operation) {
+        return operation == BusinessOperation.EXPORT || operation == BusinessOperation.ROLE_GRANT;
+    }
 
     public static EngineDecision none(JsonNode raw) {
         return new EngineDecision(null, null, null, null, null, null, null, null, null, null, null, "NONE", null, null,

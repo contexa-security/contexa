@@ -1,0 +1,581 @@
+/* The lab: the configuration column on the left and the visitor's flow (judge, run and result, compare, assess) on
+   the right on a wide screen; one column, in that order, on a narrow one (5A.1). */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-16);
+  word-break: keep-all;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.activities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.activities li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.activityNumber,
+.sectionNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.lab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  container-type: inline-size;
+}
+
+@media (width >= 64rem) {
+  .lab {
+    grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.compose,
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fieldName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.changedDot {
+  display: inline-block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+}
+
+.select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.select:disabled {
+  color: var(--color-text-muted);
+}
+
+.field[data-changed] .select {
+  border-color: var(--color-accent);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.employees {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.employees legend {
+  margin-block-end: var(--space-2);
+}
+
+.employee {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.employee input {
+  position: absolute;
+  opacity: 0;
+}
+
+.employee[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-raised);
+}
+
+.employee:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.employeeName {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.baseline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.hours {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-1);
+  block-size: 3rem;
+}
+
+.hour {
+  display: block;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+}
+
+.hour[data-active] {
+  background-color: var(--color-accent);
+}
+
+.hourAxis {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.baselineFacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.baselineFacts dt {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.baselineFacts dd {
+  margin: 0;
+}
+
+.mono {
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.changedBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-body);
+}
+
+.changedBox p {
+  margin: 0;
+}
+
+.changedBox[data-composed] {
+  border-color: var(--color-accent);
+}
+
+.changedTitle {
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.calls,
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.calls legend,
+.reasons legend {
+  margin-block-end: var(--space-2);
+}
+
+.callChoice,
+.reasonChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.callChoice[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-raised);
+}
+
+.expectations > summary {
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.approachList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.approachList li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.approachName {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.send {
+  align-self: flex-start;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.send:disabled {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text-muted);
+}
+
+.conclusion {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tab {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-raised);
+}
+
+.outcome {
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.anatomyLink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.anatomyLink:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.compareGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@container (width >= 52rem) {
+  .compareGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.compareSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.diffList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Name and same/changed on one line, the values under them: a long name never squeezes the values (F-1). */
+.diffList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name state'
+    'values values';
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-block-end: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.diffName {
+  grid-area: name;
+  color: var(--color-text-subtle);
+}
+
+.diffValues {
+  grid-area: values;
+  color: var(--color-text-body);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.diffState {
+  grid-area: state;
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.diffList li[data-same] .diffState {
+  color: var(--color-text-subtle);
+  font-weight: var(--weight-regular);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+/* Read by screen readers only: the label of each approach's expectation. */
+.visuallyHidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.expectChoice {
+  display: flex;
+}
+
+.runStatus {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.runSteps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runStep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.runStepHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* The five approaches as rows, never as narrow cards (T-6): name, what arrived, and the answer's facts. */
+.runCells {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runCell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-block-end: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.runCell > :last-child:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.peerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peerList li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-block-end: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}

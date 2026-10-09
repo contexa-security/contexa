@@ -18,6 +18,17 @@ export const replayFixture: Pair = {
         en: 'At 03:17, admin A tries to export 4,831 design documents from a project they are not assigned to.',
       },
       recordId: 'rec-a3-a-test',
+      runId: 'run-0000000000a1',
+      truth: {
+        source: 'RUN_SNAPSHOT',
+        classification: 'THREAT',
+        rationale: {
+          ko: '담당 아닌 프로젝트의 대량 반출',
+          en: 'A bulk export of a project outside the work',
+        },
+        counterpoint: null,
+        allowedActions: ['BLOCK', 'CHALLENGE', 'ESCALATE'],
+      },
       agreeing: 5,
       repetitions: 5,
       recordedAt: '2026-10-05T02:56:37Z',
@@ -26,10 +37,10 @@ export const replayFixture: Pair = {
       featuredStep: 1,
       steps: 1,
       layers: [
-        layer('A', 'DELIVERED', 'ALLOW', 200, 'RBAC', { role: 'ADMIN' }),
-        layer('B', 'DELIVERED', 'ALLOW', 200, 'RBAC', { role: 'ADMIN' }),
-        layer('C1', 'STOPPED', 'BLOCK', 403, 'C1-NIGHT', { items: 4831, night: true }),
-        layer('C2', 'STOPPED', 'BLOCK', 403, 'C2-NO-CONTEXT', { items: 4831 }),
+        layer('A', 'DELIVERED', 200, 'RBAC', { role: 'ADMIN' }),
+        layer('B', 'DELIVERED', 200, 'RBAC', { role: 'ADMIN' }),
+        layer('C1', 'STOPPED', 403, 'C1-NIGHT', { items: 4831, night: true }),
+        layer('C2', 'STOPPED', 403, 'C2-NO-CONTEXT', { items: 4831 }),
         {
           control: 'D',
           outcome: 'DELIVERED',
@@ -67,6 +78,7 @@ export const replayFixture: Pair = {
           'Authorization allows access with a limited baseline, and no concrete risk or verification requirement is present.',
         evidenceRefs: ['baseline', 'authorization', 'session', 'resource', 'mfa.freshness.stale'],
         deltas: [],
+        baselineDeltaCount: null,
         resourceSensitivity: 'RESTRICTED',
       },
       companyFacts: [
@@ -83,6 +95,14 @@ export const replayFixture: Pair = {
         en: 'At 03:17, admin A exports the same 4,831 design documents under an approved project transfer.',
       },
       recordId: 'rec-a3-l-test',
+      runId: 'run-0000000000b2',
+      truth: {
+        source: 'RUN_SNAPSHOT',
+        classification: 'NORMAL',
+        rationale: { ko: '승인된 이관 기록이 있음', en: 'An approved transfer is on record' },
+        counterpoint: null,
+        allowedActions: ['ALLOW', 'CHALLENGE'],
+      },
       agreeing: 5,
       repetitions: 5,
       recordedAt: '2026-10-05T02:56:50Z',
@@ -91,10 +111,10 @@ export const replayFixture: Pair = {
       featuredStep: 1,
       steps: 1,
       layers: [
-        layer('A', 'DELIVERED', 'ALLOW', 200, 'RBAC', { role: 'ADMIN' }),
-        layer('B', 'DELIVERED', 'ALLOW', 200, 'RBAC', { role: 'ADMIN' }),
-        layer('C1', 'STOPPED', 'BLOCK', 403, 'C1-NIGHT', { items: 4831, night: true }),
-        layer('C2', 'DELIVERED', 'ALLOW', 200, 'C2-APPROVAL', { items: 4831 }),
+        layer('A', 'DELIVERED', 200, 'RBAC', { role: 'ADMIN' }),
+        layer('B', 'DELIVERED', 200, 'RBAC', { role: 'ADMIN' }),
+        layer('C1', 'STOPPED', 403, 'C1-NIGHT', { items: 4831, night: true }),
+        layer('C2', 'DELIVERED', 200, 'C2-APPROVAL', { items: 4831 }),
         {
           control: 'D',
           outcome: 'DELIVERED',
@@ -130,6 +150,7 @@ export const replayFixture: Pair = {
         reasoning: 'A free text reason the engine wrote.',
         evidenceRefs: ['approval', 'baseline'],
         deltas: [],
+        baselineDeltaCount: null,
         resourceSensitivity: 'RESTRICTED',
       },
       companyFacts: [{ code: 'APPROVAL_COVERS', value: 'PROJECT_TRANSFER' }],
@@ -137,10 +158,10 @@ export const replayFixture: Pair = {
   ],
 };
 
+/** A rule control's layer as the server sends it: the recorded response and rule, no verdict or timing (H-08b). */
 function layer(
   control: 'A' | 'B' | 'C1' | 'C2',
   outcome: 'DELIVERED' | 'STOPPED',
-  verdict: 'ALLOW' | 'BLOCK',
   httpStatus: number,
   ruleId: string,
   ruleFacts: Record<string, unknown>,
@@ -148,15 +169,15 @@ function layer(
   return {
     control,
     outcome,
-    verdict,
+    verdict: null,
     httpStatus,
     ruleId,
     reason: 'raw rule reason',
     ruleFacts,
     evidence: {
       decisionId: `request-${control}`,
-      verdict,
-      timing: 'BEFORE_RESPONSE' as const,
+      verdict: null,
+      timing: null,
       httpStatus,
       outcome,
       deliveredItems: outcome === 'DELIVERED' ? 4831 : 0,

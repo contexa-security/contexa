@@ -1,0 +1,238 @@
+/* Prior learning 1: two panels side by side, "without the usual" and "with the usual". */
+.twoPanels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.panel[data-tone='unknown'] {
+  border-style: dashed;
+}
+
+.panel[data-tone='known'] {
+  border-color: var(--color-accent);
+}
+
+.panelLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.bigMark {
+  align-self: center;
+  color: var(--color-text-subtle);
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.panelText {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.conclusion {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+/* Labels, not buttons: square corners and a tint, the name in bold before its text. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.tagName {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+/* Prior learning 2: the hours with the weekdays under them, then the fact cards, then the two learning states. */
+.learnedChart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.weekdayBar {
+  inline-size: 100%;
+  block-size: var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-border);
+}
+
+.weekdayBar[data-learned] {
+  background-color: var(--color-accent);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.fact dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.states {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A learning state: the kind of learning, then the engine's state in plain words, coloured by how far it is. */
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.state[data-state='ESTABLISHED'] {
+  border-left-color: var(--color-safe);
+}
+
+.state[data-state='PROVISIONAL'] {
+  border-left-color: var(--color-halt);
+}
+
+.stateName {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.stateValue {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.stateWhy {
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+/* The 25 learned requests, in the modal. */
+.requests {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.requests th,
+.requests td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.requests th {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.path {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (width <= 48rem) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 40rem) {
+  .twoPanels,
+  .states {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

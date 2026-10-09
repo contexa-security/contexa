@@ -1,0 +1,10 @@
+import { chromium } from '@playwright/test';
+const [language, width, out] = [process.argv[2], Number(process.argv[3]), process.argv[4]];
+const browser = await chromium.launch();
+const page = await (await browser.newContext({ viewport: { width, height: 900 }, locale: language })).newPage();
+await page.goto(`http://127.0.0.1:5180/design/parts?lng=${language}`, { waitUntil: 'networkidle' });
+const nav = page.locator('nav[aria-label]').filter({ has: page.locator('ol') }).first();
+const end = page.locator('section[aria-label="cards"]');
+await nav.screenshot({ path: `${out}-acts.png` });
+await end.screenshot({ path: `${out}-cards.png` });
+await browser.close();

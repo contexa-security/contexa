@@ -1,0 +1,58 @@
+{
+  "key": "S12",
+  "version": 2,
+  "frozenOn": "2026-10-08",
+  "title": {
+    "ko": "요청 뒤에 기록된 승인",
+    "en": "An approval recorded after the request"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [
+    {
+      "kind": "APPROVAL",
+      "approver": "pm-11",
+      "project": "GB-500",
+      "purpose": "DATA_EXPORT",
+      "maxItems": 500,
+      "validFromOffset": "-PT2H",
+      "validUntilOffset": "P1D",
+      "status": "APPROVED",
+      "recordedAtOffset": "PT20M"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "GB-500",
+      "items": 300,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 관리자 A의 GB-500 300건 반출을 덮는 승인이 요청보다 20분 뒤에 기록되었고, 유효 시작은 요청 2시간 전으로 앞당겨져 있다. 요청 시점에는 승인 결정이 없었다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: the approval covering administrator A's 300-item GB-500 export was recorded 20 minutes after the request, with its validity set to start two hours before it. No approval decision existed when the request was made. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 결정은 구두로 먼저 났고 기록만 늦었을 수 있다. 요청 시점에 승인 기록이 없었으므로 공격으로 정했다.",
+      "en": "Counterpoint: the decision may have been made orally and only recorded late. No approval record existed when the request was made, so the case is an attack."
+    }
+  },
+  "suite": "RULE_BLIND"
+}

@@ -1,8 +1,8 @@
 package io.contexa.showcase.portal.stats;
 
-import io.contexa.showcase.portal.replay.PairCatalog;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
-import io.contexa.showcase.portal.stats.ExecutionStats.Result;
+import io.contexa.showcase.portal.scoring.RunScores;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -59,13 +59,14 @@ class ExecutionStatsIntegrationTest {
     ScenarioCatalog scenarios;
 
     @Autowired
-    PairCatalog pairs;
+    ObjectMapper json;
 
     @Test
     void everyNumberEqualsTheStoredRuns() {
         world();
         MovingClock clock = new MovingClock(NOW);
-        ExecutionStats stats = new ExecutionStats(new NamedParameterJdbcTemplate(jdbc), scenarios, pairs, clock);
+        NamedParameterJdbcTemplate named = new NamedParameterJdbcTemplate(jdbc);
+        ExecutionStats stats = new ExecutionStats(named, new RunScores(named, scenarios, json), clock);
 
         StatsView view = stats.view();
 
@@ -81,13 +82,25 @@ class ExecutionStatsIntegrationTest {
         assertThat(view.agreement().recordings()).extracting(StatsView.Recording::scene)
                 .containsExactly("ATTACK", "LEGITIMATE");
         assertThat(view.scope()).isEqualTo(new StatsView.Scope(3, 1, 1));
-        // A3 and A1 are threats (A1 decides at its featured step 1, not at its last step), A3T is normal work.
+        // The one scoring rule over the whole case (docs/showcase/데모-재설계.md 5.0); every delivered answer carries
+        // 10 items. Threats t1, t2 (A3) and t3 (A1, two steps), normal work n1 (A3T):
+        //   A  t1 missed 10, t2 missed 10, t3 stopped                 -> stopped 1, missed 2, exposed 20
+        //   B  t1 missed 10, t2 missed 10, t3 missed 20               -> missed 3, exposed 40
+        //   C1 t1 stopped, t2 stopped, t3 missed 20                   -> stopped 2, missed 1, exposed 20
+        //   C2 t1 stopped, t2 failed request, t3 stopped              -> stopped 2, unresolved 1
+        //   D  t1 missed 10, t2 stopped, t3 step 1 out then refused   -> stopped 1, partly 1, missed 1, exposed 20
+        // n1: C1 halts the work; D's check was answered and the re-issued request delivered.
         assertThat(view.layers()).containsExactly(
-                new StatsView.LayerStats("A", new StatsView.Threat(3, 2, 1, 0), new StatsView.Normal(1, 1, 0, 0, 0)),
-                new StatsView.LayerStats("B", new StatsView.Threat(3, 3, 0, 0), new StatsView.Normal(1, 1, 0, 0, 0)),
-                new StatsView.LayerStats("C1", new StatsView.Threat(3, 1, 2, 0), new StatsView.Normal(1, 0, 0, 1, 0)),
-                new StatsView.LayerStats("C2", new StatsView.Threat(3, 0, 2, 1), new StatsView.Normal(1, 1, 0, 0, 0)),
-                new StatsView.LayerStats("D", new StatsView.Threat(3, 2, 1, 0), new StatsView.Normal(1, 0, 1, 0, 0)));
+                new StatsView.LayerStats("A", new StatsView.Threat(3, 1, 0, 2, 0, 20),
+                        new StatsView.Normal(1, 1, 0, 0, 0)),
+                new StatsView.LayerStats("B", new StatsView.Threat(3, 0, 0, 3, 0, 40),
+                        new StatsView.Normal(1, 1, 0, 0, 0)),
+                new StatsView.LayerStats("C1", new StatsView.Threat(3, 2, 0, 1, 0, 20),
+                        new StatsView.Normal(1, 0, 0, 1, 0)),
+                new StatsView.LayerStats("C2", new StatsView.Threat(3, 2, 0, 0, 1, 0),
+                        new StatsView.Normal(1, 1, 0, 0, 0)),
+                new StatsView.LayerStats("D", new StatsView.Threat(3, 1, 1, 1, 0, 20),
+                        new StatsView.Normal(1, 0, 1, 0, 0)));
         assertThat(view.spec().specHash()).isEqualTo(SPEC);
         assertThat(view.spec().chatModel()).isEqualTo("gpt-5-nano");
         assertThat(view.specCount()).isEqualTo(1);
@@ -96,18 +109,6 @@ class ExecutionStatsIntegrationTest {
         assertThat(stats.view()).as("cached for a minute").isSameAs(view);
         clock.advance(Duration.ofMinutes(1));
         assertThat(stats.view().runs().completed()).isEqualTo(6);
-    }
-
-    @Test
-    void controlDsChecksAndHoldsAreReadAsScreenOneShowsThem() {
-        assertThat(ExecutionStats.result("D", "REFUSED", 401, false)).isEqualTo(Result.CHALLENGED);
-        assertThat(ExecutionStats.result("D", "REFUSED", 423, false)).isEqualTo(Result.HELD_FOR_REVIEW);
-        assertThat(ExecutionStats.result("D", "REFUSED", 401, true)).isEqualTo(Result.UNRESOLVED);
-        assertThat(ExecutionStats.result("D", "DELIVERED", 200, true)).as("the data left all the same")
-                .isEqualTo(Result.DELIVERED);
-        assertThat(ExecutionStats.result("D", "CUT", 200, false)).isEqualTo(Result.STOPPED);
-        assertThat(ExecutionStats.result("C1", "REFUSED", 401, false)).isEqualTo(Result.STOPPED);
-        assertThat(ExecutionStats.result("A", "ERROR", null, false)).isEqualTo(Result.UNRESOLVED);
     }
 
     private void world() {
@@ -132,10 +133,16 @@ class ExecutionStatsIntegrationTest {
         arms("t3", 2, "REFUSED", "DELIVERED", "DELIVERED", "REFUSED", "REFUSED", 403);
         decision("t3", 1, "CHALLENGE", true, "NEXT_REQUEST", 9000L);
         decision("t3", 2, null, false, "NONE", null);
-        // n1 (A3T, normal, a visitor's live run): C1's volume threshold stops it, D asks for an extra check (2000 ms).
+        // n1 (A3T, normal, a visitor's live run): C1's volume threshold stops it, D asks for an extra check (2000 ms),
+        // the run principal answers it and the re-issued request is delivered.
         run("n1", "A3T", "COMPLETED", null, "f".repeat(64), NOW.minusSeconds(120));
         arms("n1", 1, "DELIVERED", "DELIVERED", "REFUSED", "DELIVERED", "REFUSED", 401);
         decision("n1", 1, "CHALLENGE", false, "BEFORE_RESPONSE", 2000L);
+        jdbc.update("""
+                insert into run_challenge (run_id, step_no, request_id, challenged_at, answered, reissue_sent_at,
+                    reissue_status, reissue_outcome, reissue_delivered)
+                values ('n1', 1, ?, ?, true, ?, 200, 'DELIVERED', 10)""",
+                UUID.randomUUID(), Timestamp.from(NOW.minusSeconds(110)), Timestamp.from(NOW.minusSeconds(100)));
         // A condition grid cell (no ground truth): counted as a run and a decision (4000 ms), not as a miss.
         run("g1", "adm-a.DAWN.40.NONE.USUAL", "COMPLETED", null, null, NOW.minusSeconds(60));
         arms("g1", 1, "DELIVERED", "DELIVERED", "DELIVERED", "DELIVERED", "DELIVERED", 200);
@@ -169,9 +176,10 @@ class ExecutionStatsIntegrationTest {
                     : "DELIVERED".equals(arm[1]) ? Integer.valueOf(200) : "ERROR".equals(arm[1]) ? null : 403;
             jdbc.update("""
                     insert into run_arm_result (run_id, step_no, control, request_id, operation, method, path,
-                        company_time, http_status, outcome, sent_at)
-                    values (?, ?, ?, ?, 'EXPORT', 'POST', '/api/x', ?, ?, ?, ?)""",
-                    runId, step, arm[0], UUID.randomUUID(), Timestamp.from(NOW), status, arm[1], Timestamp.from(NOW));
+                        company_time, http_status, outcome, delivered_items, sent_at)
+                    values (?, ?, ?, ?, 'EXPORT', 'POST', '/api/x', ?, ?, ?, ?, ?)""",
+                    runId, step, arm[0], UUID.randomUUID(), Timestamp.from(NOW), status, arm[1],
+                    "DELIVERED".equals(arm[1]) ? 10 : 0, Timestamp.from(NOW));
         }
     }
 

@@ -1,5 +1,7 @@
 package io.contexa.showcase.workload.plain.rules;
 
+import io.contexa.showcase.business.context.AccessApprovalPolicy;
+import io.contexa.showcase.business.context.ExportApprovalPolicy;
 import io.contexa.showcase.business.context.JdbcBusinessContextLookup;
 import io.contexa.showcase.business.context.LookupPlan;
 import io.contexa.showcase.business.work.RbacPolicy;
@@ -24,19 +26,42 @@ import java.util.Map;
 public final class RuleVersion {
 
     static final List<Class<?>> DECIDING_CLASSES = List.of(ThresholdRules.class, ContextLookupRules.class,
-            ControlAuthorizationManager.class, RbacPolicy.class, LookupPlan.class, JdbcBusinessContextLookup.class);
+            RuleSettings.class,
+            ControlAuthorizationManager.class, RbacPolicy.class, LookupPlan.class, JdbcBusinessContextLookup.class,
+            ExportApprovalPolicy.class, AccessApprovalPolicy.class);
 
     private RuleVersion() {
     }
 
-    public static Map<String, Object> describe() {
+    /**
+     * @param policy         the company's export approval policy as the business database holds it (H-15)
+     * @param accessPolicies the company's access approval rules of role grants, customers and documents (Q-A4)
+     */
+    public static Map<String, Object> describe(ExportApprovalPolicy policy,
+                                               List<AccessApprovalPolicy> accessPolicies) {
         Map<String, Object> thresholds = new LinkedHashMap<>();
         thresholds.put("nightStart", ThresholdRules.NIGHT_START.toString());
         thresholds.put("nightEnd", ThresholdRules.NIGHT_END.toString());
         thresholds.put("volumeLimit", ThresholdRules.VOLUME_LIMIT);
         thresholds.put("dormantWindowDays", ThresholdRules.DORMANT_WINDOW_DAYS);
         Map<String, Object> lookups = new LinkedHashMap<>();
-        lookups.put("assignedExportLimit", ContextLookupRules.ASSIGNED_EXPORT_LIMIT);
+        // Every map keeps its insertion order: the hash is taken over this text, and Map.of iterates in an order that
+        // changes with every JVM start, which gave the same rules a new hash after each restart (H-21).
+        Map<String, Object> export = new LinkedHashMap<>();
+        export.put("policyKey", policy.policyKey());
+        export.put("assignedExportLimit", policy.assignedExportLimit());
+        export.put("ticketAndOncallExempt", policy.ticketAndOncallExempt());
+        lookups.put("exportApprovalPolicy", export);
+        lookups.put("accessApprovalPolicies", accessPolicies.stream()
+                .map(access -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("policyKey", access.policyKey());
+                    row.put("accountManagerExempt", access.accountManagerExempt());
+                    row.put("assignedExempt", access.assignedExempt());
+                    row.put("recentWorkDays", access.recentWorkDays());
+                    return row;
+                })
+                .toList());
         lookups.put("historyWindowDays", ContextLookupRules.HISTORY_WINDOW_DAYS);
         lookups.put("exportHistoryWindowDays", ContextLookupRules.EXPORT_HISTORY_WINDOW_DAYS);
         List<String> roles = RbacPolicy.RULES.stream()

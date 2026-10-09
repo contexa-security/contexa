@@ -1,0 +1,107 @@
+/* Three columns, one per approach: two large figures each, then what the figures mean in one line. */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.column[data-contexa] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.name {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.column[data-contexa] .name {
+  color: var(--color-accent);
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+/* The number first, its name under it, both from the top, so every number of the row sits at the same height. */
+.figure {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-left: 4px solid var(--color-safe);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.figure[data-tone='bad'] {
+  border-left-color: var(--color-loss);
+}
+
+.figureValue {
+  order: -1;
+  margin: 0;
+  color: var(--color-safe);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.figure[data-tone='bad'] .figureValue {
+  color: var(--color-loss);
+}
+
+.figureLabel {
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.meaning {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.notes p {
+  margin: 0;
+}
+
+.conclusion {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+@media (width <= 64rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

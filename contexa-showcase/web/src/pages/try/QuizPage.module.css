@@ -1,0 +1,163 @@
+/* One question at a time: the counter and the question, the options as large choices, then the next press. */
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+/* The question's group has no frame of its own: the card around it is the frame, so the question sits inside it. */
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  float: left;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.counter {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.options {
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 2.75rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.option:hover {
+  border-color: var(--color-accent);
+}
+
+.option[data-chosen] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.option input {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.revisit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.failed {
+  margin: 0;
+  color: var(--color-loss);
+  font-size: var(--text-sm);
+}
+
+/* The score, then each question: right or wrong, the right answer, and for a wrong one the screen to see again. */
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.score {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-loss);
+  font-weight: var(--weight-semibold);
+}
+
+.mark[data-right] {
+  color: var(--color-safe);
+}
+
+.answerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.answerQuestion {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+@media (width <= 48rem) {
+  .answer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

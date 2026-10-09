@@ -1,0 +1,134 @@
+/* The replay of recorded runs (hook, D-35): the replay bar, then one column per run. */
+.replayBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.replayIcon {
+  flex: none;
+  color: var(--color-accent);
+}
+
+.again {
+  margin-left: auto;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* One run alone keeps a column's width rather than stretching across the page. */
+.columns[data-single] {
+  grid-template-columns: minmax(0, 36rem);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.columnHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.columnTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.columnAnswer {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 5rem;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-subtle);
+  transition-duration: var(--duration-base);
+  transition-property: color, background-color;
+  transition-timing-function: var(--ease-standard);
+}
+
+.row[data-lit] {
+  color: var(--color-text);
+}
+
+.row[data-contexa] {
+  border: 1px solid var(--color-accent);
+}
+
+.row[data-contexa][data-lit] {
+  background-color: var(--color-surface-accent);
+}
+
+.rowName {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-medium);
+}
+
+.rowValue {
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+.rowMark {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.measured {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Phones (mobile slide): the columns one under the other. */
+@media (width <= 40rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-2);
+  }
+}

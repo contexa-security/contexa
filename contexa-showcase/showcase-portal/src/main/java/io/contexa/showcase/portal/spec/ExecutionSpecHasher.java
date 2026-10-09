@@ -27,6 +27,34 @@ public final class ExecutionSpecHasher {
         return sha256(canonicalJson(spec));
     }
 
+    /**
+     * The measurement setting (W5, V-13): the specification without the per-employee template and the system prompt
+     * hash, plus the version the templates were learned under ({@code templateVersion}, TemplateVersions). Runs of
+     * one measurement protocol share it although each protagonist's runs clone a different template.
+     */
+    public static String settingHash(ExecutionSpec spec, String templateVersion) {
+        Map<String, Object> fields = new TreeMap<>();
+        fields.put("codeCommit", spec.codeCommit());
+        fields.put("engineVersion", spec.engineVersion());
+        fields.put("effectiveMode", spec.effectiveMode());
+        fields.put("endpointProtection", new TreeMap<>(spec.endpointProtection()));
+        fields.put("chatModel", spec.chatModel());
+        fields.put("embeddingModel", spec.embeddingModel());
+        fields.put("embeddingDimensions", spec.embeddingDimensions());
+        fields.put("ruleVersion", spec.ruleVersion());
+        fields.put("contractVersion", spec.contractVersion() == null ? "" : spec.contractVersion());
+        fields.put("timeZone", spec.timeZone());
+        fields.put("templateVersion", templateVersion == null ? "" : templateVersion);
+        if (spec.modelSettings() != null) {
+            fields.put("modelSettings", sortedCopy(spec.modelSettings()));
+        }
+        try {
+            return sha256(CANONICAL_JSON.writeValueAsString(fields));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Measurement setting could not be serialized", e);
+        }
+    }
+
     static String canonicalJson(ExecutionSpec spec) {
         Map<String, Object> fields = new TreeMap<>();
         fields.put("codeCommit", spec.codeCommit());
@@ -41,11 +69,25 @@ public final class ExecutionSpecHasher {
         fields.put("ruleVersion", spec.ruleVersion());
         fields.put("contractVersion", spec.contractVersion() == null ? "" : spec.contractVersion());
         fields.put("timeZone", spec.timeZone());
+        // Absent for specifications recorded before the model settings were reported, so their hashes stay as they were.
+        if (spec.modelSettings() != null) {
+            fields.put("modelSettings", sortedCopy(spec.modelSettings()));
+        }
         try {
             return CANONICAL_JSON.writeValueAsString(fields);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Execution spec could not be serialized", e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object sortedCopy(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> sorted = new TreeMap<>();
+            ((Map<String, Object>) map).forEach((key, inner) -> sorted.put(key, sortedCopy(inner)));
+            return sorted;
+        }
+        return value;
     }
 
     private static String sha256(String value) {

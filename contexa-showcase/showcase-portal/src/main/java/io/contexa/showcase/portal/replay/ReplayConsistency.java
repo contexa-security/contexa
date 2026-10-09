@@ -132,8 +132,9 @@ public class ReplayConsistency {
         }
     }
 
+    /** A placeholder such as "unknown" is missing too (fabricated-data survey P1). */
     private static void requireText(List<String> problems, String field, String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.isBlank() || "unknown".equalsIgnoreCase(value.trim())) {
             problems.add(field + " is missing");
         }
     }

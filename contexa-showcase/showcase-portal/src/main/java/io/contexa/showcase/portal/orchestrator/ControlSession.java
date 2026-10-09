@@ -54,6 +54,12 @@ public class ControlSession {
         return client;
     }
 
+    /** This session (same cookies) sending from another address; itself when the address is the same or absent. */
+    public ControlSession fromAddress(String clientIp) {
+        WorkloadClient moved = client.withClientIp(clientIp);
+        return moved == client ? this : new ControlSession(control, moved, json);
+    }
+
     /** JSON sign-in of a plain control. */
     public void signInPlain(String username, String password, Instant companyTime) throws IOException {
         Response login = client.postJson("/api/login", UUID.randomUUID().toString(), companyTime,
@@ -103,10 +109,129 @@ public class ControlSession {
                                  Instant verifiedAt, StepOutcome reissue) {
     }
 
-    /** True when control D answered the step with the engine's additional check (401 MFA_CHALLENGE_REQUIRED). */
+    /**
+     * True when control D answered the step with the engine's additional check: 401 MFA_CHALLENGE_REQUIRED when an
+     * earlier CHALLENGE still applies, or 401 ZERO_TRUST_CHALLENGE when the engine decided CHALLENGE for this very
+     * request before answering it (a synchronous @Protectable, such as an export).
+     */
     public static boolean challenged(StepOutcome outcome) {
         return outcome.httpStatus() != null && outcome.httpStatus() == 401
-                && "MFA_CHALLENGE_REQUIRED".equals(outcome.ruleId());
+                && ("MFA_CHALLENGE_REQUIRED".equals(outcome.ruleId())
+                || "ZERO_TRUST_CHALLENGE".equals(outcome.ruleId()));
+    }
+
+    /**
+     * True when control D refused the step because the engine blocked the account: 403 ACCOUNT_BLOCKED when an earlier
+     * BLOCK still applies, or 403 ZERO_TRUST_BLOCK when the engine decided BLOCK for this very request before
+     * answering it (a synchronous @Protectable).
+     */
+    public static boolean blocked(StepOutcome outcome) {
+        return outcome.httpStatus() != null && outcome.httpStatus() == 403
+                && ("ACCOUNT_BLOCKED".equals(outcome.ruleId()) || "ZERO_TRUST_BLOCK".equals(outcome.ruleId()));
+    }
+
+    /**
+     * The release of a block (ADR-33). Times are instants so they line up with the step's send time.
+     *
+     * @param released true when the administrator approved and the original request went out again
+     * @param reason   NO_MAILBOX, NOT_ASKED, or what failed
+     * @param block    the engine's record of the block as the administrator saw it, null before the request
+     * @param reissue  the original request sent again after the approval; null when not approved
+     */
+    public record ReleaseTrace(boolean released, String reason, Instant blockedAt, Instant codeRequestedAt,
+                               Instant verifiedAt, Instant requestedAt, Instant approvedAt, Approver.BlockRecord block,
+                               StepOutcome reissue) {
+
+        /** Recordings never ask for a release; the block stays in the record as the engine left it. */
+        public static ReleaseTrace notAsked(Instant blockedAt) {
+            return new ReleaseTrace(false, "NOT_ASKED", blockedAt, null, null, null, null, null, null);
+        }
+    }
+
+    /**
+     * The run principal's actions on a block of control D, in this session and through the engine's own endpoints:
+     * start the check of the blocked account, pass it with the e-mailed code, ask for the release and send the
+     * original request again (ADR-33).
+     */
+    public ReleaseActions releaseActions(String username, String email, BusinessOperation operation, String path,
+                                         Instant companyTime, WorkloadAdmin admin) {
+        return new ReleaseActions() {
+            @Override
+            public int startCheck() throws IOException {
+                return client.postJson("/contexa/admin/api/aiam/zero-trust/initiate-block-mfa",
+                        UUID.randomUUID().toString(), companyTime, "{}").status();
+            }
+
+            @Override
+            public int requestCode() throws IOException {
+                // The engine starts the check of a blocked account on its next ordinary request (401).
+                client.get("/api/projects", UUID.randomUUID().toString(), companyTime);
+                return client.postForm("/mfa/ott/generate-code", UUID.randomUUID().toString(), companyTime,
+                        Map.of("username", username)).status();
+            }
+
+            @Override
+            public Optional<String> readCode() throws IOException {
+                return admin.inboxCode(email);
+            }
+
+            @Override
+            public int submitCode(String code) throws IOException {
+                return client.postForm("/login/mfa-ott", UUID.randomUUID().toString(), companyTime,
+                        Map.of("token", code)).status();
+            }
+
+            @Override
+            public int requestRelease(String reason) throws IOException {
+                return client.postJson("/contexa/admin/api/aiam/zero-trust/unblock-request",
+                        UUID.randomUUID().toString(), companyTime,
+                        json.writeValueAsString(Map.of("reason", reason))).status();
+            }
+
+            @Override
+            public StepOutcome reissue() throws IOException {
+                return send(operation, path, companyTime);
+            }
+        };
+    }
+
+    /**
+     * The administrator's view and approval of a release request, through the engine's administrator API in this
+     * session, which must belong to a principal with the engine's administrator role (ADR-33).
+     */
+    public Approver approverActions(Instant companyTime) {
+        return new Approver() {
+            @Override
+            public Optional<Approver.BlockRecord> request(String username) throws IOException {
+                Response response = client.get("/contexa/admin/api/blacklist", UUID.randomUUID().toString(),
+                        companyTime);
+                if (response.status() != 200) {
+                    throw new IOException("Block list answered " + response.status());
+                }
+                Approver.BlockRecord found = null;
+                for (JsonNode block : json.readTree(response.body())) {
+                    boolean mine = username.equals(block.path("userId").asText())
+                            || username.equals(block.path("username").asText());
+                    if (mine && (found == null || block.path("id").asLong() > found.id())) {
+                        found = new Approver.BlockRecord(block.path("id").asLong(), textOrNull(block, "username"),
+                                textOrNull(block, "status"),
+                                textOrNull(block, "reasoning"), textOrNull(block, "blockedAt"),
+                                textOrNull(block, "unblockReason"),
+                                block.hasNonNull("mfaVerified") ? block.path("mfaVerified").asBoolean() : null,
+                                textOrNull(block, "unblockRequestedAt"));
+                    }
+                }
+                return Optional.ofNullable(found);
+            }
+
+            @Override
+            public int approve(long blockId, String reason) throws IOException {
+                // ALLOW is the decision that lifts the block; the console offers the same choice.
+                return client.postJson("/contexa/admin/api/blacklist/" + blockId + "/resolve",
+                        UUID.randomUUID().toString(), companyTime,
+                        json.writeValueAsString(Map.of("resolvedAction", "ALLOW", "reason", reason))).status();
+            }
+        };
     }
 
     /** An attacker holds the password and the session but not the mailbox (R1 contract, attacker capability). */
@@ -145,14 +270,43 @@ public class ControlSession {
         };
     }
 
-    public StepOutcome send(BusinessOperation operation, String path, Instant companyTime) throws IOException {
-        String requestId = UUID.randomUUID().toString();
-        return switch (operation) {
-            case EXPORT, ROLE_GRANT -> outcome(requestId, "POST", path, companyTime,
-                    client.postJson(path, requestId, companyTime, null), operation);
-            case EXPORT_STREAM -> stream(requestId, path, companyTime);
-            default -> outcome(requestId, "GET", path, companyTime, client.get(path, requestId, companyTime), operation);
+    /** Hears a request of this control as it goes: when it is sent and, for a streamed export, how far it got. */
+    public interface SendListener {
+
+        SendListener NONE = new SendListener() {
         };
+
+        default void sent(String requestId, Instant sentAt) {
+        }
+
+        default void streamProgress(Integer total, long atMs, int delivered) {
+        }
+    }
+
+    public StepOutcome send(BusinessOperation operation, String path, Instant companyTime) throws IOException {
+        return send(operation, path, companyTime, SendListener.NONE);
+    }
+
+    /** The HTTP method the business API takes an operation with. */
+    public static String method(BusinessOperation operation) {
+        return switch (operation) {
+            case EXPORT, EXPORT_ASYNC, ROLE_GRANT -> "POST";
+            default -> "GET";
+        };
+    }
+
+    public StepOutcome send(BusinessOperation operation, String path, Instant companyTime, SendListener listener)
+            throws IOException {
+        String requestId = UUID.randomUUID().toString();
+        listener.sent(requestId, Instant.now());
+        if (operation == BusinessOperation.EXPORT_STREAM) {
+            return stream(requestId, path, companyTime, listener);
+        }
+        String method = method(operation);
+        Response response = "POST".equals(method)
+                ? client.postJson(path, requestId, companyTime, null)
+                : client.get(path, requestId, companyTime);
+        return outcome(requestId, method, path, companyTime, response, operation);
     }
 
     private StepOutcome outcome(String requestId, String method, String path, Instant companyTime, Response response,
@@ -165,7 +319,8 @@ public class ControlSession {
         String reason = null;
         if (status == 200) {
             outcome = "DELIVERED";
-            delivered = operation == BusinessOperation.EXPORT ? jsonInt(text, "deliveredItems") : 1;
+            delivered = operation == BusinessOperation.EXPORT || operation == BusinessOperation.EXPORT_ASYNC
+                    ? jsonInt(text, "deliveredItems") : 1;
             if (operation == BusinessOperation.PROJECT_LIST) {
                 delivered = 1;
             }
@@ -175,10 +330,7 @@ public class ControlSession {
             outcome = "REFUSED";
             JsonNode body = jsonOrNull(text);
             if (body != null) {
-                rule = textOrNull(body, "rule");
-                if (rule == null) {
-                    rule = textOrNull(body, "error");
-                }
+                rule = ruleOf(body);
                 reason = textOrNull(body, "reason");
                 if (reason == null) {
                     reason = textOrNull(body, "message");
@@ -195,10 +347,25 @@ public class ControlSession {
     }
 
     /**
+     * The refusal's code: "rule" of the plain controls' rules, "error" of the engine's filters (MFA_CHALLENGE_REQUIRED,
+     * ACCOUNT_BLOCKED) or "code" of the engine's synchronous decision (ZERO_TRUST_CHALLENGE, ZERO_TRUST_BLOCK, ...).
+     */
+    static String ruleOf(JsonNode body) {
+        for (String field : new String[] {"rule", "error", "code"}) {
+            String value = textOrNull(body, field);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Reads a streamed export to the end or to the engine's cut. The outcome is CUT only when the engine wrote its
      * marker; a stream that breaks or ends short without it is an ERROR (deck p.11, P3-BE-02).
      */
-    private StepOutcome stream(String requestId, String path, Instant companyTime) throws IOException {
+    private StepOutcome stream(String requestId, String path, Instant companyTime, SendListener listener)
+            throws IOException {
         Instant sentAt = Instant.now();
         long started = System.nanoTime();
         HttpResponse<InputStream> response = client.openStream(path, requestId, companyTime);
@@ -214,7 +381,8 @@ public class ControlSession {
         }
         Integer total = response.headers().firstValue("X-Showcase-Export-Total").map(Integer::valueOf).orElse(null);
         Reading reading = ExportStreamReader.read(response.body(), total,
-                () -> (System.nanoTime() - started) / 1_000_000L);
+                () -> (System.nanoTime() - started) / 1_000_000L,
+                (atMs, delivered) -> listener.streamProgress(total, atMs, delivered));
         Progress progress = reading.progress();
         String outcome = progress.cut() != null ? "CUT" : progress.interrupted() ? "ERROR" : "DELIVERED";
         String rule = progress.cut() != null ? "ENGINE_CUT" : progress.interrupted() ? "STREAM_INTERRUPTED" : null;

@@ -3,6 +3,8 @@ package io.contexa.showcase.portal.template;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.orchestrator.ControlSession;
+import io.contexa.showcase.portal.orchestrator.ControlSession.StepOutcome;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -33,20 +35,23 @@ public class TemplateStore {
     }
 
     /**
-     * @param learnedUnder {@link TemplateVersions} key of the versions in force while the template is learned
+     * @param learnedUnder  {@link TemplateVersions} key of the versions in force while the template is learned
+     * @param modelSettings the engine's model settings per layer while it is learned (W1-3c); null when unknown
      */
     public void start(String templateId, String employeeKey, long seed, LocalDate anchor, String companySha,
-                      int attempt, String chatModel, String embeddingModel, String learnedUnder) {
+                      int attempt, String chatModel, String embeddingModel, String learnedUnder,
+                      Map<String, Object> modelSettings) {
         jdbc.update("""
                         insert into engine_template (template_id, employee_key, company_seed, company_anchor,
                                                      company_sha256, status, attempt, chat_model, embedding_model,
-                                                     learned_under)
+                                                     learned_under, model_settings)
                         values (:id, :employee, :seed, :anchor, :sha, 'LEARNING', :attempt, :chat, :embedding,
-                                :learnedUnder)""",
+                                :learnedUnder, cast(:settings as jsonb))""",
                 new MapSqlParameterSource("id", templateId).addValue("employee", employeeKey).addValue("seed", seed)
                         .addValue("anchor", Date.valueOf(anchor)).addValue("sha", companySha)
                         .addValue("attempt", attempt).addValue("chat", chatModel).addValue("embedding", embeddingModel)
-                        .addValue("learnedUnder", learnedUnder));
+                        .addValue("learnedUnder", learnedUnder)
+                        .addValue("settings", modelSettings == null ? null : write(json.valueToTree(modelSettings))));
     }
 
     public void step(String templateId, int stepNo, String requestId, String operation, String targetKey,
@@ -70,6 +75,29 @@ public class TemplateStore {
                          where template_id = :id""",
                 new MapSqlParameterSource("id", templateId).addValue("action", finalAction)
                         .addValue("unresolved", unresolved));
+    }
+
+    /**
+     * The engine's identity check at a step and what came of it (approval Q-43): passed when the code was entered and
+     * the re-issued request was delivered; a passed check counts on the template.
+     */
+    public void identityCheck(String templateId, int stepNo, ControlSession.ChallengeTrace check) {
+        StepOutcome reissue = check.reissue();
+        boolean passed = check.answered() && reissue != null && "DELIVERED".equals(reissue.outcome());
+        jdbc.update("""
+                        update template_step set identity_check_passed = :passed, identity_check_reason = :reason,
+                               reissue_request_id = :reissue, reissue_status = :status, reissue_outcome = :outcome
+                         where template_id = :id and step_no = :step""",
+                new MapSqlParameterSource("id", templateId).addValue("step", stepNo).addValue("passed", passed)
+                        .addValue("reason", check.reason() == null || check.reason().length() <= 200 ? check.reason()
+                                : check.reason().substring(0, 200))
+                        .addValue("reissue", reissue == null ? null : UUID.fromString(reissue.requestId()))
+                        .addValue("status", reissue == null ? null : reissue.httpStatus())
+                        .addValue("outcome", reissue == null ? null : reissue.outcome()));
+        if (passed) {
+            jdbc.update("update engine_template set identity_checks = identity_checks + 1 where template_id = :id",
+                    new MapSqlParameterSource("id", templateId));
+        }
     }
 
     public void ready(String templateId, JsonNode snapshot, Integer stoppedAtStep) {

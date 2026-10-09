@@ -1,0 +1,601 @@
+/* The verdict anatomy (the W3 draft as approved). The five-approach comparison is never put in narrow cards (5A.4);
+   tables scroll inside their own region on a narrow screen and the page itself never scrolls sideways. */
+.anatomy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  container-type: inline-size;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.requestLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.requestLine code {
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  overflow-wrap: break-word;
+}
+
+.verdictRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-8);
+  margin: 0;
+}
+
+.verdictRow > div,
+.numbers > div,
+.labels > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.verdictRow dt,
+.numbers dt,
+.labels dt {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.verdictRow dd,
+.numbers dd,
+.labels dd {
+  margin: 0;
+  color: var(--color-text-body);
+}
+
+.truthChip,
+.scoreChip,
+.presence {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.truthChip[data-classification='THREAT'],
+.scoreChip[data-result='MISSED'] {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.truthChip[data-classification='NORMAL'],
+.scoreChip[data-result='RIGHT'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.truthChip[data-classification='UNCERTAIN'],
+.scoreChip[data-result='FALSE_BLOCK'] {
+  border-color: var(--color-halt);
+  color: var(--color-halt);
+}
+
+.scoreChip[data-result='UNRESOLVED'],
+.scoreChip[data-result='NO_DECISION'],
+.scoreChip[data-result='NOT_SCORED'] {
+  color: var(--color-text-muted);
+}
+
+/* Inside a section: the comparison and its sources side by side on a wide screen, one after the other otherwise. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+@container (width >= 60rem) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.splitSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.sectionTitle,
+.sectionTitleInline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.sectionTitleInline {
+  display: inline-flex;
+}
+
+.sectionNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding-inline: var(--space-2);
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tableWrap:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  padding-block-end: var(--space-2);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--color-text-subtle);
+  font-weight: var(--weight-medium);
+}
+
+.table tbody th {
+  white-space: nowrap;
+}
+
+.table tr[data-state='no'] th,
+.table tr[data-state='no'] td:first-of-type {
+  color: var(--color-loss);
+}
+
+.presence[data-state='yes'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.presence[data-state='no'] {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.presence[data-state='unknown'] {
+  color: var(--color-text-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.table td.mono {
+  min-width: 11rem;
+  overflow-wrap: break-word;
+}
+
+/* A list of usual values breaks only between its items, never inside "16시". */
+.table td.cellUsual {
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.number {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.source {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fact,
+.signal {
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 3px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.signal {
+  border-inline-start-color: var(--color-loss);
+}
+
+/* Each value takes the width it needs (a verdict chip with its code is wider than a number) and wraps to the next line. */
+.numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  margin: 0;
+}
+
+.labels {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.labels dt {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.quote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--color-accent);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.contract {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.contractLead {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.tag {
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.timingBar {
+  display: flex;
+  block-size: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-accent);
+}
+
+.timingPart,
+.swatch {
+  display: inline-block;
+  background-color: var(--color-accent);
+}
+
+.timingPart[data-part='promptBuild'],
+.swatch[data-part='promptBuild'] {
+  background-color: var(--color-verdict-review);
+}
+
+.timingPart[data-part='rag'],
+.swatch[data-part='rag'] {
+  background-color: var(--color-verdict-allow);
+}
+
+.swatch {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  margin-inline-end: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.versus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@container (width >= 48rem) {
+  .versus {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.versusSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.raw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rawSummary {
+  cursor: pointer;
+}
+
+.rawCall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.rawGroup,
+.rawPart {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.rawGroup > summary,
+.rawPart > summary {
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.rawPart {
+  margin-block-start: var(--space-2);
+}
+
+.pre {
+  max-block-size: 28rem;
+  margin: var(--space-2) 0 0;
+  overflow: auto;
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre;
+}
+
+.pre:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* On a narrow screen each row of the usual-versus-now table becomes a small card (5A.4): the item and whether it is in
+   the usual on one line, this request's value under it, and the usual values when the engine received them. */
+@container (width < 36rem) {
+  .usualTable thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .usualTable tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name presence'
+      'now now'
+      'usual usual';
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .usualTable th,
+  .usualTable td {
+    padding: 0;
+    border: 0;
+  }
+
+  .cellName {
+    grid-area: name;
+  }
+
+  .cellPresence {
+    grid-area: presence;
+  }
+
+  .cellNow {
+    grid-area: now;
+  }
+
+  .cellUsual {
+    grid-area: usual;
+  }
+
+  .cellUsual[data-empty] {
+    display: none;
+  }
+
+  .cellUsual::before {
+    content: attr(data-label) ' · ';
+    color: var(--color-text-subtle);
+    font-family: var(--font-sans);
+  }
+}
+
+/* Each model call on its own lines: label above value, wrapping to the next line on a narrow column. */
+.calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.call {
+  display: flex;
+  gap: var(--space-3);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.callNo {
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.callFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  margin: 0;
+}
+
+.callFacts > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.callFacts dt {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.callFacts dd {
+  margin: 0;
+  color: var(--color-text-body);
+}
+
+.failure {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 3px solid var(--color-halt);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.exportButton {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.exportButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

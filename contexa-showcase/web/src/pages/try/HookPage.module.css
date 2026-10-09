@@ -1,0 +1,45 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+.sub {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-lg);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 25rem;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Phones (mobile slide): the replay stage keeps room for its two columns one under the other. */
+@media (width <= 40rem) {
+  .stage {
+    min-height: 46rem;
+  }
+}

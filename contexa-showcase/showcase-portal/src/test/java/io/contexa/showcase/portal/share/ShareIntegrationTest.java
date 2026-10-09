@@ -20,6 +20,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.util.HtmlUtils;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -90,7 +91,7 @@ class ShareIntegrationTest {
         jdbc.update("update replay_record set status = 'RETIRED' where status = 'PUBLISHED'");
         String spec = specs.record(new ExecutionSpec("test-commit", "0.1.0", "ENFORCE",
                 Map.of("POST /api/projects/*/exports", "sync"), "gpt-5-nano", "text-embedding-3-small", 1024,
-                "p".repeat(64), null, "r".repeat(64), null, "UTC"));
+                "p".repeat(64), null, "r".repeat(64), null, "UTC", null));
         attackRun = run("A3", spec, false);
         String legitimateRun = run("A3T", spec, true);
         replays.publish(record(SceneKind.ATTACK, "A3", spec, attackRun));
@@ -142,7 +143,13 @@ class ShareIntegrationTest {
                 .getContentAsString();
         assertThat(page).contains("<meta property=\"og:image\" content=\"https://demo.example.test/s/" + key
                         + "/card.png\">", "twitter:card", "나 1/2 · Contexa 1/2", "noindex")
-                .doesNotContain(first.getValue().substring(0, first.getValue().indexOf('.')), "<script");
+                .doesNotContain(first.getValue().substring(0, first.getValue().indexOf('.')), "<script")
+                // H-09 #30: the title is the pair's own question, not a fixed claim about every pair.
+                .doesNotContain("다섯 개의 판정", "겉모습이 같은");
+        String question = json.readTree(mvc.perform(get("/api/replays/A3")).andReturn().getResponse()
+                .getContentAsString()).path("question").path("ko").asText();
+        assertThat(question).isNotBlank();
+        assertThat(page).contains("<title>" + HtmlUtils.htmlEscape(question, "UTF-8") + " · Contexa Demo</title>");
         byte[] png = mvc.perform(get("/s/" + key + "/card.png")).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsByteArray();
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));

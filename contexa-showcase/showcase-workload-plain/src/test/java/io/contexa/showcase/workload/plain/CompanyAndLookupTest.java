@@ -13,13 +13,18 @@ import io.contexa.showcase.business.context.RecordingBusinessContextLookup;
 import io.contexa.showcase.business.run.RunFacts;
 import io.contexa.showcase.business.run.RunRegistry;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.business.work.BusinessRequestAttributes;
 import io.contexa.showcase.business.work.WorkDatabase;
+import io.contexa.showcase.workload.plain.internal.PlainInternalController;
+import io.contexa.showcase.workload.plain.internal.PlainInternalController.ScriptedActivityView;
 import io.contexa.showcase.workload.plain.rules.ContextLookupRules;
+import io.contexa.showcase.workload.plain.rules.ThresholdRules;
 import io.contexa.showcase.workload.plain.rules.RequestFacts;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -74,6 +79,78 @@ class CompanyAndLookupTest {
         assertThat(new CompanyGenerator().generate(20261005L, ANCHOR).fingerprint()).isEqualTo(generated.fingerprint());
     }
 
+    /**
+     * W2-6: a document a run adds (case S09) is the run's alone. The company fingerprint and the export counts do not
+     * see it, the engine label carries its author's text the way the OSS Runtime Lab marks it, and it leaves with the
+     * run.
+     */
+    @Test
+    void aRunsDocumentIsTheRunsAloneAndCarriesItsAuthorTextAsUntrusted() {
+        CompanyRepository repository = new CompanyRepository(database);
+        RunRegistry runs = new RunRegistry(database);
+        String summary = "An external author supplied a note about the review sequence for settlement records.";
+        runs.addFacts("run-doc1", new RunFacts(List.of(), List.of(), List.of(), List.of(), List.of(
+                new RunFacts.Document("DOC-doc1-1", "CP-220", "NOTE", "Externally supplied work note", "1",
+                        "CONFIDENTIAL", "body", "Runtime Lab External Contributor", summary, ANCHOR))));
+
+        assertThat(repository.storedFingerprint()).isEqualTo(generated.fingerprint());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        BusinessRequestAttributes attributes = new BusinessRequestAttributes(database);
+        attributes.describeDocument(request, "DOC-doc1-1");
+        assertThat((String) request.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
+                .startsWith("Document DOC-doc1-1 'Externally supplied work note' revision 1 (NOTE) of project CP-220")
+                .endsWith(" | Resource description (untrusted document-author text, not an approval record): "
+                        + summary);
+        MockHttpServletRequest export = new MockHttpServletRequest();
+        attributes.describeExport(export, "CP-220", 4);
+        long companyDocuments = generated.documents().stream()
+                .filter(document -> document.projectKey().equals("CP-220")).count();
+        assertThat((String) export.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
+                .contains("which holds " + companyDocuments + " documents");
+
+        assertThat(runs.remainingRows("run-doc1")).isEqualTo(1);
+        runs.deleteRun("run-doc1");
+        assertThat(runs.remainingRows("run-doc1")).isZero();
+    }
+
+    /**
+     * W2-7: the business database names the protagonists by their scripted work, and the field support engineer's
+     * company trip makes the trip network a registered travel network for that engineer only, and only during the
+     * first learned week the trip covers; the learned work of that week was sent from it.
+     */
+    @Test
+    void theProtagonistsAndTheFieldEngineersTripAreCompanyFacts() {
+        RunRegistry runs = new RunRegistry(database);
+        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database);
+        PlainInternalController internal = new PlainInternalController(runs, new CompanyRepository(database), database,
+                null, lookup);
+        runs.registerPrincipal("vcccc00000003-eng-01", "run-c3", CompanyBlueprint.ENGINEER_FIELD, "org-c3", "tenant-c3");
+        runs.registerPrincipal("vcccc00000003-eng-k", "run-c3", CompanyBlueprint.ENGINEER_K, "org-c3", "tenant-c3");
+
+        assertThat(internal.protagonists()).containsExactly(CompanyBlueprint.ADMIN_A, CompanyBlueprint.ADMIN_NIGHT,
+                CompanyBlueprint.ENGINEER_FIELD, CompanyBlueprint.ENGINEER_K);
+        List<ScriptedActivityView> work = internal.employee(CompanyBlueprint.ENGINEER_FIELD).getBody()
+                .scriptedActivities();
+        ScriptedActivityView firstWeek = work.get(0);
+        ScriptedActivityView secondWeek = work.get(work.size() - 1);
+        assertThat(firstWeek.clientIp()).isEqualTo("198.51.100.20");
+        assertThat(secondWeek.clientIp()).isEqualTo("10.40.21.11");
+
+        assertThat(lookup.networkContext("vcccc00000003-eng-01", firstWeek.clientIp(), firstWeek.observedAt()))
+                .satisfies(network -> {
+                    assertThat(network.kind()).isEqualTo(BusinessContextLookup.NetworkKind.TRAVEL);
+                    assertThat(network.planKey()).isEqualTo("TRP-C-0001");
+                });
+        assertThat(lookup.networkContext("vcccc00000003-eng-01", firstWeek.clientIp(), secondWeek.observedAt()).kind())
+                .as("the trip is over in the second week").isEqualTo(BusinessContextLookup.NetworkKind.EXTERNAL);
+        assertThat(lookup.networkContext("vcccc00000003-eng-k", firstWeek.clientIp(), firstWeek.observedAt()).kind())
+                .as("the trip is the field engineer's alone").isEqualTo(BusinessContextLookup.NetworkKind.EXTERNAL);
+        assertThat(lookup.networkContext("vcccc00000003-eng-01", secondWeek.clientIp(), secondWeek.observedAt()).kind())
+                .isEqualTo(BusinessContextLookup.NetworkKind.OFFICE);
+        runs.deleteRun("run-c3");
+        assertThat(new CompanyRepository(database).storedFingerprint()).isEqualTo(generated.fingerprint());
+    }
+
     /** P1-BE-04, control C2 side: the rules look up exactly the facts of the shared plan for every operation. */
     @Test
     void contextLookupRulesReadExactlyThePlannedFacts() {
@@ -97,6 +174,23 @@ class CompanyAndLookupTest {
             assertThat(recording.called()).as(request.operation().name())
                     .isEqualTo(LookupPlan.forRequest(request.operation(), request.claimedTicket() != null));
         }
+    }
+
+    /** Survey L2: an export without a valid item count is refused by both rule controls, and nothing is looked up. */
+    @Test
+    void anExportWithoutAValidItemCountIsRefusedWithoutLookingAnythingUp() {
+        new RunRegistry(database).registerPrincipal("vcccc00000004-adm-a", "run-c4", CompanyBlueprint.ADMIN_A,
+                "org-c4", "tenant-c4");
+        Instant time = CompanyCalendar.at(ANCHOR, TimeSlot.AFTERNOON);
+        RequestFacts unknown = new RequestFacts(BusinessOperation.EXPORT, "vcccc00000004-adm-a",
+                CompanyBlueprint.A3_TARGET, CompanyBlueprint.A3_TARGET, null, time, null, "10.40.12.9");
+        RecordingBusinessContextLookup recording = new RecordingBusinessContextLookup(
+                new JdbcBusinessContextLookup(database));
+
+        assertThat(new ContextLookupRules(recording).evaluate(unknown).ruleId()).isEqualTo("C2-ITEMS-UNKNOWN");
+        assertThat(recording.called()).isEmpty();
+        assertThat(new ThresholdRules(new JdbcBusinessContextLookup(database)).evaluate(unknown).ruleId())
+                .isEqualTo("C1-ITEMS-UNKNOWN");
     }
 
     @Test

@@ -51,7 +51,7 @@ public final class CombinationCatalog {
             claimed = "{fact:1}";
         }
         ScenarioDefinition.Step step = new ScenarioDefinition.Step(BusinessOperation.EXPORT, null, PROJECT, null,
-                combination.items(), 0, Map.of(), claimed, null, null);
+                combination.items(), 0, Map.of(), claimed, null, null, null);
         return new ScenarioDefinition(combination.key(), VERSION,
                 Map.of("ko", "조건 탐색 " + combination.key(), "en", "Exploration " + combination.key()),
                 combination.employee(), true, combination.slot(),

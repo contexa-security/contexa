@@ -2,11 +2,13 @@ package io.contexa.showcase.portal.template;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.business.client.WorkloadClient;
 import io.contexa.showcase.business.client.WorkloadClient.RunIdentity;
 import io.contexa.showcase.business.company.CompanyBlueprint;
 import io.contexa.showcase.business.internal.InternalContextSigner;
 import io.contexa.showcase.business.work.BusinessOperation;
+import io.contexa.showcase.portal.orchestrator.ChallengeResponder;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints;
 import io.contexa.showcase.portal.orchestrator.ControlEndpoints.Control;
 import io.contexa.showcase.portal.orchestrator.ControlSession;
@@ -34,10 +36,11 @@ import java.util.UUID;
 /**
  * Learns a protagonist's template through the engine's own learning path (deck p.26 principle 1, ADR-23): a fresh
  * template principal signs in for real and replays the employee's scripted normal activity as real requests, with
- * the company time of each activity. The engine learns only from ALLOW decisions, and any other decision (or an
- * unresolved analysis) restricts the principal, so the replay stops there. The attempt is kept when the requests
- * learned before the stop already establish the baseline (ADR-23 thresholds); otherwise a new principal starts over
- * (at most three attempts). The finished state is read through the engine's public stores and kept in the portal
+ * the company time of each activity. The engine learns only from ALLOW decisions. When it asks for an identity check,
+ * the employee passes it with the code from the demo inbox and sends the same request again, as a real employee would
+ * (approval Q-43); that step is kept with the check and is not counted as learned. Any other restriction (BLOCK,
+ * ESCALATE) or an unresolved analysis stops the replay. The attempt is kept when the requests learned before the stop
+ * already establish the baseline (ADR-23 thresholds); otherwise a new principal starts over (at most three attempts). The finished state is read through the engine's public stores and kept in the portal
  * database.
  */
 public class TemplateLearner {
@@ -79,7 +82,8 @@ public class TemplateLearner {
             String templateId = "tpl-" + employeeKey + "-" + ID_TIME.format(Instant.now()) + "-" + attempt;
             templates.start(templateId, employeeKey, company.path("seed").asLong(),
                     LocalDate.parse(company.path("anchorDate").asText()), company.path("dataSha256").asText(), attempt,
-                    engine.path("chatModel").asText(null), engine.path("embeddingModel").asText(null), learnedUnder);
+                    engine.path("chatModel").asText(null), engine.path("embeddingModel").asText(null), learnedUnder,
+                    ExecutionSpecStore.modelSettings(engine));
             String failure = attempt(templateId, employeeKey, employee);
             if (failure == null) {
                 return templateId;
@@ -94,8 +98,9 @@ public class TemplateLearner {
         String runId = "tpl-run-" + hex;
         String username = "v" + hex + "-" + employeeKey;
         String password = "Template-" + UUID.randomUUID() + "-Aa1";
+        JsonNode activities = employee.path("scriptedActivities");
         RunIdentity run = new RunIdentity(runId, "org-tpl-" + hex, "tenant-tpl-" + hex,
-                hostIn(employee.path("officeNetwork").asText(), 10), employee.path("usualDevice").asText());
+                addressOf(activities.get(0), employee), employee.path("usualDevice").asText());
         try {
             admin.registerPlainPrincipal(run, username, password, employeeKey);
             Map<String, Object> principal = new LinkedHashMap<>();
@@ -110,7 +115,6 @@ public class TemplateLearner {
             admin.createEnginePrincipal(run, principal);
             ControlSession session = new ControlSession(Control.D,
                     new WorkloadClient(endpoints.d(), signer, run, endpoints.requestTimeout()), json);
-            JsonNode activities = employee.path("scriptedActivities");
             Instant firstActivity = Instant.parse(activities.get(0).path("observedAt").asText());
             session.signInEngine(username, password, username + "@" + CompanyBlueprint.EMAIL_DOMAIN,
                     firstActivity.minus(Duration.ofMinutes(10)), admin);
@@ -118,36 +122,55 @@ public class TemplateLearner {
             Integer stoppedAt = null;
             String stopReason = null;
             Set<String> learnedDays = new TreeSet<>();
+            String email = username + "@" + CompanyBlueprint.EMAIL_DOMAIN;
             for (JsonNode activity : activities) {
+                int activityNo = activity.path("activityNo").asInt();
                 BusinessOperation operation = BusinessOperation.valueOf(activity.path("operation").asText());
                 String target = activity.path("targetKey").asText();
                 Instant at = Instant.parse(activity.path("observedAt").asText());
-                String path = switch (operation) {
-                    case DOCUMENT_READ -> "/api/documents/" + target;
-                    case DOCUMENT_DOWNLOAD -> "/api/documents/" + target + "/download";
-                    case EXPORT -> "/api/projects/" + target + "/exports?items=" + activity.path("items").asInt();
-                    default -> throw new IllegalStateException("Unsupported scripted operation " + operation);
-                };
+                String path = path(operation, target, activity.path("items").asInt());
+                boolean synchronous = EngineDecision.synchronous(operation);
+                // Each activity comes from the address the business database names for it (W2-7), in the same session.
+                ControlSession from = session.fromAddress(addressOf(activity, employee));
                 long waitStarted = System.nanoTime();
-                StepOutcome outcome = session.send(operation, path, at);
-                EngineDecision decision = waitForDecision(outcome.requestId(), operation == BusinessOperation.EXPORT);
+                StepOutcome outcome = from.send(operation, path, at);
+                boolean challenged = ControlSession.challenged(outcome);
+                // A request refused by an earlier CHALLENGE is never analysed, so it has no decision of its own.
+                EngineDecision decision = challenged && !synchronous
+                        ? EngineDecision.none(admin.decision(outcome.requestId()))
+                        : waitForDecision(outcome.requestId(), synchronous);
                 long waited = (System.nanoTime() - waitStarted) / 1_000_000L;
-                templates.step(templateId, activity.path("activityNo").asInt(), outcome.requestId(), operation.name(),
-                        target, at, outcome.httpStatus(), decision.finalAction(), decision.technicalFallback(),
+                templates.step(templateId, activityNo, outcome.requestId(), operation.name(), target, at,
+                        outcome.httpStatus(), decision.finalAction(), decision.technicalFallback(),
                         decision.unresolved(), waited);
                 for (JsonNode call : decision.raw().path("modelCalls")) {
                     runs.cost(null, templateId, outcome.requestId(), call);
                 }
-                if (!"DELIVERED".equals(outcome.outcome()) || !"ALLOW".equals(decision.finalAction())
-                        || decision.unresolved()) {
-                    stoppedAt = activity.path("activityNo").asInt();
+                ControlSession.ChallengeTrace check = null;
+                if (challenged) {
+                    // The employee passes the engine's identity check with the code from the demo inbox and sends
+                    // the same request again (approval Q-43); the engine's decision itself is left as it was.
+                    check = ChallengeResponder.AUTOMATIC.respond(new ChallengeResponder.Challenge("NORMAL",
+                            outcome.sentAt().plusMillis(outcome.elapsedMs()),
+                            from.challengeActions(username, email, operation, path, at, admin)));
+                    templates.identityCheck(templateId, activityNo, check);
+                }
+                Next next = next("DELIVERED".equals(outcome.outcome()), challenged, decision.finalAction(),
+                        decision.unresolved(), check);
+                if (next == Next.STOP) {
+                    stoppedAt = activityNo;
                     stopReason = "Activity " + stoppedAt + " received " + decision.finalAction() + " (http "
                             + outcome.httpStatus() + ", unresolved " + decision.unresolved() + ", failure "
-                            + decision.failureType() + ")";
+                            + decision.failureType()
+                            + (check == null ? "" : ", identity check " + (check.answered() ? "answered" : "not "
+                            + "answered: " + check.reason()) + ", re-issued " + (check.reissue() == null ? "none"
+                            : check.reissue().httpStatus() + " " + check.reissue().outcome())) + ")";
                     break;
                 }
-                allowed++;
-                learnedDays.add(at.toString().substring(0, 10));
+                if (next == Next.LEARNED) {
+                    allowed++;
+                    learnedDays.add(at.toString().substring(0, 10));
+                }
                 sleep(endpoints.allowWindow());
             }
             if (allowed < MIN_BASELINE_UPDATES || learnedDays.size() < MIN_LEARNED_DAYS) {
@@ -179,6 +202,39 @@ public class TemplateLearner {
         }
     }
 
+    /** What the replay does after one scripted activity. */
+    enum Next {
+        /** The engine allowed the request and learns it. */
+        LEARNED,
+        /** The engine asked for an identity check, the employee passed it and the re-issued request was delivered. */
+        PASSED_CHECK,
+        /** Delivered, but the engine decided CHALLENGE, which applies from the next request; it is not learned. */
+        NOT_LEARNED,
+        /** Anything else restricts the principal or leaves the engine undecided: the replay stops. */
+        STOP
+    }
+
+    /**
+     * The replay's rule (approval Q-43): an identity check the employee passes lets the replay go on, without counting
+     * the step as learned, because the engine learns from ALLOW decisions only; BLOCK, ESCALATE, an unresolved analysis
+     * or no decision stop it as before.
+     */
+    static Next next(boolean delivered, boolean challenged, String finalAction, boolean unresolved,
+                     ControlSession.ChallengeTrace check) {
+        if (challenged) {
+            boolean passed = check != null && check.answered() && check.reissue() != null
+                    && "DELIVERED".equals(check.reissue().outcome());
+            return passed && !unresolved ? Next.PASSED_CHECK : Next.STOP;
+        }
+        if (!delivered || unresolved) {
+            return Next.STOP;
+        }
+        if ("ALLOW".equals(finalAction)) {
+            return Next.LEARNED;
+        }
+        return "CHALLENGE".equals(finalAction) ? Next.NOT_LEARNED : Next.STOP;
+    }
+
     /** Baseline learning runs asynchronously after each ALLOW; wait until every allowed request has been learned. */
     private JsonNode settledSnapshot(String username, String employeeKey, RunIdentity run, int allowed)
             throws IOException {
@@ -207,6 +263,24 @@ public class TemplateLearner {
             sleep(Duration.ofSeconds(1));
         } while (Instant.now().isBefore(deadline));
         return EngineDecision.none(evidence);
+    }
+
+    /** The address an activity was sent from; the employee's desk in the office network when none is recorded. */
+    /** The business API path a scripted activity is sent to. */
+    public static String path(BusinessOperation operation, String target, int items) {
+        return switch (operation) {
+            case DOCUMENT_READ -> "/api/documents/" + target;
+            case DOCUMENT_DOWNLOAD -> "/api/documents/" + target + "/download";
+            case EXPORT -> "/api/projects/" + target + "/exports?items=" + items;
+            default -> throw new IllegalStateException("Unsupported scripted operation " + operation);
+        };
+    }
+
+    /** The address a scripted activity comes from: its own recorded address, or a host in the office network. */
+    public static String addressOf(JsonNode activity, JsonNode employee) {
+        String recorded = activity == null ? null : activity.path("clientIp").asText(null);
+        return recorded != null && !recorded.isBlank() ? recorded
+                : hostIn(employee.path("officeNetwork").asText(), 10);
     }
 
     static String hostIn(String network, int host) {

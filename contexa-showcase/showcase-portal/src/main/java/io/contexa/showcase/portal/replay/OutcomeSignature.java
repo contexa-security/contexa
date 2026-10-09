@@ -21,9 +21,22 @@ public final class OutcomeSignature {
     private OutcomeSignature() {
     }
 
+    /** One step as a signature reads it, from a finished run or from its stored rows (work 6). */
+    public record Step(int stepNo, Map<String, String> outcomes, String engineAction, boolean unresolved) {
+    }
+
     public static String of(RunSummary run) {
-        List<String> steps = new ArrayList<>();
+        List<Step> steps = new ArrayList<>();
         for (StepSummary step : run.steps()) {
+            steps.add(new Step(step.stepNo(), step.outcomes(), step.engineAction(), step.unresolved()));
+        }
+        return of(run.status(), steps);
+    }
+
+    /** The same signature from a run's status and steps, so a stored run signs exactly as it did when it ended. */
+    public static String of(String status, List<Step> runSteps) {
+        List<String> steps = new ArrayList<>();
+        for (Step step : runSteps) {
             StringBuilder text = new StringBuilder().append(step.stepNo()).append(':');
             for (String control : CONTROLS) {
                 text.append(control).append('=').append(Objects.toString(step.outcomes().get(control), "-"))
@@ -33,7 +46,7 @@ public final class OutcomeSignature {
                     .append(",unresolved=").append(step.unresolved());
             steps.add(text.toString());
         }
-        return run.status() + "|" + String.join("|", steps);
+        return status + "|" + String.join("|", steps);
     }
 
     /** The most frequent signature (the earliest one on a tie) and how many signatures equal it. */

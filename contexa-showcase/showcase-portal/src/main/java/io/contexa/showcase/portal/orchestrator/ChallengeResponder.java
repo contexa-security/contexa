@@ -1,6 +1,7 @@
 package io.contexa.showcase.portal.orchestrator;
 
 import io.contexa.showcase.portal.orchestrator.ControlSession.ChallengeTrace;
+import io.contexa.showcase.portal.orchestrator.ControlSession.ReleaseTrace;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -16,10 +17,28 @@ public interface ChallengeResponder {
     ChallengeTrace respond(Challenge challenge);
 
     /**
+     * Control D refused a step because the engine blocked the account (ADR-33). Recordings never ask for a release, so
+     * the block stays in the record as the engine left it; a visitor running the scenario live may ask for one.
+     */
+    default ReleaseTrace release(Release release) {
+        return ReleaseTrace.notAsked(release.blockedAt());
+    }
+
+    /**
      * @param classification the scenario's ground truth: NORMAL, THREAT or UNCERTAIN
      * @param challengedAt   when control D's answer with the check came back
      */
     record Challenge(String classification, Instant challengedAt, ChallengeActions actions) {
+    }
+
+    /**
+     * @param classification the scenario's ground truth: NORMAL, THREAT or UNCERTAIN
+     * @param blockedAt      when control D's answer with the block came back
+     * @param username       the blocked run principal
+     * @param approver       the run's security administrator, created on its first use
+     */
+    record Release(String classification, Instant blockedAt, String username, ReleaseActions actions,
+                   Approver approver) {
     }
 
     /**

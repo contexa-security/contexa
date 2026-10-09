@@ -607,6 +607,50 @@ class PromptContextComposerTest {
     }
 
     @Test
+    void composeMissingKnowledgeSectionShouldStateEachTrustProfileFactOnce() {
+        ContextTrustProfile workProfile = ContextTrustProfile.builder()
+                .profileKey("PERSONAL_WORK_PROFILE")
+                .collectorId("PROTECTABLE_WORK_PROFILE_COLLECTOR")
+                .provenanceSummary("window=7d,observations=25,actionFallback=100%")
+                .overallQualityGrade(ContextQualityGrade.WEAK)
+                .scopeLimitations(List.of(
+                        "Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself."))
+                .qualityWarnings(List.of(
+                        "Action family baseline includes fallback-derived signals; do not treat it as a standalone indicator of user intent.",
+                        "workProfile.frequentActionFamilies has thin or fallback-heavy evidence; observations=25"))
+                .build();
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .coverage(new ContextCoverageReport(
+                        ContextCoverageLevel.BUSINESS_AWARE,
+                        List.of("Actor identity is available."),
+                        List.of(),
+                        List.of(),
+                        List.of(
+                                "Peer cohort delta is missing; cohort-based deviation claims should remain conservative.",
+                                "Context evidence for PERSONAL_WORK_PROFILE is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.",
+                                "Action family baseline includes fallback-derived signals; do not treat it as a standalone indicator of user intent.",
+                                "workProfile.frequentActionFamilies has thin or fallback-heavy evidence; observations=25",
+                                "Scope limitation: Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself."),
+                        "Business-aware context is available for role, resource, and session reasoning."))
+                .contextTrustProfiles(List.of(workProfile))
+                .build();
+
+        String section = new PromptContextComposer().composeMissingKnowledgeSection(context);
+
+        assertThat(section).contains("- MissingKnowledgeWarning: Peer cohort delta is missing")
+                .contains("- MissingKnowledgeWarning: workProfile.frequentActionFamilies has thin or fallback-heavy evidence")
+                .contains("- ContextEvidenceLimitation: PERSONAL_WORK_PROFILE")
+                .contains("- ContextTrustLimitation: PERSONAL_WORK_PROFILE | Use this profile to understand enacted work patterns")
+                .contains("- ContextTrustWarning: PERSONAL_WORK_PROFILE | Action family baseline includes fallback-derived signals")
+                .contains("- MissingKnowledgeDecisionLimit:")
+                .doesNotContain("MissingKnowledgeWarning: Context evidence for PERSONAL_WORK_PROFILE")
+                .doesNotContain("MissingKnowledgeWarning: Action family baseline")
+                .doesNotContain("MissingKnowledgeWarning: Scope limitation:");
+        assertThat(section.split("Action family baseline includes fallback-derived signals", -1)).hasSize(2);
+        assertThat(section.split("Use this profile to understand enacted work patterns", -1)).hasSize(2);
+    }
+
+    @Test
     void composeShouldPreserveCriticalUnknownsWithDecisionLimitations() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .session(CanonicalSecurityContext.Session.builder()

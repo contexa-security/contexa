@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/resources")
+@PreAuthorize("hasRole('ADMIN')")
 public class PromptQualityOfficialResourceApiController {
 
     private final PromptQualityOfficialConsoleViewAssembler views;

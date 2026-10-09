@@ -1,0 +1,152 @@
+/* The assessment of Contexa's decision and the other visitors' assessments of the same request. */
+.sectionNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fieldName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.select:disabled {
+  color: var(--color-text-muted);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.mono {
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.calls,
+.reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.calls legend,
+.reasons legend {
+  margin-block-end: var(--space-2);
+}
+
+.callChoice,
+.reasonChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.callChoice[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-raised);
+}
+
+.send {
+  align-self: flex-start;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.send:disabled {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text-muted);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.peerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peerList li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-block-end: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}

@@ -1,6 +1,7 @@
 {
   "key": "A3T",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "승인된 프로젝트 이관",
     "en": "Approved project transfer"
@@ -41,6 +42,14 @@
     "allowedEngineActions": [
       "ALLOW",
       "CHALLENGE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 정상 업무: 관리자 A가 GB-500 담당 PM(pm-11)이 승인한 프로젝트 이관(최대 5,000건, 유효 기간 안)에 따라 새벽에 4,831건을 반출한다. 시각과 프로젝트는 평소와 다르지만 승인이 프로젝트·건수·기간을 모두 덮는다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed normal work: administrator A exports 4,831 records at dawn under a project transfer approved by GB-500's project manager (pm-11), up to 5,000 records and within its validity. The hour and the project differ from usual, but the approval covers the project, the count and the time. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 승인이 있어도 새벽의 대량 반출은 한 번 더 확인하는 편이 안전하다는 시각이 있다. 그래서 이 사례는 엔진의 본인 확인도 맞는 대응으로 인정한다.",
+      "en": "Counterpoint: even with an approval, a bulk export at dawn may deserve one more check. The case therefore also counts an identity check by the engine as right."
+    }
   }
 }

@@ -35,14 +35,17 @@ public class RetentionJob {
     /**
      * @param retiredMaterial retired or old draft recordings and retired or failed templates
      * @param runEvidence     runs no recording or combination record shows, and the model usage ledger (13 months)
+     * @param modelExchange   the prompt and answer texts of model calls (docs/showcase/데모-재설계.md K-5); the
+     *                        verdict anatomy built from them stays with the run
      */
     public record Periods(Duration visitor, Duration dailyQuota, Duration allotmentAlert, Duration shareCard,
                           Duration supersededCombination, Duration retentionLog, Duration retiredMaterial,
-                          Duration runEvidence) {
+                          Duration runEvidence, Duration modelExchange) {
 
         public static Periods plan() {
             return new Periods(Duration.ofDays(30), Duration.ofDays(7), Duration.ofDays(90), Duration.ofDays(90),
-                    Duration.ofDays(90), Duration.ofDays(400), Duration.ofDays(90), Duration.ofDays(396));
+                    Duration.ofDays(90), Duration.ofDays(400), Duration.ofDays(90), Duration.ofDays(396),
+                    Duration.ofDays(90));
         }
     }
 
@@ -81,6 +84,20 @@ public class RetentionJob {
                  where c.visitor_hash is not null
                    and not exists (select 1 from visitor v where v.visitor_hash = c.visitor_hash)""",
                 new MapSqlParameterSource()));
+        // The lab's calls and assessments stay with the run; only the visitor's hash leaves (review R-27).
+        step(deleted, "predictionVisitorHashes", () -> jdbc.update("""
+                update visitor_prediction p set visitor_hash = null
+                 where p.visitor_hash is not null
+                   and not exists (select 1 from visitor v where v.visitor_hash = p.visitor_hash)""",
+                new MapSqlParameterSource()));
+        step(deleted, "assessmentVisitorHashes", () -> jdbc.update("""
+                update visitor_assessment a set visitor_hash = null
+                 where a.visitor_hash is not null
+                   and not exists (select 1 from visitor v where v.visitor_hash = a.visitor_hash)""",
+                new MapSqlParameterSource()));
+        // Anonymous daily counts hold no visitor; they are kept as long as a visitor's own records (ADR-35).
+        step(deleted, "anonymousTallies", () -> jdbc.update("delete from anonymous_tally where day < :day",
+                new MapSqlParameterSource("day", Date.valueOf(today.minusDays(periods.visitor().toDays())))));
         step(deleted, "dailyQuota", () -> jdbc.update("delete from live_quota where day < :day",
                 new MapSqlParameterSource("day", Date.valueOf(today.minusDays(periods.dailyQuota().toDays())))));
         step(deleted, "allotmentAlerts", () -> jdbc.update("delete from live_allotment_alert where day < :day",
@@ -108,6 +125,8 @@ public class RetentionJob {
                 before(now, periods.runEvidence())));
         step(deleted, "costLedger", () -> jdbc.update("delete from cost_ledger where recorded_at < :cutoff",
                 before(now, periods.runEvidence())));
+        step(deleted, "modelExchanges", () -> jdbc.update(
+                "delete from run_model_exchange where captured_at < :cutoff", before(now, periods.modelExchange())));
         step(deleted, "retiredTemplates", () -> jdbc.update("""
                 delete from engine_template t
                  where ((t.status = 'RETIRED' and t.retired_at < :cutoff)

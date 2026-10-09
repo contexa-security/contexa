@@ -1,0 +1,14 @@
+import { chromium } from '@playwright/test';
+const [path, language, width, out] = [process.argv[2], process.argv[3], Number(process.argv[4]), process.argv[5]];
+const browser = await chromium.launch();
+const context = await browser.newContext({ viewport: { width, height: 900 }, locale: language, reducedMotion: 'reduce' });
+const page = await context.newPage();
+const errors = [];
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', (e) => errors.push(String(e.stack ?? e).slice(0, 600)));
+await page.goto(`http://127.0.0.1:5180${path}${path.includes('?') ? '&' : '?'}lng=${language}`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(800);
+await page.screenshot({ path: out, fullPage: true });
+const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+console.log('overflow', overflow, 'errors', errors.slice(0, 5));
+await browser.close();

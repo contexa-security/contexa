@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The preloaded demo font (scripts/font-subset.py) must cover every character the visitor screens show; a new word
+ * The demo font (scripts/font-subset.py) must cover every character the visitor screens show; a new word
  * in the dictionaries or the visitor content fails here until the font is rebuilt.
  */
 const covered = new Set(Array.from(readFileSync('public/fonts/pretendard-demo.chars.txt', 'utf-8').trim()));

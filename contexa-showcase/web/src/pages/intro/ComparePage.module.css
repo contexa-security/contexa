@@ -1,0 +1,196 @@
+/* One request on the left, five lanes on the right: approach, its copy of the company system, the result to come. */
+.figure {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.request {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: 10rem auto minmax(0, 1fr) auto 2.5rem;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* Lanes are labels, not buttons: square corners and a tint; Contexa's lane carries the accent. */
+.approach,
+.copy {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.approach {
+  font-weight: var(--weight-semibold);
+}
+
+.lane[data-contexa] .approach {
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+}
+
+.copy {
+  color: var(--color-text-body);
+}
+
+.arrow {
+  color: var(--color-text-muted);
+}
+
+.unknown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 2rem;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-bold);
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.result dd {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.truth {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.truthName {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* The window: what the runs share, then what each approach judges by. */
+.windowTitle {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr);
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fact dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.fact code,
+.spec code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.spec {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (width <= 64rem) {
+  .figure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .request {
+    justify-self: start;
+  }
+}
+
+@media (width <= 48rem) {
+  /* On a phone a lane takes two rows: the approach, then its copy of the company system and the result to come. */
+  .lane {
+    grid-template-columns: auto minmax(0, 1fr) auto 2.5rem;
+  }
+
+  .approach {
+    grid-column: 1 / -1;
+  }
+
+  .results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

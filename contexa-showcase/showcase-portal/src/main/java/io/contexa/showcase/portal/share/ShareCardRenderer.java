@@ -15,6 +15,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,13 +38,18 @@ public class ShareCardRenderer {
     private static final Color TEXT_SUBTLE = new Color(0x8E9AAE);
     private static final int MARGIN = 88;
 
-    /** The card's words; the share link carries no other text. */
-    private record Words(String title, String me, String line) {
+    /**
+     * The card's fixed words; the title is the pair's own question (H-09 #30), so no card claims what its pair does not
+     * show (five verdicts, two look-alike requests).
+     */
+    private record Words(String me, String line) {
     }
 
     private static final Map<String, Words> WORDS = Map.of(
-            "ko", new Words("같은 요청, 다섯 개의 판정", "나", "겉모습이 같은 두 요청 · 실제 실행 기록"),
-            "en", new Words("Same request, five verdicts", "Me", "Two look-alike requests · real recorded runs"));
+            "ko", new Words("나", "실제 실행 기록"),
+            "en", new Words("Me", "Real recorded runs"));
+
+    private static final int TITLE_LINES = 2;
 
     private final Font bold;
     private final Font regular;
@@ -57,10 +64,11 @@ public class ShareCardRenderer {
     }
 
     /**
-     * @param mine null when the visitor did not vote: the card then shows Contexa's score alone
-     * @param host the demo address shown at the bottom, for example demo.ctxa.ai
+     * @param question the pair's question in the card's language; null draws the demo name instead
+     * @param mine     null when the visitor did not vote: the card then shows Contexa's score alone
+     * @param host     the demo address shown at the bottom, for example demo.ctxa.ai
      */
-    public byte[] render(String language, Score mine, Score contexa, String host) {
+    public byte[] render(String language, String question, Score mine, Score contexa, String host) {
         Words words = WORDS.get(language);
         if (words == null) {
             throw new IllegalArgumentException("Unsupported card language");
@@ -81,8 +89,12 @@ public class ShareCardRenderer {
             g.drawString("CONTEXA DEMO", MARGIN, 128);
 
             g.setColor(TEXT);
-            g.setFont(bold.deriveFont(64f));
-            g.drawString(words.title(), MARGIN, 236);
+            g.setFont(bold.deriveFont(44f));
+            List<String> title = lines(question == null || question.isBlank() ? "Contexa Demo" : question, g,
+                    WIDTH - 2 * MARGIN);
+            for (int index = 0; index < title.size(); index++) {
+                g.drawString(title.get(index), MARGIN, 206 + index * 58);
+            }
 
             g.setFont(bold.deriveFont(84f));
             int x = MARGIN;
@@ -117,6 +129,45 @@ public class ShareCardRenderer {
             throw new UncheckedIOException("Could not encode the share card", e);
         }
         return png.toByteArray();
+    }
+
+    /** The title broken into at most two lines that fit the width, at spaces where it can; the rest is cut with "…". */
+    static List<String> lines(String text, Graphics2D g, int width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.trim().split("\\s+")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (g.getFontMetrics().stringWidth(candidate) <= width) {
+                line.setLength(0);
+                line.append(candidate);
+                continue;
+            }
+            if (!line.isEmpty()) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            // A word wider than the line is broken by characters.
+            for (char letter : word.toCharArray()) {
+                if (g.getFontMetrics().stringWidth(line.toString() + letter) > width && !line.isEmpty()) {
+                    lines.add(line.toString());
+                    line.setLength(0);
+                }
+                line.append(letter);
+            }
+        }
+        if (!line.isEmpty()) {
+            lines.add(line.toString());
+        }
+        if (lines.size() <= TITLE_LINES) {
+            return lines;
+        }
+        List<String> kept = new ArrayList<>(lines.subList(0, TITLE_LINES));
+        StringBuilder last = new StringBuilder(kept.get(TITLE_LINES - 1));
+        while (!last.isEmpty() && g.getFontMetrics().stringWidth(last + "…") > width) {
+            last.setLength(last.length() - 1);
+        }
+        kept.set(TITLE_LINES - 1, last + "…");
+        return kept;
     }
 
     private static Font font(String resource) {

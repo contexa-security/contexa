@@ -27,6 +27,8 @@ public interface BusinessOperations {
 
     ExportStream openExportStream(BusinessRequest request, String projectKey, int items);
 
+    ExportResult exportDocumentsAsync(BusinessRequest request, String projectKey, int items);
+
     CustomerView readCustomer(BusinessRequest request, String customerKey);
 
     RoleGrantResult grantRole(BusinessRequest request, String projectKey, String grantee, String responsibility);

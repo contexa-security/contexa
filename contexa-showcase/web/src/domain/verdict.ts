@@ -2,9 +2,9 @@
  * Engine and control verdicts. Every place that shows a verdict uses the same word, icon and color
  * (design rule "same meaning, same shape"), so the presentation metadata lives here only.
  */
-export type Verdict = 'ALLOW' | 'CHALLENGE' | 'ESCALATE' | 'BLOCK' | 'PENDING';
+export type Verdict = 'ALLOW' | 'CHALLENGE' | 'ESCALATE' | 'BLOCK' | 'PENDING' | 'NONE';
 
-export type VerdictIcon = 'check' | 'cross' | 'key' | 'clock' | 'lock' | 'hourglass';
+export type VerdictIcon = 'check' | 'cross' | 'key' | 'clock' | 'lock' | 'hourglass' | 'dash';
 
 export interface VerdictPresentation {
   /** i18n key of the plain-language word shown to visitors. */
@@ -22,19 +22,24 @@ export const VERDICTS: Readonly<Record<Verdict, VerdictPresentation>> = {
   ESCALATE: { labelKey: 'verdict.review', code: 'ESCALATE', icon: 'clock', colorVar: '--color-verdict-review' },
   BLOCK: { labelKey: 'verdict.block', code: 'BLOCK', icon: 'lock', colorVar: '--color-verdict-block' },
   PENDING: { labelKey: 'verdict.pending', code: 'PENDING_ANALYSIS', icon: 'hourglass', colorVar: '--color-verdict-pending' },
+  // The engine made no decision for this request (refused by an earlier decision or the permission check, or not
+  // analysed); never shown as ALLOW or BLOCK.
+  NONE: { labelKey: 'verdict.none', code: 'NO_DECISION', icon: 'dash', colorVar: '--color-verdict-pending' },
 };
 
 /**
  * Business outcome is the primary judgement criterion: was the data delivered, did the work finish. CUT is a stream the
- * engine stopped part-way; what left before the cut is shown with it (deck p.11).
+ * engine stopped part-way; what left before the cut is shown with it (deck p.11). BROKEN is a response that broke after
+ * data had left; the data that left is shown with it, never as unresolved.
  */
-export type BusinessOutcome = 'DELIVERED' | 'STOPPED' | 'CUT' | 'HELD' | 'UNRESOLVED';
+export type BusinessOutcome = 'DELIVERED' | 'STOPPED' | 'CUT' | 'HELD' | 'BROKEN' | 'UNRESOLVED';
 
 export const OUTCOME_KEYS: Readonly<Record<BusinessOutcome, string>> = {
   DELIVERED: 'outcome.delivered',
   STOPPED: 'outcome.stopped',
   CUT: 'outcome.cut',
   HELD: 'outcome.held',
+  BROKEN: 'outcome.broken',
   UNRESOLVED: 'outcome.unresolved',
 };
 

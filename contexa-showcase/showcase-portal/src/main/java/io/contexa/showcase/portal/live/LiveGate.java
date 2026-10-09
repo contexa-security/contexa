@@ -76,6 +76,15 @@ public class LiveGate {
         });
     }
 
+    /**
+     * Starts a definition the lab composed (docs/showcase/데모-재설계.md 5A.1) through the same gate; {@code finished}
+     * hears the run's summary when it ends, with the run ID the lab's records are kept under.
+     */
+    public Outcome lab(String visitor, String address, ScenarioDefinition scenario, String turnstileToken,
+                       Consumer<RunSummary> finished) throws IOException {
+        return start(visitor, address, scenario, turnstileToken, finished);
+    }
+
     private Outcome start(String visitor, String address, ScenarioDefinition scenario, String turnstileToken,
                           Consumer<RunSummary> keep) throws IOException {
         Optional<LiveRun> current = live.current(visitor);

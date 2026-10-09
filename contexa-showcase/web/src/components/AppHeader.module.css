@@ -46,17 +46,74 @@
   font-weight: var(--weight-semibold);
 }
 
-/* On a phone the menu takes its own row under the brand and the language switch. */
-@media (width < 48rem) {
+/*
+ * On tablets and phones: the brand, the glossary and the languages in the first row, the five menu items under it (one
+ * row in Korean; longer words wrap rather than hide), so the screen's own content starts high.
+ */
+@media (width < 64rem) {
   .bar {
     flex-wrap: wrap;
-    padding-block: var(--space-2);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
   }
 
   .nav {
     order: 3;
     justify-content: flex-start;
     flex-basis: 100%;
+    gap: 0;
+  }
+
+  .navLink {
+    padding: var(--space-1) var(--space-2);
+    white-space: nowrap;
+  }
+
+  .language,
+  .glossary {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .brand {
+    margin-inline-end: auto;
+  }
+}
+
+/* Phones (mobile slide): every pressable part of the bar is at least 44 px. */
+@media (width <= 40rem) {
+  .brand,
+  .navLink,
+  .language,
+  .glossary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  /* The brand's two words keep their space as flex items. */
+  .brand {
+    gap: var(--space-1);
+  }
+
+  /* Only the other language is offered, so the bar's first line holds the brand, the glossary and the switch. */
+  .language[aria-pressed='true'] {
+    display: none;
+  }
+
+  /*
+   * The menu is one row that slides sideways: wrapped, it took one or two rows depending on how wide the font drew
+   * the words, and the late demo font moved every screen up by a row (C-13, layout shift 0.32).
+   */
+  .nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .navLink {
+    flex-shrink: 0;
   }
 }
 
@@ -78,4 +135,20 @@
 .language[aria-pressed='true'] {
   border-color: var(--color-border-strong);
   color: var(--color-text);
+}
+
+.glossary {
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.glossary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }

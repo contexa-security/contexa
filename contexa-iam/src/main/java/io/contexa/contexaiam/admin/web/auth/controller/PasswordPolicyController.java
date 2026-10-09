@@ -30,10 +30,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @Controller
 @RequestMapping("/contexa/admin/password-policy")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class PasswordPolicyController {
 
     private final PasswordPolicyService passwordPolicyService;

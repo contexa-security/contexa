@@ -59,6 +59,18 @@ public final class RecordingBusinessContextLookup implements BusinessContextLook
     }
 
     @Override
+    public ExportApprovalPolicy exportApprovalPolicy() {
+        record(LookupFunction.EXPORT_POLICY);
+        return delegate.exportApprovalPolicy();
+    }
+
+    @Override
+    public AccessApprovalPolicy accessApprovalPolicy(BusinessOperation operation) {
+        record(LookupFunction.ACCESS_POLICY);
+        return delegate.accessApprovalPolicy(operation);
+    }
+
+    @Override
     public AccessHistory historyDays(String username, String projectKey, Instant at, int windowDays) {
         record(LookupFunction.HISTORY_DAYS);
         return delegate.historyDays(username, projectKey, at, windowDays);

@@ -1,0 +1,585 @@
+.identity {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.definition {
+  margin: 0;
+  padding: var(--space-4) var(--space-6);
+  border-left: 3px solid var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+/*
+ * The place band (common-1): tabs for the four acts on top, the current act's tab joined to the panel of its steps
+ * under it, the difference badge on the right of the tabs. Each state has one look: past = a link chip with a check,
+ * current = the tinted tab with a filled dot, later = dashed and dimmed, never a link.
+ */
+.band {
+  display: grid;
+  grid-template-areas:
+    'tabs badge'
+    'panel panel';
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-4);
+  align-items: end;
+}
+
+.tabs {
+  display: flex;
+  grid-area: tabs;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tab {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+.tab[data-state='later'] {
+  border-style: dashed;
+}
+
+.tab[data-state='past'] {
+  padding: 0;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.tab[data-state='current'] {
+  z-index: var(--z-raised);
+  min-height: 2.75rem;
+  margin-bottom: var(--space-hairline-negative);
+  padding-bottom: var(--space-hairline);
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.tabLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-3);
+  border-radius: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+
+.tabLink:hover {
+  background-color: var(--color-surface-accent);
+}
+
+.tabLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.tabCheck {
+  flex: none;
+  color: var(--color-accent);
+}
+
+.tabDot {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+}
+
+.tabNumber {
+  font-weight: var(--weight-semibold);
+}
+
+.tabShort {
+  display: none;
+}
+
+.tabName {
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  text-overflow: ellipsis;
+}
+
+.panel {
+  grid-area: panel;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-accent);
+}
+
+.panel[data-first] {
+  border-top-left-radius: 0;
+}
+
+.phoneActName {
+  display: none;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The benchmark's views: pressable pills (one look for what can be pressed), the current one in the accent. */
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.view {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.view:hover {
+  border-color: var(--color-accent);
+}
+
+.view[aria-current='page'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.view:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* A connected row of numbered dots: past steps are checked, the current one is filled and bold, the rest are plain. */
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.step + .step::before {
+  width: var(--space-3);
+  height: 2px;
+  background-color: var(--color-border-strong);
+  content: '';
+}
+
+.step[data-state='past'] + .step::before,
+.step[data-state='current']::before {
+  background-color: var(--color-accent);
+}
+
+.stepDot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.step[data-state='past'] .stepDot {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/*
+ * Past steps keep only their check (their name is on hover and for screen readers): the row puts weight on where the
+ * visitor is and what comes next, and stays one row even for an act of eleven screens.
+ */
+.step[data-state='past'] .stepName {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.step[data-state='current'] {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.step[data-state='current'] .stepDot {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+/* The difference badge: a chip (it opens the six cards) holding the six numbered circles the "just seen" band uses. */
+.badge {
+  display: inline-flex;
+  grid-area: badge;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.badge:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.badge:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.badgeCount {
+  color: var(--color-accent);
+}
+
+/* Phones only: the badge's short name, since the six circles do not fit beside the tabs. */
+.badgeShort {
+  display: none;
+}
+
+.marks {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.markCircle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-none);
+}
+
+.markCircle[data-seen] {
+  border: 1px solid var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+.card[data-seen] {
+  border-style: solid;
+  border-color: var(--color-accent);
+  color: var(--color-text-body);
+}
+
+.cardName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.cardState {
+  font-size: var(--text-sm);
+}
+
+.cardLine {
+  font-size: var(--text-sm);
+}
+
+.goals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.goalsTitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A goal of the try is a label, not a button: no outline pill, the difference's dashed circle and its name. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+/* "Just seen": the numbered circle of the difference (as in the badge), its label, then the sentence. */
+.justSaw {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.justSawHead {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.justSawLabel {
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.justSawText {
+  flex: 1 1 20rem;
+}
+
+.role {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.roleChanged {
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * Tablets and phones: the tabs keep only their numbers and the act's question goes over the steps, so the tabs and the
+ * badge never meet; only the current step keeps its name, so the steps stay in one row.
+ */
+@media (width <= 48rem) {
+  .tabName {
+    display: none;
+  }
+
+  .phoneActName {
+    display: block;
+  }
+
+  .steps {
+    flex-wrap: nowrap;
+  }
+
+  .step:not([data-state='current']) .stepName {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Phones: narrower tabs, the badge as its short name and count, and the steps without their connecting lines. */
+@media (width <= 40rem) {
+  .band {
+    column-gap: var(--space-2);
+  }
+
+  .tabs {
+    gap: var(--space-1);
+  }
+
+  .tab {
+    padding: 0 var(--space-2);
+  }
+
+  .tabLink {
+    padding: 0 var(--space-2);
+  }
+
+  /*
+   * Four tabs and the badge fit one phone row in both languages only as the steps do: a past act is its check, a later
+   * act its number, and only the current act keeps its label. Screen readers still read every tab's full name.
+   */
+  .tabNumber[data-past],
+  .tabLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tabShort {
+    display: inline;
+  }
+
+  .badgeLabel,
+  .badge .marks {
+    display: none;
+  }
+
+  .badgeShort {
+    display: inline;
+  }
+
+  .badge {
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .steps {
+    gap: var(--space-1);
+  }
+
+  .step {
+    gap: var(--space-1);
+  }
+
+  .stepDot {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  /*
+   * Ten steps fit in one row on a phone only as numbered circles: no connecting lines and no name, the current one
+   * filled. Its name is the screen's headline right under the band and on the back and next buttons.
+   */
+  .step + .step::before {
+    display: none;
+  }
+
+  .step[data-state='current'] .stepName {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .panel {
+    padding: var(--space-3);
+  }
+}
+
+/* Phones (mobile slide): the band's pressable parts reach 44 px. */
+@media (width <= 40rem) {
+  .tabLink {
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .badge {
+    min-height: 2.75rem;
+  }
+
+  .view {
+    min-height: 2.75rem;
+  }
+}

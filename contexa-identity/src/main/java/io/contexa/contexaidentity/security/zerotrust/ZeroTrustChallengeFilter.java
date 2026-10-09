@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -47,11 +48,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
-public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
+public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements ZeroTrustChallengeFlowStarter {
 
     private static final String LOCK_KEY_PREFIX = "mfa:challenge:init:";
     private static final Duration DEFAULT_LOCK_WAIT_TIME = Duration.ZERO;
@@ -212,6 +214,54 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         } finally {
             lockService.unlock(lockKey, lockOwner);
         }
+    }
+
+    /**
+     * Starts the step-up flow for a CHALLENGE decided inside the request (a synchronous {@code @Protectable}), with
+     * the same lock and the same reuse of an already started flow as a request this filter challenges, and returns the
+     * MFA page the user continues on. The caller writes its own answer, so nothing is written here.
+     */
+    @Override
+    public Optional<String> start(HttpServletRequest request, HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return Optional.empty();
+        }
+        FactorContext started = startedChallengeContext(request);
+        if (started != null) {
+            return Optional.of(buildMfaPageUrl(started, request));
+        }
+        String lockKey = LOCK_KEY_PREFIX + extractUserId(auth);
+        String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
+        if (!tryAcquireChallengeLock(lockKey, lockOwner, resolveLockLeaseTime(), resolveLockWaitTime())) {
+            return Optional.empty();
+        }
+        try {
+            started = startedChallengeContext(request);
+            FactorContext context = started != null
+                    ? started
+                    : challengeMfaInitializer.initializeChallengeFlow(request, response, auth);
+            return Optional.of(buildMfaPageUrl(context, request));
+        } catch (ChallengeMfaInitializer.ChallengeMfaInitializationException e) {
+            log.error("Failed to initialize challenge MFA flow for a decision made in the request: {}", e.getMessage());
+            return Optional.empty();
+        } finally {
+            lockService.unlock(lockKey, lockOwner);
+        }
+    }
+
+    /** The challenge flow already started for this session and not finished yet, or null. */
+    private FactorContext startedChallengeContext(HttpServletRequest request) {
+        String sessionId = sessionRepository.getSessionId(request);
+        if (sessionId == null || !sessionRepository.existsSession(sessionId)) {
+            return null;
+        }
+        FactorContext context = stateMachineIntegrator.loadFactorContext(sessionId);
+        if (context == null || !Boolean.TRUE.equals(context.getBooleanAttribute("challengeInitiated"))
+                || context.getCurrentState().isTerminal()) {
+            return null;
+        }
+        return context;
     }
 
     private boolean tryAcquireChallengeLock(

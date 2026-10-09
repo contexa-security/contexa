@@ -1,6 +1,7 @@
 {
   "key": "S07",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "정당성 근거가 부족한 예외",
     "en": "An exception without valid grounds"
@@ -57,6 +58,14 @@
       "CHALLENGE",
       "ESCALATE",
       "BLOCK"
-    ]
+    ],
+    "rationale": {
+      "ko": "판단이 갈리는 사례: 엔지니어 K가 새벽에 HX-450 도면을 보고 자료 2건을 반출한다. 승인된 장애 대응 티켓이 있었지만 두 시간 전에 끝났다. 장애 대응이 이어졌을 수도, 끝난 티켓을 핑계로 썼을 수도 있어 정답을 정하지 않고 채점하지 않는다.",
+      "en": "Open to judgement: at dawn engineer K views an HX-450 drawing and exports two records. An approved incident ticket existed but ended two hours earlier. The incident work may have continued, or the ended ticket may be an excuse, so the case sets no ground truth and is not scored."
+    },
+    "counterpoint": {
+      "ko": "반론: 끝난 티켓이므로 공격으로 봐야 한다는 의견과, 당번의 연장 작업이므로 정상이라는 의견이 모두 가능하다.",
+      "en": "Counterpoint: one can argue it is an attack because the ticket ended, or normal work because the on-call duty went on longer."
+    }
   }
 }

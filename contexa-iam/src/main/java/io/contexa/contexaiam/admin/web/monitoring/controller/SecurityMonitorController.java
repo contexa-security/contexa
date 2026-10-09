@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -50,6 +51,7 @@ import java.util.stream.Stream;
 @RequestMapping("/contexa/admin/security-monitor")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasRole('ADMIN')")
 public class SecurityMonitorController {
 
     private final AuditLogRepository auditLogRepository;

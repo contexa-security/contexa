@@ -14,7 +14,13 @@ interface LiveChallengeProps {
 }
 
 /** Contexa's additional check in a live run, from asking for the code to the work coming back or the cause it did not. */
-export function LiveChallenge({ challenge, onRequestCode, onAnswer, onCancel, onRestart }: LiveChallengeProps) {
+export function LiveChallenge({
+  challenge,
+  onRequestCode,
+  onAnswer,
+  onCancel,
+  onRestart,
+}: LiveChallengeProps) {
   const { t } = useTranslation();
   switch (challenge.stage) {
     case 'CANCELLED':
@@ -26,10 +32,16 @@ export function LiveChallenge({ challenge, onRequestCode, onAnswer, onCancel, on
     case 'DONE':
       return <RecoveryFlow challenge={challenge} />;
     case 'ABANDONED':
+    case 'NO_MAILBOX':
       return null;
     default:
       return (
-        <ChallengePanel challenge={challenge} onRequestCode={onRequestCode} onAnswer={onAnswer} onCancel={onCancel} />
+        <ChallengePanel
+          challenge={challenge}
+          onRequestCode={onRequestCode}
+          onAnswer={onAnswer}
+          onCancel={onCancel}
+        />
       );
   }
 }

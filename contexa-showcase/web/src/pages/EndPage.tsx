@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { postJson } from '../api/http';
-import { useExperienceResult, useLiveConfig, useVisitor } from '../api/queries';
+import { useLabOptions } from '../api/lab';
+import { useExperienceResult, useVisitor } from '../api/queries';
 import type { ExperienceResult, ShareResponse } from '../api/types';
 import { AppHeader } from '../components/AppHeader';
 import { Icon } from '../components/Icon';
 import { StateScreen } from '../components/StateScreen';
-import { OUTCOME_KEYS } from '../domain/verdict';
+import { compareConditions } from '../domain/pairs';
+import { secondsText } from '../domain/show';
 import styles from './EndPage.module.css';
 
 /**
@@ -15,27 +17,17 @@ import styles from './EndPage.module.css';
  * next action (try other conditions), and small links. The share card carries the result values only.
  */
 export default function EndPage() {
-  const { t } = useTranslation();
   const { pairKey } = useParams();
   useVisitor();
   const result = useExperienceResult(pairKey);
-  // The recovery line links to "try it yourself"; it is shown only where live runs are open, so it never leads to a
-  // page that cannot run anything.
-  const liveConfig = useLiveConfig();
-  const recoveryOpen = liveConfig.isSuccess && liveConfig.data.scenarios.length > 0;
 
   return (
     <>
-      <a className="skip-link" href="#main">
-        {t('app.skipToContent')}
-      </a>
       <AppHeader />
       <main id="main" className={styles.page}>
         {result.isPending ? <StateScreen kind="loading" /> : null}
         {result.isError ? <StateScreen kind="notReady" /> : null}
-        {result.data && pairKey ? (
-          <EndBody result={result.data} pairKey={pairKey} recoveryOpen={recoveryOpen} />
-        ) : null}
+        {result.data && pairKey ? <EndBody result={result.data} pairKey={pairKey} /> : null}
       </main>
     </>
   );
@@ -44,17 +36,39 @@ export default function EndPage() {
 interface EndBodyProps {
   readonly result: ExperienceResult;
   readonly pairKey: string;
-  readonly recoveryOpen: boolean;
 }
 
-function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
+function EndBody({ result, pairKey }: EndBodyProps) {
   const { t, i18n } = useTranslation();
+  const options = useLabOptions();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const [share, setShare] = useState<ShareResponse | null>(null);
   const [shareFailed, setShareFailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const carriedOver = result.scenes.some((scene) => scene.carriedOver);
-  const contexaAll = result.contexa.hits === result.contexa.total;
+  const contexaAll =
+    result.contexa.total === result.scenes.length && result.contexa.hits === result.contexa.total;
+  // H-09 #28: what the two requests share and where they differ, from the two cases' own definitions.
+  const conditionsOf = (key: string | undefined) =>
+    options.data?.cases.find((candidate) => candidate.key === key)?.conditions;
+  const firstConditions = conditionsOf(result.scenes[0]?.scenarioKey);
+  const secondConditions = conditionsOf(result.scenes[1]?.scenarioKey);
+  const comparison =
+    firstConditions && secondConditions ? compareConditions(firstConditions, secondConditions) : null;
+  const fields = (list: readonly string[]) => list.map((field) => t(`lab.field.${field}`)).join(', ');
+  const explanation = comparison
+    ? [
+        comparison.same.length > 0 ? t('end.explainSame', { list: fields(comparison.same) }) : null,
+        comparison.different.length > 0
+          ? t('end.explainDifferent', { list: fields(comparison.different) })
+          : t('end.explainNoDifference'),
+        comparison.recordsOnly ? t('end.explainRecordsOnly') : null,
+      ]
+        .filter((sentence): sentence is string => sentence !== null)
+        .join(' ')
+    : null;
+  // H-09 #29: the recovery is claimed only where a run of this recording went through again after the check.
+  const resumed = result.scenes.find((scene) => scene.resumedMillis !== null)?.resumedMillis ?? null;
 
   async function createShare() {
     setShareFailed(false);
@@ -80,9 +94,10 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
       <section className={styles.result} aria-labelledby="end-title">
         <p className={styles.eyebrow}>{t('end.eyebrow', { count: result.scenes.length })}</p>
         <h1 id="end-title" className={styles.title}>
-          {t('end.title')}
+          {/* "Look the same" only where the two cases differ in the company records alone (H-09 #28). */}
+          {t(comparison?.recordsOnly ? 'end.titleLookAlike' : 'end.title')}
         </h1>
-        <p className={styles.explain}>{t('end.explain')}</p>
+        {explanation ? <p className={styles.explain}>{explanation}</p> : null}
         <dl className={styles.scores}>
           {/* The visitor's own score exists only for a visitor who voted before the hands-on first screen. */}
           {result.mine ? (
@@ -102,7 +117,10 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
             <li key={scene.kind} className={styles.scene}>
               <span className={styles.sceneKind}>
                 {t(`replay.scene.${scene.kind}`)}
-                <span className={styles.sceneExpect}>{t(`replay.expect.${scene.kind}`)}</span>
+                <span className={styles.sceneExpect}>
+                  {t('anatomy.truth.classification')}:{' '}
+                  {t(`anatomy.class.${scene.truth.classification ?? 'NONE'}`)}
+                </span>
               </span>
               <span className={styles.call}>
                 {scene.choice
@@ -111,8 +129,13 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
                 {scene.myCorrect === null ? null : <Mark right={scene.myCorrect} />}
               </span>
               <span className={styles.call}>
-                {t('end.scene.contexa', { outcome: t(OUTCOME_KEYS[scene.contexaOutcome]) })}
-                <Mark right={scene.contexaCorrect} />
+                {t('end.scene.contexa', {
+                  outcome: t(`score.result.${scene.contexaResult}`, {
+                    n: scene.contexaExposed.toLocaleString(),
+                    count: scene.contexaExposed,
+                  }),
+                })}
+                {scene.contexaCorrect === null ? null : <Mark right={scene.contexaCorrect} />}
               </span>
             </li>
           ))}
@@ -128,12 +151,9 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
               : t('end.proof.score', { hits: result.contexa.hits, total: result.contexa.total })}
           </span>
         </li>
-        {recoveryOpen ? (
+        {resumed !== null ? (
           <li className={styles.proof}>
-            <span>{t('end.proof.recover')}</span>
-            <Link className={styles.proofLink} to="/">
-              {t('end.proof.recoverLink')}
-            </Link>
+            <span>{t('end.proof.recover', { seconds: secondsText(resumed) })}</span>
           </li>
         ) : null}
         <li className={styles.proof}>
@@ -152,7 +172,7 @@ function EndBody({ result, pairKey, recoveryOpen }: EndBodyProps) {
         <button type="button" className={styles.linkButton} onClick={() => void createShare()}>
           {t('end.share')}
         </button>
-        <Link className={styles.link} to="/stats">
+        <Link className={styles.link} to="/benchmark">
           {t('end.stats')}
         </Link>
         <Link className={styles.link} to={`/replay/${pairKey}`}>

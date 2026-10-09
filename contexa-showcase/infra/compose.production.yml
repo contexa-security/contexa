@@ -39,7 +39,7 @@ services:
       # Live runs: the scenarios of "try it yourself", the start rate that fits the model provider's tokens-per-minute
       # limit (12 for 200,000 tokens a minute) and the monthly model budget in US dollars.
       SHOWCASE_LIVE_ENABLED: ${SHOWCASE_LIVE_ENABLED:-true}
-      SHOWCASE_LIVE_SCENARIOS: ${SHOWCASE_LIVE_SCENARIOS:-K2}
+      SHOWCASE_LIVE_SCENARIOS: ${SHOWCASE_LIVE_SCENARIOS:-all}
       SHOWCASE_LIVE_STARTS_PER_MINUTE: ${SHOWCASE_LIVE_STARTS_PER_MINUTE:-12}
       SHOWCASE_LIVE_MONTHLY_BUDGET_USD: ${SHOWCASE_LIVE_MONTHLY_BUDGET_USD:-30}
       # Cloudflare Turnstile in front of every new live run (fail-closed; test keys are refused in production).

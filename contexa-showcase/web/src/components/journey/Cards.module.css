@@ -1,0 +1,118 @@
+/* The teaser band: the next screen's question and measured number, right over the main button that answers it. */
+.teaser {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.teaserLabel {
+  grid-row: 1 / span 2;
+  align-self: start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.teaserQuestion {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.teaserNumberLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.teaserNumber {
+  color: var(--color-halt);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.actEnd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.actEndHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.actEndTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.sentence {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+.six {
+  display: grid;
+
+  /* Six differences in two even rows (three on phones), never five and a lone one. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sixCell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.sixCell[data-seen] {
+  border-style: solid;
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+@media (width <= 40rem) {
+  .teaser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teaserLabel {
+    grid-row: auto;
+    justify-self: start;
+  }
+
+  .six {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

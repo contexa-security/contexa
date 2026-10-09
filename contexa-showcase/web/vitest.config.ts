@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}', 'bundleGuard.test.ts', 'fontCoverage.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}', 'bundleGuard.test.ts', 'fontCoverage.test.ts', 'sourceExcerpts.test.ts', 'screenIntegrity.test.ts', 'firstScreenPreload.test.ts'],
   },
 });

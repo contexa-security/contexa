@@ -31,7 +31,10 @@ import java.util.stream.Collectors;
  */
 public final class WorkloadClient {
 
-    /** The synthetic identity of a run as the workloads see it; constant for the whole run. */
+    /**
+     * The synthetic identity of a run as the workloads see it; constant for the whole run, except the address of a
+     * template learning that replays work done from another network ({@link #withClientIp}).
+     */
     public record RunIdentity(String runId, String organization, String tenant, String clientIp, String device) {
     }
 
@@ -58,7 +61,7 @@ public final class WorkloadClient {
     private final InternalContextSigner signer;
     private final RunIdentity run;
     private final Clock clock;
-    private final CookieManager cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+    private final CookieManager cookies;
     private final HttpClient http;
     private final Duration timeout;
 
@@ -68,6 +71,7 @@ public final class WorkloadClient {
         this.run = run;
         this.clock = Clock.systemUTC();
         this.timeout = timeout;
+        this.cookies = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
         this.http = HttpClient.newBuilder()
                 .cookieHandler(cookies)
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -75,8 +79,30 @@ public final class WorkloadClient {
                 .build();
     }
 
+    private WorkloadClient(WorkloadClient source, RunIdentity run) {
+        this.base = source.base;
+        this.signer = source.signer;
+        this.run = run;
+        this.clock = source.clock;
+        this.timeout = source.timeout;
+        this.cookies = source.cookies;
+        this.http = source.http;
+    }
+
     public RunIdentity run() {
         return run;
+    }
+
+    /**
+     * The same session (the cookie store is shared) sending from another address, as an employee who signed in at
+     * the office and later works from a registered trip network.
+     */
+    public WorkloadClient withClientIp(String clientIp) {
+        if (clientIp == null || clientIp.isBlank() || clientIp.equals(run.clientIp())) {
+            return this;
+        }
+        return new WorkloadClient(this, new RunIdentity(run.runId(), run.organization(), run.tenant(), clientIp,
+                run.device()));
     }
 
     public Response get(String pathAndQuery, String requestId, Instant observedAt) throws IOException {

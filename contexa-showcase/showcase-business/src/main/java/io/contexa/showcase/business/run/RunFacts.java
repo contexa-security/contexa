@@ -1,6 +1,7 @@
 package io.contexa.showcase.business.run;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -9,10 +10,14 @@ import java.util.List;
  * only to the principals of the run.
  */
 public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall,
-                       List<TravelPlan> travel) {
+                       List<TravelPlan> travel, List<Document> documents) {
 
     public RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall) {
-        this(tickets, approvals, oncall, List.of());
+        this(tickets, approvals, oncall, List.of(), List.of());
+    }
+
+    public RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Oncall> oncall, List<TravelPlan> travel) {
+        this(tickets, approvals, oncall, travel, List.of());
     }
 
     public RunFacts {
@@ -20,6 +25,7 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
         approvals = approvals == null ? List.of() : List.copyOf(approvals);
         oncall = oncall == null ? List.of() : List.copyOf(oncall);
         travel = travel == null ? List.of() : List.copyOf(travel);
+        documents = documents == null ? List.of() : List.copyOf(documents);
     }
 
     public static RunFacts none() {
@@ -30,8 +36,14 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
                          String purpose, String summary, Instant validFrom, Instant validUntil, String status) {
     }
 
+    /** @param approvedAt when the approval was decided; null when the case does not say (survey D5) */
     public record Approval(String approvalKey, String requester, String approver, String projectKey, String purpose,
-                           int maxItems, Instant validFrom, Instant validUntil, String status) {
+                           int maxItems, Instant validFrom, Instant validUntil, String status, Instant approvedAt) {
+
+        public Approval(String approvalKey, String requester, String approver, String projectKey, String purpose,
+                        int maxItems, Instant validFrom, Instant validUntil, String status) {
+            this(approvalKey, requester, approver, projectKey, purpose, maxItems, validFrom, validUntil, status, null);
+        }
     }
 
     /** A registered business trip: the network the employee works from while away (deck A1). */
@@ -40,5 +52,14 @@ public record RunFacts(List<Ticket> tickets, List<Approval> approvals, List<Onca
     }
 
     public record Oncall(String rosterKey, String employeeKey, String team, Instant startsAt, Instant endsAt) {
+    }
+
+    /**
+     * A document the run's case adds (W2-6). The author summary is the author's own text; the engine receives it as
+     * untrusted author text, never as an approval record.
+     */
+    public record Document(String documentKey, String projectKey, String documentType, String title, String revision,
+                           String sensitivity, String body, String authorName, String authorSummary,
+                           LocalDate updatedOn) {
     }
 }

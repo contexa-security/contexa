@@ -1,280 +1,39 @@
+/* The stored real record (D-35): the same frame as the first screen, the replay stage in its middle. */
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 90rem;
+  gap: var(--space-6);
+  max-width: 72rem;
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-4) var(--space-12);
 }
 
-.frame {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background-color: var(--color-surface);
-}
-
-.topRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.request {
+.head {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface-raised);
 }
 
-.requestLabel {
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wide);
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
 }
 
-.requestText {
-  color: var(--color-text);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-normal);
-}
-
-.layers {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-/* Each slot spans the five card rows and passes them down, so card parts line up across columns. */
-.layerSlot {
-  display: grid;
-  grid-row: span 5;
-  grid-template-rows: subgrid;
-  min-width: 0;
-}
-
-.foldToggle {
-  display: none;
-  align-self: flex-start;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.next {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.nextLabel {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.primaryAction {
-  padding: var(--space-3) var(--space-8);
-  border: 0;
-  border-radius: var(--radius-md);
-  background-color: var(--color-accent);
-  color: var(--color-accent-ink);
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform var(--duration-fast) var(--ease-standard);
-}
-
-.primaryAction:hover {
-  transform: translateY(-1px);
-}
-
-@media (width < 1200px) {
-  .layers {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .layerSlot[data-control='D'] {
-    grid-column: 1 / -1;
-    order: -2;
-  }
-
-  .layerSlot[data-control='C2'] {
-    order: -1;
-  }
-
-  .foldToggle {
-    display: inline-block;
-  }
-
-  .layers[data-expanded='false'] .layerSlot[data-priority='secondary'] {
-    display: none;
-  }
-}
-
-@media (width < 768px) {
-  .page {
-    padding: var(--space-4);
-  }
-
-  .frame {
-    padding: var(--space-4);
-  }
-
-  .layers {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .request {
-    padding: var(--space-4);
-  }
-
-  .requestText {
-    font-size: var(--text-md);
-  }
-}
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-}
-
-.prediction {
-  align-self: flex-start;
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
+.sub {
+  margin: 0;
   color: var(--color-text-body);
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
 }
 
-.prediction[data-match='false'] {
-  border-color: var(--color-accent);
-}
-
-.panelTitle {
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wide);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.secondaryAction {
-  padding: var(--space-3) var(--space-5);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-  cursor: pointer;
-}
-
-.specLink {
-  align-self: flex-end;
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-}
-
-
-.stepLabel {
-  color: var(--color-accent);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-}
-
-/* What the request itself does not show: the company facts that decide whether it is legitimate. */
-.reality {
+.stage {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-lg);
+  gap: var(--space-4);
+  min-height: 25rem;
 }
 
-.factChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: 0;
-  list-style: none;
-}
-
-.factChip {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-body);
-  font-size: var(--text-md);
-}
-
-.expect {
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-}
-
-/* The conclusion in one sentence, before any card. */
-.summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface-accent);
-}
-
-.summaryTitle {
-  color: var(--color-text);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-normal);
-  word-break: keep-all;
-}
-
-.summaryContexa {
-  color: var(--color-accent);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  word-break: keep-all;
-}
-
-.cardsTitle {
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wide);
-}
-
-.cited {
+.note {
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-}
-
-.citedLabel {
-  color: var(--color-text-subtle);
-  font-weight: var(--weight-semibold);
 }

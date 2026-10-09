@@ -15,6 +15,7 @@ import io.contexa.showcase.business.company.CompanyDataset.Role;
 import io.contexa.showcase.business.company.CompanyDataset.Roster;
 import io.contexa.showcase.business.company.CompanyDataset.ScriptedActivity;
 import io.contexa.showcase.business.company.CompanyDataset.Ticket;
+import io.contexa.showcase.business.company.CompanyDataset.TravelPlan;
 import io.contexa.showcase.business.work.BusinessOperation;
 
 import java.time.Duration;
@@ -40,13 +41,41 @@ import java.util.Random;
 public final class CompanyGenerator {
 
     /** Bump whenever the blueprint or the generation sequence changes. */
-    public static final String VERSION = "company-v2";
+    public static final String VERSION = "company-v4";
 
     /** Activities per learned workday of a protagonist; five workdays give 25 analysed requests (ADR-23). */
     static final int ACTIVITIES_PER_DAY = 5;
 
     /** Days before the anchor date that hold the learned history: a full week, so every workday appears once. */
     static final int LEARNED_DAYS = 7;
+
+    /**
+     * Engineer K's learned history covers two weeks (approval Q-43, 2026-10-07): the engine asks a young baseline for
+     * identity checks, and a step answered after a check is not learned, so one week left K below the engine's own
+     * threshold of an established baseline (20 learned requests).
+     */
+    static final int ENGINEER_K_LEARNED_DAYS = 14;
+
+    /** The two baseline variants (W2-7) learn the same two weeks as engineer K. */
+    static final int VARIANT_LEARNED_DAYS = 14;
+
+    /** Daytime protagonists work within nine hours of their day start. */
+    static final int DAY_SHIFT_MINUTES = 9 * 60;
+
+    /** The night-shift administrator works from 22:00 to 04:00. */
+    static final LocalTime NIGHT_SHIFT_START = LocalTime.of(22, 0);
+
+    static final int NIGHT_SHIFT_MINUTES = 6 * 60;
+
+    /** The company's registered business trip of the field support engineer (W2-7). */
+    static final String FIELD_TRIP_KEY = "TRP-C-0001";
+
+    /** Host part of the address each protagonist works from, inside the office network or the trip network. */
+    static final int DESK_HOST = 10;
+
+    static final int VARIANT_DESK_HOST = 11;
+
+    static final int TRIP_HOST = 20;
 
     static final int HISTORY_DAYS = 90;
 
@@ -75,13 +104,14 @@ public final class CompanyGenerator {
         List<Document> documents = documents(anchorDate, random);
         List<Customer> customers = customers(membersByRole.get(CompanyBlueprint.ROLE_SALES), products);
         List<Device> devices = devices(anchorDate, random, employees);
-        List<ScriptedActivity> activities = scriptedActivities(anchorDate, random, documents);
+        List<TravelPlan> travelPlans = travelPlans(anchorDate);
+        List<ScriptedActivity> activities = scriptedActivities(anchorDate, random, documents, travelPlans);
         List<Access> accessHistory = accessHistory(anchorDate, random, employees, assignments, activities);
         List<Ticket> tickets = companyTickets(anchorDate, random, projectsByEngineer, products, managers);
         List<Roster> rosters = rosters(anchorDate, projectsByEngineer);
         List<Approval> approvals = companyApprovals(anchorDate, random, projectsByEngineer, managers);
         return new CompanyDataset(seed, anchorDate, VERSION, roles, employees, projects, assignments, documents,
-                customers, devices, accessHistory, tickets, rosters, approvals, activities);
+                customers, devices, accessHistory, tickets, rosters, approvals, travelPlans, activities);
     }
 
     private static List<Role> roles() {
@@ -114,9 +144,14 @@ public final class CompanyGenerator {
         Map<String, List<String>> projects = new LinkedHashMap<>();
         int index = 0;
         for (String engineer : engineers) {
-            String first = engineer.equals(CompanyBlueprint.ENGINEER_K)
-                    ? CompanyBlueprint.K_PROJECT
-                    : products.get(index++ % products.size()).projectKey();
+            String first;
+            if (engineer.equals(CompanyBlueprint.ENGINEER_K)) {
+                first = CompanyBlueprint.K_PROJECT;
+            } else {
+                String rotated = products.get(index++ % products.size()).projectKey();
+                // The field engineer's project is named in the blueprint; the rotation still advances for the others.
+                first = engineer.equals(CompanyBlueprint.ENGINEER_FIELD) ? CompanyBlueprint.FIELD_PROJECT : rotated;
+            }
             projects.put(engineer, new ArrayList<>(List.of(first)));
         }
         // Ten engineers also work on a second project of the same program.
@@ -200,6 +235,8 @@ public final class CompanyGenerator {
         rows.add(new Assignment(CompanyBlueprint.PLM_OPERATIONS, CompanyBlueprint.ADMIN_A, "OPERATIONS",
                 anchor.minusDays(700), null));
         rows.add(new Assignment(CompanyBlueprint.PLM_OPERATIONS, "adm-b", "OPERATIONS", anchor.minusDays(400), null));
+        rows.add(new Assignment(CompanyBlueprint.PLM_OPERATIONS, CompanyBlueprint.ADMIN_NIGHT, "OPERATIONS",
+                anchor.minusDays(300), null));
         rows.add(new Assignment(CompanyBlueprint.PLM_OPERATIONS, managers.get(managers.size() - 1), "PROJECT_MANAGER",
                 anchor.minusDays(500), null));
         for (int i = 0; i < products.size(); i++) {
@@ -283,6 +320,10 @@ public final class CompanyGenerator {
                 agent = CompanyBlueprint.ADMIN_A_DEVICE;
             } else if (employee.employeeKey().equals(CompanyBlueprint.ENGINEER_K)) {
                 agent = CompanyBlueprint.ENGINEER_K_DEVICE;
+            } else if (employee.employeeKey().equals(CompanyBlueprint.ADMIN_NIGHT)) {
+                agent = CompanyBlueprint.ADMIN_NIGHT_DEVICE;
+            } else if (employee.employeeKey().equals(CompanyBlueprint.ENGINEER_FIELD)) {
+                agent = CompanyBlueprint.ENGINEER_FIELD_DEVICE;
             } else {
                 agent = CompanyBlueprint.DEVICE_AGENTS.get(random.nextInt(CompanyBlueprint.DEVICE_AGENTS.size()));
             }
@@ -293,22 +334,73 @@ public final class CompanyGenerator {
     }
 
     /**
-     * Normal activity of the protagonists on the workdays of the week before the anchor date (a Wednesday anchor gives
-     * Wednesday, Thursday, Friday, Monday and Tuesday, so the run's weekday is a usual workday). The template learning
-     * replays these as real requests.
+     * How a protagonist works: the project, the hours (start and length of the working window), the export sizes and
+     * the address of the desk the requests come from.
      */
-    private static List<ScriptedActivity> scriptedActivities(LocalDate anchor, Random random, List<Document> documents) {
+    record Protagonist(String employee, String project, LocalTime dayStart, int windowMinutes, int minItems,
+                       int maxItems, String deskAddress) {
+    }
+
+    /** The protagonists whose normal activity the template learning replays, in generation order. */
+    static List<Protagonist> protagonists() {
+        String adminDesk = CompanyBlueprint.ADMIN_NETWORK;
+        String hxDesk = program("HX").officeNetwork();
+        return List.of(
+                new Protagonist(CompanyBlueprint.ENGINEER_K, CompanyBlueprint.K_PROJECT, LocalTime.of(8, 40),
+                        DAY_SHIFT_MINUTES, 5, 20, hostIn(hxDesk, DESK_HOST)),
+                new Protagonist(CompanyBlueprint.ADMIN_A, CompanyBlueprint.PLM_OPERATIONS, LocalTime.of(9, 0),
+                        DAY_SHIFT_MINUTES, 10, 40, hostIn(adminDesk, DESK_HOST)),
+                new Protagonist(CompanyBlueprint.ADMIN_NIGHT, CompanyBlueprint.PLM_OPERATIONS, NIGHT_SHIFT_START,
+                        NIGHT_SHIFT_MINUTES, 10, 40, hostIn(adminDesk, VARIANT_DESK_HOST)),
+                new Protagonist(CompanyBlueprint.ENGINEER_FIELD, CompanyBlueprint.FIELD_PROJECT, LocalTime.of(8, 40),
+                        DAY_SHIFT_MINUTES, 5, 20, hostIn(hxDesk, VARIANT_DESK_HOST)));
+    }
+
+    /**
+     * Normal activity of the protagonists on the workdays before the anchor date: one week for admin A, two for the
+     * others (a Wednesday anchor gives Wednesday, Thursday, Friday, Monday and Tuesday of each week, so the run's
+     * weekday is a usual workday). The template learning replays these as real requests, each from the address the
+     * activity names: the desk in the office, or the trip network while a registered trip of the employee covers it.
+     */
+    private static List<ScriptedActivity> scriptedActivities(LocalDate anchor, Random random, List<Document> documents,
+                                                             List<TravelPlan> travelPlans) {
         List<ScriptedActivity> rows = new ArrayList<>();
-        rows.addAll(protagonistActivities(CompanyBlueprint.ENGINEER_K, CompanyBlueprint.K_PROJECT, anchor, random,
-                documents, LocalTime.of(8, 40), 5, 20));
-        rows.addAll(protagonistActivities(CompanyBlueprint.ADMIN_A, CompanyBlueprint.PLM_OPERATIONS, anchor, random,
-                documents, LocalTime.of(9, 0), 10, 40));
+        for (Protagonist protagonist : protagonists()) {
+            rows.addAll(protagonistActivities(protagonist, anchor, random, documents, travelPlans));
+        }
         return rows;
     }
 
-    private static List<ScriptedActivity> protagonistActivities(String employee, String project, LocalDate anchor,
+    /** Days before the anchor date that hold a protagonist's learned history. */
+    static int learnedDays(String employee) {
+        if (CompanyBlueprint.ADMIN_A.equals(employee)) {
+            return LEARNED_DAYS;
+        }
+        return CompanyBlueprint.ENGINEER_K.equals(employee) ? ENGINEER_K_LEARNED_DAYS : VARIANT_LEARNED_DAYS;
+    }
+
+    /**
+     * The field support engineer's trip covers the first of the two learned weeks (W2-7): from the first learned day
+     * to the start of the second week.
+     */
+    private static List<TravelPlan> travelPlans(LocalDate anchor) {
+        int learned = learnedDays(CompanyBlueprint.ENGINEER_FIELD);
+        return List.of(new TravelPlan(FIELD_TRIP_KEY, CompanyBlueprint.ENGINEER_FIELD, CompanyBlueprint.FIELD_TRIP_CITY,
+                CompanyBlueprint.FIELD_TRIP_COUNTRY, CompanyBlueprint.FIELD_TRIP_NETWORK,
+                CompanyCalendar.at(anchor.minusDays(learned), LocalTime.MIDNIGHT),
+                CompanyCalendar.at(anchor.minusDays(learned / 2), LocalTime.MIDNIGHT)));
+    }
+
+    /**
+     * One protagonist's activities. A working window that passes midnight (the night shift) wraps within the same
+     * calendar day, so a workday's requests fall between 00:00 and 04:00 or 22:00 and 24:00 of that day: every request
+     * stays on a workday and before the anchor date.
+     */
+    private static List<ScriptedActivity> protagonistActivities(Protagonist protagonist, LocalDate anchor,
                                                                 Random random, List<Document> documents,
-                                                                LocalTime dayStart, int minItems, int maxItems) {
+                                                                List<TravelPlan> travelPlans) {
+        String employee = protagonist.employee();
+        String project = protagonist.project();
         List<Document> pool = documents.stream()
                 .filter(d -> d.projectKey().equals(project))
                 .filter(d -> !"BOM".equals(d.documentType()))
@@ -317,32 +409,49 @@ public final class CompanyGenerator {
                 BusinessOperation.DOCUMENT_READ, BusinessOperation.DOCUMENT_DOWNLOAD, BusinessOperation.EXPORT);
         List<ScriptedActivity> rows = new ArrayList<>();
         int number = 1;
-        for (int daysBefore = LEARNED_DAYS; daysBefore >= 1; daysBefore--) {
+        for (int daysBefore = learnedDays(employee); daysBefore >= 1; daysBefore--) {
             LocalDate day = anchor.minusDays(daysBefore);
             if (!CompanyCalendar.isWorkday(day)) {
                 continue;
             }
-            List<Integer> minutes = new ArrayList<>();
+            List<Instant> times = new ArrayList<>();
             for (int i = 0; i < ACTIVITIES_PER_DAY; i++) {
-                minutes.add(random.nextInt(9 * 60));
+                LocalTime time = protagonist.dayStart().plusMinutes(random.nextInt(protagonist.windowMinutes()));
+                times.add(CompanyCalendar.at(day, time));
             }
-            minutes.sort(Integer::compareTo);
+            times.sort(Comparator.naturalOrder());
             List<BusinessOperation> dayOperations = new ArrayList<>(operations);
             Collections.shuffle(dayOperations, random);
             for (int i = 0; i < ACTIVITIES_PER_DAY; i++) {
                 BusinessOperation operation = dayOperations.get(i);
-                Instant observedAt = CompanyCalendar.at(day, dayStart).plus(Duration.ofMinutes(minutes.get(i)));
+                Instant observedAt = times.get(i);
+                String clientIp = addressAt(protagonist, observedAt, travelPlans);
                 if (operation == BusinessOperation.EXPORT) {
+                    int minItems = protagonist.minItems();
                     rows.add(new ScriptedActivity(employee, number++, observedAt, operation.name(), project,
-                            minItems + random.nextInt(maxItems - minItems + 1)));
+                            minItems + random.nextInt(protagonist.maxItems() - minItems + 1), clientIp));
                 } else {
                     Document document = pool.get(random.nextInt(pool.size()));
                     rows.add(new ScriptedActivity(employee, number++, observedAt, operation.name(), document.documentKey(),
-                            1));
+                            1, clientIp));
                 }
             }
         }
         return rows;
+    }
+
+    /** The desk address, or the trip network while a registered trip of the employee covers the time. */
+    private static String addressAt(Protagonist protagonist, Instant at, List<TravelPlan> travelPlans) {
+        return travelPlans.stream()
+                .filter(plan -> plan.employeeKey().equals(protagonist.employee()))
+                .filter(plan -> !plan.validFrom().isAfter(at) && plan.validUntil().isAfter(at))
+                .map(plan -> hostIn(plan.networkCidr(), TRIP_HOST))
+                .findFirst()
+                .orElse(protagonist.deskAddress());
+    }
+
+    static String hostIn(String network, int host) {
+        return network.substring(0, network.lastIndexOf('.')) + "." + host;
     }
 
     private static List<Access> accessHistory(LocalDate anchor, Random random, List<Employee> employees,
@@ -367,7 +476,7 @@ public final class CompanyGenerator {
                 String employee = assignment.employeeKey();
                 Map<LocalDate, Integer> protagonistDays = scripted.get(employee);
                 if (protagonistDays != null && isProtagonistProject(employee, assignment.projectKey())
-                        && daysBefore <= LEARNED_DAYS) {
+                        && daysBefore <= learnedDays(employee)) {
                     Integer count = protagonistDays.get(day);
                     if (count != null) {
                         rows.add(new Access(employee, assignment.projectKey(), day, count));
@@ -403,8 +512,8 @@ public final class CompanyGenerator {
     }
 
     private static boolean isProtagonistProject(String employee, String project) {
-        return (employee.equals(CompanyBlueprint.ENGINEER_K) && project.equals(CompanyBlueprint.K_PROJECT))
-                || (employee.equals(CompanyBlueprint.ADMIN_A) && project.equals(CompanyBlueprint.PLM_OPERATIONS));
+        return protagonists().stream()
+                .anyMatch(p -> p.employee().equals(employee) && p.project().equals(project));
     }
 
     private static List<Ticket> companyTickets(LocalDate anchor, Random random,

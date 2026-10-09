@@ -12,12 +12,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Keeps a current template for every protagonist whose scenarios clone one (plan P1 "automate re-learning", ADR-23
+ * Keeps a current template for every protagonist whose scenarios clone one, and for every protagonist the business
+ * database scripts normal work for (the lab's employees, W2-7) (plan P1 "automate re-learning", ADR-23
  * template lifetime): when the versions in force change or no template was learned yet, it learns a new template
  * through {@link TemplateLearner}, one employee at a time. An employee whose attempt is still learning is left alone,
  * and one whose attempt failed waits an hour before the next try so a broken engine does not spend the budget in a loop.
@@ -37,11 +39,18 @@ public class TemplateMaintainer implements AutoCloseable {
         String learn(String employeeKey) throws IOException;
     }
 
+    /** The protagonists of the business database; the business application's protagonist list in production. */
+    @FunctionalInterface
+    public interface Protagonists {
+        List<String> keys() throws IOException;
+    }
+
     /** What the last check found per employee: CURRENT, LEARNED, LEARNING, WAITING_AFTER_FAILURE or FAILED. */
     public record Check(Instant at, Map<String, String> employees) {
     }
 
-    private final List<String> employees;
+    private final List<String> scenarioEmployees;
+    private final Protagonists protagonists;
     private final TemplateCurrency currency;
     private final TemplateStore templates;
     private final Learner learner;
@@ -55,8 +64,14 @@ public class TemplateMaintainer implements AutoCloseable {
 
     public TemplateMaintainer(ScenarioCatalog scenarios, TemplateCurrency currency, TemplateStore templates,
                               Learner learner, Clock clock) {
-        this.employees = scenarios.all().stream().filter(ScenarioDefinition::template)
+        this(scenarios, List::of, currency, templates, learner, clock);
+    }
+
+    public TemplateMaintainer(ScenarioCatalog scenarios, Protagonists protagonists, TemplateCurrency currency,
+                              TemplateStore templates, Learner learner, Clock clock) {
+        this.scenarioEmployees = scenarios.all().stream().filter(ScenarioDefinition::template)
                 .map(ScenarioDefinition::protagonist).distinct().sorted().toList();
+        this.protagonists = protagonists;
         this.currency = currency;
         this.templates = templates;
         this.learner = learner;
@@ -68,8 +83,18 @@ public class TemplateMaintainer implements AutoCloseable {
         executor.scheduleWithFixedDelay(this::check, 30, 600, TimeUnit.SECONDS);
     }
 
+    /**
+     * The scenarios' protagonists and the business database's, in key order. When the business database cannot be
+     * read, the scenarios' alone (the error is logged).
+     */
     public List<String> employees() {
-        return employees;
+        TreeSet<String> all = new TreeSet<>(scenarioEmployees);
+        try {
+            all.addAll(protagonists.keys());
+        } catch (IOException | RuntimeException e) {
+            log.error("Protagonists of the business database could not be read", e);
+        }
+        return List.copyOf(all);
     }
 
     public Check last() {
@@ -79,7 +104,7 @@ public class TemplateMaintainer implements AutoCloseable {
     /** One pass over the employees; each one that has no current template is learned now. */
     public Check check() {
         Map<String, String> found = new TreeMap<>();
-        for (String employee : employees) {
+        for (String employee : employees()) {
             try {
                 found.put(employee, maintain(employee));
             } catch (IOException | RuntimeException e) {

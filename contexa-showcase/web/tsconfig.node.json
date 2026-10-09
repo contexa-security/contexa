@@ -18,8 +18,15 @@
     "vitest.config.ts",
     "playwright.config.ts",
     "bundleGuard.ts",
+    "precompress.ts",
+    "languagePreload.ts",
+    "firstScreenPreload.ts",
+    "firstScreenPreload.test.ts",
+    "src/firstScreens.ts",
     "bundleGuard.test.ts",
     "fontCoverage.test.ts",
+    "sourceExcerpts.test.ts",
+    "screenIntegrity.test.ts",
     "e2e"
   ]
 }

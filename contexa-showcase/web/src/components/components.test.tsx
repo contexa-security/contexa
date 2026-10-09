@@ -4,8 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import '../i18n';
 import i18n from '../i18n';
-import { EvidenceDrawer } from './EvidenceDrawer';
-import { LayerCard } from './LayerCard';
 import { StateScreen } from './StateScreen';
 import { StreamMeter } from './StreamMeter';
 import { VerdictChip } from './VerdictChip';
@@ -21,45 +19,15 @@ describe('VerdictChip', () => {
   it('never relies on color alone: the word is present for every verdict', async () => {
     await i18n.changeLanguage('en');
     for (const [verdict, word] of [
-      ['ALLOW', 'Allowed'],
-      ['CHALLENGE', 'Verify'],
-      ['ESCALATE', 'Under review'],
-      ['BLOCK', 'Blocked'],
+      ['ALLOW', 'Allow'],
+      ['CHALLENGE', 'Identity check'],
+      ['ESCALATE', 'Escalate to review'],
+      ['BLOCK', 'Block'],
     ] as const) {
       const { unmount } = render(<VerdictChip verdict={verdict} />);
       expect(screen.getByText(word)).toBeInTheDocument();
       unmount();
     }
-  });
-});
-
-describe('LayerCard', () => {
-  it('shows the business outcome first and opens the evidence of its control', async () => {
-    await i18n.changeLanguage('en');
-    const onOpen = vi.fn();
-    render(<LayerCard control="D" outcome="STOPPED" verdict="BLOCK" reason="Not assigned" highlighted onOpenEvidence={onOpen} />);
-    expect(screen.getByRole('heading', { name: 'Contexa' })).toBeInTheDocument();
-    expect(screen.getByText('Stopped')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /Reasoning in detail/ }));
-    expect(onOpen).toHaveBeenCalledWith('D');
-  });
-});
-
-describe('EvidenceDrawer', () => {
-  it('lists the four linked records with the business outcome marked as the primary criterion', async () => {
-    await i18n.changeLanguage('en');
-    render(
-      <EvidenceDrawer
-        title="Contexa"
-        evidence={{ decisionId: 'd-1', verdict: 'BLOCK', timing: 'Before response', httpStatus: 403, outcome: 'Stopped' }}
-        onClose={() => undefined}
-      />,
-    );
-    expect(screen.getByText('Engine decision')).toBeInTheDocument();
-    expect(screen.getByText('Enforcement timing')).toBeInTheDocument();
-    expect(screen.getByText('HTTP response')).toBeInTheDocument();
-    expect(screen.getByText('Primary criterion')).toBeInTheDocument();
-    expect(screen.getByText('403')).toBeInTheDocument();
   });
 });
 
@@ -72,7 +40,10 @@ describe('StateScreen', () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole('alert')).toHaveTextContent("You have used all of today's live runs.");
-    expect(screen.getByRole('link', { name: 'See the stored real run' })).toHaveAttribute('href', '/replay/A3');
+    expect(screen.getByRole('link', { name: 'See the stored real run' })).toHaveAttribute(
+      'href',
+      '/replay/A3',
+    );
     expect(screen.queryByRole('button', { name: 'Sign in for more runs' })).not.toBeInTheDocument();
     unmount();
 
@@ -120,6 +91,30 @@ describe('StateScreen', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('A temporary fault kept the decision from arriving');
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
+
+  it('tells the place in the queue with the server estimate, and offers no button while the decision comes', async () => {
+    await i18n.changeLanguage('en');
+    const notify = vi.fn();
+    const { unmount } = render(
+      <MemoryRouter>
+        <StateScreen kind="queued" queuePosition={3} remainingSeconds={40} onNotify={notify} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Number 3 in line');
+    expect(screen.getByText('About 40 s left')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Notify me when it is my turn' }));
+    expect(notify).toHaveBeenCalledOnce();
+    unmount();
+    render(
+      <MemoryRouter>
+        <StateScreen kind="waiting" remainingSeconds={null} recordTo="/replay/A3" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for the decision');
+    expect(screen.queryByText(/s left/)).toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
 });
 
 describe('StreamMeter', () => {
@@ -143,7 +138,10 @@ describe('StreamMeter', () => {
     expect(screen.getByTestId('stream-count')).toHaveTextContent('412 / 4,831 items');
     expect(screen.getByText('Transfer cut')).toBeInTheDocument();
     expect(screen.getByText('412 items left before the block · 2.6 s')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Items transferred' })).toHaveAttribute('aria-valuenow', '412');
+    expect(screen.getByRole('progressbar', { name: 'Items transferred' })).toHaveAttribute(
+      'aria-valuenow',
+      '412',
+    );
   });
 
   it('never calls a broken connection a block', async () => {

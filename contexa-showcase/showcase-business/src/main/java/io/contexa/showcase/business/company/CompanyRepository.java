@@ -12,6 +12,7 @@ import io.contexa.showcase.business.company.CompanyDataset.Role;
 import io.contexa.showcase.business.company.CompanyDataset.Roster;
 import io.contexa.showcase.business.company.CompanyDataset.ScriptedActivity;
 import io.contexa.showcase.business.company.CompanyDataset.Ticket;
+import io.contexa.showcase.business.company.CompanyDataset.TravelPlan;
 import io.contexa.showcase.business.work.WorkDatabase;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
@@ -115,12 +116,18 @@ public class CompanyRepository {
                             .addValue("p", a.projectKey()).addValue("purpose", a.purpose())
                             .addValue("max", a.maxItems()).addValue("from", timestamp(a.validFrom()))
                             .addValue("until", timestamp(a.validUntil())).addValue("status", a.status()));
-            batch("insert into scripted_activity (employee_key, activity_no, observed_at, operation, target_key, items) "
-                            + "values (:e, :n, :at, :op, :target, :items)",
+            batch("insert into travel_plan (plan_key, run_id, employee_key, city, country, network_cidr, valid_from, "
+                            + "valid_until) values (:k, null, :e, :city, :country, :net, :from, :until)",
+                    dataset.travelPlans(), (TravelPlan t) -> params().addValue("k", t.planKey())
+                            .addValue("e", t.employeeKey()).addValue("city", t.city()).addValue("country", t.country())
+                            .addValue("net", t.networkCidr()).addValue("from", timestamp(t.validFrom()))
+                            .addValue("until", timestamp(t.validUntil())));
+            batch("insert into scripted_activity (employee_key, activity_no, observed_at, operation, target_key, items, "
+                            + "client_ip) values (:e, :n, :at, :op, :target, :items, :ip)",
                     dataset.scriptedActivities(), (ScriptedActivity s) -> params().addValue("e", s.employeeKey())
                             .addValue("n", s.activityNo()).addValue("at", timestamp(s.observedAt()))
                             .addValue("op", s.operation()).addValue("target", s.targetKey())
-                            .addValue("items", s.items()));
+                            .addValue("items", s.items()).addValue("ip", s.clientIp()));
             database.jdbc().update("insert into company_generation (generation_id, seed, anchor_date, "
                             + "generator_version, data_sha256) values (1, :seed, :anchor, :version, :sha)",
                     params().addValue("seed", dataset.seed()).addValue("anchor", date(dataset.anchorDate()))
@@ -146,7 +153,8 @@ public class CompanyRepository {
                         rs -> new Assignment(rs.getString(1), rs.getString(2), rs.getString(3), localDate(rs, 4),
                                 localDate(rs, 5))),
                 list("select document_key, project_key, document_type, title, revision, sensitivity, size_bytes, body, "
-                        + "updated_on from document order by document_key", rs -> new Document(rs.getString(1),
+                        + "updated_on from document where run_id is null order by document_key",
+                        rs -> new Document(rs.getString(1),
                         rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
                         rs.getInt(7), rs.getString(8), localDate(rs, 9))),
                 list("select customer_key, display_name, region, account_manager, project_key from customer "
@@ -170,9 +178,14 @@ public class CompanyRepository {
                         + "valid_until, status from approval where run_id is null order by approval_key",
                         rs -> new Approval(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
                                 rs.getString(5), rs.getInt(6), instant(rs, 7), instant(rs, 8), rs.getString(9))),
-                list("select employee_key, activity_no, observed_at, operation, target_key, items from scripted_activity "
-                        + "order by employee_key, activity_no", rs -> new ScriptedActivity(rs.getString(1),
-                        rs.getInt(2), instant(rs, 3), rs.getString(4), rs.getString(5), rs.getInt(6))));
+                list("select plan_key, employee_key, city, country, network_cidr, valid_from, valid_until "
+                        + "from travel_plan where run_id is null order by plan_key", rs -> new TravelPlan(
+                        rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                        instant(rs, 6), instant(rs, 7))),
+                list("select employee_key, activity_no, observed_at, operation, target_key, items, client_ip "
+                        + "from scripted_activity order by employee_key, activity_no",
+                        rs -> new ScriptedActivity(rs.getString(1), rs.getInt(2), instant(rs, 3), rs.getString(4),
+                                rs.getString(5), rs.getInt(6), rs.getString(7))));
         return stored.fingerprint();
     }
 

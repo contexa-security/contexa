@@ -1,0 +1,183 @@
+/* The recap table: what the visitor did, what Contexa and the existing approaches did, the differences, then open. */
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  border-bottom: 2px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.table .did {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.engine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.wrong {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-loss);
+  border-radius: var(--radius-sm);
+  color: var(--color-loss);
+  font-weight: var(--weight-semibold);
+}
+
+.existing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  margin-right: var(--space-2);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.table .open {
+  text-align: end;
+}
+
+.hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-body);
+}
+
+.empty p {
+  margin: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+/* The six differences, filled once seen: labels, not buttons. */
+.differenceList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.difference {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.difference[data-seen] {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* The definition keeps its own accent (IdentityDefinition); the section only names it. */
+.definition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.definition p {
+  margin: 0;
+}
+
+/* On a phone each run is a card: the column name before each value, no sideways table. */
+@media (width <= 48rem) {
+  .table thead {
+    position: absolute;
+    white-space: nowrap;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table tr {
+    display: grid;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+  }
+
+  .table th,
+  .table td {
+    display: block;
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+  }
+
+  .table [data-label]::before {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    content: attr(data-label);
+  }
+
+  .table .open {
+    text-align: start;
+  }
+
+  .differenceList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

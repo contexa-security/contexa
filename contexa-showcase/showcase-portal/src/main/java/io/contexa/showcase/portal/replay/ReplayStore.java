@@ -12,10 +12,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.UUID;
 
 /**
  * Recorded scenes (portal V4). A record points at its representative run; the step evidence is read from that run's
@@ -123,6 +127,37 @@ public class ReplayStore {
                 (rs, n) -> new RecordedRun(rs.getString(1), rs.getInt(2), rs.getString(3)));
     }
 
+    /** The completed, unforced runs of a case in one measurement protocol, oldest first (work 6). */
+    public List<String> measuredRuns(String protocolId, String scenarioKey) {
+        return jdbc.queryForList("""
+                        select run_id from run
+                         where protocol_id = :protocol and scenario_key = :case and status = 'COMPLETED'
+                           and forced_action is null
+                         order by started_at, run_id""",
+                new MapSqlParameterSource("protocol", protocolId).addValue("case", scenarioKey), String.class);
+    }
+
+    /** The steps of a stored run as its outcome signature reads them: each control's outcome and D's decision. */
+    public List<OutcomeSignature.Step> signatureSteps(String runId) {
+        MapSqlParameterSource run = new MapSqlParameterSource("run", runId);
+        Map<Integer, Map<String, String>> outcomes = new TreeMap<>();
+        jdbc.query("select step_no, control, outcome from run_arm_result where run_id = :run", run, rs -> {
+            outcomes.computeIfAbsent(rs.getInt(1), ignored -> new LinkedHashMap<>())
+                    .put(rs.getString(2), rs.getString(3));
+        });
+        Map<Integer, String> actions = new HashMap<>();
+        Map<Integer, Boolean> unresolved = new HashMap<>();
+        jdbc.query("select step_no, final_action, coalesce(unresolved, false) from run_decision where run_id = :run",
+                run, rs -> {
+                    actions.put(rs.getInt(1), rs.getString(2));
+                    unresolved.put(rs.getInt(1), rs.getBoolean(3));
+                });
+        List<OutcomeSignature.Step> steps = new ArrayList<>();
+        outcomes.forEach((stepNo, byControl) -> steps.add(new OutcomeSignature.Step(stepNo, byControl,
+                actions.get(stepNo), unresolved.getOrDefault(stepNo, false))));
+        return steps;
+    }
+
     public Optional<String> specHashOf(String runId) {
         return jdbc.query("select spec_hash from run where run_id = :run", new MapSqlParameterSource("run", runId),
                 (rs, n) -> rs.getString(1)).stream().findFirst();
@@ -159,6 +194,21 @@ public class ReplayStore {
         Integer steps = jdbc.queryForObject("select coalesce(max(step_no), 0) from run_arm_result where run_id = :run",
                 new MapSqlParameterSource("run", runId), Integer.class);
         return steps == null ? 0 : steps;
+    }
+
+    /** The engine's model calls for one request, in the order the cost ledger recorded them. */
+    public List<ReplayView.ModelCall> modelCalls(String requestId) {
+        if (requestId == null) {
+            return List.of();
+        }
+        return jdbc.query("""
+                        select model, prompt_tokens, completion_tokens, total_tokens, elapsed_ms
+                          from cost_ledger
+                         where request_id = :request and kind = 'CHAT'
+                         order by recorded_at""",
+                new MapSqlParameterSource("request", UUID.fromString(requestId)),
+                (rs, n) -> new ReplayView.ModelCall(rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4),
+                        (Long) rs.getObject(5)));
     }
 
     public Optional<DecisionRow> decision(String runId, int stepNo) {

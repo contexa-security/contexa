@@ -97,9 +97,13 @@ public class AiSecurityConfiguration {
                         http.csrf(AbstractHttpConfigurer::disable);
                         http.cors(AbstractHttpConfigurer::disable);
                         http.headers(AbstractHttpConfigurer::disable);
+                        // The admin area is for administrators; a signed-in user keeps the self-service paths
+                        // (asking for the release of a block, following a pending analysis), as the seed policies do.
                         http.authorizeHttpRequests(authReq -> authReq
                                 .requestMatchers("/contexa/admin/login").permitAll()
-                                .requestMatchers("/contexa/admin/**").authenticated()
+                                .requestMatchers("/contexa/admin/api/aiam/zero-trust/**",
+                                        "/contexa/admin/api/aiam/sse/zero-trust/**").authenticated()
+                                .requestMatchers("/contexa/admin/**").hasRole("ADMIN")
                                 .anyRequest().permitAll());
 
                     })

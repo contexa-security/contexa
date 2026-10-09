@@ -40,6 +40,16 @@ public final class ExportStreamReader {
     public record Reading(Progress progress, String head) {
     }
 
+    /** Hears each progress sample while the stream is still being read, for a visitor watching a live run. */
+    @FunctionalInterface
+    public interface ProgressListener {
+
+        ProgressListener NONE = (atMs, delivered) -> {
+        };
+
+        void progress(long atMs, int delivered);
+    }
+
     private ExportStreamReader() {
     }
 
@@ -47,6 +57,14 @@ public final class ExportStreamReader {
      * @param sinceSentMs milliseconds since the request was sent, read at each line
      */
     public static Reading read(InputStream body, Integer total, LongSupplier sinceSentMs) {
+        return read(body, total, sinceSentMs, ProgressListener.NONE);
+    }
+
+    /**
+     * @param sinceSentMs milliseconds since the request was sent, read at each line
+     * @param listener    hears every sample as it is taken
+     */
+    public static Reading read(InputStream body, Integer total, LongSupplier sinceSentMs, ProgressListener listener) {
         int delivered = 0;
         Long firstLineMs = null;
         String cut = null;
@@ -72,6 +90,7 @@ public final class ExportStreamReader {
                 if (samples.isEmpty() || now - lastSample >= SAMPLE_EVERY_MS) {
                     samples.add(new Sample(now, delivered));
                     lastSample = now;
+                    listener.progress(now, delivered);
                 }
                 if (head.length() < EXCERPT) {
                     head.append(line).append('\n');

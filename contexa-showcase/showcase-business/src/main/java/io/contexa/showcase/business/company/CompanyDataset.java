@@ -27,6 +27,7 @@ public record CompanyDataset(
         List<Ticket> tickets,
         List<Roster> rosters,
         List<Approval> approvals,
+        List<TravelPlan> travelPlans,
         List<ScriptedActivity> scriptedActivities) {
 
     public record Role(String roleKey, String displayNameEn, String displayNameKo) {
@@ -70,8 +71,14 @@ public record CompanyDataset(
                            int maxItems, Instant validFrom, Instant validUntil, String status) {
     }
 
+    /** A registered business trip of the company (run id null); the network the employee works from while away. */
+    public record TravelPlan(String planKey, String employeeKey, String city, String country, String networkCidr,
+                             Instant validFrom, Instant validUntil) {
+    }
+
+    /** @param clientIp address the employee worked from; null means the office network of the employee */
     public record ScriptedActivity(String employeeKey, int activityNo, Instant observedAt, String operation,
-                                   String targetKey, int items) {
+                                   String targetKey, int items, String clientIp) {
     }
 
     private static final char FIELD_SEPARATOR = 0x1f;
@@ -106,8 +113,10 @@ public record CompanyDataset(
                 r.endsAt())).toList());
         table(digest, approvals.stream().map(a -> line("approval", a.approvalKey(), a.requester(), a.approver(),
                 a.projectKey(), a.purpose(), a.maxItems(), a.validFrom(), a.validUntil(), a.status())).toList());
+        table(digest, travelPlans.stream().map(t -> line("travel", t.planKey(), t.employeeKey(), t.city(),
+                t.country(), t.networkCidr(), t.validFrom(), t.validUntil())).toList());
         table(digest, scriptedActivities.stream().map(s -> line("activity", s.employeeKey(), s.activityNo(),
-                s.observedAt(), s.operation(), s.targetKey(), s.items())).toList());
+                s.observedAt(), s.operation(), s.targetKey(), s.items(), s.clientIp())).toList());
         return HexFormat.of().formatHex(digest.digest());
     }
 

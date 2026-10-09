@@ -24,10 +24,17 @@ class OrchestratorUnitTest {
         ScenarioCatalog catalog = new ScenarioCatalog(json);
 
         assertThat(catalog.all()).extracting(ScenarioDefinition::key)
-                .containsExactly("A1", "A1T", "A3", "A3S", "A3T", "A5", "A5T", "A6", "A6T", "A8", "A8T", "K2", "R1", "S01", "S02",
-                        "S03", "S04", "S05", "S06", "S07", "S08");
+                .containsExactly("A1", "A1T", "A3", "A3A", "A3S", "A3ST", "A3T", "A3TA", "A5", "A5T", "A6", "A6T", "A8", "A8T", "K2", "R1", "S01", "S02",
+                        "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S09C", "S10", "S11", "S12", "S13", "S13T");
         for (ScenarioDefinition scenario : catalog.all()) {
             assertThat(scenario.title()).as(scenario.key()).containsKeys("ko", "en");
+            assertThat(scenario.frozenOn()).as(scenario.key() + " is frozen (W2-5)").isNotNull();
+            assertThat(scenario.oracle().rationale()).as(scenario.key() + " explains its ground truth (R-40)")
+                    .containsOnlyKeys("ko", "en");
+            assertThat(scenario.oracle().counterpoint()).as(scenario.key() + " states the expected objection (R-16)")
+                    .containsOnlyKeys("ko", "en");
+            assertThat(catalog.sha256(scenario.key())).as(scenario.key()).hasValueSatisfying(hash ->
+                    assertThat(hash).matches("[0-9a-f]{64}"));
             assertThat(scenario.oracle().allowedEngineActions()).as(scenario.key()).isNotEmpty();
             for (ScenarioDefinition.Step step : scenario.steps()) {
                 assertThat(step.expected()).as(scenario.key()).containsOnlyKeys("A", "B", "C1", "C2");
@@ -47,6 +54,23 @@ class OrchestratorUnitTest {
                 401, "REFUSED", 0, "UNAUTHORIZED", null, null, 40, sent, null);
         assertThat(ControlSession.challenged(challenged)).isTrue();
         assertThat(ControlSession.challenged(forbidden)).isFalse();
+        ControlSession.StepOutcome decidedNow = new ControlSession.StepOutcome("r-4", "POST",
+                "/api/projects/GB-500/exports?items=480", sent, 401, "REFUSED", 0, "ZERO_TRUST_CHALLENGE",
+                "Additional authentication required", null, 13000, sent, null);
+        assertThat(ControlSession.challenged(decidedNow))
+                .as("the engine's synchronous CHALLENGE of this very request (W1, H-18)").isTrue();
+        ControlSession.StepOutcome blockedBefore = new ControlSession.StepOutcome("r-5", "GET", "/api/documents/x",
+                sent, 403, "REFUSED", 0, "ACCOUNT_BLOCKED", null, null, 40, sent, null);
+        ControlSession.StepOutcome blockedNow = new ControlSession.StepOutcome("r-6", "POST",
+                "/api/projects/GB-500/exports?items=480", sent, 403, "REFUSED", 0, "ZERO_TRUST_BLOCK",
+                "Access blocked", null, 13000, sent, null);
+        ControlSession.StepOutcome ruleRefusal = new ControlSession.StepOutcome("r-7", "POST",
+                "/api/projects/GB-500/exports?items=480", sent, 403, "REFUSED", 0, "C1-NIGHT", null, null, 20, sent,
+                null);
+        assertThat(ControlSession.blocked(blockedBefore)).as("an earlier BLOCK still in force").isTrue();
+        assertThat(ControlSession.blocked(blockedNow))
+                .as("the engine's synchronous BLOCK of this very request opens the release (work 2)").isTrue();
+        assertThat(ControlSession.blocked(ruleRefusal)).isFalse();
 
         Instant answeredAt = sent.plusMillis(40);
         ControlSession.StepOutcome reissue = new ControlSession.StepOutcome("r-3", "GET", "/api/documents/x", sent,
@@ -118,6 +142,26 @@ class OrchestratorUnitTest {
         assertThat(List.of(facts.approvals().size(), facts.oncall().size())).containsExactly(0, 0);
     }
 
+    /**
+     * W2-5, case S12: the approval's decision is recorded 20 minutes after the request while its validity starts two
+     * hours before it; the other approvals of the cases leave the decision time unrecorded.
+     */
+    @Test
+    void anApprovalFactCarriesWhenItsDecisionWasRecordedOnlyWhenTheCaseSaysSo() throws Exception {
+        ScenarioCatalog catalog = new ScenarioCatalog(json);
+        Instant time = Instant.parse("2026-09-30T14:20:00Z");
+
+        RunFacts late = RunOrchestrator.facts(catalog.find("S12").orElseThrow(), "aabbccddeeff", time);
+        RunFacts transfer = RunOrchestrator.facts(catalog.find("A3T").orElseThrow(), "aabbccddeeff", time);
+
+        assertThat(late.approvals()).singleElement().satisfies(approval -> {
+            assertThat(approval.approvedAt()).isEqualTo(Instant.parse("2026-09-30T14:40:00Z"));
+            assertThat(approval.validFrom()).isEqualTo(Instant.parse("2026-09-30T12:20:00Z"));
+        });
+        assertThat(transfer.approvals()).singleElement()
+                .satisfies(approval -> assertThat(approval.approvedAt()).isNull());
+    }
+
     @Test
     void aTravelFactBecomesATripAndTheRunConnectsFromItsNetwork() throws Exception {
         ScenarioDefinition travel = new ScenarioCatalog(json).find("A1T").orElseThrow();
@@ -154,5 +198,23 @@ class OrchestratorUnitTest {
         assertThat(RunOrchestrator.claim(legitimate.steps().get(0), "aabbccddeeff"))
                 .isEqualTo("&claimedTicket=TCK-aabbccddeeff-1");
         assertThat(RunOrchestrator.claim(attack.steps().get(0), "aabbccddeeff")).isEqualTo("&claimedTicket=INC-7781");
+    }
+
+    /**
+     * H-18: the code of a refusal is read from every body the controls answer with, the engine's synchronous decision
+     * included (its body was read without a code, so its CHALLENGE never opened the identity check).
+     */
+    @Test
+    void theRefusalCodeIsReadFromEveryBodyTheControlsAnswerWith() throws Exception {
+        JsonNode engineDecision = json.readTree("{\"status\":401,\"code\":\"ZERO_TRUST_CHALLENGE\","
+                + "\"message\":\"Additional authentication required\",\"action\":\"CHALLENGE\","
+                + "\"resourceId\":\"ContexaBusinessOperations.exportDocuments\",\"riskScore\":null,"
+                + "\"analysisTimeout\":false,\"timestamp\":\"2026-10-06T14:15:26.903029800Z\"}");
+        assertThat(ControlSession.ruleOf(engineDecision)).isEqualTo("ZERO_TRUST_CHALLENGE");
+        assertThat(ControlSession.ruleOf(json.readTree("{\"error\":\"MFA_CHALLENGE_REQUIRED\"}")))
+                .isEqualTo("MFA_CHALLENGE_REQUIRED");
+        assertThat(ControlSession.ruleOf(json.readTree("{\"rule\":\"C2-APPROVAL-MISSING\",\"error\":\"Forbidden\"}")))
+                .as("a plain control's rule wins over the generic error").isEqualTo("C2-APPROVAL-MISSING");
+        assertThat(ControlSession.ruleOf(json.readTree("{\"message\":\"nothing else\"}"))).isNull();
     }
 }

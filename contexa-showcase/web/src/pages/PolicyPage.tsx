@@ -5,14 +5,11 @@ import styles from './PolicyPage.module.css';
 
 /** The privacy notice, linked from the footer only; the demo itself never asks the visitor for anything. */
 export default function PolicyPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const content = PRIVACY[i18n.language === 'ko' ? 'ko' : 'en'];
 
   return (
     <>
-      <a className="skip-link" href="#main">
-        {t('app.skipToContent')}
-      </a>
       <AppHeader />
       <main id="main" className={styles.page}>
         <article className={styles.article}>
@@ -34,6 +31,9 @@ export default function PolicyPage() {
   );
 }
 
+/** A row named by a technical identifier (a cookie's name) shows it as the original it is. */
+const TECHNICAL = /^[A-Z][A-Z0-9_-]+$/;
+
 function PolicyTable({ rows }: { readonly rows: readonly (readonly string[])[] }) {
   const [head, ...body] = rows;
   return (
@@ -54,7 +54,7 @@ function PolicyTable({ rows }: { readonly rows: readonly (readonly string[])[] }
               {row.map((cell, index) =>
                 index === 0 ? (
                   <th key={index} scope="row">
-                    {cell}
+                    {TECHNICAL.test(cell) ? <code data-original>{cell}</code> : cell}
                   </th>
                 ) : (
                   <td key={index}>{cell}</td>

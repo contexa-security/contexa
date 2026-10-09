@@ -35,6 +35,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/contexa/admin/policy-builder")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasRole('ADMIN')")
 public class PolicyBuilderController {
 
     private final RoleService roleService;

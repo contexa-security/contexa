@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -47,6 +48,7 @@ import java.util.List;
 @RequestMapping("/contexa/admin/workbench/resources")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasRole('ADMIN')")
 public class ResourceAdminController {
 
     private final ResourceAdminService resourceAdminService;

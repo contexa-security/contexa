@@ -15,10 +15,12 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -33,6 +35,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -260,6 +263,59 @@ class ZeroTrustChallengeFilterTest {
 
         verify(response).sendRedirect(contains("/contexa/zero-trust/challenge-required"));
         verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("요청 안에서 내려진 CHALLENGE(동기 판정)는 진행 중인 절차가 없으면 새 MFA challenge flow를 시작하고 MFA 페이지를 돌려준다")
+    void startsTheFlowForADecisionMadeInTheRequest() throws Exception {
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(true);
+        FactorContext factorContext = mock(FactorContext.class);
+        when(factorContext.getCurrentState()).thenReturn(MfaState.AWAITING_FACTOR_SELECTION);
+        when(challengeMfaInitializer.initializeChallengeFlow(request, response, authentication))
+                .thenReturn(factorContext);
+        when(authUrlProvider.getMfaSelectFactor()).thenReturn("/mfa/select-factor");
+
+        Optional<String> mfaUrl = filter.start(request, response);
+
+        assertThat(mfaUrl).contains("/mfa/select-factor");
+        verify(challengeMfaInitializer).initializeChallengeFlow(request, response, authentication);
+        verify(lockService).unlock(eq("mfa:challenge:init:testUser"), anyString());
+        verify(responseWriter, never()).writeErrorResponse(any(), anyInt(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("이미 시작된 challenge 절차가 있으면 새로 시작하지 않고 그 절차의 MFA 페이지를 돌려준다")
+    void reusesAFlowAlreadyStarted() throws Exception {
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn("mfa-session-1");
+        when(sessionRepository.existsSession("mfa-session-1")).thenReturn(true);
+        FactorContext started = mock(FactorContext.class);
+        when(started.getBooleanAttribute("challengeInitiated")).thenReturn(true);
+        when(started.getCurrentState()).thenReturn(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION);
+        when(started.getCurrentProcessingFactor()).thenReturn(AuthType.MFA_OTT);
+        when(stateMachineIntegrator.loadFactorContext("mfa-session-1")).thenReturn(started);
+        when(authUrlProvider.getOttRequestCodeUi()).thenReturn("/mfa/ott/request-code");
+
+        Optional<String> mfaUrl = filter.start(request, response);
+
+        assertThat(mfaUrl).contains("/mfa/ott/request-code");
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        verify(lockService, never()).tryLock(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("다른 요청이 절차를 시작하는 중이거나 인증되지 않았으면 시작하지 않는다")
+    void startsNothingWhenBusyOrAnonymous() throws Exception {
+        assertThat(filter.start(request, response)).as("no authenticated user").isEmpty();
+
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(false);
+
+        assertThat(filter.start(request, response)).as("another request is starting it").isEmpty();
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
     }
 
     private void setUpAuthentication() {

@@ -185,6 +185,12 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(systemPrompt).contains("Decision process:");
         assertThat(systemPrompt).contains("Highest-priority action boundary");
         assertThat(systemPrompt).contains("A CHALLENGE under this low-risk boundary is incorrect.");
+        assertThat(systemPrompt).contains("When Sensitivity is HIGH or CRITICAL, BaselineProfileStatus=ESTABLISHED, at least one current-vs-observed comparison label shows a mismatch, and ApprovalMissing=true, action must be CHALLENGE or stronger.")
+                .contains("An ALLOW under this elevated-risk boundary is incorrect. ApprovalMissing=false, or an approval that covers the request, does not satisfy this boundary.")
+                .contains("A current-vs-observed mismatch against an ESTABLISHED personal baseline and ApprovalMissing=true are explicit adverse signals, not missing, thin, or provisional evidence.")
+                .contains("Required elevated-risk boundary: never choose ALLOW when sensitivity is HIGH or CRITICAL")
+                .contains("5a. If the chosen action is CHALLENGE under the required elevated-risk boundary, reasoning must be exactly \"High-sensitivity access departs from the established personal baseline without a required approval; challenge is required.\"")
+                .contains("ApprovalStatus, ApprovalRequired, ApprovalMissing, BaselineProfileStatus, Delegated");
         assertThat(systemPrompt).contains("Record missing evidence only as a limitation, never as risk.");
         assertThat(systemPrompt).contains("least disruptive action justified by concrete evidence");
         assertThat(systemPrompt).contains("CHALLENGE = a concrete, resolvable risk");

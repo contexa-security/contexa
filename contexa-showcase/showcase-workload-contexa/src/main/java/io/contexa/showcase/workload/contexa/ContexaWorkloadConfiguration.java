@@ -18,6 +18,12 @@ import io.contexa.showcase.workload.contexa.observation.AnalysisEventRecorder;
 import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.EmbeddingUsageMeter;
 import io.contexa.showcase.workload.contexa.observation.LlmUsageMeter;
+import io.contexa.showcase.workload.contexa.observation.ModelExchanges;
+import io.contexa.showcase.workload.contexa.observation.RequestReceipts;
+import io.contexa.showcase.workload.contexa.observation.ProviderHttpCapture;
+import org.springframework.boot.web.client.RestClientCustomizer;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.Ordered;
 import io.contexa.showcase.workload.contexa.observation.UsageLedger;
 import io.contexa.showcase.workload.contexa.policy.EngineRbacSeeder;
 import io.contexa.showcase.workload.contexa.principal.OrphanPrincipalSweeper;
@@ -127,8 +133,34 @@ public class ContexaWorkloadConfiguration {
     }
 
     @Bean
-    public LlmUsageMeter llmUsageMeter(UsageLedger ledger) {
-        return new LlmUsageMeter(ledger, clock);
+    public ModelExchanges modelExchanges(ObjectMapper json) {
+        return new ModelExchanges(clock, json);
+    }
+
+    @Bean
+    public RequestReceipts requestReceipts() {
+        return new RequestReceipts(clock);
+    }
+
+    /** Right after the internal context filter (HIGHEST_PRECEDENCE + 1), which sets the signed request ID. */
+    @Bean
+    public FilterRegistrationBean<RequestReceipts> requestReceiptsFilter(RequestReceipts receipts) {
+        FilterRegistrationBean<RequestReceipts> registration = new FilterRegistrationBean<>(receipts);
+        registration.setName("showcaseRequestReceipts");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 2);
+        return registration;
+    }
+
+    /** Puts the provider HTTP capture on the HTTP client the model provider is built with (R-23). */
+    @Bean
+    public RestClientCustomizer providerHttpCapture(ModelExchanges exchanges) {
+        ProviderHttpCapture capture = new ProviderHttpCapture(exchanges);
+        return builder -> builder.requestInterceptor(capture);
+    }
+
+    @Bean
+    public LlmUsageMeter llmUsageMeter(UsageLedger ledger, ModelExchanges exchanges) {
+        return new LlmUsageMeter(ledger, exchanges, clock);
     }
 
     /**

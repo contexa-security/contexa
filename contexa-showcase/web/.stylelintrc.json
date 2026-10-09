@@ -35,7 +35,7 @@
   },
   "overrides": [
     {
-      "files": ["src/styles/tokens.css"],
+      "files": ["src/styles/tokens.css", "src/styles/demoFont.css"],
       "rules": {
         "scale-unlimited/declaration-strict-value": null
       }

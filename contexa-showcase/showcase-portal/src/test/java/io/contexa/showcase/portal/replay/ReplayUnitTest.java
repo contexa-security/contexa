@@ -69,7 +69,9 @@ class ReplayUnitTest {
     void ruleControlsShowTheirResponseAndTheEngineCountsOnlyItsOwnDecisions() {
         Layer refused = ReplayViews.ruleLayer(arm("C1", 403, "REFUSED", "C1-NIGHT"), null, json);
         assertThat(refused.outcome()).isEqualTo("STOPPED");
-        assertThat(refused.verdict()).isEqualTo("BLOCK");
+        assertThat(refused.verdict()).as("a rule control makes no verdict (survey #25)").isNull();
+        assertThat(refused.evidence().timing()).as("nor a decision timing of its own").isNull();
+        assertThat(refused.httpStatus()).isEqualTo(403);
         assertThat(refused.ruleId()).isEqualTo("C1-NIGHT");
 
         Layer granted = ReplayViews.ruleLayer(arm("B", 200, "DELIVERED", null), json.createObjectNode()
@@ -93,9 +95,24 @@ class ReplayUnitTest {
         assertThat(held.outcome()).isEqualTo("HELD");
 
         Layer staticRefusal = ReplayViews.engineLayer(arm("D", 403, "REFUSED", null), Optional.empty());
-        assertThat(staticRefusal.verdict()).isEqualTo("BLOCK");
+        assertThat(staticRefusal.verdict()).as("no engine decision is made up").isEqualTo("NONE");
         assertThat(staticRefusal.evidence().decisionId()).as("a 403 without an engine decision").isNull();
         assertThat(staticRefusal.evidence().timing()).isEqualTo("STATIC_AUTHORIZATION");
+
+        Layer blockedEarlier = ReplayViews.engineLayer(arm("D", 403, "REFUSED", "ACCOUNT_BLOCKED"), Optional.empty());
+        assertThat(blockedEarlier.verdict()).isEqualTo("NONE");
+        assertThat(blockedEarlier.evidence().timing()).as("refused by the account's earlier decision")
+                .isEqualTo("PRIOR_DECISION");
+        assertThat(blockedEarlier.ruleId()).isEqualTo("ACCOUNT_BLOCKED");
+
+        Layer challengedEarlier = ReplayViews.engineLayer(arm("D", 401, "REFUSED", "MFA_CHALLENGE_REQUIRED"),
+                Optional.empty());
+        assertThat(challengedEarlier.verdict()).isEqualTo("NONE");
+        assertThat(challengedEarlier.evidence().timing()).isEqualTo("PRIOR_DECISION");
+
+        Layer notAnalysed = ReplayViews.engineLayer(arm("D", 200, "DELIVERED", null), Optional.empty());
+        assertThat(notAnalysed.verdict()).as("a delivered request without a decision is not an ALLOW").isEqualTo("NONE");
+        assertThat(notAnalysed.evidence().timing()).isEqualTo("NOT_ANALYSED");
     }
 
     /** P3-BE-03: every timeline value is the stored event time minus the stored send time, in milliseconds. */
@@ -114,6 +131,21 @@ class ReplayUnitTest {
         assertThat(timeline.get(1).atMs()).isEqualTo(1900);
         assertThat(timeline.get(1).elapsedMs()).isEqualTo(1808);
         assertThat(timeline.get(1).action()).isEqualTo("ALLOW");
+    }
+
+    /**
+     * Recorded 2026-10-06: after a CHALLENGE, control D's stream sent all 4,831 lines and then broke. It shows as
+     * BROKEN with the lines that left, never as unresolved (docs/showcase/데모-재설계.md 5.0).
+     */
+    @Test
+    void aStreamThatBrokeAfterItsLinesShowsTheDataThatLeft() {
+        ArmRow broken = new ArmRow("D", "request-D", "EXPORT_STREAM", "GET", "/api/projects/GB-500/exports/stream", 200,
+                "ERROR", 4831, "STREAM_INTERRUPTED", null, 31429L, null, Instant.parse("2026-10-06T12:47:23Z"), null);
+        ArmRow failed = new ArmRow("D", "request-D", "EXPORT", "POST", "/api/projects/GB-500/exports", null,
+                "ERROR", 0, null, null, 120000L, null, Instant.parse("2026-10-06T12:47:23Z"), null);
+
+        assertThat(ReplayViews.outcome(broken, false)).isEqualTo("BROKEN");
+        assertThat(ReplayViews.outcome(failed, false)).isEqualTo("UNRESOLVED");
     }
 
     /** Deck p.11: a cut stream keeps its exposure, and the engine's decision shows as applied mid-response. */
@@ -141,7 +173,7 @@ class ReplayUnitTest {
 
     @Test
     void companyFactsAreReadFromTheContextControlsLookup() throws Exception {
-        ReplayViews views = new ReplayViews(null, null, json);
+        ReplayViews views = new ReplayViews(null, null, json, null);
         String facts = "{\"items\": 4831, \"approval\": {\"covered\": false}, \"ticket\": {\"covered\": false},"
                 + " \"assigned\": {\"assigned\": false}, \"projectKey\": \"GB-500\", \"accessDaysLast30\": 0,"
                 + " \"oncall\": {\"onCall\": false}, \"network\": {\"kind\": \"TRAVEL\", \"city\": \"Singapore\"},"
@@ -157,7 +189,7 @@ class ReplayUnitTest {
 
     @Test
     void theEngineReasonIsCanonicalOnlyWhenItIsExactlyAContractSentence() throws Exception {
-        ReplayViews views = new ReplayViews(null, null, json);
+        ReplayViews views = new ReplayViews(null, null, json, null);
         String metadata = json.writeValueAsString(Map.of("evidenceRefs", List.of("baseline", "authorization"),
                 "strongestCurrentRequestCombinationDelta", "closestOverlap=3/6 | differing=accessHour, pathFamily",
                 "resourceSensitivity", "RESTRICTED"));
@@ -198,5 +230,20 @@ class ReplayUnitTest {
         return new DecisionRow("decision-1", "ALLOW", "ALLOW", 0.2, 0.6, false, false, reasoning, "NEXT_REQUEST",
                 1500L, null, json.createArrayNode().add(json.createObjectNode().put("metadataJson", metadata)),
                 json.createArrayNode());
+    }
+
+    /** T-27: a screen states how many approaches stopped or let a request through; the server counts it. */
+    @Test
+    void theStepCountsItsApproachesOutcomes() {
+        ReplayView.StepResult result = new ReplayView.StepResult(null, List.of(
+                layer("A", "DELIVERED"), layer("B", "DELIVERED"), layer("C1", "STOPPED"), layer("C2", "CUT"),
+                layer("D", "HELD")), null, List.of());
+
+        assertThat(result.tally()).isEqualTo(new ReplayView.Tally(2, 2, 1));
+        assertThat(result.existingTally()).as("Contexa left out").isEqualTo(new ReplayView.Tally(2, 2, 0));
+    }
+
+    private static Layer layer(String control, String outcome) {
+        return new Layer(control, outcome, null, null, null, null, null, null);
     }
 }

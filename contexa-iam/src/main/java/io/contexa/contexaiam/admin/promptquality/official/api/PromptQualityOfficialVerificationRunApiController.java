@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification")
+@PreAuthorize("hasRole('ADMIN')")
 public class PromptQualityOfficialVerificationRunApiController {
 
     private static final Logger log = LoggerFactory.getLogger(PromptQualityOfficialVerificationRunApiController.class);

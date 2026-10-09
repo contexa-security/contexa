@@ -13,14 +13,21 @@ import java.util.Map;
  * Records the analysis events the engine announces for each decision id: stages, candidate actions with risk,
  * confidence and MITRE technique, the applied decision, and escalation protection triggers per user. The portal reads
  * them for the analysis timeline (deck p.12) and the isolation test T1. The engine passes MITRE as the technique id or
- * the text "none"; "none" is stored as absent (reuse-assets 3.2).
+ * the text "none"; "none" is stored as absent (reuse-assets 3.2). The reasoning a layer announces on completion is
+ * kept as announced: it is the assessment's recorded reasoning, which may already be a sentence the platform
+ * prescribed, or the engine's placeholder "Layer1 analysis completed" when there is none (ColdPathEventProcessor). The
+ * model's own text is kept only with the model call itself (ModelExchanges; docs/showcase/데모-재설계.md F-15, F-21,
+ * fabricated-data survey D7).
  */
 public class AnalysisEventRecorder implements LlmAnalysisEventObserver {
 
     static final int MAX_KEYS = 20_000;
 
+    /**
+     * @param reasoning the reasoning the engine announced on a layer's completion, as announced; null for other events
+     */
     public record AnalysisEvent(String type, Instant observedAt, String action, Double riskScore, Double confidence,
-                                String mitre, Long elapsedMs, String layer, String detail) {
+                                String mitre, Long elapsedMs, String layer, String detail, String reasoning) {
     }
 
     private final Clock clock;
@@ -34,43 +41,46 @@ public class AnalysisEventRecorder implements LlmAnalysisEventObserver {
     @Override
     public void onContextCollected(String userId, String requestPath, Map<String, Object> metadata) {
         add(metadata, new AnalysisEvent("CONTEXT_COLLECTED", clock.instant(), null, null, null, null, null, null,
-                requestPath));
+                requestPath, null));
     }
 
     @Override
     public void onLayer1Start(String userId, String requestPath, Map<String, Object> metadata) {
-        add(metadata, new AnalysisEvent("LAYER1_START", clock.instant(), null, null, null, null, null, "LAYER1", null));
+        add(metadata, new AnalysisEvent("LAYER1_START", clock.instant(), null, null, null, null, null, "LAYER1", null,
+                null));
     }
 
     @Override
     public void onLayer1Complete(String userId, String action, Double riskScore, Double confidence, String reasoning,
                                  String mitre, Long elapsedMs, Map<String, Object> metadata) {
         add(metadata, new AnalysisEvent("LAYER1_COMPLETE", clock.instant(), action, riskScore, confidence,
-                mitre(mitre), elapsedMs, "LAYER1", null));
+                mitre(mitre), elapsedMs, "LAYER1", null, reasoning));
     }
 
     @Override
     public void onLayer2Start(String userId, String requestPath, String reason, Map<String, Object> metadata) {
-        add(metadata, new AnalysisEvent("LAYER2_START", clock.instant(), null, null, null, null, null, "LAYER2", reason));
+        add(metadata, new AnalysisEvent("LAYER2_START", clock.instant(), null, null, null, null, null, "LAYER2", reason,
+                null));
     }
 
     @Override
     public void onLayer2Complete(String userId, String action, Double riskScore, Double confidence, String reasoning,
                                  String mitre, Long elapsedMs, Map<String, Object> metadata) {
         add(metadata, new AnalysisEvent("LAYER2_COMPLETE", clock.instant(), action, riskScore, confidence,
-                mitre(mitre), elapsedMs, "LAYER2", null));
+                mitre(mitre), elapsedMs, "LAYER2", null, reasoning));
     }
 
     @Override
     public void onDecisionApplied(String userId, String action, String layer, String requestPath,
                                   Map<String, Object> metadata) {
         add(metadata, new AnalysisEvent("DECISION_APPLIED", clock.instant(), action, null, null, null, null, layer,
-                null));
+                null, null));
     }
 
     @Override
     public void onError(String userId, String message, Map<String, Object> metadata) {
-        add(metadata, new AnalysisEvent("ANALYSIS_ERROR", clock.instant(), null, null, null, null, null, null, message));
+        add(metadata, new AnalysisEvent("ANALYSIS_ERROR", clock.instant(), null, null, null, null, null, null, message,
+                null));
     }
 
     @Override
@@ -82,7 +92,7 @@ public class AnalysisEventRecorder implements LlmAnalysisEventObserver {
         synchronized (escalationProtectionByUser) {
             escalationProtectionByUser.computeIfAbsent(userId, key -> new ArrayList<>()).add(new AnalysisEvent(
                     "ESCALATE_PROTECTION", clock.instant(), null, null, null, null, null, null,
-                    requestPath + " " + escalateCount + "/" + totalAnalysisCount));
+                    requestPath + " " + escalateCount + "/" + totalAnalysisCount, null));
         }
     }
 

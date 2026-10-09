@@ -54,14 +54,25 @@ public class PortalSecurityConfiguration {
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/visitor", "/api/pairs", "/api/replays/*",
                                 "/api/specs/*", "/api/combinations", "/api/combinations/*",
-                                "/api/stats", "/api/results/*")
+                                "/api/stats", "/api/results/*", "/api/rules/cases",
+                                "/api/runs/*/steps/*/anatomy", "/api/runs/*/steps/*/exchanges",
+                                "/api/runs/*/steps/*/input-changes", "/api/runs/*/versus",
+                                "/api/runs/*/steps/*/result", "/api/benchmark", "/api/benchmark/runs",
+                                "/api/runs/*/steps/*/peer-assessments",
+                                "/api/runs/*/score", "/api/lab/options", "/api/lab/runs/recent", "/api/cases",
+                                "/api/hook", "/api/journey", "/api/journey/act-end", "/api/quiz", "/api/tally",
+                                "/api/settings")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares",
+                                "/api/runs/*/steps/*/assessment", "/api/rules/evaluate", "/api/journey",
+                                "/api/quiz").permitAll()
                         // Live runs (P3, P4); the endpoints exist only with showcase.live.enabled.
                         .requestMatchers(HttpMethod.GET, "/api/live/config", "/api/live/runs/current",
-                                "/api/live/runs/current/result").permitAll()
+                                "/api/live/runs/current/result", "/api/live/runs/current/analysis",
+                                "/api/live/baseline/*", "/api/live/before/*", "/api/runs/*/steps/*/received", "/api/teasers", "/api/cases/*/measured",
+                                "/api/engine/actions").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/runs", "/api/live/combinations",
-                                "/api/live/runs/current/*").permitAll()
+                                "/api/live/runs/current/*", "/api/lab/runs", "/api/lab/before").permitAll()
                         .requestMatchers("/api/**").denyAll()
                         .requestMatchers(HttpMethod.GET, "/**").permitAll()
                         .anyRequest().denyAll())

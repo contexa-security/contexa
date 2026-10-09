@@ -15,9 +15,7 @@ export function OutcomeStrip({ outcomes }: OutcomeStripProps) {
       {outcomes.map(({ control, outcome }) => (
         <li key={control} className={styles.item} data-outcome={outcome} data-control={control}>
           <span className={styles.control}>{t(`control.${control}.name`)}</span>
-          <span className={styles.result}>
-            {t(OUTCOME_KEYS[outcome])}
-          </span>
+          <span className={styles.result}>{t(OUTCOME_KEYS[outcome])}</span>
         </li>
       ))}
     </ol>

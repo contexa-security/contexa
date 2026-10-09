@@ -1,0 +1,421 @@
+/* The benchmark (the W3 draft as approved). The case-by-approach table scrolls inside its own region on a narrow screen; the page
+   itself never scrolls sideways. A bad result keeps its own colour, also for Contexa (T-3). */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-16);
+  word-break: keep-all;
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  container-type: inline-size;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-10);
+  margin: 0;
+}
+
+.numbers > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.numbers dt {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.numbers dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.mono {
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.warning {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--color-halt);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.specs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cardRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-block-end: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+
+@container (width >= 56rem) {
+  .cardRow {
+    grid-template-columns: 14rem minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.cardName {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.cardRow[data-contexa] .cardName {
+  color: var(--color-accent);
+}
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.barLabel {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.barTrack {
+  position: relative;
+  display: block;
+  block-size: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-accent);
+}
+
+.barInterval {
+  position: absolute;
+  inset-block: 0;
+  background-color: var(--color-border-strong);
+}
+
+.barFill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--radius-pill);
+}
+
+.barFill[data-kind='detection'] {
+  background-color: var(--color-safe);
+}
+
+.barFill[data-kind='falseBlock'] {
+  background-color: var(--color-halt);
+}
+
+.barValue {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.tableWrap:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.matrix {
+  inline-size: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.matrix th,
+.matrix td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: start;
+  vertical-align: top;
+}
+
+.matrix thead th {
+  color: var(--color-text-subtle);
+  font-weight: var(--weight-medium);
+}
+
+/* The cells stay table cells (a flex cell breaks the row's borders); their parts stack as blocks. */
+.caseCell {
+  min-width: 14rem;
+  font-weight: var(--weight-regular);
+}
+
+.caseCell > span {
+  display: block;
+  margin-block-end: var(--space-1);
+}
+
+.caseKey {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+}
+
+.caseTitle {
+  color: var(--color-text-body);
+}
+
+.truth {
+  align-self: flex-start;
+  inline-size: fit-content;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.truth[data-classification='THREAT'] {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.truth[data-classification='NORMAL'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.truth[data-classification='UNCERTAIN'] {
+  border-color: var(--color-halt);
+  color: var(--color-halt);
+}
+
+.valueCell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.valueCell[data-state='right'] {
+  color: var(--color-safe);
+}
+
+.valueCell[data-state='wrong'][data-classification='THREAT'] {
+  color: var(--color-loss);
+}
+
+.valueCell[data-state='wrong'][data-classification='NORMAL'],
+.valueCell[data-state='mixed'] {
+  color: var(--color-halt);
+}
+
+/* The engine's decisions, the risk spread and the runs, one under another. */
+.engineCell {
+  font-family: var(--font-mono);
+}
+
+.engineCell > span {
+  display: block;
+}
+
+.engineCell > span + span {
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.anatomyLink {
+  align-self: flex-start;
+  font-family: var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+}
+
+.anatomyLink:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.engineCell .anatomyLink {
+  display: flex;
+  width: fit-content;
+  margin-block-start: var(--space-1);
+}
+
+.wrongList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wrong {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-inline-start: 4px solid var(--color-loss);
+  border-radius: var(--radius-md);
+}
+
+.wrongHead,
+.wrongBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--color-text-body);
+}
+
+.wrongResult {
+  color: var(--color-loss);
+  font-weight: var(--weight-semibold);
+}
+
+.reasoning {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.method {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+  color: var(--color-text-body);
+}
+
+/* The fairness notices come first (R-07, R-19). */
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-raised);
+}
+
+/* Visitors' opinions are set apart from the measurement (R-26): a dashed frame and another ground. */
+.visitors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-accent);
+  container-type: inline-size;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fieldName {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.select {
+  max-inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.runs > summary {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}

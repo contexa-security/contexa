@@ -1,0 +1,15 @@
+/*
+ * Every character the visitor screens use, in one file (scripts/font-subset.py, approval Q-36); anything else falls back
+ * to the regular Pretendard pieces after it in the stack. main.tsx reads this after the first paint, so the 160 KB font
+ * never shares the network with the code that paints the screen (C-13); the text shows in the system font until it
+ * arrives (font-display: swap).
+ */
+@font-face {
+  font-family: 'Pretendard Demo';
+  src:
+    url('/fonts/pretendard-demo.woff2') format('woff2-variations'),
+    url('/fonts/pretendard-demo.woff2') format('woff2');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,6 +1,7 @@
 {
   "key": "A6",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "담당이 아닌 고객 레코드 연속 조회",
     "en": "Walking through customer records of others"
@@ -74,6 +75,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 관리자 A가 자신이 담당하지 않는 고객 레코드 5건을 1분 간격으로 연달아 조회한다. 회사 규정상 고객 레코드는 담당 영업이거나 그 고객 프로젝트를 덮는 티켓이 있을 때만 읽는다. 이 조회를 덮는 티켓은 없다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: administrator A reads five customer records A does not manage, one a minute. The company policy lets a customer record be read by its account manager or under a ticket that covers the customer's project. No ticket covers these reads. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 관리자가 고객 문의에 답하려고 조회했을 수 있다. 그런 요청을 뒷받침하는 티켓이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the administrator may have been answering a customer inquiry. No ticket supports that, so the case is an attack."
+    }
   }
 }

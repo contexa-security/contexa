@@ -1,6 +1,7 @@
 {
   "key": "A8",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "없는 장애 티켓을 대며 반출",
     "en": "Exporting while naming an incident ticket that does not exist"
@@ -32,6 +33,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 관리자 A가 저녁 8시 30분에 GB-500 자료 300건을 반출하면서 회사에 없는 장애 티켓 번호(INC-7781)를 댄다. 회사 기록에는 이 티켓도, 이 반출을 덮는 승인도 없고, A는 그 시각 당번도 아니다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: at 20:30 administrator A exports 300 records of GB-500 and names an incident ticket (INC-7781) the company does not have. No such ticket and no approval covers the export, and A is not on call at that time. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 직원이 티켓 번호를 잘못 적었을 수 있다. 이 반출을 실제로 덮는 티켓이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the employee may have mistyped the ticket number. No ticket actually covers the export, so the case is an attack."
+    }
   }
 }

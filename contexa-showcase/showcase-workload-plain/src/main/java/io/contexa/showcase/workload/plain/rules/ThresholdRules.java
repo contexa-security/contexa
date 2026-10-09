@@ -27,15 +27,27 @@ public class ThresholdRules {
     }
 
     public RuleDecision evaluate(RequestFacts request) {
+        return evaluate(request, RuleSettings.FROZEN);
+    }
+
+    /**
+     * The decision under the given settings: the frozen ones for every live request, a visitor's own in the rules
+     * scene over the facts a run recorded (H-10).
+     */
+    public RuleDecision evaluate(RequestFacts request, RuleSettings settings) {
         Map<String, Object> facts = new LinkedHashMap<>();
         LocalTime time = LocalTime.ofInstant(request.companyTime(), ZoneOffset.UTC);
-        boolean night = !time.isBefore(NIGHT_START) || time.isBefore(NIGHT_END);
+        boolean night = settings.night(time);
         facts.put("companyTime", request.companyTime().toString());
         facts.put("night", night);
         BusinessOperation operation = request.operation();
-        boolean exporting = operation == BusinessOperation.EXPORT || operation == BusinessOperation.EXPORT_STREAM;
+        boolean exporting = operation == BusinessOperation.EXPORT || operation == BusinessOperation.EXPORT_STREAM
+                || operation == BusinessOperation.EXPORT_ASYNC;
         if (exporting) {
             facts.put("items", request.items());
+            if (request.items() == null) {
+                return RuleDecision.deny("C1-ITEMS-UNKNOWN", "The export names no valid item count", facts);
+            }
         }
         Integer accessDays = null;
         // Dormancy is a rule about project data (ADR-22); giving a role is not reading the project's data.
@@ -48,12 +60,13 @@ public class ThresholdRules {
             facts.put("lastAccessDate", history.lastAccessDate());
         }
         if (operation.bulk() && night) {
-            return RuleDecision.deny("C1-NIGHT", "Data hand-out at night (22:00-06:00 company time)", facts);
+            return RuleDecision.deny("C1-NIGHT", "Data hand-out at night (" + settings.nightStart() + "-"
+                    + settings.nightEnd() + " company time)", facts);
         }
-        if (exporting && request.items() > VOLUME_LIMIT) {
-            return RuleDecision.deny("C1-VOLUME", "Export of more than " + VOLUME_LIMIT + " items", facts);
+        if (exporting && request.items() > settings.volumeLimit()) {
+            return RuleDecision.deny("C1-VOLUME", "Export of more than " + settings.volumeLimit() + " items", facts);
         }
-        if (accessDays != null && accessDays == 0) {
+        if (settings.dormant() && accessDays != null && accessDays == 0) {
             return RuleDecision.deny("C1-DORMANT", "No access to the project in the last " + DORMANT_WINDOW_DAYS
                     + " days", facts);
         }

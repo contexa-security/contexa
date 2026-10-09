@@ -1,11 +1,15 @@
 package io.contexa.showcase.workload.contexa.internal;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.showcase.workload.contexa.inbox.DemoInboxEmailService;
 import io.contexa.showcase.workload.contexa.observation.AnalysisEventRecorder;
 import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.UsageLedger;
+import io.contexa.showcase.workload.contexa.observation.ModelExchanges;
+import io.contexa.showcase.workload.contexa.observation.RequestReceipts;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.showcase.workload.contexa.principal.OrphanPrincipalSweeper;
 import io.contexa.showcase.workload.contexa.principal.RunPrincipalService;
 import io.contexa.showcase.workload.contexa.principal.SharedAccountGuard;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -35,17 +40,21 @@ import java.util.Map;
 @RestController
 public class ContexaInternalController {
 
+    /**
+     * @param approver the run's security administrator who approves a block release (ADR-33), not a request sender
+     */
     public record PrincipalRequest(String username, String password, String employeeKey, String roleKey,
                                    String displayName, String department, String organizationId, String tenantId,
-                                   TemplateSnapshot template) {
+                                   TemplateSnapshot template, Boolean approver) {
     }
 
     public record SnapshotRequest(String username, String employeeKey, String organizationId, String tenantId) {
     }
 
+    /** @param receivedAt when control D received the request, on D's clock; null when D no longer holds it (#44) */
     public record DecisionEvidence(String requestId, List<DecisionRecords.DecisionRecord> records,
                                    List<AnalysisEventRecorder.AnalysisEvent> events,
-                                   List<UsageLedger.ModelCall> modelCalls) {
+                                   List<UsageLedger.ModelCall> modelCalls, Instant receivedAt) {
     }
 
     private final RunPrincipalService principals;
@@ -56,24 +65,32 @@ public class ContexaInternalController {
     private final DecisionRecords decisions;
     private final AnalysisEventRecorder analysisEvents;
     private final UsageLedger usage;
+    private final ModelExchanges exchanges;
+    private final RequestReceipts receipts;
+    private final ObjectProvider<TieredStrategyProperties> tieredProperties;
     private final SecurityZeroTrustProperties zeroTrust;
     private final String chatModel;
     private final String embeddingModel;
     private final int embeddingDimensions;
     private final ObjectProvider<BuildProperties> build;
     private final boolean forcedActions;
+    private final Integer behaviorRetentionDays;
 
     public ContexaInternalController(RunPrincipalService principals, SharedAccountGuard sharedAccounts,
                                      OrphanPrincipalSweeper orphans,
                                      TemplateSnapshots templates,
                                      DemoInboxEmailService inbox, DecisionRecords decisions,
                                      AnalysisEventRecorder analysisEvents, UsageLedger usage,
+                                     ModelExchanges exchanges, RequestReceipts receipts,
+                                     ObjectProvider<TieredStrategyProperties> tieredProperties,
                                      SecurityZeroTrustProperties zeroTrust,
                                      @Value("${spring.ai.openai.chat.options.model:}") String chatModel,
                                      @Value("${spring.ai.openai.embedding.options.model:}") String embeddingModel,
                                      @Value("${spring.ai.openai.embedding.options.dimensions:0}") int embeddingDimensions,
                                      ObjectProvider<BuildProperties> build,
-                                     @Value("${showcase.dev.forced-actions:false}") boolean forcedActions) {
+                                     @Value("${showcase.dev.forced-actions:false}") boolean forcedActions,
+                                     @Value("${contexa.rag.etl.behavior.retention-days:#{null}}")
+                                     Integer behaviorRetentionDays) {
         this.principals = principals;
         this.sharedAccounts = sharedAccounts;
         this.orphans = orphans;
@@ -82,12 +99,16 @@ public class ContexaInternalController {
         this.decisions = decisions;
         this.analysisEvents = analysisEvents;
         this.usage = usage;
+        this.exchanges = exchanges;
+        this.receipts = receipts;
+        this.tieredProperties = tieredProperties;
         this.zeroTrust = zeroTrust;
         this.chatModel = chatModel;
         this.embeddingModel = embeddingModel;
         this.embeddingDimensions = embeddingDimensions;
         this.build = build;
         this.forcedActions = forcedActions;
+        this.behaviorRetentionDays = behaviorRetentionDays;
     }
 
     @PostMapping("/internal/runs/{runId}/principals")
@@ -95,7 +116,7 @@ public class ContexaInternalController {
                                                @RequestBody PrincipalRequest request) {
         principals.create(new RunPrincipalService.Principal(request.username(), runId, request.employeeKey(),
                 request.roleKey(), request.displayName(), request.department(), request.organizationId(),
-                request.tenantId()), request.password());
+                request.tenantId(), Boolean.TRUE.equals(request.approver())), request.password());
         int documents = request.template() == null ? 0
                 : templates.importInto(request.template(), request.username(), request.organizationId(),
                 request.tenantId());
@@ -139,7 +160,16 @@ public class ContexaInternalController {
     @GetMapping("/internal/decisions/{requestId}")
     public DecisionEvidence decision(@PathVariable("requestId") String requestId) {
         return new DecisionEvidence(requestId, decisions.byRequestId(requestId), analysisEvents.eventsOf(requestId),
-                usage.callsOf(requestId));
+                usage.callsOf(requestId), receipts.receivedAt(requestId).orElse(null));
+    }
+
+    /**
+     * Every model call of a decision as it happened: prompt messages, provider request options, provider response,
+     * answer, finish reason and tokens (docs/showcase/데모-재설계.md 5.1). Empty when control D no longer holds it.
+     */
+    @GetMapping("/internal/decisions/{requestId}/exchanges")
+    public List<ModelExchanges.Exchange> exchanges(@PathVariable("requestId") String requestId) {
+        return exchanges.of(requestId);
     }
 
     /** The normalised prompt of a decision (PromptFingerprint), compared by the isolation smoke (T6, T7). */
@@ -169,17 +199,54 @@ public class ContexaInternalController {
     public Map<String, Object> engine() {
         Map<String, Object> engine = new LinkedHashMap<>();
         BuildProperties properties = build.getIfAvailable();
-        engine.put("engineVersion", properties == null ? "unknown" : properties.getVersion());
-        engine.put("codeCommit", properties == null || properties.get("git.commit") == null ? "unknown"
-                : properties.get("git.commit"));
+        // Build facts D does not know are left out (null), never written as a placeholder (fabricated-data survey P1).
+        engine.put("engineVersion", properties == null ? null : properties.getVersion());
+        engine.put("codeCommit", properties == null ? null : properties.get("git.commit"));
         engine.put("effectiveMode", zeroTrust.isEnabled() ? zeroTrust.getMode().name() : "DISABLED");
         engine.put("chatModel", chatModel);
         engine.put("embeddingModel", embeddingModel);
         engine.put("embeddingDimensions", embeddingDimensions);
         engine.put("timeZone", ZoneId.systemDefault().getId());
         engine.put("endpointProtection", EndpointProtection.describe());
+        // The model settings the engine sends with every analysis (R-20): they change the verdicts, so a run records them.
+        TieredStrategyProperties tiered = tieredProperties.getIfAvailable();
+        if (tiered != null) {
+            engine.put("layer1Model", modelSettings(tiered.getLayer1().getOpenAiReasoningEffort(),
+                    tiered.getLayer1().getOpenAiVerbosity(), tiered.getLayer1().getMaxOutputTokens()));
+            engine.put("layer2Model", modelSettings(tiered.getLayer2().getOpenAiReasoningEffort(),
+                    tiered.getLayer2().getOpenAiVerbosity(), tiered.getLayer2().getMaxOutputTokens()));
+        }
         // True only on a development stack that accepts forced decisions; the portal refuses to record replays then.
         engine.put("forcedActions", forcedActions);
+        // How long the engine keeps behaviour documents, as configured here; null when this app leaves the core's own
+        // default in place (the adoption screen states a value only when it is known).
+        engine.put("behaviorRetentionDays", behaviorRetentionDays);
+        engine.put("actions", actions());
         return engine;
+    }
+
+    /**
+     * What each decision does to the user's next requests as the engine's ZeroTrustAction defines it: the HTTP status
+     * of a refused request and how long the decision stays in force (null when it stays until released). The demo's
+     * follow-up screens show these values instead of writing them down.
+     */
+    private static Map<String, Object> actions() {
+        Map<String, Object> actions = new LinkedHashMap<>();
+        for (ZeroTrustAction action : List.of(ZeroTrustAction.ALLOW, ZeroTrustAction.CHALLENGE,
+                ZeroTrustAction.ESCALATE, ZeroTrustAction.BLOCK)) {
+            Map<String, Object> facts = new LinkedHashMap<>();
+            facts.put("httpStatus", action.getHttpStatus());
+            facts.put("ttlSeconds", action.getDefaultTtl() == null ? null : action.getDefaultTtl().toSeconds());
+            actions.put(action.name(), facts);
+        }
+        return actions;
+    }
+
+    private static Map<String, Object> modelSettings(String reasoningEffort, String verbosity, int maxOutputTokens) {
+        Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put("reasoningEffort", reasoningEffort);
+        settings.put("verbosity", verbosity);
+        settings.put("maxOutputTokens", maxOutputTokens);
+        return settings;
     }
 }

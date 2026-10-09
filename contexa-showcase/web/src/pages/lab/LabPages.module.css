@@ -1,0 +1,550 @@
+/* The lab's screens (7.6): one look per role as on the routes (U-10): pressable = outlined, labels = square tags. */
+
+/* L0: the three steps as numbered labels, then the scope line with the runs left. */
+.threeSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.threeStep {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.stepNumber {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-sm);
+}
+
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.remaining {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.mainHint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Filters, tabs and the item to change: outlined, the chosen one filled with the accent tint. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter {
+  min-block-size: 2.5rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.filter[aria-pressed='true'],
+.filter[aria-selected='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.filter:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* L1: case cards, pressable, the picked one outlined with the accent. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  block-size: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: var(--color-accent);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.card[aria-pressed='true'] {
+  border: 2px solid var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.cardTitle {
+  font-weight: var(--weight-semibold);
+}
+
+.answer {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.answer[data-answer='stop'] {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.answer[data-answer='pass'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.measured {
+  margin-top: auto;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+/* Panels: the original case, the item to change, the call, the changed cases. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.panelTitle {
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.summary dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.summary dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.oneInput,
+.advancedInput {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.oneInput {
+  max-inline-size: 28rem;
+}
+
+.oneInputName {
+  color: var(--color-text-muted);
+}
+
+.select {
+  min-block-size: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.advanced summary {
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.advancedInputs,
+.ruleInputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.ruleInputs {
+  align-items: end;
+  margin-top: 0;
+}
+
+.choice,
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.choice[data-chosen] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.choice input,
+.toggle input {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.windowLead {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+/* L2-2: three cells, the designed case's value then the changed one's. */
+.compareCells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.compareCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.compareValue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.compareArrow {
+  color: var(--color-text-muted);
+}
+
+.compareNow {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.lineConditions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.lineConditions li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lineConditions li[data-met] {
+  color: var(--color-text);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.truth,
+.contexaLine {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+/* L3: before and now per approach, the changed rows marked; the call line; both runs' reasons. */
+.versus {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  text-align: start;
+}
+
+.versus th,
+.versus td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: start;
+}
+
+.versus thead th {
+  border-bottom: 2px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+}
+
+.versus tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.versus tr[data-changed] td,
+.versus tr[data-changed] th {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.changedTag {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+}
+
+.inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inputs code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.callLine {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.callLine dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.callLine dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.reason {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.reason p {
+  margin: 0;
+}
+
+.reasonLabel {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.ruleSet {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* R: the two counts, Contexa's recorded counts, the cases that changed. */
+.hours {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-left: 4px solid var(--color-safe);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+}
+
+.count[data-tone='bad'] {
+  border-left-color: var(--color-loss);
+}
+
+.count dt {
+  order: 1;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.count dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.changeCase {
+  margin-right: var(--space-2);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+@media (width <= 64rem) {
+  .cards,
+  .compareCells,
+  .advancedInputs,
+  .ruleInputs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 48rem) {
+  .threeSteps,
+  .cards,
+  .compareCells,
+  .advancedInputs,
+  .ruleInputs,
+  .summary,
+  .reasons,
+  .counts,
+  .callLine {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Phones (mobile slide): the lab's pills and folds reach 44 px. */
+@media (width <= 40rem) {
+  .filter {
+    min-block-size: 2.75rem;
+  }
+
+  .advanced summary {
+    min-height: 2.75rem;
+  }
+}

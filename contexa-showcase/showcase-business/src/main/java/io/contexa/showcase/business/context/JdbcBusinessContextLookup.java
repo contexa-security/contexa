@@ -189,7 +189,7 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
         }
         List<ApprovalCoverage> candidates = database.jdbc().query("""
                         select approval_key, requester, approver, project_key, purpose, max_items, valid_from,
-                               valid_until, status
+                               valid_until, status, approved_at
                           from approval
                          where requester = :employee and (run_id is null or run_id = :run)
                          order by approval_key""",
@@ -216,10 +216,37 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
                         mismatches.add("STATUS");
                     }
                     return new ApprovalCoverage(mismatches.isEmpty(), rs.getString(1), approver, rs.getString(5),
-                            maxItems, from, until, List.copyOf(mismatches));
+                            maxItems, from, until, List.copyOf(mismatches), instant(rs, 10));
                 });
         return best(candidates, ApprovalCoverage::covered, coverage -> distance(coverage.mismatches()))
                 .orElse(ApprovalCoverage.none());
+    }
+
+    @Override
+    public ExportApprovalPolicy exportApprovalPolicy() {
+        return database.jdbc().query("""
+                        select policy_key, description, assigned_export_limit, ticket_and_oncall_exempt
+                          from company_policy where policy_key = 'EXPORT_APPROVAL'""", params(),
+                (rs, n) -> new ExportApprovalPolicy(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getBoolean(4)))
+                .stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("The business database holds no EXPORT_APPROVAL policy"));
+    }
+
+    @Override
+    public AccessApprovalPolicy accessApprovalPolicy(BusinessOperation operation) {
+        String key = switch (operation) {
+            case ROLE_GRANT -> "ROLE_GRANT_APPROVAL";
+            case CUSTOMER_READ -> "CUSTOMER_ACCESS_APPROVAL";
+            case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> "DOCUMENT_ACCESS_APPROVAL";
+            default -> throw new IllegalArgumentException("No access approval policy for " + operation);
+        };
+        return database.jdbc().query("""
+                        select policy_key, description, account_manager_exempt, assigned_exempt, recent_work_days
+                          from company_policy where policy_key = :key""", params().addValue("key", key),
+                (rs, n) -> new AccessApprovalPolicy(rs.getString(1), rs.getString(2), rs.getBoolean(3),
+                        rs.getBoolean(4), (Integer) rs.getObject(5)))
+                .stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("The business database holds no " + key + " policy"));
     }
 
     @Override

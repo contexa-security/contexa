@@ -1,0 +1,263 @@
+/* The decision details (anat-1, anat-2): the request row, the six tabs, then one tab's content. */
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.requests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.requestNow {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* The same look as every other tab row of the demo (the lab rules' tabs): pills, the selected one in the accent. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  min-block-size: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.panel {
+  min-block-size: 12rem;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The verdict against the right answer: right or wrong first, then the responses that count as right. */
+.verdictLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.rightMark,
+.answer {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.rightMark[data-result='RIGHT'],
+.answer[data-answer='pass'] {
+  border-color: var(--color-safe);
+  color: var(--color-safe);
+}
+
+.rightMark[data-result='MISSED'],
+.rightMark[data-result='FALSE_BLOCK'],
+.answer[data-answer='stop'] {
+  border-color: var(--color-halt);
+  color: var(--color-halt);
+}
+
+.allowed,
+.note {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+/* Three facts of the decision, each a label over its value. */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.figures > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.figures dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.figures dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* A second, smaller line under a fact's value. */
+.subValue {
+  display: block;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+}
+
+.chips,
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The engine's steps, each with the time it came after the first. */
+.stages,
+.calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage,
+.call {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text-body);
+}
+
+.stageTime {
+  min-inline-size: 4.5rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+}
+
+.folds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.folds > details {
+  inline-size: 100%;
+}
+
+.originalLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.pre {
+  max-block-size: 20rem;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pre:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.download {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.hash {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--color-halt);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+/* Phones: the three facts one under another. */
+@media (width <= 40rem) {
+  .figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,53 @@
+/* Eight cells in four columns: the name of what changes, then how it changes; measured values sit in the sentence. */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.name {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.inline {
+  font-family: var(--font-mono);
+}
+
+.mode {
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+@media (width <= 64rem) {
+  .cells {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 40rem) {
+  .cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

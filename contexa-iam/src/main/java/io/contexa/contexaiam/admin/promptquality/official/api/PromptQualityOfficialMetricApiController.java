@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/contexa/admin/api/prompt-quality/verification/runtime-runs/package")
+@PreAuthorize("hasRole('ADMIN')")
 public class PromptQualityOfficialMetricApiController {
 
     private final PromptQualityOfficialRunDetailService runDetailService;

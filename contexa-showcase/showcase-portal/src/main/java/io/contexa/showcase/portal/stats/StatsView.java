@@ -1,5 +1,7 @@
 package io.contexa.showcase.portal.stats;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -9,12 +11,20 @@ import java.util.Map;
  * Every number is counted from the stored runs; runs with a development-only forced decision are left out.
  *
  * @param engineActions the engine's resolved decisions by final action
- * @param layers        each control's result at the decisive step of the runs whose scenario has a ground truth
+ * @param layers        each control's business result over the whole case of the runs with a ground truth, by the
+ *                      one scoring rule (docs/showcase/데모-재설계.md 5.0)
  * @param specCount     distinct execution specifications among the counted runs
+ * @param releases      block releases recorded for the counted runs (the follow-up map's block line, D-32)
  */
 public record StatsView(Instant computedAt, Runs runs, DecisionTime decisionTime, Map<String, Long> engineActions,
                         Unresolved unresolved, Agreement agreement, Scope scope, List<LayerStats> layers, Spec spec,
-                        long specCount) {
+                        long specCount, long releases) {
+
+    /** The engine's resolved decisions of every final action together, counted here so the screen adds nothing. */
+    @JsonProperty(value = "engineDecisions", access = JsonProperty.Access.READ_ONLY)
+    public long engineDecisions() {
+        return engineActions == null ? 0L : engineActions.values().stream().mapToLong(Long::longValue).sum();
+    }
 
     /**
      * @param completed real runs that finished
@@ -45,10 +55,10 @@ public record StatsView(Instant computedAt, Runs runs, DecisionTime decisionTime
     }
 
     /**
-     * @param threatRuns runs of scenarios whose ground truth is a threat
-     * @param normalRuns runs of scenarios whose ground truth is normal work
-     * @param otherRuns  runs without a ground truth (condition grid cells, uncertain scenarios), left out of the
-     *                   miss and false-block counts
+     * @param threatRuns runs whose ground truth is a threat
+     * @param normalRuns runs whose ground truth is normal work
+     * @param otherRuns  runs without a ground truth (condition grid cells, uncertain scenarios, runs whose executed
+     *                   definition is no longer known), left out of the miss and false-block counts
      */
     public record Scope(long threatRuns, long normalRuns, long otherRuns) {
     }
@@ -57,18 +67,22 @@ public record StatsView(Instant computedAt, Runs runs, DecisionTime decisionTime
     }
 
     /**
-     * @param leaked     the data left at the decisive step (a miss)
-     * @param stopped    refused, cut mid-response, or held for a check or a review
-     * @param unresolved the request itself failed
+     * @param stopped       no data left at any step
+     * @param partlyStopped some data left before the case was stopped or cut
+     * @param missed        the data left at every step
+     * @param unresolved    a request failed
+     * @param exposedItems  items that left over all these runs
      */
-    public record Threat(long runs, long leaked, long stopped, long unresolved) {
+    public record Threat(long runs, long stopped, long partlyStopped, long missed, long unresolved,
+                         long exposedItems) {
     }
 
     /**
-     * @param challenged held for an extra check (control D), which normal work may meet
-     * @param blocked    refused, cut mid-response or held for a review (a false block)
+     * @param passedAfterCheck control D asked for an additional check, the run principal answered it and the work went
+     *                         on
+     * @param halted           a step was refused, cut or left on hold (a false block)
      */
-    public record Normal(long runs, long passed, long challenged, long blocked, long unresolved) {
+    public record Normal(long runs, long passed, long passedAfterCheck, long halted, long unresolved) {
     }
 
     /** The execution specification of the latest counted run. */

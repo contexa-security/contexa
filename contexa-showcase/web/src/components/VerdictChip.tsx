@@ -13,14 +13,26 @@ interface VerdictChipProps {
    * still being analysed.
    */
   readonly unresolved?: boolean;
+  /** 'lg' is the verdict a figure ends in (the reasons figure); it keeps the verdict colours, never the button's. */
+  readonly size?: 'md' | 'lg';
 }
 
 /** Color, icon and word together, so the verdict never depends on color alone. */
-export function VerdictChip({ verdict, showCode = false, unresolved = false }: VerdictChipProps) {
+export function VerdictChip({
+  verdict,
+  showCode = false,
+  unresolved = false,
+  size = 'md',
+}: VerdictChipProps) {
   const { t } = useTranslation();
   const presentation = VERDICTS[verdict];
   return (
-    <span className={styles.chip} data-verdict={verdict} data-unresolved={unresolved || undefined}>
+    <span
+      className={styles.chip}
+      data-verdict={verdict}
+      data-unresolved={unresolved || undefined}
+      data-size={size}
+    >
       <Icon name={presentation.icon} className={styles.icon} />
       <span>{t(unresolved ? 'verdict.unresolved' : presentation.labelKey)}</span>
       {showCode ? (

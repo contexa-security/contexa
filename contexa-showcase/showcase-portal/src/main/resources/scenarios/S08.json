@@ -1,6 +1,7 @@
 {
   "key": "S08",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "신규 사용자·부족한 기준선",
     "en": "A new user without a baseline"
@@ -49,6 +50,14 @@
       "ALLOW",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "판단이 갈리는 사례: 학습 기록이 없는 새 계정(엔지니어 K의 직원 기록)이 담당 도면 두 건을 연다. 평소 모습이 없어 엔진이 비교할 대상이 없으므로 정답을 정하지 않고 채점하지 않는다.",
+      "en": "Open to judgement: a new account with no learned history (engineer K's employee record) opens two of its own drawings. There is no usual pattern for the engine to compare with, so the case sets no ground truth and is not scored."
+    },
+    "counterpoint": {
+      "ko": "반론: 담당 도면이라 정상이라는 의견과, 비교할 기록이 없으니 확인해야 한다는 의견이 모두 가능하다.",
+      "en": "Counterpoint: one can argue it is normal because the drawings are the employee's own, or that it needs a check because there is nothing to compare with."
+    }
   }
 }

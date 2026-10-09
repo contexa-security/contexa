@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,6 +40,33 @@ public class WorkloadAdmin {
     /** The rule controls' published configuration and hash (execution specification ruleVersion). */
     public JsonNode rules() throws IOException {
         return read(plain("ops").get("/internal/rules", null, null));
+    }
+
+    /**
+     * The rule classes' decisions of recorded requests under the given settings (H-10); the plain workload evaluates
+     * them from the recorded facts and changes nothing.
+     */
+    public JsonNode evaluateRules(Object evaluation) throws IOException {
+        return read(plain("ops").postJson("/internal/rules/evaluate", null, null,
+                json.writeValueAsString(evaluation)));
+    }
+
+    /** The lab's choices as the business database holds them (docs/showcase/데모-재설계.md 5A.1.1). */
+    public JsonNode labOptions(List<String> employees) throws IOException {
+        return read(plain("ops").get("/internal/company/lab-options?employees=" + String.join(",", employees), null,
+                null));
+    }
+
+    /** The lab's choices for the protagonists (docs/showcase/데모-재설계.md 5A.1.2). */
+    public JsonNode labOptions() throws IOException {
+        return read(plain("ops").get("/internal/company/lab-options", null, null));
+    }
+
+    /** The employees whose normal work the business database scripts for the template learning, in key order. */
+    public List<String> protagonists() throws IOException {
+        List<String> keys = new ArrayList<>();
+        read(plain("ops").get("/internal/company/protagonists", null, null)).forEach(key -> keys.add(key.asText()));
+        return keys;
     }
 
     public JsonNode employee(String employeeKey) throws IOException {
@@ -96,6 +125,11 @@ public class WorkloadAdmin {
 
     public JsonNode decision(String requestId) throws IOException {
         return read(engine("ops").get("/internal/decisions/" + requestId, null, null));
+    }
+
+    /** Every model call control D kept for a decision: prompt, request options, provider response (W1-2). */
+    public JsonNode exchanges(String requestId) throws IOException {
+        return read(engine("ops").get("/internal/decisions/" + requestId + "/exchanges", null, null));
     }
 
     /** The normalised prompt control D saw for a decision, or empty when it no longer holds it. */

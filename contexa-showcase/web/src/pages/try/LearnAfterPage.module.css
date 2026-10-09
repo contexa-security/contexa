@@ -1,0 +1,106 @@
+/* One row per decision: the verdict, an arrow, what the engine does with it for learning, then this demo's record. */
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 11rem auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+/* The case of learning, as a label: green when the request went through, red when it was stopped. */
+.kind {
+  justify-self: start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.kind[data-kind='allow'],
+.kind[data-kind='checked'],
+.kind[data-kind='released'] {
+  border-left: 4px solid var(--color-safe);
+}
+
+.kind[data-kind='stopped'] {
+  border-left: 4px solid var(--color-loss);
+}
+
+.arrow {
+  color: var(--color-text-muted);
+}
+
+.rule {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.example {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: end;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.example[data-core] {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-regular);
+}
+
+.measured {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-regular);
+}
+
+.warning {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--color-halt);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+}
+
+.warningName {
+  color: var(--color-halt);
+  font-weight: var(--weight-bold);
+}
+
+@media (width <= 48rem) {
+  .line {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .arrow {
+    display: none;
+  }
+
+  .example {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}

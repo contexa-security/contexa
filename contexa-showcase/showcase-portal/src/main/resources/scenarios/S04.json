@@ -1,6 +1,7 @@
 {
   "key": "S04",
   "version": 1,
+  "frozenOn": "2026-10-07",
   "title": {
     "ko": "탈취된 정상 계정의 탐색",
     "en": "A stolen account explores"
@@ -71,6 +72,14 @@
       "BLOCK",
       "CHALLENGE",
       "ESCALATE"
-    ]
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정을 손에 넣은 사람이 저녁에 새 기기로 프로젝트 목록을 훑은 뒤, K가 맡지 않은 GB-500(제한 등급) 도면 두 건을 열고 자료 8건을 반출한다. 회사 기록에는 이를 설명하는 배정·티켓이 없다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: someone holding engineer K's account lists the projects in the evening from a new device, opens two drawings of GB-500, a restricted project K is not assigned to, and exports eight records. No assignment or ticket explains it. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 다른 프로젝트를 도우려던 엔지니어일 수 있다. 배정·티켓이 없고 기기도 처음 보는 것이므로 공격으로 정했다.",
+      "en": "Counterpoint: it may be an engineer helping another project. There is no assignment or ticket and the device has never been seen, so the case is an attack."
+    }
   }
 }

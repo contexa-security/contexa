@@ -1,0 +1,187 @@
+/* The seven bundles on the left as pressable cards; the bundle pressed opens on the right. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.bundles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bundle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  inline-size: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.bundle:hover {
+  border-color: var(--color-accent);
+}
+
+.bundle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.bundle[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.bundleName {
+  font-weight: var(--weight-bold);
+}
+
+.bundleLines {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.bundleWhat {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.viewTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+/* The plain words first: each matched original line, then what it says. */
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plainRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-accent);
+}
+
+/* The matched line, at most two lines long here; the whole line is in the original below. */
+.plainOriginal {
+  display: -webkit-box;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.plainWords {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.originalLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* The bundle's original lines, numbered, scrolling inside its own box. */
+.original {
+  /* No taller than the seven bundles beside it, so the step stays one screen high (C-3, S12); it scrolls inside. */
+  max-block-size: 14rem;
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-10);
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.original:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.originalLine {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.originalLine::marker {
+  color: var(--color-text-subtle);
+}
+
+.callLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.model {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.model code {
+  font-family: var(--font-mono);
+}
+
+.full {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (width <= 48rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plainRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

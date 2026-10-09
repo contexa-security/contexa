@@ -24,9 +24,11 @@ import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPol
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.function.Consumer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.util.StringUtils;
 
 public class PromptContextComposer {
@@ -832,6 +834,7 @@ public class PromptContextComposer {
         boolean hasResolvedAuthorizationEffect = context != null
                 && context.getAuthorization() != null
                 && StringUtils.hasText(context.getAuthorization().getAuthorizationEffect());
+        Set<String> statedByTrustProfiles = trustProfileStatements(trustProfiles);
         if (coverage != null) {
             for (String fact : coverage.missingCriticalFacts()) {
                 if (hasResolvedAuthorizationEffect
@@ -842,6 +845,7 @@ public class PromptContextComposer {
             }
             for (String warning : coverage.confidenceWarnings()) {
                 if (StringUtils.hasText(warning)
+                        && !statedByTrustProfiles.contains(warning)
                         && !(hasResolvedAuthorizationEffect
                         && warning.startsWith("Broader authorization scope metadata is unavailable"))) {
                     section.append("- MissingKnowledgeWarning: ")
@@ -875,10 +879,7 @@ public class PromptContextComposer {
                         .append("\n");
             }
             for (String warning : trustProfile.getQualityWarnings()) {
-                if (!StringUtils.hasText(warning)
-                        || warning.contains("workProfile.")
-                        || warning.contains("roleScope.")
-                        || warning.startsWith("Role scope field ")) {
+                if (!printedAsTrustWarning(warning)) {
                     continue;
                 }
                 section.append("- ContextTrustWarning: ")
@@ -889,6 +890,41 @@ public class PromptContextComposer {
             }
 
         }
+    }
+
+    /**
+     * Coverage warnings that repeat what the trust-profile lines of the same section state: the profile's evidence
+     * caution (stated by its ContextEvidenceLimitation line), its scope limitations and the quality warnings printed
+     * as ContextTrustWarning lines. Each fact then appears once.
+     */
+    private Set<String> trustProfileStatements(List<ContextTrustProfile> trustProfiles) {
+        if (trustProfiles == null || trustProfiles.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> statements = new HashSet<>();
+        for (ContextTrustProfile trustProfile : trustProfiles) {
+            if (trustProfile == null || !hasTrustGating(trustProfile)) {
+                continue;
+            }
+            statements.add("Context evidence for " + trustProfile.getProfileKey()
+                    + " is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.");
+            for (String limitation : trustProfile.getScopeLimitations()) {
+                statements.add("Scope limitation: " + limitation);
+            }
+            for (String warning : trustProfile.getQualityWarnings()) {
+                if (printedAsTrustWarning(warning)) {
+                    statements.add(warning);
+                }
+            }
+        }
+        return statements;
+    }
+
+    private boolean printedAsTrustWarning(String warning) {
+        return StringUtils.hasText(warning)
+                && !warning.contains("workProfile.")
+                && !warning.contains("roleScope.")
+                && !warning.startsWith("Role scope field ");
     }
 
     private boolean hasMissingKnowledge(ContextCoverageReport coverage, List<ContextTrustProfile> trustProfiles) {

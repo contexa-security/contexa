@@ -1,0 +1,61 @@
+{
+  "key": "A3A",
+  "version": 1,
+  "frozenOn": "2026-10-08",
+  "title": {
+    "ko": "내부자 대량 반출(비동기식 판정)",
+    "en": "Insider bulk export (asynchronous decision)"
+  },
+  "protagonist": "adm-a",
+  "template": true,
+  "timeSlot": "DAWN",
+  "device": "USUAL",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "EXPORT_ASYNC",
+      "project": "GB-500",
+      "items": 4831,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    },
+    {
+      "operation": "DOCUMENT_DOWNLOAD",
+      "document": {
+        "project": "GB-500",
+        "type": "DRAWING",
+        "position": 1
+      },
+      "offsetSeconds": 60,
+      "visitorSends": true,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "DENY",
+        "C2": "DENY"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: A3와 같은 반출(새벽 3시 17분, 맡지 않은 GB-500 자료 4,831건)을 같은 일반 반출로 보내되, Contexa 판정을 비동기식(다음 요청부터 적용)으로 받는 주소로 보낸다. 1분 뒤 같은 프로젝트 도면을 다시 내려받는다. 회사 기록에는 이 작업을 덮는 승인·티켓·당번이 없다. 동기식(A3)과 판정 시점만 다르다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: the export of A3 (03:17, 4,831 records of GB-500, which A is not assigned to) sent as the same plain export to the address whose Contexa decision is asynchronous (applied from the next request), followed a minute later by a download of a drawing of the same project. No approval, ticket or on-call duty covers the work. Only the decision timing differs from the synchronous A3. The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: 관리자가 급한 이관 지시를 받고 기록 없이 작업했을 수 있다. 회사 규정이 이 반출에 승인을 요구하고 그 기록이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: the administrator may have been told to transfer the data urgently without a record. The policy requires an approval for this export and there is none, so the case is an attack."
+    }
+  }
+}

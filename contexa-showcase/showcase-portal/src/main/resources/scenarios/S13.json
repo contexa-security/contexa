@@ -1,0 +1,46 @@
+{
+  "key": "S13",
+  "version": 1,
+  "frozenOn": "2026-10-08",
+  "title": {
+    "ko": "담당 범위 안에서 평소의 20배 넘게 반출",
+    "en": "An export over 20 times the usual size, within the assignment"
+  },
+  "protagonist": "eng-k",
+  "template": true,
+  "timeSlot": "AFTERNOON",
+  "device": "NEW",
+  "pace": "PACED",
+  "facts": [],
+  "steps": [
+    {
+      "operation": "EXPORT",
+      "project": "HX-310",
+      "items": 480,
+      "offsetSeconds": 0,
+      "expected": {
+        "A": "ALLOW",
+        "B": "ALLOW",
+        "C1": "ALLOW",
+        "C2": "ALLOW"
+      }
+    }
+  ],
+  "oracle": {
+    "classification": "THREAT",
+    "allowedEngineActions": [
+      "BLOCK",
+      "CHALLENGE",
+      "ESCALATE"
+    ],
+    "rationale": {
+      "ko": "설계된 공격: 엔지니어 K의 계정을 손에 넣은 사람이 평일 오후 사무실망에서 처음 보는 기기(Mac·Safari)로 K의 담당 HX-310 자료 480건을 한 번에 반출한다. 담당 프로젝트이고 담당 반출 한도(500건) 안이라 회사 규정상 승인이 필요 없다. 평소와 다른 것은 기기와 반출 규모(K는 평소 한 번에 10~20건을 반출한다)뿐이다. 정답은 모델에게 주지 않는다.",
+      "en": "Designed attack: on a weekday afternoon someone holding engineer K's account exports 480 records of HX-310, K's assigned project, in one request from an unfamiliar device (Mac, Safari) on the office network. The project is K's and the export is within the assigned export limit (500 records), so the company policy needs no approval. Only the device and the size differ from usual (K usually exports 10 to 20 records at a time). The expected answer is not given to the model."
+    },
+    "counterpoint": {
+      "ko": "반론: K가 새 기기로 바꾸고 큰 정리 작업을 했을 수 있다. 처음 보는 기기에서 평소의 20배가 넘는 반출이 한 번에 나가고 그것을 설명하는 기록이 없으므로 공격으로 정했다.",
+      "en": "Counterpoint: K may have switched to a new device for a large clean-up. An export over 20 times the usual size leaves at once from a device never seen before, with no record that explains it, so the case is an attack."
+    }
+  },
+  "suite": "RULE_BLIND"
+}

@@ -2,21 +2,32 @@ package io.contexa.showcase.portal.orchestrator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.business.internal.InternalContextSigner;
+import io.contexa.showcase.portal.anatomy.AnatomyStore;
+import io.contexa.showcase.portal.anatomy.BeforeSend;
+import io.contexa.showcase.portal.benchmark.BenchmarkService;
+import io.contexa.showcase.portal.benchmark.BenchmarkView;
 import io.contexa.showcase.portal.combination.CombinationService;
 import io.contexa.showcase.portal.combination.CombinationStore;
+import io.contexa.showcase.portal.hook.HookStore;
+import io.contexa.showcase.portal.live.BaselineEvidence;
+import io.contexa.showcase.portal.live.DecisionWaits;
 import io.contexa.showcase.portal.live.LiveAllotment;
 import io.contexa.showcase.portal.live.LiveGate;
 import io.contexa.showcase.portal.live.LiveGateWatch;
 import io.contexa.showcase.portal.live.LiveQuota;
 import io.contexa.showcase.portal.live.LiveRuns;
 import io.contexa.showcase.portal.live.TurnstileVerifier;
-import io.contexa.showcase.portal.replay.ReplayViews;
+import io.contexa.showcase.portal.measured.MeasuredCases;
 import io.contexa.showcase.portal.replay.PairCatalog;
 import io.contexa.showcase.portal.replay.ReplayRecorder;
 import io.contexa.showcase.portal.replay.ReplayStore;
+import io.contexa.showcase.portal.replay.ReplayViews;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
+import io.contexa.showcase.portal.scenario.ScenarioDefinition;
+import io.contexa.showcase.portal.scoring.RunScores;
 import io.contexa.showcase.portal.spec.ExecutionSpecStore;
 import io.contexa.showcase.portal.spec.ScoringContract;
+import io.contexa.showcase.portal.teaser.TeaserService;
 import io.contexa.showcase.portal.template.CloneVerifier;
 import io.contexa.showcase.portal.template.TemplateCurrency;
 import io.contexa.showcase.portal.template.TemplateLearner;
@@ -76,9 +87,10 @@ public class OrchestrationConfiguration {
     @Bean
     RunOrchestrator runOrchestrator(ControlEndpoints endpoints, WorkloadAdmin admin, InternalContextSigner signer,
                                     RunStore runStore, TemplateCurrency templateCurrency, ExecutionSpecStore specs,
-                                    ScoringContract contract, ObjectMapper objectMapper) {
+                                    ScoringContract contract, ObjectMapper objectMapper,
+                                    AnatomyStore anatomies) {
         return new RunOrchestrator(endpoints, admin, signer, runStore, templateCurrency, specs, contract,
-                objectMapper);
+                objectMapper, anatomies);
     }
 
     @Bean
@@ -126,10 +138,13 @@ public class OrchestrationConfiguration {
                       @Value("${showcase.live.starts-per-minute:12}") int startsPerMinute,
                       @Value("${showcase.live.space-lifetime:PT30M}") Duration lifetime,
                       @Value("${showcase.live.space-inactivity:PT15M}") Duration inactivity,
-                      @Value("${showcase.live.scenarios:}") String scenarioKeys,
+                      @Value("${showcase.live.scenarios:all}") String scenarioKeys,
                       @Value("${showcase.live.dev-forced-action:}") String forcedAction) {
-        List<String> keys = Arrays.stream(scenarioKeys.split(",")).map(String::trim)
-                .filter(key -> !key.isEmpty()).toList();
+        // One setting decides which designed cases visitors can run, on every screen (F-25): "all" (or empty) is
+        // every case of the catalog, a list limits them.
+        List<String> keys = scenarioKeys.isBlank() || "all".equalsIgnoreCase(scenarioKeys.trim())
+                ? scenarios.all().stream().map(ScenarioDefinition::key).toList()
+                : Arrays.stream(scenarioKeys.split(",")).map(String::trim).filter(key -> !key.isEmpty()).toList();
         keys.forEach(key -> scenarios.find(key)
                 .orElseThrow(() -> new IllegalStateException("Unknown live scenario " + key)));
         return new LiveRuns(orchestrator::run, new LiveRuns.Settings(maxConcurrent, maxQueue, startsPerMinute, lifetime,
@@ -182,6 +197,43 @@ public class OrchestrationConfiguration {
                         @Value("${showcase.live.visitor-daily:10}") int visitorDaily,
                         @Value("${showcase.live.address-daily:30}") int addressDaily) {
         return new LiveQuota(jdbc, signingKey, visitorDaily, addressDaily, Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    BaselineEvidence baselineEvidence(NamedParameterJdbcTemplate jdbc) {
+        return new BaselineEvidence(jdbc);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    TeaserService teaserService(NamedParameterJdbcTemplate jdbc, HookStore hookStore, AnatomyStore anatomies,
+                                BenchmarkService benchmarkService, TemplateCurrency templateCurrency,
+                                ScenarioCatalog scenarioCatalog, ObjectMapper objectMapper) {
+        return new TeaserService(jdbc, hookStore, anatomies, benchmarkService, templateCurrency, scenarioCatalog,
+                objectMapper, Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    DecisionWaits decisionWaits(NamedParameterJdbcTemplate jdbc, BenchmarkService benchmarkService) {
+        return new DecisionWaits(jdbc, () -> benchmarkService.view(null).map(BenchmarkView::spec)
+                .map(BenchmarkView.Spec::settingHash), Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    MeasuredCases measuredCases(NamedParameterJdbcTemplate jdbc, RunScores runScores,
+                                BenchmarkService benchmarkService) {
+        return new MeasuredCases(jdbc, runScores, () -> benchmarkService.view(null).map(BenchmarkView::spec)
+                .map(BenchmarkView.Spec::settingHash), Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "showcase.live.enabled", havingValue = "true")
+    BeforeSend beforeSend(NamedParameterJdbcTemplate jdbc, AnatomyStore anatomies, TemplateCurrency templateCurrency,
+                          ObjectMapper objectMapper, ReplayViews replayViews) {
+        return new BeforeSend(jdbc, anatomies, templateCurrency, objectMapper, replayViews);
     }
 
     @Bean
@@ -258,8 +310,10 @@ public class OrchestrationConfiguration {
      */
     @Bean(initMethod = "start", destroyMethod = "close")
     @ConditionalOnProperty(name = "showcase.templates.auto-learn", havingValue = "true")
-    TemplateMaintainer templateMaintainer(ScenarioCatalog scenarios, TemplateCurrency templateCurrency,
-                                          TemplateStore templateStore, TemplateLearner learner) {
-        return new TemplateMaintainer(scenarios, templateCurrency, templateStore, learner::learn, Clock.systemUTC());
+    TemplateMaintainer templateMaintainer(ScenarioCatalog scenarios, WorkloadAdmin admin,
+                                          TemplateCurrency templateCurrency, TemplateStore templateStore,
+                                          TemplateLearner learner) {
+        return new TemplateMaintainer(scenarios, admin::protagonists, templateCurrency, templateStore, learner::learn,
+                Clock.systemUTC());
     }
 }
