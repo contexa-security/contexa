@@ -1,0 +1,3248 @@
+{
+ "source": "rereview/protocol_steps.json (protocol-29409667, protocol-824e2b34) approval lineage; scenarios/*.json offsets and items; business database migrations V6, V7 policy structure",
+ "expectedFrom": "docs/showcase/프롬프트-전면재검토.md section 6",
+ "generator": "E:/projects/.contexa-verify/showcase/prompt-audit/p0/repro/pb3_case_table.py",
+ "rows": [
+  {
+   "case": "A1",
+   "step": 1,
+   "runId": "run-22fc70843566",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00004",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "203.0.113.71"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "trip": false
+   }
+  },
+  {
+   "case": "A1",
+   "step": 2,
+   "runId": "run-22fc70843566",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00005",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "203.0.113.71"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00004",
+     "items": null,
+     "operation": "DOCUMENT_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "trip": false
+   }
+  },
+  {
+   "case": "A1T",
+   "step": 1,
+   "runId": "run-0d85e157cfc8",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00004",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "198.51.100.146"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": {
+     "planId": "TRV-0d85e157cfc8-1",
+     "city": "Singapore",
+     "country": "SG",
+     "network": "198.51.100.0/24"
+    },
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "trip": true
+   }
+  },
+  {
+   "case": "A1T",
+   "step": 2,
+   "runId": "run-0d85e157cfc8",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00005",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "198.51.100.146"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": {
+     "planId": "TRV-0d85e157cfc8-1",
+     "city": "Singapore",
+     "country": "SG",
+     "network": "198.51.100.0/24"
+    },
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00004",
+     "items": null,
+     "operation": "DOCUMENT_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "trip": true
+   }
+  },
+  {
+   "case": "A3",
+   "step": 1,
+   "runId": "run-54977a3d1d90",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT",
+    "address": "10.40.12.103"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "A3A",
+   "step": 1,
+   "runId": "run-cba06d2d8b82",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT_ASYNC",
+    "address": "10.40.12.71"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "A3S",
+   "step": 1,
+   "runId": "run-a7199657820f",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT_STREAM",
+    "address": "10.40.12.81"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "A3ST",
+   "step": 1,
+   "runId": "run-864c78b4f3f1",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T03:17:00Z",
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT_STREAM",
+    "address": "10.40.12.42"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-864c78b4f3f1-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 5000,
+      "validFrom": "2026-09-29T03:17:00Z",
+      "validUntil": "2026-10-01T03:17:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": null,
+    "unknown": "the items exported under it outside this session"
+   }
+  },
+  {
+   "case": "A3T",
+   "step": 1,
+   "runId": "run-a53b5acdccb3",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T03:17:00Z",
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT",
+    "address": "10.40.12.143"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-a53b5acdccb3-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 5000,
+      "validFrom": "2026-09-29T03:17:00Z",
+      "validUntil": "2026-10-01T03:17:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": null,
+    "unknown": "the items exported under it outside this session"
+   }
+  },
+  {
+   "case": "A3TA",
+   "step": 1,
+   "runId": "run-94f5e4b8d80c",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T03:17:00Z",
+    "target": "projectKey=GB-500",
+    "items": 4831,
+    "operation": "EXPORT_ASYNC",
+    "address": "10.40.12.48"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-94f5e4b8d80c-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 5000,
+      "validFrom": "2026-09-29T03:17:00Z",
+      "validUntil": "2026-10-01T03:17:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": null,
+    "unknown": "the items exported under it outside this session"
+   }
+  },
+  {
+   "case": "A5",
+   "step": 1,
+   "runId": "run-9f4254555b1d",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": null,
+    "operation": "ROLE_GRANT",
+    "address": "10.40.12.117"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": null,
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": "CHANGE",
+      "exceptions": [],
+      "policyId": "ROLE_GRANT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "TICKET",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "A5T",
+   "step": 1,
+   "runId": "run-bb10d070ead3",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": null,
+    "operation": "ROLE_GRANT",
+    "address": "10.40.12.215"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-bb10d070ead3-1",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": null,
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": "CHANGE",
+      "exceptions": [],
+      "policyId": "ROLE_GRANT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "TICKET",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "A6",
+   "step": 1,
+   "runId": "run-3678c33066be",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "customerKey=CUS-0001",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.99"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0001",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "A6T",
+   "step": 1,
+   "runId": "run-3f4602a5e65c",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:20:00Z",
+    "target": "customerKey=CUS-0001",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.92"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-3f4602a5e65c-1",
+      "approver": "pm-11",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T12:20:00Z",
+      "validUntil": "2026-09-30T20:20:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0001",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "A6T",
+   "step": 3,
+   "runId": "run-3f4602a5e65c",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:22:00Z",
+    "target": "customerKey=CUS-0023",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.92"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-3f4602a5e65c-1",
+      "approver": "pm-11",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T12:20:00Z",
+      "validUntil": "2026-09-30T20:20:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0023",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "customerKey=CUS-0001",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "CHALLENGE"
+    },
+    {
+     "at": null,
+     "target": "customerKey=CUS-0012",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": null
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "A6T",
+   "step": 4,
+   "runId": "run-3f4602a5e65c",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:23:00Z",
+    "target": "customerKey=CUS-0034",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.92"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-3f4602a5e65c-1",
+      "approver": "pm-11",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T12:20:00Z",
+      "validUntil": "2026-09-30T20:20:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0034",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "customerKey=CUS-0001",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "CHALLENGE"
+    },
+    {
+     "at": null,
+     "target": "customerKey=CUS-0012",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": null
+    },
+    {
+     "at": "2026-09-30T14:22:00Z",
+     "target": "customerKey=CUS-0023",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "A6T",
+   "step": 5,
+   "runId": "run-3f4602a5e65c",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:24:00Z",
+    "target": "customerKey=CUS-0045",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.92"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-3f4602a5e65c-1",
+      "approver": "pm-11",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T12:20:00Z",
+      "validUntil": "2026-09-30T20:20:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0045",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "customerKey=CUS-0001",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "CHALLENGE"
+    },
+    {
+     "at": null,
+     "target": "customerKey=CUS-0012",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": null
+    },
+    {
+     "at": "2026-09-30T14:22:00Z",
+     "target": "customerKey=CUS-0023",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:23:00Z",
+     "target": "customerKey=CUS-0034",
+     "items": null,
+     "operation": "CUSTOMER_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "A8",
+   "step": 1,
+   "runId": "run-76333502c0bd",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=GB-500",
+    "items": 300,
+    "operation": "EXPORT",
+    "address": "10.40.12.208"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "INC-7781",
+      "claimedByRequester": true,
+      "exists": false,
+      "hostCovers": false,
+      "hostMismatches": [
+       "NO_TICKET"
+      ]
+     }
+    ],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD",
+    "claimFalse": true
+   }
+  },
+  {
+   "case": "A8T",
+   "step": 1,
+   "runId": "run-3501e9d29db8",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T20:30:00Z",
+    "target": "projectKey=GB-500",
+    "items": 300,
+    "operation": "EXPORT",
+    "address": "10.40.12.243"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-3501e9d29db8-1",
+      "approver": "pm-11",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T19:30:00Z",
+      "validUntil": "2026-10-01T01:30:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     },
+     {
+      "ticketId": "TCK-3501e9d29db8-1",
+      "claimedByRequester": true,
+      "exists": true,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": {
+     "onCall": true,
+     "team": "PLATFORM",
+     "endsAt": "2026-10-01T02:30:00Z"
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "K2",
+   "step": 1,
+   "runId": "run-9c256b216bb3",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.139"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S01",
+   "step": 1,
+   "runId": "run-b420b6f5c19f",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.84"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S01",
+   "step": 2,
+   "runId": "run-b420b6f5c19f",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00002",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.84"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S02",
+   "step": 1,
+   "runId": "run-818860d6ed54",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:20:00Z",
+    "target": "projectKey=GB-500",
+    "items": 400,
+    "operation": "EXPORT",
+    "address": "10.40.12.180"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-818860d6ed54-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "PROJECT_TRANSFER",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": null,
+    "unknown": "the items exported under it outside this session"
+   }
+  },
+  {
+   "case": "S03",
+   "step": 1,
+   "runId": "run-03218cc943ce",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T03:17:00Z",
+    "target": "documentKey=HX-450-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.100"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-03218cc943ce-1",
+      "approver": "pm-03",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T02:17:00Z",
+      "validUntil": "2026-09-30T07:17:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-450",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-450",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "S03",
+   "step": 2,
+   "runId": "run-03218cc943ce",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T03:22:00Z",
+    "target": "projectKey=HX-450",
+    "items": 2,
+    "operation": "EXPORT",
+    "address": "10.40.21.100"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-03218cc943ce-1",
+      "approver": "pm-03",
+      "purpose": "INCIDENT_RECOVERY",
+      "validFrom": "2026-09-30T02:17:00Z",
+      "validUntil": "2026-09-30T07:17:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "onCall": {
+     "onCall": true,
+     "team": "HX on-call",
+     "endsAt": "2026-10-05T09:00:00Z"
+    },
+    "travel": null,
+    "assignment": {
+     "target": "HX-450",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-450",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T03:17:00Z",
+     "target": "documentKey=HX-450-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true,
+    "covering": "TCK"
+   }
+  },
+  {
+   "case": "S04",
+   "step": 2,
+   "runId": "run-c40be3d18b35",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=GB-500-DWG-00003",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.214"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": null,
+     "items": null,
+     "operation": "PROJECT_LIST",
+     "outcome": null
+    }
+   ],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "S05",
+   "step": 1,
+   "runId": "run-73b41126aaef",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "customerKey=CUS-0001",
+    "items": null,
+    "operation": "CUSTOMER_READ",
+    "address": "10.40.12.222"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CUS-0001",
+     "assigned": false,
+     "responsibility": "ACCOUNT_MANAGER"
+    },
+    "accessHistory": null,
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ACCOUNT_MANAGER",
+        "limit": null
+       }
+      ],
+      "policyId": "CUSTOMER_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TRAVEL",
+     "TICKET"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "S06",
+   "step": 1,
+   "runId": "run-1eeb77e3ed0f",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=CP-220-DWG-00005",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.109"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CP-220",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "CP-220",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "S07",
+   "step": 1,
+   "runId": "run-e97a4c6902ce",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-450-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.209"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [
+     {
+      "ticketId": "TCK-e97a4c6902ce-1",
+      "hostCovers": false,
+      "hostMismatches": [
+       "VALIDITY"
+      ]
+     }
+    ],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-450",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-450",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "EXPIRED"
+   }
+  },
+  {
+   "case": "S08",
+   "step": 1,
+   "runId": "run-39d399921759",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.37"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S08",
+   "step": 2,
+   "runId": "run-39d399921759",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00002",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.21.37"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_READ",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S09",
+   "step": 1,
+   "runId": "run-1fe38dd2f71b",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=DOC-1fe38dd2f71b-1",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.12.64"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CP-220",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "CP-220",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "S09C",
+   "step": 1,
+   "runId": "run-26133d1d96ea",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=DOC-26133d1d96ea-1",
+    "items": null,
+    "operation": "DOCUMENT_READ",
+    "address": "10.40.12.174"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "CP-220",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "CP-220",
+     "windowDays": 90,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "NO_RECORD"
+   }
+  },
+  {
+   "case": "S10",
+   "step": 1,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00001",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S10",
+   "step": 2,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00002",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S10",
+   "step": 3,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00004",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00002",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S10",
+   "step": 4,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00005",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00002",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00004",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S10",
+   "step": 5,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00006",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00002",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00004",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00005",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S10",
+   "step": 6,
+   "runId": "run-f1531c0d24cb",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "documentKey=HX-310-DWG-00007",
+    "items": null,
+    "operation": "DOCUMENT_DOWNLOAD",
+    "address": "10.40.21.173"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": null,
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 90,
+     "days": 59
+    },
+    "policies": [
+     {
+      "requirement": "TICKET",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": null
+       },
+       {
+        "kind": "RECENT_WORK",
+        "limit": 90
+       }
+      ],
+      "policyId": "DOCUMENT_ACCESS_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "TICKET",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00001",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00002",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00004",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00005",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": null,
+     "target": "documentKey=HX-310-DWG-00006",
+     "items": null,
+     "operation": "DOCUMENT_DOWNLOAD",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S11",
+   "step": 1,
+   "runId": "run-55dfc62cbfb7",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:20:00Z",
+    "target": "projectKey=GB-500",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.12.43"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-55dfc62cbfb7-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": null,
+    "unknown": "the items exported under it outside this session"
+   }
+  },
+  {
+   "case": "S11",
+   "step": 2,
+   "runId": "run-55dfc62cbfb7",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:21:00Z",
+    "target": "projectKey=GB-500",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.12.43"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-55dfc62cbfb7-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": false,
+    "reason": "CUMULATIVE"
+   }
+  },
+  {
+   "case": "S11",
+   "step": 3,
+   "runId": "run-55dfc62cbfb7",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:22:00Z",
+    "target": "projectKey=GB-500",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.12.43"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-55dfc62cbfb7-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:21:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": false,
+    "reason": "CUMULATIVE"
+   }
+  },
+  {
+   "case": "S11",
+   "step": 4,
+   "runId": "run-55dfc62cbfb7",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:23:00Z",
+    "target": "projectKey=GB-500",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.12.43"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-55dfc62cbfb7-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:21:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:22:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": false,
+    "reason": "CUMULATIVE"
+   }
+  },
+  {
+   "case": "S11",
+   "step": 5,
+   "runId": "run-55dfc62cbfb7",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:24:00Z",
+    "target": "projectKey=GB-500",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.12.43"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-55dfc62cbfb7-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "AUDIT_SAMPLE",
+      "maxItems": 500,
+      "validFrom": "2026-09-29T14:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": null,
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [
+    {
+     "at": "2026-09-30T14:20:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:21:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:22:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    },
+    {
+     "at": "2026-09-30T14:23:00Z",
+     "target": "projectKey=GB-500",
+     "items": 480,
+     "operation": "EXPORT",
+     "outcome": "ALLOW"
+    }
+   ],
+   "expected": {
+    "satisfied": false,
+    "reason": "CUMULATIVE"
+   }
+  },
+  {
+   "case": "S12",
+   "step": 1,
+   "runId": "run-d8db06a14300",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": "2026-09-30T14:20:00Z",
+    "target": "projectKey=GB-500",
+    "items": 300,
+    "operation": "EXPORT",
+    "address": "10.40.12.73"
+   },
+   "records": {
+    "approvals": [
+     {
+      "approvalId": "APR-d8db06a14300-1",
+      "status": "APPROVED",
+      "approver": "pm-11",
+      "purpose": "DATA_EXPORT",
+      "maxItems": 500,
+      "validFrom": "2026-09-30T12:20:00Z",
+      "validUntil": "2026-10-01T14:20:00Z",
+      "decidedAt": "2026-09-30T14:40:00Z",
+      "hostCovers": true,
+      "hostMismatches": []
+     }
+    ],
+    "tickets": [],
+    "onCall": {
+     "onCall": false
+    },
+    "travel": null,
+    "assignment": {
+     "target": "GB-500",
+     "assigned": false,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "GB-500",
+     "windowDays": 30,
+     "days": 0
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": true
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": false,
+    "reason": "LATE"
+   }
+  },
+  {
+   "case": "S13",
+   "step": 1,
+   "runId": "run-82e0696c850e",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=HX-310",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.21.234"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": {
+     "onCall": true,
+     "team": "HX on-call",
+     "endsAt": "2026-10-05T09:00:00Z"
+    },
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 30,
+     "days": 21
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  },
+  {
+   "case": "S13T",
+   "step": 1,
+   "runId": "run-928bb2edff7b",
+   "protocolId": "protocol-824e2b34",
+   "request": {
+    "at": null,
+    "target": "projectKey=HX-310",
+    "items": 480,
+    "operation": "EXPORT",
+    "address": "10.40.21.171"
+   },
+   "records": {
+    "approvals": [],
+    "tickets": [],
+    "onCall": {
+     "onCall": true,
+     "team": "HX on-call",
+     "endsAt": "2026-10-05T09:00:00Z"
+    },
+    "travel": null,
+    "assignment": {
+     "target": "HX-310",
+     "assigned": true,
+     "responsibility": null
+    },
+    "accessHistory": {
+     "target": "HX-310",
+     "windowDays": 30,
+     "days": 21
+    },
+    "policies": [
+     {
+      "requirement": "APPROVAL",
+      "requiredTicketKind": null,
+      "exceptions": [
+       {
+        "kind": "ASSIGNED",
+        "limit": 500
+       },
+       {
+        "kind": "TICKET_WHILE_ON_CALL",
+        "limit": null
+       }
+      ],
+      "policyId": "EXPORT_APPROVAL",
+      "hostRequires": false
+     }
+    ],
+    "checkedRecordKinds": [
+     "ASSIGNMENT",
+     "APPROVAL",
+     "TICKET",
+     "ON_CALL",
+     "ACCESS_HISTORY",
+     "TRAVEL"
+    ]
+   },
+   "session": [],
+   "expected": {
+    "satisfied": true
+   }
+  }
+ ]
+}
