@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
+import java.time.Instant;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -96,7 +99,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
         String usernameForLog = extractUsernameForLogging(request, factorContext);
         String sessionIdForLog = extractSessionIdForLogging(factorContext);
-        recordAuthenticationFailureContext(usernameForLog);
+        recordAuthenticationFailureContext(usernameForLog, request);
 
         AuthType currentProcessingFactor = (factorContext != null) ? factorContext.getCurrentProcessingFactor() : null;
 
@@ -362,12 +365,15 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 currentState == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 
-    private void recordAuthenticationFailureContext(String username) {
+    private void recordAuthenticationFailureContext(String username, HttpServletRequest request) {
         if (securityContextDataStore == null || !isKnownUsername(username)) {
             return;
         }
         try {
-            securityContextDataStore.recordLoginFailure(username.trim(), null, System.currentTimeMillis());
+            // The failure is kept on the request clock, the clock its window is later read on.
+            Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
+            LoginFailureRecording.recordOnce(securityContextDataStore, username.trim(), null,
+                    observedAt != null ? observedAt.toEpochMilli() : System.currentTimeMillis());
         } catch (Exception e) {
             log.error("Failed to record authentication failure context for user: {}", username, e);
         }

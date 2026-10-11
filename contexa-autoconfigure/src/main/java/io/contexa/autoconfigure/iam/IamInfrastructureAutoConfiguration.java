@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.iam;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
@@ -114,6 +115,7 @@ public class IamInfrastructureAutoConfiguration {
             ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider,
             ObjectProvider<ProtectableResourceCertificationGate> protectableResourceCertificationGateProvider,
             ObjectProvider<ProtectableLlmSuppressionWriter> protectableLlmSuppressionWriterProvider,
+            ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
@@ -133,6 +135,10 @@ public class IamInfrastructureAutoConfiguration {
         ProtectableLlmSuppressionWriter suppressionWriter = protectableLlmSuppressionWriterProvider.getIfAvailable();
         if (suppressionWriter != null) {
             interceptor.setProtectableLlmSuppressionWriter(suppressionWriter);
+        }
+        AuthorizationDenialRecorder authorizationDenialRecorder = authorizationDenialRecorderProvider.getIfAvailable();
+        if (authorizationDenialRecorder != null) {
+            interceptor.setAuthorizationDenialRecorder(authorizationDenialRecorder);
         }
         interceptor.setSecurityZeroTrustProperties(securityZeroTrustProperties);
         return interceptor;

@@ -15,12 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.event.support;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
 
@@ -48,7 +47,7 @@ public final class ZeroTrustSecurityEventConverter {
                 .eventId(eventId)
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(determineSeverityFromPayload(payload))
-                .timestamp(LocalDateTime.ofInstant(zeroTrustEvent.getEventTimestamp(), ZoneId.systemDefault()))
+                .timestamp(zeroTrustEvent.getEventTimestamp())
                 .description(description)
                 .userId(zeroTrustEvent.getUserId())
                 .userName(userName)
@@ -94,7 +93,7 @@ public final class ZeroTrustSecurityEventConverter {
         }
 
         Object granted = payload.get("granted");
-        if (granted != null && !Boolean.parseBoolean(granted.toString())) {
+        if (Boolean.FALSE.equals(TruthValues.parse(granted))) {
             return SecurityEvent.Severity.MEDIUM;
         }
 

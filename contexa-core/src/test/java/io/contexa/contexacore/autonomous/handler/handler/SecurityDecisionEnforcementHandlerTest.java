@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -254,6 +256,112 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(order).isEqualTo(55);
+    }
+
+    @Test
+    @DisplayName("the final outcome commits the request's context observations once (W2-7)")
+    void theFinalOutcomeCommitsTheContextObservationsOnce() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        List<String> recorded = new ArrayList<>();
+        SecurityDecisionEnforcementHandler recordingHandler = recordingHandler(recorder, store, null);
+        SecurityEvent event = sessionEvent("request-allow");
+        recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+
+        recordingHandler.handle(contextWith(event, ProcessingResult.builder().success(true)
+                .action(ZeroTrustAction.ALLOW.name()).build()));
+        recordingHandler.handle(contextWith(event, ProcessingResult.builder().success(true)
+                .action(ZeroTrustAction.ALLOW.name()).build()));
+
+        assertThat(recorded).containsExactly("ALLOW learnable=true");
+        assertThat(store.getRecentSessionDecisions("session-recorded", 10)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a request without a decision keeps its narrative and learns nothing (W2-7)")
+    void aRequestWithoutADecisionKeepsItsNarrativeOnly() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        List<String> recorded = new ArrayList<>();
+        SecurityEvent failed = sessionEvent("request-failed");
+        recorder.stage(failed, ContextObservationRecorder.SESSION_NARRATIVE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+
+        recordingHandler(recorder, store, null).handle(contextWith(failed,
+                ProcessingResult.builder().success(false).build()));
+
+        assertThat(recorded).containsExactly("null learnable=false");
+        assertThat(store.getRecentSessionDecisions("session-recorded", 10)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a shadow decision is recorded in the session but learns nothing (W2-7)")
+    void aShadowDecisionLearnsNothing() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        List<String> recorded = new ArrayList<>();
+        SecurityZeroTrustProperties shadowProperties = new SecurityZeroTrustProperties();
+        shadowProperties.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+        SecurityEvent event = sessionEvent("request-shadow");
+        recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+
+        recordingHandler(recorder, store, shadowProperties).handle(contextWith(event,
+                ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name()).build()));
+
+        assertThat(recorded).containsExactly("ALLOW learnable=false");
+        assertThat(store.getRecentSessionDecisions("session-recorded", 10)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a restored persisted decision commits the request's context observations under it (W2-7)")
+    void aRestoredDecisionCommitsTheContextObservations() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        List<String> recorded = new ArrayList<>();
+        SecurityEvent event = sessionEvent("request-restore");
+        recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+
+        recordingHandler(recorder, store, null).restoreFinalDecision(event,
+                new AiSecurityDecisionObservationWriter.PersistedFinalDecision("observation-restore", null,
+                        "user-recorded", "CHALLENGE", null, "generation-1", "request-restore"));
+
+        assertThat(recorded).containsExactly("CHALLENGE learnable=false");
+        assertThat(store.getRecentSessionDecisions("session-recorded", 10)).hasSize(1);
+    }
+
+    private SecurityDecisionEnforcementHandler recordingHandler(ContextObservationRecorder recorder,
+                                                               InMemorySecurityContextDataStore store,
+                                                               SecurityZeroTrustProperties properties) {
+        return new SecurityDecisionEnforcementHandler(
+                actionRepository,
+                securityLearningService,
+                blockedUserRecorder,
+                blockingSignalBroadcaster,
+                properties,
+                Runnable::run,
+                () -> aiSecurityDecisionObservationWriter,
+                store,
+                recorder);
+    }
+
+    private static SecurityEvent sessionEvent(String requestId) {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-recorded")
+                .sessionId("session-recorded")
+                .sourceIp("10.0.0.20")
+                .userAgent("TestAgent")
+                .build();
+        event.addMetadata("requestId", requestId);
+        return event;
+    }
+
+    private static SecurityEventContext contextWith(SecurityEvent event, ProcessingResult result) {
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", result);
+        return context;
     }
 
     @Test

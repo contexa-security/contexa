@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import java.time.ZoneId;
 import io.contexa.contexacore.AdminOverride;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatOutcomePayload;
@@ -78,7 +79,7 @@ class ThreatOutcomePayloadMapperTest {
     private SecurityEvent originalEvent() {
         return SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.HIGH)
                 .userId("user-1")

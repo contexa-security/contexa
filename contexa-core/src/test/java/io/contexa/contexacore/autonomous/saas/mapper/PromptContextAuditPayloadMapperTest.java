@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
@@ -40,7 +41,7 @@ class PromptContextAuditPayloadMapperTest {
     void mapBuildsAuditPayloadFromAuthorizedPromptContext() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 19, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 19, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                  .metadata(Map.ofEntries(
                         Map.entry("tenantId", "tenant-acme"),
                         Map.entry("correlationId", "corr-001"),

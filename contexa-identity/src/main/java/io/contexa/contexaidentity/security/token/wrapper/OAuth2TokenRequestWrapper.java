@@ -61,6 +61,21 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
             String clientId,
             String clientSecret,
             Set<String> scopes) {
+        return authenticatedUser(request, username, deviceId, Map.of(), clientId, clientSecret, scopes);
+    }
+
+    /**
+     * The internal authenticated-user token request. The grant is only accepted from this wrapper (the internal
+     * request attribute), so the login facts given here cannot come from a client.
+     */
+    public static OAuth2TokenRequestWrapper authenticatedUser(
+            HttpServletRequest request,
+            String username,
+            String deviceId,
+            Map<String, String> loginFacts,
+            String clientId,
+            String clientSecret,
+            Set<String> scopes) {
         Map<String, String[]> params = new LinkedHashMap<>();
         params.put(OAuth2ParameterNames.GRANT_TYPE,
                 new String[]{AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER.getValue()});
@@ -68,6 +83,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
         if (deviceId != null) {
             params.put("device_id", new String[]{deviceId});
         }
+        loginFacts.forEach((name, value) -> params.put(name, new String[]{value}));
         if (scopes != null && !scopes.isEmpty()) {
             params.put(OAuth2ParameterNames.SCOPE, new String[]{String.join(" ", scopes)});
         }

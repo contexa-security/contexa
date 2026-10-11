@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context.resolver;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.SessionNarrativeProfile;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
         SessionNarrativeProfile profile = SessionNarrativeProfile.builder()
                 .summary(text(metadata.get("sessionNarrativeSummary")))
                 .sessionAgeMinutes(toInt(metadata.get("sessionAgeMinutes"), metadata.get("sessionAge"), metadata.get("session_age_minutes")))
+                .sessionAgeBasis(text(metadata.get("sessionAgeBasis")))
                 .previousPath(text(metadata.get("previousPath"), metadata.get("previous_path")))
                 .previousActionFamily(text(
                         metadata.get("previousActionFamily"),
@@ -45,11 +47,13 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
                         metadata.get("lastRequestIntervalMs"),
                         metadata.get("lastRequestInterval"),
                         metadata.get("last_request_interval_ms")))
-                .sessionActionSequence(strings(
+                .sessionActionSequence(sequence(
                         metadata.get("sessionActionSequence"),
                         metadata.get("recentSessionActions"),
                         metadata.get("sessionActions")))
-                .sessionProtectableSequence(strings(
+                .sessionDecisionHistory(sequence(metadata.get("sessionDecisionHistory")))
+                .sessionDecisions(SessionDecisionRecord.listOf(metadata.get(SessionDecisionRecord.METADATA_KEY)))
+                .sessionProtectableSequence(sequence(
                         metadata.get("sessionProtectableSequence"),
                         metadata.get("recentProtectableSequence"),
                         metadata.get("protectableSequence")))
@@ -75,7 +79,8 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
                 || profile.getLastRequestIntervalMs() != null
                 || !profile.getSessionActionSequence().isEmpty()
                 || !profile.getSessionProtectableSequence().isEmpty()
-                || profile.getBurstPattern() != null;
+                || profile.getBurstPattern() != null
+                || (profile.getSessionDecisions() != null && !profile.getSessionDecisions().isEmpty());
     }
 
     @Override

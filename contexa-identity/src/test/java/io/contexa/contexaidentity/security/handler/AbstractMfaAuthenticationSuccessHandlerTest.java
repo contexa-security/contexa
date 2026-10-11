@@ -27,6 +27,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.mock.web.MockHttpSession;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -62,8 +66,13 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.ResponseCookie;
@@ -449,6 +458,139 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             verify(responseWriter, never()).writeErrorResponse(eq(response), anyInt(), anyString(), anyString(),
                     anyString(), anyMap());
             return (Map<String, Object>) bodyCaptor.getValue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Zero Trust challenge release (W1-5)")
+    class ChallengeRelease {
+
+        private final ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
+        private final SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        private final SecurityLearningService learningService = mock(SecurityLearningService.class);
+
+        @Test
+        @DisplayName("a login MFA does not release a CHALLENGE and is recorded as a login MFA")
+        void loginMfaDoesNotReleaseAChallenge() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            FactorContext factorContext = completedFactorContext(false);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
+
+            verify(actionRepository, never()).saveActionWithPrevious(anyString(), any(), any());
+            verify(learningService, never()).learnAndStore(anyString(), any(), any());
+            ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
+            verify(dataStore).addSessionAction(eq("session-1"), record.capture());
+            assertThat(record.getValue()).contains("MFA_LOGIN").doesNotContain("CHALLENGE", "MFA_COMPLETED");
+        }
+
+        @Test
+        @DisplayName("the MFA the challenge flow started releases the CHALLENGE and is recorded as a passed challenge")
+        void challengeMfaReleasesTheChallenge() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            FactorContext factorContext = completedFactorContext(true);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
+
+            verify(actionRepository).saveActionWithPrevious(eq("admin"), eq(ZeroTrustAction.ALLOW), any());
+            ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
+            verify(dataStore).addSessionAction(eq("session-1"), record.capture());
+            assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
+        }
+
+        @Test
+        @DisplayName("on the OAuth2 state a login MFA is recorded under the login the issued token carries as its sid")
+        void oauth2LoginMfaIsRecordedUnderTheTokenSession() throws Exception {
+            UsernamePasswordAuthenticationToken login = UsernamePasswordAuthenticationToken.authenticated(
+                    "admin", "pw", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+            handler(StateType.OAUTH2).complete(requestWithSession(), new MockHttpServletResponse(), login,
+                    completedFactorContext(false));
+
+            String loginId = ((LoginFactsDetails) login.getDetails()).getSignInId();
+            ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
+            verify(dataStore).addSessionAction(eq(loginId), record.capture());
+            verify(dataStore, never()).addSessionAction(eq("session-1"), anyString());
+            assertThat(record.getValue()).contains("MFA_LOGIN");
+        }
+
+        @Test
+        @DisplayName("on the OAuth2 state a passed challenge is recorded under the login of the challenged token")
+        void oauth2ChallengeIsRecordedUnderTheTokenSession() throws Exception {
+            Jwt token = Jwt.withTokenValue("token").header("alg", "RS256").subject("admin")
+                    .claim("auth_time", 1_791_626_134L).claim("amr", List.of("pwd")).claim("acr", "AAL1")
+                    .claim("sid", "login-7").build();
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            FactorContext factorContext = completedFactorContext(true, new JwtAuthenticationToken(token));
+
+            handler(StateType.OAUTH2).complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
+
+            ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
+            verify(dataStore).addSessionAction(eq("login-7"), record.capture());
+            verify(dataStore, never()).addSessionAction(eq("session-1"), anyString());
+            assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
+        }
+
+        private FactorContext completedFactorContext(boolean challengeFlow) {
+            return completedFactorContext(challengeFlow, new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"));
+        }
+
+        private FactorContext completedFactorContext(boolean challengeFlow, Authentication primary) {
+            FactorContext factorContext = new FactorContext("mfa-session-1", primary, MfaState.NONE, "mfa");
+            factorContext.changeState(MfaState.MFA_SUCCESSFUL);
+            if (challengeFlow) {
+                factorContext.setAttribute("challengeInitiated", true);
+            }
+            return factorContext;
+        }
+
+        private MockHttpServletRequest requestWithSession() {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/contexa/admin/login/mfa-ott");
+            request.addHeader("Accept", "application/json");
+            request.setSession(new MockHttpSession(null, "session-1"));
+            return request;
+        }
+
+        private TestHandler handler() {
+            return handler(StateType.SESSION);
+        }
+
+        private TestHandler handler(StateType stateType) {
+            AuthContextProperties properties = new AuthContextProperties();
+            properties.setStateType(stateType);
+            TokenService tokenService = mock(TokenService.class);
+            when(tokenService.createTokenPair(any(), any(), any(), any()))
+                    .thenReturn(TokenPair.builder().accessToken("access").refreshToken("refresh").build());
+            when(tokenService.prepareTokensForTransport("access", "refresh"))
+                    .thenReturn(TokenTransportResult.builder().body(Map.of("accessToken", "access")).build());
+            AISessionSecurityContextRepository aiRepository = mock(AISessionSecurityContextRepository.class);
+            @SuppressWarnings("unchecked")
+            ObjectProvider<AISessionSecurityContextRepository> provider = mock(ObjectProvider.class);
+            ApplicationContext applicationContext = mock(ApplicationContext.class);
+            when(applicationContext.getBeanProvider(AISessionSecurityContextRepository.class)).thenReturn(provider);
+            when(provider.getIfAvailable()).thenReturn(aiRepository);
+            when(applicationContext.getBean(SecurityContextDataStore.class)).thenReturn(dataStore);
+            return new TestHandler(
+                    tokenService,
+                    mock(AuthResponseWriter.class),
+                    mock(MfaSessionRepository.class),
+                    mock(MfaStateMachineIntegrator.class),
+                    properties,
+                    mock(ZeroTrustEventPublisher.class),
+                    actionRepository,
+                    learningService,
+                    applicationContext,
+                    mock(AuthUrlProvider.class),
+                    mock(MfaFlowUrlRegistry.class),
+                    mock(IBlockedUserRecorder.class),
+                    mock(BlockMfaStateStore.class),
+                    mock(CentralAuditFacade.class),
+                    mock(BlockingSignalBroadcaster.class),
+                    false
+            );
         }
     }
 

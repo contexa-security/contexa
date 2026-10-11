@@ -15,12 +15,22 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
+/**
+ * Puts the bridge resolution filter into each flow's chain where the flow has established the authentication, since
+ * the bridge absorbs that authentication: a session flow restores it in the security context holder filter, a token
+ * (OAuth2) flow sets it in the bearer token filter, which comes later in the chain.
+ */
 public class BridgeResolutionConfigurer implements SecurityConfigurer {
 
     private static final int ORDER = SecurityConfigurer.HIGHEST_PRECEDENCE + 110;
@@ -40,7 +50,27 @@ public class BridgeResolutionConfigurer implements SecurityConfigurer {
         if (bridgeResolutionFilter == null) {
             return;
         }
+        if (isTokenState(fc)) {
+            fc.http().addFilterAfter(bridgeResolutionFilter, BearerTokenAuthenticationFilter.class);
+            return;
+        }
         fc.http().addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
+    }
+
+    /**
+     * The flow's state as the authentication adapters decide it: the flow's own state, otherwise the configured state,
+     * and the token state when the configuration cannot be read.
+     */
+    private static boolean isTokenState(FlowContext fc) {
+        StateConfig stateConfig = fc.flow() != null ? fc.flow().getStateConfig() : null;
+        if (stateConfig != null && stateConfig.stateType() != null) {
+            return stateConfig.stateType() == StateType.OAUTH2;
+        }
+        ApplicationContext applicationContext = fc.context() != null ? fc.context().applicationContext() : null;
+        AuthContextProperties properties = applicationContext != null
+                ? applicationContext.getBeanProvider(AuthContextProperties.class).getIfAvailable()
+                : null;
+        return properties == null || properties.getStateType() == StateType.OAUTH2;
     }
 
     @Override

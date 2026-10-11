@@ -55,4 +55,27 @@ class MetadataObservedScopeInferenceServiceTest {
         assertThat(observedScope.getFrequentResources()).contains("/api/customer/list");
         assertThat(observedScope.getFrequentActionFamilies()).contains("READ");
     }
+
+    @Test
+    void inferShouldCompareFamiliesStatedInAnotherVocabularyWithTheCurrentRequest() {
+        MetadataObservedScopeInferenceService service = new MetadataObservedScopeInferenceService();
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/notes");
+        event.addMetadata("protectableAccessCount", 5);
+        event.addMetadata("frequentActionFamilies", List.of("CREATE", "DOWNLOAD"));
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/notes")
+                        .actionFamily("WRITE")
+                        .build())
+                .build();
+
+        CanonicalSecurityContext.ObservedScope observedScope = service.infer(event, context).orElseThrow();
+
+        // A write is not rare for someone who often creates: one vocabulary on both sides (W2-1).
+        assertThat(observedScope.getFrequentActionFamilies()).containsExactly("WRITE", "READ");
+        assertThat(observedScope.getRareCurrentActionFamily()).isFalse();
+    }
 }

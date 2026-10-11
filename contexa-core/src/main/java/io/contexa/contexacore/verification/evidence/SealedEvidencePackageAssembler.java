@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.evidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
@@ -386,19 +387,39 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(rag, event, "ragProjectionState");
 
         List<Map<String, Object>> documents = List.of();
+        List<PastRecordRelevance.Subject> records = List.of();
         if (promptSnapshot != null && promptSnapshot.relatedDocuments() != null) {
             documents = promptSnapshot.relatedDocuments().stream()
                     .map(this::ragDocumentSummary)
                     .toList();
+            records = promptSnapshot.relatedDocuments().stream()
+                    .map(document -> document == null
+                            ? PastRecordRelevance.Subject.ofRecord(null, null)
+                            : PastRecordRelevance.Subject.ofRecord(document.getMetadata(), document.getText()))
+                    .toList();
         }
         if ((documents == null || documents.isEmpty()) && faultScenarioApplied(promptSnapshot)) {
             documents = promptRagDocumentSummaries(promptSnapshot.userPrompt());
+            records = documents.stream()
+                    .map(document -> PastRecordRelevance.Subject.ofRecord(document, null))
+                    .toList();
+        }
+        // The same computation as the prompt and the canonical reasoning: the path template and the target (W2-8).
+        PastRecordRelevance.Subject request = PastRecordRelevance.Subject.ofRequest(
+                event == null ? null : event.getMetadata(),
+                event == null ? null : event.getDescription());
+        for (int index = 0; index < documents.size(); index++) {
+            Map<String, Object> document = documents.get(index);
+            if (document != null && !document.isEmpty()) {
+                document.put("relation", PastRecordRelevance.relation(request, records.get(index)).name());
+                document.put("sameTarget", PastRecordRelevance.sameTarget(request, records.get(index)));
+            }
         }
         if (documents != null && !documents.isEmpty()) {
             rag.put("relatedDocuments", documents);
         }
         int relatedDocumentCount = documents.size();
-        rag.put("ragRelevance", ragRelevance(event, documents));
+        rag.put("ragRelevance", PastRecordRelevance.relevance(request, records));
         if (faultScenarioApplied(promptSnapshot) && relatedDocumentCount > 0) {
             applyFaultRagRuntimeMetadata(rag, relatedDocumentCount, documents);
         }
@@ -444,26 +465,6 @@ public class SealedEvidencePackageAssembler {
         rag.put("ragAbsenceReason", ragAbsenceReason(rag, searchExecuted, retrievalFailed, permissionFiltered, zeroResults, relatedDocumentCount, projectedToFinalPrompt));
 
         return toJson(rag);
-    }
-
-    private String ragRelevance(
-            SecurityEvent event,
-            List<Map<String, Object>> documents) {
-        if (documents == null || documents.isEmpty()) {
-            return "NO_DOCUMENTS";
-        }
-        String currentResourceId = firstNonBlank(
-                resolveText(event == null ? null : event.getMetadata(), "resourceId"),
-                resolveText(event == null ? null : event.getMetadata(), "requestedResourceId"),
-                resolveText(event == null ? null : event.getMetadata(), "protectableResourceId"),
-                resolveText(event == null ? null : event.getMetadata(), "protectedResourceId"));
-        if (!hasText(currentResourceId)) {
-            return "UNKNOWN";
-        }
-        boolean sameResource = documents.stream()
-                .filter(Objects::nonNull)
-                .allMatch(document -> currentResourceId.equals(objectText(document.get("resourceId"))));
-        return sameResource ? "SAME_RESOURCE" : "MIXED_OR_DIFFERENT_RESOURCE";
     }
 
     private void applyFaultRagRuntimeMetadata(
@@ -613,7 +614,11 @@ public class SealedEvidencePackageAssembler {
             putIfPresent(summary, "organizationId", metadata.get("organizationId"));
             putIfPresent(summary, "resourceId", metadata.get("resourceId"));
             putIfPresent(summary, "requestPath", metadata.get("requestPath"));
-            putIfPresent(summary, "resourceFamily", metadata.get("resourceFamily"));
+            // The class comes from the classification values only, never from the document text or its path.
+            putIfPresent(summary, "resourceFamily", firstNonBlank(
+                    objectText(metadata.get("resourceFamily")),
+                    SecuritySemanticNormalizer.normalizeResourceFamily(
+                            metadata.get("resourceSensitivity"), metadata.get("sensitivity"))));
             putIfPresent(summary, "pathFamily", metadata.get("pathFamily"));
             putIfPresent(summary, "authorization", firstNonBlank(
                     objectText(metadata.get(VectorDocumentMetadata.AUTHORIZATION_DECISION)),
@@ -636,9 +641,6 @@ public class SealedEvidencePackageAssembler {
         }
         String text = document.getText();
         if (hasText(text)) {
-            putIfPresent(summary, "resourceFamily", firstNonBlank(
-                    objectText(summary.get("resourceFamily")),
-                    deriveResourceFamily(text)));
             putIfPresent(summary, "pathFamily", firstNonBlank(
                     objectText(summary.get("pathFamily")),
                     derivePathFamily(objectText(summary.get("requestPath"))),
@@ -731,13 +733,6 @@ public class SealedEvidencePackageAssembler {
         return values;
     }
 
-    private String deriveResourceFamily(String text) {
-        String value = firstNonBlank(
-                extractNamedToken(text, "resource"),
-                extractPathToken(text));
-        return SecuritySemanticNormalizer.normalizeResourceFamily(value);
-    }
-
     private String derivePathFamily(String path) {
         if (!hasText(path) || !path.startsWith("/")) {
             return null;
@@ -752,16 +747,6 @@ public class SealedEvidencePackageAssembler {
             return "/" + parts[1] + "/" + parts[2] + "/" + parts[3] + "/" + parts[4] + "/*";
         }
         return clean;
-    }
-
-    private String extractNamedToken(String text, String key) {
-        if (!hasText(text) || !hasText(key)) {
-            return null;
-        }
-        Matcher matcher = Pattern
-                .compile("(?i)(?:^|[\\s,;|])" + Pattern.quote(key.trim()) + "\\s*=\\s*([^\\s,;|.\\]]+)")
-                .matcher(text);
-        return matcher.find() ? matcher.group(1).trim() : null;
     }
 
     private String extractPathToken(String text) {
@@ -824,6 +809,9 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "canonicalContextHash");
         copyPromptMetadataField(compact, source, "governanceDescriptor");
         copyPromptMetadataField(compact, source, "promptVersion");
+        copyPromptMetadataField(compact, source, "promptBundleVersion");
+        copyPromptMetadataField(compact, source, "promptBundleHash");
+        copyPromptMetadataField(compact, source, "promptBundleSelectionSource");
         copyPromptMetadataField(compact, source, "promptTemplateVersion");
         copyPromptMetadataField(compact, source, "promptGovernanceVersion");
         copyPromptMetadataField(compact, source, "provider");

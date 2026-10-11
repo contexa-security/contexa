@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Instant;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,8 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     protected abstract SecurityContextDataStore createStore();
 
     protected abstract SecurityContextDataStore createStoreWithEventProcessedTtl(Duration ttl);
+
+    protected abstract SecurityContextDataStore createStoreWithLoginFailureRetention(Duration retention);
 
     @BeforeEach
     void setUpStore() {
@@ -103,11 +106,105 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("a user's failures are counted by the user, not by an address shared with other users (W1-9)")
+    void loginFailures_areCountedByUser() {
+        long now = System.currentTimeMillis();
+        store.recordLoginFailure("alice", "203.0.113.10", now - 3_000);
+        store.recordLoginFailure("bob", "203.0.113.10", now - 2_000);
+        store.recordLoginFailure("bob", "203.0.113.10", now - 1_000);
+
+        assertThat(store.findRecentLoginFailures("alice", now - 60_000, now)).isEqualTo(1);
+        assertThat(store.findRecentLoginFailures(null, now - 60_000, now)).isNull();
+    }
+
+    @Test
+    @DisplayName("failures stay countable for the configured window, not only five minutes (W1-9)")
+    void loginFailures_stayForTheConfiguredWindow() {
+        SecurityContextDataStore longWindow = createStoreWithLoginFailureRetention(Duration.ofMinutes(15));
+        long first = System.currentTimeMillis() - Duration.ofMinutes(7).toMillis();
+        longWindow.recordLoginFailure("erin", null, first);
+        longWindow.recordLoginFailure("erin", null, first + 1_000);
+        long later = first + Duration.ofMinutes(6).toMillis() + 15_000;
+        longWindow.recordLoginFailure("erin", null, later);
+
+        assertThat(longWindow.findRecentLoginFailures("erin", later - Duration.ofMinutes(15).toMillis(), later))
+                .isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("MFA completion context is available after verification")
     void mfaCompletionContext_isAvailableForPromptProjection() {
         assertThat(store.isMfaVerified("alice")).isFalse();
+        assertThat(store.getLastMfaVerifiedAt("alice")).isNull();
+        Instant before = Instant.now().minusSeconds(1);
         store.markMfaVerified("alice");
         assertThat(store.isMfaVerified("alice")).isTrue();
+        // The mark keeps when the MFA happened, so a request can say how long ago the user completed it (W1-5).
+        assertThat(store.getLastMfaVerifiedAt("alice")).isAfterOrEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("MFA completion keeps the time of the request that completed it (W1-7)")
+    void mfaCompletion_keepsTheRequestTime() {
+        Instant requestTime = Instant.parse("2026-09-30T03:15:00Z");
+
+        store.markMfaVerified("carol", requestTime);
+
+        assertThat(store.isMfaVerified("carol")).isTrue();
+        assertThat(store.getLastMfaVerifiedAt("carol")).isEqualTo(requestTime);
+    }
+
+    @Test
+    @DisplayName("a session's decisions are kept oldest first, repeats included, and the most recent are read (W1-11)")
+    void sessionDecisions_keepTheirOrder() {
+        for (int number = 1; number <= 4; number++) {
+            store.addSessionDecision("session-decisions", "decision-" + number);
+        }
+        store.addSessionDecision("session-decisions", "decision-4");
+
+        assertThat(store.getRecentSessionDecisions("session-decisions", 3))
+                .containsExactly("decision-3", "decision-4", "decision-4");
+        assertThat(store.getRecentSessionDecisions("session-other", 3)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a session's records follow it to the id the container gives it; the old id keeps none (W1-11)")
+    void moveSessionRecords_carriesTheSessionToItsNewId() {
+        store.addSessionAction("session-old", "03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1");
+        store.addSessionDecision("session-old", "decision-1");
+        store.addSessionNarrativeActionFamily("session-old", "EXPORT");
+        store.addSessionProtectableAccess("session-old", "/api/projects/GB-500/exports");
+        store.addSessionRequestInterval("session-old", 800L);
+        store.setSessionStartedAt("session-old", 1_000L);
+        store.setSessionLastRequestTime("session-old", 2_000L);
+        store.setSessionPreviousPath("session-old", "/api/projects/GB-500/exports");
+        // A record written under the new id before the move stays after the old id's records.
+        store.addSessionAction("session-new", "03:18 | ZERO_TRUST_CHALLENGE_VERIFIED (step-up MFA in this session)");
+
+        store.moveSessionRecords("session-old", "session-new");
+
+        assertThat(store.getRecentSessionActions("session-new", 10)).containsExactly(
+                "03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1",
+                "03:18 | ZERO_TRUST_CHALLENGE_VERIFIED (step-up MFA in this session)");
+        assertThat(store.getRecentSessionDecisions("session-new", 10)).containsExactly("decision-1");
+        assertThat(store.getRecentSessionNarrativeActionFamilies("session-new", 10)).containsExactly("EXPORT");
+        assertThat(store.getRecentSessionProtectableAccesses("session-new", 10))
+                .containsExactly("/api/projects/GB-500/exports");
+        assertThat(store.getRecentSessionRequestIntervals("session-new", 10)).containsExactly(800L);
+        assertThat(store.getSessionStartedAt("session-new")).isEqualTo(1_000L);
+        assertThat(store.getSessionLastRequestTime("session-new")).isEqualTo(2_000L);
+        assertThat(store.getSessionPreviousPath("session-new")).isEqualTo("/api/projects/GB-500/exports");
+        assertThat(store.getRecentSessionActions("session-old", 10)).isEmpty();
+        assertThat(store.getRecentSessionDecisions("session-old", 10)).isEmpty();
+        assertThat(store.getRecentSessionProtectableAccesses("session-old", 10)).isEmpty();
+        assertThat(store.getSessionStartedAt("session-old")).isNull();
+        assertThat(store.getSessionPreviousPath("session-old")).isNull();
+        // The new id remembers the ids the session had, newest first (P2 correction 5).
+        assertThat(store.getSessionPreviousIds("session-new")).containsExactly("session-old");
+        store.moveSessionRecords("session-new", "session-newer");
+        assertThat(store.getSessionPreviousIds("session-newer")).containsExactly("session-new", "session-old");
+        assertThat(store.getSessionPreviousIds("session-new")).isEmpty();
+        assertThat(store.getSessionPreviousIds("session-unknown")).isEmpty();
     }
 
     @Test

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.util;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -50,14 +51,14 @@ class SessionFingerprintUtilTest {
         SecurityEvent event1 = SecurityEvent.builder()
                 .userAgent("Mozilla/5.0")
                 .sourceIp("192.168.1.1")
-                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .severity(SecurityEvent.Severity.MEDIUM)
                 .build();
 
         SecurityEvent event2 = SecurityEvent.builder()
                 .userAgent("Mozilla/5.0")
                 .sourceIp("192.168.1.1")
-                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .severity(SecurityEvent.Severity.MEDIUM)
                 .build();
 
@@ -76,13 +77,13 @@ class SessionFingerprintUtilTest {
         SecurityEvent event1 = SecurityEvent.builder()
                 .userAgent("Mozilla/5.0")
                 .sourceIp("192.168.1.1")
-                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 12, 14, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
 
         SecurityEvent event2 = SecurityEvent.builder()
                 .userAgent("Chrome/120.0")
                 .sourceIp("10.0.0.1")
-                .timestamp(LocalDateTime.of(2026, 3, 12, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 12, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
 
         // when

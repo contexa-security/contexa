@@ -63,7 +63,7 @@ public class BehaviorDocumentRetentionScheduler {
             return;
         }
         try {
-            vectorStore.delete(VectorStoreFilterValues.encode(expired, vectorStore));
+            vectorStore.delete(expired);
         } catch (RuntimeException e) {
             log.error("[BehaviorDocumentRetention] Expired behaviour documents could not be deleted: retentionDays={}",
                     ragProperties.getEtl().getBehavior().getRetentionDays(), e);

@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
+import jakarta.servlet.http.HttpSession;
+import io.contexa.contexacommon.domain.TruthValues;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.security.context.OfficialContextRequestAttributes;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes.Field;
@@ -36,14 +39,20 @@ import lombok.Getter;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public final class RequestInfoExtractor {
-    private static final String REQUEST_ID_ATTRIBUTE = "contexa.requestId";
+    /**
+     * Request attribute holding the id that identifies the processing of this request (event id, processing identity,
+     * decision records). A host sets it before the engine runs only from a value it trusts, such as an id it generated
+     * or one carried over a signed channel; a client {@code X-Request-ID} never becomes it on its own.
+     */
+    public static final String REQUEST_ID_ATTRIBUTE = "contexa.requestId";
+    private static final String CLIENT_REQUEST_ID_HEADER = "X-Request-ID";
+    private static final int CLIENT_REQUEST_ID_MAX_LENGTH = 128;
     private RequestInfoExtractor() {
     }
     public static RequestInfo extract(HttpServletRequest request, TieredStrategyProperties.Security security) {
@@ -63,7 +72,11 @@ public final class RequestInfoExtractor {
         Integer runtimeMaxTokens = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
         Boolean runtimeDisableRetries = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Retries", "disableRetries");
         Boolean runtimeDisableOllamaThinking = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
-        String anomalySignal = extractHeader(request, "X-Contexa-Anomaly-Signal");
+        // Like the other override headers, the anomaly signal header is a signal only with the server-issued
+        // capability; without it the text is the requester's own claim and is carried apart as untrusted text.
+        String anomalySignalHeader = extractHeader(request, "X-Contexa-Anomaly-Signal");
+        String anomalySignal = runtimeOverrideHeadersAllowed ? anomalySignalHeader : null;
+        String untrustedAnomalySignalClaim = runtimeOverrideHeadersAllowed ? null : anomalySignalHeader;
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
@@ -91,8 +104,10 @@ public final class RequestInfoExtractor {
                 .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
                 .contextBindingHash(SessionFingerprintUtil.generateContextBindingHash(request))
                 .requestId(requestId)
+                .clientRequestId(extractClientRequestId(request))
                 .requestedModelId(requestedModelId)
                 .observedAt(extractObservedAt(request))
+                .sessionCreatedAt(extractSessionCreatedAt(request))
                 .servletPath(request.getServletPath())
                 .queryString(request.getQueryString())
                 .remoteHost(request.getRemoteHost())
@@ -103,9 +118,8 @@ public final class RequestInfoExtractor {
                 .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
                 .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
                 .anomalySignal(anomalySignal)
-                .anomalySignalSource(anomalySignal != null
-                        ? runtimeOverrideHeadersAllowed ? "OFFICIAL_VERIFICATION_INTERNAL" : "UNTRUSTED_REQUEST_HEADER"
-                        : null)
+                .anomalySignalSource(anomalySignal != null ? "OFFICIAL_VERIFICATION_INTERNAL" : null)
+                .untrustedAnomalySignalClaim(untrustedAnomalySignalClaim)
                 .pqaPromptFaultScenario(extractAttributeText(request, "pqaPromptFaultScenario"))
                 .pqaPromptFaultRejected(Boolean.TRUE.equals(request.getAttribute("pqaPromptFaultRejected"))
                         || extractHeader(request, "X-PQA-Prompt-Fault") != null)
@@ -134,6 +148,8 @@ public final class RequestInfoExtractor {
                 .isSensitiveResource(castToBoolean(RequestSecurityContextAttributes.read(request, Field.SENSITIVE_RESOURCE)))
                 .resourceSensitivity(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_SENSITIVITY)))
                 .resourceBusinessLabel(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_BUSINESS_LABEL)))
+                .resourceAuthorText(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_AUTHOR_TEXT)))
+                .requestItems(castToInteger(RequestSecurityContextAttributes.read(request, Field.REQUEST_ITEMS)))
                 .resourceId(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_ID)))
                 .currentResourceFamily(extractAttributeText(request,
                         "currentResourceFamily",
@@ -260,6 +276,25 @@ public final class RequestInfoExtractor {
                 coverageReport);
     }
 
+    /**
+     * The servlet session's creation time, on the server clock. A request that carries its own observed time runs on
+     * another clock, so the session start is then left to the sign-in time.
+     */
+    private static Instant extractSessionCreatedAt(HttpServletRequest request) {
+        if (request == null || extractObservedAt(request) != null) {
+            return null;
+        }
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return null;
+        }
+        try {
+            return Instant.ofEpochMilli(session.getCreationTime());
+        } catch (IllegalStateException invalidated) {
+            return null;
+        }
+    }
+
     public static Instant extractObservedAt(HttpServletRequest request) {
         if (request == null) {
             return null;
@@ -323,12 +358,38 @@ public final class RequestInfoExtractor {
         if (existing instanceof String text && !text.isBlank()) {
             return text;
         }
-        String requestId = request.getHeader("X-Request-ID");
-        String resolved = (requestId != null && !requestId.isEmpty())
-                ? requestId
+        // A client X-Request-ID only correlates with the caller's logs (extractClientRequestId); reusing it must not let
+        // one request be taken for another, so the processing id is a server id unless the request carries the
+        // server issued capability.
+        String header = request.getHeader(CLIENT_REQUEST_ID_HEADER);
+        String resolved = header != null && !header.isBlank() && hasRuntimeOverrideCapability(request)
+                ? header
                 : UUID.randomUUID().toString();
         request.setAttribute(REQUEST_ID_ATTRIBUTE, resolved);
         return resolved;
+    }
+
+    /**
+     * The caller's own {@code X-Request-ID} when it did not become the processing id, for correlation with the
+     * caller's logs only. Control characters are removed and the value is cut to 128 characters.
+     */
+    public static String extractClientRequestId(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String header = request.getHeader(CLIENT_REQUEST_ID_HEADER);
+        if (header == null || header.isBlank() || header.equals(extractRequestId(request))) {
+            return null;
+        }
+        StringBuilder cleaned = new StringBuilder();
+        header.codePoints()
+                .filter(codePoint -> !Character.isISOControl(codePoint))
+                .forEach(cleaned::appendCodePoint);
+        String text = cleaned.toString().trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        return text.length() > CLIENT_REQUEST_ID_MAX_LENGTH ? text.substring(0, CLIENT_REQUEST_ID_MAX_LENGTH) : text;
     }
 
     public static String extractScenario(HttpServletRequest request) {
@@ -352,7 +413,7 @@ public final class RequestInfoExtractor {
             return offsetDateTime.toInstant();
         }
         if (rawValue instanceof LocalDateTime localDateTime) {
-            return localDateTime.atZone(ZoneId.systemDefault()).toInstant();
+            return localDateTime.atZone(EventTimeZone.get()).toInstant();
         }
 
         String text = rawValue.toString();
@@ -371,7 +432,7 @@ public final class RequestInfoExtractor {
         }
 
         try {
-            return LocalDateTime.parse(text.trim()).atZone(ZoneId.systemDefault()).toInstant();
+            return LocalDateTime.parse(text.trim()).atZone(EventTimeZone.get()).toInstant();
         } catch (Exception ignored) {
         }
 
@@ -525,7 +586,7 @@ public final class RequestInfoExtractor {
         if (value == null) {
             return null;
         }
-        return Boolean.parseBoolean(value);
+        return TruthValues.parse(value);
     }
     private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
         String value = extractHeaderOrAttribute(request, headerName, attributeNames);
@@ -556,7 +617,7 @@ public final class RequestInfoExtractor {
         if (value == null) {
             return null;
         }
-        return Boolean.parseBoolean(value);
+        return TruthValues.parse(value);
     }
     private static Integer extractIntegerHeader(HttpServletRequest request, String name) {
         String value = extractHeader(request, name);
@@ -575,7 +636,7 @@ public final class RequestInfoExtractor {
         if (value == null) {
             return null;
         }
-        return Boolean.parseBoolean(value);
+        return TruthValues.parse(value);
     }
 
     private static String firstNonBlankText(String... values) {
@@ -669,8 +730,11 @@ public final class RequestInfoExtractor {
         private final String sessionId;
         private final String contextBindingHash;
         private final String requestId;
+        private final String clientRequestId;
         private final String requestedModelId;
         private final Instant observedAt;
+        /** The servlet session's creation time; null when the request carries its own observed time. */
+        private final Instant sessionCreatedAt;
         private final String servletPath;
         private final String queryString;
         private final String remoteHost;
@@ -682,6 +746,7 @@ public final class RequestInfoExtractor {
         private final String behaviorPhase;
         private final String anomalySignal;
         private final String anomalySignalSource;
+        private final String untrustedAnomalySignalClaim;
         private final String pqaPromptFaultScenario;
         private final Boolean pqaPromptFaultRejected;
         private final String pqaPromptFaultRejectedSource;
@@ -705,6 +770,8 @@ public final class RequestInfoExtractor {
         private final String authMethod;
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
+        private final String resourceAuthorText;
+        private final Integer requestItems;
         private final String resourceId;
         private final String currentResourceFamily;
         private final String currentActionFamily;
@@ -782,8 +849,7 @@ public final class RequestInfoExtractor {
     }
 
     private static Boolean castToBoolean(Object value) {
-        if (value instanceof Boolean) return (Boolean) value;
-        return null;
+        return TruthValues.parse(value);
     }
 
     private static Long castToLong(Object value) {

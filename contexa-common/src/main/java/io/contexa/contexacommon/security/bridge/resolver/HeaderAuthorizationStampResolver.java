@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.HeaderBridgeTrustPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -54,7 +55,7 @@ public class HeaderAuthorizationStampResolver implements AuthorizationStampResol
                 requestContext.requestUri(),
                 requestContext.method(),
                 AuthorizationEffect.from(effect),
-                privileged != null ? Boolean.parseBoolean(privileged) : null,
+                TruthValues.parse(privileged),
                 split(scopeTags),
                 request.getHeader(config.getPolicyId()),
                 policyVersion,

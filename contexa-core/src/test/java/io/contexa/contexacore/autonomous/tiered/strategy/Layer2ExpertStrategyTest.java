@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
@@ -126,6 +128,34 @@ class Layer2ExpertStrategyTest {
                 Map.entry("reasoning", "PLATFORM_FALLBACK"),
                 Map.entry("mitre", "PLATFORM_FALLBACK"),
                 Map.entry("evidenceRefs", "PLATFORM_FALLBACK"));
+    }
+
+    @Test
+    @DisplayName("the expert strategy reads the ids a session had from the context store (P2 correction 5)")
+    void previousSessionIds_comeFromTheContextStore() {
+        InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        Layer2ExpertStrategy sessionStrategy = new Layer2ExpertStrategy(
+                approvalService,
+                dataStore,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+
+        dataStore.moveSessionRecords("session-old", "session-new");
+
+        assertThat(sessionStrategy.previousSessionIds("session-new")).containsExactly("session-old");
     }
 
     @Test
@@ -364,7 +394,7 @@ class Layer2ExpertStrategyTest {
                 .sessionId("session-002")
                 .sourceIp("10.0.0.50")
                 .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(metadata)
                 .build();
     }

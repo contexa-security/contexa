@@ -152,6 +152,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         putIfNonEmpty(data, "normalUserAgents", baseline.getNormalUserAgents());
         putIfNonEmpty(data, "normalOperatingSystems", baseline.getNormalOperatingSystems());
         putIfNonEmpty(data, "normalBrowsers", baseline.getNormalBrowsers());
+        putIfNonEmpty(data, "normalDevices", baseline.getNormalDevices());
         putIfNonEmpty(data, "normalIpBands", baseline.getNormalIpBands());
         putIfNonEmpty(data, "normalAuthenticationTypes", baseline.getNormalAuthenticationTypes());
         putIfNonEmpty(data, "frequentActionFamilies", baseline.getFrequentActionFamilies());
@@ -186,6 +187,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .normalUserAgents(toStringArray(data.get("normalUserAgents")))
                 .normalOperatingSystems(toStringArray(data.get("normalOperatingSystems")))
                 .normalBrowsers(toStringArray(data.get("normalBrowsers")))
+                .normalDevices(toStringArray(data.get("normalDevices")))
                 .normalIpBands(toStringArray(data.get("normalIpBands")))
                 .normalAuthenticationTypes(toStringArray(data.get("normalAuthenticationTypes")))
                 .frequentActionFamilies(toStringArray(data.get("frequentActionFamilies")))

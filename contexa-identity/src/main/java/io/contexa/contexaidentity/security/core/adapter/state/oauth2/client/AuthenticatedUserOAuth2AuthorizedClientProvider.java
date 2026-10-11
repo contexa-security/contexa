@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.client;
 
+import java.util.Map;
+import java.util.LinkedHashMap;
+import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -79,8 +82,16 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         HttpServletRequest request = context.getAttribute(HttpServletRequest.class.getName());
         HttpServletResponse response = context.getAttribute(HttpServletResponse.class.getName());
 
+        Map<String, String> loginFacts = new LinkedHashMap<>();
+        for (String name : LoginFactClaims.NAMES) {
+            Object value = context.getAttribute(name);
+            if (value != null) {
+                loginFacts.put(name, value.toString());
+            }
+        }
+
         OAuth2AuthenticatedUserGrantRequest grantRequest =
-                new OAuth2AuthenticatedUserGrantRequest(clientRegistration, username, deviceId);
+                new OAuth2AuthenticatedUserGrantRequest(clientRegistration, username, deviceId, loginFacts);
 
         if (this.accessTokenResponseClient instanceof InProcessAuthenticatedUserTokenResponseClient client) {
             client.setRequest(request);

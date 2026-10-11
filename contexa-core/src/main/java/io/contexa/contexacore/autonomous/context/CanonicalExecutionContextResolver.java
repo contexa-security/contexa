@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
 import io.contexa.contexacore.autonomous.execution.AttestationEnvelope;
 import io.contexa.contexacore.autonomous.execution.CanonicalExecutionBinding;
 import io.contexa.contexacore.autonomous.execution.CanonicalExecutionMapper;
@@ -111,10 +112,13 @@ public class CanonicalExecutionContextResolver {
             return null;
         }
         ExecutionProvenance currentProvenance = envelope.provenance();
+        // The event publisher writes UNKNOWN when the request names no protocol; that is no value, so the protocol the
+        // mapper derived from the request's kind (human session, internal runtime, or UNKNOWN for an undeclared
+        // delegated run) applies.
         String protocolType = firstText(
-                text(attributes.get("executionProtocolType")),
-                text(attributes.get("protocolType")),
-                text(attributes.get("sourceProtocol")),
+                declaredProtocol(attributes.get("executionProtocolType")),
+                declaredProtocol(attributes.get("protocolType")),
+                declaredProtocol(attributes.get("sourceProtocol")),
                 currentProvenance != null ? currentProvenance.protocolType() : null,
                 serviceClientPrincipal ? ExecutionProtocolTypes.INTERNAL_RUNTIME : ExecutionProtocolTypes.HUMAN_SESSION);
         String protocolVersion = firstText(
@@ -213,6 +217,11 @@ public class CanonicalExecutionContextResolver {
         return text.isBlank() ? null : text;
     }
 
+    private String declaredProtocol(Object value) {
+        String protocol = text(value);
+        return ExecutionProtocolTypes.UNKNOWN.equalsIgnoreCase(protocol) ? null : protocol;
+    }
+
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -289,10 +298,6 @@ public class CanonicalExecutionContextResolver {
     }
 
     private Boolean resolveBoolean(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        String text = text(value);
-        return StringUtils.hasText(text) ? Boolean.parseBoolean(text) : null;
+        return MetadataValueResolver.resolveBoolean(value);
     }
 }

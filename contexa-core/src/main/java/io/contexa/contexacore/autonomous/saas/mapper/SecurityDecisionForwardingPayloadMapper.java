@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import java.time.ZoneOffset;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -97,7 +98,7 @@ public class SecurityDecisionForwardingPayloadMapper {
                         : Map.of())
                 .severityLevel(event.getSeverity() != null ? event.getSeverity().name() : null)
                 .eventSource(event.getSource() != null ? event.getSource().name() : null)
-                .eventTimestamp(event.getTimestamp())
+                .eventTimestamp(event.getTimestamp() != null ? LocalDateTime.ofInstant(event.getTimestamp(), ZoneOffset.UTC) : null)
                 .hashedUserId(pseudonymizationService.hash(tenantScope, event.getUserId()))
                 .hashedSessionId(pseudonymizationService.hash(tenantScope, event.getSessionId()))
                 .hashedSourceIp(pseudonymizationService.hash(tenantScope, event.getSourceIp()))

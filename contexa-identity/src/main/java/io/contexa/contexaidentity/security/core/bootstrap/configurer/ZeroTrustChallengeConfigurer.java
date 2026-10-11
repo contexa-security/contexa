@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
@@ -40,6 +41,12 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
+        if (zeroTrustChallengeFilter == null) {
+            return;
+        }
+        boolean mfaFlowExists = config != null && config.getFlows() != null && config.getFlows().stream()
+                .anyMatch(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()));
+        zeroTrustChallengeFilter.setChallengeProcedureAvailable(mfaFlowExists);
     }
 
     @Override
@@ -50,7 +57,14 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
         AuthenticationFlowConfig flowConfig = fc.flow();
 
+        // A CHALLENGE restricts the user in every session, so every chain enforces it, not only the MFA flow chains;
+        // a chain without the MFA page filter places it right before authorization.
         if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
+            if (isTokenState(fc)) {
+                fc.http().addFilterBefore(zeroTrustChallengeFilter, BasicAuthenticationFilter.class);
+            } else {
+                fc.http().addFilterBefore(zeroTrustChallengeFilter, AuthorizationFilter.class);
+            }
             return;
         }
 

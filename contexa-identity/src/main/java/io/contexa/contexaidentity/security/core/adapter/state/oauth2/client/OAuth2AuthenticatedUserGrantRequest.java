@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.client;
 
+import java.util.Map;
 import org.springframework.lang.Nullable;
 import org.springframework.security.oauth2.client.endpoint.AbstractOAuth2AuthorizationGrantRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -28,16 +29,29 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
 
     private final String username;
     private final String deviceId;
+    private final Map<String, String> loginFacts;
 
     public OAuth2AuthenticatedUserGrantRequest(
             ClientRegistration clientRegistration,
             String username,
             @Nullable String deviceId) {
+        this(clientRegistration, username, deviceId, Map.of());
+    }
+
+    /**
+     * @param loginFacts the login facts (auth_time, amr, acr) recorded on the login the token is issued for
+     */
+    public OAuth2AuthenticatedUserGrantRequest(
+            ClientRegistration clientRegistration,
+            String username,
+            @Nullable String deviceId,
+            Map<String, String> loginFacts) {
 
         super(AUTHENTICATED_USER, clientRegistration);
         Assert.hasText(username, "username cannot be empty");
         this.username = username;
         this.deviceId = deviceId;
+        this.loginFacts = Map.copyOf(loginFacts);
     }
 
     public String getUsername() {
@@ -47,5 +61,9 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
     @Nullable
     public String getDeviceId() {
         return this.deviceId;
+    }
+
+    public Map<String, String> getLoginFacts() {
+        return this.loginFacts;
     }
 }

@@ -195,37 +195,37 @@ public class SecurityEventEnricher {
         return null;
     }
 
+    /**
+     * The operating system a User-Agent names, in the engine's one vocabulary (WINDOWS, MAC, IOS, ANDROID, CHROMEOS,
+     * LINUX); null when it names none, since a client that does not say its system (a script, a tool) is not known to
+     * run on a desktop.
+     */
     public static String extractOSFromUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
         if (userAgent.contains("Android")) {
-            return "Android";
+            return "ANDROID";
         }
         if (userAgent.contains("iPhone") || userAgent.contains("iPad")
                 || userAgent.contains("iPod") || userAgent.contains("iOS")) {
-            return "iOS";
+            return "IOS";
         }
 
         if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
-            return "Windows";
+            return "WINDOWS";
         }
         if (userAgent.contains("Mac OS X") || userAgent.contains("Macintosh")) {
-            return "Mac";
+            return "MAC";
         }
         if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
+            return "CHROMEOS";
         }
         if (userAgent.contains("Linux")) {
-            return "Linux";
+            return "LINUX";
         }
-
-        if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
-            return "Mobile";
-        }
-
-        return "Desktop";
+        return null;
     }
 
     public static String extractBrowserSignature(String userAgent) {

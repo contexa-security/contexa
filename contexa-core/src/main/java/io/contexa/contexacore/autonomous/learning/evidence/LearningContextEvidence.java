@@ -15,9 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import java.util.Arrays;
 import java.util.List;
-
+
 public record LearningContextEvidence(
         CurrentLearningContextSnapshot current,
         BaselineEvidenceSnapshot personalBaseline,
@@ -27,7 +28,8 @@ public record LearningContextEvidence(
         ObservedPatternSnapshot observedPatterns,
         List<CurrentVsObservedDeltaSnapshot> currentVsObservedDeltas,
         List<String> carryRequiredFacts,
-        List<String> carryMissingFacts) {
+        List<String> carryMissingFacts,
+        BaselineView baselineView) {
 
     public LearningContextEvidence {
         personalRetrievedEvidence = immutable(personalRetrievedEvidence);
@@ -35,6 +37,34 @@ public record LearningContextEvidence(
         currentVsObservedDeltas = immutable(currentVsObservedDeltas);
         carryRequiredFacts = immutable(carryRequiredFacts);
         carryMissingFacts = immutable(carryMissingFacts);
+    }
+
+    /** Evidence without a usual-behaviour view (no work profile observations were available). */
+    public LearningContextEvidence(
+            CurrentLearningContextSnapshot current,
+            BaselineEvidenceSnapshot personalBaseline,
+            BaselineEvidenceSnapshot supportingBaseline,
+            List<RetrievedBehaviorEvidence> personalRetrievedEvidence,
+            List<RetrievedBehaviorEvidence> supportingRetrievedEvidence,
+            ObservedPatternSnapshot observedPatterns,
+            List<CurrentVsObservedDeltaSnapshot> currentVsObservedDeltas,
+            List<String> carryRequiredFacts,
+            List<String> carryMissingFacts) {
+        this(current, personalBaseline, supportingBaseline, personalRetrievedEvidence, supportingRetrievedEvidence,
+                observedPatterns, currentVsObservedDeltas, carryRequiredFacts, carryMissingFacts, null);
+    }
+
+    /**
+     * Whether the device (browser and operating system) is outside the user's observed devices: true when a compared
+     * part is outside, false when every comparable part was seen before, null when nothing could be compared.
+     */
+    public Boolean deviceOutsideObserved() {
+        if (current == null || observedPatterns == null) {
+            return null;
+        }
+        // One device dimension (W2-4), the rule of the device delta.
+        Boolean held = observedPatterns.holdsDevice(current.browser(), current.operatingSystem());
+        return held == null ? null : !held;
     }
 
     public boolean hasComparableEvidence() {
@@ -154,6 +184,29 @@ public record LearningContextEvidence(
             return null;
         }
         return bestCombinationOverlap() + "/" + totalDimensions;
+    }
+
+    /**
+     * The closest personal past record's overlap with the request on the hour, the login method and the browser
+     * ({@code 1/3}): the past records are searched within the request's resource, so their action, resource class and
+     * path family match by construction (P2 correction 3).
+     */
+    public String currentRequestClosestOverlapOutsideRetrievalScope() {
+        if (current == null || personalRetrievedEvidence.isEmpty()) {
+            return null;
+        }
+        int total = (hasText(current.accessHour()) ? 1 : 0) + (hasText(current.authenticationType()) ? 1 : 0)
+                + (hasText(current.browser()) ? 1 : 0);
+        if (total == 0) {
+            return null;
+        }
+        int best = personalRetrievedEvidence.stream()
+                .mapToInt(evidence -> (matches(current.accessHour(), evidence.accessHour()) ? 1 : 0)
+                        + (matches(current.authenticationType(), evidence.authenticationType()) ? 1 : 0)
+                        + (matches(current.browser(), evidence.browser()) ? 1 : 0))
+                .max()
+                .orElse(0);
+        return best + "/" + total;
     }
 
     public String strongestCurrentRequestCombinationDelta() {

@@ -96,6 +96,11 @@ public abstract class AbstractProfileResolver<T> implements ProfileResolver<T> {
         return MetadataValueResolver.normalizeStrings(values);
     }
 
+    /** An ordered sequence with its repeats, from the first of the given names that holds one. */
+    protected List<String> sequence(Object... values) {
+        return MetadataValueResolver.normalizeSequence(values);
+    }
+
     protected List<String> roles(Object... values) {
         return IdentityTokenNormalizer.normalizeRoleStrings(values);
     }

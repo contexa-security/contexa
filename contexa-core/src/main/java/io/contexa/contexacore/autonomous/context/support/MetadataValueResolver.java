@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context.support;
 
+import java.util.ArrayList;
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
@@ -63,16 +65,9 @@ public final class MetadataValueResolver {
         return null;
     }
 
+    /** The first value that is a truth value ({@link TruthValues}); values that are not are skipped. */
     public static Boolean resolveBoolean(Object... values) {
-        for (Object value : values) {
-            if (value instanceof Boolean booleanValue) {
-                return booleanValue;
-            }
-            if (value instanceof String stringValue && !stringValue.isBlank()) {
-                return Boolean.parseBoolean(stringValue);
-            }
-        }
-        return null;
+        return TruthValues.first(values);
     }
 
     public static Integer resolveInteger(Object... values) {
@@ -154,6 +149,64 @@ public final class MetadataValueResolver {
             addDelimitedOrScalar(values, text);
         }
         return List.copyOf(values);
+    }
+
+    /**
+     * An ordered sequence (the requests of a session, its decisions) from the first source that holds one. Order and
+     * repeats are kept: a request made five times is five entries. Each entry is only trimmed, so a path or a record
+     * line stays as it was; blank and "null" entries are dropped. The sources are names of the same sequence, so they
+     * are not merged.
+     */
+    public static List<String> normalizeSequence(Object... rawValues) {
+        for (Object rawValue : rawValues) {
+            List<String> values = sequenceEntries(rawValue);
+            if (!values.isEmpty()) {
+                return values;
+            }
+        }
+        return List.of();
+    }
+
+    private static List<String> sequenceEntries(Object rawValue) {
+        List<String> values = new ArrayList<>();
+        if (rawValue instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                addSequenceEntry(values, item);
+            }
+        } else if (rawValue != null && rawValue.getClass().isArray()) {
+            int length = Array.getLength(rawValue);
+            for (int index = 0; index < length; index++) {
+                addSequenceEntry(values, Array.get(rawValue, index));
+            }
+        } else if (rawValue != null) {
+            String text = rawValue.toString().trim();
+            boolean bracketedCollection = looksLikeBracketedCollection(text);
+            if (bracketedCollection) {
+                text = text.substring(1, text.length() - 1).trim();
+            }
+            if (text.contains(",") && (bracketedCollection || isDelimitedTokenList(text))) {
+                for (String token : text.split(",")) {
+                    addSequenceEntry(values, token);
+                }
+            } else {
+                addSequenceEntry(values, text);
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    private static void addSequenceEntry(List<String> values, Object rawValue) {
+        if (rawValue == null) {
+            return;
+        }
+        String value = rawValue.toString().trim();
+        if (value.length() >= 2 && (value.charAt(0) == '"' || value.charAt(0) == '\'')
+                && value.charAt(value.length() - 1) == value.charAt(0)) {
+            value = value.substring(1, value.length() - 1).trim();
+        }
+        if (!value.isEmpty() && !"null".equalsIgnoreCase(value)) {
+            values.add(value);
+        }
     }
 
     public static boolean looksLikeBracketedCollection(String rawValue) {

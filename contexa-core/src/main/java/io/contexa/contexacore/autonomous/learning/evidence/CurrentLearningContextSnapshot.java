@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+
 public record CurrentLearningContextSnapshot(
         String accessHour,
         String dayOfWeek,
@@ -25,4 +27,9 @@ public record CurrentLearningContextSnapshot(
         String authenticationType,
         String actionFamily,
         String resourceFamily) {
+
+    /** The request's device, one dimension: the browser on the operating system (W2-4). */
+    public String device() {
+        return SecuritySemanticNormalizer.device(browser, operatingSystem);
+    }
 }

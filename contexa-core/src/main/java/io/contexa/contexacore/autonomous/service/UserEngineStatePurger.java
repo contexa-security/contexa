@@ -21,7 +21,6 @@ import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.std.rag.service.VectorStoreFilterValues;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -113,7 +112,7 @@ public class UserEngineStatePurger {
 
     private void deleteDecisionHistory(String userId) {
         Filter.Expression userDocuments = new FilterExpressionBuilder().eq(RAG_USER_METADATA_KEY, userId).build();
-        vectorStore.delete(VectorStoreFilterValues.encode(userDocuments, vectorStore));
+        vectorStore.delete(userDocuments);
     }
 
     private void step(String name, boolean available, Runnable action, List<String> purged, Map<String, String> failed) {

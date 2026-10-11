@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.policy;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -30,6 +31,8 @@ import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
  */
 public final class ContextSemanticBoundaryPolicy {
 
+    /** The trust profile key of the personal work profile (the work profile collector's profile). */
+    private static final String WORK_PROFILE_KEY = "PERSONAL_WORK_PROFILE";
     private static final int MIN_STANDALONE_OBSERVATIONS = 3;
     private static final int MIN_STANDALONE_DAYS = 2;
     private static final double MAX_FALLBACK_RATE = 0.25d;
@@ -52,6 +55,21 @@ public final class ContextSemanticBoundaryPolicy {
 
     public static boolean requiresEvidenceCaution(ContextTrustProfile trustProfile) {
         return !permitsStandaloneEvidenceAnchor(trustProfile);
+    }
+
+    /**
+     * The caution a trust profile that needs one carries. For the personal work profile whose usual-behaviour view
+     * is not STRONG it says the view's grade and causes (S-21); otherwise the general sentence.
+     */
+    public static String evidenceCautionStatement(ContextTrustProfile trustProfile, BaselineView workProfileView) {
+        String profileKey = trustProfile != null ? trustProfile.getProfileKey() : null;
+        if (WORK_PROFILE_KEY.equals(profileKey) && workProfileView != null && workProfileView.observed()
+                && workProfileView.evidenceGrade() != BaselineView.EvidenceGrade.STRONG) {
+            return "Context evidence for " + profileKey + " is " + workProfileView.evidenceSummary()
+                    + "; do not use it as a standalone reasoning anchor.";
+        }
+        return "Context evidence for " + profileKey
+                + " is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.";
     }
 
     public static boolean requiresEvidenceCaution(ContextFieldTrustRecord fieldRecord) {

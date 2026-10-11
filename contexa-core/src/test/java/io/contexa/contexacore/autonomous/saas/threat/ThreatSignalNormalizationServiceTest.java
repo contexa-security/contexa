@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,7 @@ class ThreatSignalNormalizationServiceTest {
         metadata.putAll(additionalMetadata);
         return SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.HIGH)
                 .sourceIp("10.10.10.10")

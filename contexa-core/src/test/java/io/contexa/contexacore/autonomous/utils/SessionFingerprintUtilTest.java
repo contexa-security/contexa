@@ -41,7 +41,7 @@ class SessionFingerprintUtilTest {
         SecurityEvent event = mock(SecurityEvent.class);
         when(event.getUserAgent()).thenReturn("Mozilla/5.0");
         when(event.getSourceIp()).thenReturn("192.168.0.1");
-        when(event.getTimestamp()).thenReturn(LocalDateTime.of(2026, 6, 15, 14, 0));
+        when(event.getLocalTimestamp()).thenReturn(LocalDateTime.of(2026, 6, 15, 14, 0));
 
         String fp1 = SessionFingerprintUtil.generateFingerprint(event);
         String fp2 = SessionFingerprintUtil.generateFingerprint(event);

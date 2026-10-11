@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.handoff;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
@@ -331,11 +332,7 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         if (value instanceof Boolean booleanValue) {
             return booleanValue;
         }
-        String text = value.toString().trim();
-        if (text.isBlank()) {
-            return null;
-        }
-        return Boolean.parseBoolean(text);
+        return TruthValues.parse(value);
     }
 
     @Nullable

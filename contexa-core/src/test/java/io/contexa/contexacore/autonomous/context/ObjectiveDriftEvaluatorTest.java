@@ -105,4 +105,87 @@ class ObjectiveDriftEvaluatorTest {
         assertThat(evaluation.objectiveDrift()).isNull();
         assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Delegated objective comparison is incomplete because comparable action/resource family inputs are missing."));
     }
+
+    @Test
+    void aWriteUnderAReadOnlyDelegationIsADriftNotARead() {
+        CanonicalSecurityContext context = context("CREATE");
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("REPORT_READ")
+                .allowedOperations(List.of("READ"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        // S-16: a create used to read as READ and stay inside a READ-only scope (W2-1).
+        assertThat(evaluation.objectiveDrift()).isTrue();
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current action family is not listed"));
+    }
+
+    @Test
+    void anActionNoSourceNamesIsNotComparedWithTheDelegatedScope() {
+        CanonicalSecurityContext context = context("UNKNOWN");
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("REPORT_READ")
+                .allowedOperations(List.of("READ"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        assertThat(evaluation.facts()).anyMatch(fact -> fact.contains("Current action family is unknown"));
+        assertThat(evaluation.facts()).noneMatch(fact -> fact.contains("Current action family is listed")
+                || fact.contains("Current action family is not listed"));
+    }
+
+    @Test
+    void theFactsNameTheRequestByItsActionFamilyAndTheOperationItWasComparedAs() {
+        CanonicalSecurityContext context = context("WRITE");
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("READ_ONLY_INCIDENT_SUMMARY")
+                .allowedOperations(List.of("READ"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        // The prompt says ActionFamily: WRITE; the delegation line names the same request WRITE, not MODIFY.
+        assertThat(evaluation.objectiveDrift()).isTrue();
+        assertThat(evaluation.currentActionFamily()).isEqualTo("WRITE");
+        assertThat(evaluation.facts())
+                .contains("Current action family: WRITE", "Current action family compared as delegated operation: MODIFY")
+                .doesNotContain("Current action family: MODIFY");
+    }
+
+    @Test
+    void anActionTheDelegationVocabularyHasNoOperationForIsNotComparedAndNotCalledUnknown() {
+        CanonicalSecurityContext context = context("EXECUTE");
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("REPORT_READ")
+                .allowedOperations(List.of("READ"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        assertThat(evaluation.facts())
+                .contains("Current action family: EXECUTE",
+                        "Current action family has no delegated operation; it is not compared with delegated action scope evidence.")
+                .noneMatch(fact -> fact.contains("Current action family is unknown")
+                        || fact.contains("Current action family is listed")
+                        || fact.contains("Current action family is not listed"));
+    }
+
+    private static CanonicalSecurityContext context(String actionFamily) {
+        return CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/reports/7")
+                        .actionFamily(actionFamily)
+                        .requestPath("/api/reports/7")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentActionFamily(actionFamily)
+                        .build())
+                .build();
+    }
 }

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -48,6 +49,8 @@ import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +67,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.quality.Strictness;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -286,6 +294,20 @@ class AbstractTieredStrategyTest {
                 .containsExactly(
                         "10:30 | GET /admin/api/security-test/sensitive/resource-001",
                         "10:31 | GET /admin/api/security-test/sensitive/resource-001");
+    }
+
+    @Test
+    @DisplayName("BaseSessionContext measures a session from its first event to its latest one on the event clock")
+    void baseSessionContext_measuresTheSessionOnTheEventClock() {
+        AbstractTieredStrategy.BaseSessionContext sessionContext = new AbstractTieredStrategy.BaseSessionContext();
+        Instant start = Instant.parse("2026-09-30T03:15:00Z");
+
+        sessionContext.setStartTime(start);
+        sessionContext.recordEventTime(start.plusSeconds(360));
+        sessionContext.recordEventTime(start.plusSeconds(120));
+
+        // A late, older event does not shorten the session; the server clock plays no part.
+        assertThat(sessionContext.getSessionDuration()).isEqualTo(6);
     }
 
     @Test
@@ -684,6 +706,85 @@ class AbstractTieredStrategyTest {
                 .containsEntry("relatedDocumentCount", 1)
                 .containsEntry("ragProjectedToFinalPrompt", true);
     }
+
+    @Test
+    @DisplayName("searchRelatedContextBase should name the request's action as the context gives it")
+    void searchRelatedContextBase_namesTheActionTheContextGivesTheRequest() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-export-action")
+                .userId("persona_fin_lead")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "tenantId", "demo",
+                        "httpMethod", "POST",
+                        "protectableMethod", "io.contexa.example.BusinessOperations.exportDocuments")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents,
+                            documents.size(),
+                            documents.size(),
+                            0,
+                            "security_investigation",
+                            List.of());
+                });
+
+        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searchRequestCaptor.capture());
+        // A bulk export sent as a POST is searched as an export, the family stored with past decisions, not a write.
+        assertThat(searchRequestCaptor.getAllValues()).extracting(SearchRequest::getQuery)
+                .allSatisfy(query -> assertThat(query).doesNotContain("action: WRITE"))
+                .anySatisfy(query -> assertThat(query).contains("action: EXPORT"));
+    }
+
+    @Test
+    @DisplayName("searchRelatedContextBase should name the request's path family as the host's URL template")
+    void searchRelatedContextBase_namesThePathFamilyAsTheHostsUrlTemplate() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-export-path-family")
+                .userId("persona_fin_lead")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "tenantId", "demo",
+                        "httpMethod", "POST",
+                        "protectableResourceUrl", "/api/projects/{projectKey}/exports")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents,
+                            documents.size(),
+                            documents.size(),
+                            0,
+                            "security_investigation",
+                            List.of());
+                });
+
+        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searchRequestCaptor.capture());
+        // Past records of any project's export match the query, as the stored records name the template (W2-2).
+        assertThat(searchRequestCaptor.getAllValues()).extracting(SearchRequest::getQuery)
+                .allSatisfy(query -> assertThat(query).doesNotContain("pathFamily: /api/projects/GB-500"))
+                .anySatisfy(query -> assertThat(query).contains("pathFamily: /api/projects/{projectKey}/exports"));
+    }
+
     @Test
     @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should apply cohort seed runtime weight decision")
     void enrichBehaviorAnalysisWithBaselineSupport_appliesCohortSeedRuntimeWeightDecision() {
@@ -889,12 +990,11 @@ class AbstractTieredStrategyTest {
                 .fieldProvenance(Map.of("reasoning", "MODEL"))
                 .build();
         SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "resourceId", "resource-001",
+                .metadata(exportMetadata("GB-500", Map.of(
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", true)))
                 .build();
-        Document document = new Document("historical evidence", Map.of("resourceId", "resource-001"));
+        Document document = exportRecord("GB-500");
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
 
@@ -915,12 +1015,11 @@ class AbstractTieredStrategyTest {
                 .fieldProvenance(Map.of("reasoning", "MODEL"))
                 .build();
         SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "resourceId", "resource-001",
+                .metadata(exportMetadata("GB-500", Map.of(
                         "ragProjectedToFinalPrompt", true,
                         "personalBaselineEstablished", false)))
                 .build();
-        Document document = new Document("historical evidence", Map.of("resourceId", "resource-001"));
+        Document document = exportRecord("GB-500");
 
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(document));
 
@@ -970,6 +1069,220 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getReasoning()).contains("the personal baseline is established");
         assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "MODEL");
     }
+
+    @Test
+    @DisplayName("records of the same method on another project are not same-resource RAG (W2-8)")
+    void applyCanonicalDecisionReasoning_anotherProjectIsNotTheSameResource() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Authorization allows access, the personal baseline is established, "
+                        + "and authorized RAG is relevant to the same resource.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(exportMetadata("GB-500", Map.of(
+                        "ragProjectedToFinalPrompt", true,
+                        "personalBaselineEstablished", true)))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(exportRecord("PLM-OPS")));
+
+        // The model's same-resource claim is not true of these records; the rule-2 sentence replaces it.
+        assertThat(decision.getReasoning()).isEqualTo("Authorization allows access, the personal baseline is established, "
+                + "and no concrete risk or verification requirement is present.");
+        assertThat(decision.getLlmReasoning()).contains("relevant to the same resource");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+    }
+
+    @Test
+    @DisplayName("a same-resource claim without such records and without a baseline gets the limited sentence (W2-8)")
+    void applyCanonicalDecisionReasoning_aSameResourceClaimWithoutRecordsOrBaseline() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Authorization allows access, and authorized RAG is relevant to the same resource.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(exportMetadata("GB-500", Map.of(
+                        "ragProjectedToFinalPrompt", true,
+                        "personalBaselineEstablished", false)))
+                .build();
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event,
+                List.of(exportRecord("GB-500"), exportRecord("PLM-OPS")));
+
+        assertThat(decision.getReasoning()).isEqualTo("Authorization allows access with a limited baseline, "
+                + "and no concrete risk or verification requirement is present.");
+    }
+
+    @Test
+    @DisplayName("past records leave out the current session and records held back from promotion (W2-8)")
+    void searchRelatedContextBase_leavesOutTheCurrentSessionAndHeldRecords() {
+        SimpleVectorStore store = SimpleVectorStore.builder(new ConstantEmbeddingModel()).build();
+        Document otherSession = behaviorRecord("other-session", Map.of("sessionId", "session-1"));
+        Document noSession = behaviorRecord("no-session", Map.of());
+        store.add(List.of(
+                behaviorRecord("this-session", Map.of("sessionId", "session-7")),
+                otherSession,
+                noSession,
+                behaviorRecord("held", Map.of("sessionId", "session-2", "learningState", "HELD"))));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session-7")
+                .userId("adm-a")
+                .sessionId("session-7")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "resourceId", "ops#exportDocuments",
+                        "httpMethod", "POST")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        // The store evaluates the very filter the strategy built.
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenAnswer(invocation -> store.similaritySearch((SearchRequest) invocation.getArgument(0)));
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents, documents.size(), documents.size(), 0, "security_investigation", List.of());
+                });
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 5, 0.0d);
+
+        assertThat(result).extracting(Document::getId).containsExactlyInAnyOrder("other-session", "no-session");
+        ArgumentCaptor<SearchRequest> searches = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searches.capture());
+        // The personal searches leave out the session; the organization's supporting search already leaves out the user.
+        assertThat(searches.getAllValues())
+                .filteredOn(search -> String.valueOf(search.getFilterExpression()).contains("adm-a"))
+                .isNotEmpty()
+                .allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
+                        // NIN keeps a record without a session; a not-equal test would drop it in pgvector.
+                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[session-7]]"));
+        assertThat(searches.getAllValues()).allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
+                .contains("learningState", "HELD"));
+    }
+
+    @Test
+    @DisplayName("past records written under the ids the session had before a step-up check are its own (P2 correction 5)")
+    void searchRelatedContextBase_leavesOutTheSessionsRecordsUnderItsEarlierIds() {
+        SimpleVectorStore store = SimpleVectorStore.builder(new ConstantEmbeddingModel()).build();
+        store.add(List.of(
+                behaviorRecord("before-step-up", Map.of("sessionId", "session-6")),
+                behaviorRecord("this-session", Map.of("sessionId", "session-7")),
+                behaviorRecord("other-session", Map.of("sessionId", "session-1"))));
+        strategy.previousIds.put("session-7", List.of("session-6"));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-session-7-after-step-up")
+                .userId("adm-a")
+                .sessionId("session-7")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "resourceId", "ops#exportDocuments",
+                        "httpMethod", "POST")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenAnswer(invocation -> store.similaritySearch((SearchRequest) invocation.getArgument(0)));
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents, documents.size(), documents.size(), 0, "security_investigation", List.of());
+                });
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 5, 0.0d);
+
+        assertThat(result).extracting(Document::getId).containsExactly("other-session");
+        ArgumentCaptor<SearchRequest> searches = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searches.capture());
+        assertThat(searches.getAllValues())
+                .filteredOn(search -> String.valueOf(search.getFilterExpression()).contains("adm-a"))
+                .isNotEmpty()
+                .allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
+                        .contains("type=NIN, left=Key[key=sessionId], right=Value[value=[session-7, session-6]]"));
+    }
+
+    @Test
+    @DisplayName("a request without a session keeps every learned record of the user (W2-8)")
+    void searchRelatedContextBase_withoutASessionLeavesOutOnlyHeldRecords() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-no-session")
+                .userId("adm-a")
+                .metadata(new LinkedHashMap<>(Map.of("organizationId", "demo-org", "httpMethod", "POST")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+
+        strategy.callSearchRelatedContextBase(event, 5, 0.0d);
+
+        ArgumentCaptor<SearchRequest> searches = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searches.capture());
+        assertThat(searches.getAllValues()).allSatisfy(search -> assertThat(String.valueOf(search.getFilterExpression()))
+                .doesNotContain("sessionId")
+                .contains("learningState", "HELD"));
+    }
+
+    private static Map<String, Object> exportMetadata(String project, Map<String, Object> extra) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("resourceId", "ops#exportDocuments");
+        metadata.put("requestPath", "/api/projects/" + project + "/exports");
+        metadata.put("protectableResourceUrl", "/api/projects/{projectKey}/exports");
+        metadata.put("httpMethod", "POST");
+        metadata.putAll(extra);
+        return metadata;
+    }
+
+    private static Document exportRecord(String project) {
+        return new Document("historical evidence", Map.of(
+                "resourceId", "ops#exportDocuments",
+                "requestPath", "/api/projects/" + project + "/exports",
+                "pathFamily", "/api/projects/{projectKey}/exports",
+                "httpMethod", "POST"));
+    }
+
+    private static Document behaviorRecord(String id, Map<String, Object> extra) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("documentType", "behavior");
+        metadata.put("eventId", id);
+        metadata.put("userId", "adm-a");
+        metadata.put("retrievalPurpose", "security_investigation");
+        metadata.put("resourceId", "ops#exportDocuments");
+        metadata.putAll(extra);
+        return Document.builder().id(id).text("User accessed /api/projects/PLM-OPS/exports via POST").metadata(metadata)
+                .build();
+    }
+
+    /** Every text embeds to the same vector, so the store's filter alone decides what a search returns. */
+    private static final class ConstantEmbeddingModel implements EmbeddingModel {
+
+        @Override
+        public EmbeddingResponse call(EmbeddingRequest request) {
+            List<Embedding> embeddings = new ArrayList<>();
+            for (int index = 0; index < request.getInstructions().size(); index++) {
+                embeddings.add(new Embedding(new float[] {1f, 0f}, index));
+            }
+            return new EmbeddingResponse(embeddings);
+        }
+
+        @Override
+        public float[] embed(Document document) {
+            return new float[] {1f, 0f};
+        }
+
+        @Override
+        public int dimensions() {
+            return 2;
+        }
+    }
+
     @Test
     @DisplayName("trusted confirmed malicious evidence should produce the canonical BLOCK explanation")
     void applyCanonicalDecisionReasoning_shouldUseConfirmedMaliciousBlockExplanation() {
@@ -1012,6 +1325,14 @@ class AbstractTieredStrategyTest {
                     promptContextAuthorizationService,
                     promptContextAuditForwardingService,
                     tieredStrategyProperties);
+        }
+
+        /** The ids a session had before its id was replaced, as a context store would give them. */
+        final Map<String, List<String>> previousIds = new HashMap<>();
+
+        @Override
+        protected List<String> previousSessionIds(String sessionId) {
+            return previousIds.getOrDefault(sessionId, List.of());
         }
 
         @Override

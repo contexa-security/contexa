@@ -15,16 +15,22 @@
  */
 package io.contexa.contexacore.autonomous.context.resolver;
 
+import java.util.Set;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.FrictionProfile;
+import io.contexa.contexacore.autonomous.context.decision.CompanyRecordsEvaluator;
+import io.contexa.contexacore.autonomous.context.decision.RecordCheck;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
-import static io.contexa.contexacore.autonomous.context.support.MetadataValueResolver.normalizeStrings;
+import static io.contexa.contexacore.autonomous.context.support.MetadataValueResolver.normalizeSequence;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 
@@ -33,6 +39,9 @@ import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContext
  * Extracted from DefaultCanonicalSecurityContextProvider - all business logic preserved.
  */
 public class FrictionProfileResolver extends AbstractProfileResolver<FrictionProfile> {
+
+    /** Approval states that cover a request; any other known state leaves it without a valid approval. */
+    private static final Set<String> VALID_APPROVAL_STATUSES = Set.of("APPROVED", "GRANTED", "COMPLETED");
 
     @Override
     protected FrictionProfile doResolve(Map<String, Object> metadata, CanonicalSecurityContext context) {
@@ -45,14 +54,12 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
             recentDeniedAccessCount = context.getObservedScope().getRecentDeniedAccessCount();
         }
 
+        // The business approval of the request only: a delegation's human approval is another fact (W2-9).
         Boolean approvalRequired = toBool(existing != null ? existing.getApprovalRequired() : null, metadata.get("approvalRequired"), metadata.get("approval_required"));
-        if (approvalRequired == null && context.getDelegation() != null) {
-            approvalRequired = context.getDelegation().getApprovalRequired();
-        }
         String approvalStatus = text(existing != null ? existing.getApprovalStatus() : null, metadata.get("approvalStatus"), metadata.get("approval_status"));
         Boolean approvalGranted = toBool(existing != null ? existing.getApprovalGranted() : null, metadata.get("approvalGranted"), metadata.get("approval_granted"));
-        if (approvalGranted == null && StringUtils.hasText(approvalStatus)) {
-            approvalGranted = "APPROVED".equalsIgnoreCase(approvalStatus) || "GRANTED".equalsIgnoreCase(approvalStatus);
+        if (approvalGranted == null && StringUtils.hasText(approvalStatus) && !isUnknownStatus(approvalStatus)) {
+            approvalGranted = VALID_APPROVAL_STATUSES.contains(approvalStatus.trim().toUpperCase(Locale.ROOT));
         }
         Boolean approvalMissing = toBool(existing != null ? existing.getApprovalMissing() : null);
         if (approvalMissing == null) {
@@ -86,7 +93,8 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
             recentChallengeCount = inferActionCount(sessionActionEvidence, "CHALLENGE", "MFA_COMPLETED", "MFA_REQUIRED");
         }
         if (recentBlockCount == null) {
-            recentBlockCount = inferActionCount(sessionActionEvidence, "BLOCK", "DENIED", "ACCESS_DENIED");
+            // A refused authorization is a denied access, not a Zero Trust block.
+            recentBlockCount = inferActionCount(sessionActionEvidence, "BLOCK");
         }
         if (recentEscalationCount == null) {
             recentEscalationCount = inferActionCount(sessionActionEvidence, "ESCALATE", "ESCALATED");
@@ -111,13 +119,79 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
                 .breakGlass(toBool(existing != null ? existing.getBreakGlass() : null, metadata.get("breakGlass"), metadata.get("break_glass"), metadata.get("breakGlassRequested")))
                 .recentDeniedAccessCount(recentDeniedAccessCount)
                 .blockedUser(toBool(existing != null ? existing.getBlockedUser() : null, metadata.get("blockedUser"), metadata.get("isBlockedUser"), metadata.get("blocked_user")))
+                // The company records a host provider put in the profile are carried as they are (W2-6).
+                .approvalRecords(existing != null && existing.getApprovalRecords() != null
+                        ? new ArrayList<>(existing.getApprovalRecords()) : new ArrayList<>())
+                .ticketRecords(existing != null && existing.getTicketRecords() != null
+                        ? new ArrayList<>(existing.getTicketRecords()) : new ArrayList<>())
+                .onCall(existing != null ? existing.getOnCall() : null)
+                .travel(existing != null ? existing.getTravel() : null)
+                .assignment(existing != null ? existing.getAssignment() : null)
+                .accessHistory(existing != null ? existing.getAccessHistory() : null)
+                .policies(existing != null && existing.getPolicies() != null
+                        ? new ArrayList<>(existing.getPolicies()) : new ArrayList<>())
+                .checkedRecordKinds(existing != null && existing.getCheckedRecordKinds() != null
+                        ? new ArrayList<>(existing.getCheckedRecordKinds()) : new ArrayList<>())
                 .build();
+        alignWithRequestTime(profile, context, metadata);
 
         if (!StringUtils.hasText(profile.getSummary())) {
             profile.setSummary(doBuildSummary(profile, context));
         }
 
         return profile;
+    }
+
+    /**
+     * With the host's approval or ticket records, the simple approval fields say what holds at the request time (W2-5):
+     * a record decided after the request, outside its validity, for another target or beyond its limit (alone or with
+     * what the session already exported under it) does not grant the request. The host's own verdict stays in the
+     * records it gave; a host status that is not an approval word (PENDING) is kept.
+     */
+    private static void alignWithRequestTime(FrictionProfile profile, CanonicalSecurityContext context,
+                                             Map<String, Object> metadata) {
+        if (!CompanyRecordsEvaluator.hasRecords(profile)) {
+            return;
+        }
+        CompanyRecordsEvaluator.Evaluation evaluation = CompanyRecordsEvaluator.evaluate(profile,
+                CompanyRecordsEvaluator.Request.of(context,
+                        SessionDecisionRecord.listOf(metadata.get(SessionDecisionRecord.METADATA_KEY))),
+                EventTimeZone.get());
+        Optional<RecordCheck> covering = evaluation.covering();
+        // An approval nothing fails but whose use the engine cannot check is neither granted nor missing: the host's
+        // status stays and the two lines are left unstated (P2 correction 3).
+        if (covering.isEmpty() && evaluation.policy().satisfied() == null
+                && evaluation.approvals().stream().anyMatch(RecordCheck::undecided)) {
+            profile.setApprovalGranted(null);
+            profile.setApprovalMissing(null);
+            return;
+        }
+        profile.setApprovalGranted(covering.isPresent());
+        String hostStatus = profile.getApprovalStatus();
+        if (covering.isPresent()) {
+            profile.setApprovalStatus("APPROVED");
+            profile.setApprovalTicketId(covering.get().recordId());
+        }
+        else {
+            if (!StringUtils.hasText(hostStatus)
+                    || VALID_APPROVAL_STATUSES.contains(hostStatus.trim().toUpperCase(Locale.ROOT))) {
+                profile.setApprovalStatus("NO_COVERING_APPROVAL");
+            }
+            // The ID of a record that does not cover the request is not the request's approval.
+            boolean checkedRecord = evaluation.approvals().stream().anyMatch(check ->
+                    check.recordId().equals(profile.getApprovalTicketId()))
+                    || evaluation.tickets().stream().anyMatch(check -> check.recordId().equals(profile.getApprovalTicketId()));
+            if (checkedRecord) {
+                profile.setApprovalTicketId(null);
+            }
+        }
+        Boolean satisfied = evaluation.policy().satisfied();
+        if (satisfied != null) {
+            profile.setApprovalMissing(!satisfied);
+        }
+        else if (profile.getApprovalRequired() != null) {
+            profile.setApprovalMissing(profile.getApprovalRequired() && covering.isEmpty());
+        }
     }
 
     @Override
@@ -136,7 +210,15 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
                 || profile.getApprovalDecisionAgeMinutes() != null
                 || profile.getBreakGlass() != null
                 || profile.getRecentDeniedAccessCount() != null
-                || profile.getBlockedUser() != null;
+                || profile.getBlockedUser() != null
+                || (profile.getApprovalRecords() != null && !profile.getApprovalRecords().isEmpty())
+                || (profile.getTicketRecords() != null && !profile.getTicketRecords().isEmpty())
+                || (profile.getPolicies() != null && !profile.getPolicies().isEmpty())
+                || profile.getOnCall() != null
+                || profile.getTravel() != null
+                || profile.getAssignment() != null
+                || profile.getAccessHistory() != null
+                || (profile.getCheckedRecordKinds() != null && !profile.getCheckedRecordKinds().isEmpty());
     }
 
     @Override
@@ -178,6 +260,10 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
     }
 
 
+    /**
+     * Whether no valid approval covers the request. Only a granted approval covers it; a rejected, pending, expired or
+     * cancelled one does not. Null when the approval need or its state is unknown.
+     */
     private Boolean resolveApprovalMissing(Boolean approvalRequired, Boolean approvalGranted, String approvalStatus) {
         if (Boolean.FALSE.equals(approvalRequired)) {
             return false;
@@ -185,13 +271,17 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
         if (!Boolean.TRUE.equals(approvalRequired)) {
             return null;
         }
-        if (Boolean.TRUE.equals(approvalGranted)) {
-            return false;
+        if (approvalGranted != null) {
+            return !approvalGranted;
         }
         if (!StringUtils.hasText(approvalStatus)) {
             return true;
         }
-        return "MISSING".equalsIgnoreCase(approvalStatus) || "NOT_FOUND".equalsIgnoreCase(approvalStatus);
+        return null;
+    }
+
+    private static boolean isUnknownStatus(String approvalStatus) {
+        return "UNKNOWN".equalsIgnoreCase(approvalStatus.trim());
     }
 
     private List<String> resolveSessionActionEvidence(Map<String, Object> metadata, CanonicalSecurityContext context) {
@@ -200,7 +290,8 @@ public class FrictionProfileResolver extends AbstractProfileResolver<FrictionPro
         if (sessionNarrativeProfile != null && !sessionNarrativeProfile.getSessionActionSequence().isEmpty()) {
             return sessionNarrativeProfile.getSessionActionSequence();
         }
-        return normalizeStrings(
+        // A sequence: each repeated action is counted.
+        return normalizeSequence(
                 metadata.get("sessionActionSequence"),
                 metadata.get("recentSessionActions"),
                 metadata.get("sessionActions"));

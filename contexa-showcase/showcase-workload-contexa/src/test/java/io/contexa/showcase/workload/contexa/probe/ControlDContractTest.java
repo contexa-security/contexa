@@ -53,8 +53,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.net.URI;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -324,7 +322,7 @@ class ControlDContractTest {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .userId(username)
-                .timestamp(LocalDateTime.ofInstant(CompanyCalendar.at(ProbeDatabase.ANCHOR, TimeSlot.DAWN), ZoneOffset.UTC))
+                .timestamp(CompanyCalendar.at(ProbeDatabase.ANCHOR, TimeSlot.DAWN))
                 .build();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("requestPath", "/api/projects/" + CompanyBlueprint.A3_TARGET + "/exports");
@@ -370,8 +368,7 @@ class ControlDContractTest {
         for (Map.Entry<String, String[]> request : requests.entrySet()) {
             RecordingBusinessContextLookup recording = new RecordingBusinessContextLookup(lookup);
             SecurityEvent event = SecurityEvent.builder().userId(username)
-                    .timestamp(LocalDateTime.ofInstant(CompanyCalendar.at(ProbeDatabase.ANCHOR, TimeSlot.AFTERNOON),
-                            ZoneOffset.UTC))
+                    .timestamp(CompanyCalendar.at(ProbeDatabase.ANCHOR, TimeSlot.AFTERNOON))
                     .build();
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("httpMethod", request.getValue()[0]);

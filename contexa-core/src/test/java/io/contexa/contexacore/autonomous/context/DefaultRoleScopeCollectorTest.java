@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import java.time.ZoneId;
 import io.contexa.contexacore.autonomous.context.collector.DefaultRoleScopeCollector;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -26,9 +27,11 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeSnapshot;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 
 class DefaultRoleScopeCollectorTest {
 
@@ -44,7 +47,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("collect builds role scope from prior authorized history without contaminating it with the current request")
     void collect_buildsRoleScopeFromPriorAuthorizedHistory() {
-        collector.collect(event(
+        collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST"),
                 List.of("customer_data"),
@@ -53,7 +56,7 @@ class DefaultRoleScopeCollectorTest {
                 "REPORT",
                 true));
 
-        RoleScopeSnapshot snapshot = collector.collect(event(
+        RoleScopeSnapshot snapshot = collect(event(
                         LocalDateTime.of(2026, 3, 26, 10, 0),
                         List.of("ROLE_ANALYST"),
                         List.of("customer_data"),
@@ -74,9 +77,44 @@ class DefaultRoleScopeCollectorTest {
     }
 
     @Test
+    @DisplayName("a request the decision challenged joins no scope, while its permission state is kept (W2-7, S-10)")
+    void aChallengedRequestJoinsNoScopeButItsPermissionStateIsKept() {
+        SecurityEvent challenged = event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "EXPORT", "CUSTOMER", true);
+        collector.collect(challenged);
+        collector.recorder().commit(challenged, "CHALLENGE", true);
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read", "report.export"), "READ", "REPORT", true))
+                .orElseThrow();
+
+        // The authorization allowed the export, but the decision did not: the scope group learns nothing from it.
+        assertThat(snapshot.getExpectedActionFamilies()).doesNotContain("EXPORT");
+        assertThat(snapshot.getExpectedResourceFamilies()).doesNotContain("CUSTOMER");
+        // The authorization state of the challenged request is the one the next request is compared with.
+        assertThat(snapshot.getRecentPermissionChanges()).containsExactly("Authorization scope changed: permissions changed");
+    }
+
+    @Test
+    @DisplayName("a refused authorization is recorded as denied scope under its own outcome (W2-7)")
+    void aRefusedAuthorizationIsRecordedAsDeniedScope() {
+        SecurityEvent refused = event(LocalDateTime.of(2026, 3, 26, 9, 30), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "DELETE", "ACCOUNT", false);
+        collector.collect(refused);
+        // The authorization denial recorder commits the refusal; no Zero Trust decision ever allows it.
+        collector.recorder().commit(refused, SessionDecisionRecord.AUTHORIZATION_DENIED, true);
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true)).orElseThrow();
+
+        assertThat(snapshot.getForbiddenResourceFamilies()).containsExactly("ACCOUNT");
+        assertThat(snapshot.getForbiddenActionFamilies()).containsExactly("DELETE");
+    }
+
+    @Test
     @DisplayName("collect records denied history as negative scope evidence")
     void collect_recordsDeniedHistoryAsNegativeScopeEvidence() {
-        collector.collect(event(
+        collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST"),
                 List.of("customer_data"),
@@ -84,7 +122,7 @@ class DefaultRoleScopeCollectorTest {
                 "READ",
                 "REPORT",
                 true));
-        collector.collect(event(
+        collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 30),
                 List.of("ROLE_ANALYST"),
                 List.of("customer_data"),
@@ -93,7 +131,7 @@ class DefaultRoleScopeCollectorTest {
                 "ACCOUNT",
                 false));
 
-        RoleScopeSnapshot snapshot = collector.collect(event(
+        RoleScopeSnapshot snapshot = collect(event(
                         LocalDateTime.of(2026, 3, 26, 10, 0),
                         List.of("ROLE_ANALYST"),
                         List.of("customer_data"),
@@ -110,9 +148,45 @@ class DefaultRoleScopeCollectorTest {
     }
 
     @Test
+    @DisplayName("a business approval's decision age does not date the permission change (W2-9)")
+    void collect_doesNotDateAnElevationByTheApprovalDecisionAge() {
+        SecurityEvent elevated = event(
+                LocalDateTime.of(2026, 3, 26, 9, 20),
+                List.of("ROLE_ANALYST"),
+                List.of("customer_data"),
+                List.of("report.read"),
+                "READ",
+                "REPORT",
+                true);
+        elevated.addMetadata("temporaryElevation", true);
+        elevated.addMetadata("temporaryElevationReason", "Emergency customer export review");
+        elevated.addMetadata("approvalRequired", true);
+        elevated.addMetadata("approvalStatus", "APPROVED");
+        elevated.addMetadata("approvalDecisionAgeMinutes", 10);
+
+        RoleScopeSnapshot snapshot = collect(elevated).orElseThrow();
+
+        // The elevation was declared with this request; ten minutes is when the approval was decided.
+        assertThat(snapshot.getElevationWindowSummary()).contains(": 0 minutes elapsed");
+        // A stated elevation age still dates it.
+        SecurityEvent dated = event(
+                LocalDateTime.of(2026, 3, 26, 9, 40),
+                List.of("ROLE_ANALYST"),
+                List.of("customer_data"),
+                List.of("report.read"),
+                "READ",
+                "REPORT",
+                true);
+        dated.addMetadata("temporaryElevation", true);
+        dated.addMetadata("temporaryElevationReason", "Emergency customer export review");
+        dated.addMetadata("elevationAgeMinutes", 7);
+        assertThat(collect(dated).orElseThrow().getElevationWindowSummary()).contains(": 7 minutes elapsed");
+    }
+
+    @Test
     @DisplayName("collect detects authorization scope change and elevated window from explicit temporary elevation")
     void collect_detectsAuthorizationScopeChangeAndElevatedWindow() {
-        collector.collect(event(
+        collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST"),
                 List.of("customer_data"),
@@ -135,19 +209,21 @@ class DefaultRoleScopeCollectorTest {
         changed.addMetadata("approvalStatus", "APPROVED");
         changed.addMetadata("approvalDecisionAgeMinutes", 10);
 
-        RoleScopeSnapshot snapshot = collector.collect(changed).orElseThrow();
+        RoleScopeSnapshot snapshot = collect(changed).orElseThrow();
 
         assertThat(snapshot.getRecentPermissionChanges()).isNotEmpty();
         assertThat(snapshot.getTemporaryElevation()).isTrue();
         assertThat(snapshot.getElevatedPrivilegeWindowActive()).isTrue();
         assertThat(snapshot.getTemporaryElevationReason()).contains("Emergency customer export review");
-        assertThat(snapshot.getElevationWindowSummary()).contains("0");
+        // The approval's decision age is not the permission change's age (W2-9): the change is the one just seen.
+        assertThat(snapshot.getElevationWindowSummary()).contains(": 0 minutes elapsed")
+                .doesNotContain("10 minutes elapsed");
     }
 
     @Test
     @DisplayName("collect treats reordered authorization scope values as the same scope")
     void collect_treatsReorderedAuthorizationScopeValuesAsSameScope() {
-        collector.collect(event(
+        collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST", "ROLE_REVIEWER"),
                 List.of("customer_data", "reporting"),
@@ -156,7 +232,7 @@ class DefaultRoleScopeCollectorTest {
                 "REPORT",
                 true));
 
-        RoleScopeSnapshot snapshot = collector.collect(event(
+        RoleScopeSnapshot snapshot = collect(event(
                 LocalDateTime.of(2026, 3, 26, 9, 20),
                 List.of("ROLE_REVIEWER", "ROLE_ANALYST"),
                 List.of("reporting", "customer_data"),
@@ -169,6 +245,96 @@ class DefaultRoleScopeCollectorTest {
         assertThat(snapshot.getTemporaryElevation()).isNull();
         assertThat(snapshot.getElevatedPrivilegeWindowActive()).isFalse();
     }
+
+    @Test
+    @DisplayName("a refused read of one resource family keeps a read of another resource family out of denied scope")
+    void collect_comparesDeniedScopeByRefusedPair() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "DOCUMENT", true));
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 30),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", false));
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "DOCUMENT", true))
+                .orElseThrow();
+
+        assertThat(snapshot.getForbiddenResourceFamilies()).containsExactly("CUSTOMER");
+        assertThat(snapshot.getForbiddenActionFamilies()).containsExactly("READ");
+        assertThat(snapshot.getCurrentResourceFamilyInDeniedScope()).isFalse();
+        assertThat(snapshot.getCurrentActionFamilyInDeniedScope()).isFalse();
+        assertThat(snapshot.getResourceFamilyDrift()).isFalse();
+        assertThat(snapshot.getActionFamilyDrift()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the refused pair itself is in denied scope in both dimensions")
+    void collect_putsTheRefusedPairInDeniedScope() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "DOCUMENT", true));
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 30),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", false));
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", true))
+                .orElseThrow();
+
+        assertThat(snapshot.getCurrentResourceFamilyInDeniedScope()).isTrue();
+        assertThat(snapshot.getCurrentActionFamilyInDeniedScope()).isTrue();
+        assertThat(snapshot.getResourceFamilyDrift()).isTrue();
+        assertThat(snapshot.getActionFamilyDrift()).isTrue();
+    }
+
+    @Test
+    @DisplayName("an unknown current resource family leaves denied scope unknown instead of matching the action alone")
+    void collect_leavesDeniedScopeUnknownWhenTheResourceFamilyIsUnknown() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 30),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", false));
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0),
+                List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "UNKNOWN", true))
+                .orElseThrow();
+
+        assertThat(snapshot.getForbiddenActionFamilies()).containsExactly("READ");
+        assertThat(snapshot.getCurrentResourceFamilyInDeniedScope()).isNull();
+        assertThat(snapshot.getCurrentActionFamilyInDeniedScope()).isNull();
+        assertThat(snapshot.getActionFamilyDrift()).isNotEqualTo(Boolean.TRUE);
+    }
+
+    @Test
+    @DisplayName("a family the host declares forbidden is in denied scope only in its own dimension")
+    void collect_keepsADeclaredForbiddenFamilyInItsOwnDimension() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true));
+        SecurityEvent current = event(LocalDateTime.of(2026, 3, 26, 10, 0),
+                List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "DELETE", "REPORT", true);
+        current.addMetadata("forbiddenActionFamilies", List.of("DELETE"));
+
+        RoleScopeSnapshot snapshot = collect(current).orElseThrow();
+
+        assertThat(snapshot.getCurrentActionFamilyInDeniedScope()).isTrue();
+        assertThat(snapshot.getActionFamilyDrift()).isTrue();
+        assertThat(snapshot.getCurrentResourceFamilyInDeniedScope()).isNull();
+        assertThat(snapshot.getResourceFamilyDrift()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the current action family comes from the protected method, and earlier families and host hints read in one vocabulary (W2-1)")
+    void collect_readsActionFamiliesInOneVocabulary() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "CREATE", "REPORT", true));
+        SecurityEvent export = event(LocalDateTime.of(2026, 3, 26, 10, 0),
+                List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), null, "REPORT", true);
+        export.addMetadata("httpMethod", "POST");
+        export.addMetadata("protectableMethod", "io.contexa.example.BusinessOperations.exportDocuments");
+        export.addMetadata("expectedActionFamilies", List.of("UPDATE"));
+
+        RoleScopeSnapshot snapshot = collect(export).orElseThrow();
+
+        assertThat(snapshot.getCurrentActionFamily()).isEqualTo("EXPORT");
+        assertThat(snapshot.getExpectedActionFamilies()).containsExactly("WRITE");
+        assertThat(snapshot.getActionFamilyDrift()).isTrue();
+    }
+
     private SecurityEvent event(
             LocalDateTime timestamp,
             List<String> effectiveRoles,
@@ -179,7 +345,7 @@ class DefaultRoleScopeCollectorTest {
             boolean granted) {
         SecurityEvent event = SecurityEvent.builder()
                 .userId("alice")
-                .timestamp(timestamp)
+                .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("tenantId", "tenant-acme");
         event.addMetadata("effectiveRoles", effectiveRoles);
@@ -192,5 +358,12 @@ class DefaultRoleScopeCollectorTest {
         event.addMetadata("granted", granted);
         event.addMetadata("authorizationEffect", granted ? "ALLOW" : "DENY");
         return event;
+    }
+
+    /** One request seen through to an enforced ALLOW, the way the pipeline records it (W2-7). */
+    private Optional<RoleScopeSnapshot> collect(SecurityEvent event) {
+        Optional<RoleScopeSnapshot> snapshot = collector.collect(event);
+        collector.recorder().commit(event, "ALLOW", true);
+        return snapshot;
     }
 }

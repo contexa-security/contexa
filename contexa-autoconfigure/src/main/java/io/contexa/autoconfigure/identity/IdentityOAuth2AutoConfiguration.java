@@ -15,6 +15,7 @@
  */
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -260,12 +261,7 @@ public class IdentityOAuth2AutoConfiguration {
         JdbcOAuth2AuthorizationService jdbcService =
                 new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
 
-        ObjectMapper authorizationObjectMapper = new ObjectMapper();
-        ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
-        authorizationObjectMapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
-        authorizationObjectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
-        authorizationObjectMapper.addMixIn(MfaGrantedAuthority.class, MfaGrantedAuthorityMixin.class);
-        registerImmutableCollectionMixins(authorizationObjectMapper);
+        ObjectMapper authorizationObjectMapper = authorizationObjectMapper();
 
         JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper rowMapper =
                 new JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper(registeredClientRepository);
@@ -277,6 +273,17 @@ public class IdentityOAuth2AutoConfiguration {
         jdbcService.setAuthorizationParametersMapper(parametersMapper);
 
         return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties, transactionTemplate);
+    }
+
+    /** The object mapper the stored authorizations (attributes and token metadata) are written and read with. */
+    ObjectMapper authorizationObjectMapper() {
+        ObjectMapper authorizationObjectMapper = new ObjectMapper();
+        ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
+        authorizationObjectMapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
+        authorizationObjectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
+        authorizationObjectMapper.addMixIn(MfaGrantedAuthority.class, MfaGrantedAuthorityMixin.class);
+        registerImmutableCollectionMixins(authorizationObjectMapper);
+        return authorizationObjectMapper;
     }
 
     @Bean
@@ -423,6 +430,25 @@ public class IdentityOAuth2AutoConfiguration {
             if (deviceId != null) {
                 context.getClaims().claim("device_id", deviceId);
             }
+
+            // The login facts of the authentication the token is issued for. The token engine hands the customizer
+            // the grant and the authorization, not the values of its token context: an issued token reads them from
+            // the internal login grant, a refreshed token from the authorization it came from (its login, not the
+            // refresh time). Parameters of any other grant come from the client and are not login facts.
+            Map<String, Object> grantParameters = context.getAuthorizationGrant()
+                    instanceof AuthenticatedUserGrantAuthenticationToken loginGrant
+                    && loginGrant.getAdditionalParameters() != null ? loginGrant.getAdditionalParameters() : Map.of();
+            Map<String, Object> loginFacts = new HashMap<>();
+            for (String name : LoginFactClaims.NAMES) {
+                Object fact = grantParameters.get(name);
+                if (fact == null && context.getAuthorization() != null) {
+                    fact = context.getAuthorization().getAttribute(name);
+                }
+                if (fact != null) {
+                    loginFacts.put(name, fact);
+                }
+            }
+            LoginFactClaims.writeClaims(loginFacts, (name, value) -> context.getClaims().claim(name, value));
 
             if (context.getPrincipal() != null) {
                 var authorities = context.getPrincipal().getAuthorities();
@@ -686,6 +712,12 @@ public class IdentityOAuth2AutoConfiguration {
             Object deviceId = authorizeRequest.getAttribute("device_id");
             if (deviceId != null) {
                 contextAttributes.put("device_id", deviceId);
+            }
+            for (String name : LoginFactClaims.NAMES) {
+                Object fact = authorizeRequest.getAttribute(name);
+                if (fact != null) {
+                    contextAttributes.put(name, fact);
+                }
             }
 
             return contextAttributes;

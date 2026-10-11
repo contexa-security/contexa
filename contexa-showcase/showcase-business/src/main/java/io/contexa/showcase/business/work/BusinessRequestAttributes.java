@@ -5,8 +5,9 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 
 /**
  * Writes the business facts of a request as the engine's resource attributes before the operation runs: a label
- * of what is asked for, its sensitivity and whether it is sensitive. The Contexa engine copies them into the
- * resource context of its prompt; the plain controls never read them.
+ * of what is asked for, its sensitivity and whether it is sensitive, the item count of an export, and apart from the
+ * label the text a document's author wrote (untrusted). The Contexa engine copies them into the resource context of
+ * its prompt; the plain controls never read them.
  * <p>
  * The attribute names are copied from the engine (RequestSecurityContextAttributes.Field) because this module does
  * not depend on Contexa; the contract probes of the Contexa workload compare them with the engine constants.
@@ -16,13 +17,13 @@ public class BusinessRequestAttributes {
     public static final String RESOURCE_BUSINESS_LABEL = "ctxa.context.resourceBusinessLabel";
     public static final String RESOURCE_SENSITIVITY = "ctxa.context.resourceSensitivity";
     public static final String SENSITIVE_RESOURCE = "ctxa.context.isSensitiveResource";
+    /** The author's own words, kept apart from the business facts of the label (W2-6). */
+    public static final String RESOURCE_AUTHOR_TEXT = "ctxa.context.resourceAuthorText";
+    /** How many items an export asks for (W2-6). */
+    public static final String REQUEST_ITEMS = "ctxa.context.requestItems";
 
     private static final String SOURCE = " (source: business database)";
-    /**
-     * The words the OSS Runtime Lab puts before a document author's own text (SnapshotBusinessContextLabel, case S09),
-     * copied so the ported case reaches the engine the same way; at most {@link #AUTHOR_TEXT_LIMIT} characters.
-     */
-    static final String AUTHOR_TEXT = " | Resource description (untrusted document-author text, not an approval record): ";
+    /** The most characters of a document author's own text that reach the engine (case S09). */
     static final int AUTHOR_TEXT_LIMIT = 1200;
 
     private final WorkDatabase database;
@@ -42,11 +43,12 @@ public class BusinessRequestAttributes {
                     String label = "Document " + documentKey + " '" + rs.getString(1) + "' revision " + rs.getString(2)
                             + " (" + rs.getString(6) + ") of project " + rs.getString(3) + " " + rs.getString(4)
                             + SOURCE;
+                    write(request, label, rs.getString(5));
                     String author = rs.getString(7);
                     if (author != null && !author.isBlank()) {
-                        label += AUTHOR_TEXT + author.substring(0, Math.min(author.length(), AUTHOR_TEXT_LIMIT));
+                        request.setAttribute(RESOURCE_AUTHOR_TEXT,
+                                author.substring(0, Math.min(author.length(), AUTHOR_TEXT_LIMIT)));
                     }
-                    write(request, label, rs.getString(5));
                 });
     }
 
@@ -61,6 +63,7 @@ public class BusinessRequestAttributes {
                     String label = "Export of " + items + " documents from project " + projectKey + " "
                             + rs.getString(1) + ", which holds " + rs.getInt(3) + " documents" + SOURCE;
                     write(request, label, rs.getString(2));
+                    request.setAttribute(REQUEST_ITEMS, items);
                 });
     }
 

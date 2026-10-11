@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.context.support.SessionStart;
+import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -424,6 +426,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (sessionId != null) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
+                // The cached session keeps its request summaries; what the session stored since (an MFA, a refusal)
+                // and its current authentication method are read again, so the first event does not fix them.
+                cached.refresh(event, readStoredSessionActions(sessionId));
                 cached.addEvent(event);
                 return cached;
             }
@@ -433,7 +438,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         context.setSessionId(sessionId);
         context.setUserId(event.getUserId());
         context.setIpAddress(event.getSourceIp());
-        context.setStartTime(LocalDateTime.now());
+        // The session clock is the event clock. The session starts at its sign-in (or creation) when known, as the
+        // session narrative does, else at its first analysed event.
+        SessionStart start = SessionStart.of(event);
+        context.setStartTime(start != null ? start.at()
+                : event.getTimestamp() != null ? event.getTimestamp() : Instant.now());
 
         if (event.getMetadata() != null) {
             Object authMethodObj = event.getMetadata().get("authMethod");
@@ -446,21 +455,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             context.setUserAgent(event.getUserAgent());
         }
 
-        if (sessionId != null && dataStore != null) {
-            try {
-                List<String> recentActions = dataStore.getRecentSessionActions(sessionId, 10);
-                if (!recentActions.isEmpty()) {
-                    List<String> promptRelevantActions = recentActions.stream()
-                            .filter(PromptRelevantRequestPathPolicy::isPromptRelevantActionSummary)
-                            .toList();
-                    if (!promptRelevantActions.isEmpty()) {
-                        context.setRecentActions(promptRelevantActions);
-                        context.setAccessFrequency(promptRelevantActions.size());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("[Layer1] Failed to retrieve recent actions: {}", e.getMessage());
+        if (sessionId != null) {
+            List<String> storedActions = readStoredSessionActions(sessionId);
+            if (!storedActions.isEmpty()) {
+                context.setRecentActions(storedActions);
+                context.setAccessFrequency(storedActions.size());
             }
+            context.rememberStoredActions(storedActions);
         }
         if (context.getAccessFrequency() <= 0 && event.getMetadata() != null) {
             Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
@@ -473,6 +474,21 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             sessionContextCache.put(sessionId, context);
         }
         return context;
+    }
+
+    /** The session's stored actions that belong in the prompt, oldest first; none when they cannot be read. */
+    private List<String> readStoredSessionActions(String sessionId) {
+        if (sessionId == null || dataStore == null) {
+            return List.of();
+        }
+        try {
+            return dataStore.getRecentSessionActions(sessionId, 10).stream()
+                    .filter(PromptRelevantRequestPathPolicy::isPromptRelevantActionSummary)
+                    .toList();
+        } catch (Exception e) {
+            log.error("[Layer1] Failed to retrieve recent actions: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     private List<Document> searchRelatedContext(SecurityEvent event) {
@@ -691,11 +707,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setRecentActions(sessionContext.getRecentActions());
 
         if (sessionContext.getStartTime() != null) {
-            long minutes = Duration.between(
-                    sessionContext.getStartTime(),
-                    LocalDateTime.now()
-            ).toMinutes();
-            ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
+            ctx.setSessionAgeMinutes((int) Math.max(0, sessionContext.getSessionDuration()));
         }
         ctx.setRequestCount(sessionContext.getAccessFrequency());
         return ctx;
@@ -995,7 +1007,45 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private class SessionContext extends BaseSessionContext {
 
+        private List<String> lastStoredActions = List.of();
+
+        void rememberStoredActions(List<String> storedActions) {
+            lastStoredActions = List.copyOf(storedActions);
+        }
+
+        /** The session's current authentication method and the stored actions added since the last request. */
+        void refresh(SecurityEvent event, List<String> storedActions) {
+            Object currentAuthMethod = event.getMetadata() != null ? event.getMetadata().get("authMethod") : null;
+            if (currentAuthMethod instanceof String text && StringUtils.hasText(text)) {
+                setAuthMethod(text);
+            }
+            int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
+            for (String storedAction : storedActions.subList(alreadyRead(storedActions), storedActions.size())) {
+                if (recentActions.size() >= maxRecentActions) {
+                    recentActions.remove(0);
+                }
+                recentActions.add(storedAction);
+                accessFrequency++;
+            }
+            rememberStoredActions(storedActions);
+        }
+
+        /**
+         * How many of the stored actions were read at the last request: the longest end of that read which starts this
+         * one. Records are compared by position, so a line stored twice in the same minute counts twice.
+         */
+        private int alreadyRead(List<String> storedActions) {
+            for (int overlap = Math.min(lastStoredActions.size(), storedActions.size()); overlap > 0; overlap--) {
+                List<String> lastEnd = lastStoredActions.subList(lastStoredActions.size() - overlap, lastStoredActions.size());
+                if (lastEnd.equals(storedActions.subList(0, overlap))) {
+                    return overlap;
+                }
+            }
+            return 0;
+        }
+
         public void addEvent(SecurityEvent event) {
+            recordEventTime(event.getTimestamp());
             String requestPath = extractRequestPath(event);
             if (!PromptRelevantRequestPathPolicy.isPromptRelevantPath(requestPath)) {
                 return;
@@ -1015,8 +1065,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             if (event.getTimestamp() != null) {
                 action.append(String.format("%02d:%02d",
-                        event.getTimestamp().getHour(),
-                        event.getTimestamp().getMinute()));
+                        event.getLocalTimestamp().getHour(),
+                        event.getLocalTimestamp().getMinute()));
             }
             action.append(" | ");
 
@@ -1064,4 +1114,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
+    /** The ids the session had before its id was replaced, from the context store (P2 correction 5). */
+    @Override
+    protected List<String> previousSessionIds(String sessionId) {
+        return dataStore != null ? dataStore.getSessionPreviousIds(sessionId) : List.of();
+    }
 }

@@ -15,6 +15,10 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
+import org.springframework.util.StringUtils;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -102,6 +106,9 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         if (authenticationToken.getDeviceId() != null) {
             tokenContextBuilder.put("device_id", authenticationToken.getDeviceId());
         }
+        // The login facts reach the token through the grant (its parameters), which the token engine hands the
+        // claims customizer; they are kept on the authorization below for a refreshed token.
+        Map<String, String> loginFacts = loginFactsOf(authenticationToken);
 
         OAuth2TokenContext tokenContext = tokenContextBuilder.build();
         OAuth2Token generatedAccessToken = this.tokenGenerator.generate(tokenContext);
@@ -146,6 +153,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         if (authenticationToken.getDeviceId() != null) {
             authorizationBuilder.attribute("device_id", authenticationToken.getDeviceId());
         }
+        loginFacts.forEach(authorizationBuilder::attribute);
 
         if (generatedAccessToken instanceof ClaimAccessor) {
             authorizationBuilder.token(accessToken, (metadata) ->
@@ -211,6 +219,18 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
             return Set.of(DEFAULT_SCOPE);
         }
         return Collections.emptySet();
+    }
+
+    private Map<String, String> loginFactsOf(AuthenticatedUserGrantAuthenticationToken authenticationToken) {
+        Map<String, String> loginFacts = new LinkedHashMap<>();
+        Map<String, Object> parameters = authenticationToken.getAdditionalParameters();
+        for (String name : LoginFactClaims.NAMES) {
+            Object value = parameters != null ? parameters.get(name) : null;
+            if (value != null && StringUtils.hasText(value.toString())) {
+                loginFacts.put(name, value.toString());
+            }
+        }
+        return loginFacts;
     }
 
     private Users loadUserFromDatabase(String username) {

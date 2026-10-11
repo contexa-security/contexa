@@ -135,9 +135,11 @@ class UnifiedVectorServiceTest {
 
         ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
         verify(cacheLayer).similaritySearch(captor.capture());
+        // One equality on the whole value: Spring AI 1.1.5 and later read the escaped quotes back as the literal value
+        // (P2 correction 6); earlier versions kept the escape characters in it.
         assertThat(captor.getValue().getFilterExpression().toString())
                 .contains("type=EQ")
-                .contains("value=alice\\' || true || \\'x")
+                .contains("value=alice' || true || 'x]")
                 .doesNotContain("type=OR");
     }
 

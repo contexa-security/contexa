@@ -36,6 +36,7 @@ public enum OfficialContextField {
     CITY(OfficialContextSlot.LOCATION, "city"),
     IP_BAND(OfficialContextSlot.LOCATION, "ipBand"),
     ASN(OfficialContextSlot.LOCATION, "asn"),
+    NETWORK_ZONE(OfficialContextSlot.LOCATION, "networkZone"),
     DEVICE_OS(OfficialContextSlot.DEVICE, "deviceOs"),
     DEVICE_OS_VERSION(OfficialContextSlot.DEVICE, "deviceOsVersion"),
     DEVICE_BROWSER(OfficialContextSlot.DEVICE, "deviceBrowser"),

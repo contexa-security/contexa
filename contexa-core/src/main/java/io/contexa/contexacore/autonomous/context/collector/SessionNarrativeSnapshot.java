@@ -20,17 +20,30 @@ import lombok.Value;
 
 import java.util.List;
 import io.contexa.contexacore.autonomous.context.collector.ContextSnapshot;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 
 @Value
 @Builder
 public class SessionNarrativeSnapshot implements ContextSnapshot {
     String sessionId;
     Integer sessionAgeMinutes;
+    /** What the session age counts from: LOGIN, SESSION_CREATED or FIRST_ANALYSED_REQUEST. */
+    String sessionAgeBasis;
+    /** True when no earlier request of this session was analysed. */
+    Boolean newSession;
     String previousPath;
     String previousActionFamily;
     Long lastRequestIntervalMs;
     List<String> sessionActionSequence;
     List<String> sessionProtectableSequence;
     Boolean burstPattern;
+    /** How many earlier requests of this session were challenged, blocked or escalated. */
+    Integer recentChallengeCount;
+    Integer recentBlockCount;
+    Integer recentEscalationCount;
+    /** The session's most recent decisions, oldest first ({@code SessionDecisionRecord#describe}). */
+    List<String> sessionDecisionHistory;
+    /** The same decisions as records, with their targets and item counts (W2-5). */
+    List<SessionDecisionRecord> sessionDecisions;
     String summary;
 }

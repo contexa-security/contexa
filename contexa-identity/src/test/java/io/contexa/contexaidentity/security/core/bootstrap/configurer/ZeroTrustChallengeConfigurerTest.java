@@ -94,9 +94,53 @@ class ZeroTrustChallengeConfigurerTest {
         assertThat(authorizationIndex).isGreaterThan(challengeIndex);
     }
 
+    @Test
+    @DisplayName("A session chain that is not an MFA flow still enforces a CHALLENGE, right before authorization")
+    void nonMfaSessionChainGetsTheChallengeFilter() throws Exception {
+        ZeroTrustChallengeFilter filter = mock(ZeroTrustChallengeFilter.class);
+        HttpSecurity http = mock(HttpSecurity.class);
+
+        new ZeroTrustChallengeConfigurer(filter).configure(flowContext(http, StateType.SESSION, "rest"));
+
+        verify(http).addFilterBefore(filter, AuthorizationFilter.class);
+    }
+
+    @Test
+    @DisplayName("A token chain that is not an MFA flow enforces a CHALLENGE after bearer authentication")
+    void nonMfaTokenChainGetsTheChallengeFilter() throws Exception {
+        ZeroTrustChallengeFilter filter = mock(ZeroTrustChallengeFilter.class);
+        HttpSecurity http = mock(HttpSecurity.class);
+
+        new ZeroTrustChallengeConfigurer(filter).configure(flowContext(http, StateType.OAUTH2, "form"));
+
+        verify(http).addFilterBefore(filter, BasicAuthenticationFilter.class);
+    }
+
+    @Test
+    @DisplayName("The filter learns whether the host has an MFA flow to step a challenged user up")
+    void initTellsTheFilterWhetherAnMfaFlowExists() {
+        ZeroTrustChallengeFilter filter = mock(ZeroTrustChallengeFilter.class);
+        AuthenticationFlowConfig rest = mock(AuthenticationFlowConfig.class);
+        when(rest.getTypeName()).thenReturn("rest");
+        AuthenticationFlowConfig mfa = mock(AuthenticationFlowConfig.class);
+        when(mfa.getTypeName()).thenReturn("mfa");
+
+        new ZeroTrustChallengeConfigurer(filter).init(mock(PlatformContext.class),
+                PlatformConfig.builder().addFlow(rest).build());
+        verify(filter).setChallengeProcedureAvailable(false);
+
+        new ZeroTrustChallengeConfigurer(filter).init(mock(PlatformContext.class),
+                PlatformConfig.builder().addFlow(rest).addFlow(mfa).build());
+        verify(filter).setChallengeProcedureAvailable(true);
+    }
+
     private FlowContext flowContext(HttpSecurity http, StateType stateType) {
+        return flowContext(http, stateType, "mfa");
+    }
+
+    private FlowContext flowContext(HttpSecurity http, StateType stateType, String typeName) {
         AuthenticationFlowConfig flowConfig = mock(AuthenticationFlowConfig.class);
-        when(flowConfig.getTypeName()).thenReturn("mfa");
+        when(flowConfig.getTypeName()).thenReturn(typeName);
         when(flowConfig.getStateConfig()).thenReturn(new StateConfig(stateType.name().toLowerCase(), stateType));
         return new FlowContext(flowConfig, http, mock(PlatformContext.class), PlatformConfig.builder().build());
     }

@@ -15,6 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import static org.mockito.Mockito.times;
+import org.mockito.ArgumentCaptor;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
@@ -587,6 +592,86 @@ class Layer1ContextualStrategyTest {
             ragExecutor.shutdownNow();
         }
     }
+    @Test
+    @DisplayName("the strategy reads the ids a session had before a step-up check from the context store (P2 correction 5)")
+    void previousSessionIds_comeFromTheContextStore() {
+        InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
+        Layer1ContextualStrategy sessionStrategy = new Layer1ContextualStrategy(
+                null,
+                dataStore,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                new TieredStrategyProperties()
+        );
+        dataStore.addSessionDecision("session-old", "decision-1");
+
+        dataStore.moveSessionRecords("session-old", "session-new");
+
+        assertThat(sessionStrategy.previousSessionIds("session-new")).containsExactly("session-old");
+        assertThat(sessionStrategy.previousSessionIds("session-other")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a cached session reads what the session stored since and its current sign-in method (W1-11)")
+    void evaluate_cachedSessionReadsWhatTheSessionStoredSince() {
+        InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
+        Layer1ContextualStrategy sessionStrategy = new Layer1ContextualStrategy(
+                null,
+                dataStore,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                new TieredStrategyProperties()
+        );
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Normal activity");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        dataStore.addSessionAction("session-001", "03:15 | MFA_LOGIN (multi-factor sign-in) | 192.168.1.100");
+        SecurityEvent first = buildTestEvent();
+        first.setEventId("event-session-first");
+        first.getMetadata().put("authMethod", "PASSWORD");
+        sessionStrategy.evaluate(first);
+
+        // The same refusal twice in one minute is two stored lines and must count twice.
+        dataStore.addSessionAction("session-001", "03:16 | AUTHORIZATION_DENIED | GET /api/customers | 192.168.1.100");
+        dataStore.addSessionAction("session-001", "03:16 | AUTHORIZATION_DENIED | GET /api/customers | 192.168.1.100");
+        SecurityEvent second = buildTestEvent();
+        second.setEventId("event-session-second");
+        second.getMetadata().put("authMethod", "MFA");
+        sessionStrategy.evaluate(second);
+
+        ArgumentCaptor<SecurityDecisionRequest> requests = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator, times(2)).execute(requests.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        SecurityDecisionStandardPromptTemplate.SessionContext secondSession =
+                requests.getAllValues().get(1).getContext().getSessionContext();
+        assertThat(secondSession.getAuthMethod()).isEqualTo("MFA");
+        assertThat(secondSession.getRecentActions()).first().asString().contains("MFA_LOGIN");
+        assertThat(secondSession.getRecentActions())
+                .filteredOn(action -> action.contains("AUTHORIZATION_DENIED"))
+                .hasSize(2);
+    }
+
     private SecurityEvent buildTestEvent() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("httpMethod", "GET");
@@ -598,7 +683,7 @@ class Layer1ContextualStrategyTest {
                 .sessionId("session-001")
                 .sourceIp("192.168.1.100")
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(metadata)
                 .build();
     }

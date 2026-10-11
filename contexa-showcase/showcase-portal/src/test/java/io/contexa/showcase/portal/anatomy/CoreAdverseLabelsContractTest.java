@@ -41,8 +41,10 @@ class CoreAdverseLabelsContractTest {
             core.put(count.group(1), "POSITIVE");
         }
         assertThat(rule).contains("anomalySignal != null").contains("\"none\".equals(anomalySignal)")
-                .contains("\"unknown\".equals(anomalySignal)");
-        core.put("observedanomalysignal", "SIGNAL");
+                .contains("\"unknown\".equals(anomalySignal)")
+                .contains("anomalyTrust.startsWith(\"trusted_verification_input\")");
+        assertThat(source).contains("String anomalyTrust = promptFactValue(promptText, \"anomalysignaltrust\")");
+        core.put("observedanomalysignal", "TRUSTED_SIGNAL");
         assertThat(source).contains("String anomalySignal = promptFactValue(promptText, \"observedanomalysignal\")");
         assertThat(source).contains("\"deny\".equals(authorizationEffect)").contains("\"block\".equals(authorizationEffect)")
                 .contains("String authorizationEffect = promptFactValue(promptText, \"authorizationeffect\")");
@@ -74,5 +76,20 @@ class CoreAdverseLabelsContractTest {
         assertThat(read.get("currentactionfamilypresentinexpectedrolescope").met()).isFalse();
         assertThat(read.get("impossibletravel").values()).as("not in the prompt").isEqualTo(List.of());
         assertThat(CoreAdverseLabels.read(null)).isEmpty();
+    }
+
+    @Test
+    void onlyATrustedAnomalySignalIsAdverseEvidence() {
+        String untrusted = "ObservedAnomalySignal: CLIENT_SUPPLIED_TEXT\nAnomalySignalTrust: UNTRUSTED_REQUEST_HEADER\n";
+        String trusted = "ObservedAnomalySignal: CONFIRMED_CREDENTIAL_EXFILTRATION\nAnomalySignalTrust: TRUSTED_VERIFICATION_INPUT\n";
+
+        assertThat(anomalyReading(untrusted).met()).isFalse();
+        assertThat(anomalyReading(trusted).met()).isTrue();
+    }
+
+    private static CoreAdverseLabels.Reading anomalyReading(String prompt) {
+        return CoreAdverseLabels.read(prompt).stream()
+                .filter(reading -> "observedanomalysignal".equals(reading.label()))
+                .findFirst().orElseThrow();
     }
 }

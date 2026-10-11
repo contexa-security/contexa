@@ -15,12 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.function.Function;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,12 +63,13 @@ public class LearningContextEvidenceAssembler {
         personalEvidence.sort(this::compareEvidence);
         supportingEvidence.sort(this::compareEvidence);
 
-        ObservedPatternSnapshot observed = buildObservedPatterns(personalBaseline, personalEvidence);
+        BaselineView view = baselineView(canonicalSecurityContext, personalBaseline);
+        ObservedPatternSnapshot observed = buildObservedPatterns(personalBaseline, personalEvidence, view);
         List<CurrentVsObservedDeltaSnapshot> deltas = buildCurrentVsObservedDeltas(current, observed);
         List<String> carryRequiredFacts = buildCarryRequiredFacts(current, personalEvidence);
         List<String> carryMissingFacts = buildCarryMissingFacts(current, observed, personalBaseline, personalEvidence);
 
-        return assemble(
+        return new LearningContextEvidence(
                 current,
                 personalBaseline,
                 supportingBaseline,
@@ -74,7 +78,39 @@ public class LearningContextEvidenceAssembler {
                 observed,
                 deltas,
                 carryRequiredFacts,
-                carryMissingFacts);
+                carryMissingFacts,
+                view);
+    }
+
+    /**
+     * The usual-behaviour view of the work profile observations, with the personal baseline's state and its network,
+     * device and login dimensions; null when the work profile computed no view (W2-3).
+     */
+    private BaselineView baselineView(CanonicalSecurityContext context, BaselineEvidenceSnapshot personalBaseline) {
+        BaselineView observed = context != null && context.getWorkProfile() != null
+                ? context.getWorkProfile().getBaselineView()
+                : null;
+        if (observed == null) {
+            return null;
+        }
+        if (personalBaseline == null) {
+            return observed;
+        }
+        BaselineView.State state = personalBaseline.established()
+                ? BaselineView.State.ESTABLISHED
+                : personalBaseline.available() ? BaselineView.State.PROVISIONAL : BaselineView.State.NONE;
+        return observed.withPersonalBaseline(state, personalBaseline.updateCount(),
+                sorted(personalBaseline.networks().stream()
+                        .map(value -> SecuritySemanticNormalizer.normalizeNetwork(null, value)).toList()),
+                sorted(personalBaseline.devices()),
+                sorted(personalBaseline.browsers()),
+                sorted(personalBaseline.operatingSystems().stream()
+                        .map(SecuritySemanticNormalizer::normalizeOperatingSystem).toList()),
+                sorted(personalBaseline.authenticationTypes()));
+    }
+
+    private static List<String> sorted(Collection<String> values) {
+        return values == null ? List.of() : values.stream().filter(StringUtils::hasText).distinct().sorted().toList();
     }
 
     public LearningContextEvidence assemble(
@@ -134,17 +170,17 @@ public class LearningContextEvidenceAssembler {
         CanonicalSecurityContext.RoleScopeProfile roleScope = canonicalSecurityContext != null ? canonicalSecurityContext.getRoleScopeProfile() : null;
         return new CurrentLearningContextSnapshot(
                 text(event != null && event.getTimestamp() != null
-                        ? event.getTimestamp().getHour()
+                        ? event.getLocalTimestamp().getHour()
                         : session != null ? session.getCurrentAccessHour() : null),
-                text(event != null && event.getTimestamp() != null ? event.getTimestamp().getDayOfWeek().getValue() : null),
+                text(event != null && event.getTimestamp() != null ? event.getLocalTimestamp().getDayOfWeek().getValue() : null),
                 SecuritySemanticNormalizer.normalizeNetwork(
                         event != null ? event.getSourceIp() : null,
                         canonicalSecurityContext != null && canonicalSecurityContext.getLocation() != null
                                 ? canonicalSecurityContext.getLocation().getIpBand()
                                 : null),
                 browser(device),
-                text(device != null ? device.getOs() : null),
-                SecuritySemanticNormalizer.normalizePathFamily(firstText(resource != null ? resource.getRequestPath() : null, extractRequestPath(event))),
+                SecuritySemanticNormalizer.normalizeOperatingSystem(device != null ? device.getOs() : null),
+                currentPathFamily(resource, event),
                 SecuritySemanticNormalizer.normalizeAuthenticationType(
                         session != null ? session.getAuthenticationType() : null,
                         event != null && event.getMetadata() != null ? event.getMetadata().get("authMethod") : null),
@@ -153,9 +189,9 @@ public class LearningContextEvidenceAssembler {
                         roleScope != null ? roleScope.getCurrentActionFamily() : null,
                         resource != null ? resource.getHttpMethod() : null),
                 SecuritySemanticNormalizer.normalizeResourceFamily(
+                        resource != null ? resource.getSensitivity() : null,
                         roleScope != null ? roleScope.getCurrentResourceFamily() : null,
-                        resource != null ? resource.getResourceType() : null,
-                        resource != null ? resource.getSensitivity() : null));
+                        resource != null ? resource.getResourceType() : null));
     }
 
     private BaselineEvidenceSnapshot buildPersonalBaseline(SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
@@ -190,7 +226,8 @@ public class LearningContextEvidenceAssembler {
         List<String> browsers = strings(firstNonEmpty(
                 behaviorAnalysis.getBaselineBrowsers(),
                 behaviorAnalysis.getBaselineUserAgents()));
-        List<String> operatingSystems = strings(behaviorAnalysis.getBaselineOperatingSystems());
+        List<String> operatingSystems = normalizeStrings(
+                behaviorAnalysis.getBaselineOperatingSystems(), SecuritySemanticNormalizer::normalizeOperatingSystem);
         List<String> pathFamilies = normalizeStrings(behaviorAnalysis.getBaselineFrequentPaths(), SecuritySemanticNormalizer::normalizePathFamily);
         List<String> authTypes = normalizeStrings(behaviorAnalysis.getBaselineAuthenticationTypes(), SecuritySemanticNormalizer::normalizeAuthenticationType);
         List<String> actionFamilies = normalizeStrings(behaviorAnalysis.getBaselineActionFamilies(), SecuritySemanticNormalizer::normalizeActionFamily);
@@ -223,7 +260,8 @@ public class LearningContextEvidenceAssembler {
                 resourceFamilies,
                 summary,
                 status,
-                "");
+                "",
+                strings(behaviorAnalysis.getBaselineDevices()));
     }
 
     private BaselineEvidenceSnapshot buildSupportingBaseline(SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
@@ -295,26 +333,87 @@ public class LearningContextEvidenceAssembler {
     private ObservedPatternSnapshot buildObservedPatterns(
             BaselineEvidenceSnapshot personalBaseline,
             List<RetrievedBehaviorEvidence> personalEvidence) {
-        Set<String> networks = new LinkedHashSet<>(personalBaseline.networks());
+        return buildObservedPatterns(personalBaseline, personalEvidence, null);
+    }
+
+    /**
+     * The values the subject was observed with. With a usual-behaviour view the hours and days are the view's window
+     * (the baseline keeps every hour it ever saw, H-9) and its actions and resource classes join the others. Every list
+     * is sorted, so the same facts read the same way on every run (E-1).
+     */
+    private ObservedPatternSnapshot buildObservedPatterns(
+            BaselineEvidenceSnapshot personalBaseline,
+            List<RetrievedBehaviorEvidence> personalEvidence,
+            BaselineView view) {
+        ObservedPatternSnapshot merged = mergeObservedPatterns(personalBaseline, personalEvidence);
+        boolean windowed = view != null && view.observed();
+        List<String> actionFamilies = new ArrayList<>(merged.actionFamilies());
+        List<String> resourceFamilies = new ArrayList<>(merged.resourceFamilies());
+        if (windowed) {
+            actionFamilies.addAll(view.actionCounts().keySet());
+            view.resourceClasses().forEach(entry -> resourceFamilies.add(entry.substring(0, entry.indexOf('='))));
+        }
+        return new ObservedPatternSnapshot(
+                sorted(merged.networks()),
+                windowed ? numbers(view.seenHours()) : sortedNumbers(merged.accessHours()),
+                windowed ? numbers(view.seenDays()) : sortedNumbers(merged.accessDays()),
+                sorted(merged.browsers()),
+                sorted(merged.operatingSystems()),
+                sorted(merged.pathFamilies()),
+                sorted(merged.authenticationTypes()),
+                sorted(actionFamilies),
+                sorted(resourceFamilies),
+                sorted(merged.devices()));
+    }
+
+    private static List<String> numbers(List<Integer> values) {
+        return values.stream().map(String::valueOf).toList();
+    }
+
+    private static List<String> sortedNumbers(List<String> values) {
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted(Comparator.comparingInt((String value) -> value.chars().allMatch(Character::isDigit)
+                        ? Integer.parseInt(value) : Integer.MAX_VALUE).thenComparing(Comparator.naturalOrder()))
+                .toList();
+    }
+
+    private ObservedPatternSnapshot mergeObservedPatterns(
+            BaselineEvidenceSnapshot personalBaseline,
+            List<RetrievedBehaviorEvidence> personalEvidence) {
+        // Networks and systems read in one form, whoever produced the baseline snapshot (W2-4).
+        Set<String> networks = new LinkedHashSet<>();
+        personalBaseline.networks().forEach(value ->
+                addIfText(networks, SecuritySemanticNormalizer.normalizeNetwork(null, value)));
         Set<String> accessHours = new LinkedHashSet<>(personalBaseline.accessHours());
         Set<String> accessDays = new LinkedHashSet<>(personalBaseline.accessDays());
         Set<String> browsers = new LinkedHashSet<>(personalBaseline.browsers());
-        Set<String> operatingSystems = new LinkedHashSet<>(personalBaseline.operatingSystems());
+        Set<String> operatingSystems = new LinkedHashSet<>();
+        personalBaseline.operatingSystems().forEach(value ->
+                addIfText(operatingSystems, SecuritySemanticNormalizer.normalizeOperatingSystem(value)));
         Set<String> pathFamilies = new LinkedHashSet<>(personalBaseline.pathFamilies());
         Set<String> authenticationTypes = new LinkedHashSet<>(personalBaseline.authenticationTypes());
         Set<String> actionFamilies = new LinkedHashSet<>(personalBaseline.actionFamilies());
         Set<String> resourceFamilies = new LinkedHashSet<>(personalBaseline.resourceFamilies());
+        Set<String> devices = new LinkedHashSet<>(personalBaseline.devices());
+        // Past records add their device pairs only to a baseline that learned pairs; otherwise devices are compared by
+        // browser and system one by one, and a few pairs would hide what the baseline knows (W2-4).
+        boolean pairsLearned = !personalBaseline.devices().isEmpty();
 
         for (RetrievedBehaviorEvidence evidence : personalEvidence) {
             addIfText(networks, SecuritySemanticNormalizer.normalizeNetwork(evidence.sourceIp(), evidence.ipBand()));
             addIfText(accessHours, evidence.accessHour());
             addIfText(accessDays, evidence.accessDay());
             addIfText(browsers, evidence.browser());
-            addIfText(operatingSystems, evidence.operatingSystem());
+            addIfText(operatingSystems, SecuritySemanticNormalizer.normalizeOperatingSystem(evidence.operatingSystem()));
+            if (pairsLearned) {
+                addIfText(devices, SecuritySemanticNormalizer.device(evidence.browser(), evidence.operatingSystem()));
+            }
             addIfText(pathFamilies, SecuritySemanticNormalizer.normalizePathFamily(evidence.pathFamily()));
             addIfText(authenticationTypes, SecuritySemanticNormalizer.normalizeAuthenticationType(evidence.authenticationType()));
             addIfText(actionFamilies, SecuritySemanticNormalizer.normalizeActionFamily(evidence.actionFamily()));
-            addIfText(resourceFamilies, SecuritySemanticNormalizer.normalizeResourceFamily(evidence.resourceFamily(), evidence.resourceSensitivity()));
+            addIfText(resourceFamilies, SecuritySemanticNormalizer.normalizeResourceFamily(evidence.resourceSensitivity(), evidence.resourceFamily()));
         }
         return new ObservedPatternSnapshot(
                 immutable(networks),
@@ -325,7 +424,8 @@ public class LearningContextEvidenceAssembler {
                 immutable(pathFamilies),
                 immutable(authenticationTypes),
                 immutable(actionFamilies),
-                immutable(resourceFamilies));
+                immutable(resourceFamilies),
+                immutable(devices));
     }
 
     private List<CurrentVsObservedDeltaSnapshot> buildCurrentVsObservedDeltas(
@@ -335,8 +435,7 @@ public class LearningContextEvidenceAssembler {
         addDelta(deltas, "accessHour", current.accessHour(), observed.accessHours(), "access hour outside observed hours");
         addDelta(deltas, "dayOfWeek", current.dayOfWeek(), observed.accessDays(), "day-of-week outside observed days");
         addDelta(deltas, "network", current.network(), observed.networks(), "network outside observed networks");
-        addDelta(deltas, "browser", current.browser(), observed.browsers(), "browser outside observed browsers");
-        addDelta(deltas, "operatingSystem", current.operatingSystem(), observed.operatingSystems(), "operating system outside observed operating systems");
+        addDeviceDelta(deltas, current, observed);
         addDelta(deltas, "pathFamily", current.pathFamily(), observed.pathFamilies(), "path family unseen in observed paths");
         addDelta(deltas, "authenticationType", current.authenticationType(), observed.authenticationTypes(), "authentication type outside observed authentication types");
         addDelta(deltas, "actionFamily", current.actionFamily(), observed.actionFamilies(), "action family unseen in observed actions");
@@ -390,6 +489,10 @@ public class LearningContextEvidenceAssembler {
         if (StringUtils.hasText(current.operatingSystem())) {
             facts.add("CurrentOperatingSystem");
             facts.add("CurrentOperatingSystemPresentInObservedOperatingSystems");
+        }
+        if (StringUtils.hasText(current.device())) {
+            facts.add("CurrentDevice");
+            facts.add("CurrentDevicePresentInObservedDevices");
         }
         if (StringUtils.hasText(current.pathFamily())) {
             facts.add("CurrentPathFamily");
@@ -480,10 +583,10 @@ public class LearningContextEvidenceAssembler {
                 text(metadata.get("hour")),
                 text(metadata.get("dayOfWeek")),
                 firstText(metadata.get("userAgentBrowser"), metadata.get("deviceBrowser")),
-                firstText(metadata.get("userAgentOS"), metadata.get("deviceOs")),
+                SecuritySemanticNormalizer.normalizeOperatingSystem(metadata.get("userAgentOS"), metadata.get("deviceOs")),
                 SecuritySemanticNormalizer.normalizeAuthenticationType(firstText(metadata.get("authenticationType"), metadata.get("authMethod"))),
                 SecuritySemanticNormalizer.normalizeActionFamily(firstText(metadata.get("actionFamily"), metadata.get("httpMethod"), metadata.get("action"))),
-                SecuritySemanticNormalizer.normalizeResourceFamily(firstText(metadata.get("resourceFamily"), metadata.get("resourceType"), metadata.get("resourceCategory"), metadata.get("resourceSensitivity"))),
+                SecuritySemanticNormalizer.normalizeResourceFamily(metadata.get("resourceSensitivity"), metadata.get("sensitivity"), metadata.get("resourceFamily"), metadata.get("resourceType")),
                 SecuritySemanticNormalizer.normalizeSensitivity(metadata.get("resourceSensitivity"), metadata.get("sensitivity")),
                 firstText(metadata.get("resourceBusinessLabel"), metadata.get("businessLabel")),
                 text(metadata.get("sessionAgeMinutes")),
@@ -562,6 +665,28 @@ public class LearningContextEvidenceAssembler {
             summary.append(" | ");
         }
         summary.append(value);
+    }
+
+    /** The device is one dimension (W2-4): a new browser on a new system is one delta, not two. */
+    private void addDeviceDelta(
+            List<CurrentVsObservedDeltaSnapshot> deltas,
+            CurrentLearningContextSnapshot current,
+            ObservedPatternSnapshot observed) {
+        Boolean held = observed.holdsDevice(current.browser(), current.operatingSystem());
+        if (held == null || held) {
+            return;
+        }
+        List<String> observedDevices = !observed.devices().isEmpty()
+                ? observed.devices()
+                : List.of("browsers " + String.join(", ", observed.browsers())
+                        + "; operating systems " + String.join(", ", observed.operatingSystems()));
+        deltas.add(new CurrentVsObservedDeltaSnapshot(
+                "device",
+                current.device(),
+                summarizeObserved(observedDevices),
+                false,
+                "device outside observed devices",
+                LearningEvidenceScope.PERSONAL));
     }
 
     private void addDelta(
@@ -657,6 +782,15 @@ public class LearningContextEvidenceAssembler {
             return null;
         }
         return firstText(event.getMetadata().get("requestPath"), event.getMetadata().get("requestUri"));
+    }
+
+    /** The request's path family as the context resolved it; without one, from the event's URL template or path. */
+    private String currentPathFamily(CanonicalSecurityContext.Resource resource, SecurityEvent event) {
+        if (resource != null && StringUtils.hasText(resource.getPathFamily())) {
+            return resource.getPathFamily();
+        }
+        return SecuritySemanticNormalizer.pathFamilyOf(event != null ? event.getMetadata() : null,
+                firstText(resource != null ? resource.getRequestPath() : null, extractRequestPath(event)));
     }
 
     private String[] firstNonEmpty(String[] primary, String[] fallback) {

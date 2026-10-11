@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.client.SaasThreatKnowledgePackHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
@@ -83,7 +84,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-knowledge-001")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/login",
                         "geoCountry", "KR",
@@ -123,7 +124,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-knowledge-001")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/login",
                         "geoCountry", "KR",
@@ -160,7 +161,7 @@ class SaasThreatKnowledgePackServiceTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-knowledge-001")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/login",
                         "geoCountry", "KR",

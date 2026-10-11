@@ -15,10 +15,14 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,7 +50,7 @@ public record PromptGovernanceDescriptor(
         owner = requireText(owner, "owner");
         releaseApprovalReference = requireText(releaseApprovalReference, "releaseApprovalReference");
         evaluationBaselineReference = requireText(evaluationBaselineReference, "evaluationBaselineReference");
-        rollbackPromptVersion = requireText(rollbackPromptVersion, "rollbackPromptVersion");
+        rollbackPromptVersion = rollbackPromptVersion == null || rollbackPromptVersion.isBlank() ? null : rollbackPromptVersion;
         changeSummary = requireText(changeSummary, "changeSummary");
         supportedModelProfiles = supportedModelProfiles == null ? List.of() : List.copyOf(supportedModelProfiles);
         templateClassName = requireText(templateClassName, "templateClassName");
@@ -64,15 +68,34 @@ public record PromptGovernanceDescriptor(
         metadata.put("promptReleaseApprovalReference", releaseApprovalReference);
         metadata.put("releaseApprovalReference", releaseApprovalReference);
         metadata.put("promptEvaluationBaselineReference", evaluationBaselineReference);
-        metadata.put("promptRollbackVersion", rollbackPromptVersion);
+        if (rollbackPromptVersion != null) {
+            metadata.put("promptRollbackVersion", rollbackPromptVersion);
+        }
         metadata.put("promptChangeSummary", changeSummary);
         metadata.put("promptSupportedModelProfiles", supportedModelProfiles);
         metadata.put("promptTemplateClass", templateClassName);
         metadata.put("promptArtifactHashSha256", artifactHashSha256());
+        bundle().ifPresent(manifest -> {
+            metadata.put("promptBundleVersion", manifest.bundleVersion());
+            metadata.put("promptBundleHash", manifest.bundleHash());
+        });
         return metadata;
     }
 
+    /** The bundle of this prompt version, when the build ships its manifest. */
+    public Optional<PromptBundleManifest> bundle() {
+        return PromptBundleCatalog.shared().find(promptKey, promptVersion);
+    }
+
+    /**
+     * The identity of the prompt artifact: the bundle hash (a content hash) when the build ships the bundle, otherwise
+     * the hash of the descriptor fields.
+     */
     public String artifactHashSha256() {
+        return bundle().map(PromptBundleManifest::bundleHash).orElseGet(this::descriptorFieldsHashSha256);
+    }
+
+    private String descriptorFieldsHashSha256() {
         return sha256(String.join("|",
                 promptKey,
                 templateKey,
@@ -82,7 +105,7 @@ public record PromptGovernanceDescriptor(
                 owner,
                 releaseApprovalReference,
                 evaluationBaselineReference,
-                rollbackPromptVersion,
+                String.valueOf(rollbackPromptVersion),
                 changeSummary,
                 String.join(",", supportedModelProfiles),
                 templateClassName));

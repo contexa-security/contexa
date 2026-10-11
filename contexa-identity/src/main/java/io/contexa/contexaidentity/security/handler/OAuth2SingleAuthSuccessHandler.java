@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
@@ -76,6 +77,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         // the new login apart from the pending one through the session.
         MfaPendingSessionMarker.clear(request);
 
+        LoginFactsRecorder.recordSingleFactor(authentication, request);
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
         TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);

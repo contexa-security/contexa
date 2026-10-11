@@ -52,14 +52,14 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.07.30-v19",
+                    "2026.10.11-v19.5",
                     "CORTEX_PROMPT_CONTRACT_V2",
                     PromptReleaseStatus.PRODUCTION,
                     "contexa-cortex-core",
-                    "P5-DECISION-INPUT-OPTIMIZATION-GATE-2026-07-30-V19",
-                    "2026.07.30-phase5-v19-gpt-5-nano-decision-input-optimization-gate",
-                    "2026.07.26-v5",
-                    "Zero Trust runtime decision prompt v19 preserves final authorization consistency and removes repeated audit diagnostics and duplicate RAG security signatures from model input",
+                    "P2-COMPUTED-FACTS-DELEGATED-2026-10-11",
+                    "protocol-938648df",
+                    null,
+                    "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction)",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -322,6 +322,7 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private Integer[] baselineAccessHours;
         private Integer[] baselineAccessDays;
         private String[] baselineBrowsers;
+        private String[] baselineDevices;
         private String[] baselineIpBands;
         private String[] baselineAuthenticationTypes;
         private String[] baselineActionFamilies;
@@ -419,6 +420,10 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
 
         public String[] getBaselineBrowsers() {
             return baselineBrowsers;
+        }
+
+        public String[] getBaselineDevices() {
+            return baselineDevices;
         }
 
         public String[] getBaselineIpBands() {

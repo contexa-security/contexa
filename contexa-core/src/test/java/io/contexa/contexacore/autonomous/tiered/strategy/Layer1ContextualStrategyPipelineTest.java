@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
@@ -80,7 +81,7 @@ class Layer1ContextualStrategyPipelineTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-layer1-pipeline-001")
-                .timestamp(LocalDateTime.of(2026, 3, 24, 14, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 24, 14, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("203.0.113.10")
@@ -131,7 +132,7 @@ class Layer1ContextualStrategyPipelineTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-layer1-timeout-001")
-                .timestamp(LocalDateTime.of(2026, 4, 22, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 22, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-timeout")
                 .sourceIp("203.0.113.10")
@@ -182,7 +183,7 @@ class Layer1ContextualStrategyPipelineTest {
                 properties);
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-layer1-response-fallback")
-                .timestamp(LocalDateTime.of(2026, 7, 30, 4, 48))
+                .timestamp(LocalDateTime.of(2026, 7, 30, 4, 48).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-response-fallback")
                 .sourceIp("203.0.113.10")

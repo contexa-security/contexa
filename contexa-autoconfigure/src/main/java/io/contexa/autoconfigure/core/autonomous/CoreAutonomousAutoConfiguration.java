@@ -15,6 +15,10 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
+import io.contexa.contexacore.autonomous.store.SessionRecordsIdChangeListener;
+import io.contexa.contexacore.autonomous.event.support.EventTimeZoneRegistrar;
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -246,22 +250,32 @@ public class CoreAutonomousAutoConfiguration {
                 slotPlanProvider.getIfAvailable(PromptSlotPlanProvider::unscoped));
     }
 
+    /** Where the context collectors stage a request's observations until its final decision commits them (W2-7). */
     @Bean
     @ConditionalOnMissingBean
-    public SessionNarrativeCollector sessionNarrativeCollector(SecurityContextDataStore dataStore) {
-        return new DefaultSessionNarrativeCollector(dataStore);
+    public ContextObservationRecorder contextObservationRecorder(SecurityContextDataStore dataStore) {
+        return new ContextObservationRecorder(dataStore);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public ProtectableWorkProfileCollector protectableWorkProfileCollector(SecurityContextDataStore dataStore) {
-        return new DefaultProtectableWorkProfileCollector(dataStore);
+    public SessionNarrativeCollector sessionNarrativeCollector(SecurityContextDataStore dataStore,
+                                                               ContextObservationRecorder contextObservationRecorder) {
+        return new DefaultSessionNarrativeCollector(dataStore, contextObservationRecorder);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public RoleScopeCollector roleScopeCollector(SecurityContextDataStore dataStore) {
-        return new DefaultRoleScopeCollector(dataStore);
+    public ProtectableWorkProfileCollector protectableWorkProfileCollector(
+            SecurityContextDataStore dataStore, ContextObservationRecorder contextObservationRecorder) {
+        return new DefaultProtectableWorkProfileCollector(dataStore, contextObservationRecorder);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RoleScopeCollector roleScopeCollector(SecurityContextDataStore dataStore,
+                                                 ContextObservationRecorder contextObservationRecorder) {
+        return new DefaultRoleScopeCollector(dataStore, contextObservationRecorder);
     }
 
     @Bean
@@ -521,6 +535,31 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public EventTimeZoneRegistrar eventTimeZoneRegistrar(SecurityPlaneProperties securityPlaneProperties) {
+        return new EventTimeZoneRegistrar(securityPlaneProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuthorizationDenialRecorder authorizationDenialRecorder(
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            SecurityContextDataStore securityContextDataStore,
+            ObjectProvider<RoleScopeCollector> roleScopeCollectorProvider,
+            ContextObservationRecorder contextObservationRecorder) {
+        return new AuthorizationDenialRecorder(
+                zeroTrustEventPublisher, securityContextDataStore, roleScopeCollectorProvider.getIfAvailable(),
+                contextObservationRecorder);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SessionRecordsIdChangeListener sessionRecordsIdChangeListener(
+            SecurityContextDataStore securityContextDataStore) {
+        return new SessionRecordsIdChangeListener(securityContextDataStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public SynchronousProtectableDecisionService synchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustEventListener zeroTrustEventListener,
@@ -585,8 +624,15 @@ public class CoreAutonomousAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(SecurityContextDataStore.class)
         public RedisSecurityContextDataStore redisSecurityContextDataStore(
-                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-            return new RedisSecurityContextDataStore(redisTemplate);
+                @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+                ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+            RedisSecurityContextDataStore store = new RedisSecurityContextDataStore(redisTemplate);
+            SecurityPlaneProperties properties = securityPlaneProperties.getIfAvailable();
+            if (properties != null) {
+                store.setLoginFailureRetention(Duration.ofMinutes(
+                        Math.max(1, properties.getContext().getLoginFailureWindowMinutes())));
+            }
+            return store;
         }
 
         @Bean

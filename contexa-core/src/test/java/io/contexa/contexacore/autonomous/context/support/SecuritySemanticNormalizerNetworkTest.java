@@ -28,4 +28,19 @@ class SecuritySemanticNormalizerNetworkTest {
         assertThat(SecuritySemanticNormalizer.sameNetwork(null, "10.40.21")).isFalse();
         assertThat(SecuritySemanticNormalizer.sameNetwork("999.1.1.0/24", "999.1.1")).isFalse();
     }
+
+    @Test
+    void everyNetworkReadsInOneForm() {
+        // W2-4, B-10: the address, a learned prefix and the band are one form; a host band keeps its own length.
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork("10.40.12.10", null)).isEqualTo("10.40.12.0/24");
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork(null, "10.40.12")).isEqualTo("10.40.12.0/24");
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork("10.40.12.10", "10.40.0.0/16")).isEqualTo("10.40.0.0/16");
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork("2001:DB8::1", null)).isEqualTo("2001:db8:0:0::/64");
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork("2001:db8:0:1:2:3:4:5", null))
+                .isEqualTo("2001:db8:0:1::/64");
+        // An address that is neither IPv4 nor IPv6 gives no network; a host band in an unknown form is kept.
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork("unknown", null)).isNull();
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork(null, " OFFICE-NET ")).isEqualTo("OFFICE-NET");
+        assertThat(SecuritySemanticNormalizer.normalizeNetwork(null, null)).isNull();
+    }
 }

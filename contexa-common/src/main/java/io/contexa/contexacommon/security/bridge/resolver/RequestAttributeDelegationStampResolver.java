@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -47,7 +48,7 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
         return Optional.of(new DelegationStamp(
                 SecurityContextStampSupport.resolveSubjectIdFromRequestAttributes(request, properties),
                 text(agentId),
-                delegated instanceof Boolean booleanValue ? booleanValue : Boolean.parseBoolean(text(delegated)),
+                Boolean.TRUE.equals(TruthValues.parse(delegated)),
                 text(objectiveId),
                 text(objectiveFamily),
                 text(request.getAttribute(config.getObjectiveSummary())),
@@ -73,13 +74,7 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
     }
 
     private Boolean parseBoolean(Object raw) {
-        if (raw instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (raw instanceof String text && !text.isBlank()) {
-            return Boolean.parseBoolean(text);
-        }
-        return null;
+        return TruthValues.parse(raw);
     }
 
     private Instant parseInstant(Object raw) {

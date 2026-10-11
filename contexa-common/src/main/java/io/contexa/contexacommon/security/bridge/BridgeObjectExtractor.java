@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -312,23 +313,6 @@ public final class BridgeObjectExtractor {
     }
 
     private static Boolean parseBooleanValue(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        if (raw instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (raw instanceof Number number) {
-            return number.intValue() != 0;
-        }
-        if (raw instanceof String text && !text.isBlank()) {
-            String normalized = text.trim().toLowerCase(Locale.ROOT);
-            return switch (normalized) {
-                case "true", "1", "yes", "y" -> true;
-                case "false", "0", "no", "n" -> false;
-                default -> null;
-            };
-        }
-        return null;
+        return TruthValues.parse(raw);
     }
 }

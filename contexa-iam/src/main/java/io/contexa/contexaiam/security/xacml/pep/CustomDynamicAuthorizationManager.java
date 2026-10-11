@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaiam.security.xacml.pep;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.TrustAssessment;
@@ -75,6 +77,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
     private final AuthorizationMetrics metricsCollector;
+    private volatile AuthorizationDenialRecorder authorizationDenialRecorder;
     private final CentralAuditFacade centralAuditFacade;
     private final PolicyCombiningEvaluator combiningEvaluator;
     private final PolicyExpressionConverter expressionConverter = new PolicyExpressionConverter();
@@ -164,9 +167,18 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return complete(authentication, request, finalDecision, startedAt);
     }
 
+    /** Keeps a refusal of an authenticated user as a fact of the session and of the user's scope. */
+    public void setAuthorizationDenialRecorder(AuthorizationDenialRecorder authorizationDenialRecorder) {
+        this.authorizationDenialRecorder = authorizationDenialRecorder;
+    }
+
     private AuthorizationDecision complete(Authentication authentication, HttpServletRequest request,
                                            AuthorizationDecision decision, long startedAt) {
         logAuthorizationAttempt(authentication, createAuthorizationContext(authentication, request), decision, request);
+        if (!decision.isGranted() && authorizationDenialRecorder != null && authentication != null
+                && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
+            authorizationDenialRecorder.recordRequest(authentication, "URL authorization policy denied the request");
+        }
         if (metricsCollector != null) {
             metricsCollector.recordUrlAuth(System.nanoTime() - startedAt);
             metricsCollector.recordAuthzDecision();

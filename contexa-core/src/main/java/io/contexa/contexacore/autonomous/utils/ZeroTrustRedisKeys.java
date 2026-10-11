@@ -118,6 +118,17 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:session:actions:%s", NAMESPACE, sessionId);
     }
 
+    public static String sessionDecisions(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:decisions:%s", NAMESPACE, sessionId);
+    }
+
+    /** The ids a session had before the servlet container replaced its id, newest first (P2 correction 5). */
+    public static String sessionPreviousIds(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:previous-ids:%s", NAMESPACE, sessionId);
+    }
+
     public static String sessionNarrativeActions(String sessionId) {
         validateSessionId(sessionId);
         return String.format("%s:session:narrative:actions:%s", NAMESPACE, sessionId);

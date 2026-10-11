@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.HeaderBridgeTrustPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -51,7 +52,7 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
         return Optional.of(new DelegationStamp(
                 SecurityContextStampSupport.resolveSubjectIdFromHeaders(request, properties),
                 agentId,
-                Boolean.parseBoolean(delegated),
+                Boolean.TRUE.equals(TruthValues.parse(delegated)),
                 objectiveId,
                 objectiveFamily,
                 request.getHeader(config.getObjectiveSummary()),
@@ -73,10 +74,7 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
     }
 
     private Boolean parseBoolean(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        return Boolean.parseBoolean(raw);
+        return TruthValues.parse(raw);
     }
 
     private Instant parseInstant(String raw) {

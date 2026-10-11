@@ -7,13 +7,16 @@ import java.util.ResourceBundle;
 @FunctionalInterface
 public interface OfficialVerificationMessageResolver {
 
+    /** The core's own bundle, so the core resolves its messages without the IAM module on the classpath. */
+    String CORE_BUNDLE_BASE_NAME = "i18n.core-verification-messages";
+
     String resolve(String key, Object... args);
 
     static OfficialVerificationMessageResolver classpath(Locale locale) {
         Locale effectiveLocale = locale == null ? Locale.KOREAN : locale;
         return (key, args) -> {
             ResourceBundle bundle = ResourceBundle.getBundle(
-                    "i18n.messages",
+                    CORE_BUNDLE_BASE_NAME,
                     effectiveLocale,
                     ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_DEFAULT));
             String pattern = bundle.getString(key);

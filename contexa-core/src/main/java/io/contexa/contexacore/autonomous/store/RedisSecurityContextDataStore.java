@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Instant;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final int MAX_SESSION_ACTIONS = 100;
+    private static final int MAX_PREVIOUS_SESSION_IDS = 20;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
     private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
     private static final int MAX_PERMISSION_CHANGE_OBSERVATIONS = 200;
@@ -68,9 +70,11 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final long PROCESS_PID = ProcessHandle.current().pid();
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
-    private static final Duration LOGIN_FAILURE_COUNTER_TTL = Duration.ofMinutes(10);
+    private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
+    private static final Duration LOGIN_FAILURE_EXPIRY_MARGIN = Duration.ofMinutes(5);
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private final AtomicLong authenticationEventSequence = new AtomicLong();
+    private volatile Duration loginFailureRetention = LOGIN_FAILURE_MINIMUM_RETENTION;
 
     @Override
     public void addSessionAction(String sessionId, String action) {
@@ -97,6 +101,100 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             log.error("[SecurityContextDataStore] Failed to get session actions: sessionId={}", sessionId, e);
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public void addSessionDecision(String sessionId, String decisionRecord) {
+        try {
+            pushBoundedList(ZeroTrustRedisKeys.sessionDecisions(sessionId), decisionRecord, SESSION_ACTIONS_TTL,
+                    MAX_SESSION_ACTIONS);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to add session decision: sessionId={}", sessionId, e);
+        }
+    }
+
+    @Override
+    public List<String> getRecentSessionDecisions(String sessionId, int count) {
+        try {
+            return readStringList(ZeroTrustRedisKeys.sessionDecisions(sessionId), count);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get session decisions: sessionId={}", sessionId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void moveSessionRecords(String fromSessionId, String toSessionId) {
+        if (fromSessionId == null || toSessionId == null || fromSessionId.equals(toSessionId)) {
+            return;
+        }
+        try {
+            moveList(ZeroTrustRedisKeys.sessionActions(fromSessionId), ZeroTrustRedisKeys.sessionActions(toSessionId),
+                    SESSION_ACTIONS_TTL);
+            moveList(ZeroTrustRedisKeys.sessionDecisions(fromSessionId), ZeroTrustRedisKeys.sessionDecisions(toSessionId),
+                    SESSION_ACTIONS_TTL);
+            moveList(ZeroTrustRedisKeys.sessionNarrativeActions(fromSessionId),
+                    ZeroTrustRedisKeys.sessionNarrativeActions(toSessionId), SESSION_NARRATIVE_TTL);
+            moveList(ZeroTrustRedisKeys.sessionProtectableAccesses(fromSessionId),
+                    ZeroTrustRedisKeys.sessionProtectableAccesses(toSessionId), SESSION_NARRATIVE_TTL);
+            moveList(ZeroTrustRedisKeys.sessionRequestIntervals(fromSessionId),
+                    ZeroTrustRedisKeys.sessionRequestIntervals(toSessionId), SESSION_NARRATIVE_TTL);
+            moveValue(ZeroTrustRedisKeys.sessionStartedAt(fromSessionId), ZeroTrustRedisKeys.sessionStartedAt(toSessionId),
+                    SESSION_NARRATIVE_TTL);
+            moveValue(ZeroTrustRedisKeys.sessionLastRequestTime(fromSessionId),
+                    ZeroTrustRedisKeys.sessionLastRequestTime(toSessionId), SESSION_NARRATIVE_TTL);
+            moveValue(ZeroTrustRedisKeys.sessionPreviousPath(fromSessionId),
+                    ZeroTrustRedisKeys.sessionPreviousPath(toSessionId), SESSION_NARRATIVE_TTL);
+            moveValue(ZeroTrustRedisKeys.sessionRisk(fromSessionId), ZeroTrustRedisKeys.sessionRisk(toSessionId),
+                    SESSION_RISK_TTL);
+            // The new id remembers the ids the session had, newest first (P2 correction 5).
+            String previousIds = ZeroTrustRedisKeys.sessionPreviousIds(toSessionId);
+            moveList(ZeroTrustRedisKeys.sessionPreviousIds(fromSessionId), previousIds, SESSION_NARRATIVE_TTL);
+            redisTemplate.opsForList().leftPush(previousIds, fromSessionId);
+            redisTemplate.opsForList().trim(previousIds, 0, MAX_PREVIOUS_SESSION_IDS - 1);
+            redisTemplate.expire(previousIds, SESSION_NARRATIVE_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to move session records to the new session id", e);
+        }
+    }
+
+    /** The old id's list goes before what the new id already holds, within the same bound. */
+    private void moveList(String fromKey, String toKey, Duration ttl) {
+        List<Object> moved = redisTemplate.opsForList().range(fromKey, 0, -1);
+        if (moved == null || moved.isEmpty()) {
+            return;
+        }
+        List<Object> pushOrder = new ArrayList<>(moved);
+        Collections.reverse(pushOrder);
+        redisTemplate.opsForList().leftPushAll(toKey, pushOrder);
+        redisTemplate.opsForList().trim(toKey, -MAX_SESSION_ACTIONS, -1);
+        redisTemplate.expire(toKey, ttl);
+        redisTemplate.delete(fromKey);
+    }
+
+    @Override
+    public List<String> getSessionPreviousIds(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Object> ids = redisTemplate.opsForList().range(ZeroTrustRedisKeys.sessionPreviousIds(sessionId), 0,
+                    MAX_PREVIOUS_SESSION_IDS - 1);
+            return ids == null ? List.of() : ids.stream().filter(id -> id != null).map(Object::toString).toList();
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get the previous ids of a session", e);
+            return List.of();
+        }
+    }
+
+    /** A single value moves when the new id holds none; a value the new id already holds is the more recent one. */
+    private void moveValue(String fromKey, String toKey, Duration ttl) {
+        Object moved = redisTemplate.opsForValue().get(fromKey);
+        if (moved == null) {
+            return;
+        }
+        redisTemplate.opsForValue().setIfAbsent(toKey, moved, ttl);
+        redisTemplate.delete(fromKey);
     }
 
     @Override
@@ -439,11 +537,37 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     @Override
     public void markMfaVerified(String userId) {
+        markMfaVerified(userId, null);
+    }
+
+    @Override
+    public void markMfaVerified(String userId, Instant verifiedAt) {
         try {
+            // The value is the time of the MFA on the request clock, so that a request can say when the user last
+            // completed it.
+            long verifiedAtMs = verifiedAt != null ? verifiedAt.toEpochMilli() : System.currentTimeMillis();
             redisTemplate.opsForValue().set(
-                    ZeroTrustRedisKeys.authenticationMfaVerified(userId), "true", MFA_VERIFIED_TTL);
+                    ZeroTrustRedisKeys.authenticationMfaVerified(userId),
+                    String.valueOf(verifiedAtMs), MFA_VERIFIED_TTL);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to mark MFA verified: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public Instant getLastMfaVerifiedAt(String userId) {
+        try {
+            Object value = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.authenticationMfaVerified(userId));
+            if (value == null) {
+                return null;
+            }
+            String text = value.toString().replace("\"", "").trim();
+            return text.chars().allMatch(Character::isDigit) && !text.isEmpty()
+                    ? Instant.ofEpochMilli(Long.parseLong(text))
+                    : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read MFA verification time: userId={}", userId, e);
+            return null;
         }
     }
 
@@ -663,13 +787,38 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         }
     }
 
+    /**
+     * Sets how long login failures stay countable: the longest window any reader queries, at least five minutes. Older
+     * failures are trimmed when a new one arrives, and the key outlives the window by a margin.
+     */
+    public void setLoginFailureRetention(Duration retention) {
+        if (retention != null && retention.compareTo(LOGIN_FAILURE_MINIMUM_RETENTION) > 0) {
+            loginFailureRetention = retention;
+        }
+    }
+
+    @Override
+    public Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
+        if (!hasText(userId)) {
+            return null;
+        }
+        try {
+            Long count = redisTemplate.opsForZSet().count(
+                    ZeroTrustRedisKeys.authenticationLoginFailuresByUser(userId.trim()), windowStartMs, currentTimeMs);
+            return count != null ? count.intValue() : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to count login failures: userId={}", userId, e);
+            return null;
+        }
+    }
+
     private void recordLoginFailureCounter(String key, long currentTimeMs) {
         try {
+            Duration retention = loginFailureRetention;
             String member = currentTimeMs + ":" + authenticationEventSequence.incrementAndGet();
             redisTemplate.opsForZSet().add(key, member, currentTimeMs);
-            redisTemplate.opsForZSet().removeRangeByScore(
-                    key, 0, currentTimeMs - Duration.ofMinutes(5).toMillis());
-            redisTemplate.expire(key, LOGIN_FAILURE_COUNTER_TTL);
+            redisTemplate.opsForZSet().removeRangeByScore(key, 0, currentTimeMs - retention.toMillis());
+            redisTemplate.expire(key, retention.plus(LOGIN_FAILURE_EXPIRY_MARGIN));
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to record login failure: key={}", key, e);
         }

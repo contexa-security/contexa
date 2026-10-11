@@ -80,9 +80,13 @@ class OfficialVerificationGateFailureMatrixTest {
     }
 
     @Test
-    void replayHashMismatchIsIneligible() {
-        assertIneligible(evaluate(policy, validPackage(), true, passingScorecard(), passingReplay("other-hash"), passingMetrics()),
-                passedConsistency(), OfficialVerificationGateCode.REPLAY_HASH);
+    void replayIsJudgedByTheReplayChecksNotByRepeatingTheSealedHash() {
+        RuntimeEvidenceGateResult result = evaluate(
+                policy, validPackage(), true, passingScorecard(), passingReplay("other-hash"), passingMetrics());
+
+        // The replay's prompt hash is the sealed one by construction, so comparing them checked nothing (W1-17, V-11).
+        assertThat(result.checks()).noneMatch(check -> check.gateCode() == OfficialVerificationGateCode.REPLAY_HASH);
+        assertThat(verdict(result, passedConsistency()).eligible()).isTrue();
     }
 
     @Test

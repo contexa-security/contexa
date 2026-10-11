@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
@@ -37,7 +38,7 @@ class ThreatSignalMatcherServiceTest {
     void buildContextSelectsRelevantSignalsForAuthenticationAttack() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 9, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 9, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .sourceIp("203.0.113.10")
                 .metadata(Map.of(
                         "requestPath", "/login",
@@ -60,7 +61,7 @@ class ThreatSignalMatcherServiceTest {
     void buildContextEscalatesForStrongSessionHijackOverlap() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-002")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/session/refresh",
                         "geoCountry", "KR"))
@@ -79,7 +80,7 @@ class ThreatSignalMatcherServiceTest {
     void buildKnowledgeContextSelectsComparableCasesWithoutInjectingScores() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-003")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 11, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/login",
                         "geoCountry", "KR",

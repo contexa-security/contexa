@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.zerotrust;
 
+import static org.mockito.Mockito.never;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -323,6 +324,33 @@ class ZeroTrustChallengeFilterTest {
         SecurityContextImpl securityContext = new SecurityContextImpl();
         securityContext.setAuthentication(authentication);
         SecurityContextHolder.setContext(securityContext);
+    }
+
+    @Test
+    @DisplayName("Without an MFA flow a CHALLENGE is refused with 401 and no procedure is opened (W1-5)")
+    void challengeWithoutMfaFlowIsRefused() throws Exception {
+        filter.setChallengeProcedureAvailable(false);
+        when(request.getRequestURI()).thenReturn("/api/reports/export");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(responseWriter).writeErrorResponse(eq(response), eq(401), eq("ZERO_TRUST_CHALLENGE"),
+                anyString(), any(), any());
+        verify(challengeMfaInitializer, never()).initializeChallengeFlow(any(), any(), any());
+        verify(filterChain, never()).doFilter(request, response);
+        assertThat(filter.start(request, response)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Logout is never held by a CHALLENGE (W1-5)")
+    void logoutPasses() throws Exception {
+        when(request.getRequestURI()).thenReturn("/logout");
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
     }
 
     private void setUpChallengeAuthentication() {

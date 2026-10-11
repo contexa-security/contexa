@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.handler.handler;
 
+import java.util.List;
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -59,6 +61,8 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
 
     private static final String HANDLER_NAME = "SealedEvidenceCaptureHandler";
     private static final String PROCESSING_RESULT_KEY = "processingResult";
+    private static final List<String> EXCLUDED_PATH_PREFIXES = List.of("/actuator", "/health", "/.well-known/");
+    private static final String SERVER_SENT_EVENTS_SEGMENT = "/sse/";
 
     private final SealedEvidencePackageAssembler assembler;
     private final SealedEvidencePackageRepository repository;
@@ -199,19 +203,26 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
     }
 
     /**
-     * Health probes, actuator, streaming and discovery endpoints do not produce protected decisions
-     * worth sealing.
+     * Infrastructure endpoints that never carry a protected decision: probes, actuator, discovery and the server-sent
+     * event transport. A protected decision is sealed wherever its path is, so a streamed export is sealed like any
+     * other export.
      */
     private boolean isExcludedPath(SecurityEvent event) {
+        if (isProtectedDecision(event)) {
+            return false;
+        }
         String path = metadataText(event, "requestPath");
         if (path == null) {
             return false;
         }
-        return path.startsWith("/actuator")
-                || path.startsWith("/health")
-                || path.contains("/sse/")
-                || path.contains("/stream")
-                || path.startsWith("/.well-known/");
+        return EXCLUDED_PATH_PREFIXES.stream().anyMatch(path::startsWith) || path.contains(SERVER_SENT_EVENTS_SEGMENT);
+    }
+
+    /** A decision on a {@code @Protectable} method, marked by the event publisher as the observation writer reads it. */
+    private boolean isProtectedDecision(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        return metadata != null && (Boolean.TRUE.equals(TruthValues.parse(metadata.get("protectableDeclared")))
+                || metadata.containsKey("protectableMethod"));
     }
 
     private String resolveCaptureKey(SecurityEvent event) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pep;
 
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -61,6 +62,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private SecurityZeroTrustProperties securityZeroTrustProperties;
     private ProtectableResourceCertificationGate protectableResourceCertificationGate;
     private ProtectableLlmSuppressionWriter protectableLlmSuppressionWriter;
+    private AuthorizationDenialRecorder authorizationDenialRecorder;
     private AuthenticationTrustResolver authenticationTrustResolver = new AuthenticationTrustResolverImpl();
 
     public AuthorizationManagerMethodInterceptor(
@@ -78,6 +80,8 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         boolean granted = false;
         boolean publishEvent = true;
         String denialReason = null;
+        boolean invoked = false;
+        String executionFailure = null;
         Protectable protectable = resolveProtectable(mi);
         boolean llmAnalysisAllowed = isLlmAnalysisAllowed();
         boolean rapidReentryAllowed = true;
@@ -121,6 +125,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                             buildResourceId(mi, protectable), syncEvaluationFailure);
                     publishEvent = false;
                     granted = true;
+                    invoked = true;
                     return proceed(mi);
                 }
                 if (syncDecision.action() != ZeroTrustAction.ALLOW) {
@@ -137,7 +142,23 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 }
             }
 
+            if (llmAnalysisAllowed && !isSyncProtectable(protectable)) {
+                // A stored BLOCK, CHALLENGE or ESCALATE restricts every request of the user; an asynchronous method
+                // does not wait for a new decision, so the one in force is enforced before it runs.
+                ZeroTrustAction restriction = storedRestriction(mi, authentication);
+                if (restriction != null) {
+                    if (isEnforcementDisabled()) {
+                        log.info("[ZeroTrust][SHADOW] stored decision observed for async Protectable but not enforced. resource={}, action={}",
+                                buildResourceId(mi, protectable), restriction);
+                    } else {
+                        publishEvent = false;
+                        throw toZeroTrustAccessDeniedException(restriction, buildResourceId(mi, protectable));
+                    }
+                }
+            }
+
             granted = true;
+            invoked = true;
             return proceed(mi);
 
         } catch (AuthorizationDeniedException denied) {
@@ -148,16 +169,28 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 publishEvent = false;
                 throw denied;
             }
+            if (llmAnalysisAllowed && authorizationDenialRecorder != null) {
+                // A real refusal is not analysed, but it is a fact of the session and of the user's scope.
+                authorizationDenialRecorder.record(mi, authentication, denialReason);
+            }
             return handle(mi, denied);
 
         } catch (Exception e) {
-            granted = false;
-            denialReason = e.getMessage();
+            if (invoked) {
+                // The method ran and threw: authorization let it run, so this is a business failure, not a denial.
+                executionFailure = e.getClass().getSimpleName();
+            } else {
+                granted = false;
+                denialReason = e.getMessage();
+            }
             throw e;
 
         } finally {
             if (publishEvent && llmAnalysisAllowed) {
-                publishAuthorizationEvent(mi, authentication, granted, denialReason);
+                String executionOutcome = invoked
+                        ? (executionFailure != null ? ZeroTrustEventPublisher.METHOD_FAILED : ZeroTrustEventPublisher.METHOD_COMPLETED)
+                        : null;
+                publishAuthorizationEvent(mi, authentication, granted, denialReason, executionOutcome, executionFailure);
             }
         }
     }
@@ -252,10 +285,21 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         return synchronousProtectableDecisionService.analyze(mi, authentication);
     }
 
+    private ZeroTrustAction storedRestriction(MethodInvocation mi, Authentication authentication) {
+        if (synchronousProtectableDecisionService == null || authentication == null) {
+            return null;
+        }
+        return synchronousProtectableDecisionService.storedRestriction(mi, authentication);
+    }
+
     private ZeroTrustAccessDeniedException toZeroTrustAccessDeniedException(
             SynchronousProtectableDecisionService.SyncDecisionResult decision,
             String resourceId) {
-        ZeroTrustAction action = decision.action() != null ? decision.action() : ZeroTrustAction.PENDING_ANALYSIS;
+        return toZeroTrustAccessDeniedException(decision.action(), resourceId);
+    }
+
+    private ZeroTrustAccessDeniedException toZeroTrustAccessDeniedException(ZeroTrustAction decided, String resourceId) {
+        ZeroTrustAction action = decided != null ? decided : ZeroTrustAction.PENDING_ANALYSIS;
 
         return switch (action) {
             case BLOCK -> ZeroTrustAccessDeniedException.blocked(resourceId);
@@ -313,6 +357,10 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         this.protectableLlmSuppressionWriter = protectableLlmSuppressionWriter;
     }
 
+    public void setAuthorizationDenialRecorder(AuthorizationDenialRecorder authorizationDenialRecorder) {
+        this.authorizationDenialRecorder = authorizationDenialRecorder;
+    }
+
     private void recordSuppressedProtectable(Authentication authentication, MethodInvocation mi, String reason) {
         if (protectableLlmSuppressionWriter == null) {
             return;
@@ -336,7 +384,8 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     }
 
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,
-                                           boolean granted, String denialReason) {
+                                           boolean granted, String denialReason,
+                                           String executionOutcome, String executionFailure) {
         if (zeroTrustEventPublisher == null) {
             return;
         }
@@ -348,7 +397,9 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 mi,
                 authentication,
                 granted,
-                denialReason
+                denialReason,
+                executionOutcome,
+                executionFailure
             );
 
             long duration = System.nanoTime() - startTime;

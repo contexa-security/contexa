@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
@@ -453,14 +454,7 @@ public class ThreatSignalMatcherService {
     }
 
     private boolean extractBoolean(Map<String, Object> metadata, String key) {
-        Object value = metadata.get(key);
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (value instanceof String text) {
-            return Boolean.parseBoolean(text);
-        }
-        return false;
+        return Boolean.TRUE.equals(TruthValues.parse(metadata.get(key)));
     }
 
     private int extractInt(Map<String, Object> metadata, String key) {

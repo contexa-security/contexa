@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import lombok.Builder;
 import lombok.Value;
 
@@ -40,4 +41,6 @@ public class ProtectableWorkProfileSnapshot implements ContextSnapshot {
     String normalReadWriteExportRatio;
     String summary;
     ContextTrustProfile trustProfile;
+    /** The usual behaviour this snapshot's values come from (W2-3). */
+    BaselineView baselineView;
 }

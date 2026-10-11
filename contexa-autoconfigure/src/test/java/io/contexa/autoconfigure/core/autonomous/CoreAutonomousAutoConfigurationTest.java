@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
@@ -131,7 +132,8 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should declare SessionNarrativeCollector bean method backed by SecurityContextDataStore")
         void shouldDeclareSessionNarrativeCollectorBeanMethod() throws Exception {
             Method method = CoreAutonomousAutoConfiguration.class
-                    .getDeclaredMethod("sessionNarrativeCollector", SecurityContextDataStore.class);
+                    .getDeclaredMethod("sessionNarrativeCollector", SecurityContextDataStore.class,
+                            ContextObservationRecorder.class);
 
             assertThat(method.getReturnType()).isEqualTo(SessionNarrativeCollector.class);
         }
@@ -163,7 +165,8 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should declare ProtectableWorkProfileCollector bean method backed by SecurityContextDataStore")
         void shouldDeclareProtectableWorkProfileCollectorBeanMethod() throws Exception {
             Method method = CoreAutonomousAutoConfiguration.class
-                    .getDeclaredMethod("protectableWorkProfileCollector", SecurityContextDataStore.class);
+                    .getDeclaredMethod("protectableWorkProfileCollector", SecurityContextDataStore.class,
+                            ContextObservationRecorder.class);
 
             assertThat(method.getReturnType()).isEqualTo(ProtectableWorkProfileCollector.class);
         }
@@ -214,7 +217,8 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should declare RoleScopeCollector bean method backed by SecurityContextDataStore")
         void shouldDeclareRoleScopeCollectorBeanMethod() throws Exception {
             Method method = CoreAutonomousAutoConfiguration.class
-                    .getDeclaredMethod("roleScopeCollector", SecurityContextDataStore.class);
+                    .getDeclaredMethod("roleScopeCollector", SecurityContextDataStore.class,
+                            ContextObservationRecorder.class);
 
             assertThat(method.getReturnType()).isEqualTo(RoleScopeCollector.class);
         }

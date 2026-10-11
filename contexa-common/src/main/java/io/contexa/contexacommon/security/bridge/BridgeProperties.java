@@ -78,11 +78,13 @@ public class BridgeProperties {
             private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod", "method", "factorType");
             private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa", "acr");
             private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified");
-            private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "issuedAt", "auth_time", "iat");
+            // Token issue time (iat, issuedAt) is not the authentication time: a refreshed token carries a new one.
+            private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "auth_time");
+            private List<String> amrKeys = List.of("amr");
             private List<String> attributeKeys = List.of(
                     "organizationId", "orgId", "tenantId", "department", "team", "email", "loginIp",
                     "authenticationType", "authenticationAssurance", "mfaVerified", "mfaCompleted", "authenticatedAt", "loginTime",
-                    "iss", "aud", "azp", "scope", "scp", "amr", "acr");
+                    "iss", "aud", "azp", "scope", "scp", "amr", "acr", "challengeVerifiedAt");
         }
     }
 

@@ -257,6 +257,23 @@ class SealedEvidenceCaptureHandlerTest {
         assertThat(handler.canHandle(decisionContext(event("req-114", "/api/orders"), "BLOCK"))).isTrue();
     }
 
+    @Test
+    void aProtectedDecisionIsSealedWhateverItsPath() {
+        SecurityEvent streamedExport = event("req-115", "/api/projects/GB-500/exports/stream");
+        streamedExport.getMetadata().put("protectableDeclared", true);
+        SecurityEvent pathWithStream = event("req-116", "/api/reports/stream-summary");
+        SecurityEvent eventStream = event("req-117", "/api/notifications/sse/subscribe");
+        SecurityEvent protectedOnAnInfrastructurePath = event("req-118", "/actuator/custom-report");
+        protectedOnAnInfrastructurePath.getMetadata().put("protectableDeclared", true);
+
+        // A streamed export is a protected decision like any other export (V-14, W1-15).
+        assertThat(handler.canHandle(decisionContext(streamedExport, "ALLOW"))).isTrue();
+        // Only infrastructure paths are skipped; a path that merely contains "stream" is not one.
+        assertThat(handler.canHandle(decisionContext(pathWithStream, "ALLOW"))).isTrue();
+        assertThat(handler.canHandle(decisionContext(eventStream, "ALLOW"))).isFalse();
+        assertThat(handler.canHandle(decisionContext(protectedOnAnInfrastructurePath, "ALLOW"))).isTrue();
+    }
+
     private SecurityEvent event(String requestId, String requestPath) {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-" + requestId)

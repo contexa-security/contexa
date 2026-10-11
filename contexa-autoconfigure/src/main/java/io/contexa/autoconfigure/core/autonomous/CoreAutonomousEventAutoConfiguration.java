@@ -16,6 +16,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
@@ -281,7 +282,8 @@ public class CoreAutonomousEventAutoConfiguration {
             @Qualifier("securityBaselineLearningExecutor") ObjectProvider<Executor> baselineLearningExecutorProvider,
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             SecurityContextDataStore securityContextDataStore,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
@@ -290,7 +292,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 securityZeroTrustProperties,
                 baselineLearningExecutorProvider.getIfAvailable(() -> command -> command.run()),
                 aiSecurityDecisionObservationWriterProvider::getIfAvailable,
-                securityContextDataStore);
+                securityContextDataStore,
+                contextObservationRecorderProvider.getIfAvailable());
     }
 
     @Bean

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.LinkedHashMap;
@@ -44,7 +45,8 @@ public class HeaderAuthBridge implements AuthBridge {
             return null;
         }
         String authenticated = request.getHeader(properties.getAuthenticated());
-        if (authenticated != null && !authenticated.isBlank() && !Boolean.parseBoolean(authenticated)) {
+        // Only a value that reads as true signs the request in; anything else that is present does not.
+        if (authenticated != null && !authenticated.isBlank() && !Boolean.TRUE.equals(TruthValues.parse(authenticated))) {
             return null;
         }
         String principalId = request.getHeader(properties.getPrincipalId());

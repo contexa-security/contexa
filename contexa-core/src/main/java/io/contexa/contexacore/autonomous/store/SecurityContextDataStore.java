@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,6 +42,31 @@ public interface SecurityContextDataStore {
     void addSessionAction(String sessionId, String action);
 
     List<String> getRecentSessionActions(String sessionId, int count);
+
+    /** Adds one decision of the session (an encoded {@link SessionDecisionRecord}), oldest first. */
+    default void addSessionDecision(String sessionId, String decisionRecord) {
+    }
+
+    /** The session's most recent decisions, oldest first; null when the store keeps no decision history. */
+    default List<String> getRecentSessionDecisions(String sessionId, int count) {
+        return null;
+    }
+
+    /**
+     * Carries a session's records to its new id when the servlet container replaces the id of the same session, as
+     * session fixation protection does at sign-in and at a step-up MFA. The old id's records go before anything the
+     * new id already holds; the old id keeps none.
+     */
+    default void moveSessionRecords(String fromSessionId, String toSessionId) {
+    }
+
+    /**
+     * The ids the session had before its id was replaced, newest first (P2 correction 5). Records written under an
+     * old id (past records, work profile observations) still belong to the session; empty when the store keeps none.
+     */
+    default List<String> getSessionPreviousIds(String sessionId) {
+        return List.of();
+    }
 
     void addSessionNarrativeActionFamily(String sessionId, String actionFamily);
 
@@ -101,9 +127,36 @@ public interface SecurityContextDataStore {
 
     int getRecentLoginFailureCount(String userId, String clientIp, long windowStartMs, long currentTimeMs);
 
+    /**
+     * The user's own failed sign-ins in the window: failures of other users from the same address are not counted.
+     * Null when the user is unknown or the store cannot tell.
+     */
+    default Integer findRecentLoginFailures(String userId, long windowStartMs, long currentTimeMs) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return getRecentLoginFailureCount(userId, null, windowStartMs, currentTimeMs);
+    }
+
     boolean isMfaVerified(String userId);
 
     void markMfaVerified(String userId);
+
+    /**
+     * Marks the user's MFA with the time it was completed on the request clock (null: now). The mark itself lasts its
+     * own time on the server clock.
+     */
+    default void markMfaVerified(String userId, Instant verifiedAt) {
+        markMfaVerified(userId);
+    }
+
+    /**
+     * When the user last completed MFA in any session, while the mark lasts; null when unknown. It is a fact of the
+     * user, not of the session a request belongs to.
+     */
+    default Instant getLastMfaVerifiedAt(String userId) {
+        return null;
+    }
 
     /**
      * Removes every per-user record of a user whose account is deleted, in all tenants: work-profile, permission

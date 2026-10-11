@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.inference;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import java.util.ArrayList;
 import java.util.List;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageLevel;
@@ -171,7 +172,11 @@ public class ContextCoverageEvaluator {
         else if (CanonicalContextFieldPolicy.hasProvisionalWorkProfile(context)) {
             availableFacts.add("Personal work profile evidence is available but provisional.");
             remediationHints.add("Increase allowed observations and reduce fallback-derived work profile fields before treating personal work profile as a strong reasoning anchor.");
-            confidenceWarnings.add("Personal work profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of normal behavior.");
+            BaselineView view = workProfileView(context);
+            confidenceWarnings.add(view != null && view.observed()
+                    ? "Personal work profile evidence is " + view.evidenceSummary()
+                            + "; do not treat it as a standalone proof of normal behavior."
+                    : "Personal work profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of normal behavior.");
         }
         else if (CanonicalContextFieldPolicy.hasWorkProfileEvidence(context)) {
             availableFacts.add("Personal work profile evidence is available but not yet trust-qualified.");
@@ -346,8 +351,8 @@ public class ContextCoverageEvaluator {
                 availableFacts.add("Context provenance summary: " + trustProfile.getProvenanceSummary());
             }
             if (ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
-                confidenceWarnings.add("Context evidence for " + trustProfile.getProfileKey()
-                        + " is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.");
+                confidenceWarnings.add(ContextSemanticBoundaryPolicy.evidenceCautionStatement(
+                        trustProfile, workProfileView(context)));
                 remediationHints.add("Increase explicit collector signals and evidence coverage before using "
                         + trustProfile.getProfileKey() + " as a strong reasoning anchor.");
             }
@@ -372,6 +377,10 @@ public class ContextCoverageEvaluator {
             deduplicated.add(value);
         }
         return List.copyOf(deduplicated);
+    }
+
+    private static BaselineView workProfileView(CanonicalSecurityContext context) {
+        return context != null && context.getWorkProfile() != null ? context.getWorkProfile().getBaselineView() : null;
     }
 }
 

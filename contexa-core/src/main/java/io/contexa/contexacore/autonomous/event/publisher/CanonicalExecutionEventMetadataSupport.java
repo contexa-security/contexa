@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacore.autonomous.execution.DelegatedExecutionContext;
 
 import java.util.LinkedHashMap;
@@ -132,10 +133,6 @@ public final class CanonicalExecutionEventMetadataSupport {
     }
 
     private static Boolean resolveBoolean(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        String text = text(value);
-        return text != null ? Boolean.parseBoolean(text) : null;
+        return TruthValues.parse(value);
     }
 }

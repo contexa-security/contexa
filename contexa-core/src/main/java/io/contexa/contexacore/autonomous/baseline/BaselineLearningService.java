@@ -17,6 +17,8 @@ package io.contexa.contexacore.autonomous.baseline;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
@@ -32,6 +34,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.function.UnaryOperator;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,6 +50,7 @@ public class BaselineLearningService {
     private static final String FREQ_PREFIX_HOUR = "hour:";
     private static final String FREQ_PREFIX_DAY = "day:";
     private static final String FREQ_PREFIX_BROWSER = "browser:";
+    private static final String FREQ_PREFIX_DEVICE = "device:";
     private static final String FREQ_PREFIX_IP_BAND = "ipBand:";
     private static final String FREQ_PREFIX_AUTH = "auth:";
     private static final String FREQ_PREFIX_ACTION = "action:";
@@ -95,6 +99,11 @@ public class BaselineLearningService {
         String currentPath = extractPathFamily(event);
         String currentUserAgent = event != null ? event.getUserAgent() : null;
         String currentBrowser = extractBrowser(event);
+        // The system is read in the order the request's device is resolved, so the baseline learns what it is compared
+        // with (W2-4).
+        String currentOS = SecuritySemanticNormalizer.normalizeOperatingSystem(
+                extractMetadataText(event, "deviceOs", "os"), extractOS(currentUserAgent));
+        String currentDevice = SecuritySemanticNormalizer.device(currentBrowser, currentOS);
         String currentIpBand = SecuritySemanticNormalizer.normalizeNetwork(currentIp, extractMetadataText(event, "ipBand"));
         String currentAuthenticationType = SecuritySemanticNormalizer.normalizeAuthenticationType(
                 extractMetadataText(event, "authMethod", "authenticationType"));
@@ -144,6 +153,10 @@ public class BaselineLearningService {
                 builder.normalBrowsers(new String[]{currentBrowser});
                 frequencies.put(FREQ_PREFIX_BROWSER + currentBrowser, 1L);
             }
+            if (currentDevice != null) {
+                builder.normalDevices(new String[]{currentDevice});
+                frequencies.put(FREQ_PREFIX_DEVICE + currentDevice, 1L);
+            }
             if (currentIpBand != null) {
                 builder.normalIpBands(new String[]{currentIpBand});
                 frequencies.put(FREQ_PREFIX_IP_BAND + currentIpBand, 1L);
@@ -174,10 +187,9 @@ public class BaselineLearningService {
                 log.error("[Baseline] SecurityEvent first learning - UA parsing failed, storing raw: {}", truncatedUA);
             }
 
-            String os = extractOS(currentUserAgent);
-            if (StringUtils.hasText(os)) {
-                builder.normalOperatingSystems(new String[]{os});
-                frequencies.put(FREQ_PREFIX_OS + os, 1L);
+            if (StringUtils.hasText(currentOS)) {
+                builder.normalOperatingSystems(new String[]{currentOS});
+                frequencies.put(FREQ_PREFIX_OS + currentOS, 1L);
             }
 
             builder.elementFrequencies(frequencies);
@@ -195,12 +207,20 @@ public class BaselineLearningService {
                 ? new HashMap<>(current.getElementFrequencies())
                 : new HashMap<>();
 
-        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIpBand, frequencies);
+        // Networks and systems learned before W2-4 in another form are moved to today's form with their counts.
+        String[] storedIpRanges = canonicalized(current.getNormalIpRanges(), FREQ_PREFIX_IP, frequencies,
+                value -> SecuritySemanticNormalizer.normalizeNetwork(null, value));
+        String[] storedIpBands = canonicalized(current.getNormalIpBands(), FREQ_PREFIX_IP_BAND, frequencies,
+                value -> SecuritySemanticNormalizer.normalizeNetwork(null, value));
+        String[] storedOperatingSystems = canonicalized(current.getNormalOperatingSystems(), FREQ_PREFIX_OS,
+                frequencies, SecuritySemanticNormalizer::normalizeOperatingSystem);
+        String[] normalIpRanges = updateNormalIpRanges(storedIpRanges, currentIpBand, frequencies);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour, frequencies);
         Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay, frequencies);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
         String[] normalBrowsers = updateNormalBrowsers(current.getNormalBrowsers(), currentBrowser, frequencies);
-        String[] normalIpBands = updateNormalIpBands(current.getNormalIpBands(), currentIpBand, frequencies);
+        String[] normalDevices = updateNormalDevices(current.getNormalDevices(), currentDevice, frequencies);
+        String[] normalIpBands = updateNormalIpBands(storedIpBands, currentIpBand, frequencies);
         String[] normalAuthenticationTypes = updateNormalAuthenticationTypes(current.getNormalAuthenticationTypes(), currentAuthenticationType, frequencies);
         String[] frequentActionFamilies = updateFrequentActionFamilies(current.getFrequentActionFamilies(), currentActionFamily, frequencies);
         String[] frequentResourceFamilies = updateFrequentResourceFamilies(current.getFrequentResourceFamilies(), currentResourceFamily, frequencies);
@@ -210,9 +230,7 @@ public class BaselineLearningService {
                 ? normalizedUA : currentUserAgent;
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate, frequencies);
 
-        String currentOS = extractOS(currentUserAgent);
-        String[] normalOperatingSystems = updateNormalOperatingSystems(
-                current.getNormalOperatingSystems(), currentOS, frequencies);
+        String[] normalOperatingSystems = updateNormalOperatingSystems(storedOperatingSystems, currentOS, frequencies);
 
         return BaselineVector.builder()
                 .userId(userId)
@@ -228,6 +246,7 @@ public class BaselineLearningService {
                 .normalUserAgents(normalUserAgents)
                 .normalOperatingSystems(normalOperatingSystems)
                 .normalBrowsers(normalBrowsers)
+                .normalDevices(normalDevices)
                 .normalIpBands(normalIpBands)
                 .normalAuthenticationTypes(normalAuthenticationTypes)
                 .frequentActionFamilies(frequentActionFamilies)
@@ -240,7 +259,7 @@ public class BaselineLearningService {
         if (event == null || event.getTimestamp() == null) {
             return null;
         }
-        return event.getTimestamp().getHour();
+        return event.getLocalTimestamp().getHour();
     }
 
     private double resolveVerifiedTrustSignal(SecurityDecision decision) {
@@ -259,19 +278,40 @@ public class BaselineLearningService {
         if (event == null || event.getTimestamp() == null) {
             return null;
         }
-        return event.getTimestamp().getDayOfWeek().getValue();
+        return event.getLocalTimestamp().getDayOfWeek().getValue();
     }
 
     private String extractIpRange(String ip) {
-        if (!StringUtils.hasText(ip)) {
-            return null;
+        return SecuritySemanticNormalizer.normalizeNetwork(null, ip);
+    }
+
+    /**
+     * The stored values in today's form, their frequencies moved to the new keys: a three-octet prefix and its /24
+     * band, or "Windows" and WINDOWS, are one value in two forms (W2-4). A value that no longer names anything (a
+     * device class learned as a system) is dropped with its frequency.
+     */
+    private static String[] canonicalized(String[] values, String prefix, Map<String, Long> frequencies,
+            UnaryOperator<String> canonical) {
+        if (values == null || values.length == 0) {
+            return values;
         }
-        String trimmed = ip.trim();
-        long dots = trimmed.chars().filter(ch -> ch == '.').count();
-        if (dots >= 3) {
-            return SecuritySemanticNormalizer.normalizeNetwork(trimmed, null);
+        Set<String> forms = new LinkedHashSet<>();
+        for (String value : values) {
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            String form = canonical.apply(value);
+            if (form == null || !form.equals(value)) {
+                Long count = frequencies.remove(prefix + value);
+                if (form != null && count != null) {
+                    frequencies.merge(prefix + form, count, Long::sum);
+                }
+            }
+            if (form != null) {
+                forms.add(form);
+            }
         }
-        return SecuritySemanticNormalizer.normalizeNetwork(null, trimmed);
+        return forms.toArray(String[]::new);
     }
 
     private String[] updateNormalIpRanges(String[] current, String newIpBand, Map<String, Long> frequencies) {
@@ -455,6 +495,14 @@ public class BaselineLearningService {
         return mergeFrequentStringDimension(current, newBrowser, frequencies, FREQ_PREFIX_BROWSER, 5);
     }
 
+    private String[] updateNormalDevices(String[] current, String newDevice, Map<String, Long> frequencies) {
+        if (!StringUtils.hasText(newDevice)) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_DEVICE + newDevice, 1L, Long::sum);
+        return mergeFrequentStringDimension(current, newDevice, frequencies, FREQ_PREFIX_DEVICE, 5);
+    }
+
     private String[] updateNormalIpBands(String[] current, String newIpBand, Map<String, Long> frequencies) {
         if (!StringUtils.hasText(newIpBand)) {
             return current;
@@ -557,6 +605,7 @@ public class BaselineLearningService {
                     .normalUserAgents(orgBaseline.getNormalUserAgents())
                     .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
                     .normalBrowsers(orgBaseline.getNormalBrowsers())
+                    .normalDevices(orgBaseline.getNormalDevices())
                     .normalIpBands(orgBaseline.getNormalIpBands())
                     .normalAuthenticationTypes(orgBaseline.getNormalAuthenticationTypes())
                     .frequentActionFamilies(orgBaseline.getFrequentActionFamilies())
@@ -705,12 +754,12 @@ public class BaselineLearningService {
                 maturity.personalBaselineEstablished(),
                 personalBaseline.getUpdateCount(),
                 personalBaseline.getAvgTrustScore(),
-                strings(personalBaseline.getNormalIpRanges()),
+                networks(personalBaseline.getNormalIpRanges()),
                 integers(personalBaseline.getNormalAccessHours()),
                 integers(personalBaseline.getNormalAccessDays()),
                 strings(firstNonEmpty(personalBaseline.getNormalBrowsers(), personalBaseline.getNormalUserAgents())),
-                strings(personalBaseline.getNormalOperatingSystems()),
-                strings(personalBaseline.getFrequentPaths()),
+                operatingSystems(personalBaseline.getNormalOperatingSystems()),
+                pathFamilies(personalBaseline.getFrequentPaths()),
                 strings(personalBaseline.getNormalAuthenticationTypes()),
                 strings(personalBaseline.getFrequentActionFamilies()),
                 semanticResourceFamilies(personalBaseline.getFrequentResourceFamilies()),
@@ -718,7 +767,9 @@ public class BaselineLearningService {
                         maturity.personalBaselineEstablished(),
                         personalBaseline),
                 BaselineEvidenceStatus.AVAILABLE,
-                "");
+                "",
+                strings(personalBaseline.getNormalDevices()),
+                personalBaseline.getElementFrequencies());
     }
 
     public BaselineEvidenceSnapshot buildSupportingBaselineEvidenceSnapshot(String userId) {
@@ -773,18 +824,19 @@ public class BaselineLearningService {
                 maturity.organizationBaselineEstablished(),
                 organizationBaseline.getUpdateCount(),
                 organizationBaseline.getAvgTrustScore(),
-                strings(organizationBaseline.getNormalIpRanges()),
+                networks(organizationBaseline.getNormalIpRanges()),
                 integers(organizationBaseline.getNormalAccessHours()),
                 integers(organizationBaseline.getNormalAccessDays()),
                 strings(firstNonEmpty(organizationBaseline.getNormalBrowsers(), organizationBaseline.getNormalUserAgents())),
-                strings(organizationBaseline.getNormalOperatingSystems()),
-                strings(organizationBaseline.getFrequentPaths()),
+                operatingSystems(organizationBaseline.getNormalOperatingSystems()),
+                pathFamilies(organizationBaseline.getFrequentPaths()),
                 strings(organizationBaseline.getNormalAuthenticationTypes()),
                 strings(organizationBaseline.getFrequentActionFamilies()),
                 semanticResourceFamilies(organizationBaseline.getFrequentResourceFamilies()),
                 summary.toString(),
                 BaselineEvidenceStatus.AVAILABLE,
-                "");
+                "",
+                strings(organizationBaseline.getNormalDevices()));
     }
 
     private String buildBaselineEvidenceSummary(boolean established, BaselineVector baseline) {
@@ -798,9 +850,15 @@ public class BaselineLearningService {
         }
         addSummaryPart(parts, "hours", integers(baseline.getNormalAccessHours()));
         addSummaryPart(parts, "days", integers(baseline.getNormalAccessDays()));
-        addSummaryPart(parts, "networks", strings(baseline.getNormalIpRanges()));
-        addSummaryPart(parts, "browsers", strings(firstNonEmpty(baseline.getNormalBrowsers(), baseline.getNormalUserAgents())));
-        addSummaryPart(parts, "paths", strings(baseline.getFrequentPaths()));
+        addSummaryPart(parts, "networks", networks(baseline.getNormalIpRanges()));
+        List<String> devices = strings(baseline.getNormalDevices());
+        if (!devices.isEmpty()) {
+            addSummaryPart(parts, "devices", devices);
+        }
+        else {
+            addSummaryPart(parts, "browsers", strings(firstNonEmpty(baseline.getNormalBrowsers(), baseline.getNormalUserAgents())));
+        }
+        addSummaryPart(parts, "paths", pathFamilies(baseline.getFrequentPaths()));
         addSummaryPart(parts, "auth", strings(baseline.getNormalAuthenticationTypes()));
         addSummaryPart(parts, "actions", strings(baseline.getFrequentActionFamilies()));
         addSummaryPart(parts, "resources", semanticResourceFamilies(baseline.getFrequentResourceFamilies()));
@@ -833,6 +891,7 @@ public class BaselineLearningService {
                         .normalUserAgents(userBaseline.getNormalUserAgents())
                         .normalOperatingSystems(userBaseline.getNormalOperatingSystems())
                         .normalBrowsers(userBaseline.getNormalBrowsers())
+                        .normalDevices(userBaseline.getNormalDevices())
                         .normalIpBands(userBaseline.getNormalIpBands())
                         .normalAuthenticationTypes(userBaseline.getNormalAuthenticationTypes())
                         .frequentActionFamilies(userBaseline.getFrequentActionFamilies())
@@ -869,6 +928,8 @@ public class BaselineLearningService {
                             orgBaseline.getNormalOperatingSystems(), userBaseline.getNormalOperatingSystems()))
                     .normalBrowsers(mergeStringArrays(
                             orgBaseline.getNormalBrowsers(), userBaseline.getNormalBrowsers()))
+                    .normalDevices(mergeStringArrays(
+                            orgBaseline.getNormalDevices(), userBaseline.getNormalDevices()))
                     .normalIpBands(mergeStringArrays(
                             orgBaseline.getNormalIpBands(), userBaseline.getNormalIpBands()))
                     .normalAuthenticationTypes(mergeStringArrays(
@@ -1117,7 +1178,7 @@ public class BaselineLearningService {
             }
 
             if (currentEvent.getTimestamp() != null) {
-                sb.append(String.format("  Hour: %d\n", currentEvent.getTimestamp().getHour()));
+                sb.append(String.format("  Hour: %d\n", currentEvent.getLocalTimestamp().getHour()));
             }
 
             String userAgent = currentEvent.getUserAgent();
@@ -1171,24 +1232,29 @@ public class BaselineLearningService {
         return extractUASignature(event.getUserAgent());
     }
 
+    /** The request's action family as the context gives it, so the baseline learns the same family it is compared with. */
     private String extractActionFamily(SecurityEvent event) {
-        String explicit = extractMetadataText(event, "actionFamily", "operation", "httpMethod", "method");
-        return SecuritySemanticNormalizer.normalizeActionFamily(explicit);
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(event != null ? event.getMetadata() : null);
+        return action.family() == ActionFamily.UNKNOWN ? null : action.family().name();
     }
 
     private String extractResourceFamily(SecurityEvent event) {
-        String explicit = extractMetadataText(
-                event,
-                "resourceFamily",
-                "resourceType",
-                "resourceCategory",
-                "resourceSensitivity",
-                "sensitivity");
-        return SecuritySemanticNormalizer.normalizeResourceFamily(explicit);
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (metadata == null) {
+            return null;
+        }
+        // Every classification value goes to the same normalizer as the current request and the past records; the
+        // first non-blank value alone could be a business family that names no class.
+        return SecuritySemanticNormalizer.normalizeResourceFamily(
+                metadata.get("resourceSensitivity"),
+                metadata.get("sensitivity"),
+                metadata.get("resourceFamily"),
+                metadata.get("resourceType"));
     }
 
+    /** The path family the context gives the request: the host's URL template first, else the generalized path. */
     private String extractPathFamily(SecurityEvent event) {
-        return SecuritySemanticNormalizer.normalizePathFamily(extractPath(event));
+        return SecuritySemanticNormalizer.pathFamilyOf(event != null ? event.getMetadata() : null, extractPath(event));
     }
 
     private String extractMetadataText(SecurityEvent event, String... keys) {
@@ -1227,6 +1293,20 @@ public class BaselineLearningService {
         parts.add(label + "=" + String.join(", ", values));
     }
 
+    /** Stored path families read under today's rule: one stored from a request path reads with its identifiers generalized. */
+    private List<String> pathFamilies(String[] stored) {
+        if (stored == null || stored.length == 0) {
+            return List.of();
+        }
+        return Arrays.stream(stored)
+                .map(SecuritySemanticNormalizer::normalizePathFamily)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /** Stored values in ascending order, so the same baseline reads the same way on every run (E-1). */
     private List<String> strings(String[] values) {
         if (values == null || values.length == 0) {
             return List.of();
@@ -1234,7 +1314,22 @@ public class BaselineLearningService {
         return Arrays.stream(values)
                 .filter(StringUtils::hasText)
                 .distinct()
+                .sorted()
                 .toList();
+    }
+
+    /** The stored networks in today's form: a three-octet prefix learned before W2-4 reads as its /24 band. */
+    private List<String> networks(String[] values) {
+        return strings(values == null ? null : Arrays.stream(values)
+                .map(value -> SecuritySemanticNormalizer.normalizeNetwork(null, value))
+                .toArray(String[]::new));
+    }
+
+    /** The stored systems in one vocabulary: "Windows" learned before W2-4 reads as WINDOWS. */
+    private List<String> operatingSystems(String[] values) {
+        return strings(values == null ? null : Arrays.stream(values)
+                .map(SecuritySemanticNormalizer::normalizeOperatingSystem)
+                .toArray(String[]::new));
     }
 
     private List<String> semanticResourceFamilies(String[] values) {
@@ -1249,14 +1344,16 @@ public class BaselineLearningService {
                 .toList();
     }
 
+    /** Stored values in ascending order: the arrays keep insertion order, which differs between runs (E-1). */
     private List<String> integers(Integer[] values) {
         if (values == null || values.length == 0) {
             return List.of();
         }
         return Arrays.stream(values)
                 .filter(Objects::nonNull)
-                .map(String::valueOf)
                 .distinct()
+                .sorted()
+                .map(String::valueOf)
                 .toList();
     }
 

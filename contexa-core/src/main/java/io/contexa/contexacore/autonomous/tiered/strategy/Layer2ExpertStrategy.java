@@ -662,4 +662,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_SOC";
         };
     }
+
+    /** The ids the session had before its id was replaced, from the context store (P2 correction 5). */
+    @Override
+    protected List<String> previousSessionIds(String sessionId) {
+        return dataStore != null ? dataStore.getSessionPreviousIds(sessionId) : List.of();
+    }
 }

@@ -123,14 +123,23 @@ public class TemplateLearner {
             String stopReason = null;
             Set<String> learnedDays = new TreeSet<>();
             String email = username + "@" + CompanyBlueprint.EMAIL_DOMAIN;
+            String sessionDay = day(firstActivity);
             for (JsonNode activity : activities) {
                 int activityNo = activity.path("activityNo").asInt();
                 BusinessOperation operation = BusinessOperation.valueOf(activity.path("operation").asText());
                 String target = activity.path("targetKey").asText();
                 Instant at = Instant.parse(activity.path("observedAt").asText());
+                // The employee signs in on each working day, so each day's activity is its own session: one session
+                // over the replayed weeks would make every earlier request the current session's own (P2 correction 5).
+                if (!day(at).equals(sessionDay)) {
+                    session = new ControlSession(Control.D,
+                            new WorkloadClient(endpoints.d(), signer, run, endpoints.requestTimeout()), json);
+                    session.signInEngine(username, password, email, at.minus(Duration.ofMinutes(10)), admin);
+                    sessionDay = day(at);
+                }
                 String path = path(operation, target, activity.path("items").asInt());
                 boolean synchronous = EngineDecision.synchronous(operation);
-                // Each activity comes from the address the business database names for it (W2-7), in the same session.
+                // Each activity comes from the address the business database names for it (W2-7), in its day's session.
                 ControlSession from = session.fromAddress(addressOf(activity, employee));
                 long waitStarted = System.nanoTime();
                 StepOutcome outcome = from.send(operation, path, at);
@@ -169,7 +178,7 @@ public class TemplateLearner {
                 }
                 if (next == Next.LEARNED) {
                     allowed++;
-                    learnedDays.add(at.toString().substring(0, 10));
+                    learnedDays.add(day(at));
                 }
                 sleep(endpoints.allowWindow());
             }
@@ -300,5 +309,10 @@ public class TemplateLearner {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted", e);
         }
+    }
+
+    /** The day of an activity, as the learned days are counted (the date of its instant). */
+    private static String day(Instant at) {
+        return at.toString().substring(0, 10);
     }
 }

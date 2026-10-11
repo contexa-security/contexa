@@ -39,6 +39,10 @@ public final class BridgeSemanticBoundaryPolicy {
     public static final String HEURISTIC_HINT_ONLY = "HEURISTIC_HINT_ONLY";
     public static final String BRIDGE_COMPLETENESS_ONLY = "BRIDGE_COMPLETENESS_ONLY";
     public static final String UNAVAILABLE = "UNAVAILABLE";
+    /** A value read from the {@code amr} claim rather than stated by the host. */
+    public static final String DERIVED_FROM_AMR = "DERIVED_FROM_AMR";
+    /** A Java class name standing in for a fact the host did not state; it is not a login fact. */
+    public static final String CLASS_NAME_FALLBACK = "CLASS_NAME_FALLBACK";
 
     private BridgeSemanticBoundaryPolicy() {
     }

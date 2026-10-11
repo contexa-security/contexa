@@ -15,6 +15,11 @@
  */
 package io.contexa.contexacommon.bridge.resolver;
 
+import java.util.Set;
+import java.time.ZoneId;
+import java.time.LocalDateTime;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.domain.UserDto;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
@@ -43,6 +48,26 @@ class SecurityContextStampResolversTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void authenticationResolverCarriesTheSignedInAccountsCreationTime() {
+        LocalDateTime createdAt = LocalDateTime.of(2025, 4, 1, 9, 30);
+        UserDto account = UserDto.builder().username("alice").createdAt(createdAt).build();
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new UnifiedCustomUserDetails(account, Set.of(new SimpleGrantedAuthority("ROLE_USER"))),
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(
+                null,
+                new RequestContextSnapshot("/reports", "GET", "10.0.0.10", "JUnit", "session-2", "request-2", "/reports", null, false, Instant.now()),
+                new BridgeProperties()
+        ).orElseThrow();
+
+        // The user store keeps a wall-clock time of this JVM's zone; the stamp carries it as an instant (W1-10).
+        assertThat(stamp.attributes())
+                .containsEntry("accountCreatedAt", createdAt.atZone(ZoneId.systemDefault()).toInstant().toString());
     }
 
     @Test

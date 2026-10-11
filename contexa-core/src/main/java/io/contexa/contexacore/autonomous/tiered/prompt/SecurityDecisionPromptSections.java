@@ -15,11 +15,14 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacommon.domain.TruthValues;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFactsResolver;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
@@ -31,6 +34,10 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.context.snapshot.CurrentRequestSnapshot;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -68,8 +75,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -512,7 +517,7 @@ public class SecurityDecisionPromptSections {
         if (value instanceof Boolean bool) {
             return bool;
         }
-        return value != null && "true".equalsIgnoreCase(value.toString().trim());
+        return Boolean.TRUE.equals(TruthValues.parse(value));
     }
 
     private int metadataInt(Map<String, Object> metadata, String key, int fallback) {
@@ -641,7 +646,7 @@ public class SecurityDecisionPromptSections {
                                                           PromptBudgetProfile budgetProfile,
                                                           StructuredOutputMode structuredOutputMode) {
         String userId = extractUserId(sessionContext);
-        DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
+        DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId, requestSubject(event));
         CanonicalSecurityContext canonicalSecurityContext = resolveCanonicalSecurityContext(event).orElse(null);
         cacheCanonicalSecurityContext(event, canonicalSecurityContext);
         if (canonicalSecurityContext != null) {
@@ -656,6 +661,16 @@ public class SecurityDecisionPromptSections {
                 relatedDocuments);
         if (behaviorAnalysis != null) {
             behaviorAnalysis.setLearningContextEvidence(learningContextEvidence);
+        }
+        // A new device is this device compared with the user's observed devices; a value the host declared stays.
+        if (canonicalSecurityContext != null && canonicalSecurityContext.getSession() != null
+                && canonicalSecurityContext.getSession().getNewDevice() == null && learningContextEvidence != null) {
+            canonicalSecurityContext.getSession().setNewDevice(learningContextEvidence.deviceOutsideObserved());
+        }
+        // The decision facts are computed once, from the context and evidence this prompt is built from (W2-5).
+        if (canonicalSecurityContext != null) {
+            canonicalSecurityContext.setDecisionFacts(DecisionFactsResolver.resolve(
+                    canonicalSecurityContext, learningContextEvidence, EventTimeZone.get()));
         }
         BaselineStatus baselineStatus = determineBaselineStatus(event, behaviorAnalysis, learningContextEvidence);
         return new SecurityPromptBuildContext(
@@ -1139,7 +1154,7 @@ public class SecurityDecisionPromptSections {
         }
         if (event.getTimestamp() != null) {
             if (promptConfig.isIncludeRawTimestamp()) {
-                section.append("Timestamp: ").append(event.getTimestamp()).append("\n");
+                section.append("Timestamp: ").append(event.getLocalTimestamp()).append("\n");
             }
         }
         if (userId != null) {
@@ -1204,7 +1219,7 @@ public class SecurityDecisionPromptSections {
         String currentHour = requestSnapshot.currentAccessHour();
         if (StringUtils.hasText(currentHour)) {
             int minute = event != null && event.getTimestamp() != null
-                    ? event.getTimestamp().getMinute()
+                    ? event.getLocalTimestamp().getMinute()
                     : 0;
             narrative.append(" at ").append(String.format("%02d:%02d",
                     safeParseHour(currentHour),
@@ -1349,6 +1364,7 @@ public class SecurityDecisionPromptSections {
                 SecuritySemanticNormalizer::sameNetwork);
         appendObservedPresence(section, "CurrentBrowser", currentBrowser, observedValues(observedPatterns, patterns, "browsers"), "CurrentBrowserPresentInObservedBrowsers", 96);
         appendObservedPresence(section, "CurrentOperatingSystem", currentOperatingSystem, observedValues(observedPatterns, patterns, "operatingSystems"), "CurrentOperatingSystemPresentInObservedOperatingSystems", 96);
+        appendDevicePresence(section, currentBrowser, currentOperatingSystem, observedPatterns, patterns);
         appendObservedPresence(section, "CurrentPathFamily", currentPathFamily, observedValues(observedPatterns, patterns, "paths"), "CurrentPathPresentInObservedPaths", 180);
         appendObservedPresence(section, "CurrentAuthenticationType", currentAuthenticationType, observedValues(observedPatterns, patterns, "authTypes"), "CurrentAuthenticationTypePresentInObservedAuthTypes", 96);
         appendObservedPresence(section, "CurrentActionFamily", currentActionFamily, observedValues(observedPatterns, patterns, "actionFamilies"), "CurrentActionFamilyPresentInObservedActions", 96);
@@ -1419,6 +1435,7 @@ public class SecurityDecisionPromptSections {
         appendCompactFact(section, "ObservedNetworks", joinValues(observedValues(observedPatterns, patterns, "networks")), 160);
         appendCompactFact(section, "ObservedBrowsers", joinValues(observedValues(observedPatterns, patterns, "browsers")), 140);
         appendCompactFact(section, "ObservedOperatingSystems", joinValues(observedValues(observedPatterns, patterns, "operatingSystems")), 140);
+        appendCompactFact(section, "ObservedDevices", joinValues(observedPatterns != null ? observedPatterns.devices() : List.of()), 180);
         appendCompactFact(section, "FrequentPaths", joinValues(observedValues(observedPatterns, patterns, "paths")), 180);
         appendCompactFact(section, "ObservedAuthenticationTypes", joinValues(observedValues(observedPatterns, patterns, "authTypes")), 120);
         appendCompactFact(section, "ObservedActionFamilies", joinValues(observedValues(observedPatterns, patterns, "actionFamilies")), 140);
@@ -1482,15 +1499,22 @@ public class SecurityDecisionPromptSections {
                         .append(String.format(Locale.ROOT, "%.1f", requestsPerMinute))
                         .append("\n");
 
-                if (behaviorAnalysis != null && behaviorAnalysis.getBaselineAvgRequestRate() != null
-                        && behaviorAnalysis.getBaselineAvgRequestRate() > 0) {
-                    double baselineRate = behaviorAnalysis.getBaselineAvgRequestRate();
-                    double ratio = requestsPerMinute / baselineRate;
-                    section.append("BaselineRequestsPerMinute: ")
-                            .append(String.format(Locale.ROOT, "%.1f", baselineRate))
+                // The usual rate counts requests per hour in which the subject made any; the session is compared in
+                // that unit, over the hours it spans (W2-3, S-29). A per-minute rate is never set against it.
+                BaselineView view = behaviorAnalysis != null && behaviorAnalysis.getLearningContextEvidence() != null
+                        ? behaviorAnalysis.getLearningContextEvidence().baselineView()
+                        : null;
+                Double usualRate = view != null && view.observed() ? view.requestsPerActiveHour() : null;
+                if (usualRate != null && usualRate > 0) {
+                    double sessionRate = (double) requestCount / Math.max(1, (int) Math.ceil(sessionAge / 60.0));
+                    section.append("SessionRequestsPerActiveHour: ")
+                            .append(String.format(Locale.ROOT, "%.2f", sessionRate))
+                            .append("\n");
+                    section.append("BaselineRequestsPerActiveHour: ")
+                            .append(String.format(Locale.ROOT, "%.2f", usualRate))
                             .append("\n");
                     section.append("SessionRateVsBaseline: ")
-                            .append(String.format(Locale.ROOT, "%.1fx", ratio))
+                            .append(String.format(Locale.ROOT, "%.1fx", sessionRate / usualRate))
                             .append("\n");
                 }
             }
@@ -1499,8 +1523,10 @@ public class SecurityDecisionPromptSections {
         List<String> recentActions = sessionContext.getRecentActions();
         if (recentActions != null && !recentActions.isEmpty()) {
             section.append("RecentSessionActionCount: ").append(recentActions.size()).append("\n");
+            // The sample is the session's most recent actions, the ones nearest this request.
             appendCompactFact(section, "RecentSessionActionSample",
-                    summarizeExamples(recentActions, 2, 140), 220);
+                    summarizeExamples(recentActions.subList(Math.max(0, recentActions.size() - 2), recentActions.size()),
+                            2, 140), 220);
         }
 
         return section.toString();
@@ -1675,7 +1701,7 @@ public class SecurityDecisionPromptSections {
         int maxLength = configuredMaxLength;
         for (int index = 0; index < representativeDocuments.size(); index++) {
             Document document = representativeDocuments.get(index);
-            String documentLine = buildDocumentMetadata(document, index + 1)
+            String documentLine = buildDocumentMetadata(document, index + 1, requestSubject(event))
                     + " "
                     + sanitizeRagEvidenceText(document.getText(), maxLength);
             appendCompactFact(section, "RagDocument" + (index + 1), documentLine, maxLength + 320);
@@ -1694,13 +1720,29 @@ public class SecurityDecisionPromptSections {
             }
             String signature = buildRagDocumentScopeReason(document)
                     + "|"
-                    + buildRagDocumentAuthorizationReason(document);
+                    + buildRagDocumentAuthorizationReason(document)
+                    + "|"
+                    + ragDocumentRecordIdentity(document);
             representatives.putIfAbsent(signature, document);
             if (representatives.size() >= maxDocuments) {
                 break;
             }
         }
         return List.copyOf(representatives.values());
+    }
+
+    // The scope and authorization reasons are the same for every record of one protected method now that the path
+    // family is a URL template, so the recorded request itself keeps distinct past records apart; only copies of
+    // one record share a line (W2-2 correction).
+    private String ragDocumentRecordIdentity(Document document) {
+        Map<String, Object> metadata = document.getMetadata();
+        String eventId = firstNonBlankText(metadata.get(VectorDocumentMetadata.EVENT_ID));
+        if (StringUtils.hasText(eventId)) {
+            return "event=" + eventId;
+        }
+        return joinReasonFacts(
+                "path", firstNonBlankText(metadata.get("requestPath"), metadata.get("resourcePath")),
+                "at", firstNonBlankText(metadata.get(VectorDocumentMetadata.TIMESTAMP)));
     }
 
     private void appendRagReasonFacts(
@@ -1721,15 +1763,13 @@ public class SecurityDecisionPromptSections {
         String currentPathFamily = firstNonBlankText(
                 metadataValue(metadata, "currentPathFamily"),
                 metadataValue(metadata, "pathFamily"),
-                SecuritySemanticNormalizer.normalizePathFamily(currentPath));
+                SecuritySemanticNormalizer.pathFamilyOf(metadata, currentPath));
         String currentResourceFamily = firstNonBlankText(
                 metadataValue(metadata, "currentResourceFamily"),
                 metadataValue(metadata, "resourceFamily"),
                 SecuritySemanticNormalizer.normalizeResourceFamily(
-                        metadataValue(metadata, "resourceType"),
-                        metadataValue(metadata, "businessLabel"),
-                        currentPath,
-                        metadataValue(metadata, "sensitivity")));
+                        metadataValue(metadata, "sensitivity"),
+                        metadataValue(metadata, "resourceType")));
         int summaryReasonLength = 620;
         int documentReasonLength = 900;
 
@@ -1770,33 +1810,19 @@ public class SecurityDecisionPromptSections {
 
     private String ragRelevance(SecurityEvent event, List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
-            return "NO_DOCUMENTS";
+            return PastRecordRelevance.NO_DOCUMENTS;
         }
-        Map<String, Object> eventMetadata = event != null && event.getMetadata() != null
-                ? event.getMetadata()
-                : Map.of();
-        String currentResource = firstNonBlankText(
-                eventMetadata.get("resourceId"),
-                eventMetadata.get("managedResourceId"),
-                eventMetadata.get("requestedResourceId"),
-                extractRequestPath(event));
-        if (!StringUtils.hasText(currentResource)) {
-            return "UNKNOWN";
-        }
-        boolean sameResource = documents.stream().allMatch(document -> {
-            Map<String, Object> documentMetadata = document != null && document.getMetadata() != null
-                    ? document.getMetadata()
-                    : Map.of();
-            String documentResource = firstNonBlankText(
-                    documentMetadata.get("resourceId"),
-                    documentMetadata.get("managedResourceId"),
-                    documentMetadata.get("requestPath"),
-                    documentMetadata.get("resourcePath"),
-                    document != null ? extractPathToken(document.getText()) : null);
-            return StringUtils.hasText(documentResource)
-                    && currentResource.trim().equalsIgnoreCase(documentResource.trim());
-        });
-        return sameResource ? "SAME_RESOURCE" : "MIXED_OR_DIFFERENT_RESOURCE";
+        // The path template and the target decide it, as for the canonical reasoning and the sealed evidence (W2-8).
+        return PastRecordRelevance.relevance(requestSubject(event), documents.stream()
+                .filter(Objects::nonNull)
+                .map(document -> PastRecordRelevance.Subject.ofRecord(document.getMetadata(), document.getText()))
+                .toList());
+    }
+
+    private PastRecordRelevance.Subject requestSubject(SecurityEvent event) {
+        return event == null
+                ? PastRecordRelevance.Subject.ofRequest(null, null)
+                : PastRecordRelevance.Subject.ofRequest(event.getMetadata(), event.getDescription());
     }
 
     private String buildRagDocumentScopeReason(Document document) {
@@ -1809,7 +1835,8 @@ public class SecurityDecisionPromptSections {
                 "pathFamily", firstNonBlankText(metadata.get("pathFamily"), metadata.get("requestPathFamily"),
                         SecuritySemanticNormalizer.normalizePathFamily(requestPath)),
                 "resourceFamily", firstNonBlankText(metadata.get("resourceFamily"), metadata.get("currentResourceFamily"),
-                        SecuritySemanticNormalizer.normalizeResourceFamily(requestPath)),
+                        SecuritySemanticNormalizer.normalizeResourceFamily(
+                                metadata.get("resourceSensitivity"), metadata.get("sensitivity"))),
                 "retrievalPurpose", firstNonBlankText(metadata.get(VectorDocumentMetadata.RETRIEVAL_PURPOSE), metadata.get("retrievalPurpose")),
                 "accessScope", firstNonBlankText(metadata.get(VectorDocumentMetadata.ACCESS_SCOPE), metadata.get("accessScope")),
                 "tenantBound", firstNonBlankText(metadata.get(VectorDocumentMetadata.TENANT_BOUND), metadata.get("tenantBound")));
@@ -2311,7 +2338,8 @@ public class SecurityDecisionPromptSections {
 
                 """.formatted(explicitSchema);
     }
-    DetectedPatterns collectDetectedPatterns(List<Document> relatedDocuments, String userId) {
+    DetectedPatterns collectDetectedPatterns(List<Document> relatedDocuments, String userId,
+                                             PastRecordRelevance.Subject request) {
         DetectedPatterns patterns = new DetectedPatterns();
         StringBuilder relatedContextBuilder = new StringBuilder();
 
@@ -2343,7 +2371,7 @@ public class SecurityDecisionPromptSections {
                     relatedContextBuilder.append("\n");
                 }
 
-                String docMeta = buildDocumentMetadata(doc, addedDocs + 1);
+                String docMeta = buildDocumentMetadata(doc, addedDocs + 1, request);
                 int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getRagDocument();
                 String truncatedContent = PromptTemplateUtils.truncate(content, maxLength);
 
@@ -2489,7 +2517,7 @@ public class SecurityDecisionPromptSections {
         return Optional.of(payload);
     }
 
-    private String buildDocumentMetadata(Document doc, int docIndex) {
+    private String buildDocumentMetadata(Document doc, int docIndex, PastRecordRelevance.Subject request) {
         StringBuilder meta = new StringBuilder();
         meta.append("[Doc").append(docIndex);
 
@@ -2538,12 +2566,17 @@ public class SecurityDecisionPromptSections {
                 SecuritySemanticNormalizer.normalizePathFamily(requestUri != null ? requestUri.toString() : null),
                 SecuritySemanticNormalizer.normalizePathFamily(extractPathToken(doc.getText())));
         appendDocumentTraceValue(meta, "pathFamily", documentPathFamily, 120);
+        if (request != null) {
+            // Whether the record acted on the request's target (W2-8): the path template's values, not the method.
+            appendDocumentTraceValue(meta, "sameTarget", PastRecordRelevance.sameTarget(
+                    request, PastRecordRelevance.Subject.ofRecord(metadata, doc.getText())), 8);
+        }
 
         String documentResourceFamily = firstNonBlankText(
                 metadata.get("resourceFamily"),
                 metadata.get("currentResourceFamily"),
-                SecuritySemanticNormalizer.normalizeResourceFamily(extractNamedToken(doc.getText(), "resource")),
-                SecuritySemanticNormalizer.normalizeResourceFamily(extractPathToken(doc.getText())));
+                SecuritySemanticNormalizer.normalizeResourceFamily(
+                        metadata.get("resourceSensitivity"), metadata.get("sensitivity")));
         appendDocumentTraceValue(meta, "resourceFamily", documentResourceFamily, 48);
 
         appendDocumentTrace(meta, metadata, VectorDocumentMetadata.AUTHORIZATION_DECISION, "authorization", 48);
@@ -3079,6 +3112,35 @@ public class SecurityDecisionPromptSections {
                 .append("\n");
     }
 
+    /**
+     * The device as one dimension (W2-4): the browser on the operating system, compared by the rule of the learning
+     * evidence, so the line agrees with the device delta and with NewDevice.
+     */
+    private void appendDevicePresence(
+            StringBuilder section,
+            String currentBrowser,
+            String currentOperatingSystem,
+            ObservedPatternSnapshot observedPatterns,
+            DetectedPatterns fallbackPatterns) {
+        String device = SecuritySemanticNormalizer.device(currentBrowser, currentOperatingSystem);
+        if (!StringUtils.hasText(device)) {
+            String unavailable = "UNKNOWN - current value unavailable; do not infer baseline membership";
+            appendCompactFact(section, "CurrentDevice", unavailable, 120);
+            section.append("CurrentDevicePresentInObservedDevices: ").append(unavailable).append("\n");
+            return;
+        }
+        appendCompactFact(section, "CurrentDevice", device, 120);
+        Boolean held = ObservedPatternSnapshot.holdsDevice(
+                observedPatterns != null ? observedPatterns.devices() : List.of(),
+                observedValues(observedPatterns, fallbackPatterns, "browsers"),
+                observedValues(observedPatterns, fallbackPatterns, "operatingSystems"),
+                currentBrowser,
+                currentOperatingSystem);
+        section.append("CurrentDevicePresentInObservedDevices: ")
+                .append(held == null ? "UNKNOWN" : held)
+                .append("\n");
+    }
+
     private List<String> observedValues(ObservedPatternSnapshot observedPatterns, DetectedPatterns fallbackPatterns, String dimension) {
         if (observedPatterns != null) {
             return switch (dimension) {
@@ -3102,7 +3164,10 @@ public class SecurityDecisionPromptSections {
             case "days" -> sortedValues(fallbackPatterns.daySet);
             case "networks" -> sortedValues(normalizeIPSet(fallbackPatterns.ipSet));
             case "browsers" -> sortedValues(fallbackPatterns.uaSet);
-            case "operatingSystems" -> sortedValues(fallbackPatterns.osSet);
+            case "operatingSystems" -> sortedValues(fallbackPatterns.osSet.stream()
+                    .map(SecuritySemanticNormalizer::normalizeOperatingSystem)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
             case "paths" -> sortedValues(fallbackPatterns.pathSet);
             default -> List.of();
         };
@@ -3168,24 +3233,8 @@ public class SecurityDecisionPromptSections {
         meta.append("|").append(label).append("=").append(text);
     }
 
-    private String extractNamedToken(String text, String key) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) {
-            return null;
-        }
-        Matcher matcher = Pattern
-                .compile("(?i)(?:^|[\\s,;|])" + Pattern.quote(key.trim()) + "\\s*=\\s*([^\\s,;|.\\]]+)")
-                .matcher(text);
-        return matcher.find() ? matcher.group(1).trim() : null;
-    }
-
     private String extractPathToken(String text) {
-        if (!StringUtils.hasText(text)) {
-            return null;
-        }
-        Matcher matcher = Pattern
-                .compile("(/[^\\s,;|\\]]+)")
-                .matcher(text);
-        return matcher.find() ? matcher.group(1).trim() : null;
+        return PastRecordRelevance.pathToken(text);
     }
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);
@@ -3198,7 +3247,8 @@ public class SecurityDecisionPromptSections {
 
         Set<String> normalized = new LinkedHashSet<>();
         for (String ip : ipSet) {
-            normalized.add(SecurityEventEnricher.normalizeIP(ip));
+            // One network form (W2-4): an address and a learned prefix both read as their /24 band.
+            normalized.add(SecuritySemanticNormalizer.normalizeNetwork(null, SecurityEventEnricher.normalizeIP(ip)));
         }
         return normalized;
     }
@@ -3208,7 +3258,7 @@ public class SecurityDecisionPromptSections {
             return null;
         }
         if (event.getTimestamp() != null) {
-            return event.getTimestamp().getHour();
+            return event.getLocalTimestamp().getHour();
         }
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null) {
@@ -3237,7 +3287,7 @@ public class SecurityDecisionPromptSections {
         String requestPath = extractRequestPath(event);
         return new CurrentRequestSnapshot(
                 event != null && event.getTimestamp() != null
-                        ? event.getTimestamp().toString()
+                        ? event.getLocalTimestamp().toString()
                         : null,
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().accessHour()
@@ -3253,36 +3303,56 @@ public class SecurityDecisionPromptSections {
                 requestPath,
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().pathFamily()
-                        : SecuritySemanticNormalizer.normalizePathFamily(requestPath),
+                        : currentPathFamily(canonicalSecurityContext, metadata, requestPath),
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().actionFamily()
-                        : SecuritySemanticNormalizer.normalizeActionFamily(
-                        metadata != null ? metadata.get("actionFamily") : null,
-                        canonicalSecurityContext != null && canonicalSecurityContext.getRoleScopeProfile() != null
-                                ? canonicalSecurityContext.getRoleScopeProfile().getCurrentActionFamily()
-                                : null,
-                        metadata != null ? metadata.get("httpMethod") : null),
+                        : currentActionFamily(canonicalSecurityContext, metadata),
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().resourceFamily()
                         : SecuritySemanticNormalizer.normalizeResourceFamily(
+                        metadata != null ? metadata.get("resourceSensitivity") : null,
+                        metadata != null ? metadata.get("resourceFamily") : null,
                         canonicalSecurityContext != null && canonicalSecurityContext.getRoleScopeProfile() != null
                                 ? canonicalSecurityContext.getRoleScopeProfile().getCurrentResourceFamily()
                                 : null,
-                        metadata != null ? metadata.get("resourceFamily") : null,
-                        metadata != null ? metadata.get("resourceType") : null,
-                        metadata != null ? metadata.get("resourceCategory") : null,
-                        metadata != null ? metadata.get("resourceSensitivity") : null),
+                        metadata != null ? metadata.get("resourceType") : null),
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().browser()
                         : resolveCurrentBrowser(event),
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().operatingSystem()
-                        : resolveCurrentOperatingSystem(event),
+                        : SecuritySemanticNormalizer.normalizeOperatingSystem(resolveCurrentOperatingSystem(event)),
                 learningEvidence != null && learningEvidence.current() != null
                         ? learningEvidence.current().network()
                         : SecuritySemanticNormalizer.normalizeNetwork(
                         event != null ? event.getSourceIp() : null,
                         metadata != null ? firstNonBlankText(metadata.get("ipBand")) : null));
+    }
+
+    /**
+     * The request's action family when no learning evidence carries it: the one the context resolved, else the one
+     * the request's facts name, in the same order of sources.
+     */
+    private static String currentActionFamily(CanonicalSecurityContext context, Map<String, Object> metadata) {
+        if (context != null && context.getResource() != null
+                && StringUtils.hasText(context.getResource().getActionFamily())) {
+            return ActionFamily.nameOrRaw(context.getResource().getActionFamily());
+        }
+        ActionFamily family = ActionFamilyResolver.resolve(metadata).family();
+        return family != ActionFamily.UNKNOWN ? family.name() : null;
+    }
+
+    /**
+     * The request's path family when no learning evidence carries it: the one the context resolved, else the host's
+     * URL template or the generalized path, by the same rule.
+     */
+    private static String currentPathFamily(CanonicalSecurityContext context, Map<String, Object> metadata,
+            String requestPath) {
+        if (context != null && context.getResource() != null
+                && StringUtils.hasText(context.getResource().getPathFamily())) {
+            return context.getResource().getPathFamily();
+        }
+        return SecuritySemanticNormalizer.pathFamilyOf(metadata, requestPath);
     }
 
     private int safeParseHour(String value) {
@@ -3301,7 +3371,7 @@ public class SecurityDecisionPromptSections {
         if (event == null || event.getTimestamp() == null) {
             return null;
         }
-        return event.getTimestamp().getDayOfWeek().getValue();
+        return event.getLocalTimestamp().getDayOfWeek().getValue();
     }
 
     private String resolveCurrentNetwork(SecurityEvent event) {
@@ -3620,6 +3690,11 @@ public class SecurityDecisionPromptSections {
     private String resolveWorkProfileEvidenceState(
             BaselineStatus baselineStatus,
             LearningContextEvidence learningEvidence) {
+        // The same state the work profile section states, from the one usual-behaviour view (W2-3, B-2).
+        if (learningEvidence != null && learningEvidence.baselineView() != null
+                && learningEvidence.baselineView().observed()) {
+            return learningEvidence.baselineView().workProfileEvidenceState();
+        }
         if (baselineStatus == BaselineStatus.ESTABLISHED) {
             return "TRUSTED";
         }

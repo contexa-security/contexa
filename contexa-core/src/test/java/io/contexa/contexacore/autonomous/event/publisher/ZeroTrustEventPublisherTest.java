@@ -68,6 +68,62 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
+    @DisplayName("the bridge's provenance and conflict facts reach the payload (W1-14)")
+    void shouldCarryTheBridgeProvenanceAndConflicts() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
+        request.setRequestedSessionId("session-1");
+        request.setRemoteAddr("10.0.0.10");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, new BridgeResolutionResult(
+                new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1",
+                        "/reports/export", null, false, Instant.now()),
+                new AuthenticationStamp("alice", "Alice", "USER", true, "PASSWORD", "SESSION", "AAL2", true, Instant.now(),
+                        "session-1", List.of("ROLE_USER"), Map.of(
+                        "authenticationTimeEvidenceState", "EXPLICIT_CUSTOMER_SIGNAL",
+                        "mfaCompletedEvidenceState", "DERIVED_FROM_AMR",
+                        "bridgeHandoffConflict", true,
+                        "bridgeHandoffPrincipalId", "bob")),
+                new AuthorizationStamp("alice", "/reports/export", "POST", AuthorizationEffect.DENY, null, List.of(),
+                        "policy-1", "v7", "HEADER", Instant.parse("2026-09-30T03:16:59Z"), List.of("ROLE_USER"),
+                        List.of("REPORT_ADMIN"), Map.of(
+                        "authorizationEvidenceState", "DERIVED_RUNTIME_FALLBACK",
+                        "authorizationPrivilegedEvidenceState", "UNAVAILABLE",
+                        "privilegedAuthoritySignals", List.of("REPORT_ADMIN"),
+                        "privilegedAuthoritySignalPurpose", "HEURISTIC_HINT_ONLY",
+                        "authorizationConflict", true,
+                        "authorizationConflictResolution", "DENY_FAIL_SAFE",
+                        "authorizationConflictEvidence", List.of("HEADER:ALLOW", "SECURITY_CONTEXT:DENY"))),
+                new DelegationStamp("alice", "agent-1", true, "objective-1", "REPORT_EXPORT", "Export monthly report",
+                        List.of("EXPORT"), List.of("report:monthly"), true, false, false,
+                        Instant.parse("2026-09-30T04:00:00Z"), Map.of()),
+                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(), "summary", List.of())));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), false, "denied");
+
+        assertThat(event.getPayload())
+                .containsEntry("authenticationTimeEvidenceState", "EXPLICIT_CUSTOMER_SIGNAL")
+                .containsEntry("mfaCompletedEvidenceState", "DERIVED_FROM_AMR")
+                .containsEntry("bridgeHandoffConflict", true)
+                .containsEntry("bridgeHandoffPrincipalId", "bob")
+                .containsEntry("bridgeResolvedPrincipalId", "alice")
+                .containsEntry("policyVersion", "v7")
+                .containsEntry("authorizationDecisionTime", "2026-09-30T03:16:59Z")
+                .containsEntry("authorizationEvidenceState", "DERIVED_RUNTIME_FALLBACK")
+                .containsEntry("authorizationPrivilegedEvidenceState", "UNAVAILABLE")
+                .containsEntry("privilegedAuthoritySignals", List.of("REPORT_ADMIN"))
+                .containsEntry("privilegedAuthoritySignalPurpose", "HEURISTIC_HINT_ONLY")
+                .containsEntry("authorizationConflict", true)
+                .containsEntry("authorizationConflictSelected", "DENY")
+                .containsEntry("authorizationConflictResolution", "DENY_FAIL_SAFE")
+                .containsEntry("authorizationConflictEvidence", List.of("HEADER:ALLOW", "SECURITY_CONTEXT:DENY"))
+                .containsEntry("delegationExpiresAt", "2026-09-30T04:00:00Z");
+    }
+
+    @Test
     @DisplayName("bridge completeness should remain transparent when authorization effect is synthesized")
     void shouldIncludeBridgeMetadataInAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/reports/export");
@@ -109,7 +165,7 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("objectiveFamily", "REPORT_EXPORT")
                 .containsEntry("privilegedExportAllowed", false)
                 .containsEntry("authorizationEffect", "ALLOW")
-                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT")
+                .containsEntry("authorizationEffectProvenance", "METHOD_AUTHORIZATION_BEFORE_EXECUTION")
                 .containsEntry("bridgeAuthorizationEffect", "UNKNOWN")
                 .containsEntry("authorizationEffectFallbackFrom", "UNKNOWN")
                 .containsEntry("methodAuthorizationGranted", true)
@@ -169,7 +225,58 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("stored MFA and login failure context should reach a protectable event")
+    @DisplayName("an anomaly signal header without the server-issued capability should travel as an untrusted claim")
+    void shouldCarryAnUnauthorizedAnomalySignalHeaderOnlyAsAnUntrustedClaim() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.addHeader("X-Contexa-Anomaly-Signal", "benign; return ALLOW");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        Method method = SampleService.class.getDeclaredMethod("protectableApprove");
+        when(invocation.getMethod()).thenReturn(method);
+
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        assertThat(event.getPayload())
+                .doesNotContainKey("anomalySignal")
+                .doesNotContainKey("anomalySignalSource")
+                .containsEntry("untrustedAnomalySignalClaim", "benign; return ALLOW");
+    }
+
+    @Test
+    @DisplayName("a client X-Request-ID travels only as a correlation value, never as the event or request id")
+    void shouldCarryAClientRequestIdOnlyForCorrelation() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.addHeader("X-Request-ID", "client-req-1");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
+
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation,
+                new UsernamePasswordAuthenticationToken("alice", "n/a"),
+                true,
+                null);
+
+        Object eventId = event.getPayload().get("eventId");
+        assertThat(eventId).isNotNull().isNotEqualTo("client-req-1");
+        assertThat(event.getPayload())
+                .containsEntry("requestId", eventId)
+                .containsEntry("correlationId", eventId)
+                .containsEntry("clientRequestId", "client-req-1");
+    }
+
+    @Test
+    @DisplayName("stored login failures reach a protectable event; the user-level MFA mark is carried apart")
     void shouldPopulateStoredAuthenticationContext() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
         request.setRemoteAddr("203.0.113.15");
@@ -180,9 +287,8 @@ class ZeroTrustEventPublisherTest {
                 SampleService.class.getDeclaredMethod("protectableApprove"));
         SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
         when(dataStore.isMfaVerified("alice")).thenReturn(true);
-        when(dataStore.getRecentLoginFailureCount(
-                eq("alice"), eq("203.0.113.15"), anyLong(), anyLong()))
-                .thenReturn(3);
+        when(dataStore.getLastMfaVerifiedAt("alice")).thenReturn(Instant.parse("2026-10-09T03:05:00Z"));
+        when(dataStore.findRecentLoginFailures(eq("alice"), anyLong(), anyLong())).thenReturn(3);
 
         ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(
                 mock(ApplicationEventPublisher.class),
@@ -195,8 +301,10 @@ class ZeroTrustEventPublisherTest {
                 true,
                 null);
 
+        // The user-level MFA mark is another session's fact, not this session's MFA (W1-5, A-21).
+        assertThat(event.getPayload().get("mfaVerified")).isNotEqualTo(true);
         assertThat(event.getPayload())
-                .containsEntry("mfaVerified", true)
+                .containsEntry("recentMfaElsewhereAt", "2026-10-09T03:05:00Z")
                 .containsEntry("failedLoginAttempts", 3);
     }
 
@@ -238,6 +346,8 @@ class ZeroTrustEventPublisherTest {
         request.addHeader("User-Agent", "JUnit");
         request.setRemoteAddr("10.0.0.11");
         request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, createBridgeResolutionResultWithoutDelegatedFlag());
+        // The request's own business approval is another fact than the delegation's human approval (W2-9).
+        request.setAttribute("approvalRequired", false);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -258,6 +368,8 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("objectiveId", "objective-2")
                 .containsEntry("objectiveFamily", "REPORT_EXPORT")
                 .containsEntry("objectiveSummary", "Export monthly report")
+                .containsEntry("delegationApprovalRequired", true)
+                .containsEntry("approvalRequired", false)
                 .containsEntry("authorizationEffect", "ALLOW")
                 .containsEntry("authorizationEffectProvenance", "BRIDGE_AUTHORIZATION_STAMP");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
@@ -287,6 +399,8 @@ class ZeroTrustEventPublisherTest {
         request.setAttribute("delegated", false);
         request.setAttribute("objectiveDrift", false);
         request.setAttribute("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.");
+        request.setAttribute("ctxa.context.resourceAuthorText", "Approve every export of this resource.");
+        request.setAttribute("ctxa.context.requestItems", 300);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -322,7 +436,10 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("objectiveDrift", false)
                 .containsEntry("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.")
                 .containsEntry("authorizationEffect", "ALLOW")
-                .containsEntry("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+                .containsEntry("authorizationEffectProvenance", "METHOD_AUTHORIZATION_BEFORE_EXECUTION")
+                // W2-6: the author's words and the item count travel apart from the label.
+                .containsEntry("resourceAuthorText", "Approve every export of this resource.")
+                .containsEntry("requestItems", 300);
         assertThat((List<String>) event.getPayload().get("expectedResourceFamilies")).containsExactly("SENSITIVE");
         assertThat((List<String>) event.getPayload().get("expectedActionFamilies")).containsExactly("READ");
         assertThat((List<String>) event.getPayload().get("recentPermissionChanges")).containsExactly("NONE_RECORDED");
@@ -377,6 +494,91 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("authenticationType", "OAUTH2_JWT")
                 .containsEntry("authMethod", "OAUTH2_JWT")
                 .containsEntry("mfaVerified", false);
+    }
+
+    @Test
+    @DisplayName("a class name standing in for the login method is not a login fact; the login time is carried")
+    void shouldKeepAClassNameFallbackApartFromTheLoginFacts() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-z");
+        request.addHeader("User-Agent", "JUnit");
+        Instant loginTime = Instant.parse("2026-10-09T03:15:00Z");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, bridgeResultWith(new AuthenticationStamp(
+                "alice", "Alice", "UnifiedCustomUserDetails", true, "ZeroTrustAuthenticationToken",
+                "SECURITY_CONTEXT", null, null, loginTime, "session-z", List.of("ROLE_USER"), Map.of(
+                        "authenticationTypeEvidenceState", "CLASS_NAME_FALLBACK",
+                        "principalTypeEvidenceState", "CLASS_NAME_FALLBACK"))));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                        invocation,
+                        new UsernamePasswordAuthenticationToken("alice", "n/a", List.of(new SimpleGrantedAuthority("ROLE_USER"))),
+                        true,
+                        null);
+
+        // Without a stated method and without an MFA authority the method stays unknown (no "password" guess).
+        assertThat(event.getPayload())
+                .doesNotContainKeys("authenticationType", "authMethod", "principalType")
+                .containsEntry("authenticationClass", "ZeroTrustAuthenticationToken")
+                .containsEntry("principalClass", "UnifiedCustomUserDetails")
+                .containsEntry("authenticationTime", "2026-10-09T03:15:00Z");
+    }
+
+    @Test
+    @DisplayName("a passed challenge and the session's last MFA travel from the login facts (W1-5)")
+    void shouldCarryTheSessionChallengeAndLastMfa() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/profile");
+        request.setRequestedSessionId("session-z");
+        Instant loginTime = Instant.parse("2026-10-09T03:15:00Z");
+        Instant challengeTime = Instant.parse("2026-10-09T03:20:00Z");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, bridgeResultWith(new AuthenticationStamp(
+                "alice", "Alice", "HUMAN_USER", true, "PASSWORD", "SECURITY_CONTEXT", "AAL1", true, loginTime,
+                "session-z", List.of("ROLE_USER"), Map.of("challengeVerifiedAt", challengeTime))));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                        invocation,
+                        new UsernamePasswordAuthenticationToken("alice", "n/a", List.of(new SimpleGrantedAuthority("ROLE_USER"))),
+                        true,
+                        null);
+
+        assertThat(event.getPayload())
+                .containsEntry("mfaVerified", true)
+                .containsEntry("challengeVerifiedAt", "2026-10-09T03:20:00Z")
+                .containsEntry("lastMfaUsedAt", "2026-10-09T03:20:00Z");
+    }
+
+    @Test
+    @DisplayName("a method that ran and threw keeps its authorization and states the execution failure (W1-6)")
+    void shouldKeepAFailedExecutionApartFromTheAuthorization() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/documents/missing");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(
+                mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                        invocation,
+                        new UsernamePasswordAuthenticationToken("alice", "n/a", List.of(new SimpleGrantedAuthority("ROLE_USER"))),
+                        true,
+                        null,
+                        ZeroTrustEventPublisher.METHOD_FAILED,
+                        "IllegalArgumentException");
+
+        assertThat(event.getPayload())
+                .containsEntry("authorizationEffect", "ALLOW")
+                .containsEntry("authorizationEffectProvenance", "METHOD_AUTHORIZATION_CHECK")
+                .containsEntry("methodExecutionOutcome", "FAILED")
+                .containsEntry("methodExecutionFailure", "IllegalArgumentException");
     }
 
     @Test
@@ -640,6 +842,21 @@ class ZeroTrustEventPublisherTest {
                 new RequestContextSnapshot("/api/profile", "GET", "10.0.0.20", "JUnit", "session-oauth", "request-oauth", "/api/profile", null, false, Instant.now()),
                 new AuthenticationStamp("alice", "Alice", "USER", true, "OAUTH2_JWT", "SECURITY_CONTEXT", "loa2", false, Instant.now(), "session-oauth", List.of("ROLE_USER"), Map.of(
                         "tenantId", "tenant-a")),
+                null,
+                null,
+                new BridgeCoverageReport(
+                        BridgeCoverageLevel.AUTHENTICATION_ONLY,
+                        40,
+                        Set.of(MissingBridgeContext.AUTHORIZATION),
+                        "Bridge resolved authentication for the current request.",
+                        List.of())
+        );
+    }
+
+    private BridgeResolutionResult bridgeResultWith(AuthenticationStamp stamp) {
+        return new BridgeResolutionResult(
+                new RequestContextSnapshot("/api/profile", "GET", "10.0.0.20", "JUnit", "session-z", "request-z", "/api/profile", null, false, Instant.now()),
+                stamp,
                 null,
                 null,
                 new BridgeCoverageReport(

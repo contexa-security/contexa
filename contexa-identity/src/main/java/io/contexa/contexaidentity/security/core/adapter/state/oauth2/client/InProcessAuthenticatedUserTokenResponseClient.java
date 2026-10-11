@@ -49,6 +49,7 @@ public final class InProcessAuthenticatedUserTokenResponseClient
                             request,
                             grantRequest.getUsername(),
                             grantRequest.getDeviceId(),
+                            grantRequest.getLoginFacts(),
                             clientRegistration.getClientId(),
                             clientRegistration.getClientSecret(),
                             clientRegistration.getScopes()));

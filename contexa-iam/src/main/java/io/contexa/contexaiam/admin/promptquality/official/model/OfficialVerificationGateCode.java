@@ -13,6 +13,10 @@ public enum OfficialVerificationGateCode {
     RAW_USER_PROMPT,
     FINAL_LLM_PROMPT,
     PROMPT_HASH,
+    /**
+     * No longer evaluated: it compared the sealed prompt hash with the same hash carried by the replay, so it always
+     * passed. The deterministic replay checks decide replay (DETERMINISTIC_REPLAY). Kept for stored verdicts.
+     */
     REPLAY_HASH,
     GOVERNANCE_DESCRIPTOR,
     PROMPT_EVIDENCE_MANIFEST,

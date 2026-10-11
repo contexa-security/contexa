@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
@@ -85,7 +86,7 @@ class RoleScopeCollectorStoreParityTest {
             boolean granted) {
         SecurityEvent event = SecurityEvent.builder()
                 .userId("alice")
-                .timestamp(timestamp)
+                .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("tenantId", "tenant-acme");
         event.addMetadata("effectiveRoles", effectiveRoles);

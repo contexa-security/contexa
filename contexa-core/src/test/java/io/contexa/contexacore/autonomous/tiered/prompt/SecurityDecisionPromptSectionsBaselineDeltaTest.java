@@ -15,7 +15,14 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
+import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidenceAssembler;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentLearningContextSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentVsObservedDeltaSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
@@ -29,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,7 +53,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-baseline-delta-001")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 16, 4))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 16, 4).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-baseline-delta")
                 .sourceIp("10.10.0.20")
@@ -137,6 +145,10 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
         assertThat(section).contains("CurrentNetworkPresentInObservedNetworks: true");
         assertThat(section).contains("CurrentBrowserPresentInObservedBrowsers: true");
         assertThat(section).contains("CurrentOperatingSystemPresentInObservedOperatingSystems: true");
+        // W2-4: one device line; a baseline without device pairs compares the browser and the system one by one.
+        assertThat(section).contains("CurrentDevice: Chrome/120 on WINDOWS");
+        assertThat(section).contains("CurrentDevicePresentInObservedDevices: true");
+        assertThat(section).doesNotContain("\nObservedDevices:");
         assertThat(section).contains("CurrentPathPresentInObservedPaths: true");
         assertThat(section).contains("CurrentVsObservedDeltaCount: 1");
         assertThat(section).contains("StrongestCurrentVsObservedDelta: access hour outside observed hours");
@@ -160,6 +172,51 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
         assertThat(withoutRepeatedState).contains("BaselineProfileStatus: ESTABLISHED")
                 .contains("CurrentAccessHourPresentInObservedHours: false")
                 .doesNotContain("WorkProfileEvidenceState:");
+    }
+
+    @Test
+    void theDeviceIsOneLineComparedByTheLearnedPairs() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-device-001")
+                .timestamp(LocalDateTime.of(2026, 4, 17, 10, 4).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-device")
+                .sourceIp("10.10.0.20")
+                .build();
+        event.addMetadata("requestPath", "/api/reports/r-1");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(LearningEvidenceScope.PERSONAL, true,
+                true, 20L, 0.9, List.of("10.10.0"), List.of("10"), List.of("5"), List.of("Chrome/120", "Safari/18"),
+                List.of("Mac", "Windows"), List.of("/api/reports/{id}"), List.of("PASSWORD"), List.of("READ"),
+                List.of("NORMAL"), "personal baseline established", BaselineEvidenceStatus.AVAILABLE, "",
+                List.of("Chrome/120 on WINDOWS", "Safari/18 on MAC")));
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .device(CanonicalSecurityContext.Device.builder().browser("Safari").browserVersion("18").os("WINDOWS").build())
+                .location(CanonicalSecurityContext.Location.builder().ipBand("10.10.0.0/24").build())
+                .build();
+        behaviorAnalysis.setLearningContextEvidence(
+                new LearningContextEvidenceAssembler().assemble("alice", event, context, behaviorAnalysis, List.of()));
+
+        String section = sections.buildUserProfileNarrative(event,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(), behaviorAnalysis, BaselineStatus.ESTABLISHED);
+
+        // A learned prefix is the same band; the browser and the system were each seen, never together: one delta.
+        assertThat(section)
+                .contains("CurrentNetworkPresentInObservedNetworks: true")
+                .contains("ObservedNetworks: 10.10.0.0/24")
+                .contains("ObservedOperatingSystems: MAC, WINDOWS")
+                .contains("CurrentBrowserPresentInObservedBrowsers: true")
+                .contains("CurrentOperatingSystemPresentInObservedOperatingSystems: true")
+                .contains("CurrentDevice: Safari/18 on WINDOWS")
+                .contains("CurrentDevicePresentInObservedDevices: false")
+                .contains("ObservedDevices: Chrome/120 on WINDOWS, Safari/18 on MAC")
+                .contains("CurrentVsObservedDeltaCount: 1")
+                .contains("CurrentVsObservedDeltaSummary: device outside observed devices");
     }
 
     @Test
@@ -235,7 +292,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-baseline-delta-missing-observed")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-baseline-delta-missing")
                 .sourceIp("10.10.0.20")
@@ -283,5 +340,112 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
         assertThat(section).contains("ObservedPatternEvidenceScope: PERSONAL_BASELINE_ONLY");
         assertThat(section).contains("StrongestCurrentVsObservedDelta: insufficient observed evidence");
         assertThat(section).contains("CurrentVsObservedDeltaSummary: current-vs-observed comparison not reliable");
+    }
+
+    @Test
+    @DisplayName("buildUserProfileNarrative should name the request's action as the context gives it without learning evidence")
+    void buildUserProfileNarrativeShouldNameTheActionTheContextGivesTheRequestWithoutLearningEvidence() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-export-without-learning-evidence")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 3, 17).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-export")
+                .sourceIp("10.10.0.20")
+                .build();
+        event.addMetadata("requestPath", "/api/projects/GB-500/exports");
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("protectableMethod", "io.contexa.example.BusinessOperations.exportDocuments");
+
+        String section = sections.buildUserProfileNarrative(
+                event,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                BaselineStatus.ESTABLISHED);
+
+        // A bulk export sent as a POST is an export here as in the context, not a write read from the HTTP method.
+        assertThat(section).contains("CurrentActionFamily: EXPORT").doesNotContain("CurrentActionFamily: WRITE");
+    }
+
+    @Test
+    @DisplayName("the user profile states the work profile evidence of the one baseline view and the session rate in its unit")
+    void theUserProfileAndTheSessionTimelineReadTheBaselineView() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+        List<BaselineViewCalculator.Observation> observations = new ArrayList<>();
+        long now = LocalDateTime.of(2026, 10, 7, 14, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        for (int index = 0; index < 20; index++) {
+            observations.add(new BaselineViewCalculator.Observation(
+                    LocalDateTime.of(2026, 10, 6, 10 + index % 4, index).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                    "READ", "protectableMethod", true, "INTERNAL", null, "/api/documents/D-" + index, null, true));
+        }
+        BaselineView view = BaselineViewCalculator.calculate(observations, now, ZoneOffset.UTC);
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setLearningContextEvidence(new LearningContextEvidence(
+                new CurrentLearningContextSnapshot("10", "2", "CORPORATE", null, "Windows", "/api/documents/*", "PASSWORD", "READ", "NORMAL"),
+                null, null, List.of(), List.of(),
+                new ObservedPatternSnapshot(List.of(), List.of("10", "11", "12", "13"), List.of(), List.of(), List.of(),
+                        List.of(), List.of(), List.of(), List.of()),
+                List.of(), List.of(), List.of(), view));
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-baseline-view")
+                .timestamp(LocalDateTime.of(2026, 10, 7, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .build();
+
+        String profile = sections.buildUserProfileNarrative(event, new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                behaviorAnalysis, BaselineStatus.ESTABLISHED);
+        SecurityDecisionStandardPromptTemplate.SessionContext session = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        session.setSessionAgeMinutes(90);
+        session.setRequestCount(10);
+        String timeline = sections.buildSessionTimelineSection(session, behaviorAnalysis);
+
+        // B-2: an established baseline whose actions are inferred is still provisional evidence, as the work profile says.
+        assertThat(profile).contains("WorkProfileEvidenceState: PROVISIONAL").doesNotContain("WorkProfileEvidenceState: TRUSTED");
+        // S-29: 10 requests over the 2 hours the session spans against the usual 5 per active hour.
+        assertThat(view.requestsPerActiveHour()).isEqualTo(5.0);
+        assertThat(timeline)
+                .contains("SessionRequestsPerMinute: 0.1")
+                .contains("SessionRequestsPerActiveHour: 5.00")
+                .contains("BaselineRequestsPerActiveHour: 5.00")
+                .contains("SessionRateVsBaseline: 1.0x")
+                .doesNotContain("BaselineRequestsPerMinute");
+    }
+
+    @Test
+    @DisplayName("buildUserProfileNarrative should name the request's path family as the host's URL template without learning evidence")
+    void buildUserProfileNarrativeShouldNameThePathFamilyAsTheHostsUrlTemplateWithoutLearningEvidence() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-read-without-learning-evidence")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 5).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-read")
+                .sourceIp("10.10.0.20")
+                .build();
+        event.addMetadata("requestPath", "/api/documents/HX-310-DWG-00001");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("protectableResourceUrl", "/api/documents/{documentKey}");
+
+        String section = sections.buildUserProfileNarrative(
+                event,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                BaselineStatus.ESTABLISHED);
+
+        // Reading another document is the same kind of request here as in the context (W2-2).
+        assertThat(section).contains("CurrentPathFamily: /api/documents/{documentKey}")
+                .doesNotContain("CurrentPathFamily: /api/documents/HX-310-DWG-00001");
     }
 }

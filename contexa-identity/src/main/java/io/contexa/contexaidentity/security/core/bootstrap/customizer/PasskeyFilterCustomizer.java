@@ -29,7 +29,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpMethod;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsSuccessHandler;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.authentication.HttpMessageConverterAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.ui.DefaultResourcesFilter;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -156,6 +158,11 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                     }
                     if (successHandler != null) {
                         authFilter.setAuthenticationSuccessHandler(successHandler);
+                    } else {
+                        // Single-factor session passkey login keeps Spring's default response; the passkey filter
+                        // builds its own provider, so the login facts are recorded in front of that handler.
+                        authFilter.setAuthenticationSuccessHandler(
+                                new LoginFactsSuccessHandler(new HttpMessageConverterAuthenticationSuccessHandler()));
                     }
                     if (failureHandler != null) {
                         authFilter.setAuthenticationFailureHandler(failureHandler);

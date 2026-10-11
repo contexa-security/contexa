@@ -17,6 +17,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +57,9 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             log.error("Response already committed for user: {}", authentication.getName());
             return;
         }
+
+        // The session holds this same authentication, so the facts are stored with it before the response is written.
+        LoginFactsRecorder.recordSingleFactor(authentication, request);
 
         if (loginPolicyHandler != null) {
             try {

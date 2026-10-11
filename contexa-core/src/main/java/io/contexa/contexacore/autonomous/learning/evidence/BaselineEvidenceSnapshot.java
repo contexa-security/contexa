@@ -15,8 +15,17 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
+/**
+ * A baseline as the decision evidence reads it.
+ *
+ * @param elementFrequencies how many learned requests held each value, by the baseline's own keys ({@code ip:},
+ *                           {@code device:}, {@code auth:} and so on); empty when the baseline keeps none (W2-5)
+ */
 public record BaselineEvidenceSnapshot(
         LearningEvidenceScope scope,
         boolean available,
@@ -34,7 +43,58 @@ public record BaselineEvidenceSnapshot(
         List<String> resourceFamilies,
         String summary,
         BaselineEvidenceStatus status,
-        String diagnostic) {
+        String diagnostic,
+        List<String> devices,
+        Map<String, Long> elementFrequencies) {
+
+    /** The snapshot without element frequencies, as before W2-5. */
+    public BaselineEvidenceSnapshot(
+            LearningEvidenceScope scope,
+            boolean available,
+            boolean established,
+            Long updateCount,
+            Double averageTrustScore,
+            List<String> networks,
+            List<String> accessHours,
+            List<String> accessDays,
+            List<String> browsers,
+            List<String> operatingSystems,
+            List<String> pathFamilies,
+            List<String> authenticationTypes,
+            List<String> actionFamilies,
+            List<String> resourceFamilies,
+            String summary,
+            BaselineEvidenceStatus status,
+            String diagnostic,
+            List<String> devices) {
+        this(scope, available, established, updateCount, averageTrustScore, networks, accessHours, accessDays, browsers,
+                operatingSystems, pathFamilies, authenticationTypes, actionFamilies, resourceFamilies, summary, status,
+                diagnostic, devices, Map.of());
+    }
+
+    /** The snapshot without device pairs, as before W2-4. */
+    public BaselineEvidenceSnapshot(
+            LearningEvidenceScope scope,
+            boolean available,
+            boolean established,
+            Long updateCount,
+            Double averageTrustScore,
+            List<String> networks,
+            List<String> accessHours,
+            List<String> accessDays,
+            List<String> browsers,
+            List<String> operatingSystems,
+            List<String> pathFamilies,
+            List<String> authenticationTypes,
+            List<String> actionFamilies,
+            List<String> resourceFamilies,
+            String summary,
+            BaselineEvidenceStatus status,
+            String diagnostic) {
+        this(scope, available, established, updateCount, averageTrustScore, networks, accessHours, accessDays, browsers,
+                operatingSystems, pathFamilies, authenticationTypes, actionFamilies, resourceFamilies, summary, status,
+                diagnostic, List.of());
+    }
 
     public BaselineEvidenceSnapshot {
         networks = immutable(networks);
@@ -49,6 +109,8 @@ public record BaselineEvidenceSnapshot(
         summary = summary == null ? "" : summary;
         status = status == null ? defaultStatus(available) : status;
         diagnostic = diagnostic == null ? "" : diagnostic;
+        devices = immutable(devices);
+        elementFrequencies = frequencies(elementFrequencies);
     }
 
     public BaselineEvidenceSnapshot(
@@ -96,7 +158,8 @@ public record BaselineEvidenceSnapshot(
                 || !pathFamilies.isEmpty()
                 || !authenticationTypes.isEmpty()
                 || !actionFamilies.isEmpty()
-                || !resourceFamilies.isEmpty();
+                || !resourceFamilies.isEmpty()
+                || !devices.isEmpty();
     }
 
     public boolean indicatesUnavailableState() {
@@ -117,6 +180,18 @@ public record BaselineEvidenceSnapshot(
             case MISSING_USER_ID -> "missing user identifier for baseline lookup";
             case ANALYSIS_UNAVAILABLE -> "baseline analysis unavailable";
         };
+    }
+
+    private static Map<String, Long> frequencies(Map<String, Long> values) {
+        Map<String, Long> sorted = new TreeMap<>();
+        if (values != null) {
+            values.forEach((key, count) -> {
+                if (key != null && count != null) {
+                    sorted.put(key, count);
+                }
+            });
+        }
+        return Collections.unmodifiableMap(sorted);
     }
 
     private static List<String> immutable(List<String> values) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.client.SaasThreatIntelligenceHttpClient;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext;
@@ -89,7 +90,7 @@ class SaasThreatIntelligenceServiceTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10))
+                .timestamp(LocalDateTime.of(2026, 3, 17, 10, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .metadata(Map.of(
                         "requestPath", "/login",
                         "geoCountry", "KR",

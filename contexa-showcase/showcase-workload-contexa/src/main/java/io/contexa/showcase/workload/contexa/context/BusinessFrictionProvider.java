@@ -25,7 +25,6 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +32,9 @@ import java.util.Optional;
 
 /**
  * Puts the company facts of a request into the engine's friction and approval context, read through the same
- * {@link BusinessContextLookup} control C2 uses (deck p.7, p.18; P1-BE-04). Every line says it was verified by the
- * business database. The facts describe the request only; this provider never decides and never writes a rule's
+ * {@link BusinessContextLookup} control C2 uses (deck p.7, p.18; P1-BE-04), and the zone of the request's network
+ * (company office, registered business trip or external) into its location context. Every line says it was verified
+ * by the business database. The facts describe the request only; this provider never decides and never writes a rule's
  * conclusion such as "approval required".
  * <p>
  * The engine swallows provider failures with a warning, so a failed lookup is written into the context as such and
@@ -84,7 +84,7 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                         + "which depend on it, were not looked up."));
                 return;
             }
-            Instant at = event.getTimestamp().toInstant(ZoneOffset.UTC);
+            Instant at = event.getTimestamp();
             apply(context, facts(rule.get().operation(), event.getUserId(), path, text(metadata.get("queryString")),
                     event.getSourceIp(), at));
         } catch (RuntimeException e) {
@@ -103,7 +103,12 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
      * @param lookedUp         whether the business database was read for these facts (survey D2)
      */
     record Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at,
-                 Boolean approvalRequired, boolean lookedUp) {
+                 Boolean approvalRequired, boolean lookedUp, NetworkContext network, CompanyRecords records) {
+
+        Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at,
+              Boolean approvalRequired, boolean lookedUp) {
+            this(lines, approval, ticket, at, approvalRequired, lookedUp, null, null);
+        }
 
         Facts(List<String> lines, ApprovalCoverage approval, TicketCoverage ticket, Instant at,
               Boolean approvalRequired) {
@@ -116,6 +121,45 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
 
         static Facts notLookedUp(String line) {
             return new Facts(List.of(line), null, null, null, null, false);
+        }
+
+        /** The facts with the network fact that was looked up for them. */
+        Facts withNetwork(NetworkContext looked) {
+            return new Facts(lines, approval, ticket, at, approvalRequired, lookedUp, looked, records);
+        }
+
+        /** The facts with the structured company records they were written from. */
+        Facts withRecords(CompanyRecords structured) {
+            return new Facts(lines, approval, ticket, at, approvalRequired, lookedUp, network, structured);
+        }
+    }
+
+    /**
+     * The company records of one request as structured facts (W2-6): the same lookups as the lines, field by field.
+     * The engine computes from them whether a record covers the request at the request time; the host's own verdict
+     * (covers, mismatching conditions) stays with each record.
+     */
+    static final class CompanyRecords {
+        final List<CanonicalSecurityContext.ApprovalRecord> approvals = new ArrayList<>();
+        final List<CanonicalSecurityContext.TicketRecord> tickets = new ArrayList<>();
+        final List<CanonicalSecurityContext.CompanyPolicy> policies = new ArrayList<>();
+        CanonicalSecurityContext.OnCallRecord onCall;
+        CanonicalSecurityContext.TravelRecord travel;
+        CanonicalSecurityContext.AssignmentRecord assignment;
+        CanonicalSecurityContext.AccessHistoryRecord accessHistory;
+        /** The kinds of record looked up for the request, so the engine tells "none found" from "not looked up". */
+        final List<String> checked = new ArrayList<>();
+
+        void addApproval(CanonicalSecurityContext.ApprovalRecord record) {
+            if (record != null) {
+                approvals.add(record);
+            }
+        }
+
+        void addTicket(CanonicalSecurityContext.TicketRecord record) {
+            if (record != null) {
+                tickets.add(record);
+            }
         }
     }
 
@@ -145,16 +189,29 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 lines.add(VERIFIED + ticketLine(ticket));
                 lines.add(VERIFIED + oncallLine(oncall));
                 lines.add(VERIFIED + historyLine(history, target));
+                CompanyRecords records = new CompanyRecords();
+                records.assignment = assignmentRecord(target, assigned);
+                records.addApproval(approvalRecord(approval, target));
+                records.addTicket(ticketRecord(ticket, target, null, false, null));
+                records.onCall = onCallRecord(oncall);
+                records.accessHistory = historyRecord(target, history);
+                records.checked.addAll(List.of(CanonicalSecurityContext.FrictionProfile.RECORD_ASSIGNMENT, CanonicalSecurityContext.FrictionProfile.RECORD_APPROVAL,
+                        CanonicalSecurityContext.FrictionProfile.RECORD_TICKET, CanonicalSecurityContext.FrictionProfile.RECORD_ON_CALL,
+                        CanonicalSecurityContext.FrictionProfile.RECORD_ACCESS_HISTORY, CanonicalSecurityContext.FrictionProfile.RECORD_TRAVEL));
                 String claimed = parameter(query, "claimedTicket");
                 if (claimed != null) {
                     ClaimCheck claim = lookup.claimedTicket(username, claimed, target, operation, at);
                     lines.add(CLAIMED + "ticket " + claimed + " covers this request");
                     lines.add(VERIFIED + claimLine(claim));
+                    records.addTicket(ticketRecord(claim.coverage(), target, claim.ticketKey(), true, claim.exists()));
                 }
-                lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                NetworkContext network = lookup.networkContext(username, clientIp, at);
+                lines.add(VERIFIED + networkLine(network));
                 lines.add(VERIFIED + policyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, approval, ticket, at, required);
+                records.travel = travelRecord(network);
+                records.policies.add(exportPolicy(policy, required));
+                return new Facts(lines, approval, ticket, at, required).withNetwork(network).withRecords(records);
             }
             case DOCUMENT_READ, DOCUMENT_DOWNLOAD -> {
                 String project = projectOfDocument(target);
@@ -170,10 +227,19 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 lines.add(VERIFIED + "requester assigned to project " + project + ": " + yesNo(assigned.assigned()));
                 lines.add(VERIFIED + ticketLine(ticket));
                 lines.add(VERIFIED + historyLine(history, project));
-                lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                NetworkContext network = lookup.networkContext(username, clientIp, at);
+                lines.add(VERIFIED + networkLine(network));
                 lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, ticket, at, required);
+                CompanyRecords records = new CompanyRecords();
+                records.assignment = assignmentRecord(project, assigned);
+                records.addTicket(ticketRecord(ticket, project, null, false, null));
+                records.accessHistory = historyRecord(project, history);
+                records.travel = travelRecord(network);
+                records.checked.addAll(List.of(CanonicalSecurityContext.FrictionProfile.RECORD_ASSIGNMENT, CanonicalSecurityContext.FrictionProfile.RECORD_TICKET,
+                        CanonicalSecurityContext.FrictionProfile.RECORD_ACCESS_HISTORY, CanonicalSecurityContext.FrictionProfile.RECORD_TRAVEL));
+                records.policies.add(accessPolicy(policy, operation, required));
+                return new Facts(lines, null, ticket, at, required).withNetwork(network).withRecords(records);
             }
             case ROLE_GRANT -> {
                 String project = parameter(query, "project");
@@ -183,10 +249,16 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 boolean required = policy.requiresApproval(false, false, 0);
                 lines.add(VERIFIED + "the request gives employee " + grantee + " a role on project " + project + ".");
                 lines.add(VERIFIED + changeTicketLine(ticket));
-                lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                NetworkContext network = lookup.networkContext(username, clientIp, at);
+                lines.add(VERIFIED + networkLine(network));
                 lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, ticket, at, required);
+                CompanyRecords records = new CompanyRecords();
+                records.addTicket(ticketRecord(ticket, project, null, false, null));
+                records.travel = travelRecord(network);
+                records.checked.addAll(List.of(CanonicalSecurityContext.FrictionProfile.RECORD_TICKET, CanonicalSecurityContext.FrictionProfile.RECORD_TRAVEL));
+                records.policies.add(accessPolicy(policy, operation, required));
+                return new Facts(lines, null, ticket, at, required).withNetwork(network).withRecords(records);
             }
             case CUSTOMER_READ -> {
                 AccessApprovalPolicy policy = lookup.accessApprovalPolicy(operation);
@@ -199,10 +271,21 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 if (ticket != null) {
                     lines.add(VERIFIED + ticketLine(ticket));
                 }
-                lines.add(VERIFIED + networkLine(lookup.networkContext(username, clientIp, at)));
+                NetworkContext network = lookup.networkContext(username, clientIp, at);
+                lines.add(VERIFIED + networkLine(network));
                 lines.add(VERIFIED + accessPolicyLine(policy, required));
                 lines.add(SCOPE_NOTE);
-                return new Facts(lines, null, ticket, at, required);
+                CompanyRecords records = new CompanyRecords();
+                records.assignment = CanonicalSecurityContext.AssignmentRecord.builder()
+                        .target(target).assigned(ownership.owner()).responsibility("ACCOUNT_MANAGER").build();
+                records.addTicket(ticketRecord(ticket, ownership.projectKey(), null, false, null));
+                records.travel = travelRecord(network);
+                records.checked.addAll(List.of(CanonicalSecurityContext.FrictionProfile.RECORD_ASSIGNMENT, CanonicalSecurityContext.FrictionProfile.RECORD_TRAVEL));
+                if (ticket != null) {
+                    records.checked.add(CanonicalSecurityContext.FrictionProfile.RECORD_TICKET);
+                }
+                records.policies.add(accessPolicy(policy, operation, required));
+                return new Facts(lines, null, ticket, at, required).withNetwork(network).withRecords(records);
             }
             default -> {
                 return new Facts(List.of(), null, null, at);
@@ -257,6 +340,194 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
         }
         profile.setSummary(facts.lookedUp() ? "Company facts of this request were looked up in the business database."
                 : "Company facts of this request were not looked up in the business database.");
+        applyNetworkZone(context, facts.network());
+        applyRecords(profile, facts.records());
+    }
+
+    /** The structured company records beside the lines (W2-6); records another provider put there stay. */
+    private static void applyRecords(FrictionProfile profile, CompanyRecords records) {
+        if (records == null) {
+            return;
+        }
+        profile.setApprovalRecords(appended(profile.getApprovalRecords(), records.approvals));
+        profile.setTicketRecords(appended(profile.getTicketRecords(), records.tickets));
+        profile.setPolicies(appended(profile.getPolicies(), records.policies));
+        profile.setCheckedRecordKinds(appended(profile.getCheckedRecordKinds(), records.checked));
+        if (records.onCall != null) {
+            profile.setOnCall(records.onCall);
+        }
+        if (records.travel != null) {
+            profile.setTravel(records.travel);
+        }
+        if (records.assignment != null) {
+            profile.setAssignment(records.assignment);
+        }
+        if (records.accessHistory != null) {
+            profile.setAccessHistory(records.accessHistory);
+        }
+    }
+
+    private static <T> List<T> appended(List<T> existing, List<T> added) {
+        List<T> all = new ArrayList<>(existing == null ? List.of() : existing);
+        all.addAll(added);
+        return all;
+    }
+
+    /**
+     * The approval the lookup found. The lookup checks the record's state and project against the request; without
+     * a STATUS or TARGET mismatch they are APPROVED and the requested project, with one they are not stated.
+     */
+    static CanonicalSecurityContext.ApprovalRecord approvalRecord(ApprovalCoverage approval, String target) {
+        if (approval == null || approval.approvalKey() == null) {
+            return null;
+        }
+        List<String> mismatches = approval.mismatches() == null ? List.of() : approval.mismatches();
+        return CanonicalSecurityContext.ApprovalRecord.builder()
+                .approvalId(approval.approvalKey())
+                .status(mismatches.contains("STATUS") ? null : "APPROVED")
+                .approver(approval.approver())
+                .purpose(approval.purpose())
+                .target(mismatches.contains("TARGET") ? null : target)
+                .maxItems(approval.maxItems() > 0 ? approval.maxItems() : null)
+                .validFrom(approval.validFrom())
+                .validUntil(approval.validUntil())
+                .decidedAt(approval.approvedAt())
+                .hostCovers(approval.covered())
+                .hostMismatches(new ArrayList<>(mismatches))
+                .build();
+    }
+
+    /**
+     * A ticket the lookup found, or one the requester named. Without a TARGET mismatch its project is the requested
+     * one; a named ticket that does not exist is kept with that fact.
+     */
+    static CanonicalSecurityContext.TicketRecord ticketRecord(TicketCoverage ticket, String target, String namedKey,
+                                                             boolean claimed, Boolean exists) {
+        if (ticket == null) {
+            return null;
+        }
+        String ticketId = namedKey != null ? namedKey : ticket.ticketKey();
+        if (ticketId == null) {
+            return null;
+        }
+        List<String> mismatches = ticket.mismatches() == null ? List.of() : ticket.mismatches();
+        boolean found = ticket.ticketKey() != null;
+        return CanonicalSecurityContext.TicketRecord.builder()
+                .ticketId(ticketId)
+                .approver(ticket.approver())
+                .purpose(ticket.purpose())
+                .target(found && !mismatches.contains("TARGET") ? target : null)
+                .validFrom(ticket.validFrom())
+                .validUntil(ticket.validUntil())
+                .claimedByRequester(claimed ? Boolean.TRUE : null)
+                .exists(claimed ? exists : null)
+                .hostCovers(ticket.covered())
+                .hostMismatches(new ArrayList<>(mismatches))
+                .build();
+    }
+
+    static CanonicalSecurityContext.OnCallRecord onCallRecord(OncallStatus oncall) {
+        return CanonicalSecurityContext.OnCallRecord.builder()
+                .onCall(oncall.onCall())
+                .rosterId(oncall.rosterKey())
+                .team(oncall.team())
+                .startsAt(oncall.startsAt())
+                .endsAt(oncall.endsAt())
+                .build();
+    }
+
+    static CanonicalSecurityContext.AssignmentRecord assignmentRecord(String project, AssignmentStatus assigned) {
+        return CanonicalSecurityContext.AssignmentRecord.builder()
+                .target(project)
+                .assigned(assigned.assigned())
+                .responsibility(assigned.responsibility())
+                .build();
+    }
+
+    static CanonicalSecurityContext.AccessHistoryRecord historyRecord(String project, AccessHistory history) {
+        return CanonicalSecurityContext.AccessHistoryRecord.builder()
+                .target(project)
+                .days(history.days())
+                .windowDays(history.windowDays())
+                .lastAccessDate(history.lastAccessDate())
+                .build();
+    }
+
+    /** The registered business trip whose network holds the request address; null for any other network. */
+    static CanonicalSecurityContext.TravelRecord travelRecord(NetworkContext network) {
+        if (network == null || network.kind() != BusinessContextLookup.NetworkKind.TRAVEL) {
+            return null;
+        }
+        return CanonicalSecurityContext.TravelRecord.builder()
+                .planId(network.planKey())
+                .city(network.city())
+                .country(network.country())
+                .network(network.network())
+                .build();
+    }
+
+    /** The export rule: a covering approval, unless assigned up to the limit or under a ticket while on call. */
+    static CanonicalSecurityContext.CompanyPolicy exportPolicy(ExportApprovalPolicy policy, boolean required) {
+        List<CanonicalSecurityContext.PolicyException> exceptions = new ArrayList<>();
+        exceptions.add(CanonicalSecurityContext.PolicyException.builder()
+                .kind("ASSIGNED").limit(policy.assignedExportLimit()).build());
+        if (policy.ticketAndOncallExempt()) {
+            exceptions.add(CanonicalSecurityContext.PolicyException.builder().kind("TICKET_WHILE_ON_CALL").build());
+        }
+        return CanonicalSecurityContext.CompanyPolicy.builder()
+                .policyId(policy.policyKey())
+                .statement(policy.description())
+                .requirement("APPROVAL")
+                .exceptions(exceptions)
+                .hostRequires(required)
+                .build();
+    }
+
+    /**
+     * An access rule (Q-A4): a covering ticket (an approved change ticket for a role grant), unless the requester is
+     * the account manager, assigned, or worked on the project within the rule's recent days.
+     */
+    static CanonicalSecurityContext.CompanyPolicy accessPolicy(AccessApprovalPolicy policy, BusinessOperation operation,
+                                                               boolean required) {
+        List<CanonicalSecurityContext.PolicyException> exceptions = new ArrayList<>();
+        if (policy.accountManagerExempt()) {
+            exceptions.add(CanonicalSecurityContext.PolicyException.builder().kind("ACCOUNT_MANAGER").build());
+        }
+        if (policy.assignedExempt()) {
+            exceptions.add(CanonicalSecurityContext.PolicyException.builder().kind("ASSIGNED").build());
+        }
+        if (policy.recentWorkDays() != null) {
+            exceptions.add(CanonicalSecurityContext.PolicyException.builder()
+                    .kind("RECENT_WORK").limit(policy.recentWorkDays()).build());
+        }
+        return CanonicalSecurityContext.CompanyPolicy.builder()
+                .policyId(policy.policyKey())
+                .statement(policy.description())
+                .requirement("TICKET")
+                .requiredTicketKind(operation == BusinessOperation.ROLE_GRANT ? "CHANGE" : null)
+                .exceptions(exceptions)
+                .hostRequires(required)
+                .build();
+    }
+
+    /**
+     * The network zone of the request, from the same business database fact as its network line (W2-4): the engine
+     * cannot know the company's networks or its employees' trips, so the host states them.
+     */
+    private static void applyNetworkZone(CanonicalSecurityContext context, NetworkContext network) {
+        String zone = network == null ? null : switch (network.kind()) {
+            case OFFICE -> "CORPORATE";
+            case TRAVEL -> "TRAVEL";
+            case EXTERNAL -> "EXTERNAL";
+            case UNKNOWN -> null;
+        };
+        if (zone == null) {
+            return;
+        }
+        if (context.getLocation() == null) {
+            context.setLocation(new CanonicalSecurityContext.Location());
+        }
+        context.getLocation().setNetworkZone(zone);
     }
 
     /** The company's export approval policy and whether it requires an approval here, as the policy row states it. */

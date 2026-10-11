@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 class SecurityDecisionPostProcessorTest {
@@ -52,7 +55,7 @@ class SecurityDecisionPostProcessorTest {
                 .sessionId("session-1")
                 .userId("alice")
                 .description("POST /payments")
-                .timestamp(LocalDateTime.of(2026, 3, 23, 10, 15))
+                .timestamp(LocalDateTime.of(2026, 3, 23, 10, 15).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("requestPath", "/payments");
         event.addMetadata("httpMethod", "POST");
@@ -72,6 +75,28 @@ class SecurityDecisionPostProcessorTest {
     }
 
     @Test
+    void updateSessionContextLeavesTheDecisionHistoryToTheRecorderOfTheFinalOutcome() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        Instant at = LocalDateTime.of(2026, 3, 23, 10, 15).atZone(ZoneId.systemDefault()).toInstant();
+        SecurityEvent event = SecurityEvent.builder()
+                .sessionId("session-1")
+                .userId("alice")
+                .description("POST /payments")
+                .timestamp(at)
+                .build();
+        event.addMetadata("requestPath", "/payments");
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("actionFamily", "WRITE");
+
+        processor.updateSessionContext(event, SecurityDecision.builder().action(ZeroTrustAction.CHALLENGE).build());
+
+        // The session keeps its request summary line. The decision history holds one line per request with its
+        // final outcome, recorded where that outcome is known (W2-7): an analysis layer that escalates is no outcome.
+        verify(dataStore).addSessionAction(eq("session-1"), contains("observed challenge"));
+        verify(dataStore, never()).addSessionDecision(any(), any());
+    }
+
+    @Test
     void storeInVectorDatabaseShouldFallbackToAuditScoresWhenEffectiveScoresAreNull() {
         SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
         SecurityEvent event = SecurityEvent.builder()
@@ -80,7 +105,7 @@ class SecurityDecisionPostProcessorTest {
                 .userId("alice")
                 .sourceIp("203.0.113.10")
                 .description("POST /payments")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 9, 24))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 9, 24).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("requestPath", "/payments");
         event.addMetadata("httpMethod", "POST");
@@ -120,7 +145,7 @@ class SecurityDecisionPostProcessorTest {
                 .sourceIp("203.0.113.10")
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                 .description("GET /payments")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("requestPath", "/payments");
         event.addMetadata("httpMethod", "GET");
@@ -164,5 +189,71 @@ class SecurityDecisionPostProcessorTest {
         assertThat(document.getMetadata()).containsEntry("tenantId", "demo");
         assertThat(document.getMetadata()).containsEntry("organizationId", "demo-org");
         assertThat(document.getMetadata()).containsEntry("authenticationType", "PASSWORD");
+    }
+
+    @Test
+    void storeInVectorDatabaseShouldRecordTheRequestsActionFamilyNotTheDecision() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-export-001")
+                .sessionId("session-1")
+                .userId("alice")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/projects/GB-500/exports")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 9, 24).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/api/projects/GB-500/exports");
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("protectableMethod", "io.contexa.example.BusinessOperations.exportDocuments");
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.ALLOW)
+                .riskScore(0.2)
+                .confidence(0.8)
+                .reasoning("Authorization allows access with a limited baseline.")
+                .processingLayer(1)
+                .build();
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(event, decision);
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService).storeDocument(documentCaptor.capture());
+        Map<String, Object> metadata = documentCaptor.getValue().getMetadata();
+        // The past record names the export the way the current request does (W2-1).
+        assertThat(metadata.get("actionFamily")).isEqualTo("EXPORT");
+        assertThat(metadata.get("actionFamilySource")).isEqualTo("inferred:protectableMethod");
+    }
+
+    @Test
+    void storeInVectorDatabaseShouldRecordTheHostsUrlTemplateAsThePathFamily() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-export-002")
+                .sessionId("session-1")
+                .userId("alice")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/projects/GB-500/exports")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 9, 24).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/api/projects/GB-500/exports");
+        event.addMetadata("protectableResourceUrl", "/api/projects/{projectKey}/exports");
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.ALLOW)
+                .riskScore(0.2)
+                .confidence(0.8)
+                .processingLayer(1)
+                .build();
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(event, decision);
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService).storeDocument(documentCaptor.capture());
+        Map<String, Object> metadata = documentCaptor.getValue().getMetadata();
+        // The past record names the kind of request the way the current request does, not the project (W2-2).
+        assertThat(metadata.get("requestPath")).isEqualTo("/api/projects/GB-500/exports");
+        assertThat(metadata.get("pathFamily")).isEqualTo("/api/projects/{projectKey}/exports");
     }
 }

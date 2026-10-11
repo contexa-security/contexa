@@ -15,6 +15,9 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.domain.EventTimeZone;
+import java.time.Instant;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -42,6 +45,8 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsDetails;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -65,7 +70,6 @@ import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -130,6 +134,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return;
         }
 
+        // The login facts go on the final authentication before a token is issued or the session stores it.
+        LoginFactsRecorder.recordFinal(finalAuthentication, request, factorContext);
+
         StateType stateType = determineStateType(factorContext);
         TokenTransportResult transportResult = null;
 
@@ -164,12 +171,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     handleBlockMfaSuccess(userId, request, response);
                     return;
                 }
+                boolean challengeFlow = isChallengeFlow(factorContext);
                 successStage = "markMfaVerifiedOnChallengeSuccess";
-                markMfaVerifiedOnChallengeSuccess(userId);
-                successStage = "resetActionOnMfaSuccess";
-                resetActionOnMfaSuccess(userId, request, factorContext);
+                markMfaVerifiedOnChallengeSuccess(userId, request);
+                if (challengeFlow) {
+                    // A login MFA, in this or another session, does not answer a Zero Trust challenge; only the
+                    // step-up the challenge started releases it and is learned as normal behaviour.
+                    successStage = "resetActionOnMfaSuccess";
+                    resetActionOnMfaSuccess(userId, request, factorContext);
+                }
                 successStage = "recordMfaCompletionInSession";
-                recordMfaCompletionInSession(request, factorContext);
+                recordMfaCompletionInSession(request, factorContext, challengeFlow, stateType, finalAuthentication);
             }
 
             successStage = "resolvePasskeyRegistrationIntent";
@@ -721,10 +733,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
     }
 
-    private void markMfaVerifiedOnChallengeSuccess(String userId) {
+    /** The request's observed time, the clock of the other session facts; the server time without one. */
+    private static Instant observedTimeOrNow(HttpServletRequest request) {
+        Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
+        return observedAt != null ? observedAt : Instant.now();
+    }
+
+    private void markMfaVerifiedOnChallengeSuccess(String userId, HttpServletRequest request) {
         try {
             SecurityContextDataStore dataStore = applicationContext.getBean(SecurityContextDataStore.class);
-            dataStore.markMfaVerified(userId);
+            dataStore.markMfaVerified(userId, RequestInfoExtractor.extractObservedAt(request));
         } catch (Exception e) {
             safeLogError("[MFA] Failed to mark MFA verified on challenge success: userId={}", e, userId);
         }
@@ -767,21 +785,47 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
     }
 
-    private void recordMfaCompletionInSession(HttpServletRequest request, @Nullable FactorContext factorContext) {
+    private static boolean isChallengeFlow(@Nullable FactorContext factorContext) {
+        return factorContext != null
+                && Boolean.TRUE.equals(factorContext.getAttribute(LoginFactsRecorder.CHALLENGE_INITIATED_ATTRIBUTE));
+    }
+
+    private void recordMfaCompletionInSession(HttpServletRequest request, @Nullable FactorContext factorContext,
+                                              boolean challengeFlow, StateType stateType,
+                                              Authentication finalAuthentication) {
         try {
             SecurityContextDataStore dataStore = applicationContext.getBean(SecurityContextDataStore.class);
-            String sessionId = request.getSession(false) != null ? request.getSession(false).getId() : null;
+            String sessionId = engineSessionId(request, stateType, finalAuthentication);
             if (sessionId != null) {
                 String originalIp = factorContext != null
                         ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP) : null;
                 String ip = originalIp != null ? originalIp : request.getRemoteAddr();
-                String record = String.format("%02d:%02d | MFA_COMPLETED (Zero Trust Challenge verified) | %s",
-                        LocalTime.now().getHour(), LocalTime.now().getMinute(), ip);
+                // The time is the request's observed time on the same clock as the other session records; the event
+                // says whether the MFA answered a Zero Trust challenge or was part of the login.
+                Instant observedAt = RequestInfoExtractor.extractObservedAt(request);
+                LocalTime time = LocalTime.ofInstant(observedAt != null ? observedAt : Instant.now(), EventTimeZone.get());
+                String event = challengeFlow
+                        ? "ZERO_TRUST_CHALLENGE_VERIFIED (step-up MFA in this session)"
+                        : "MFA_LOGIN (multi-factor sign-in)";
+                String record = String.format("%02d:%02d | %s | %s", time.getHour(), time.getMinute(), event, ip);
                 dataStore.addSessionAction(sessionId, record);
             }
         } catch (Exception e) {
             safeLogError("[MFA] Failed to record MFA completion in session timeline", e);
         }
+    }
+
+    /**
+     * The session the engine files the next requests of this sign-in under: on the OAuth2 state the login identifier
+     * the issued token carries as its {@code sid} claim, else the HTTP session.
+     */
+    @Nullable
+    private static String engineSessionId(HttpServletRequest request, StateType stateType,
+                                          Authentication finalAuthentication) {
+        if (stateType == StateType.OAUTH2 && finalAuthentication.getDetails() instanceof LoginFactsDetails facts) {
+            return facts.getSignInId();
+        }
+        return request.getSession(false) != null ? request.getSession(false).getId() : null;
     }
 
     private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request,
@@ -810,7 +854,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .sessionId(request.getSession(false) != null ?
                             request.getSession(false).getId() : null)
                     .userAgent(request.getHeader("User-Agent"))
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(observedTimeOrNow(request))
                     .description("LLM-challenged MFA success - learning")
                     .build();
 

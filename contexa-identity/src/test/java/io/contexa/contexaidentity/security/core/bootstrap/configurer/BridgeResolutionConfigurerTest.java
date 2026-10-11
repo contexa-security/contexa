@@ -15,13 +15,16 @@
  */
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 import static org.mockito.Mockito.mock;
@@ -39,11 +42,30 @@ class BridgeResolutionConfigurerTest {
         PlatformContext platformContext = mock(PlatformContext.class);
         PlatformConfig platformConfig = PlatformConfig.builder().build();
         when(flowConfig.getTypeName()).thenReturn("form");
+        when(flowConfig.getStateConfig()).thenReturn(new StateConfig("session", StateType.SESSION));
 
         FlowContext flowContext = new FlowContext(flowConfig, httpSecurity, platformContext, platformConfig);
 
         configurer.configure(flowContext);
 
         verify(httpSecurity).addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
+    }
+
+    @Test
+    void configureShouldRegisterBridgeResolutionFilterAfterBearerTokenFilterOnTheTokenState() throws Exception {
+        BridgeResolutionFilter bridgeResolutionFilter = mock(BridgeResolutionFilter.class);
+        BridgeResolutionConfigurer configurer = new BridgeResolutionConfigurer(bridgeResolutionFilter);
+        AuthenticationFlowConfig flowConfig = mock(AuthenticationFlowConfig.class);
+        HttpSecurity httpSecurity = mock(HttpSecurity.class);
+        PlatformContext platformContext = mock(PlatformContext.class);
+        PlatformConfig platformConfig = PlatformConfig.builder().build();
+        when(flowConfig.getTypeName()).thenReturn("rest");
+        when(flowConfig.getStateConfig()).thenReturn(new StateConfig("oauth2", StateType.OAUTH2));
+        FlowContext flowContext = new FlowContext(flowConfig, httpSecurity, platformContext, platformConfig);
+
+        configurer.configure(flowContext);
+
+        // A token state authenticates in the bearer token filter; the bridge absorbs that authentication after it.
+        verify(httpSecurity).addFilterAfter(bridgeResolutionFilter, BearerTokenAuthenticationFilter.class);
     }
 }

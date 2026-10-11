@@ -95,11 +95,12 @@ class SecurityContextJwtStampResolversTest {
 
         assertThat(authenticationStamp.principalId()).isEqualTo("oauth-user-1");
         assertThat(authenticationStamp.displayName()).isEqualTo("OAuth User");
-        assertThat(authenticationStamp.authenticationType()).isEqualTo("JwtAuthenticationToken");
+        // The login method and the multi-factor fact are read from the amr claim (RFC 8176), marked as derived (W1-4).
+        assertThat(authenticationStamp.authenticationType()).isEqualTo("PASSWORD+ONE_TIME_CODE");
+        assertThat(authenticationStamp.attributes()).containsEntry("authenticationTypeEvidenceState", "DERIVED_FROM_AMR");
         assertThat(authenticationStamp.authenticationAssurance()).isEqualTo("loa3");
-        // amr claim is List type, extractBoolean returns null for non-boolean values
-        // MFA detection from amr List requires dedicated resolver logic (future improvement)
-        assertThat(authenticationStamp.mfaCompleted()).isNull();
+        assertThat(authenticationStamp.mfaCompleted()).isTrue();
+        assertThat(authenticationStamp.attributes()).containsEntry("mfaCompletedEvidenceState", "DERIVED_FROM_AMR");
         assertThat(authenticationStamp.authenticationTime()).isEqualTo(Instant.ofEpochSecond(1711276200L));
         assertThat(authenticationStamp.attributes()).containsEntry("organizationId", "tenant-oauth");
         assertThat(authenticationStamp.attributes()).containsEntry("department", "growth");
@@ -252,11 +253,51 @@ class SecurityContextJwtStampResolversTest {
     }
 
     @Test
+    void tokenIssueTimeIsNotTakenForTheAuthenticationTime() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "u-300")
+                .claim("iat", Instant.ofEpochSecond(1711279800L))
+                .claim("amr", List.of("pwd"))
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_profile"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.authenticationTime()).isNull();
+        assertThat(stamp.attributes()).containsEntry("authenticationTimeEvidenceState", "UNAVAILABLE");
+        assertThat(stamp.authenticationType()).isEqualTo("PASSWORD");
+        assertThat(stamp.mfaCompleted()).isFalse();
+    }
+
+    @Test
+    void aClassNameStandingInForTheLoginMethodIsMarkedAsAFallback() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "u-400")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_profile"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.authenticationType()).isEqualTo("JwtAuthenticationToken");
+        assertThat(stamp.principalType()).isEqualTo("Jwt");
+        assertThat(stamp.attributes())
+                .containsEntry("authenticationTypeEvidenceState", "CLASS_NAME_FALLBACK")
+                .containsEntry("principalTypeEvidenceState", "CLASS_NAME_FALLBACK");
+        assertThat(stamp.mfaCompleted()).isNull();
+    }
+
+    @Test
     void defaultMfaKeysShouldNotIncludeAuthenticationMethodClaimButAttributeKeysShouldKeepIt() {
         BridgeProperties.Authentication.SecurityContext defaults =
                 new BridgeProperties().getAuthentication().getSecurityContext();
 
         assertThat(defaults.getMfaKeys()).doesNotContain("amr");
+        assertThat(defaults.getAmrKeys()).containsExactly("amr");
         assertThat(defaults.getAttributeKeys()).contains("amr");
+        assertThat(defaults.getAuthTimeKeys()).doesNotContain("iat", "issuedAt");
     }
 }

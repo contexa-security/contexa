@@ -42,6 +42,11 @@ import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenc
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.model.ObjectiveDriftEvaluation;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.NetworkZone;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 
@@ -301,7 +306,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .authorization(resolveAuthorization(metadata))
                 .bridge(resolveBridge(metadata))
                 .attributes(attributes)
+                .requestObservedAt(event.getTimestamp())
                 .build();
+        context.setDataConflicts(resolveDataConflicts(metadata, attributes));
 
         context.setDelegation(resolveDelegation(metadata, context));
 
@@ -493,12 +500,23 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         sessionNarrativeCollector.collect(event).ifPresent(snapshot -> {
             backfillMetadata(metadata, "sessionNarrativeSummary", snapshot.getSummary());
             backfillMetadata(metadata, "sessionAgeMinutes", snapshot.getSessionAgeMinutes());
+            backfillMetadata(metadata, "sessionAgeBasis", snapshot.getSessionAgeBasis());
+            backfillMetadata(metadata, "isNewSession", snapshot.getNewSession());
             backfillMetadata(metadata, "previousPath", snapshot.getPreviousPath());
             backfillMetadata(metadata, "previousActionFamily", snapshot.getPreviousActionFamily());
             backfillMetadata(metadata, "lastRequestIntervalMs", snapshot.getLastRequestIntervalMs());
             backfillMetadata(metadata, "sessionActionSequence", snapshot.getSessionActionSequence());
             backfillMetadata(metadata, "sessionProtectableSequence", snapshot.getSessionProtectableSequence());
             backfillMetadata(metadata, "burstPattern", snapshot.getBurstPattern());
+            backfillMetadata(metadata, "recentChallengeCount", snapshot.getRecentChallengeCount());
+            backfillMetadata(metadata, "recentBlockCount", snapshot.getRecentBlockCount());
+            backfillMetadata(metadata, "recentEscalationCount", snapshot.getRecentEscalationCount());
+            if (snapshot.getSessionDecisionHistory() != null && !snapshot.getSessionDecisionHistory().isEmpty()) {
+                backfillMetadata(metadata, "sessionDecisionHistory", snapshot.getSessionDecisionHistory());
+            }
+            if (snapshot.getSessionDecisions() != null && !snapshot.getSessionDecisions().isEmpty()) {
+                backfillMetadata(metadata, SessionDecisionRecord.METADATA_KEY, snapshot.getSessionDecisions());
+            }
         });
     }
 
@@ -517,6 +535,16 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             backfillMetadata(metadata, "protectableResourceHeatmap", snapshot.getProtectableResourceHeatmap());
             backfillMetadata(metadata, "frequentSensitiveResourceCategories", snapshot.getFrequentSensitiveResourceCategories());
             backfillMetadata(metadata, "normalReadWriteExportRatio", snapshot.getNormalReadWriteExportRatio());
+            BaselineView view = snapshot.getBaselineView();
+            if (view != null && view.observed()) {
+                // The usual session length, privileged share and rare legitimate tasks had no producer (W2-3, S-29).
+                backfillMetadata(metadata, "workProfileBaselineView", view);
+                backfillMetadata(metadata, "normalSessionLengthMinutes", view.usualSessionMinutes());
+                backfillMetadata(metadata, "normalPrivilegedActionFrequency",
+                        Math.round(view.privilegedActions() * 10_000.0 / view.observations()) / 10_000.0);
+                backfillMetadata(metadata, "longTailLegitimateTasks",
+                        view.knownRareTasks().isEmpty() ? null : view.knownRareTasks());
+            }
             if (snapshot.getTrustProfile() != null) {
                 backfillMetadata(metadata, "workProfileTrustProfile", snapshot.getTrustProfile());
                 backfillMetadata(metadata, "workProfileProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
@@ -532,11 +560,15 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         roleScopeCollector.collect(event).ifPresent(snapshot -> {
             backfillMetadata(metadata, "roleScopeSummary", snapshot.getSummary());
             backfillMetadata(metadata, "currentResourceFamily", snapshot.getCurrentResourceFamily());
-            backfillMetadata(metadata, "currentActionFamily", snapshot.getCurrentActionFamily());
+            // The request's action family is not written back: under currentActionFamily, a host key, the family the
+            // core inferred would read as one the host declared. Every reader resolves it from the request's facts.
             backfillMetadata(metadata, "expectedResourceFamilies", snapshot.getExpectedResourceFamilies());
             backfillMetadata(metadata, "expectedActionFamilies", snapshot.getExpectedActionFamilies());
             backfillMetadata(metadata, "forbiddenResourceFamilies", snapshot.getForbiddenResourceFamilies());
             backfillMetadata(metadata, "forbiddenActionFamilies", snapshot.getForbiddenActionFamilies());
+            backfillMetadata(metadata, "currentResourceFamilyInDeniedScope", snapshot.getCurrentResourceFamilyInDeniedScope());
+            backfillMetadata(metadata, "currentActionFamilyInDeniedScope", snapshot.getCurrentActionFamilyInDeniedScope());
+            backfillMetadata(metadata, "deniedScopeComparedByPair", true);
             backfillMetadata(metadata, "normalApprovalPatterns", snapshot.getNormalApprovalPatterns());
             backfillMetadata(metadata, "normalEscalationPatterns", snapshot.getNormalEscalationPatterns());
             backfillMetadata(metadata, "recentPermissionChanges", snapshot.getRecentPermissionChanges());
@@ -580,6 +612,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .organizationId(firstText(metadata.get("organizationId"), metadata.get("orgId")))
                 .tenantId(firstText(metadata.get("tenantId"), metadata.get("tenant_id")))
                 .department(firstText(metadata.get("department"), metadata.get("team"), metadata.get("group")))
+                .accountCreatedAt(firstText(metadata.get("accountCreatedAt")))
                 .position(firstText(metadata.get("position"), metadata.get("jobTitle"), metadata.get("title")))
                 .principalType(firstText(metadata.get("principalType"), metadata.get("principal.type"), metadata.get("userType")))
                 .bridgeSubjectKey(firstText(metadata.get("bridgeSubjectKey"), metadata.get("bridge_subject_key")))
@@ -590,7 +623,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private CanonicalSecurityContext.Session resolveSession(SecurityEvent event, Map<String, Object> metadata) {
         Integer accessHour = resolveInteger(
-                event != null && event.getTimestamp() != null ? event.getTimestamp().getHour() : null,
+                event != null && event.getTimestamp() != null ? event.getLocalTimestamp().getHour() : null,
                 metadata.get("currentAccessHour"),
                 metadata.get("accessHour"));
         return CanonicalSecurityContext.Session.builder()
@@ -604,11 +637,14 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                         metadata.get("authType"),
                         metadata.get("auth_type")))
                 .authenticationAssurance(firstText(metadata.get("authenticationAssurance"), metadata.get("authAssurance"), metadata.get("auth_assurance")))
+                .authenticationTime(firstText(metadata.get("authenticationTime"), metadata.get("authentication_time")))
                 .mfaVerified(resolveBoolean(metadata.get("mfaVerified"), metadata.get("mfa_verified")))
                 .recentMfaFailureCount(resolveInteger(metadata.get("recentMfaFailureCount"), metadata.get("recent_mfa_failure_count"), metadata.get("mfaFailureCount"), metadata.get("mfa_failure_count")))
                 .lastMfaUsedAt(firstText(metadata.get("lastMfaUsedAt"), metadata.get("last_mfa_used_at"), metadata.get("lastUsedMfaAt")))
+                .challengeVerifiedAt(firstText(metadata.get("challengeVerifiedAt")))
+                .recentMfaElsewhereAt(firstText(metadata.get("recentMfaElsewhereAt")))
                 .failedLoginAttempts(resolveInteger(metadata.get("failedLoginAttempts"), metadata.get("failed_login_attempts"), metadata.get("recentLoginFailures")))
-                .recentRequestCount(resolveInteger(metadata.get("recentRequestCount"), metadata.get("recent_request_count"), metadata.get("requestRateMultiplier")))
+                .recentRequestCount(resolveInteger(metadata.get("recentRequestCount"), metadata.get("recent_request_count")))
                 .recentChallengeCount(resolveInteger(metadata.get("recentChallengeCount"), metadata.get("recent_challenge_count"), metadata.get("challengeCount")))
                 .recentBlockCount(resolveInteger(metadata.get("recentBlockCount"), metadata.get("recent_block_count"), metadata.get("blockCount")))
                 .recentEscalationCount(resolveInteger(metadata.get("recentEscalationCount"), metadata.get("recent_escalation_count"), metadata.get("escalationCount")))
@@ -631,7 +667,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         String[] browserParts = splitNameAndVersion(browserSignature);
         String browser = firstText(metadata.get("deviceBrowser"), metadata.get("browser"), browserParts[0]);
         String browserVersion = firstText(metadata.get("deviceBrowserVersion"), metadata.get("browserVersion"), browserParts[1]);
-        String os = firstText(metadata.get("deviceOs"), metadata.get("os"), SecurityEventEnricher.extractOSFromUserAgent(userAgent));
+        String os = SecuritySemanticNormalizer.normalizeOperatingSystem(
+                metadata.get("deviceOs"), metadata.get("os"), SecurityEventEnricher.extractOSFromUserAgent(userAgent));
         String osVersion = firstText(metadata.get("deviceOsVersion"), metadata.get("osVersion"));
         CanonicalSecurityContext.Device device = CanonicalSecurityContext.Device.builder()
                 .os(os)
@@ -655,6 +692,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .impossibleTravel(resolveBoolean(metadata.get("intentImpossibleTravel"), metadata.get("impossibleTravel"), metadata.get("isImpossibleTravel")))
                 .anomalySignal(firstText(metadata.get("anomalySignal")))
                 .anomalySignalSource(firstText(metadata.get("anomalySignalSource")))
+                .untrustedAnomalySignalClaim(firstText(metadata.get("untrustedAnomalySignalClaim")))
                 .build();
         return hasIntentData(intent) ? intent : null;
     }
@@ -664,8 +702,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         CanonicalSecurityContext.Location location = CanonicalSecurityContext.Location.builder()
                 .country(firstText(metadata.get("country"), metadata.get("geoCountry")))
                 .city(firstText(metadata.get("city"), metadata.get("geoCity")))
-                .ipBand(firstText(metadata.get("ipBand"), deriveIpBand(clientIp)))
+                .ipBand(SecuritySemanticNormalizer.normalizeNetwork(clientIp, firstText(metadata.get("ipBand"))))
                 .asn(firstText(metadata.get("asn"), metadata.get("geoAsn")))
+                .networkZone(NetworkZone.nameOf(metadata.get("networkZone")))
                 .build();
         return hasLocationData(location) ? location : null;
     }
@@ -678,14 +717,20 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 metadata.get("protectableVerificationRequired"), metadata.get("verificationRequired"));
         Boolean privileged = resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged"));
         Boolean exportSensitive = resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive"));
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(metadata);
+        String requestPath = firstText(metadata.get("httpUri"), metadata.get("requestPath"));
         return CanonicalSecurityContext.Resource.builder()
                 .resourceId(resourceId)
                 .resourceType(firstText(metadata.get("resourceType"), metadata.get("resourceCategory")))
                 .businessLabel(firstText(metadata.get("resourceLabel"), metadata.get("businessLabel")))
+                .authorText(firstText(metadata.get("resourceAuthorText")))
+                .requestedItems(resolveInteger(metadata.get("requestItems")))
                 .sensitivity(resolveResourceSensitivity(metadata, sensitiveResource, privileged, exportSensitive))
-                .requestPath(firstText(metadata.get("httpUri"), metadata.get("requestPath")))
+                .requestPath(requestPath)
+                .pathFamily(SecuritySemanticNormalizer.pathFamilyOf(metadata, requestPath))
                 .httpMethod(httpMethod)
-                .actionFamily(resolveActionFamily(httpMethod, metadata))
+                .actionFamily(action.family().name())
+                .actionFamilySource(action.source())
                 .sensitiveResource(sensitiveResource)
                 .verificationRequired(verificationRequired)
                 .privileged(privileged)
@@ -713,7 +758,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 || intent.getAbnormalHeaderOrder() != null
                 || intent.getImpossibleTravel() != null
                 || StringUtils.hasText(intent.getAnomalySignal())
-                || StringUtils.hasText(intent.getAnomalySignalSource()));
+                || StringUtils.hasText(intent.getAnomalySignalSource())
+                || StringUtils.hasText(intent.getUntrustedAnomalySignalClaim()));
     }
 
     private boolean hasLocationData(CanonicalSecurityContext.Location location) {
@@ -721,7 +767,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 && (StringUtils.hasText(location.getCountry())
                 || StringUtils.hasText(location.getCity())
                 || StringUtils.hasText(location.getIpBand())
-                || StringUtils.hasText(location.getAsn()));
+                || StringUtils.hasText(location.getAsn())
+                || StringUtils.hasText(location.getNetworkZone()));
     }
 
     private String[] splitNameAndVersion(String signature) {
@@ -739,24 +786,6 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 StringUtils.hasText(name) ? name : null,
                 StringUtils.hasText(version) ? version : null
         };
-    }
-
-    private String deriveIpBand(String clientIp) {
-        if (!StringUtils.hasText(clientIp)) {
-            return null;
-        }
-        String normalized = clientIp.trim();
-        String[] ipv4 = normalized.split("\\.");
-        if (ipv4.length == 4) {
-            return ipv4[0] + "." + ipv4[1] + "." + ipv4[2] + ".0/24";
-        }
-        if (normalized.contains(":")) {
-            String[] ipv6 = normalized.split(":");
-            if (ipv6.length >= 4) {
-                return String.join(":", ipv6[0], ipv6[1], ipv6[2], ipv6[3]) + "::/64";
-            }
-        }
-        return null;
     }
 
     private String resolveResourceSensitivity(
@@ -782,9 +811,13 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .effectivePermissions(normalizePermissionStrings(metadata.get("effectivePermissions"), metadata.get("permissions"), metadata.get("authorities")))
                 .scopeTags(normalizeStrings(metadata.get("scopeTags"), metadata.get("authorizationScope"), metadata.get("scope")))
                 .authorizationEffect(firstText(metadata.get("authorizationEffect"), metadata.get("authorization_effect"), metadata.get("effect")))
+                .methodExecutionOutcome(firstText(metadata.get("methodExecutionOutcome")))
+                .methodExecutionFailure(firstText(metadata.get("methodExecutionFailure")))
                 .policyId(firstText(metadata.get("policyId"), metadata.get("policy_id")))
                 .policyVersion(firstText(metadata.get("policyVersion"), metadata.get("policy_version")))
                 .privileged(resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged")))
+                .decisionTime(firstText(metadata.get("authorizationDecisionTime")))
+                .privilegedAuthoritySignals(normalizeStrings(metadata.get("privilegedAuthoritySignals")))
                 .build();
     }
 
@@ -796,12 +829,14 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .objectiveSummary(firstText(metadata.get("objectiveSummary"), metadata.get("objective_summary")))
                 .allowedOperations(normalizeStrings(metadata.get("allowedOperations"), metadata.get("allowed_operations")))
                 .allowedResources(normalizeStrings(metadata.get("allowedResources"), metadata.get("allowed_resources"), metadata.get("allowedResourceFamilies")))
-                .approvalRequired(resolveBoolean(metadata.get("approvalRequired"), metadata.get("approval_required")))
+                .approvalRequired(resolveBoolean(metadata.get("delegationApprovalRequired"),
+                        metadata.get("delegation_approval_required")))
                 .privilegedExportAllowed(resolveBoolean(metadata.get("privilegedExportAllowed"), metadata.get("privileged_export_allowed")))
                 .containmentOnly(resolveBoolean(metadata.get("containmentOnly"), metadata.get("containment_only")))
                 .delegated(resolveBoolean(metadata.get("delegated"), metadata.get("isDelegated"), metadata.get("agentDelegated")))
                 .objectiveDrift(resolveBoolean(metadata.get("objectiveDrift"), metadata.get("objective_drift"), metadata.get("delegationObjectiveDrift")))
                 .objectiveDriftSummary(firstText(metadata.get("objectiveDriftSummary"), metadata.get("objective_drift_summary"), metadata.get("delegationObjectiveDriftSummary")))
+                .expiresAt(firstText(metadata.get("delegationExpiresAt")))
                 .build();
 
         if (delegation.getDelegated() == null) {
@@ -831,6 +866,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         String authenticationSource = firstText(metadata.get("bridgeAuthenticationSource"));
         String authorizationSource = firstText(metadata.get("bridgeAuthorizationSource"));
         String delegationSource = firstText(metadata.get("bridgeDelegationSource"));
+        Map<String, String> evidenceStates = bridgeEvidenceStates(metadata);
         if (!StringUtils.hasText(coverageLevel)
                 && coverageScore == null
                 && missingContexts.isEmpty()
@@ -838,7 +874,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 && remediationHints.isEmpty()
                 && !StringUtils.hasText(authenticationSource)
                 && !StringUtils.hasText(authorizationSource)
-                && !StringUtils.hasText(delegationSource)) {
+                && !StringUtils.hasText(delegationSource)
+                && evidenceStates.isEmpty()) {
             return null;
         }
         return CanonicalSecurityContext.Bridge.builder()
@@ -850,7 +887,80 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .authenticationSource(authenticationSource)
                 .authorizationSource(authorizationSource)
                 .delegationSource(delegationSource)
+                .evidenceStates(evidenceStates)
                 .build();
+    }
+
+    /** The bridge's evidence state of each fact, by fact name (the metadata key without "EvidenceState"). */
+    private Map<String, String> bridgeEvidenceStates(Map<String, Object> metadata) {
+        Map<String, String> states = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            String state = firstText(value);
+            if (key.endsWith("EvidenceState") && key.length() > "EvidenceState".length() && state != null) {
+                states.put(key.substring(0, key.length() - "EvidenceState".length()), state);
+            }
+        });
+        String signalPurpose = firstText(metadata.get("privilegedAuthoritySignalPurpose"));
+        if (signalPurpose != null) {
+            states.put("privilegedAuthoritySignals", signalPurpose);
+        }
+        return states;
+    }
+
+    /**
+     * The facts whose sources disagree, kept as facts: the aliases of a field that gave different values, the
+     * authorization evidence the bridge settled, and an explicit handoff naming another principal.
+     */
+    private List<CanonicalSecurityContext.DataConflict> resolveDataConflicts(
+            Map<String, Object> metadata, Map<String, Object> attributes) {
+        List<CanonicalSecurityContext.DataConflict> conflicts = new ArrayList<>();
+        if (attributes.get("canonicalConflicts") instanceof List<?> aliasConflicts) {
+            for (Object item : aliasConflicts) {
+                if (item instanceof Map<?, ?> conflict) {
+                    Map<String, String> sources = new LinkedHashMap<>();
+                    if (conflict.get("sources") instanceof Map<?, ?> values) {
+                        values.forEach((source, value) -> sources.put(String.valueOf(source), String.valueOf(value)));
+                    }
+                    conflicts.add(CanonicalSecurityContext.DataConflict.builder()
+                            .field(firstText(conflict.get("field")))
+                            .sources(sources)
+                            .selected(firstText(conflict.get("selected")))
+                            .build());
+                }
+            }
+        }
+        if (Boolean.TRUE.equals(resolveBoolean(metadata.get("authorizationConflict")))) {
+            Map<String, String> sources = new LinkedHashMap<>();
+            for (String evidence : normalizeStrings(metadata.get("authorizationConflictEvidence"))) {
+                int separator = evidence.lastIndexOf(':');
+                if (separator > 0) {
+                    sources.put(evidence.substring(0, separator), evidence.substring(separator + 1));
+                }
+            }
+            conflicts.add(CanonicalSecurityContext.DataConflict.builder()
+                    .field("authorization.authorizationEffect")
+                    .sources(sources)
+                    .selected(firstText(metadata.get("authorizationConflictSelected")))
+                    .resolution(firstText(metadata.get("authorizationConflictResolution")))
+                    .build());
+        }
+        if (Boolean.TRUE.equals(resolveBoolean(metadata.get("bridgeHandoffConflict")))) {
+            Map<String, String> sources = new LinkedHashMap<>();
+            String resolvedPrincipal = firstText(metadata.get("bridgeResolvedPrincipalId"));
+            String handoffPrincipal = firstText(metadata.get("bridgeHandoffPrincipalId"));
+            if (resolvedPrincipal != null) {
+                sources.put("bridge.resolvedPrincipal", resolvedPrincipal);
+            }
+            if (handoffPrincipal != null) {
+                sources.put("bridge.handoffPrincipal", handoffPrincipal);
+            }
+            conflicts.add(CanonicalSecurityContext.DataConflict.builder()
+                    .field("actor.principalId")
+                    .sources(sources)
+                    .selected(resolvedPrincipal)
+                    .build());
+        }
+        return conflicts;
     }
 
     private void enrichFromRegistry(CanonicalSecurityContext context) {
@@ -920,23 +1030,6 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
     private <T> void applyProfile(ProfileResolver<T> resolver, Map<String, Object> metadata, CanonicalSecurityContext context) {
         resolver.resolve(metadata, context).ifPresent(profile -> resolver.apply(profile, context));
-    }
-
-    private String resolveActionFamily(String httpMethod, Map<String, Object> metadata) {
-        String explicitAction = firstText(metadata.get("actionFamily"), metadata.get("operation"));
-        if (StringUtils.hasText(explicitAction)) {
-            return explicitAction.trim();
-        }
-        if (!StringUtils.hasText(httpMethod)) {
-            return "UNKNOWN";
-        }
-        return switch (httpMethod.trim().toUpperCase(Locale.ROOT)) {
-            case "GET", "HEAD" -> "READ";
-            case "POST" -> "CREATE";
-            case "PUT", "PATCH" -> "UPDATE";
-            case "DELETE" -> "DELETE";
-            default -> "UNKNOWN";
-        };
     }
 
 

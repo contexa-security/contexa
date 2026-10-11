@@ -153,6 +153,45 @@ class SynchronousProtectableDecisionServiceTest {
         when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
     }
 
+    @Test
+    @DisplayName("a stored CHALLENGE is the restriction in force for an asynchronous Protectable (W1-5)")
+    void storedRestriction_returnsStoredChallenge() {
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("an ALLOW or pending decision is no restriction")
+    void storedRestriction_ignoresAllowAndPending() {
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH))
+                .thenReturn(ZeroTrustAction.ALLOW, ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+    }
+
+    @Test
+    @DisplayName("inside a shadow boundary nothing is enforced")
+    void storedRestriction_shadowBoundaryEnforcesNothing() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID)
+                .resource("/api/reports")
+                .payload(Map.of("decisionBoundaryMode", "SHADOW"))
+                .build();
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+    }
+
     private ZeroTrustSpringEvent methodEvent(String path) {
         return ZeroTrustSpringEvent.builder(this)
                 .category(ZeroTrustEventCategory.AUTHORIZATION)

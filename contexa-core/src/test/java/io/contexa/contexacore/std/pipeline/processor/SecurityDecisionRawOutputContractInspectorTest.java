@@ -157,6 +157,29 @@ class SecurityDecisionRawOutputContractInspectorTest {
     }
 
     @Test
+    void shouldNotTreatAnUntrustedAnomalyClaimAsAdverseEvidence() {
+        assertActionViolation(
+                "AuthorizationEffect: ALLOW\nVerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\n"
+                        + "ObservedAnomalySignal: CLIENT_SUPPLIED_TEXT\n"
+                        + "AnomalySignalTrust: UNTRUSTED_REQUEST_HEADER",
+                "CHALLENGE",
+                "The request header reports an anomaly.",
+                "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+    }
+
+    @Test
+    void shouldTreatATrustedAnomalySignalAsAdverseEvidence() {
+        SecurityDecisionRawOutputContractInspector.Inspection result = inspect(
+                "AuthorizationEffect: ALLOW\nVerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\n"
+                        + "ObservedAnomalySignal: SUSPECTED_SESSION_REPLAY\n"
+                        + "AnomalySignalTrust: TRUSTED_VERIFICATION_INPUT",
+                "CHALLENGE",
+                "A server-verified anomaly signal needs fresh verification.");
+
+        assertThat(result.semanticViolation()).isNull();
+    }
+
+    @Test
     void shouldRejectEscalateThatViolatesRequiredLowRiskAllowBoundary() {
         assertActionViolation(
                 "AuthorizationEffect: ALLOW\nVerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM",

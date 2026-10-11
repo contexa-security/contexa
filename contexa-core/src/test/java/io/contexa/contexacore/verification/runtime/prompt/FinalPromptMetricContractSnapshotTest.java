@@ -50,6 +50,19 @@ class FinalPromptMetricContractSnapshotTest {
     }
 
     @Test
+    void theLinesTheComputedFactsAddedAreContractedNotUnmapped() {
+        FinalPromptMetricContractCatalog catalog = FinalPromptMetricContractCatalog.load(new ObjectMapper());
+
+        // W2-3, W2-4, W2-6: every line the P2 computed facts render in the v19 prompt is a contracted prompt fact.
+        for (String label : List.of("SessionRequestsPerActiveHour", "BaselineRequestsPerActiveHour",
+                "SessionRateVsBaseline", "NormalSessionLengthMinutes", "NormalPrivilegedActionFrequency",
+                "LongTailLegitimateTasks", "CurrentDevice", "CurrentDevicePresentInObservedDevices", "ObservedDevices",
+                "NetworkZone", "ResourceAuthorText")) {
+            assertThat(catalog.isKnownPromptFact(null, label)).as(label).isTrue();
+        }
+    }
+
+    @Test
     void ossOwnsTheCanonicalTwelveMetricContractSnapshot() throws Exception {
         try (InputStream input = getClass().getResourceAsStream(
                 "/pqa/final-prompt-metric-contracts.json")) {

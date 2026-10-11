@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.core.Authentication;
@@ -76,6 +77,14 @@ public final class OfficialVerificationRequestContext {
         );
         if (StringUtils.hasText(override)) {
             return override;
+        }
+
+        // A token (OAuth2) request is identified by the login its token carries (claim sid, kept by a refreshed
+        // token), whether or not the request also holds an HTTP session.
+        String tokenSession = OAuth2AuthenticationSupport.tokenAttribute(
+                SecurityContextHolder.getContext().getAuthentication(), OAuth2AuthenticationSupport.SESSION_ID_CLAIM);
+        if (tokenSession != null) {
+            return tokenSession;
         }
 
         HttpSession session = request.getSession(false);

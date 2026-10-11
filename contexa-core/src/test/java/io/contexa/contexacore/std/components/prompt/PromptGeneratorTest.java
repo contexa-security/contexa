@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
@@ -59,7 +60,7 @@ class PromptGeneratorTest {
 
             SecurityEvent event = SecurityEvent.builder()
                     .eventId("event-generator-calibrated-001")
-                    .timestamp(LocalDateTime.of(2026, 4, 18, 9, 30))
+                    .timestamp(LocalDateTime.of(2026, 4, 18, 9, 30).atZone(ZoneId.systemDefault()).toInstant())
                     .userId("alice")
                     .sessionId("session-calibrated")
                     .sourceIp("203.0.113.11")
@@ -100,7 +101,7 @@ class PromptGeneratorTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-generator-001")
-                .timestamp(LocalDateTime.of(2026, 3, 26, 11, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 26, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("203.0.113.10")
@@ -221,7 +222,7 @@ class PromptGeneratorTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-generator-cold-start-001")
-                .timestamp(LocalDateTime.of(2026, 4, 4, 19, 59))
+                .timestamp(LocalDateTime.of(2026, 4, 4, 19, 59).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("admin")
                 .sessionId("session-cold-start")
                 .sourceIp("0:0:0:0:0:0:0:1")
@@ -317,7 +318,7 @@ class PromptGeneratorTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-generator-step3-self-001")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin")
                 .sessionId("self-step3-session")
                 .sourceIp("10.10.0.20")
@@ -494,7 +495,7 @@ class PromptGeneratorTest {
     private SecurityDecisionRequest officialVerificationRequest() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-generator-official-identity-001")
-                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("official-verification-session:persona_fin_lead")
                 .sourceIp("0:0:0:0:0:0:0:1")

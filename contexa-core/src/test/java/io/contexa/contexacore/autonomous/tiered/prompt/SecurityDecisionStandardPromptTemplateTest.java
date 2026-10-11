@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageLevel;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
@@ -138,7 +140,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-001")
-                .timestamp(LocalDateTime.of(2026, 3, 24, 10, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 24, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("203.0.113.10")
@@ -283,12 +285,14 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(executionMetadata.toMetadataMap().get("promptCacheSystemHash"))
                 .asString()
                 .startsWith("sha256:");
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.07.30-v19");
+        // P2 renders computed facts in the v19 format, a new bundle whose evaluation baseline is the P1 gate measurement.
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.11-v19.5");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P5-DECISION-INPUT-OPTIMIZATION-GATE-2026-07-30-V19");
-        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("2026.07.30-phase5-v19-gpt-5-nano-decision-input-optimization-gate");
-        assertThat(descriptor.rollbackPromptVersion()).isEqualTo("2026.07.26-v5");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P2-COMPUTED-FACTS-DELEGATED-2026-10-11");
+        assertThat(descriptor.evaluationBaselineReference()).isEqualTo("protocol-938648df");
+        // The former rollback target 2026.07.26-v5 has no prompt text in the build, so v19 declares none (W1-18, PV-3).
+        assertThat(descriptor.rollbackPromptVersion()).isNull();
         assertThat(descriptor.supportedModelProfiles()).contains("STRICT_JSON_SCHEMA");
     }
 
@@ -340,7 +344,7 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt.lastIndexOf("=== REQUEST INTENT SIGNAL CONTEXT ==="))
                 .isGreaterThan(userPrompt.lastIndexOf("=== EXPLICIT MISSING KNOWLEDGE ==="));
         assertThat(userPrompt).contains("ObservedAnomalySignal: CONFIRMED_PROMPT_INJECTION");
-        assertThat(userPrompt).contains("evaluate the confirmed-malicious BLOCK boundary before any MFA challenge");
+        assertThat(userPrompt).contains("AnomalySignalTrust: TRUSTED_VERIFICATION_INPUT\n");
         assertThat(userPrompt).contains("FINAL RESPONSE COMPACTNESS - use at most 20 words and 140 characters");
         assertThat(userPrompt).contains("never exceed 25 words or 180 characters");
         assertThat(userPrompt).contains("before using fresh-verification wording, require explicit current-request security evidence")
@@ -425,7 +429,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-native-structured")
-                .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-native")
                 .description("POST /api/customer/export")
@@ -460,7 +464,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-cold-start")
-                .timestamp(LocalDateTime.of(2026, 4, 4, 19, 6))
+                .timestamp(LocalDateTime.of(2026, 4, 4, 19, 6).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("admin")
                 .sessionId("session-cold-start")
                 .sourceIp("0:0:0:0:0:0:0:1")
@@ -505,7 +509,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-budget-profile")
-                .timestamp(LocalDateTime.of(2026, 4, 2, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 2, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -540,7 +544,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-002")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 31))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 31).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("203.0.113.10")
@@ -587,6 +591,44 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("the decision facts are computed when the prompt is built and sealed with the context (W2-5)")
+    void generateUserPromptSealsTheDecisionFactsWithTheContext() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                new PromptContextComposer());
+        Instant observed = LocalDateTime.of(2026, 9, 30, 14, 20).atZone(ZoneId.systemDefault()).toInstant();
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-decision-facts")
+                .timestamp(observed)
+                .userId("alice")
+                .sessionId("session-facts")
+                .sourceIp("10.40.12.160")
+                .build();
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("requestPath", "/api/projects/GB-500/exports");
+        event.addMetadata("protectableResourceUrl", "/api/projects/{projectKey}/exports");
+        event.addMetadata("requestItems", 300);
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext =
+                new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-facts");
+
+        template.generateUserPrompt(new SecurityDecisionRequest(new SecurityDecisionContext(event, sessionContext,
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of())), "");
+
+        CanonicalSecurityContext sealed = (CanonicalSecurityContext) event.getMetadata()
+                .get("sealedEvidence.canonicalContext");
+        assertThat(sealed.getRequestObservedAt()).isEqualTo(observed);
+        assertThat(sealed.getDecisionFacts()).isNotNull();
+        // Without company records the host stated no policy, so the policy facts are unknown, not a guess.
+        assertThat(sealed.getDecisionFacts().unknown()).contains("Policy", "PolicySatisfied");
+    }
+
+    @Test
     @DisplayName("baseline narrative should stay provisional until personal baseline is established")
     void generateUserPromptShouldKeepBaselineNarrativeProvisionalUntilPersonalBaselineIsEstablished() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
@@ -595,7 +637,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-003")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 35))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 35).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -644,7 +686,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                 "REVERIFICATION_EVIDENCE", "RUNTIME_MONITORING_ALERTS"));
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-raw-identity")
-                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("official-verification-session")
                 .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
@@ -714,7 +756,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-003b")
-                .timestamp(LocalDateTime.of(2026, 4, 1, 15, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 1, 15, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-2")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -782,7 +824,7 @@ class SecurityDecisionStandardPromptTemplateTest {
                 template.getPromptGovernanceDescriptor());
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-sparse-personal-evidence")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-sparse-personal")
                 .sourceIp("192.168.1.100")
@@ -845,7 +887,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-supporting-comparables")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 16, 0))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 16, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-supporting")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -900,7 +942,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-004")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("192.168.1.100")
@@ -936,7 +978,8 @@ class SecurityDecisionStandardPromptTemplateTest {
                                                 VectorDocumentMetadata.PURPOSE_MATCH, true,
                                                 VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
                                                 VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY, "purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*",
-                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event")),
+                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event",
+                                                "resourceFamily", "NORMAL")),
                                 new Document(
                                         "Follow-up access revisited /admin/api/security-test/sensitive/resource-001 from the same managed browser.",
                                         Map.of(
@@ -947,7 +990,8 @@ class SecurityDecisionStandardPromptTemplateTest {
                                                 VectorDocumentMetadata.PURPOSE_MATCH, true,
                                                 VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
                                                 VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY, "purpose=security_investigation,user=alice,organization=demo-org,tenant=demo,types=*",
-                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event")))));
+                                                VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event",
+                                                "resourceFamily", "NORMAL")))));
 
         String userPrompt = template.generateUserPrompt(request, "");
 
@@ -957,13 +1001,17 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(userPrompt).contains("RagRetrievalState: AVAILABLE");
         assertThat(userPrompt).contains("RelatedDocumentCount: 2");
         assertThat(userPrompt).contains("RagRelevance: SAME_RESOURCE");
+        // The record names the request's own path, so it acted on the same target (W2-8).
+        assertThat(userPrompt).contains("|sameTarget=yes");
         assertThat(userPrompt).contains("RagDocumentScopeReason: documents=2; uniqueSignatures=1");
         assertThat(userPrompt).contains("RagDocumentAuthorizationReason: documents=2; uniqueSignatures=1");
         assertThat(userPrompt).contains("RagEvidenceBoundary:");
         assertThat(userPrompt).doesNotContain("FINAL OUTPUT RULE:");
         assertThat(userPrompt).contains("RagDocument1:");
         assertThat(userPrompt).doesNotContain("RagDocument2:");
-        assertThat(userPrompt).contains("resourceFamily=SENSITIVE");
+        // The class comes from the stored classification, not from the word "sensitive" in the path (W1-2).
+        assertThat(userPrompt).contains("resourceFamily=NORMAL");
+        assertThat(userPrompt).doesNotContain("resourceFamily=SENSITIVE");
         assertThat(userPrompt).contains("pathFamily=/admin/api/security-test/sensitive/*");
         assertThat(userPrompt).contains("authorization=ALLOWED_USER_SCOPE");
         assertThat(userPrompt).contains("retrievalPurpose=security_investigation");
@@ -990,6 +1038,167 @@ class SecurityDecisionStandardPromptTemplateTest {
     }
 
     @Test
+    @DisplayName("the RAG scope names the current request's path family as the host's URL template (W2-2)")
+    void generateUserPromptShouldNameTheRagRequestPathFamilyAsTheHostsUrlTemplate() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-path-family")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-1")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/api/documents/HX-310-DWG-00001");
+        event.addMetadata("protectableResourceUrl", "/api/documents/{documentKey}");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-1");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        sessionContext,
+                        behaviorAnalysis,
+                        List.of(new Document(
+                                "User accessed /api/documents/HX-310-DWG-00002 via GET from 192.168.1.100.",
+                                Map.of(
+                                        VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                        VectorDocumentMetadata.USER_ID, "alice",
+                                        VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                        VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                        VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                        VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
+                                        "requestPath", "/api/documents/HX-310-DWG-00002",
+                                        "pathFamily", "/api/documents/{documentKey}"))))), "");
+
+        assertThat(userPrompt).contains("requestPathFamily=/api/documents/{documentKey}");
+        assertThat(userPrompt).doesNotContain("requestPathFamily=/api/documents/HX-310-DWG-00001");
+    }
+
+    @Test
+    @DisplayName("a record of another document under the same URL template is the same action on a different resource (W2-8)")
+    void generateUserPromptShouldTellARecordOfAnotherTargetFromTheSameResource() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-other-target")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-1")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/api/documents/HX-310-DWG-00001/download");
+        event.addMetadata("protectableResourceUrl", "/api/documents/{documentKey}/download");
+        event.addMetadata("resourceId", "ops#downloadDocument");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-1");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        sessionContext,
+                        behaviorAnalysis,
+                        List.of(new Document(
+                                "User accessed /api/documents/HX-310-DWG-00002/download via GET from 192.168.1.100.",
+                                Map.of(
+                                        VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
+                                        VectorDocumentMetadata.USER_ID, "alice",
+                                        VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
+                                        VectorDocumentMetadata.ACCESS_SCOPE, "USER",
+                                        VectorDocumentMetadata.PURPOSE_MATCH, true,
+                                        VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation",
+                                        "resourceId", "ops#downloadDocument",
+                                        "requestPath", "/api/documents/HX-310-DWG-00002/download",
+                                        "pathFamily", "/api/documents/{documentKey}/download"))))), "");
+
+        // The same protected method served both, yet the record is of another document.
+        assertThat(userPrompt).contains("RagRelevance: SAME_ACTION_DIFFERENT_RESOURCE");
+        assertThat(userPrompt).doesNotContain("RagRelevance: SAME_RESOURCE");
+        assertThat(userPrompt).contains("|sameTarget=no");
+    }
+
+    @Test
+    @DisplayName("distinct past records of one protected method each get a line, copies of one record share it (W2-2 correction)")
+    void generateUserPromptShouldGiveEachDistinctPastRecordOfOneMethodItsOwnLine() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-security-standard-distinct-records")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 40).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-1")
+                .sourceIp("192.168.1.100")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/api/documents/HX-310-DWG-00001");
+        event.addMetadata("protectableResourceUrl", "/api/documents/{documentKey}");
+        event.addMetadata("resourceId", "ops#readDocument");
+
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-1");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+
+        String userPrompt = template.generateUserPrompt(new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        sessionContext,
+                        behaviorAnalysis,
+                        List.of(
+                                pastReadRecord("event-past-1", "/api/documents/HX-310-DWG-00587", "2026-03-16T16:24:05"),
+                                pastReadRecord("event-past-2", "/api/documents/HX-310-DWG-00432", "2026-03-18T12:46:11"),
+                                pastReadRecord("event-past-1", "/api/documents/HX-310-DWG-00587", "2026-03-16T16:24:05"),
+                                pastReadRecord("event-past-3", "/api/documents/HX-310-DWG-00587", "2026-03-16T16:24:05")))), "");
+
+        // Scope and authorization reasons are equal for all four; the recorded request tells three of them apart,
+        // even two requests on one path at one time, while the copy of the first record adds no line.
+        assertThat(userPrompt).contains("RelatedDocumentCount: 4");
+        assertThat(userPrompt).contains("RagDocument1:");
+        assertThat(userPrompt).contains("path=/api/documents/HX-310-DWG-00587");
+        assertThat(userPrompt).contains("RagDocument2:");
+        assertThat(userPrompt).contains("path=/api/documents/HX-310-DWG-00432");
+        assertThat(userPrompt).contains("RagDocument3:");
+        assertThat(userPrompt).doesNotContain("RagDocument4:");
+    }
+
+    private static Document pastReadRecord(String eventId, String requestPath, String timestamp) {
+        return new Document(
+                "User accessed " + requestPath + " via GET from 192.168.1.100.",
+                Map.ofEntries(
+                        Map.entry(VectorDocumentMetadata.DOCUMENT_TYPE, "behavior"),
+                        Map.entry(VectorDocumentMetadata.USER_ID, "alice"),
+                        Map.entry(VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE"),
+                        Map.entry(VectorDocumentMetadata.ACCESS_SCOPE, "USER"),
+                        Map.entry(VectorDocumentMetadata.PURPOSE_MATCH, true),
+                        Map.entry(VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"),
+                        Map.entry(VectorDocumentMetadata.EVENT_ID, eventId),
+                        Map.entry(VectorDocumentMetadata.TIMESTAMP, timestamp),
+                        Map.entry("resourceId", "ops#readDocument"),
+                        Map.entry("requestPath", requestPath),
+                        Map.entry("pathFamily", "/api/documents/{documentKey}")));
+    }
+
+    @Test
     @DisplayName("RAG zero-result state should be visible in final user prompt")
     void generateUserPromptShouldRenderRagZeroResultState() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
@@ -998,7 +1207,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-rag-zero")
-                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-rag-zero")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -1045,7 +1254,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-rag-filtered")
-                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 5, 27, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-rag-filtered")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -1089,7 +1298,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-current-request-normalization")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 15, 10))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 15, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-normalized")
                 .sourceIp("203.0.113.10")
@@ -1129,7 +1338,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-auth-normalization")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-auth-normalized")
                 .sourceIp("203.0.113.10")
@@ -1169,7 +1378,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-contract-metadata")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 21, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-contract-metadata")
                 .sourceIp("203.0.113.10")
@@ -1215,7 +1424,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-005")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 45))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 45).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("192.168.1.100")
@@ -1279,7 +1488,7 @@ class SecurityDecisionStandardPromptTemplateTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-security-standard-006")
-                .timestamp(LocalDateTime.of(2026, 3, 30, 12, 10))
+                .timestamp(LocalDateTime.of(2026, 3, 30, 12, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("192.168.1.100")
@@ -1348,7 +1557,7 @@ class SecurityDecisionStandardPromptTemplateTest {
     private SecurityDecisionRequest requestFor(String userId, String path, String method) {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-" + userId)
-                .timestamp(LocalDateTime.of(2026, 5, 13, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 5, 13, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId(userId)
                 .sessionId("session-" + userId)
                 .description(method + " " + path)

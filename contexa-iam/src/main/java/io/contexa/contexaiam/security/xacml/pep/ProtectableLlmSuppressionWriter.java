@@ -17,6 +17,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -69,11 +70,9 @@ public class ProtectableLlmSuppressionWriter {
         String suppressionId = UUID.randomUUID().toString();
         String userId = authentication.getName();
         String contextBindingHash = request == null ? null : SessionFingerprintUtil.generateContextBindingHash(request);
-        String requestId = firstText(
-                request == null ? null : request.getHeader("X-Request-Id"),
-                request == null ? null : request.getHeader("X-Correlation-Id"),
-                request == null ? null : request.getParameter("requestId"),
-                suppressionId);
+        // The same server id the engine records for this request; the caller's own id is kept for correlation only.
+        String requestId = request == null ? suppressionId : RequestInfoExtractor.extractRequestId(request);
+        String clientRequestId = request == null ? null : RequestInfoExtractor.extractClientRequestId(request);
         String testRunId = firstText(
                 request == null ? null : request.getHeader("X-Contexa-Test-Run-Id"),
                 request == null ? null : request.getParameter("testRunId"),
@@ -92,6 +91,9 @@ public class ProtectableLlmSuppressionWriter {
         metadata.put("declaringClass", invocation.getMethod().getDeclaringClass().getName());
         metadata.put("requestPath", path);
         metadata.put("httpMethod", method);
+        if (clientRequestId != null) {
+            metadata.put("clientRequestId", clientRequestId);
+        }
 
         try {
             Runnable insert = () -> jdbcOperations.update("""

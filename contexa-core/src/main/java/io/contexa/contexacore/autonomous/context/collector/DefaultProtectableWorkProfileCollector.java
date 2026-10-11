@@ -15,18 +15,25 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,26 +59,48 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     private static final int TOP_RESOURCE_LIMIT = 6;
     private static final int TOP_ACTION_LIMIT = 6;
     private static final int TOP_SENSITIVITY_LIMIT = 4;
-    private static final int PRIMARY_WINDOW_DAYS = 7;
-    private static final int FALLBACK_WINDOW_DAYS = 30;
     private static final int MAX_EVIDENCE_RECORDS = 4;
     private static final int MAX_FIELD_EVIDENCE_IDS = 6;
     private static final int PROVISIONAL_OBSERVATION_THRESHOLD = 3;
     private static final String NULL_TOKEN = "~";
     private static final String SERIALIZATION_VERSION_V2 = "v2";
+    private static final String SERIALIZATION_VERSION_V3 = "v3";
+    private static final String SERIALIZATION_VERSION_V4 = "v4";
     private static final String PROFILE_KEY = "PERSONAL_WORK_PROFILE";
     private static final String COLLECTOR_ID = "PROTECTABLE_WORK_PROFILE_COLLECTOR";
 
     private final SecurityContextDataStore dataStore;
+    private final ContextObservationRecorder recorder;
 
+    /** A collector that records through a recorder of its own, committed by whoever holds it. */
     public DefaultProtectableWorkProfileCollector(SecurityContextDataStore dataStore) {
-        this.dataStore = dataStore;
+        this(dataStore, new ContextObservationRecorder(dataStore));
     }
 
+    public DefaultProtectableWorkProfileCollector(SecurityContextDataStore dataStore,
+                                                  ContextObservationRecorder recorder) {
+        this.dataStore = dataStore;
+        this.recorder = recorder;
+    }
+
+    public ContextObservationRecorder recorder() {
+        return recorder;
+    }
+
+    /**
+     * The subject's work profile before this request. The collector only reads; the request's observation joins the
+     * usual behaviour only when an enforced decision allows the request (W2-7, A-15), and resolving the same request
+     * again records nothing more.
+     */
     @Override
     public Optional<ProtectableWorkProfileSnapshot> collect(SecurityEvent event) {
         if (event == null || !StringUtils.hasText(event.getUserId())) {
             return Optional.empty();
+        }
+        Optional<ProtectableWorkProfileSnapshot> resolved = recorder.resolved(event,
+                ContextObservationRecorder.WORK_PROFILE, ProtectableWorkProfileSnapshot.class);
+        if (resolved.isPresent()) {
+            return resolved;
         }
 
         WorkProfileObservation currentObservation = createObservation(event);
@@ -81,14 +110,28 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
 
         String tenantId = resolveTenantId(event);
         String userId = event.getUserId().trim();
-        List<WorkProfileObservation> history = loadHistory(tenantId, userId, currentObservation.timestampMs());
-        List<WorkProfileObservation> baseline = selectBaseline(history, currentObservation);
-        Optional<ProtectableWorkProfileSnapshot> snapshot = buildSnapshot(tenantId, userId, baseline, currentObservation.timestampMs());
+        // The usual behaviour is compared with the activity period of this request, so it leaves that period out.
+        List<WorkProfileObservation> history = BaselineViewCalculator.withoutCurrentSessionPeriod(
+                loadHistory(tenantId, userId, currentObservation.timestampMs()),
+                WorkProfileObservation::timestampMs,
+                WorkProfileObservation::sessionKey,
+                sessionKeysOf(event, currentObservation.sessionKey()),
+                currentObservation.timestampMs());
+        // The snapshot and its usual-behaviour view describe the same window (W2-3, A-19).
+        List<WorkProfileObservation> baseline = BaselineViewCalculator.windowed(
+                history, WorkProfileObservation::timestampMs, currentObservation.timestampMs());
+        BaselineView view = BaselineViewCalculator.calculate(
+                history.stream().map(this::viewObservation).toList(),
+                currentObservation.timestampMs(),
+                EventTimeZone.get());
+        Optional<ProtectableWorkProfileSnapshot> snapshot = buildSnapshot(tenantId, userId, baseline, view);
 
-        if (shouldPersist(currentObservation)) {
-            dataStore.addWorkProfileObservation(tenantId, userId, serialize(currentObservation));
-        }
-
+        String observation = shouldPersist(currentObservation) ? serialize(currentObservation) : null;
+        recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, snapshot.orElse(null), commit -> {
+            if (observation != null && commit.learnable()) {
+                commit.dataStore().addWorkProfileObservation(tenantId, userId, observation);
+            }
+        });
         return snapshot;
     }
 
@@ -98,7 +141,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             return List.of();
         }
 
-        long fallbackWindowStart = currentTimestampMs - FALLBACK_WINDOW_DAYS * 24L * 60L * 60L * 1_000L;
+        long fallbackWindowStart = currentTimestampMs - BaselineViewCalculator.FALLBACK_WINDOW_DAYS * 24L * 60L * 60L * 1_000L;
         Map<String, WorkProfileObservation> deduplicated = new LinkedHashMap<>();
         for (String raw : rawObservations) {
             WorkProfileObservation observation = deserialize(raw);
@@ -115,58 +158,35 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         return List.copyOf(deduplicated.values());
     }
 
-    private List<WorkProfileObservation> selectBaseline(List<WorkProfileObservation> history, WorkProfileObservation currentObservation) {
-        if (history.isEmpty()) {
-            return List.of();
-        }
-
-        long primaryWindowStart = currentObservation.timestampMs() - PRIMARY_WINDOW_DAYS * 24L * 60L * 60L * 1_000L;
-        List<WorkProfileObservation> primaryWindow = history.stream()
-                .filter(observation -> observation.timestampMs() >= primaryWindowStart)
-                .toList();
-        if (!primaryWindow.isEmpty()) {
-            return primaryWindow;
-        }
-        return history;
+    private BaselineViewCalculator.Observation viewObservation(WorkProfileObservation observation) {
+        return new BaselineViewCalculator.Observation(
+                observation.timestampMs(),
+                observation.actionFamily(),
+                observation.actionFamilySourceKey(),
+                observation.actionFamilyFallback(),
+                firstText(observation.sensitivity(), observation.resourceFamily()),
+                observation.pathTemplate(),
+                observation.requestPath(),
+                observation.sessionKey(),
+                "ALLOWED".equals(observation.decisionState()),
+                observation.requestedItems());
     }
 
     private Optional<ProtectableWorkProfileSnapshot> buildSnapshot(
             String tenantId,
             String userId,
             List<WorkProfileObservation> observations,
-            long currentTimestampMs) {
+            BaselineView view) {
         if (observations == null || observations.isEmpty()) {
             return Optional.empty();
         }
 
         Map<String, Integer> protectableResourceCounts = new LinkedHashMap<>();
-        Map<String, Integer> actionCounts = new LinkedHashMap<>();
-        Map<Integer, Integer> hourCounts = new LinkedHashMap<>();
-        Map<Integer, Integer> dayCounts = new LinkedHashMap<>();
         Map<String, Integer> sensitivityCounts = new LinkedHashMap<>();
-        Map<String, Integer> actionBucketCounts = new LinkedHashMap<>();
-        Map<Long, Integer> activeHourBuckets = new LinkedHashMap<>();
-        Set<LocalDate> coveredDays = new LinkedHashSet<>();
 
         int protectableCount = 0;
         int knownProtectableCount = 0;
         for (WorkProfileObservation observation : observations) {
-            LocalDateTime eventTime = LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(observation.timestampMs()),
-                    ZoneId.systemDefault());
-            coveredDays.add(eventTime.toLocalDate());
-            hourCounts.merge(eventTime.getHour(), 1, Integer::sum);
-            dayCounts.merge(eventTime.getDayOfWeek().getValue(), 1, Integer::sum);
-            activeHourBuckets.merge(observation.timestampMs() / 3_600_000L, 1, Integer::sum);
-
-            if (StringUtils.hasText(observation.actionFamily())) {
-                actionCounts.merge(observation.actionFamily(), 1, Integer::sum);
-                String actionBucket = toActionBucket(observation.actionFamily());
-                if (actionBucket != null) {
-                    actionBucketCounts.merge(actionBucket, 1, Integer::sum);
-                }
-            }
-
             if (observation.protectable() != null) {
                 knownProtectableCount++;
             }
@@ -182,21 +202,31 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             }
         }
 
+        // Time, action and rate come from the usual-behaviour view, so that the work profile and the user profile say
+        // the same usual hours (W2-3, B-9).
         int observationCount = observations.size();
-        int daysCovered = coveredDays.size();
-        int windowDays = resolveWindowDays(observations, currentTimestampMs);
+        int daysCovered = view.daysCovered();
+        int windowDays = view.windowDays();
         List<String> frequentProtectableResources = topStringKeys(protectableResourceCounts, TOP_RESOURCE_LIMIT);
-        List<String> frequentActionFamilies = topStringKeys(actionCounts, TOP_ACTION_LIMIT);
-        List<Integer> normalAccessHours = topIntegerKeys(hourCounts, TOP_ACTION_LIMIT);
-        List<Integer> normalAccessDays = topIntegerKeys(dayCounts, 7);
-        Double normalRequestRate = round(totalAsDouble(observationCount) / Math.max(1, activeHourBuckets.size()), 2);
+        List<String> frequentActionFamilies = topStringKeys(view.actionCounts(), TOP_ACTION_LIMIT);
+        List<Integer> normalAccessHours = view.usualHours();
+        List<Integer> normalAccessDays = view.usualDays();
+        Double normalRequestRate = view.requestsPerActiveHour();
         Double protectableInvocationDensity = knownProtectableCount == 0
                 ? null
                 : round(totalAsDouble(protectableCount) / knownProtectableCount, 4);
         List<String> protectableResourceHeatmap = topHeatmap(protectableResourceCounts, TOP_RESOURCE_LIMIT);
         List<String> frequentSensitiveResourceCategories = topStringKeys(sensitivityCounts, TOP_SENSITIVITY_LIMIT);
-        String normalReadWriteExportRatio = buildReadWriteExportRatio(actionBucketCounts);
+        String normalReadWriteExportRatio = view.readWriteExportRatio();
 
+        ContextTrustProfile trustProfile = buildTrustProfile(
+                observations,
+                observationCount,
+                daysCovered,
+                windowDays,
+                frequentProtectableResources,
+                frequentActionFamilies,
+                protectableInvocationDensity);
         return Optional.of(ProtectableWorkProfileSnapshot.builder()
                 .tenantId(tenantId)
                 .userId(userId)
@@ -217,16 +247,32 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         frequentProtectableResources,
                         frequentActionFamilies,
                         protectableInvocationDensity,
-                        normalAccessHours))
-                .trustProfile(buildTrustProfile(
-                        observations,
-                        observationCount,
-                        daysCovered,
-                        windowDays,
-                        frequentProtectableResources,
-                        frequentActionFamilies,
-                        protectableInvocationDensity))
+                        normalAccessHours,
+                        view.counts().dayObservations()))
+                .trustProfile(trustProfile)
+                .baselineView(withFieldCautions(view, trustProfile))
                 .build());
+    }
+
+    /**
+     * The view with the trust profile's other cautions as causes of its grade, so that the evidence state and the
+     * cautions of the same work profile never disagree (W2-3, B-2). The action field's caution is the view's own
+     * inference cause when it has one.
+     */
+    private BaselineView withFieldCautions(BaselineView view, ContextTrustProfile trustProfile) {
+        boolean actionCauseStated = view.evidenceCauses().stream()
+                .anyMatch(cause -> cause.startsWith("action family inferred"));
+        List<String> causes = new ArrayList<>();
+        for (ContextFieldTrustRecord fieldRecord : trustProfile.getFieldRecords()) {
+            if (fieldRecord == null || !ContextSemanticBoundaryPolicy.requiresEvidenceCaution(fieldRecord)
+                    || actionCauseStated && "workProfile.frequentActionFamilies".equals(fieldRecord.getFieldPath())) {
+                continue;
+            }
+            causes.add(fieldRecord.getFieldPath() + " needs caution: " + fieldRecord.getQualitySummary()
+                    + (fieldRecord.getFallbackSourceKeys().isEmpty()
+                    ? "" : " | fallbackSources=" + String.join(",", fieldRecord.getFallbackSourceKeys())));
+        }
+        return view.withAdditionalCauses(causes);
     }
 
     private ContextTrustProfile buildTrustProfile(
@@ -671,12 +717,75 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 decisionState,
                 protectable.value(),
                 protectable.sourceKey(),
-                protectable.fallback());
+                protectable.fallback(),
+                resolvePathTemplate(metadata),
+                resolveSessionKey(event),
+                resolveRequestedItems(metadata));
+    }
+
+    /** How many items the request asks for, as the host counted them; null when it did not say (W2-6). */
+    private Integer resolveRequestedItems(Map<String, Object> metadata) {
+        Object value = metadata != null ? metadata.get("requestItems") : null;
+        if (value instanceof Number number) {
+            return number.intValue() > 0 ? number.intValue() : null;
+        }
+        if (value != null && StringUtils.hasText(value.toString())) {
+            try {
+                int items = Integer.parseInt(value.toString().trim());
+                return items > 0 ? items : null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** The URL template the host matched for this request, kept to bind the request's targets (W2-3). */
+    private String resolvePathTemplate(Map<String, Object> metadata) {
+        return firstText(
+                metadata != null ? metadata.get("protectableResourceUrl") : null,
+                metadata != null ? metadata.get("resourceUrlTemplate") : null);
+    }
+
+    /** A key of the request's session; the session id itself is not stored with the observations. */
+    private String resolveSessionKey(SecurityEvent event) {
+        return sessionKey(event.getSessionId());
+    }
+
+    private static String sessionKey(String sessionId) {
+        if (!StringUtils.hasText(sessionId)) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(sessionId.trim().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 12);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * The keys the request's session is observed under: its current key and the keys of the ids it had before its
+     * id was replaced (P2 correction 5), so the activity period being judged is left out whole.
+     */
+    private List<String> sessionKeysOf(SecurityEvent event, String currentKey) {
+        if (currentKey == null) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add(currentKey);
+        List<String> previous = dataStore != null ? dataStore.getSessionPreviousIds(event.getSessionId()) : null;
+        if (previous != null) {
+            previous.stream().map(DefaultProtectableWorkProfileCollector::sessionKey)
+                    .filter(key -> key != null && !keys.contains(key)).forEach(keys::add);
+        }
+        return keys;
     }
 
     private long resolveTimestamp(SecurityEvent event) {
         if (event.getTimestamp() != null) {
-            return event.getTimestamp().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            return event.getTimestamp().toEpochMilli();
         }
         return System.currentTimeMillis();
     }
@@ -725,27 +834,13 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 true, "resourceCategory");
     }
 
+    /** The request's action family as the context gives it; a family the host did not declare is a fallback. */
     private ResolvedSignal resolveActionFamily(SecurityEvent event) {
-        Map<String, Object> metadata = event.getMetadata();
-        ResolvedSignal explicit = resolveSignal(metadata, true, "actionFamily", "operation");
-        if (explicit.value() != null) {
-            return explicit;
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(event.getMetadata());
+        if (action.family() == ActionFamily.UNKNOWN) {
+            return new ResolvedSignal(null, null, false);
         }
-
-        String httpMethod = firstText(
-                metadata != null ? metadata.get("httpMethod") : null,
-                metadata != null ? metadata.get("method") : null);
-        if (StringUtils.hasText(httpMethod)) {
-            String mapped = switch (httpMethod.trim().toUpperCase(Locale.ROOT)) {
-                case "GET", "HEAD" -> "READ";
-                case "POST" -> "CREATE";
-                case "PUT", "PATCH" -> "UPDATE";
-                case "DELETE" -> "DELETE";
-                default -> null;
-            };
-            return new ResolvedSignal(normalizeToken(mapped), "httpMethod", true);
-        }
-        return new ResolvedSignal(null, null, false);
+        return new ResolvedSignal(action.family().name(), action.sourceKey(), action.inferred());
     }
 
     private ResolvedSignal resolveSensitivity(Map<String, Object> metadata) {
@@ -854,7 +949,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     private String serialize(WorkProfileObservation observation) {
-        return SERIALIZATION_VERSION_V2
+        return SERIALIZATION_VERSION_V4
                 + "|" + encodeNullable(observation.observationId())
                 + "|" + observation.timestampMs()
                 + "|" + encodeNullableBoolean(observation.protectable())
@@ -872,7 +967,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 + "|" + encodeNullable(observation.sensitivitySourceKey())
                 + "|" + encodeBoolean(observation.sensitivityFallback())
                 + "|" + encodeNullable(observation.protectableSourceKey())
-                + "|" + encodeBoolean(observation.protectableFallback());
+                + "|" + encodeBoolean(observation.protectableFallback())
+                + "|" + encodeNullable(observation.pathTemplate())
+                + "|" + encodeNullable(observation.sessionKey())
+                + "|" + encodeNullable(observation.requestedItems() != null
+                ? observation.requestedItems().toString() : null);
     }
 
     private WorkProfileObservation deserialize(String raw) {
@@ -881,7 +980,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         }
         String[] parts = raw.split("\\|", -1);
         try {
-            if (SERIALIZATION_VERSION_V2.equals(parts[0]) && parts.length == 19) {
+            // v3 adds the URL template and the session key, v4 the item count; older observations read without them.
+            boolean v4 = SERIALIZATION_VERSION_V4.equals(parts[0]) && parts.length == 22;
+            boolean v3 = v4 || SERIALIZATION_VERSION_V3.equals(parts[0]) && parts.length == 21;
+            if (v3 || SERIALIZATION_VERSION_V2.equals(parts[0]) && parts.length == 19) {
                 return new WorkProfileObservation(
                         decodeNullable(parts[1]),
                         Long.parseLong(parts[2]),
@@ -891,7 +993,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         decodeNullable(parts[8]),
                         decodeNullable(parts[9]),
                         decodeBoolean(parts[10]),
-                        decodeNullable(parts[11]),
+                        ActionFamily.nameOrRaw(decodeNullable(parts[11])),
                         decodeNullable(parts[12]),
                         decodeBoolean(parts[13]),
                         decodeNullable(parts[14]),
@@ -900,7 +1002,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         decodeNullable(parts[4]),
                         decodeNullableBoolean(parts[3]),
                         decodeNullable(parts[17]),
-                        decodeBoolean(parts[18]));
+                        decodeBoolean(parts[18]),
+                        v3 ? decodeNullable(parts[19]) : null,
+                        v3 ? decodeNullable(parts[20]) : null,
+                        v4 ? decodeItems(decodeNullable(parts[21])) : null);
             }
             if (parts.length == 7) {
                 String fingerprint = String.join("|", parts);
@@ -913,7 +1018,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         decodeNullable(parts[4]),
                         "legacy",
                         false,
-                        decodeNullable(parts[5]),
+                        ActionFamily.nameOrRaw(decodeNullable(parts[5])),
                         "legacy",
                         false,
                         decodeNullable(parts[6]),
@@ -922,7 +1027,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         parts[2],
                         decodeNullableBoolean(parts[1]),
                         "legacy",
-                        false);
+                        false,
+                        null,
+                        null,
+                        null);
             }
         } catch (RuntimeException ignored) {
             return null;
@@ -980,19 +1088,6 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 .toList();
     }
 
-    private List<Integer> topIntegerKeys(Map<Integer, Integer> counts, int limit) {
-        if (counts.isEmpty()) {
-            return List.of();
-        }
-        List<Integer> top = counts.entrySet().stream()
-                .sorted(Map.Entry.<Integer, Integer>comparingByValue().reversed()
-                        .thenComparing(Map.Entry.comparingByKey()))
-                .limit(limit)
-                .map(Map.Entry::getKey)
-                .toList();
-        return top.stream().sorted().toList();
-    }
-
     private List<String> topHeatmap(Map<String, Integer> counts, int limit) {
         if (counts.isEmpty()) {
             return List.of();
@@ -1005,47 +1100,22 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 .toList();
     }
 
-    private String buildReadWriteExportRatio(Map<String, Integer> actionBucketCounts) {
-        int readCount = actionBucketCounts.getOrDefault("READ", 0);
-        int writeCount = actionBucketCounts.getOrDefault("WRITE", 0);
-        int exportCount = actionBucketCounts.getOrDefault("EXPORT", 0);
-        int total = readCount + writeCount + exportCount;
-        if (total == 0) {
-            return null;
-        }
-
-        double[] exact = new double[] {
-                readCount * 100.0 / total,
-                writeCount * 100.0 / total,
-                exportCount * 100.0 / total
-        };
-        int[] rounded = new int[] {
-                (int) Math.floor(exact[0]),
-                (int) Math.floor(exact[1]),
-                (int) Math.floor(exact[2])
-        };
-        int remainder = 100 - rounded[0] - rounded[1] - rounded[2];
-        List<Integer> order = List.of(0, 1, 2).stream()
-                .sorted((left, right) -> Double.compare(
-                        exact[right] - Math.floor(exact[right]),
-                        exact[left] - Math.floor(exact[left])))
-                .toList();
-        for (int index = 0; index < remainder; index++) {
-            rounded[order.get(index)]++;
-        }
-        return rounded[0] + ":" + rounded[1] + ":" + rounded[2];
-    }
-
     private String buildSummary(
             int observationCount,
             int windowDays,
             List<String> frequentProtectableResources,
             List<String> frequentActionFamilies,
             Double protectableInvocationDensity,
-            List<Integer> normalAccessHours) {
+            List<Integer> normalAccessHours,
+            int dayObservations) {
         StringJoiner joiner = new StringJoiner(" | ");
         joiner.add("Window " + windowDays + "d");
         joiner.add("Observations " + observationCount);
+        if (windowDays != BaselineViewCalculator.DAY_OF_WEEK_DAYS) {
+            // The usual days of the week read several weeks, so the prompt says which observations they count.
+            joiner.add("Days of week from " + BaselineViewCalculator.DAY_OF_WEEK_DAYS + "d, " + dayObservations
+                    + " observations");
+        }
         boolean provisionalEvidence = observationCount < PROVISIONAL_OBSERVATION_THRESHOLD;
         if (provisionalEvidence) {
             joiner.add("Evidence state PROVISIONAL");
@@ -1066,18 +1136,6 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             joiner.add(String.format(Locale.ROOT, "Protectable density %.2f", protectableInvocationDensity));
         }
         return joiner.toString();
-    }
-
-    private int resolveWindowDays(List<WorkProfileObservation> observations, long currentTimestampMs) {
-        if (observations.isEmpty()) {
-            return PRIMARY_WINDOW_DAYS;
-        }
-        long earliestTimestamp = observations.stream()
-                .mapToLong(WorkProfileObservation::timestampMs)
-                .min()
-                .orElse(currentTimestampMs);
-        long primaryWindowStart = currentTimestampMs - PRIMARY_WINDOW_DAYS * 24L * 60L * 60L * 1_000L;
-        return earliestTimestamp >= primaryWindowStart ? PRIMARY_WINDOW_DAYS : FALLBACK_WINDOW_DAYS;
     }
 
     private String joinIntegers(Collection<Integer> values) {
@@ -1107,28 +1165,6 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         return rate * 100.0d;
     }
 
-    private String toActionBucket(String actionFamily) {
-        if (!StringUtils.hasText(actionFamily)) {
-            return null;
-        }
-        String normalized = normalizeToken(actionFamily);
-        if (normalized.contains("EXPORT") || normalized.contains("DOWNLOAD")) {
-            return "EXPORT";
-        }
-        if (normalized.equals("READ") || normalized.equals("VIEW") || normalized.equals("LIST")) {
-            return "READ";
-        }
-        if (normalized.equals("CREATE")
-                || normalized.equals("UPDATE")
-                || normalized.equals("DELETE")
-                || normalized.equals("WRITE")
-                || normalized.equals("MODIFY")
-                || normalized.equals("PATCH")) {
-            return "WRITE";
-        }
-        return null;
-    }
-
     private Double round(double value, int scale) {
         double factor = Math.pow(10, scale);
         return Math.round(value * factor) / factor;
@@ -1140,7 +1176,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
 
     private LocalDate toLocalDate(long timestampMs) {
         return Instant.ofEpochMilli(timestampMs)
-                .atZone(ZoneId.systemDefault())
+                .atZone(EventTimeZone.get())
                 .toLocalDate();
     }
 
@@ -1194,25 +1230,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     private Boolean resolveBoolean(Object... candidates) {
-        if (candidates == null) {
-            return null;
-        }
-        for (Object candidate : candidates) {
-            if (candidate == null) {
-                continue;
-            }
-            if (candidate instanceof Boolean booleanValue) {
-                return booleanValue;
-            }
-            String text = candidate.toString().trim();
-            if (!StringUtils.hasText(text)) {
-                continue;
-            }
-            if ("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
-                return Boolean.parseBoolean(text);
-            }
-        }
-        return null;
+        return MetadataValueResolver.resolveBoolean(candidates);
     }
 
     private record ResolvedSignal(String value, String sourceKey, boolean fallback) {
@@ -1239,6 +1257,20 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             String decisionState,
             Boolean protectable,
             String protectableSourceKey,
-            boolean protectableFallback) {
+            boolean protectableFallback,
+            String pathTemplate,
+            String sessionKey,
+            Integer requestedItems) {
+    }
+
+    private static Integer decodeItems(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

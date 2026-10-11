@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import java.time.ZoneId;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWorkProfileCollector;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
@@ -47,10 +50,10 @@ class DefaultProtectableWorkProfileCollectorTest {
     @DisplayName("collect returns empty when userId is missing")
     void collect_withoutUserId_returnsEmpty() {
         SecurityEvent event = SecurityEvent.builder()
-                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
 
-        assertThat(collector.collect(event)).isEmpty();
+        assertThat(collect(event)).isEmpty();
     }
 
     @Test
@@ -69,13 +72,13 @@ class DefaultProtectableWorkProfileCollectorTest {
                 true,
                 null);
 
-        assertThat(collector.collect(first)).isEmpty();
+        assertThat(collect(first)).isEmpty();
     }
 
     @Test
     @DisplayName("collect builds work profile from prior history without contaminating it with the current request")
     void collect_buildsProfileFromPriorHistoryWithoutCurrentRequestContamination() {
-        collector.collect(event(
+        collect(event(
                 "alice",
                 "tenant-acme",
                 LocalDateTime.of(2026, 3, 24, 9, 0),
@@ -88,7 +91,7 @@ class DefaultProtectableWorkProfileCollectorTest {
                 true,
                 null));
 
-        ProtectableWorkProfileSnapshot snapshot = collector.collect(event(
+        ProtectableWorkProfileSnapshot snapshot = collect(event(
                         "alice",
                         "tenant-acme",
                         LocalDateTime.of(2026, 3, 24, 10, 0),
@@ -103,7 +106,8 @@ class DefaultProtectableWorkProfileCollectorTest {
                 .orElseThrow();
 
         assertThat(snapshot.getObservationCount()).isEqualTo(1);
-        assertThat(snapshot.getWindowDays()).isEqualTo(7);
+        // One observation is below the 7-day minimum sample, so the view reads the 30-day window (W2-3, A-19).
+        assertThat(snapshot.getWindowDays()).isEqualTo(30);
         assertThat(snapshot.getFrequentProtectableResources()).containsExactly("/api/customer/list");
         assertThat(snapshot.getFrequentActionFamilies()).containsExactly("READ");
         assertThat(snapshot.getNormalAccessHours()).containsExactly(9);
@@ -128,7 +132,7 @@ class DefaultProtectableWorkProfileCollectorTest {
     void collect_doesNotTreatResourceFamilyAsProtectableResource() {
         SecurityEvent first = SecurityEvent.builder()
                 .userId("alice")
-                .timestamp(LocalDateTime.of(2026, 3, 24, 9, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 24, 9, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .description("GET missing-path")
                 .build();
         first.addMetadata("tenantId", "tenant-acme");
@@ -139,11 +143,11 @@ class DefaultProtectableWorkProfileCollectorTest {
         first.addMetadata("isProtectable", true);
         first.addMetadata("granted", true);
 
-        assertThat(collector.collect(first)).isEmpty();
+        assertThat(collect(first)).isEmpty();
 
         SecurityEvent second = SecurityEvent.builder()
                 .userId("alice")
-                .timestamp(LocalDateTime.of(2026, 3, 24, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 24, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .description("GET missing-path-2")
                 .build();
         second.addMetadata("tenantId", "tenant-acme");
@@ -154,7 +158,7 @@ class DefaultProtectableWorkProfileCollectorTest {
         second.addMetadata("isProtectable", true);
         second.addMetadata("granted", true);
 
-        ProtectableWorkProfileSnapshot snapshot = collector.collect(second).orElseThrow();
+        ProtectableWorkProfileSnapshot snapshot = collect(second).orElseThrow();
 
         assertThat(snapshot.getFrequentProtectableResources()).isEmpty();
         assertThat(snapshot.getTrustProfile()).isNotNull();
@@ -170,7 +174,7 @@ class DefaultProtectableWorkProfileCollectorTest {
     @Test
     @DisplayName("collect excludes denied requests from future baseline and keeps protectable density relative to total requests")
     void collect_excludesDeniedRequestsAndKeepsDensityRelativeToTotalRequests() {
-        collector.collect(event(
+        collect(event(
                 "alice",
                 "tenant-acme",
                 LocalDateTime.of(2026, 3, 23, 9, 0),
@@ -182,7 +186,7 @@ class DefaultProtectableWorkProfileCollectorTest {
                 false,
                 true,
                 null));
-        collector.collect(event(
+        collect(event(
                 "alice",
                 "tenant-acme",
                 LocalDateTime.of(2026, 3, 23, 10, 0),
@@ -194,7 +198,7 @@ class DefaultProtectableWorkProfileCollectorTest {
                 true,
                 true,
                 null));
-        collector.collect(event(
+        collect(event(
                 "alice",
                 "tenant-acme",
                 LocalDateTime.of(2026, 3, 23, 11, 0),
@@ -207,7 +211,7 @@ class DefaultProtectableWorkProfileCollectorTest {
                 false,
                 "BLOCK"));
 
-        ProtectableWorkProfileSnapshot snapshot = collector.collect(event(
+        ProtectableWorkProfileSnapshot snapshot = collect(event(
                         "alice",
                         "tenant-acme",
                         LocalDateTime.of(2026, 3, 23, 12, 0),
@@ -229,6 +233,205 @@ class DefaultProtectableWorkProfileCollectorTest {
         assertThat(snapshot.getSummary()).contains("Protectable density 0.50");
     }
 
+    @Test
+    @DisplayName("an export counts as an export and a download as a read, in one vocabulary with stored families (W2-1)")
+    void collect_countsActionsInOneVocabulary() {
+        SecurityEvent download = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 0),
+                "/api/documents/D-1/download", "GET", null, "REPORT", "HIGH", true, true, null);
+        download.addMetadata("protectableMethod", "io.contexa.example.BusinessOperations.downloadDocument");
+        collect(download);
+        collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 10),
+                "/api/documents/D-2", "GET", "READ", "REPORT", "HIGH", true, true, null));
+        collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 20),
+                "/api/notes", "POST", "CREATE", "REPORT", "HIGH", true, true, null));
+        SecurityEvent export = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 30),
+                "/api/projects/P-1/exports", "POST", null, "REPORT", "HIGH", true, true, null);
+        export.addMetadata("protectableMethod", "io.contexa.example.BusinessOperations.exportDocuments");
+        collect(export);
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 10, 0), "/api/documents/D-3", "GET", "READ", "REPORT", "HIGH",
+                        true, true, null))
+                .orElseThrow();
+
+        // A-5: the usual ratio counted a bulk export as a write (50:50:0).
+        assertThat(snapshot.getNormalReadWriteExportRatio()).isEqualTo("50:25:25");
+        assertThat(snapshot.getFrequentActionFamilies()).containsExactlyInAnyOrder("READ", "WRITE", "EXPORT");
+    }
+
+    @Test
+    void collect_takesTheUsualHoursFromTheBaselineView() {
+        for (int index = 0; index < 12; index++) {
+            collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, index < 10 ? 9 : 15, index),
+                    "/api/documents/D-" + index, "GET", "READ", "REPORT", "HIGH", true, true, null));
+        }
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 16, 0), "/api/documents/D-12", "GET", "READ", "REPORT", "HIGH",
+                        true, true, null))
+                .orElseThrow();
+
+        // B-9: the work profile's usual hours are the view's (the top six by count used to make 15:00 usual too).
+        BaselineView view = snapshot.getBaselineView();
+        assertThat(view.observations()).isEqualTo(12);
+        assertThat(snapshot.getNormalAccessHours()).isEqualTo(view.usualHours()).containsExactly(9);
+        assertThat(view.seenHours()).containsExactly(9, 15);
+        assertThat(snapshot.getNormalRequestRate()).isEqualTo(view.requestsPerActiveHour());
+        // The days of the week read several weeks, so the summary says which observations they count (W2-3 correction).
+        assertThat(snapshot.getSummary()).startsWith("Window 7d | Observations 12 | Days of week from 30d, 12 observations");
+    }
+
+    @Test
+    void collect_givesTheViewTheTrustProfileCautionsAsCauses() {
+        for (int index = 0; index < 12; index++) {
+            SecurityEvent read = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, index),
+                    "/api/documents/D-" + index, "GET", "READ", "REPORT", "HIGH", true, true, null);
+            read.getMetadata().remove("isProtectable");
+            collect(read);
+        }
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 10, 0), "/api/documents/D-12", "GET", "READ", "REPORT", "HIGH",
+                        true, true, null))
+                .orElseThrow();
+
+        // Declared actions, but the protectable flag was read from the class and method names: the trust profile
+        // needs caution there, so the view cannot say TRUSTED beside it (B-2).
+        assertThat(snapshot.getBaselineView().evidenceGrade()).isEqualTo(BaselineView.EvidenceGrade.LIMITED);
+        assertThat(snapshot.getBaselineView().evidenceCauses())
+                .anyMatch(cause -> cause.startsWith("workProfile.protectableInvocationDensity needs caution: observations=12")
+                        && cause.endsWith("fallbackSources=className+methodName"));
+        assertThat(snapshot.getBaselineView().workProfileEvidenceState()).isEqualTo("PROVISIONAL");
+    }
+
+    @Test
+    void collect_widensTheWindowWhenTheLastWeekIsTooThin() {
+        for (int day = 0; day < 10; day++) {
+            collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 1 + day, 10, 0),
+                    "/api/documents/D-" + day, "GET", "READ", "REPORT", "HIGH", true, true, null));
+        }
+        for (int day = 0; day < 3; day++) {
+            collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 21 + day, 10, 0),
+                    "/api/documents/E-" + day, "GET", "READ", "REPORT", "HIGH", true, true, null));
+        }
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 10, 30), "/api/documents/E-9", "GET", "READ", "REPORT", "HIGH",
+                        true, true, null))
+                .orElseThrow();
+
+        // A-19: three requests in the last week used to stand for the subject; the month does.
+        assertThat(snapshot.getObservationCount()).isEqualTo(13);
+        assertThat(snapshot.getWindowDays()).isEqualTo(30);
+        assertThat(snapshot.getBaselineView().evidenceCauses())
+                .contains("the last 7 days hold 3 observations, below the minimum 10; the view uses the last 30 days");
+        assertThat(snapshot.getSummary()).startsWith("Window 30d | Observations 13 |")
+                .doesNotContain("Days of week from");
+    }
+
+    @Test
+    void collect_keepsTheTemplateAndTheSessionToBindTargetsAndSessionLength() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        String[] sessions = {"session-a", "session-b", "session-c"};
+        long[] spans = {30L, 10L, 20L};
+        for (int index = 0; index < sessions.length; index++) {
+            for (long minute : new long[]{0L, spans[index]}) {
+                SecurityEvent export = event("alice", "tenant-acme", start.plusDays(index).plusMinutes(minute),
+                        "/api/projects/PLM-OPS/exports", "POST", "EXPORT", "REPORT", "HIGH", true, true, null);
+                export.addMetadata("protectableResourceUrl", "/api/projects/{projectKey}/exports");
+                export.setSessionId(sessions[index]);
+                collect(export);
+            }
+        }
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        start.plusDays(3), "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null))
+                .orElseThrow();
+
+        // The stored observations keep the URL template and a session key (v3), so the view binds the target and the
+        // sessions' spans; the raw session id is not stored.
+        assertThat(snapshot.getBaselineView().usualTargets()).containsExactly("projectKey=PLM-OPS");
+        assertThat(snapshot.getBaselineView().usualSessionMinutes()).isEqualTo(20);
+        assertThat(String.join("\n", dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)))
+                .startsWith("v4|")
+                .doesNotContain("session-a");
+    }
+
+    @Test
+    void collect_keepsTheItemCountOfAnExportAndStillReadsAV3Observation() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        SecurityEvent export = event("alice", "tenant-acme", start, "/api/projects/PLM-OPS/exports", "POST", "EXPORT",
+                "REPORT", "HIGH", true, true, null);
+        export.addMetadata("requestItems", 40);
+        collect(export);
+        String stored = dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10).get(0);
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme", start.plusHours(1),
+                "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null)).orElseThrow();
+
+        // W2-6 (P2-변경-4): the observation keeps the export's item count, and the view states the usual export size.
+        assertThat(stored).startsWith("v4|");
+        assertThat(snapshot.getBaselineView().exportSize()).isEqualTo(new BaselineView.ExportSize(1, 40, 40));
+
+        // An observation stored before (v3) reads without an item count.
+        InMemorySecurityContextDataStore older = new InMemorySecurityContextDataStore();
+        older.addWorkProfileObservation("tenant-acme", "alice", "v3" + stored.substring(2, stored.lastIndexOf('|')));
+        ProtectableWorkProfileSnapshot fromV3 = new DefaultProtectableWorkProfileCollector(older).collect(event("alice",
+                "tenant-acme", start.plusHours(1), "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true,
+                null)).orElseThrow();
+        assertThat(fromV3.getBaselineView().observations()).isEqualTo(1);
+        assertThat(fromV3.getBaselineView().exportSize()).isNull();
+    }
+
+    @Test
+    void collect_leavesTheActivityPeriodOfTheRequestOutOfTheUsualBehaviour() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        SecurityEvent earlier = event("alice", "tenant-acme", start, "/api/documents/D-0", "GET", "READ", "REPORT",
+                "HIGH", true, true, null);
+        earlier.setSessionId("session-a");
+        collect(earlier);
+        for (int index = 0; index < 3; index++) {
+            SecurityEvent read = event("alice", "tenant-acme", start.plusDays(1).plusMinutes(index),
+                    "/api/customers/CUS-" + index, "GET", "READ", "REPORT", "HIGH", true, true, null);
+            read.setSessionId("session-a");
+            collect(read);
+        }
+
+        SecurityEvent current = event("alice", "tenant-acme", start.plusDays(1).plusMinutes(3),
+                "/api/customers/CUS-3", "GET", "READ", "REPORT", "HIGH", true, true, null);
+        current.setSessionId("session-a");
+        ProtectableWorkProfileSnapshot snapshot = collect(current).orElseThrow();
+
+        // The three reads a minute apart are the period being judged; only the earlier day of the same session key is
+        // usual behaviour.
+        assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
+    }
+
+    @Test
+    void collect_leavesOutThePeriodBeingJudgedUnderTheSessionsEarlierId() {
+        LocalDateTime start = LocalDateTime.of(2026, 3, 24, 9, 0);
+        SecurityEvent earlier = event("alice", "tenant-acme", start, "/api/documents/D-0", "GET", "READ", "REPORT",
+                "HIGH", true, true, null);
+        earlier.setSessionId("session-a");
+        collect(earlier);
+        for (int index = 0; index < 3; index++) {
+            SecurityEvent read = event("alice", "tenant-acme", start.plusDays(1).plusMinutes(index),
+                    "/api/customers/CUS-" + index, "GET", "READ", "REPORT", "HIGH", true, true, null);
+            read.setSessionId("session-a");
+            collect(read);
+        }
+        // A step-up check gives the session a new id (session fixation protection).
+        dataStore.moveSessionRecords("session-a", "session-b");
+
+        SecurityEvent current = event("alice", "tenant-acme", start.plusDays(1).plusMinutes(3),
+                "/api/customers/CUS-3", "GET", "READ", "REPORT", "HIGH", true, true, null);
+        current.setSessionId("session-b");
+        ProtectableWorkProfileSnapshot snapshot = collect(current).orElseThrow();
+
+        // The three reads under the old id are still the period being judged (P2 correction 5).
+        assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
+    }
+
     private SecurityEvent event(
             String userId,
             String tenantId,
@@ -243,7 +446,7 @@ class DefaultProtectableWorkProfileCollectorTest {
             String decisionResult) {
         SecurityEvent event = SecurityEvent.builder()
                 .userId(userId)
-                .timestamp(timestamp)
+                .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .description(httpMethod + " " + requestPath)
                 .build();
         event.addMetadata("tenantId", tenantId);
@@ -262,5 +465,12 @@ class DefaultProtectableWorkProfileCollectorTest {
             event.addMetadata("methodName", "handle");
         }
         return event;
+    }
+
+    /** One request seen through to an enforced ALLOW, the way the pipeline records it (W2-7). */
+    private Optional<ProtectableWorkProfileSnapshot> collect(SecurityEvent event) {
+        Optional<ProtectableWorkProfileSnapshot> snapshot = collector.collect(event);
+        collector.recorder().commit(event, "ALLOW", true);
+        return snapshot;
     }
 }

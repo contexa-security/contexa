@@ -55,6 +55,10 @@ contexa:
   security:
     zerotrust:
       mode: ENFORCE
+    plane:
+      context:
+        # The virtual company keeps its time in UTC; event hours and days are read in it whatever the JVM zone is.
+        time-zone: UTC
   auth:
     state-type: SESSION
     cookie-secure: ${SHOWCASE_SECURE_COOKIE:false}

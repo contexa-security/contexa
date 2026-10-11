@@ -147,7 +147,9 @@ public final class SecurityDecisionRawOutputContractInspector {
                 || positiveCount(promptFactValue(promptText, "recentmfafailurecount"))
                 || positiveCount(promptFactValue(promptText, "failedloginattempts"))
                 || positiveCount(promptFactValue(promptText, "rolescopedeltacount"))
-                || (anomalySignal != null
+                || (anomalyTrust != null
+                    && anomalyTrust.startsWith("trusted_verification_input")
+                    && anomalySignal != null
                     && !anomalySignal.isBlank()
                     && !"none".equals(anomalySignal)
                     && !"unknown".equals(anomalySignal));

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pep;
 
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
@@ -58,6 +59,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -164,6 +169,42 @@ class CustomDynamicAuthorizationManagerDenySemanticsTest {
         @DisplayName("User matching the DENY condition is denied")
         void blockedUserIsDenied() {
             assertThat(granted(firstApplicableManager(), blockedUser, REQUEST_PATH)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("A URL policy refusal of an authenticated user is kept as a fact (W1-6)")
+    class DenialRecording {
+
+        private CustomDynamicAuthorizationManager recordingManager(AuthorizationDenialRecorder recorder) {
+            CustomDynamicAuthorizationManager manager = manager(CombiningAlgorithm.FIRST_APPLICABLE,
+                    NoPolicyDecision.PERMIT,
+                    policy(1L, Policy.Effect.DENY, 10, PATH, "hasAuthority('ROLE_BLOCKED')"),
+                    policy(2L, Policy.Effect.ALLOW, 20, PATH, "isAuthenticated()"));
+            manager.setAuthorizationDenialRecorder(recorder);
+            return manager;
+        }
+
+        @Test
+        @DisplayName("an authenticated user's refusal is recorded")
+        void authenticatedRefusalIsRecorded() {
+            AuthorizationDenialRecorder recorder = mock(AuthorizationDenialRecorder.class);
+
+            assertThat(granted(recordingManager(recorder), blockedUser, REQUEST_PATH)).isFalse();
+
+            verify(recorder).recordRequest(eq(blockedUser), anyString());
+        }
+
+        @Test
+        @DisplayName("an anonymous refusal and a permitted request are not recorded")
+        void anonymousRefusalAndPermitAreNotRecorded() {
+            AuthorizationDenialRecorder recorder = mock(AuthorizationDenialRecorder.class);
+            CustomDynamicAuthorizationManager manager = recordingManager(recorder);
+
+            assertThat(granted(manager, anonymous, REQUEST_PATH)).isFalse();
+            assertThat(granted(manager, user, REQUEST_PATH)).isTrue();
+
+            verify(recorder, never()).recordRequest(any(), any());
         }
     }
 

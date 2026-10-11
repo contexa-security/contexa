@@ -47,6 +47,8 @@ public class BaselineVector implements Serializable {
     private String[] normalUserAgents;    
     private String[] normalOperatingSystems;  
     private String[] normalBrowsers;
+    /** The devices seen: browser with its version on the operating system, e.g. {@code Chrome/140 on WINDOWS}. */
+    private String[] normalDevices;
     private String[] normalIpBands;
     private String[] normalAuthenticationTypes;
     private String[] frequentActionFamilies;

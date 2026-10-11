@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.security.xacml.pep.interceptor;
 
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
@@ -73,6 +74,9 @@ class AuthorizationManagerMethodInterceptorTest {
     private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
 
     @Mock
+    private AuthorizationDenialRecorder authorizationDenialRecorder;
+
+    @Mock
     private MethodInvocation methodInvocation;
 
     @Mock
@@ -121,7 +125,8 @@ class AuthorizationManagerMethodInterceptorTest {
             interceptor.invoke(methodInvocation);
 
             verify(zeroTrustEventPublisher).publishMethodAuthorization(
-                    eq(methodInvocation), eq(authentication), eq(true), isNull());
+                    eq(methodInvocation), eq(authentication), eq(true), isNull(),
+                    eq(ZeroTrustEventPublisher.METHOD_COMPLETED), isNull());
         }
 
         @Test
@@ -151,7 +156,7 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThat(result).isEqualTo("success");
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
             verify(rapidReentryGuard, never()).check(any(), any());
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -167,7 +172,7 @@ class AuthorizationManagerMethodInterceptorTest {
 
             verify(rapidReentryGuard, never()).check(any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -187,7 +192,7 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThat(result).isEqualTo("success");
             verify(rapidReentryGuard, never()).check(any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
     }
 
@@ -207,7 +212,7 @@ class AuthorizationManagerMethodInterceptorTest {
                     .isInstanceOf(AuthorizationDeniedException.class);
 
             verify(zeroTrustEventPublisher, never())
-                    .publishMethodAuthorization(any(), any(), anyBoolean(), any());
+                    .publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -220,7 +225,7 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
                     .isInstanceOf(ZeroTrustAccessDeniedException.class);
 
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
     }
 
@@ -288,6 +293,102 @@ class AuthorizationManagerMethodInterceptorTest {
     }
 
     // Sample service used for method reflection in tests
+    @Nested
+    @DisplayName("Stored decision before an asynchronous Protectable (W1-5)")
+    class AsyncStoredDecisionTests {
+
+        @Test
+        @DisplayName("ENFORCE mode: a stored CHALLENGE is enforced before the asynchronous method runs")
+        void enforce_storedChallengeStopsAsyncMethod() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
+                    .thenReturn(ZeroTrustAction.CHALLENGE);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
+                            denied -> assertThat(denied.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name()));
+            verify(methodInvocation, never()).proceed();
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("SHADOW mode: a stored CHALLENGE is observed and the asynchronous method runs")
+        void shadow_storedChallengeIsNotEnforced() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("result");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
+            shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            interceptor.setSecurityZeroTrustProperties(shadow);
+            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
+                    .thenReturn(ZeroTrustAction.CHALLENGE);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+            verify(methodInvocation).proceed();
+        }
+
+        @Test
+        @DisplayName("ENFORCE mode: without a stored restriction the asynchronous method runs")
+        void enforce_noStoredRestrictionRuns() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("result");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
+                    .thenReturn(null);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+            verify(methodInvocation).proceed();
+        }
+    }
+
+    @Nested
+    @DisplayName("Authorization result and execution outcome (W1-6)")
+    class AuthorizationResultTests {
+
+        @Test
+        @DisplayName("a business exception after the method ran is an execution failure, not a denial")
+        void businessExceptionIsAnExecutionFailure() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+            when(methodInvocation.proceed()).thenThrow(new IllegalArgumentException("document not found"));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verify(zeroTrustEventPublisher).publishMethodAuthorization(
+                    eq(methodInvocation), eq(authentication), eq(true), isNull(),
+                    eq(ZeroTrustEventPublisher.METHOD_FAILED), eq("IllegalArgumentException"));
+        }
+
+        @Test
+        @DisplayName("a real policy denial is recorded for the session and the scope, without analysis")
+        void policyDenialIsRecorded() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+            interceptor.setAuthorizationDenialRecorder(authorizationDenialRecorder);
+            doThrow(new AuthorizationDeniedException("role cannot read customers"))
+                    .when(authorizationManager).protectable(any(), eq(methodInvocation));
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOf(AuthorizationDeniedException.class);
+
+            verify(authorizationDenialRecorder).record(methodInvocation, authentication, "role cannot read customers");
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+            verify(methodInvocation, never()).proceed();
+        }
+    }
+
     static class SampleService {
         public String sampleMethod() {
             return "result";
@@ -324,7 +425,7 @@ class AuthorizationManagerMethodInterceptorTest {
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
             verify(rapidReentryGuard, never()).tryAcquire(any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -346,7 +447,7 @@ class AuthorizationManagerMethodInterceptorTest {
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
             verify(rapidReentryGuard, never()).tryAcquire(any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -448,7 +549,7 @@ class AuthorizationManagerMethodInterceptorTest {
             assertThat(result).isEqualTo("protected");
             verify(synchronousProtectableDecisionService).analyze(methodInvocation, authentication);
             verify(methodInvocation).proceed();
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test
@@ -492,7 +593,7 @@ class AuthorizationManagerMethodInterceptorTest {
 
             assertThat(result).isEqualTo("protected");
             verify(methodInvocation).proceed();
-            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any());
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
 
         @Test

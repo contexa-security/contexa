@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import java.time.ZoneId;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
@@ -198,7 +199,7 @@ class SecurityDecisionForwardingPayloadMapperTest {
     private SecurityEventContext context() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-001")
-                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30))
+                .timestamp(LocalDateTime.of(2026, 3, 16, 13, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.HIGH)
                 .userId("user-1")

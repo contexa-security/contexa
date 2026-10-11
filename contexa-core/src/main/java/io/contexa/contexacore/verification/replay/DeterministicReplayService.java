@@ -163,8 +163,9 @@ public class DeterministicReplayService {
             findings.add("AUTH_STATE_MISSING: sealed evidence lacks authentication state");
         }
 
-        String reconstructedHash = null;
-        return buildResult(pkg, checksRun, checksPassed, findings, systemPromptDiff, userPromptDiff, reconstructedHash);
+        // The replay reassembles the canonical context sections only; no whole prompt is rebuilt, so there is no
+        // reconstructed prompt hash to report.
+        return buildResult(pkg, checksRun, checksPassed, findings, systemPromptDiff, userPromptDiff, null);
     }
 
     private boolean selectedCanonicalSectionsMatch(String rawUserPrompt, String reassembledContextSections) {

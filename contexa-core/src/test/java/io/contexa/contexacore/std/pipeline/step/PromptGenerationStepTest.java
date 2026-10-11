@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.step;
 
+import java.time.ZoneId;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
@@ -53,7 +54,7 @@ class PromptGenerationStepTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-prompt-step-001")
-                .timestamp(LocalDateTime.of(2026, 3, 31, 11, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 31, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-1")
                 .sourceIp("203.0.113.10")
@@ -135,7 +136,7 @@ class PromptGenerationStepTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-prompt-step-official-001")
-                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("official-verification-session:persona_fin_lead")
                 .sourceIp("0:0:0:0:0:0:0:1")
@@ -238,7 +239,7 @@ class PromptGenerationStepTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-prompt-step-identity-001")
-                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52))
+                .timestamp(LocalDateTime.of(2026, 5, 11, 16, 52).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("official-verification-session:persona_fin_lead")
                 .sourceIp("0:0:0:0:0:0:0:1")

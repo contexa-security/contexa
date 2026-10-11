@@ -109,6 +109,7 @@ io.contexa.autoconfigure.iam.admin.IamAdminBlacklistAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminPasswordPolicyAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration
+io.contexa.autoconfigure.iam.admin.PromptGovernanceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
 

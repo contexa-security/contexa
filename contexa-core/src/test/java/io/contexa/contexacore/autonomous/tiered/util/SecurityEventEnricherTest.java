@@ -35,49 +35,51 @@ class SecurityEventEnricherTest {
     @DisplayName("extractOSFromUserAgent should detect Android")
     void shouldDetectAndroid() {
         String ua = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("Android");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("ANDROID");
     }
 
     @Test
     @DisplayName("extractOSFromUserAgent should detect iOS from iPhone")
     void shouldDetectIos() {
         String ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("iOS");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("IOS");
     }
 
     @Test
     @DisplayName("extractOSFromUserAgent should detect Windows")
     void shouldDetectWindows() {
         String ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("Windows");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("WINDOWS");
     }
 
     @Test
     @DisplayName("extractOSFromUserAgent should detect Mac")
     void shouldDetectMac() {
         String ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("Mac");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("MAC");
     }
 
     @Test
     @DisplayName("extractOSFromUserAgent should detect ChromeOS")
     void shouldDetectChromeOS() {
         String ua = "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("ChromeOS");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("CHROMEOS");
     }
 
     @Test
     @DisplayName("extractOSFromUserAgent should detect Linux")
     void shouldDetectLinux() {
         String ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("Linux");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("LINUX");
     }
 
     @Test
-    @DisplayName("extractOSFromUserAgent should return Desktop for unrecognized UA")
-    void shouldReturnDesktopForUnrecognizedUA() {
+    @DisplayName("extractOSFromUserAgent should return no system for a UA that names none")
+    void shouldReturnNoSystemForUnrecognizedUA() {
+        // W2-4: a client that does not say its system is not known to run on a desktop; "Desktop" is no system.
         String ua = "CustomAgent/1.0";
-        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isEqualTo("Desktop");
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent(ua)).isNull();
+        assertThat(SecurityEventEnricher.extractOSFromUserAgent("CustomAgent/1.0 (Mobile)")).isNull();
     }
 
     // --- extractBrowserSignature tests ---

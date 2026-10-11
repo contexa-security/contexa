@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
@@ -65,7 +66,8 @@ class ProtectableWorkProfileCollectorStoreParityTest {
     }
 
     private ProtectableWorkProfileSnapshot replayScenario(DefaultProtectableWorkProfileCollector collector) {
-        collector.collect(event(
+        // Each earlier request is seen through to an enforced ALLOW, as the pipeline records it (W2-7).
+        observe(collector, event(
                 LocalDateTime.of(2026, 3, 25, 9, 0),
                 "/dashboard",
                 "GET",
@@ -74,7 +76,7 @@ class ProtectableWorkProfileCollectorStoreParityTest {
                 "LOW",
                 false,
                 true));
-        collector.collect(event(
+        observe(collector, event(
                 LocalDateTime.of(2026, 3, 25, 10, 0),
                 "/api/customer/list",
                 "GET",
@@ -107,7 +109,7 @@ class ProtectableWorkProfileCollectorStoreParityTest {
             boolean granted) {
         SecurityEvent event = SecurityEvent.builder()
                 .userId("alice")
-                .timestamp(timestamp)
+                .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .description(httpMethod + " " + requestPath)
                 .build();
         event.addMetadata("tenantId", "tenant-acme");
@@ -178,5 +180,10 @@ class ProtectableWorkProfileCollectorStoreParityTest {
             return (int) Math.max(0, size + index);
         }
         return (int) Math.min(index, size - 1L);
+    }
+
+    private static void observe(DefaultProtectableWorkProfileCollector collector, SecurityEvent event) {
+        collector.collect(event);
+        collector.recorder().commit(event, "ALLOW", true);
     }
 }

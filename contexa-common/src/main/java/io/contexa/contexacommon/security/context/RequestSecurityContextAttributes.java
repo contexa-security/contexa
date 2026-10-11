@@ -38,6 +38,10 @@ public final class RequestSecurityContextAttributes {
         RESOURCE_BUSINESS_LABEL(
                 "resourceBusinessLabel",
                 List.of("resourceBusinessLabel", "resourceLabel", "businessLabel")),
+        /** Text the resource's author wrote: kept apart from the business label as untrusted text. */
+        RESOURCE_AUTHOR_TEXT("resourceAuthorText", List.of("resourceAuthorText")),
+        /** How many items the request asks for, as the host counts them. */
+        REQUEST_ITEMS("requestItems", List.of("requestItems")),
         RESOURCE_ID("resourceId", List.of("resourceId", "requestedResourceId", "protectedResourceId")),
         PREVIOUS_PATH("previousPath", List.of("previousPath")),
         LAST_REQUEST_INTERVAL_MS("lastRequestIntervalMs", List.of("lastRequestIntervalMs")),

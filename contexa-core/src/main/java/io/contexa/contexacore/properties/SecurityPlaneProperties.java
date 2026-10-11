@@ -180,6 +180,12 @@ public class SecurityPlaneProperties {
     public static class SecurityContextSettings {
 
         private int loginFailureWindowMinutes = 5;
+
+        /**
+         * The company time zone (an id such as {@code Asia/Seoul}) in which event hours, minutes and days are read.
+         * Empty reads them in the system time zone.
+         */
+        private String timeZone;
     }
 }
 

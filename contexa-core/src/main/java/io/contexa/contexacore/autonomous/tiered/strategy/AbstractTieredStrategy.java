@@ -15,10 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacommon.domain.TruthValues;
+import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityResponse;
@@ -89,6 +94,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
             "Authorization allows access, the personal baseline is established, "
                     + "and authorized RAG is relevant to the same resource.";
+    private static final String ESTABLISHED_BASELINE_ALLOW_REASONING =
+            "Authorization allows access, the personal baseline is established, "
+                    + "and no concrete risk or verification requirement is present.";
     private static final String LIMITED_BASELINE_ALLOW_REASONING =
             "Authorization allows access with a limited baseline, "
                     + "and no concrete risk or verification requirement is present.";
@@ -582,6 +590,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 context.setBaselineAccessHours(personalBaseline.getNormalAccessHours());
                 context.setBaselineAccessDays(personalBaseline.getNormalAccessDays());
                 context.setBaselineBrowsers(personalBaseline.getNormalBrowsers());
+                context.setBaselineDevices(personalBaseline.getNormalDevices());
                 context.setBaselineIpBands(personalBaseline.getNormalIpBands());
                 context.setBaselineAuthenticationTypes(personalBaseline.getNormalAuthenticationTypes());
                 context.setBaselineActionFamilies(personalBaseline.getFrequentActionFamilies());
@@ -721,17 +730,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     private Boolean resolveBooleanMetadata(Map<String, Object> metadata, String... keys) {
         for (String key : keys) {
-            Object value = metadata.get(key);
-            if (value instanceof Boolean bool) {
-                return bool;
-            }
-            if (value instanceof String text && StringUtils.hasText(text)) {
-                if ("true".equalsIgnoreCase(text)) {
-                    return true;
-                }
-                if ("false".equalsIgnoreCase(text)) {
-                    return false;
-                }
+            Boolean parsed = TruthValues.parse(metadata.get(key));
+            if (parsed != null) {
+                return parsed;
             }
         }
         return null;
@@ -784,6 +785,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             }
 
             String userId = event.getUserId();
+            List<String> sessionIds = sessionIdsOf(event);
             if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
                 log.error("[{}] userId missing - skipping RAG search for account isolation",
                     getLayerName());
@@ -795,7 +797,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             if (isLayer1SingleUserRagSearchEnabled()) {
                 List<Document> documents = searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
-                        buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope));
+                        buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope, sessionIds));
                 annotateRagSearchPlan(event, "LAYER1_SINGLE_USER_QUERY", 1,
                         List.of("BROAD_QUERY", "BASELINE_QUERY", "SUPPORTING_QUERY"));
 
@@ -815,7 +817,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             // 1. Search behavior documents scoped to the current user.
             CompletableFuture<List<Document>> personalFuture = CompletableFuture.supplyAsync(() ->
                     searchBehaviorDocuments(query, requestedTopK, similarityThreshold,
-                            buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR);
+                            buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope, sessionIds)), RAG_EXECUTOR);
 
             // 2. Search broader related context when it differs from the personal query.
             String broadQuery = buildBroadRelatedContextQuery(event, targetResource);
@@ -824,7 +826,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             CompletableFuture<List<Document>> broadFuture = runBroad
                     ? CompletableFuture.supplyAsync(() ->
                             searchBehaviorDocuments(broadQuery, requestedTopK, broadThreshold,
-                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR)
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope, sessionIds)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
             // 3. Search the user baseline context when it adds another signal.
@@ -835,7 +837,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             CompletableFuture<List<Document>> baselineFuture = runBaseline
                     ? CompletableFuture.supplyAsync(() ->
                             searchBehaviorDocuments(userBaselineQuery, requestedTopK, 0.0d,
-                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope)), RAG_EXECUTOR)
+                                    buildBehaviorFilterForUser(userId, retrievalPurpose, resourceScope, sessionIds)), RAG_EXECUTOR)
                     : CompletableFuture.completedFuture(Collections.emptyList());
 
             // 4. Search supporting organization documents when the personal baseline is not established.
@@ -1138,16 +1140,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         appendQueryPart(query, "resource", event != null && event.getMetadata() != null
                 ? firstNonBlankTextValue(textValue(event.getMetadata().get("resourceId")), textValue(event.getMetadata().get("ResourceId")))
                 : null);
-        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
-                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("ActionFamily") : null));
-        appendQueryPart(query, "resourceFamily", SecuritySemanticNormalizer.normalizeResourceFamily(
-                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceFamily") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("Sensitivity") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("sensitivity") : null));
-        appendQueryPart(query, "auth", SecuritySemanticNormalizer.normalizeAuthenticationType(
+        appendQueryPart(query, "action", queryActionFamily(event));
+        appendQueryPart(query, "resourceFamily", resourceClassOf(event));
+        appendQueryPart(query, "auth",SecuritySemanticNormalizer.normalizeAuthenticationType(
                 event != null && event.getMetadata() != null ? event.getMetadata().get("authenticationType") : null,
                 event != null && event.getMetadata() != null ? event.getMetadata().get("authType") : null));
         appendQueryPart(query, "network", event != null
@@ -1167,11 +1162,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private String buildBroadRelatedContextQuery(SecurityEvent event, String targetResource) {
         StringBuilder query = new StringBuilder();
         appendQueryPart(query, "user", event != null ? event.getUserId() : null);
-        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
-                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null));
-        appendQueryPart(query, "pathFamily", SecuritySemanticNormalizer.normalizePathFamily(targetResource));
+        appendQueryPart(query, "action", queryActionFamily(event));
+        appendQueryPart(query, "pathFamily", SecuritySemanticNormalizer.pathFamilyOf(
+                event != null ? event.getMetadata() : null, targetResource));
         appendQueryPart(query, "browser", event != null && StringUtils.hasText(event.getUserAgent())
                 ? SecurityEventEnricher.extractBrowserSignature(event.getUserAgent())
                 : null);
@@ -1182,18 +1175,32 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         StringBuilder query = new StringBuilder();
         appendQueryPart(query, "user", event != null ? event.getUserId() : null);
         appendQueryPart(query, "purpose", getContextRetrievalPurpose());
-        appendQueryPart(query, "action", SecuritySemanticNormalizer.normalizeActionFamily(
-                event != null && event.getMetadata() != null ? event.getMetadata().get("httpMethod") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("method") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("actionFamily") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("ActionFamily") : null));
-        appendQueryPart(query, "resourceFamily", SecuritySemanticNormalizer.normalizeResourceFamily(
-                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceFamily") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceType") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("resourceCategory") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("Sensitivity") : null,
-                event != null && event.getMetadata() != null ? event.getMetadata().get("sensitivity") : null));
+        appendQueryPart(query, "action", queryActionFamily(event));
+        appendQueryPart(query, "resourceFamily", resourceClassOf(event));
         return query.toString().trim();
+    }
+
+    /**
+     * The request's action family as the context gives it, so that the query names the action stored with past
+     * decisions; omitted when no fact of the request names one.
+     */
+    private String queryActionFamily(SecurityEvent event) {
+        ActionFamily family = ActionFamilyResolver.resolve(event != null ? event.getMetadata() : null).family();
+        return family != ActionFamily.UNKNOWN ? family.name() : null;
+    }
+
+    /** The resource class from the classification values only (sensitivity first, then type), as in the prompt. */
+    private String resourceClassOf(SecurityEvent event) {
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (metadata == null) {
+            return null;
+        }
+        return SecuritySemanticNormalizer.normalizeResourceFamily(
+                metadata.get("resourceSensitivity"),
+                metadata.get("sensitivity"),
+                metadata.get("Sensitivity"),
+                metadata.get("resourceFamily"),
+                metadata.get("resourceType"));
     }
 
     private void appendQueryPart(StringBuilder query, String label, String value) {
@@ -1255,7 +1262,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private Filter.Expression buildBehaviorFilterForUser(
             String userId,
             String retrievalPurpose,
-            String resourceId) {
+            String resourceId,
+            List<String> sessionIds) {
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         List<FilterExpressionBuilder.Op> predicates = new ArrayList<>();
         predicates.add(filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()));
@@ -1266,7 +1274,41 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (StringUtils.hasText(resourceId)) {
             predicates.add(filterBuilder.eq("resourceId", resourceId));
         }
+        // The current session's own requests are not past records (W2-8), under any id the session had (P2
+        // correction 5). NIN keeps a record without a session, where a not-equal test would drop it.
+        if (sessionIds != null && !sessionIds.isEmpty()) {
+            predicates.add(filterBuilder.nin(VectorDocumentMetadata.SESSION_ID, sessionIds.toArray()));
+        }
+        predicates.add(notHeldBack(filterBuilder));
         return combinePredicates(filterBuilder, predicates);
+    }
+
+    /**
+     * The ids the request's session had before the servlet container replaced its id (P2 correction 5): records
+     * written under them are the session's own requests. Empty here; a strategy with the context store reads them.
+     */
+    protected List<String> previousSessionIds(String sessionId) {
+        return List.of();
+    }
+
+    /** The request's session id and the ids the session had, the ones whose records are not past records. */
+    private List<String> sessionIdsOf(SecurityEvent event) {
+        String sessionId = event.getSessionId();
+        if (!StringUtils.hasText(sessionId)) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>();
+        ids.add(sessionId);
+        List<String> previous = previousSessionIds(sessionId);
+        if (previous != null) {
+            previous.stream().filter(StringUtils::hasText).filter(id -> !ids.contains(id)).forEach(ids::add);
+        }
+        return ids;
+    }
+
+    /** A record held back from promotion into the usual behaviour is not a past record (W2-8). */
+    private FilterExpressionBuilder.Op notHeldBack(FilterExpressionBuilder filterBuilder) {
+        return filterBuilder.nin(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
     }
 
     private Filter.Expression buildBehaviorFilterForOrganization(String organizationId, String retrievalPurpose) {
@@ -1277,6 +1319,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (StringUtils.hasText(retrievalPurpose)) {
             predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
         }
+        predicates.add(notHeldBack(filterBuilder));
         return combinePredicates(filterBuilder, predicates);
     }
 
@@ -1287,6 +1330,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (StringUtils.hasText(retrievalPurpose)) {
             predicates.add(filterBuilder.eq(VectorDocumentMetadata.RETRIEVAL_PURPOSE, retrievalPurpose));
         }
+        predicates.add(notHeldBack(filterBuilder));
         return combinePredicates(filterBuilder, predicates);
     }
 
@@ -1471,7 +1515,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         protected String sessionId;
         protected String userId;
         protected String authMethod;
-        protected LocalDateTime startTime;
+        protected Instant startTime;
+        protected Instant lastEventTime;
         protected String ipAddress;
         protected String userAgent;
         protected List<String> recentActions = new ArrayList<>();
@@ -1481,9 +1526,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return startTime != null;
         }
 
+        /** Minutes from the session's first event to its latest one, both on the event clock. */
         public long getSessionDuration() {
             if (startTime == null) return 0;
-            return Duration.between(startTime, LocalDateTime.now()).toMinutes();
+            Instant latest = lastEventTime != null && lastEventTime.isAfter(startTime) ? lastEventTime : startTime;
+            return Duration.between(startTime, latest).toMinutes();
+        }
+
+        public void recordEventTime(Instant eventTime) {
+            if (eventTime != null && (lastEventTime == null || eventTime.isAfter(lastEventTime))) {
+                lastEventTime = eventTime;
+            }
         }
 
         public String getSessionId() { return sessionId; }
@@ -1495,8 +1548,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public String getAuthMethod() { return authMethod; }
         public void setAuthMethod(String authMethod) { this.authMethod = authMethod; }
 
-        public LocalDateTime getStartTime() { return startTime; }
-        public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
+        public Instant getStartTime() { return startTime; }
+        public void setStartTime(Instant startTime) { this.startTime = startTime; }
 
         public String getIpAddress() { return ipAddress; }
         public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
@@ -1755,17 +1808,28 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             boolean personalBaselineEstablished = Boolean.TRUE.equals(
                     booleanValue(metadata.get("personalBaselineEstablished")))
                     || Boolean.TRUE.equals(booleanValue(metadata.get("learningPersonalBaselineEstablished")));
-            if (hasSameResourceAuthorizedRag(metadata, relatedDocuments)) {
+            if (hasSameResourceAuthorizedRag(event, relatedDocuments)) {
                 setCanonicalReasoning(
                         decision,
                         personalBaselineEstablished
                                 ? SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING
                                 : SAME_RESOURCE_RAG_ALLOW_REASONING);
+            } else if (claimsSameResourceRag(decision.getReasoning())) {
+                // The past records decide it too (W2-8): without a record of the same target the claim is replaced.
+                setCanonicalReasoning(
+                        decision,
+                        personalBaselineEstablished
+                                ? ESTABLISHED_BASELINE_ALLOW_REASONING
+                                : LIMITED_BASELINE_ALLOW_REASONING);
             } else if (!personalBaselineEstablished && claimsEstablishedBaseline(decision.getReasoning())) {
                 // The canonical facts decide the baseline: an established-baseline claim without one is replaced.
                 setCanonicalReasoning(decision, LIMITED_BASELINE_ALLOW_REASONING);
             }
         }
+    }
+
+    private boolean claimsSameResourceRag(String reasoning) {
+        return reasoning != null && reasoning.toLowerCase(Locale.ROOT).contains("relevant to the same resource");
     }
 
     private boolean claimsEstablishedBaseline(String reasoning) {
@@ -1795,33 +1859,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     private boolean hasSameResourceAuthorizedRag(
-            Map<String, Object> metadata,
+            SecurityEvent event,
             List<Document> relatedDocuments) {
+        Map<String, Object> metadata = event.getMetadata();
         if (!Boolean.TRUE.equals(booleanValue(metadata.get("ragProjectedToFinalPrompt")))
                 || relatedDocuments == null
                 || relatedDocuments.isEmpty()) {
             return false;
         }
-        String currentResource = firstNonBlank(
-                metadata.get("resourceId"),
-                metadata.get("managedResourceId"),
-                metadata.get("requestedResourceId"),
-                metadata.get("requestPath"));
-        if (!StringUtils.hasText(currentResource)) {
-            return false;
-        }
-        return relatedDocuments.stream().allMatch(document -> {
-            Map<String, Object> documentMetadata = document != null && document.getMetadata() != null
-                    ? document.getMetadata()
-                    : Map.of();
-            String documentResource = firstNonBlank(
-                    documentMetadata.get("resourceId"),
-                    documentMetadata.get("managedResourceId"),
-                    documentMetadata.get("requestPath"),
-                    documentMetadata.get("resourcePath"));
-            return StringUtils.hasText(documentResource)
-                    && currentResource.trim().equalsIgnoreCase(documentResource.trim());
-        });
+        // The same computation as the prompt's RagRelevance: the path template and the target, not the method.
+        return PastRecordRelevance.SAME_RESOURCE.equals(PastRecordRelevance.relevance(
+                PastRecordRelevance.Subject.ofRequest(metadata, event.getDescription()),
+                relatedDocuments.stream()
+                        .filter(Objects::nonNull)
+                        .map(document -> PastRecordRelevance.Subject.ofRecord(document.getMetadata(), document.getText()))
+                        .toList()));
     }
 
     protected void applyTrustedConfirmedMaliciousConstraint(SecurityDecision decision, SecurityEvent event) {
@@ -1872,17 +1924,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 && CONFIRMED_MALICIOUS_MARKERS.stream().anyMatch(normalized::contains);
     }
     private Boolean booleanValue(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value == null) {
-            return null;
-        }
-        String text = String.valueOf(value).trim();
-        if (text.isEmpty() || "NULL_VALUE".equalsIgnoreCase(text)) {
-            return null;
-        }
-        return Boolean.parseBoolean(text);
+        return TruthValues.parse(value);
     }
 
     private String normalizeTelemetryFailureCategory(String value) {

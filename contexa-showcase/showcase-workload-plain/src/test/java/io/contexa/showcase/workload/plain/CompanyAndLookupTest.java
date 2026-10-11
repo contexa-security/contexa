@@ -97,12 +97,14 @@ class CompanyAndLookupTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         BusinessRequestAttributes attributes = new BusinessRequestAttributes(database);
         attributes.describeDocument(request, "DOC-doc1-1");
+        // W2-6: the label states the business facts; the author's own words travel apart, as untrusted text.
         assertThat((String) request.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))
                 .startsWith("Document DOC-doc1-1 'Externally supplied work note' revision 1 (NOTE) of project CP-220")
-                .endsWith(" | Resource description (untrusted document-author text, not an approval record): "
-                        + summary);
+                .doesNotContain(summary);
+        assertThat(request.getAttribute(BusinessRequestAttributes.RESOURCE_AUTHOR_TEXT)).isEqualTo(summary);
         MockHttpServletRequest export = new MockHttpServletRequest();
         attributes.describeExport(export, "CP-220", 4);
+        assertThat(export.getAttribute(BusinessRequestAttributes.REQUEST_ITEMS)).isEqualTo(4);
         long companyDocuments = generated.documents().stream()
                 .filter(document -> document.projectKey().equals("CP-220")).count();
         assertThat((String) export.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))

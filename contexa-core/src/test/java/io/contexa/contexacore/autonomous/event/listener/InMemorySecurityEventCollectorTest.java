@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.event.listener;
 
+import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,7 +104,7 @@ class InMemorySecurityEventCollectorTest {
         for (int i = 0; i < 10_001; i++) {
             SecurityEvent event = SecurityEvent.builder()
                     .eventId("evt-" + i)
-                    .timestamp(LocalDateTime.now().plusSeconds(i))
+                    .timestamp(LocalDateTime.now().plusSeconds(i).atZone(ZoneId.systemDefault()).toInstant())
                     .build();
             collector.dispatchEvent(event);
         }

@@ -48,7 +48,24 @@ public final class OAuth2AuthenticationSupport {
     private static final boolean OAUTH2_CLIENT_PRESENT = ClassUtils.isPresent(
             "org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken", CLASS_LOADER);
 
+    /** The claim that names the login session behind a token (OpenID Connect {@code sid}). */
+    public static final String SESSION_ID_CLAIM = "sid";
+
     private OAuth2AuthenticationSupport() {
+    }
+
+    /**
+     * A claim or attribute of the token behind an OAuth2 resource server authentication, as trimmed text; null for any
+     * other authentication or when the token does not carry it.
+     */
+    @Nullable
+    public static String tokenAttribute(@Nullable Authentication authentication, String name) {
+        if (!RESOURCE_SERVER_PRESENT || authentication == null || name == null) {
+            return null;
+        }
+        Object value = ResourceServerTypes.tokenAttribute(authentication, name);
+        String text = value != null ? value.toString().trim() : null;
+        return text == null || text.isBlank() ? null : text;
     }
 
     /**
@@ -90,6 +107,12 @@ public final class OAuth2AuthenticationSupport {
 
         static boolean isOAuth2Token(Authentication authentication) {
             return authentication instanceof AbstractOAuth2TokenAuthenticationToken<?>;
+        }
+
+        static Object tokenAttribute(Authentication authentication, String name) {
+            return authentication instanceof AbstractOAuth2TokenAuthenticationToken<?> token
+                    ? token.getTokenAttributes().get(name)
+                    : null;
         }
     }
 

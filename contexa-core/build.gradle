@@ -60,6 +60,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.springframework.ai:spring-ai-openai'
+    testImplementation 'org.springframework.ai:spring-ai-pgvector-store'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.redisson:redisson:3.48.0'
     testImplementation 'org.springframework.kafka:spring-kafka'

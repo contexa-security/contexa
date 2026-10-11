@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.context.inference;
 
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
 import org.springframework.util.StringUtils;
@@ -73,6 +76,12 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
                     .filter(StringUtils::hasText)
                     .toList());
         }
+        // One vocabulary with the current request: families stated in another one (CREATE, DOWNLOAD) read as today.
+        frequentActionFamilies = frequentActionFamilies.stream()
+                .map(this::normalizeActionFamily)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
         String currentResource = extractCurrentResource(context, metadata);
         String currentActionFamily = extractCurrentActionFamily(context, metadata);
@@ -154,7 +163,8 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
         if (context != null && context.getResource() != null) {
             return normalizeActionFamily(firstText(context.getResource().getActionFamily(), context.getResource().getHttpMethod()));
         }
-        return normalizeActionFamily(firstText(metadata.get("actionFamily"), metadata.get("httpMethod"), metadata.get("method")));
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(metadata);
+        return action.family() == ActionFamily.UNKNOWN ? null : action.family().name();
     }
 
     private Boolean inferRareCurrentResource(List<String> frequentResources, String currentResource, Integer accessCount) {
@@ -235,13 +245,7 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
     }
 
     private boolean resolveBoolean(Object value) {
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (value instanceof String stringValue && !stringValue.isBlank()) {
-            return Boolean.parseBoolean(stringValue);
-        }
-        return false;
+        return Boolean.TRUE.equals(MetadataValueResolver.resolveBoolean(value));
     }
 
     private String extractMetadata(Map<String, Object> metadata, String... keys) {
@@ -279,20 +283,9 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
         return null;
     }
 
+    /** The {@link ActionFamily} name of a family value; a value that names none stays as it was stated. */
     private String normalizeActionFamily(String actionFamily) {
-        if (!StringUtils.hasText(actionFamily)) {
-            return null;
-        }
-        String normalized = actionFamily.trim().toUpperCase(Locale.ROOT);
-        return switch (normalized) {
-            case "GET", "HEAD", "READ" -> "READ";
-            case "POST", "CREATE" -> "CREATE";
-            case "PUT", "PATCH", "UPDATE", "WRITE" -> "UPDATE";
-            case "DELETE", "REMOVE" -> "DELETE";
-            case "EXPORT", "DOWNLOAD" -> "EXPORT";
-            case "APPROVE" -> "APPROVE";
-            default -> normalized;
-        };
+        return ActionFamily.nameOrRaw(actionFamily);
     }
 
     private String buildSummary(

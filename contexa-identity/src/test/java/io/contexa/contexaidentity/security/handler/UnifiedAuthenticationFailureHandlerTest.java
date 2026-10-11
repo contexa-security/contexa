@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.handler;
 
+import java.time.Instant;
+import io.contexa.contexacommon.security.context.RequestSecurityContextAttributes;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -97,6 +99,21 @@ class UnifiedAuthenticationFailureHandlerTest {
         verify(securityContextDataStore).recordLoginFailure(eq("admin"), isNull(), anyLong());
         verify(loginPolicyHandler).onLoginFailure("admin");
         assertThat(response.getRedirectedUrl()).isEqualTo("/login?error=primary_auth_failed");
+    }
+
+    @Test
+    void primaryAuthenticationFailureIsRecordedAtTheRequestObservedTime() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+        request.setParameter("username", "admin");
+        Instant observedAt = Instant.parse("2026-09-30T03:14:00Z");
+        RequestSecurityContextAttributes.write(request, RequestSecurityContextAttributes.Field.OBSERVED_AT,
+                observedAt.toString(), true);
+        when(stateMachineIntegrator.loadFactorContextFromRequest(request)).thenReturn(null);
+
+        handler.onAuthenticationFailure(request, new MockHttpServletResponse(), new BadCredentialsException("bad credentials"));
+
+        // The failure window is read on the request clock, so the failure is kept on it too (W1-7).
+        verify(securityContextDataStore).recordLoginFailure(eq("admin"), isNull(), eq(observedAt.toEpochMilli()));
     }
 
     @Test

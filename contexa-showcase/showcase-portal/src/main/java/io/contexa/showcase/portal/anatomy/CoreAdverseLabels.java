@@ -19,7 +19,8 @@ public final class CoreAdverseLabels {
     /**
      * @param key       the label as the inspector names it (lower case; the prompt's case does not matter)
      * @param condition TRUE or FALSE (any occurrence with that value), POSITIVE (the last value is a count of at least
-     *                  one), DENY_OR_BLOCK (the last value), SIGNAL (the last value is neither none nor unknown)
+     *                  one), DENY_OR_BLOCK (the last value), TRUSTED_SIGNAL (the last value is neither none nor unknown
+     *                  and the last AnomalySignalTrust is TRUSTED_VERIFICATION_INPUT)
      */
     public record Rule(String key, String condition) {
     }
@@ -48,7 +49,7 @@ public final class CoreAdverseLabels {
             new Rule("recentmfafailurecount", "POSITIVE"),
             new Rule("failedloginattempts", "POSITIVE"),
             new Rule("rolescopedeltacount", "POSITIVE"),
-            new Rule("observedanomalysignal", "SIGNAL"));
+            new Rule("observedanomalysignal", "TRUSTED_SIGNAL"));
 
     private static final Pattern LEADING_COUNT = Pattern.compile("^\\d+");
 
@@ -62,7 +63,10 @@ public final class CoreAdverseLabels {
         }
         for (Rule rule : RULES) {
             List<String> values = values(prompt, rule.key());
-            readings.add(new Reading(rule.key(), rule.condition(), values, met(rule.condition(), values)));
+            boolean met = "TRUSTED_SIGNAL".equals(rule.condition())
+                    ? met("SIGNAL", values) && trusted(values(prompt, "anomalysignaltrust"))
+                    : met(rule.condition(), values);
+            readings.add(new Reading(rule.key(), rule.condition(), values, met));
         }
         return readings;
     }
@@ -90,6 +94,11 @@ public final class CoreAdverseLabels {
             case "SIGNAL" -> !last.isBlank() && !"none".equals(last) && !"unknown".equals(last);
             default -> false;
         };
+    }
+
+    private static boolean trusted(List<String> trustValues) {
+        return !trustValues.isEmpty() && trustValues.get(trustValues.size() - 1).toLowerCase(Locale.ROOT)
+                .startsWith("trusted_verification_input");
     }
 
     private static boolean positive(String value) {

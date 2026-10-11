@@ -1,5 +1,6 @@
 package io.contexa.showcase.workload.contexa.internal;
 
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -26,7 +27,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.time.Instant;
 import java.util.List;
@@ -206,7 +206,8 @@ public class ContexaInternalController {
         engine.put("chatModel", chatModel);
         engine.put("embeddingModel", embeddingModel);
         engine.put("embeddingDimensions", embeddingDimensions);
-        engine.put("timeZone", ZoneId.systemDefault().getId());
+        // The time zone the engine reads event hours and days in: the configured company time zone, else the system's.
+        engine.put("timeZone", EventTimeZone.get().getId());
         engine.put("endpointProtection", EndpointProtection.describe());
         // The model settings the engine sends with every analysis (R-20): they change the verdicts, so a run records them.
         TieredStrategyProperties tiered = tieredProperties.getIfAvailable();

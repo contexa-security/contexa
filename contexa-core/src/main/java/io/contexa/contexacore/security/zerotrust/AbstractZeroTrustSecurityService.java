@@ -212,7 +212,7 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
 
         if (!adjustedAuthorities.equals(new HashSet<>(currentAuthorities))) {
-            Authentication adjustedAuth = new ZeroTrustAuthenticationToken(
+            ZeroTrustAuthenticationToken adjustedAuth = new ZeroTrustAuthenticationToken(
                     auth.getPrincipal(),
                     auth.getCredentials(),
                     adjustedAuthorities,
@@ -220,6 +220,9 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                     threatScore,
                     action
             );
+            // The details hold the login facts recorded at sign-in; without them every later request of the
+            // session would lose its login method, MFA state and authentication time.
+            adjustedAuth.setDetails(auth.getDetails());
             context.setAuthentication(adjustedAuth);
         }
     }

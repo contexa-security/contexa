@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -53,6 +55,8 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
+            // The session's decision history keeps one line per request with its final outcome; it is recorded where
+            // that outcome is known (ContextObservationRecorder, W2-7), not by each analysis layer.
             dataStore.addSessionAction(sessionId, buildBehaviorSentence(event, decision));
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -132,8 +136,8 @@ public class SecurityDecisionPostProcessor {
 
         if (event.getTimestamp() != null) {
             sentence.append(String.format(" at %02d:%02d",
-                    event.getTimestamp().getHour(),
-                    event.getTimestamp().getMinute()));
+                    event.getLocalTimestamp().getHour(),
+                    event.getLocalTimestamp().getMinute()));
         }
 
         ZeroTrustAction observedAction = decision.resolveAutonomousAction();
@@ -296,9 +300,9 @@ public class SecurityDecisionPostProcessor {
 
         if (event.getTimestamp() != null) {
             sentence.append(String.format(" at %02d:%02d",
-                    event.getTimestamp().getHour(),
-                    event.getTimestamp().getMinute()));
-            int dow = event.getTimestamp().getDayOfWeek().getValue();
+                    event.getLocalTimestamp().getHour(),
+                    event.getLocalTimestamp().getMinute()));
+            int dow = event.getLocalTimestamp().getDayOfWeek().getValue();
             sentence.append(" (").append(dayOfWeekLabel(dow)).append(")");
         }
 
@@ -355,13 +359,13 @@ public class SecurityDecisionPostProcessor {
         metadata.put(VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event");
 
         String eventTimestamp = event.getTimestamp() != null
-                ? event.getTimestamp().toString()
+                ? event.getLocalTimestamp().toString()
                 : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
         if (event.getTimestamp() != null) {
-            metadata.put("hour", event.getTimestamp().getHour());
-            metadata.put("dayOfWeek", event.getTimestamp().getDayOfWeek().getValue());
+            metadata.put("hour", event.getLocalTimestamp().getHour());
+            metadata.put("dayOfWeek", event.getLocalTimestamp().getDayOfWeek().getValue());
         }
 
         if (event.getEventId() != null) {
@@ -440,7 +444,8 @@ public class SecurityDecisionPostProcessor {
         String requestPath = extractPath(event);
         if (requestPath != null) {
             metadata.put("requestPath", requestPath);
-            String pathFamily = SecuritySemanticNormalizer.normalizePathFamily(requestPath);
+            // The path family of the past record is the one the context gives the request (URL template first).
+            String pathFamily = SecuritySemanticNormalizer.pathFamilyOf(event.getMetadata(), requestPath);
             if (pathFamily != null) {
                 metadata.put("pathFamily", pathFamily);
             }
@@ -449,14 +454,12 @@ public class SecurityDecisionPostProcessor {
         String httpMethod = extractMetaString(event, "httpMethod");
         if (httpMethod != null) {
             metadata.put("httpMethod", httpMethod);
-            String normalizedActionFamily = SecuritySemanticNormalizer.normalizeActionFamily(
-                    extractMetaString(event, "actionFamily"),
-                    httpMethod,
-                    metadata.get("action"),
-                    metadata.get("proposedAction"));
-            if (normalizedActionFamily != null) {
-                metadata.put("actionFamily", normalizedActionFamily);
-            }
+        }
+        // The request's action family as the context gave it; the decision (ALLOW, CHALLENGE) is not an action.
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(event.getMetadata());
+        if (action.family() != ActionFamily.UNKNOWN) {
+            metadata.put("actionFamily", action.family().name());
+            metadata.put("actionFamilySource", action.source());
         }
 
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
@@ -528,10 +531,9 @@ public class SecurityDecisionPostProcessor {
             metadata.put("authenticationType", normalizedAuthenticationType);
         }
         String normalizedResourceFamily = SecuritySemanticNormalizer.normalizeResourceFamily(
+                metadata.get("resourceSensitivity"),
                 metadata.get("resourceFamily"),
-                metadata.get("resourceType"),
-                metadata.get("resourceCategory"),
-                metadata.get("resourceSensitivity"));
+                metadata.get("resourceType"));
         if (normalizedResourceFamily != null) {
             metadata.put("resourceFamily", normalizedResourceFamily);
         }

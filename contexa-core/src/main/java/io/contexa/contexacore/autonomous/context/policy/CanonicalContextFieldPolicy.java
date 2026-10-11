@@ -227,7 +227,20 @@ public final class CanonicalContextFieldPolicy {
                 || context.getFrictionProfile().getApprovalDecisionAgeMinutes() != null
                 || context.getFrictionProfile().getRecentDeniedAccessCount() != null
                 || context.getFrictionProfile().getBreakGlass() != null
-                || context.getFrictionProfile().getBlockedUser() != null);
+                || context.getFrictionProfile().getBlockedUser() != null
+                || hasCompanyRecords(context.getFrictionProfile()));
+    }
+
+    /** Whether a host provider put structured company records in the friction profile (W2-6). */
+    private static boolean hasCompanyRecords(CanonicalSecurityContext.FrictionProfile profile) {
+        return (profile.getApprovalRecords() != null && !profile.getApprovalRecords().isEmpty())
+                || (profile.getTicketRecords() != null && !profile.getTicketRecords().isEmpty())
+                || (profile.getPolicies() != null && !profile.getPolicies().isEmpty())
+                || profile.getOnCall() != null
+                || profile.getTravel() != null
+                || profile.getAssignment() != null
+                || profile.getAccessHistory() != null
+                || (profile.getCheckedRecordKinds() != null && !profile.getCheckedRecordKinds().isEmpty());
     }
 
     public static boolean hasDelegationContext(CanonicalSecurityContext context) {

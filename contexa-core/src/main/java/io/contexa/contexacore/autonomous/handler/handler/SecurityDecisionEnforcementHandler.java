@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -65,6 +66,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final Executor baselineLearningExecutor;
     private final Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier;
     private final SecurityContextDataStore securityContextDataStore;
+    private final ContextObservationRecorder contextObservationRecorder;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -118,6 +120,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             Executor baselineLearningExecutor,
             Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier,
             SecurityContextDataStore securityContextDataStore) {
+        this(actionRedisRepository, securityLearningService, blockedUserRecorder, blockingDecisionRegistry,
+                securityZeroTrustProperties, baselineLearningExecutor, aiSecurityDecisionObservationWriterSupplier,
+                securityContextDataStore, null);
+    }
+
+    /**
+     * @param contextObservationRecorder where the context collectors staged the request's observations; the handler
+     *                                   commits them under the final outcome (W2-7), null when nothing is staged
+     */
+    public SecurityDecisionEnforcementHandler(
+            ZeroTrustActionRepository actionRedisRepository,
+            SecurityLearningService securityLearningService,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            Executor baselineLearningExecutor,
+            Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier,
+            SecurityContextDataStore securityContextDataStore,
+            ContextObservationRecorder contextObservationRecorder) {
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.blockedUserRecorder = blockedUserRecorder;
@@ -128,6 +149,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 ? aiSecurityDecisionObservationWriterSupplier
                 : () -> null;
         this.securityContextDataStore = securityContextDataStore;
+        this.contextObservationRecorder = contextObservationRecorder;
     }
 
     private boolean isEnforcementDisabled() {
@@ -145,11 +167,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         if (!(resultObj instanceof ProcessingResult result) || !result.isSuccess()) {
             ProcessingResult failedResult = resultObj instanceof ProcessingResult value ? value : null;
             recordAiSecurityDecisionObservation(context.getSecurityEvent(), failedResult, ZeroTrustAction.PENDING_ANALYSIS);
+            // No decision was reached: the session's narrative keeps the request, nothing is learned from it.
+            commitContextObservations(event, null, false);
             return true;
         }
         String userId = event.getUserId();
         if (userId == null || userId.isBlank()) {
             recordAiSecurityDecisionObservation(event, result, ZeroTrustAction.fromString(result.getAction()));
+            commitContextObservations(event, result.getAction(), false);
             return true;
         }
 
@@ -157,6 +182,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         try {
             enforceDecision(userId, event, result, sideEffectsEnabled);
+            if (isCurrentProcessingOwner(event)) {
+                commitContextObservations(event, result.getAction(), sideEffectsEnabled);
+            }
         } catch (UnauditedFinalDecisionException e) {
             // Already reported through the throttled observation failure log.
             context.markAsFailed(e.getMessage());
@@ -298,6 +326,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             ProcessingResult result = ProcessingResult.builder()
                     .success(true).action(action.name()).reasoning(persisted.reasoning()).build();
             handleBlockDecision(userId, event, result);
+        }
+        commitContextObservations(event, action.name(), true);
+    }
+
+    /** Records the request's staged context observations under its final outcome, once (W2-7). */
+    private void commitContextObservations(SecurityEvent event, String outcome, boolean enforced) {
+        if (contextObservationRecorder == null) {
+            return;
+        }
+        try {
+            contextObservationRecorder.commit(event, outcome != null && !outcome.isBlank() ? outcome : null, enforced);
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to record context observations: eventId={}",
+                    event.getEventId(), e);
         }
     }
 

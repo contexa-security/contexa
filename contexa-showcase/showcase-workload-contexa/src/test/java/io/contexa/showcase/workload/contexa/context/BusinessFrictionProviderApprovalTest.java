@@ -11,8 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +108,7 @@ class BusinessFrictionProviderApprovalTest {
                 "The export names no valid item count; its company facts were not looked up.");
         assertThat(noItems.getSummary()).isEqualTo(
                 "Company facts of this request were not looked up in the business database.");
+        assertThat(noItems.getCheckedRecordKinds()).isEmpty();
 
         FrictionProfile noTime = enrich(new Stub(true, true, true, true), "items=40", null);
         assertThat(noTime.getApprovalLineage()).singleElement().asString().startsWith("The request time is unknown");
@@ -154,6 +153,73 @@ class BusinessFrictionProviderApprovalTest {
                 .endsWith("requires an approval for this request: yes"));
     }
 
+    /**
+     * W2-6: the same lookups as the lines, as structured records; the engine computes coverage at the request time
+     * from them, and the host's verdict stays with each record.
+     */
+    @Test
+    void theLookedUpRecordsAreStatedAsStructuredFacts() {
+        CanonicalSecurityContext context = contextOf(new Stub(true, true, false, true, Duration.ofMinutes(20)),
+                "POST", "/api/projects/GB-500/exports", "items=300&claimedTicket=INC-7781", AT);
+        FrictionProfile friction = context.getFrictionProfile();
+
+        assertThat(friction.getApprovalRecords()).singleElement().satisfies(record -> {
+            assertThat(record.getApprovalId()).isEqualTo("APR-1");
+            assertThat(record.getStatus()).isEqualTo("APPROVED");
+            assertThat(record.getTarget()).isEqualTo("GB-500");
+            assertThat(record.getMaxItems()).isEqualTo(5000);
+            assertThat(record.getDecidedAt()).isEqualTo(AT.plus(Duration.ofMinutes(20)));
+            assertThat(record.getUsedItems()).as("the shared lookup does not count usage").isNull();
+            assertThat(record.getHostCovers()).isTrue();
+        });
+        // The requester's own ticket does not exist; it is kept with that fact, never as a covering record.
+        assertThat(friction.getTicketRecords()).singleElement().satisfies(record -> {
+            assertThat(record.getTicketId()).isEqualTo("INC-7781");
+            assertThat(record.getClaimedByRequester()).isTrue();
+            assertThat(record.getExists()).isFalse();
+            assertThat(record.getHostCovers()).isFalse();
+        });
+        assertThat(friction.getOnCall().getOnCall()).isTrue();
+        assertThat(friction.getOnCall().getTeam()).isEqualTo("PLATFORM");
+        assertThat(friction.getAssignment().getTarget()).isEqualTo("GB-500");
+        assertThat(friction.getAssignment().getAssigned()).isTrue();
+        assertThat(friction.getAccessHistory().getWindowDays()).isEqualTo(30);
+        assertThat(friction.getTravel()).as("an office network is no trip").isNull();
+        // What was looked up is stated, so the engine tells none found from not looked up (P2 correction 3).
+        assertThat(friction.getCheckedRecordKinds()).containsExactly("ASSIGNMENT", "APPROVAL", "TICKET", "ON_CALL",
+                "ACCESS_HISTORY", "TRAVEL");
+        assertThat(friction.getPolicies()).singleElement().satisfies(policy -> {
+            assertThat(policy.getPolicyId()).isEqualTo("EXPORT_APPROVAL");
+            assertThat(policy.getRequirement()).isEqualTo("APPROVAL");
+            assertThat(policy.getExceptions()).extracting(CanonicalSecurityContext.PolicyException::getKind)
+                    .containsExactly("ASSIGNED", "TICKET_WHILE_ON_CALL");
+            assertThat(policy.getExceptions().get(0).getLimit()).isEqualTo(500);
+            assertThat(policy.getHostRequires()).isFalse();
+        });
+
+        CanonicalSecurityContext grant = contextOf(new Stub(false, false, false, false), "POST",
+                "/api/admin/role-grants", "project=GB-500&grantee=eng-k&responsibility=REVIEW", AT);
+        assertThat(grant.getFrictionProfile().getPolicies()).singleElement().satisfies(policy -> {
+            assertThat(policy.getRequirement()).isEqualTo("TICKET");
+            assertThat(policy.getRequiredTicketKind()).isEqualTo("CHANGE");
+            assertThat(policy.getHostRequires()).isTrue();
+        });
+        assertThat(grant.getFrictionProfile().getTicketRecords()).as("no ticket of the requester exists").isEmpty();
+        assertThat(grant.getFrictionProfile().getCheckedRecordKinds()).containsExactly("TICKET", "TRAVEL");
+    }
+
+    /** W2-4: the network fact the provider looked up states the request's zone; facts not looked up state none. */
+    @Test
+    void theLookedUpNetworkFactStatesTheRequestsZone() {
+        CanonicalSecurityContext lookedUp = contextOf(new Stub(false, true, false, false), "POST",
+                "/api/projects/GB-500/exports", "items=40", AT);
+        assertThat(lookedUp.getLocation().getNetworkZone()).isEqualTo("CORPORATE");
+
+        CanonicalSecurityContext notLookedUp = contextOf(new Stub(false, true, false, false), "POST",
+                "/api/projects/GB-500/exports", "items=abc", AT);
+        assertThat(notLookedUp.getLocation()).isNull();
+    }
+
     private static FrictionProfile enrich(Stub lookup, int items) {
         return enrich(lookup, "items=" + items, AT);
     }
@@ -167,8 +233,14 @@ class BusinessFrictionProviderApprovalTest {
     }
 
     private static FrictionProfile enrich(Stub lookup, String method, String path, String query, Instant at) {
+        CanonicalSecurityContext context = contextOf(lookup, method, path, query, at);
+        assertThat(context.getFrictionProfile()).as("the provider wrote the company facts").isNotNull();
+        return context.getFrictionProfile();
+    }
+
+    private static CanonicalSecurityContext contextOf(Stub lookup, String method, String path, String query, Instant at) {
         SecurityEvent event = SecurityEvent.builder().userId(USER)
-                .timestamp(at == null ? null : LocalDateTime.ofInstant(at, ZoneOffset.UTC)).build();
+                .timestamp(at).build();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("requestPath", path);
         metadata.put("httpMethod", method);
@@ -176,8 +248,7 @@ class BusinessFrictionProviderApprovalTest {
         event.setMetadata(metadata);
         CanonicalSecurityContext context = new CanonicalSecurityContext();
         new BusinessFrictionProvider(lookup, null).enrich(event, context);
-        assertThat(context.getFrictionProfile()).as("the provider wrote the company facts").isNotNull();
-        return context.getFrictionProfile();
+        return context;
     }
 
     /** The company facts of one export, as the shared business lookup would return them. */

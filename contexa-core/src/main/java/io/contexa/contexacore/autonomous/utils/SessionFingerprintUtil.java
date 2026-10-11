@@ -74,7 +74,7 @@ public class SessionFingerprintUtil {
             fingerprint.append("IP:").append(hashString(event.getSourceIp())).append("|");
         }
 
-        int hourOfDay = event.getTimestamp().getHour();
+        int hourOfDay = event.getLocalTimestamp().getHour();
         fingerprint.append("TH:").append(hourOfDay).append("|");
 
         fingerprint.append("SV:").append(event.getSeverity() != null ? event.getSeverity().toString() : "INFO").append("|");

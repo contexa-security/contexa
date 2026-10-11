@@ -20,6 +20,8 @@ import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.handler.login.LoginFactsRecorder;
+import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -44,7 +46,8 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
                                                PlatformAuthenticationSuccessHandler successHandler,
                                                PlatformAuthenticationFailureHandler failureHandler) {
         configurer
-                .loginProcessingUrl(opts.getLoginProcessingUrl());
+                .loginProcessingUrl(opts.getLoginProcessingUrl())
+                .authenticationDetailsSource(LoginFactsRecorder.detailsSource(AuthenticationMethodReferences.PASSWORD));
 
         if (opts.getUsernameParameter() != null) {
             configurer.usernameParameter(opts.getUsernameParameter());

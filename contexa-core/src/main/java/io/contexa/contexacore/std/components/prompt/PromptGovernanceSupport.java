@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import java.nio.charset.StandardCharsets;
@@ -236,20 +238,27 @@ public final class PromptGovernanceSupport {
         return null;
     }
 
+    /**
+     * The descriptor of a prompt without its own descriptor. Its version is the newest bundle the build ships for the
+     * prompt key (the template key), or UNVERSIONED when there is none.
+     */
     public static PromptGovernanceDescriptor buildDefaultDescriptor(String templateKey, Class<?> templateClass) {
         String normalizedTemplateKey = templateKey != null && !templateKey.isBlank()
                 ? templateKey
                 : templateClass.getSimpleName();
+        String promptVersion = PromptBundleCatalog.shared().newest(normalizedTemplateKey)
+                .map(PromptBundleManifest::bundleVersion)
+                .orElse("UNVERSIONED");
         return new PromptGovernanceDescriptor(
                 normalizedTemplateKey,
                 normalizedTemplateKey,
-                "UNVERSIONED",
+                promptVersion,
                 "UNSPECIFIED",
                 PromptReleaseStatus.DRAFT,
                 "unassigned",
                 "unapproved",
                 "unevaluated",
-                "none",
+                null,
                 "Default prompt governance descriptor",
                 List.of(),
                 templateClass.getName());

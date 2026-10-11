@@ -18,9 +18,12 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import io.contexa.contexacommon.domain.SecurityEvent;
 
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class PromptTemplateUtils {
+
+    private static final Pattern TEMPLATE_VARIABLE = Pattern.compile("\\{[A-Za-z_][A-Za-z0-9_]*}");
 
     private static final ThreadLocal<Boolean> TRUNCATION_DISABLED =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
@@ -127,14 +130,27 @@ public final class PromptTemplateUtils {
         if (input == null) {
             return null;
         }
-        return input
+        String escaped = input
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
             .replace("\n", " ")
             .replace("\r", " ")
-            .replace("`", "'")
-            .replace("{", "(")
-            .replace("}", ")");
+            .replace("`", "'");
+        // Braces become parentheses, except around one bare name: a URL template variable ({projectKey}) reads as the
+        // host declared it in every line. The prompt goes to the model as message text and is never rendered as a
+        // template.
+        StringBuilder sanitized = new StringBuilder(escaped.length());
+        Matcher variable = TEMPLATE_VARIABLE.matcher(escaped);
+        int last = 0;
+        while (variable.find()) {
+            sanitized.append(parenthesize(escaped.substring(last, variable.start()))).append(variable.group());
+            last = variable.end();
+        }
+        return sanitized.append(parenthesize(escaped.substring(last))).toString();
+    }
+
+    private static String parenthesize(String text) {
+        return text.replace("{", "(").replace("}", ")");
     }
 
     public static String sanitizeAndTruncate(String input, int maxLength) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import java.time.ZoneId;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
@@ -68,7 +69,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-runtime-governance-001")
-                .timestamp(LocalDateTime.of(2026, 5, 23, 16, 30))
+                .timestamp(LocalDateTime.of(2026, 5, 23, 16, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-runtime-governance")
                 .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
@@ -143,7 +144,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-runtime-governance-novelty-001")
-                .timestamp(LocalDateTime.of(2026, 7, 24, 11, 30))
+                .timestamp(LocalDateTime.of(2026, 7, 24, 11, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_hr_admin")
                 .sessionId("session-runtime-governance-novelty")
                 .description("GET /api/security-test/sensitive/resource-001")
@@ -193,7 +194,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-runtime-governance-multi-fault-001")
-                .timestamp(LocalDateTime.of(2026, 6, 8, 14, 10))
+                .timestamp(LocalDateTime.of(2026, 6, 8, 14, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-runtime-governance-multi-fault")
                 .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
@@ -279,7 +280,7 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-runtime-governance-fault-001")
-                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30))
+                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-runtime-governance-fault")
                 .description("GET /admin/api/security-test/sensitive/resource-001")

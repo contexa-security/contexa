@@ -66,6 +66,27 @@ public class SynchronousProtectableDecisionService {
         return currentResult(event, userId, contextBindingHash, null);
     }
 
+    /**
+     * The restriction in force for the caller of an asynchronous {@code @Protectable}: a stored BLOCK, CHALLENGE or
+     * ESCALATE restricts every request of the user, so it is checked before the method runs. Null when none is in
+     * force or when the event is inside a shadow boundary.
+     */
+    public ZeroTrustAction storedRestriction(MethodInvocation methodInvocation, Authentication authentication) {
+        ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildMethodAuthorizationEvent(
+                methodInvocation,
+                authentication,
+                true,
+                null
+        );
+        if (isEventShadowBoundary(event)) {
+            return null;
+        }
+        ZeroTrustAction action = actionRepository.getCurrentAction(
+                event.getUserId(), zeroTrustEventListener.generateAuthorizationContextBindingHash(event));
+        return action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
+                || action == ZeroTrustAction.ESCALATE ? action : null;
+    }
+
     private SyncDecisionResult currentResult(
             ZeroTrustSpringEvent event,
             String userId,

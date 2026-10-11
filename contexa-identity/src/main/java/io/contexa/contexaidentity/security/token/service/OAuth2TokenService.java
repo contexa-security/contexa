@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaidentity.security.token.service;
 
+import io.contexa.contexaidentity.security.handler.login.LoginFactClaims;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -106,6 +107,7 @@ public class OAuth2TokenService implements TokenService {
         if (deviceId != null) {
             builder.attribute("device_id", deviceId);
         }
+        LoginFactClaims.of(authentication).forEach(builder::attribute);
 
         addCurrentRequestAttributes(builder);
 
@@ -144,6 +146,7 @@ public class OAuth2TokenService implements TokenService {
         if (deviceId != null) {
             builder.attribute("device_id", deviceId);
         }
+        LoginFactClaims.of(authentication).forEach(builder::attribute);
 
         builder.attribute(HttpServletRequest.class.getName(), request);
         builder.attribute(HttpServletResponse.class.getName(), response);

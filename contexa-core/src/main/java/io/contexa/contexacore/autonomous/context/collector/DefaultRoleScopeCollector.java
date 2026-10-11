@@ -15,6 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.context.collector;
 
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
+import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
+import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
@@ -23,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,9 +72,20 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     private static final String COLLECTOR_ID = "ROLE_SCOPE_COLLECTOR";
 
     private final SecurityContextDataStore dataStore;
+    private final ContextObservationRecorder recorder;
 
+    /** A collector that records through a recorder of its own, committed by whoever holds it. */
     public DefaultRoleScopeCollector(SecurityContextDataStore dataStore) {
+        this(dataStore, new ContextObservationRecorder(dataStore));
+    }
+
+    public DefaultRoleScopeCollector(SecurityContextDataStore dataStore, ContextObservationRecorder recorder) {
         this.dataStore = dataStore;
+        this.recorder = recorder;
+    }
+
+    public ContextObservationRecorder recorder() {
+        return recorder;
     }
 
     @Override
@@ -95,10 +109,21 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return new StoredRoleScopeHistory("API_RETURN_OBSERVED", raw, scopeKey, history, HISTORY_SCAN_LIMIT);
     }
 
+    /**
+     * The scope group's facts before this request. The collector only reads; the request's observation joins the
+     * scope group's history when an enforced decision allows it, or as a denied scope when its authorization was
+     * refused, while its permission change and authorization state are always recorded (W2-7, S-10). Resolving the
+     * same request again records nothing more.
+     */
     @Override
     public Optional<RoleScopeSnapshot> collect(SecurityEvent event) {
         if (event == null || !StringUtils.hasText(event.getUserId())) {
             return Optional.empty();
+        }
+        Optional<RoleScopeSnapshot> resolved = recorder.resolved(event, ContextObservationRecorder.ROLE_SCOPE,
+                RoleScopeSnapshot.class);
+        if (resolved.isPresent()) {
+            return resolved;
         }
 
         AuthorizationScopeState authorizationScopeState = resolveAuthorizationScopeState(event.getMetadata());
@@ -136,14 +161,20 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 currentHints,
                 currentTimestampMs);
 
-        if (shouldPersist(currentObservation)) {
-            dataStore.addRoleScopeObservation(tenantId, authorizationScopeState.scopeKey(), serializeObservation(currentObservation));
-        }
-        for (PermissionChangeObservation permissionChange : currentPermissionChanges) {
-            dataStore.addPermissionChangeObservation(tenantId, userId, serializePermissionChange(permissionChange));
-        }
-        dataStore.setAuthorizationScopeState(tenantId, userId, serializeAuthorizationState(authorizationScopeState));
-
+        String scopeKey = authorizationScopeState.scopeKey();
+        String observation = shouldPersist(currentObservation) ? serializeObservation(currentObservation) : null;
+        List<String> permissionChanges = currentPermissionChanges.stream().map(this::serializePermissionChange).toList();
+        String authorizationState = serializeAuthorizationState(authorizationScopeState);
+        recorder.stage(event, ContextObservationRecorder.ROLE_SCOPE, snapshot.orElse(null), commit -> {
+            SecurityContextDataStore store = commit.dataStore();
+            if (observation != null && (commit.learnable() || commit.authorizationDenied())) {
+                store.addRoleScopeObservation(tenantId, scopeKey, observation);
+            }
+            for (String permissionChange : permissionChanges) {
+                store.addPermissionChangeObservation(tenantId, userId, permissionChange);
+            }
+            store.setAuthorizationScopeState(tenantId, userId, authorizationState);
+        });
         return snapshot;
     }
 
@@ -187,8 +218,18 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 .limit(TOP_PERMISSION_CHANGE_LIMIT)
                 .toList();
 
-        Boolean resourceFamilyDrift = computeComparisonMismatch(currentObservation.resourceFamily(), expectedResourceFamilies, forbiddenResourceFamilies);
-        Boolean actionFamilyDrift = computeComparisonMismatch(currentObservation.actionFamily(), expectedActionFamilies, forbiddenActionFamilies);
+        // A refusal forbids a pair: the action on the resource family it was refused for. Comparing the families
+        // apart would put every read in denied scope after one refused read of another resource.
+        Boolean observedPairDenied = observedPairDenied(
+                deniedObservations, currentObservation.resourceFamily(), currentObservation.actionFamily());
+        Boolean currentResourceFamilyInDeniedScope = inDeniedScope(currentObservation.resourceFamily(),
+                currentHints.forbiddenResourceFamilies(), deniedObservations, observedPairDenied);
+        Boolean currentActionFamilyInDeniedScope = inDeniedScope(currentObservation.actionFamily(),
+                currentHints.forbiddenActionFamilies(), deniedObservations, observedPairDenied);
+        Boolean resourceFamilyDrift = computeComparisonMismatch(
+                currentObservation.resourceFamily(), expectedResourceFamilies, currentResourceFamilyInDeniedScope);
+        Boolean actionFamilyDrift = computeComparisonMismatch(
+                currentObservation.actionFamily(), expectedActionFamilies, currentActionFamilyInDeniedScope);
         PermissionChangeObservation activePermissionChange = resolveActivePermissionChange(permissionChanges, currentTimestampMs);
         Boolean temporaryElevation = firstNonNull(currentHints.temporaryElevation(), activePermissionChange != null ? Boolean.TRUE : null);
         Boolean elevatedPrivilegeWindowActive = activePermissionChange != null;
@@ -243,6 +284,8 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 .recentPermissionChanges(recentPermissionChanges)
                 .resourceFamilyDrift(resourceFamilyDrift)
                 .actionFamilyDrift(actionFamilyDrift)
+                .currentResourceFamilyInDeniedScope(currentResourceFamilyInDeniedScope)
+                .currentActionFamilyInDeniedScope(currentActionFamilyInDeniedScope)
                 .temporaryElevation(temporaryElevation)
                 .temporaryElevationReason(temporaryElevationReason)
                 .elevatedPrivilegeWindowActive(elevatedPrivilegeWindowActive)
@@ -744,13 +787,11 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 false, "resourceFamily",
                 true, "resourceType",
                 true, "resourceCategory");
-        ResolvedSignal actionFamily = resolveSignal(
-                metadata,
-                true,
-                "currentActionFamily",
-                false, "actionFamily",
-                false, "operation",
-                true, "httpMethod");
+        // The same family the context gives the request: declared value, protected method, URL template, HTTP method.
+        ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(metadata);
+        ResolvedSignal actionFamily = action.family() == ActionFamily.UNKNOWN
+                ? new ResolvedSignal(null, null, false)
+                : new ResolvedSignal(action.family().name(), action.sourceKey(), action.inferred());
         String approvalPattern = resolveApprovalPattern(metadata);
         String escalationPattern = resolveEscalationPattern(metadata, event);
         if (!StringUtils.hasText(resourceFamily.value())
@@ -770,7 +811,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 resourceFamily.value(),
                 resourceFamily.sourceKey(),
                 resourceFamily.fallback(),
-                normalizeActionFamily(actionFamily.value()),
+                actionFamily.value(),
                 actionFamily.sourceKey(),
                 actionFamily.fallback(),
                 resolveDecisionState(event),
@@ -799,13 +840,13 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 expectedResources.values(),
                 expectedResources.sourceKey(),
                 expectedResources.fallback(),
-                expectedActions.values(),
+                normalizeActionFamilies(expectedActions.values()),
                 expectedActions.sourceKey(),
                 expectedActions.fallback(),
                 forbiddenResources.values(),
                 forbiddenResources.sourceKey(),
                 forbiddenResources.fallback(),
-                forbiddenActions.values(),
+                normalizeActionFamilies(forbiddenActions.values()),
                 forbiddenActions.sourceKey(),
                 forbiddenActions.fallback(),
                 approvalPatterns.values(),
@@ -1067,17 +1108,62 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 .orElse(null);
     }
 
-    private Boolean computeComparisonMismatch(String currentFamily, List<String> expectedFamilies, List<String> forbiddenFamilies) {
+    private Boolean computeComparisonMismatch(String currentFamily, List<String> expectedFamilies, Boolean inDeniedScope) {
         if (!StringUtils.hasText(currentFamily)) {
             return null;
         }
-        if (containsIgnoreCase(forbiddenFamilies, currentFamily)) {
+        if (Boolean.TRUE.equals(inDeniedScope)) {
             return true;
         }
         if (expectedFamilies == null || expectedFamilies.isEmpty()) {
             return null;
         }
         return !containsIgnoreCase(expectedFamilies, currentFamily);
+    }
+
+    /**
+     * Whether a refusal was observed for the current pair of resource family and action family. Null when a refusal
+     * was observed but a current family is unknown, so the pair cannot be compared.
+     */
+    private Boolean observedPairDenied(List<RoleScopeObservation> deniedObservations, String resourceFamily, String actionFamily) {
+        if (deniedObservations.isEmpty()) {
+            return false;
+        }
+        if (!knownFamily(resourceFamily) || !knownFamily(actionFamily)) {
+            return null;
+        }
+        return deniedObservations.stream().anyMatch(observation ->
+                resourceFamily.trim().equalsIgnoreCase(trimmed(observation.resourceFamily()))
+                        && actionFamily.trim().equalsIgnoreCase(trimmed(observation.actionFamily())));
+    }
+
+    /**
+     * Whether one current family is in denied scope: the host declared it forbidden, or its pair was refused. Null when
+     * there is no denial evidence or the pair cannot be compared.
+     */
+    private Boolean inDeniedScope(
+            String currentFamily,
+            List<String> declaredForbiddenFamilies,
+            List<RoleScopeObservation> deniedObservations,
+            Boolean observedPairDenied) {
+        if (!StringUtils.hasText(currentFamily)) {
+            return null;
+        }
+        if (containsIgnoreCase(declaredForbiddenFamilies, currentFamily) || Boolean.TRUE.equals(observedPairDenied)) {
+            return true;
+        }
+        if (deniedObservations.isEmpty()) {
+            return declaredForbiddenFamilies == null || declaredForbiddenFamilies.isEmpty() ? null : false;
+        }
+        return observedPairDenied;
+    }
+
+    private static boolean knownFamily(String family) {
+        return StringUtils.hasText(family) && !"UNKNOWN".equalsIgnoreCase(family.trim());
+    }
+
+    private static String trimmed(String value) {
+        return value != null ? value.trim() : null;
     }
 
     private boolean shouldPersist(RoleScopeObservation observation) {
@@ -1185,7 +1271,6 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         }
         Integer ageMinutes = resolvePositiveInteger(
                 metadata.get("permissionChangeAgeMinutes"),
-                metadata.get("approvalDecisionAgeMinutes"),
                 metadata.get("elevationAgeMinutes"));
         if (ageMinutes != null) {
             return currentTimestampMs - ageMinutes * 60_000L;
@@ -1283,7 +1368,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                         decodeNullable(parts[5]),
                         decodeNullable(parts[6]),
                         decodeBoolean(parts[7]),
-                        decodeNullable(parts[8]),
+                        normalizeActionFamily(decodeNullable(parts[8])),
                         decodeNullable(parts[9]),
                         decodeBoolean(parts[10]),
                         decodeNullable(parts[11]),
@@ -1567,14 +1652,13 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
-    private long toEpochMillis(LocalDateTime timestamp) {
-        LocalDateTime safeTimestamp = timestamp != null ? timestamp : LocalDateTime.now();
-        return safeTimestamp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    private long toEpochMillis(Instant timestamp) {
+        return (timestamp != null ? timestamp : Instant.now()).toEpochMilli();
     }
 
     private LocalDate toLocalDate(long timestampMs) {
         return Instant.ofEpochMilli(timestampMs)
-                .atZone(ZoneId.systemDefault())
+                .atZone(EventTimeZone.get())
                 .toLocalDate();
     }
 
@@ -1585,7 +1669,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         }
         try {
             return LocalDateTime.parse(rawValue)
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(EventTimeZone.get())
                     .toInstant()
                     .toEpochMilli();
         } catch (DateTimeParseException ignored) {
@@ -1594,22 +1678,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     }
 
     private Boolean resolveBoolean(Object... candidates) {
-        if (candidates == null) {
-            return null;
-        }
-        for (Object candidate : candidates) {
-            if (candidate == null) {
-                continue;
-            }
-            if (candidate instanceof Boolean booleanValue) {
-                return booleanValue;
-            }
-            String text = candidate.toString().trim();
-            if ("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
-                return Boolean.parseBoolean(text);
-            }
-        }
-        return null;
+        return MetadataValueResolver.resolveBoolean(candidates);
     }
 
     private Integer resolvePositiveInteger(Object... candidates) {
@@ -1633,20 +1702,17 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return null;
     }
 
+    /** The {@link ActionFamily} name of a family value; a value that names none stays as it was stated. */
     private String normalizeActionFamily(String actionFamily) {
-        if (!StringUtils.hasText(actionFamily)) {
-            return null;
-        }
-        String normalized = normalizeToken(actionFamily);
-        return switch (normalized) {
-            case "GET", "HEAD", "READ", "VIEW", "LIST" -> "READ";
-            case "POST", "CREATE" -> "CREATE";
-            case "PUT", "PATCH", "UPDATE", "WRITE", "MODIFY" -> "UPDATE";
-            case "DELETE", "REMOVE" -> "DELETE";
-            case "EXPORT", "DOWNLOAD" -> "EXPORT";
-            case "APPROVE" -> "APPROVE";
-            default -> normalized;
-        };
+        return ActionFamily.nameOrRaw(actionFamily);
+    }
+
+    private List<String> normalizeActionFamilies(List<String> actionFamilies) {
+        return actionFamilies.stream()
+                .map(this::normalizeActionFamily)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     private String normalizeToken(String value) {

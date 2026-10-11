@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.saas.threat;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import org.springframework.util.StringUtils;
@@ -270,14 +271,7 @@ public class ThreatSignalNormalizationService {
     }
 
     private boolean extractBoolean(Map<String, Object> source, String key) {
-        Object value = source.get(key);
-        if (value instanceof Boolean booleanValue) {
-            return booleanValue;
-        }
-        if (value instanceof String text) {
-            return Boolean.parseBoolean(text);
-        }
-        return false;
+        return Boolean.TRUE.equals(TruthValues.parse(source.get(key)));
     }
 
     private int extractInt(Map<String, Object> source, String key) {

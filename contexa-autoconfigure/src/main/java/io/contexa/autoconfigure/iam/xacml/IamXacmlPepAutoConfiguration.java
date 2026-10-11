@@ -15,6 +15,8 @@
  */
 package io.contexa.autoconfigure.iam.xacml;
 
+import org.springframework.beans.factory.ObjectProvider;
+import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -71,13 +73,18 @@ public class IamXacmlPepAutoConfiguration {
             @Autowired(required = false) AuthorizationMetrics metricsCollector,
             CentralAuditFacade centralAuditFacade,
             PolicyCombiningEvaluator policyCombiningEvaluator,
-            PolicyCombiningProperties policyCombiningProperties) {
+            PolicyCombiningProperties policyCombiningProperties,
+            ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider) {
         CustomDynamicAuthorizationManager manager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver,
                 objectMapper, contextHandler, metricsCollector, centralAuditFacade,
                 policyCombiningEvaluator);
         manager.setCombiningAlgorithm(policyCombiningProperties.getCombiningAlgorithm());
         manager.setNoMatchingUrlPolicyDecision(policyCombiningProperties.getNoMatchingUrlPolicyDecision());
+        AuthorizationDenialRecorder authorizationDenialRecorder = authorizationDenialRecorderProvider.getIfAvailable();
+        if (authorizationDenialRecorder != null) {
+            manager.setAuthorizationDenialRecorder(authorizationDenialRecorder);
+        }
         return manager;
     }
 

@@ -90,9 +90,6 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
         add(checks, OfficialVerificationGateCode.PROMPT_HASH, "PFR", "prompt hash exists", "promptHash exists",
                 firstNonBlank(evidencePackage.getPromptHash(), "missing"),
                 hasText(evidencePackage.getPromptHash()), "promptCapture");
-        add(checks, OfficialVerificationGateCode.REPLAY_HASH, "PFR", "prompt hash matches deterministic replay", "raw hash matches replay hash",
-                replayHashLabel(evidencePackage, replay),
-                replayHashMatches(evidencePackage, replay), "deterministicReplay");
 
         RuntimeGovernanceDescriptorVerificationResult governanceResult = governanceDescriptorVerifier.verify(
                 evidencePackage,
@@ -270,25 +267,6 @@ public class DefaultPromptQualityRuntimeCertificationPolicy
         }
         String normalized = run.state() == null ? "" : run.state().trim().toUpperCase(Locale.ROOT);
         return PASS_STATES.contains(normalized) || normalized.contains("THRESHOLD PASSED");
-    }
-
-    private boolean replayHashMatches(SealedEvidencePackage evidencePackage, DeterministicReplayResult replay) {
-        return hasText(evidencePackage.getPromptHash())
-                && replay != null
-                && hasText(replay.originalPromptHash())
-                && evidencePackage.getPromptHash().equals(replay.originalPromptHash());
-    }
-
-    private String replayHashLabel(SealedEvidencePackage evidencePackage, DeterministicReplayResult replay) {
-        if (!hasText(evidencePackage.getPromptHash())) {
-            return message("enterprise.pqa.consistency.gate.hashMissing");
-        }
-        if (replay == null || !hasText(replay.originalPromptHash())) {
-            return message("enterprise.pqa.consistency.gate.replayHashMissing");
-        }
-        return evidencePackage.getPromptHash().equals(replay.originalPromptHash())
-                ? message("enterprise.pqa.consistency.gate.hashMatch")
-                : message("enterprise.pqa.consistency.gate.hashMismatch");
     }
 
     private String actionFor(String metricCode) {

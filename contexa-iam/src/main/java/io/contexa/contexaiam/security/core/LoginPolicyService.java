@@ -15,6 +15,11 @@
  */
 package io.contexa.contexaiam.security.core;
 
+import io.contexa.contexacore.autonomous.store.LoginFailureRecording;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import java.time.Instant;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexacommon.repository.LoginAttemptIpRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -104,7 +109,9 @@ public class LoginPolicyService implements LoginPolicyHandler {
             applyIpThrottle(ip, null, "MISSING_USERNAME");
             return;
         }
-        if (!firstHandle("F:" + username + ":" + (ip == null ? "-" : ip))) return; // idempotent guard
+        // One failure is handled once per request, whether it arrives from the failure event (with the address) or
+        // from the failure handler (without it).
+        if (!firstHandle("F:" + username)) return;
         recordLoginFailureContext(username, ip);
 
         try {
@@ -130,13 +137,24 @@ public class LoginPolicyService implements LoginPolicyHandler {
         }
     }
 
+    /** The current request's observed time, the clock failures are counted on; the server time without one. */
+    private static long currentRequestTimeMillis() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            Instant observedAt = RequestInfoExtractor.extractObservedAt(attributes.getRequest());
+            if (observedAt != null) {
+                return observedAt.toEpochMilli();
+            }
+        }
+        return System.currentTimeMillis();
+    }
+
     private void recordLoginFailureContext(String username, String ip) {
         try {
             SecurityContextDataStore dataStore = securityContextDataStoreProvider == null
                     ? null
                     : securityContextDataStoreProvider.getIfAvailable();
             if (dataStore != null) {
-                dataStore.recordLoginFailure(username, ip, System.currentTimeMillis());
+                LoginFailureRecording.recordOnce(dataStore, username, ip, currentRequestTimeMillis());
             }
         } catch (Exception e) {
             log.warn("[login-policy] authentication failure context recording failed username={} ip={}",

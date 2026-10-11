@@ -19,10 +19,13 @@ import io.contexa.contexacore.autonomous.context.model.ContextEvidenceRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
+import io.contexa.contexacore.autonomous.context.support.NetworkZone;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CanonicalSecurityContextHardener {
 
@@ -121,7 +124,7 @@ public class CanonicalSecurityContextHardener {
     }
 
     private void hardenDevice(CanonicalSecurityContext.Device device) {
-        device.setOs(normalizeUpperText(device.getOs()));
+        device.setOs(SecuritySemanticNormalizer.normalizeOperatingSystem(device.getOs()));
         device.setOsVersion(normalizeText(device.getOsVersion()));
         device.setBrowser(normalizeText(device.getBrowser()));
         device.setBrowserVersion(normalizeText(device.getBrowserVersion()));
@@ -135,14 +138,17 @@ public class CanonicalSecurityContextHardener {
     private void hardenLocation(CanonicalSecurityContext.Location location) {
         location.setCountry(normalizeUpperText(location.getCountry()));
         location.setCity(normalizeText(location.getCity()));
-        location.setIpBand(normalizeText(location.getIpBand()));
+        location.setIpBand(SecuritySemanticNormalizer.normalizeNetwork(null, normalizeText(location.getIpBand())));
         location.setAsn(normalizeUpperText(location.getAsn()));
+        location.setNetworkZone(NetworkZone.nameOf(location.getNetworkZone()));
     }
 
     private void hardenResource(CanonicalSecurityContext.Resource resource) {
         resource.setResourceId(normalizeText(resource.getResourceId()));
         resource.setResourceType(normalizeUpperText(resource.getResourceType()));
         resource.setBusinessLabel(normalizeText(resource.getBusinessLabel()));
+        resource.setAuthorText(normalizeText(resource.getAuthorText()));
+        resource.setRequestedItems(normalizeInteger(resource.getRequestedItems()));
         resource.setSensitivity(SecuritySemanticNormalizer.normalizeSensitivity(resource.getSensitivity()));
         resource.setRequestPath(normalizeText(resource.getRequestPath()));
         resource.setHttpMethod(normalizeUpperText(resource.getHttpMethod()));
@@ -175,7 +181,7 @@ public class CanonicalSecurityContextHardener {
         observedScope.setRecentDeniedAccessCount(normalizeInteger(observedScope.getRecentDeniedAccessCount()));
         observedScope.setRecentSensitiveAccessCount(normalizeInteger(observedScope.getRecentSensitiveAccessCount()));
         observedScope.setFrequentResources(normalizeList(observedScope.getFrequentResources()));
-        observedScope.setFrequentActionFamilies(normalizeList(observedScope.getFrequentActionFamilies()));
+        observedScope.setFrequentActionFamilies(normalizeActionFamilies(observedScope.getFrequentActionFamilies()));
     }
 
     private void hardenSessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile) {
@@ -183,16 +189,19 @@ public class CanonicalSecurityContextHardener {
         sessionNarrativeProfile.setSessionAgeMinutes(normalizeInteger(sessionNarrativeProfile.getSessionAgeMinutes()));
         reconcileSessionAgeSummary(sessionNarrativeProfile);
         sessionNarrativeProfile.setPreviousPath(normalizeText(sessionNarrativeProfile.getPreviousPath()));
-        sessionNarrativeProfile.setPreviousActionFamily(normalizeUpperText(sessionNarrativeProfile.getPreviousActionFamily()));
+        sessionNarrativeProfile.setPreviousActionFamily(ActionFamily.nameOrRaw(sessionNarrativeProfile.getPreviousActionFamily()));
         sessionNarrativeProfile.setLastRequestIntervalMs(normalizeLong(sessionNarrativeProfile.getLastRequestIntervalMs()));
-        sessionNarrativeProfile.setSessionActionSequence(normalizeList(sessionNarrativeProfile.getSessionActionSequence()));
-        sessionNarrativeProfile.setSessionProtectableSequence(normalizeList(sessionNarrativeProfile.getSessionProtectableSequence()));
+        // Sequences keep their order and repeats: the same request made five times is five entries (A-2).
+        sessionNarrativeProfile.setSessionActionSequence(normalizeSequence(sessionNarrativeProfile.getSessionActionSequence()));
+        sessionNarrativeProfile.setSessionProtectableSequence(
+                normalizeSequence(sessionNarrativeProfile.getSessionProtectableSequence()));
+        sessionNarrativeProfile.setSessionDecisionHistory(normalizeSequence(sessionNarrativeProfile.getSessionDecisionHistory()));
     }
 
     private void hardenWorkProfile(CanonicalSecurityContext.WorkProfile workProfile) {
         workProfile.setSummary(normalizeText(workProfile.getSummary()));
         workProfile.setFrequentProtectableResources(normalizeList(workProfile.getFrequentProtectableResources()));
-        workProfile.setFrequentActionFamilies(normalizeList(workProfile.getFrequentActionFamilies()));
+        workProfile.setFrequentActionFamilies(normalizeActionFamilies(workProfile.getFrequentActionFamilies()));
         workProfile.setFrequentSensitiveResourceCategories(normalizeList(workProfile.getFrequentSensitiveResourceCategories()));
         workProfile.setProtectableResourceHeatmap(normalizeList(workProfile.getProtectableResourceHeatmap()));
         workProfile.setNormalAccessHours(normalizeIntegerList(workProfile.getNormalAccessHours()));
@@ -209,11 +218,11 @@ public class CanonicalSecurityContextHardener {
     private void hardenRoleScopeProfile(CanonicalSecurityContext.RoleScopeProfile roleScopeProfile) {
         roleScopeProfile.setSummary(normalizeText(roleScopeProfile.getSummary()));
         roleScopeProfile.setCurrentResourceFamily(normalizeUpperText(roleScopeProfile.getCurrentResourceFamily()));
-        roleScopeProfile.setCurrentActionFamily(normalizeUpperText(roleScopeProfile.getCurrentActionFamily()));
+        roleScopeProfile.setCurrentActionFamily(ActionFamily.nameOrRaw(roleScopeProfile.getCurrentActionFamily()));
         roleScopeProfile.setExpectedResourceFamilies(normalizeList(roleScopeProfile.getExpectedResourceFamilies()));
-        roleScopeProfile.setExpectedActionFamilies(normalizeList(roleScopeProfile.getExpectedActionFamilies()));
+        roleScopeProfile.setExpectedActionFamilies(normalizeActionFamilies(roleScopeProfile.getExpectedActionFamilies()));
         roleScopeProfile.setForbiddenResourceFamilies(normalizeList(roleScopeProfile.getForbiddenResourceFamilies()));
-        roleScopeProfile.setForbiddenActionFamilies(normalizeList(roleScopeProfile.getForbiddenActionFamilies()));
+        roleScopeProfile.setForbiddenActionFamilies(normalizeActionFamilies(roleScopeProfile.getForbiddenActionFamilies()));
         roleScopeProfile.setNormalApprovalPatterns(normalizeList(roleScopeProfile.getNormalApprovalPatterns()));
         roleScopeProfile.setNormalEscalationPatterns(normalizeList(roleScopeProfile.getNormalEscalationPatterns()));
         roleScopeProfile.setRecentPermissionChanges(normalizeList(roleScopeProfile.getRecentPermissionChanges()));
@@ -241,7 +250,7 @@ public class CanonicalSecurityContextHardener {
         peerCohortProfile.setCohortId(normalizeText(peerCohortProfile.getCohortId()));
         peerCohortProfile.setSummary(normalizeText(peerCohortProfile.getSummary()));
         peerCohortProfile.setPreferredResources(normalizeList(peerCohortProfile.getPreferredResources()));
-        peerCohortProfile.setPreferredActionFamilies(normalizeList(peerCohortProfile.getPreferredActionFamilies()));
+        peerCohortProfile.setPreferredActionFamilies(normalizeActionFamilies(peerCohortProfile.getPreferredActionFamilies()));
         peerCohortProfile.setNormalProtectableFrequencyBand(normalizeText(peerCohortProfile.getNormalProtectableFrequencyBand()));
         peerCohortProfile.setNormalSensitivityBand(normalizeUpperText(peerCohortProfile.getNormalSensitivityBand()));
     }
@@ -257,6 +266,48 @@ public class CanonicalSecurityContextHardener {
         frictionProfile.setApprovalTicketId(normalizeText(frictionProfile.getApprovalTicketId()));
         frictionProfile.setApprovalDecisionAgeMinutes(normalizeInteger(frictionProfile.getApprovalDecisionAgeMinutes()));
         frictionProfile.setRecentDeniedAccessCount(normalizeInteger(frictionProfile.getRecentDeniedAccessCount()));
+        frictionProfile.setCheckedRecordKinds(new ArrayList<>(normalizeList(frictionProfile.getCheckedRecordKinds())
+                .stream().map(kind -> kind.toUpperCase(Locale.ROOT)).distinct().toList()));
+        // The words of the company records in one case, so the engine compares them as words (W2-6).
+        if (frictionProfile.getApprovalRecords() != null) {
+            for (CanonicalSecurityContext.ApprovalRecord record : frictionProfile.getApprovalRecords()) {
+                if (record != null) {
+                    record.setApprovalId(normalizeText(record.getApprovalId()));
+                    record.setStatus(normalizeUpperText(record.getStatus()));
+                    record.setTarget(normalizeText(record.getTarget()));
+                    record.setMaxItems(normalizeInteger(record.getMaxItems()));
+                    record.setUsedItems(normalizeInteger(record.getUsedItems()));
+                }
+            }
+        }
+        if (frictionProfile.getTicketRecords() != null) {
+            for (CanonicalSecurityContext.TicketRecord record : frictionProfile.getTicketRecords()) {
+                if (record != null) {
+                    record.setTicketId(normalizeText(record.getTicketId()));
+                    record.setKind(normalizeUpperText(record.getKind()));
+                    record.setStatus(normalizeUpperText(record.getStatus()));
+                    record.setTarget(normalizeText(record.getTarget()));
+                }
+            }
+        }
+        if (frictionProfile.getPolicies() != null) {
+            for (CanonicalSecurityContext.CompanyPolicy policy : frictionProfile.getPolicies()) {
+                if (policy == null) {
+                    continue;
+                }
+                policy.setPolicyId(normalizeText(policy.getPolicyId()));
+                policy.setRequirement(normalizeUpperText(policy.getRequirement()));
+                policy.setRequiredTicketKind(normalizeUpperText(policy.getRequiredTicketKind()));
+                if (policy.getExceptions() != null) {
+                    for (CanonicalSecurityContext.PolicyException exception : policy.getExceptions()) {
+                        if (exception != null) {
+                            exception.setKind(normalizeUpperText(exception.getKind()));
+                            exception.setLimit(normalizeInteger(exception.getLimit()));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void hardenReasoningMemoryProfile(CanonicalSecurityContext.ReasoningMemoryProfile reasoningMemoryProfile) {
@@ -331,6 +382,15 @@ public class CanonicalSecurityContextHardener {
         return normalized.toUpperCase(Locale.ROOT);
     }
 
+    /** Action family values in the one vocabulary ({@link ActionFamily}); a value that names none stays as stated. */
+    private List<String> normalizeActionFamilies(List<String> values) {
+        return normalizeList(values).stream()
+                .map(ActionFamily::nameOrRaw)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     private List<String> normalizeList(List<String> values) {
         if (values == null || values.isEmpty()) {
             return List.of();
@@ -343,6 +403,21 @@ public class CanonicalSecurityContextHardener {
             }
         }
         return new ArrayList<>(normalized);
+    }
+
+    /** A sequence: entries trimmed and blanks dropped, order and repeats kept. */
+    private List<String> normalizeSequence(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> normalized = new ArrayList<>(values.size());
+        for (String value : values) {
+            String normalizedValue = normalizeText(value);
+            if (normalizedValue != null) {
+                normalized.add(normalizedValue);
+            }
+        }
+        return normalized;
     }
 
     private List<Integer> normalizeIntegerList(List<Integer> values) {

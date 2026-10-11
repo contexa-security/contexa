@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
@@ -111,30 +112,77 @@ public class ZeroTrustEventPublisher {
 
     }
 
+    /** The method has not run: the event describes the authorization check before execution. */
+    public static final String METHOD_NOT_RUN = "NOT_RUN";
+    /** The method ran and returned. */
+    public static final String METHOD_COMPLETED = "COMPLETED";
+    /** The method ran and threw: a business failure, not an authorization result. */
+    public static final String METHOD_FAILED = "FAILED";
+
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
             String denialReason) {
+        publishMethodAuthorization(methodInvocation, authentication, granted, denialReason, null, null);
+    }
+
+    /**
+     * @param granted          whether the authorization check let the method run
+     * @param executionOutcome {@link #METHOD_COMPLETED} or {@link #METHOD_FAILED} after the method ran, null if unknown
+     * @param executionFailure the failure's type when the method threw
+     */
+    public void publishMethodAuthorization(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            boolean granted,
+            String denialReason,
+            String executionOutcome,
+            String executionFailure) {
         ZeroTrustSpringEvent event = buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
                 granted,
-                denialReason
+                denialReason,
+                executionOutcome,
+                executionFailure
         );
         eventPublisher.publishEvent(event);
+    }
+
+    /** The event of an authorization check made before the method runs (a synchronous decision). */
+    public ZeroTrustSpringEvent buildMethodAuthorizationEvent(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            boolean granted,
+            String denialReason) {
+        return buildMethodAuthorizationEvent(methodInvocation, authentication, granted, denialReason, METHOD_NOT_RUN, null);
+    }
+
+    /**
+     * The event of a URL authorization policy check of the current request, before any handler runs. It carries the
+     * same request and subject facts as a method event, without method facts.
+     */
+    public ZeroTrustSpringEvent buildRequestAuthorizationEvent(
+            Authentication authentication,
+            boolean granted,
+            String denialReason) {
+        return buildMethodAuthorizationEvent(null, authentication, granted, denialReason, METHOD_NOT_RUN, null);
     }
 
     public ZeroTrustSpringEvent buildMethodAuthorizationEvent(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
-            String denialReason) {
+            String denialReason,
+            String executionOutcome,
+            String executionFailure) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
         String effectiveUserId = resolveEffectiveUserId(authentication);
-        String methodResource = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
-                + "." + methodInvocation.getMethod().getName();
+        String methodResource = methodInvocation != null
+                ? methodInvocation.getMethod().getDeclaringClass().getSimpleName() + "." + methodInvocation.getMethod().getName()
+                : "URL_POLICY";
         String resource = (requestInfo != null && requestInfo.getRequestUri() != null)
                 ? requestInfo.getRequestUri()
                 : methodResource;
@@ -142,10 +190,19 @@ public class ZeroTrustEventPublisher {
         Map<String, Object> payload = new HashMap<>();
         payload.put("granted", granted);
         payload.put("denialReason", denialReason != null ? denialReason : "");
-        payload.put("methodName", methodInvocation.getMethod().getName());
-        payload.put("className", methodInvocation.getMethod().getDeclaringClass().getName());
+        if (executionOutcome != null) {
+            payload.put("methodExecutionOutcome", executionOutcome);
+        }
+        if (executionFailure != null) {
+            payload.put("methodExecutionFailure", executionFailure);
+        }
+        payload.put("authorizationCheck", methodInvocation != null ? "METHOD_POLICY" : "URL_POLICY");
+        if (methodInvocation != null) {
+            payload.put("methodName", methodInvocation.getMethod().getName());
+            payload.put("className", methodInvocation.getMethod().getDeclaringClass().getName());
+        }
 
-        Protectable protectable = resolveProtectable(methodInvocation);
+        Protectable protectable = methodInvocation != null ? resolveProtectable(methodInvocation) : null;
         if (protectable != null) {
             payload.put("protectableDeclared", true);
             payload.put("protectableSync", protectable.sync());
@@ -174,6 +231,10 @@ public class ZeroTrustEventPublisher {
             payload.put("eventId", requestInfo.getRequestId());
             payload.put("requestId", requestInfo.getRequestId());
             payload.put("correlationId", requestInfo.getRequestId());
+            if (requestInfo.getClientRequestId() != null) {
+                // The caller's own request id, kept for log correlation only; never an identifier of the processing.
+                payload.put("clientRequestId", requestInfo.getClientRequestId());
+            }
             payload.put("contextBindingHash", requestInfo.getContextBindingHash());
             payload.put("clientIp", requestInfo.getClientIp());
             payload.put("userAgent", requestInfo.getUserAgent());
@@ -189,6 +250,9 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getAnomalySignal() != null) {
                 payload.put("anomalySignal", requestInfo.getAnomalySignal());
                 payload.put("anomalySignalSource", requestInfo.getAnomalySignalSource());
+            }
+            if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
+                payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
             }
             if (requestInfo.getPqaPromptFaultScenario() != null) {
                 OfficialVerificationProbeHeaders.authorizeFaultMetadata(
@@ -228,6 +292,9 @@ public class ZeroTrustEventPublisher {
                 payload.put("simulatedUserAgentLabel", requestInfo.getSimulatedUserAgentLabel());
             }
             payload.put("isNewSession", requestInfo.getIsNewSession());
+            if (requestInfo.getSessionCreatedAt() != null) {
+                payload.put("sessionCreatedAt", requestInfo.getSessionCreatedAt().toString());
+            }
             payload.put("isNewUser", requestInfo.getIsNewUser());
             payload.put("isNewDevice", requestInfo.getIsNewDevice());
             payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
@@ -242,6 +309,12 @@ public class ZeroTrustEventPublisher {
             }
             if (requestInfo.getResourceBusinessLabel() != null) {
                 payload.put("resourceLabel", requestInfo.getResourceBusinessLabel());
+            }
+            if (requestInfo.getResourceAuthorText() != null) {
+                payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
+            }
+            if (requestInfo.getRequestItems() != null) {
+                payload.put("requestItems", requestInfo.getRequestItems());
             }
             if (requestInfo.getResourceId() != null) {
                 payload.put("resourceId", requestInfo.getResourceId());
@@ -446,10 +519,37 @@ public class ZeroTrustEventPublisher {
         AuthenticationStamp authenticationStamp = bridgeResolutionResult.authenticationStamp();
         if (authenticationStamp != null) {
             putIfAbsent(payload, "bridgeAuthenticationSource", authenticationStamp.authenticationSource());
-            putIfAbsent(payload, "principalType", authenticationStamp.principalType());
-            putIfAbsent(payload, "authenticationType", authenticationStamp.authenticationType());
+            // A class name the bridge used in place of an unstated fact is kept apart from the login facts.
+            if (isClassNameFallback(authenticationStamp, "principalTypeEvidenceState")) {
+                putIfAbsent(payload, "principalClass", authenticationStamp.principalType());
+            } else {
+                putIfAbsent(payload, "principalType", authenticationStamp.principalType());
+            }
+            if (isClassNameFallback(authenticationStamp, "authenticationTypeEvidenceState")) {
+                putIfAbsent(payload, "authenticationClass", authenticationStamp.authenticationType());
+            } else {
+                putIfAbsent(payload, "authenticationType", authenticationStamp.authenticationType());
+            }
             putIfAbsent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
             putIfAbsent(payload, "mfaVerified", authenticationStamp.mfaCompleted());
+            if (authenticationStamp.authenticationTime() != null) {
+                putIfAbsent(payload, "authenticationTime", authenticationStamp.authenticationTime().toString());
+            }
+            Object accountCreatedAt = authenticationStamp.attributes().get("accountCreatedAt");
+            if (accountCreatedAt != null) {
+                putIfAbsent(payload, "accountCreatedAt", accountCreatedAt.toString());
+            }
+            Object challengeVerifiedAt = authenticationStamp.attributes().get("challengeVerifiedAt");
+            if (challengeVerifiedAt != null) {
+                putIfAbsent(payload, "challengeVerifiedAt", challengeVerifiedAt.toString());
+            }
+            // The session's last MFA: a passed challenge, else a multi-factor login.
+            if (challengeVerifiedAt != null) {
+                putIfAbsent(payload, "lastMfaUsedAt", challengeVerifiedAt.toString());
+            } else if (Boolean.TRUE.equals(authenticationStamp.mfaCompleted())
+                    && authenticationStamp.authenticationTime() != null) {
+                putIfAbsent(payload, "lastMfaUsedAt", authenticationStamp.authenticationTime().toString());
+            }
             if (!authenticationStamp.authorities().isEmpty()) {
                 payload.put("authorities", mergeDistinctStringLists(
                         payload.get("authorities"),
@@ -463,6 +563,13 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "organizationId", organizationId);
             putIfAbsent(payload, "orgId", authenticationStamp.attributes().get("orgId"));
             putIfAbsent(payload, "department", authenticationStamp.attributes().get("department"));
+            putEvidenceStates(payload, authenticationStamp.attributes());
+            // The principal an explicit handoff named differs from the one the request resolved to.
+            if (Boolean.TRUE.equals(authenticationStamp.attributes().get("bridgeHandoffConflict"))) {
+                payload.putIfAbsent("bridgeHandoffConflict", true);
+                putIfAbsent(payload, "bridgeHandoffPrincipalId", authenticationStamp.attributes().get("bridgeHandoffPrincipalId"));
+                putIfAbsent(payload, "bridgeResolvedPrincipalId", authenticationStamp.principalId());
+            }
         }
 
         AuthorizationStamp authorizationStamp = bridgeResolutionResult.authorizationStamp();
@@ -471,6 +578,27 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "authorizationEffect", authorizationStamp.effect().name());
             putIfAbsent(payload, "privileged", authorizationStamp.privileged());
             putIfAbsent(payload, "policyId", authorizationStamp.policyId());
+            putIfAbsent(payload, "policyVersion", authorizationStamp.policyVersion());
+            if (authorizationStamp.decisionTime() != null) {
+                putIfAbsent(payload, "authorizationDecisionTime", authorizationStamp.decisionTime().toString());
+            }
+            putEvidenceStates(payload, authorizationStamp.attributes());
+            // Authority names that only suggest privilege; the bridge marks them a heuristic hint.
+            Object privilegedSignals = authorizationStamp.attributes().get("privilegedAuthoritySignals");
+            if (privilegedSignals instanceof List<?> signals && !signals.isEmpty()) {
+                payload.putIfAbsent("privilegedAuthoritySignals", List.copyOf(signals));
+                putIfAbsent(payload, "privilegedAuthoritySignalPurpose",
+                        authorizationStamp.attributes().get("privilegedAuthoritySignalPurpose"));
+            }
+            // Authorization evidence that disagreed, and how the bridge settled it.
+            if (Boolean.TRUE.equals(authorizationStamp.attributes().get("authorizationConflict"))) {
+                payload.putIfAbsent("authorizationConflict", true);
+                putIfAbsent(payload, "authorizationConflictSelected", authorizationStamp.effect().name());
+                putIfAbsent(payload, "authorizationConflictResolution",
+                        authorizationStamp.attributes().get("authorizationConflictResolution"));
+                putIfAbsent(payload, "authorizationConflictEvidence",
+                        authorizationStamp.attributes().get("authorizationConflictEvidence"));
+            }
             if (!authorizationStamp.scopeTags().isEmpty()) {
                 payload.putIfAbsent("scopeTags", authorizationStamp.scopeTags());
             }
@@ -496,9 +624,13 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "objectiveId", delegationStamp.objectiveId());
             putIfAbsent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
             putIfAbsent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
-            putIfAbsent(payload, "approvalRequired", delegationStamp.approvalRequired());
+            // A delegation's human approval is its own fact, apart from the business approval of the request (W2-9).
+            putIfAbsent(payload, "delegationApprovalRequired", delegationStamp.approvalRequired());
             putIfAbsent(payload, "privilegedExportAllowed", delegationStamp.privilegedExportAllowed());
             putIfAbsent(payload, "containmentOnly", delegationStamp.containmentOnly());
+            if (delegationStamp.expiresAt() != null) {
+                putIfAbsent(payload, "delegationExpiresAt", delegationStamp.expiresAt().toString());
+            }
             if (!delegationStamp.allowedOperations().isEmpty()) {
                 payload.putIfAbsent("allowedOperations", delegationStamp.allowedOperations());
             }
@@ -506,6 +638,15 @@ public class ZeroTrustEventPublisher {
                 payload.putIfAbsent("allowedResources", delegationStamp.allowedResources());
             }
         }
+    }
+
+    /** How each bridged fact was established (explicit, derived fallback, class name fallback, unavailable). */
+    private void putEvidenceStates(Map<String, Object> payload, Map<String, Object> attributes) {
+        attributes.forEach((key, value) -> {
+            if (key.endsWith("EvidenceState") && value != null && !value.toString().isBlank()) {
+                payload.putIfAbsent(key, value.toString());
+            }
+        });
     }
 
     private void populateRequestContextHints(RequestInfo requestInfo, Map<String, Object> payload) {
@@ -550,9 +691,12 @@ public class ZeroTrustEventPublisher {
         }
 
         if (!hasNonNullPayload(payload, "authMethod")) {
+            // An MFA authority states the method; without one the method is unknown, not a password login.
             boolean hasMfaAuthority = authorities.stream()
                     .anyMatch(authority -> authority.toUpperCase().contains("MFA"));
-            payload.put("authMethod", hasMfaAuthority ? "mfa" : "password");
+            if (hasMfaAuthority) {
+                payload.put("authMethod", "mfa");
+            }
         }
 
         if (!hasNonNullPayload(payload, "mfaVerified")) {
@@ -599,23 +743,28 @@ public class ZeroTrustEventPublisher {
             return;
         }
         try {
-            if (!hasNonNullPayload(payload, "mfaVerified")) {
-                payload.put("mfaVerified", securityContextDataStore.isMfaVerified(userId));
+            // The user-level MFA mark is not this session's MFA: another session (or device) may have set it. It
+            // is carried as its own fact when this session has no MFA of its own.
+            if (!Boolean.TRUE.equals(payload.get("mfaVerified"))) {
+                Instant lastMfaElsewhere = securityContextDataStore.getLastMfaVerifiedAt(userId);
+                if (lastMfaElsewhere != null) {
+                    payload.put("recentMfaElsewhereAt", lastMfaElsewhere.toString());
+                }
             }
             if (!hasNonNullPayload(payload, "failedLoginAttempts")) {
-                long now = System.currentTimeMillis();
+                // The window ends at the request's own time, the clock the failures are recorded on.
+                Instant observedAt = requestInfo != null ? requestInfo.getObservedAt() : null;
+                long now = observedAt != null ? observedAt.toEpochMilli() : System.currentTimeMillis();
                 int windowMinutes = Math.max(
                         1,
                         securityPlaneProperties.getContext().getLoginFailureWindowMinutes());
                 long windowStart = now - windowMinutes * 60_000L;
-                String clientIp = requestInfo != null ? requestInfo.getClientIp() : null;
-                payload.put(
-                        "failedLoginAttempts",
-                        securityContextDataStore.getRecentLoginFailureCount(
-                                userId,
-                                clientIp,
-                                windowStart,
-                                now));
+                // The user's own failures only: other users failing from the same address are not this user's.
+                // Unknown stays out of the payload, so the prompt says it is unknown rather than zero.
+                Integer failures = securityContextDataStore.findRecentLoginFailures(userId, windowStart, now);
+                if (failures != null) {
+                    payload.put("failedLoginAttempts", failures);
+                }
             }
         } catch (RuntimeException exception) {
             log.error("Failed to populate stored authentication context: userId={}", userId, exception);
@@ -631,8 +780,13 @@ public class ZeroTrustEventPublisher {
         boolean synthesizedAuthorizationEffect = !StringUtils.hasText(existingEffect)
                 || "UNKNOWN".equalsIgnoreCase(existingEffect);
         if (synthesizedAuthorizationEffect) {
+            // The effect is the authorization check of the method, not the result of running it; a check made
+            // before the method runs says so.
             payload.put("authorizationEffect", granted ? "ALLOW" : "DENY");
-            payload.put("authorizationEffectProvenance", "METHOD_INVOCATION_RESULT");
+            payload.put("authorizationEffectProvenance",
+                    METHOD_NOT_RUN.equals(payload.get("methodExecutionOutcome"))
+                            ? "METHOD_AUTHORIZATION_BEFORE_EXECUTION"
+                            : "METHOD_AUTHORIZATION_CHECK");
             payload.put("authorizationEffectFallbackFrom",
                     StringUtils.hasText(existingEffect) ? existingEffect : "ABSENT");
         } else if (!hasNonNullPayload(payload, "authorizationEffectProvenance")) {
@@ -908,6 +1062,11 @@ public class ZeroTrustEventPublisher {
         if (value != null) {
             payload.put(key, value);
         }
+    }
+
+    private boolean isClassNameFallback(AuthenticationStamp authenticationStamp, String evidenceStateKey) {
+        return BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK.equals(
+                authenticationStamp.attributes().get(evidenceStateKey));
     }
 
     private void putIfAbsent(Map<String, Object> payload, String key, Object value) {

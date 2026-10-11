@@ -69,6 +69,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private volatile boolean challengeProcedureAvailable = true;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -104,12 +105,21 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         this.securityZeroTrustProperties = securityZeroTrustProperties;
     }
 
+    /** Whether the host has an MFA flow in which a challenged user can step up; set when the chains are built. */
+    public void setChallengeProcedureAvailable(boolean challengeProcedureAvailable) {
+        this.challengeProcedureAvailable = challengeProcedureAvailable;
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
         if (StringUtils.hasText(contextPath)) {
             requestUri = requestUri.substring(contextPath.length());
+        }
+
+        if (requestUri.startsWith("/logout")) {
+            return true;
         }
 
         if (authUrlProvider != null && matchesAnyMfaUrl(requestUri, authUrlProvider.getAllMfaRelatedUrls())) {
@@ -182,6 +192,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
             return;
         }
 
+        if (!challengeProcedureAvailable) {
+            writeChallengeWithoutProcedure(response, request);
+            return;
+        }
+
         if (handleExistingSession(request, response, filterChain)) {
             return;
         }
@@ -224,7 +239,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     @Override
     public Optional<String> start(HttpServletRequest request, HttpServletResponse response) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || !challengeProcedureAvailable) {
             return Optional.empty();
         }
         FactorContext started = startedChallengeContext(request);
@@ -377,6 +392,22 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         } else {
             response.sendRedirect(challengeNoticeUrl);
         }
+    }
+
+    /** A host without an MFA flow cannot step the user up, so the request is refused without opening a procedure. */
+    private void writeChallengeWithoutProcedure(HttpServletResponse response, HttpServletRequest request)
+            throws IOException {
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("error", "ZERO_TRUST_CHALLENGE");
+        responseBody.put("message", "Additional verification is required and this application offers no MFA flow");
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                "ZERO_TRUST_CHALLENGE",
+                "Additional verification is required and this application offers no MFA flow",
+                request.getRequestURI(),
+                responseBody
+        );
     }
 
     private String buildChallengeNoticeUrl(String mfaPageUrl, HttpServletRequest request) {

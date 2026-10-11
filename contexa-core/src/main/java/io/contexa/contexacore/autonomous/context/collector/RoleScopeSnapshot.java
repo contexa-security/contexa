@@ -61,6 +61,13 @@ public class RoleScopeSnapshot implements ContextSnapshot {
     private Boolean resourceFamilyDrift;
 
     private Boolean actionFamilyDrift;
+    /**
+     * Whether the current resource family is in denied scope: the host declared it forbidden, or a refusal was observed
+     * for the same resource family and action family. Null when that cannot be compared.
+     */
+    private Boolean currentResourceFamilyInDeniedScope;
+    /** The same for the current action family. */
+    private Boolean currentActionFamilyInDeniedScope;
 
     private Boolean temporaryElevation;
 

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.verification.runtime.prompt;
 
+import java.time.ZoneId;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.DefaultCanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
@@ -47,7 +48,7 @@ final class PromptGovernanceExtremeTestHarness {
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-pqa-extreme-production")
-                .timestamp(LocalDateTime.of(2026, 6, 3, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 6, 3, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
                 .sessionId("session-pqa-extreme")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
@@ -92,7 +93,7 @@ final class PromptGovernanceExtremeTestHarness {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-pqa-extreme-browser-equivalent")
                 .source(SecurityEvent.EventSource.API)
-                .timestamp(LocalDateTime.of(2026, 6, 3, 10, 0))
+                .timestamp(LocalDateTime.of(2026, 6, 3, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .sourceIp("121.139.20.5")
                 .userId("persona_fin_lead")
                 .sessionId("session-pqa-extreme")

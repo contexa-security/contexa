@@ -22,6 +22,7 @@ import lombok.NoArgsConstructor;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.HashMap;
@@ -39,8 +40,9 @@ public class SecurityEvent {
     @Builder.Default
     private EventSource source = EventSource.UNKNOWN;
 
+    /** When the event happened: the request's observed time, else the time it was raised. */
     @Builder.Default
-    private LocalDateTime timestamp = LocalDateTime.now();
+    private Instant timestamp = Instant.now();
 
     @Builder.Default
     private Severity severity = Severity.MEDIUM;
@@ -59,6 +61,11 @@ public class SecurityEvent {
     private Map<String, Object> metadata = new HashMap<>();
 
     private boolean blocked;
+
+    /** The event time as a wall-clock time in the company time zone, for its hour, minute and day. */
+    public LocalDateTime getLocalTimestamp() {
+        return EventTimeZone.toLocal(timestamp);
+    }
 
     public enum EventSource {
         IDS("Intrusion Detection System"),

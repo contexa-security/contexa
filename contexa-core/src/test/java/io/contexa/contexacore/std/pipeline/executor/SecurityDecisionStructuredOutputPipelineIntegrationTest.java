@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.executor;
 
+import java.time.ZoneId;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -142,7 +143,7 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
     private SecurityDecisionRequest buildRequest() {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("pipeline-security-decision-001")
-                .timestamp(LocalDateTime.of(2026, 4, 18, 14, 10))
+                .timestamp(LocalDateTime.of(2026, 4, 18, 14, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("alice")
                 .sessionId("session-entity-only")
                 .sourceIp("203.0.113.10")

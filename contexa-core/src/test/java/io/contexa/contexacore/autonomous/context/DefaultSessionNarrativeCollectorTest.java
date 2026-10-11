@@ -15,6 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
+import java.time.Instant;
+import io.contexa.contexacore.autonomous.context.support.SessionStart;
+import java.time.ZoneId;
 import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrativeCollector;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeSnapshot;
@@ -44,17 +49,17 @@ class DefaultSessionNarrativeCollectorTest {
     @DisplayName("세션 ID가 없으면 세션 서사는 수집되지 않아야 한다")
     void collect_withoutSessionId_returnsEmpty() {
         SecurityEvent event = SecurityEvent.builder()
-                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0))
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
 
         // 세션이 없는 요청은 회차 비교의 기준점이 될 수 없으므로 서사를 만들면 안 된다.
-        assertThat(collector.collect(event)).isEmpty();
+        assertThat(collect(event)).isEmpty();
     }
 
     @Test
     @DisplayName("같은 세션의 반복 요청에서는 이전 경로와 간격과 행동 순서가 정확히 연결되어야 한다")
     void collect_repeatedSessionRequests_buildsNarrativeSnapshot() {
-        collector.collect(event(
+        collect(event(
                 "session-1",
                 LocalDateTime.of(2026, 3, 25, 9, 0, 0),
                 "/api/customer/list",
@@ -62,7 +67,7 @@ class DefaultSessionNarrativeCollectorTest {
                 true,
                 "READ"));
 
-        SessionNarrativeSnapshot snapshot = collector.collect(event(
+        SessionNarrativeSnapshot snapshot = collect(event(
                         "session-1",
                         LocalDateTime.of(2026, 3, 25, 9, 0, 0, 800_000_000),
                         "/api/customer/export",
@@ -85,14 +90,14 @@ class DefaultSessionNarrativeCollectorTest {
     @Test
     @DisplayName("짧은 시간에 보호 요청이 연속되면 burst 패턴으로 식별되어야 한다")
     void collect_threeRapidProtectableRequests_flagsBurstPattern() {
-        collector.collect(event(
+        collect(event(
                 "session-rapid",
                 LocalDateTime.of(2026, 3, 25, 9, 10, 0),
                 "/api/customer/export",
                 "POST",
                 true,
                 "EXPORT"));
-        collector.collect(event(
+        collect(event(
                 "session-rapid",
                 LocalDateTime.of(2026, 3, 25, 9, 10, 1),
                 "/api/customer/export",
@@ -100,7 +105,7 @@ class DefaultSessionNarrativeCollectorTest {
                 true,
                 "EXPORT"));
 
-        SessionNarrativeSnapshot snapshot = collector.collect(event(
+        SessionNarrativeSnapshot snapshot = collect(event(
                         "session-rapid",
                         LocalDateTime.of(2026, 3, 25, 9, 10, 2, 200_000_000),
                         "/api/customer/export",
@@ -126,13 +131,13 @@ class DefaultSessionNarrativeCollectorTest {
                 "READ");
 
         // support/evidence 경로가 세션 서사에 들어가면 userPrompt의 previousPath와 action sequence가 왜곡된다.
-        assertThat(collector.collect(event)).isEmpty();
+        assertThat(collect(event)).isEmpty();
     }
 
     @Test
     @DisplayName("비보호 요청은 전체 행동 순서에는 남아도 protectable sequence에는 들어가면 안 된다")
     void collect_nonProtectableRequest_excludesProtectableSequence() {
-        SessionNarrativeSnapshot snapshot = collector.collect(event(
+        SessionNarrativeSnapshot snapshot = collect(event(
                         "session-plain",
                         LocalDateTime.of(2026, 3, 25, 9, 20, 0),
                         "/actuator/health",
@@ -150,7 +155,7 @@ class DefaultSessionNarrativeCollectorTest {
     @Test
     @DisplayName("회차 사이에 status나 evidence 요청이 끼어들어도 실제 보호 리소스 흐름은 유지되어야 한다")
     void collect_noiseBetweenRounds_shouldNotRewritePreviousPathOrActionSequence() {
-        collector.collect(event(
+        collect(event(
                 "session-round",
                 LocalDateTime.of(2026, 3, 25, 10, 0, 0),
                 "/admin/api/security-test/sensitive/resource-001",
@@ -165,9 +170,9 @@ class DefaultSessionNarrativeCollectorTest {
                 "GET",
                 false,
                 "READ");
-        assertThat(collector.collect(noise)).isEmpty();
+        assertThat(collect(noise)).isEmpty();
 
-        SessionNarrativeSnapshot snapshot = collector.collect(event(
+        SessionNarrativeSnapshot snapshot = collect(event(
                         "session-round",
                         LocalDateTime.of(2026, 3, 25, 10, 0, 30),
                         "/admin/api/security-test/sensitive/resource-001",
@@ -187,6 +192,133 @@ class DefaultSessionNarrativeCollectorTest {
         assertThat(snapshot.getSessionActionSequence()).containsExactly("READ", "READ");
     }
 
+    @Test
+    @DisplayName("the session age counts from the sign-in and says so; the first analysed request is a new session")
+    void collect_countsTheSessionFromTheSignIn() {
+        SecurityEvent first = event("session-login", LocalDateTime.of(2026, 9, 30, 14, 1), "/api/customer/list", "GET",
+                false, "READ");
+        first.addMetadata("authenticationTime", signInAt().toString());
+        SessionNarrativeSnapshot firstSnapshot = collect(first).orElseThrow();
+
+        SecurityEvent later = event("session-login", LocalDateTime.of(2026, 9, 30, 14, 5), "/api/customer/view", "GET",
+                false, "READ");
+        later.addMetadata("authenticationTime", signInAt().toString());
+        SessionNarrativeSnapshot laterSnapshot = collect(later).orElseThrow();
+
+        assertThat(firstSnapshot.getSessionAgeMinutes()).isEqualTo(1);
+        assertThat(firstSnapshot.getSessionAgeBasis()).isEqualTo(SessionStart.LOGIN);
+        assertThat(firstSnapshot.getNewSession()).isTrue();
+        assertThat(laterSnapshot.getSessionAgeMinutes()).isEqualTo(5);
+        assertThat(laterSnapshot.getNewSession()).isFalse();
+    }
+
+    @Test
+    @DisplayName("without a sign-in or creation time the session counts from its first analysed request")
+    void collect_countsFromTheFirstAnalysedRequestWithoutAStart() {
+        collect(event("session-first", LocalDateTime.of(2026, 9, 30, 14, 1), "/api/customer/list", "GET",
+                false, "READ"));
+        SessionNarrativeSnapshot snapshot = collect(event("session-first", LocalDateTime.of(2026, 9, 30, 14, 5),
+                "/api/customer/view", "GET", false, "READ")).orElseThrow();
+
+        assertThat(snapshot.getSessionAgeMinutes()).isEqualTo(4);
+        assertThat(snapshot.getSessionAgeBasis()).isEqualTo(SessionStart.FIRST_ANALYSED_REQUEST);
+    }
+
+    @Test
+    @DisplayName("the session's earlier decisions are counted and listed oldest first (W1-11)")
+    void collect_countsTheSessionsEarlierDecisions() {
+        Instant at = Instant.parse("2026-09-30T03:17:00Z");
+        dataStore.addSessionDecision("session-decisions", new SessionDecisionRecord(at, "POST",
+                "/api/projects/GB-500/exports", null, "EXPORT", "CHALLENGE").encode());
+        dataStore.addSessionDecision("session-decisions", new SessionDecisionRecord(at.plusSeconds(60), "POST",
+                "/api/projects/GB-500/exports", null, "EXPORT", "CHALLENGE").encode());
+        dataStore.addSessionDecision("session-decisions", new SessionDecisionRecord(at.plusSeconds(120), "GET",
+                "/api/customers/CUS-0001", null, "READ", SessionDecisionRecord.AUTHORIZATION_DENIED).encode());
+        dataStore.addSessionDecision("session-decisions", "not a decision record");
+
+        SessionNarrativeSnapshot snapshot = collect(event("session-decisions",
+                LocalDateTime.of(2026, 9, 30, 12, 20), "/api/projects/GB-500/exports", "POST", true, "EXPORT"))
+                .orElseThrow();
+
+        assertThat(snapshot.getRecentChallengeCount()).isEqualTo(2);
+        assertThat(snapshot.getRecentBlockCount()).isZero();
+        assertThat(snapshot.getRecentEscalationCount()).isZero();
+        assertThat(snapshot.getSessionDecisionHistory()).containsExactly(
+                "2026-09-30T03:17:00Z | POST /api/projects/GB-500/exports | EXPORT | CHALLENGE",
+                "2026-09-30T03:18:00Z | POST /api/projects/GB-500/exports | EXPORT | CHALLENGE",
+                "2026-09-30T03:19:00Z | GET /api/customers/CUS-0001 | READ | AUTHORIZATION_DENIED");
+    }
+
+    @Test
+    @DisplayName("the session's decisions are passed as records with their targets and item counts (W2-5)")
+    void collect_passesTheSessionsDecisionsAsRecords() {
+        Instant at = Instant.parse("2026-09-30T14:20:00Z");
+        SessionDecisionRecord export = new SessionDecisionRecord(at, "POST", "/api/projects/GB-500/exports", null,
+                "EXPORT", "ALLOW", "projectKey=GB-500", 480);
+        dataStore.addSessionDecision("session-records", export.encode());
+
+        SessionNarrativeSnapshot snapshot = collect(event("session-records",
+                LocalDateTime.of(2026, 9, 30, 14, 21), "/api/projects/GB-500/exports", "POST", true, "EXPORT"))
+                .orElseThrow();
+
+        assertThat(snapshot.getSessionDecisions()).containsExactly(export);
+    }
+
+    @Test
+    @DisplayName("every earlier decision is counted; the listed history is the most recent ten (W1-11)")
+    void collect_countsEveryDecisionAndListsTheMostRecent() {
+        Instant at = Instant.parse("2026-09-30T03:00:00Z");
+        for (int minute = 0; minute < 12; minute++) {
+            dataStore.addSessionDecision("session-many", new SessionDecisionRecord(at.plusSeconds(60L * minute), "GET",
+                    "/api/customers", null, "READ", "BLOCK").encode());
+        }
+
+        SessionNarrativeSnapshot snapshot = collect(event("session-many",
+                LocalDateTime.of(2026, 9, 30, 12, 20), "/api/customers", "GET", true, "READ")).orElseThrow();
+
+        assertThat(snapshot.getRecentBlockCount()).isEqualTo(12);
+        assertThat(snapshot.getSessionDecisionHistory()).hasSize(10);
+        assertThat(snapshot.getSessionDecisionHistory().get(0)).startsWith("2026-09-30T03:02:00Z");
+    }
+
+    private static Instant signInAt() {
+        return LocalDateTime.of(2026, 9, 30, 14, 0).atZone(ZoneId.systemDefault()).toInstant();
+    }
+
+    @Test
+    @DisplayName("an event description is not an action: a request with no action source is UNKNOWN (W2-1)")
+    void collect_withoutAnActionSource_recordsUnknownNotTheDescription() {
+        SecurityEvent event = SecurityEvent.builder()
+                .sessionId("session-description")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .description("LLM-challenged MFA success - learning")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/list");
+        event.addMetadata("isProtectable", true);
+
+        SessionNarrativeSnapshot snapshot = collect(event).orElseThrow();
+
+        assertThat(snapshot.getSessionActionSequence()).containsExactly("UNKNOWN");
+    }
+
+    @Test
+    @DisplayName("families stored in the earlier vocabulary read as the family they name (W2-1)")
+    void collect_readsStoredFamiliesInTheOneVocabulary() {
+        dataStore.addSessionNarrativeActionFamily("session-old", "CREATE");
+
+        SessionNarrativeSnapshot snapshot = collect(event(
+                        "session-old",
+                        LocalDateTime.of(2026, 3, 25, 9, 1, 0),
+                        "/api/customer/list",
+                        "GET",
+                        true,
+                        "READ"))
+                .orElseThrow();
+
+        assertThat(snapshot.getSessionActionSequence()).containsExactly("WRITE", "READ");
+        assertThat(snapshot.getPreviousActionFamily()).isEqualTo("WRITE");
+    }
+
     private SecurityEvent event(String sessionId,
                                 LocalDateTime timestamp,
                                 String requestPath,
@@ -195,7 +327,7 @@ class DefaultSessionNarrativeCollectorTest {
                                 String actionFamily) {
         SecurityEvent event = SecurityEvent.builder()
                 .sessionId(sessionId)
-                .timestamp(timestamp)
+                .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .description(httpMethod + " " + requestPath)
                 .build();
         event.addMetadata("requestPath", requestPath);
@@ -208,5 +340,12 @@ class DefaultSessionNarrativeCollectorTest {
             event.addMetadata("granted", true);
         }
         return event;
+    }
+
+    /** One request seen through to an enforced ALLOW, the way the pipeline records it (W2-7). */
+    private Optional<SessionNarrativeSnapshot> collect(SecurityEvent event) {
+        Optional<SessionNarrativeSnapshot> snapshot = collector.collect(event);
+        collector.recorder().commit(event, "ALLOW", true);
+        return snapshot;
     }
 }

@@ -69,10 +69,7 @@ public class SealedEvidencePromptScorecard {
                 "httpMethod=" + text(requestFacts, "httpMethod"));
 
         // --- Harness: security attribute checks ---
-        check(checks, "mfaVerified is true",
-                "true".equals(String.valueOf(authState.get("mfaVerified"))),
-                "mfaVerified=" + authState.get("mfaVerified"));
-
+        // Whether the request carried MFA is a fact of the request, not of the evidence quality.
         check(checks, "authMethod is present",
                 hasText(authState, "authMethod"),
                 "authMethod=" + text(authState, "authMethod"));
@@ -224,10 +221,6 @@ public class SealedEvidencePromptScorecard {
         check(checks, "userPrompt contains DELEGATED OBJECTIVE section",
                 userPrompt != null && userPrompt.contains("=== DELEGATED OBJECTIVE"),
                 "DELEGATED OBJECTIVE section present");
-
-        check(checks, "userPrompt contains OUTCOME AND REASONING MEMORY section",
-                userPrompt != null && userPrompt.contains("=== OUTCOME AND REASONING MEMORY"),
-                "REASONING MEMORY section present");
 
         // --- Harness: userPrompt evidence value checks ---
         String requestPath = text(requestFacts, "requestPath");

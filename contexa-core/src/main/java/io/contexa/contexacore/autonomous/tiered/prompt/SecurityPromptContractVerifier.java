@@ -47,6 +47,7 @@ public final class SecurityPromptContractVerifier {
             "CurrentBrowserPresentInObservedBrowsers",
             "CurrentNetworkPresentInObservedNetworks",
             "CurrentOperatingSystemPresentInObservedOperatingSystems",
+            "CurrentDevicePresentInObservedDevices",
             "CurrentAuthenticationTypePresentInObservedAuthTypes",
             "CurrentActionFamilyPresentInObservedActions",
             "CurrentResourceFamilyPresentInObservedResources",
@@ -413,6 +414,8 @@ public final class SecurityPromptContractVerifier {
                     current != null && StringUtils.hasText(current.network());
             case "CurrentOperatingSystemPresentInObservedOperatingSystems" ->
                     current != null && StringUtils.hasText(current.operatingSystem());
+            case "CurrentDevicePresentInObservedDevices" ->
+                    current != null && StringUtils.hasText(current.device());
             case "CurrentAuthenticationTypePresentInObservedAuthTypes" ->
                     current != null && StringUtils.hasText(current.authenticationType());
             case "CurrentActionFamilyPresentInObservedActions" ->

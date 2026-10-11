@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +79,8 @@ public record PromptExecutionMetadata(
         String registryScope = supplementalMetadataValue("registryScope", "PLATFORM_GLOBAL");
         metadata.put("registryScope", registryScope);
         metadata.put("governanceDescriptor", governanceDescriptorMap(registryScope));
+        governanceDescriptor.bundle().ifPresent(manifest ->
+                metadata.put("promptBundleSelectionSource", bundleSelectionSource()));
         metadata.putAll(budgetProfile.toMetadataMap());
         metadata.putAll(promptTokenEstimate.toMetadataMap());
         metadata.putAll(promptCompressionLedger.toMetadataMap());
@@ -117,6 +121,11 @@ public record PromptExecutionMetadata(
         descriptor.put("releaseStatus", supplementalMetadataValue("releaseStatus", governanceDescriptor.releaseStatus().name()));
         descriptor.put("releaseApprovalReference", supplementalMetadataValue("releaseApprovalReference", governanceDescriptor.releaseApprovalReference()));
         descriptor.put("promptArtifactHashSha256", supplementalMetadataValue("promptArtifactHashSha256", governanceDescriptor.artifactHashSha256()));
+        governanceDescriptor.bundle().ifPresent(manifest -> {
+            descriptor.put("promptBundleVersion", manifest.bundleVersion());
+            descriptor.put("promptBundleHash", manifest.bundleHash());
+            descriptor.put("promptBundleSelectionSource", bundleSelectionSource());
+        });
         descriptor.put("owner", governanceDescriptor.owner());
         descriptor.put("evaluationBaselineReference", governanceDescriptor.evaluationBaselineReference());
         descriptor.put("rollbackPromptVersion", governanceDescriptor.rollbackPromptVersion());
@@ -131,6 +140,10 @@ public record PromptExecutionMetadata(
         descriptor.put("pqaIssueIds", supplementalMetadata.getOrDefault("pqaIssueIds", List.of()));
         descriptor.put("pqaRemediationActionIds", supplementalMetadata.getOrDefault("pqaRemediationActionIds", List.of()));
         return descriptor;
+    }
+
+    private String bundleSelectionSource() {
+        return supplementalMetadataValue("promptBundleSelectionSource", PromptBundleCatalog.BUILD_DEFAULT_SELECTION);
     }
 
     private String supplementalMetadataValue(String key, String fallback) {

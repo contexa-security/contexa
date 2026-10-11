@@ -15,11 +15,15 @@
  */
 package io.contexa.contexacore.autonomous.execution;
 
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
 
 public class ObjectiveResourceCompatibilityCatalog {
+
+    /** An operation neither the delegation vocabulary nor the action families name. */
+    public static final String UNKNOWN_OPERATION = "UNKNOWN";
 
     private final Map<String, ObjectiveContract> contracts;
 
@@ -171,9 +175,13 @@ public class ObjectiveResourceCompatibilityCatalog {
         return normalize(resourceFamily).toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * The operation of the delegation vocabulary an operation names: its own words first, then the request's action
+     * family. An operation that names neither is UNKNOWN, never READ: an unknown action is not a read.
+     */
     private String canonicalizeOperation(String operation) {
         if (!StringUtils.hasText(operation)) {
-            return "READ";
+            return UNKNOWN_OPERATION;
         }
         return switch (normalize(operation).toUpperCase(Locale.ROOT)) {
             case "QUERY", "SEARCH" -> "QUERY";
@@ -186,7 +194,21 @@ public class ObjectiveResourceCompatibilityCatalog {
             case "RESET" -> "RESET";
             case "RECONFIGURE" -> "RECONFIGURE";
             case "WRITE", "UPDATE", "MODIFY", "DISABLE", "REVOKE" -> "MODIFY";
-            default -> "READ";
+            default -> fromActionFamily(ActionFamily.of(operation));
+        };
+    }
+
+    private static String fromActionFamily(ActionFamily family) {
+        if (family == null) {
+            return UNKNOWN_OPERATION;
+        }
+        return switch (family) {
+            case READ -> "READ";
+            case WRITE -> "MODIFY";
+            case EXPORT -> "EXPORT";
+            case DELETE -> "DELETE";
+            case ADMIN -> "RECONFIGURE";
+            case EXECUTE, UNKNOWN -> UNKNOWN_OPERATION;
         };
     }
 

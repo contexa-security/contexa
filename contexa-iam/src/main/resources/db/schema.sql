@@ -3661,6 +3661,255 @@ create table if not exists prompt_runtime_slot_contract (
 create index if not exists idx_prompt_runtime_slot_contract_location
     on prompt_runtime_slot_contract (contract_version, prompt_location, active);
 
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_registry (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    template_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    contract_version varchar(128) not null,
+    prompt_artifact_hash_sha256 varchar(64) not null,
+    release_status varchar(64) not null,
+    owner_name varchar(128) not null,
+    release_approval_reference varchar(256),
+    evaluation_baseline_reference varchar(256),
+    rollback_prompt_version varchar(128),
+    change_summary varchar(2000),
+    template_class_name varchar(512) not null,
+    registration_source varchar(128) not null,
+    supported_model_profiles_json varchar(8000),
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_governance_registry_identity
+    on prompt_governance_registry (registry_scope, prompt_key, prompt_version);
+
+create index if not exists idx_prompt_governance_registry_current
+    on prompt_governance_registry (registry_scope, prompt_key, updated_at);
+
+create index if not exists idx_prompt_governance_registry_release
+    on prompt_governance_registry (registry_scope, release_status, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql, V20260723_01__prompt_runtime_governance_descriptor_integrity.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_release_ledger (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    release_approval_reference varchar(256) not null,
+    release_status varchar(64) not null,
+    approval_state varchar(64) not null,
+    approval_channel varchar(64) not null,
+    approved_by varchar(128) not null,
+    approval_summary varchar(2000) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp,
+    template_key varchar(128),
+    contract_version varchar(128)
+);
+
+create unique index if not exists idx_prompt_governance_release_identity
+    on prompt_governance_release_ledger (
+        registry_scope, prompt_key, template_key, prompt_version, contract_version
+    );
+
+create index if not exists idx_prompt_governance_release_current
+    on prompt_governance_release_ledger (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_release_workflow (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    current_release_status varchar(64) not null,
+    target_release_status varchar(64) not null,
+    workflow_state varchar(64) not null,
+    gate_state varchar(64) not null,
+    approval_channel varchar(128) not null,
+    actor_name varchar(128) not null,
+    rationale varchar(2000) not null,
+    blockers_json varchar(8000),
+    created_at timestamp(6) not null default current_timestamp
+);
+
+create index if not exists idx_prompt_release_workflow_scope_created
+    on prompt_governance_release_workflow (registry_scope, created_at);
+
+create index if not exists idx_prompt_release_workflow_prompt_created
+    on prompt_governance_release_workflow (registry_scope, prompt_key, created_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql, V20260724_02__remove_obsolete_prompt_budget_fields.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_budget_profile (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    budget_profile_key varchar(128) not null,
+    max_input_tokens integer not null,
+    budget_state varchar(128) not null,
+    token_counting_policy_key varchar(256) not null,
+    cache_policy_key varchar(256) not null,
+    cache_policy_state varchar(128) not null,
+    compaction_policy_key varchar(256) not null,
+    compaction_policy_state varchar(128) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_budget_profile_identity
+    on prompt_governance_budget_profile (registry_scope, prompt_key, prompt_version, budget_profile_key);
+
+create index if not exists idx_prompt_budget_profile_current
+    on prompt_governance_budget_profile (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_model_compatibility (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    model_profile_key varchar(256) not null,
+    profile_category varchar(128) not null,
+    provider_scope varchar(256) not null,
+    compatibility_state varchar(128) not null,
+    token_counting_policy_key varchar(256) not null,
+    cache_policy_key varchar(256) not null,
+    compaction_policy_key varchar(256) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_model_compatibility_identity
+    on prompt_governance_model_compatibility (registry_scope, prompt_key, prompt_version, model_profile_key);
+
+create index if not exists idx_prompt_model_compatibility_current
+    on prompt_governance_model_compatibility (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_change_ledger (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    contract_version varchar(128) not null,
+    change_reference varchar(256) not null,
+    change_type varchar(64) not null,
+    change_state varchar(64) not null,
+    change_summary varchar(2000) not null,
+    changed_by varchar(128) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_governance_change_identity
+    on prompt_governance_change_ledger (registry_scope, prompt_key, prompt_version);
+
+create index if not exists idx_prompt_governance_change_current
+    on prompt_governance_change_ledger (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_eval_ledger (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    evaluation_reference varchar(256) not null,
+    evaluation_mode varchar(64) not null,
+    evaluation_state varchar(64) not null,
+    empirical_evidence_state varchar(64) not null,
+    prompt_injection_state varchar(64) not null,
+    scenario_coverage_state varchar(64) not null,
+    covered_scenario_count integer not null,
+    required_scenario_count integer not null,
+    covered_scenario_families_json varchar(4000),
+    tevv_gate_state varchar(64) not null,
+    quality_gate_state varchar(64) not null,
+    latency_gate_state varchar(64) not null,
+    cost_gate_state varchar(64) not null,
+    evaluation_summary varchar(2000) not null,
+    evaluated_by varchar(128) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_governance_eval_identity
+    on prompt_governance_eval_ledger (registry_scope, prompt_key, prompt_version);
+
+create index if not exists idx_prompt_governance_eval_current
+    on prompt_governance_eval_ledger (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_rollback_ledger (
+    id bigserial primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    rollback_reference varchar(256) not null,
+    rollback_target_prompt_version varchar(128) not null,
+    rollback_state varchar(64) not null,
+    rollback_readiness_state varchar(64) not null,
+    rollback_strategy varchar(64) not null,
+    rollback_reason varchar(2000) not null,
+    prepared_by varchar(128) not null,
+    registration_source varchar(128) not null,
+    created_at timestamp(6) not null default current_timestamp,
+    updated_at timestamp(6) not null default current_timestamp
+);
+
+create unique index if not exists idx_prompt_governance_rollback_identity
+    on prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version);
+
+create index if not exists idx_prompt_governance_rollback_current
+    on prompt_governance_rollback_ledger (registry_scope, prompt_key, updated_at);
+
+-- ------------------------------------------------------------
+-- Source migration: V20260427_06__prompt_governance_runtime_cache_invalidation.sql, V20260723_01__prompt_runtime_governance_descriptor_integrity.sql
+-- ------------------------------------------------------------
+create table if not exists prompt_governance_runtime_cache_invalidation (
+    id bigserial primary key,
+    event_id varchar(160) not null unique,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    prompt_version varchar(128) not null,
+    invalidation_reason varchar(2000),
+    published_by varchar(128),
+    published_at timestamp not null,
+    consumed boolean not null default false,
+    consumed_at timestamp,
+    template_key varchar(128),
+    contract_version varchar(128)
+);
+
+create index if not exists idx_prompt_governance_cache_invalidation_prompt
+    on prompt_governance_runtime_cache_invalidation (registry_scope, prompt_key, prompt_version, published_at desc);
+
+create index if not exists idx_prompt_governance_cache_invalidation_pending
+    on prompt_governance_runtime_cache_invalidation (consumed, published_at desc);
+
 create index if not exists idx_prompt_runtime_slot_contract_label
     on prompt_runtime_slot_contract (contract_version, label_key, active);
 

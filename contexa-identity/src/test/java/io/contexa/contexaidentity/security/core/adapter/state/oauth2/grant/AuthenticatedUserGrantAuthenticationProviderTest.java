@@ -15,6 +15,8 @@
  */
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.mockito.ArgumentCaptor;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -306,6 +309,38 @@ class AuthenticatedUserGrantAuthenticationProviderTest {
                         assertThat(oauthEx.getError().getErrorCode()).isEqualTo("invalid_scope");
                         assertThat(oauthEx.getError().getDescription()).contains("delete");
                     });
+        }
+
+        @Test
+        @DisplayName("Login facts of the internal request should reach the token and stay on the authorization")
+        void loginFactsReachTheTokenAndStayOnTheAuthorization() {
+            RegisteredClient registeredClient = createValidRegisteredClient();
+            when(registeredClient.getScopes()).thenReturn(Set.of("read"));
+            OAuth2ClientAuthenticationToken clientPrincipal = createAuthenticatedClient(registeredClient);
+            when(clientPrincipal.getClientAuthenticationMethod()).thenReturn(ClientAuthenticationMethod.NONE);
+            Users user = createMockUser("testuser");
+            when(userRepository.findByUsernameWithGroupsRolesAndPermissions("testuser")).thenReturn(Optional.of(user));
+            when(tokenGenerator.generate(any(OAuth2TokenContext.class))).thenReturn(createMockAccessToken(Set.of("read")));
+
+            Map<String, Object> additionalParams = new HashMap<>();
+            additionalParams.put("auth_time", "1711276200");
+            additionalParams.put("amr", "pwd otp mfa");
+            additionalParams.put("acr", "AAL2");
+
+            provider.authenticate(new AuthenticatedUserGrantAuthenticationToken(
+                    clientPrincipal, "testuser", null, additionalParams));
+
+            ArgumentCaptor<OAuth2TokenContext> tokenContext = ArgumentCaptor.forClass(OAuth2TokenContext.class);
+            verify(tokenGenerator).generate(tokenContext.capture());
+            // The token engine hands the claims customizer the grant, which carries the login facts.
+            AuthenticatedUserGrantAuthenticationToken grant =
+                    (AuthenticatedUserGrantAuthenticationToken) tokenContext.getValue().getAuthorizationGrant();
+            assertThat(grant.getAdditionalParameters()).containsEntry("auth_time", "1711276200")
+                    .containsEntry("amr", "pwd otp mfa");
+            ArgumentCaptor<OAuth2Authorization> saved = ArgumentCaptor.forClass(OAuth2Authorization.class);
+            verify(authorizationService).save(saved.capture());
+            assertThat((Object) saved.getValue().getAttribute("acr")).isEqualTo("AAL2");
+            assertThat((Object) saved.getValue().getAttribute("auth_time")).isEqualTo("1711276200");
         }
 
         @Test

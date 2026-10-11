@@ -15,12 +15,18 @@
  */
 package io.contexa.contexacore.autonomous.learning.evidence;
 
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -88,6 +94,136 @@ class LearningContextEvidenceAssemblerTest {
 
         assertThat(evidence.personalBaseline().status()).isEqualTo(BaselineEvidenceStatus.SERVICE_UNAVAILABLE);
         assertThat(evidence.personalBaseline().diagnostic()).isEqualTo("baseline service unavailable");
+    }
+
+    @Test
+    @DisplayName("a device is new when its browser or operating system is outside the observed ones (W1-10)")
+    void deviceOutsideObservedComparesWithTheObservedDevices() {
+        assertThat(deviceEvidence("Chrome", "120", "Windows", List.of("Chrome/120"), List.of("Windows"))
+                .deviceOutsideObserved()).isFalse();
+        assertThat(deviceEvidence("Firefox", "130", "Windows", List.of("Chrome/120"), List.of("Windows"))
+                .deviceOutsideObserved()).isTrue();
+        assertThat(deviceEvidence("Chrome", "120", "Windows", List.of(), List.of())
+                .deviceOutsideObserved()).isNull();
+    }
+
+    @Test
+    void theDeviceIsOneDimensionComparedByItsLearnedPairs() {
+        // W2-4: a new browser on a new system is one delta, not two.
+        LearningContextEvidence bothNew = deviceEvidence("Safari", "18", "MAC", List.of("Chrome/120"), List.of("WINDOWS"));
+        assertThat(bothNew.currentVsObservedDeltas())
+                .extracting(CurrentVsObservedDeltaSnapshot::key)
+                .containsOnlyOnce("device")
+                .doesNotContain("browser", "operatingSystem");
+        assertThat(bothNew.deviceOutsideObserved()).isTrue();
+
+        // A browser and a system each seen before, never together: a new device once the baseline learned pairs.
+        LearningContextEvidence newPair = pairedDeviceEvidence("Safari", "18", "Windows",
+                List.of("Chrome/120 on WINDOWS", "Safari/18 on MAC"));
+        assertThat(newPair.current().device()).isEqualTo("Safari/18 on WINDOWS");
+        assertThat(newPair.deviceOutsideObserved()).isTrue();
+        assertThat(newPair.currentVsObservedDeltas()).extracting(CurrentVsObservedDeltaSnapshot::description)
+                .contains("device outside observed devices");
+        assertThat(pairedDeviceEvidence("Safari", "18", "Mac", List.of("Chrome/120 on WINDOWS", "Safari/18 on MAC"))
+                .deviceOutsideObserved()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the current path family is the one the context resolved, so another document is no new path (W2-2)")
+    void theCurrentPathFamilyIsTheOneTheContextResolved() {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL, true, true, 20L, 0.91d,
+                List.of("CORPORATE"), List.of("10"), List.of("3"), List.of("Chrome/120"), List.of("Windows"),
+                List.of("/api/documents/{documentKey}"), List.of("PASSWORD"), List.of("READ"), List.of("NORMAL"),
+                "personal baseline established", BaselineEvidenceStatus.AVAILABLE, ""));
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.10.0.20").build();
+        event.addMetadata("requestPath", "/api/documents/HX-310-DWG-00002");
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .requestPath("/api/documents/HX-310-DWG-00002")
+                        .pathFamily("/api/documents/{documentKey}")
+                        .build())
+                .build();
+
+        LearningContextEvidence evidence = assembler.assemble("alice", event, context, behaviorAnalysis, List.of());
+
+        assertThat(evidence.current().pathFamily()).isEqualTo("/api/documents/{documentKey}");
+        assertThat(evidence.currentVsObservedDeltas()).noneMatch(delta -> "pathFamily".equals(delta.key()));
+    }
+
+    @Test
+    @DisplayName("the observed hours are the usual-behaviour view's window and every observed list is sorted (W2-3)")
+    void theObservedHoursComeFromTheBaselineViewAndEveryListIsSorted() {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL, true, true, 25L, 0.91d,
+                List.of("10.40.12", "10.20.1"), List.of("17", "3", "9"), List.of("5", "1"), List.of("Firefox/130", "Chrome/140"),
+                List.of("Windows"), List.of("/api/documents/{documentKey}"), List.of("PASSWORD"), List.of("READ"),
+                List.of("NORMAL"), "personal baseline established", BaselineEvidenceStatus.AVAILABLE, ""));
+        List<BaselineViewCalculator.Observation> observations = new ArrayList<>();
+        long now = LocalDateTime.of(2026, 10, 7, 14, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        for (int index = 0; index < 12; index++) {
+            observations.add(new BaselineViewCalculator.Observation(
+                    LocalDateTime.of(2026, 10, 6, index % 2 == 0 ? 10 : 14, index).toInstant(ZoneOffset.UTC).toEpochMilli(),
+                    "READ", "protectableMethod", true, "INTERNAL", "/api/documents/{documentKey}",
+                    "/api/documents/D-" + index, null, true));
+        }
+        BaselineView view = BaselineViewCalculator.calculate(observations, now, ZoneOffset.UTC);
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.40.12.20").build();
+        event.addMetadata("requestPath", "/api/documents/D-99");
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .workProfile(CanonicalSecurityContext.WorkProfile.builder().baselineView(view).build())
+                .build();
+
+        LearningContextEvidence evidence = assembler.assemble("alice", event, context, behaviorAnalysis, List.of());
+
+        // H-9: the baseline remembers 03:00 forever; the view's window says when the subject works now.
+        assertThat(evidence.observedPatterns().accessHours()).containsExactly("10", "14");
+        // E-1: the same facts read in the same order on every run.
+        // W2-4: learned prefixes read as their /24 bands.
+        assertThat(evidence.observedPatterns().networks()).containsExactly("10.20.1.0/24", "10.40.12.0/24");
+        assertThat(evidence.observedPatterns().browsers()).containsExactly("Chrome/140", "Firefox/130");
+        assertThat(evidence.baselineView().state()).isEqualTo(BaselineView.State.ESTABLISHED);
+        assertThat(evidence.baselineView().learnedUpdates()).isEqualTo(25L);
+        assertThat(evidence.baselineView().usualNetworks()).containsExactly("10.20.1.0/24", "10.40.12.0/24");
+    }
+
+    private LearningContextEvidence deviceEvidence(
+            String browser, String version, String system, List<String> observedBrowsers, List<String> observedSystems) {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL, true, true, 20L, 0.91d,
+                List.of("CORPORATE"), List.of("10"), List.of("3"), observedBrowsers, observedSystems,
+                List.of("/api/reports/*"), List.of("PASSWORD"), List.of("READ"), List.of("NORMAL"),
+                "personal baseline established", BaselineEvidenceStatus.AVAILABLE, ""));
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.10.0.20").build();
+        event.addMetadata("requestPath", "/api/reports/r-1");
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .device(CanonicalSecurityContext.Device.builder().browser(browser).browserVersion(version).os(system).build())
+                .build();
+        return assembler.assemble("alice", event, context, behaviorAnalysis, List.of());
+    }
+
+    private LearningContextEvidence pairedDeviceEvidence(
+            String browser, String version, String system, List<String> observedDevices) {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(
+                LearningEvidenceScope.PERSONAL, true, true, 20L, 0.91d,
+                List.of("10.10.0.0/24"), List.of("10"), List.of("3"), List.of("Chrome/120", "Safari/18"),
+                List.of("MAC", "WINDOWS"), List.of("/api/reports/*"), List.of("PASSWORD"), List.of("READ"),
+                List.of("NORMAL"), "personal baseline established", BaselineEvidenceStatus.AVAILABLE, "",
+                observedDevices));
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.10.0.20").build();
+        event.addMetadata("requestPath", "/api/reports/r-1");
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .device(CanonicalSecurityContext.Device.builder().browser(browser).browserVersion(version).os(system).build())
+                .build();
+        return assembler.assemble("alice", event, context, behaviorAnalysis, List.of());
     }
 
     @Test

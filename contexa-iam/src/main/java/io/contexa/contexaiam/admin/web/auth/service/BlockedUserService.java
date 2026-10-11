@@ -15,6 +15,7 @@
  */
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import java.time.Instant;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -388,7 +389,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .userName(username)
                     .sourceIp(sourceIp)
                     .userAgent(userAgent)
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(Instant.now())
                     .description("Admin approved unblock - learning from block context")
                     .build();
 

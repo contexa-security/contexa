@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacommon.security.bridge.resolver;
 
+import java.time.ZoneId;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -60,22 +63,51 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
                 authentication.getDetails(),
                 config.getAttributeKeys()));
         attributes.put("securityContextAuthenticationClass", authentication.getClass().getSimpleName());
+        // The signed-in account's creation time, as the user store keeps it (a wall-clock time of this JVM's zone).
+        if (authentication.getPrincipal() instanceof UnifiedCustomUserDetails userDetails
+                && userDetails.getAccount() != null && userDetails.getAccount().getCreatedAt() != null) {
+            attributes.put("accountCreatedAt",
+                    userDetails.getAccount().getCreatedAt().atZone(ZoneId.systemDefault()).toInstant().toString());
+        }
 
+        List<String> methodReferences = SecurityContextStampSupport.extractStringList(authentication, config.getAmrKeys());
         Boolean mfaCompleted = SecurityContextStampSupport.extractBoolean(authentication, config.getMfaKeys());
+        String mfaCompletedEvidenceState = BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted);
+        if (mfaCompleted == null && !methodReferences.isEmpty()) {
+            mfaCompleted = AuthenticationMethodReferences.multiFactor(methodReferences);
+            mfaCompletedEvidenceState = BridgeSemanticBoundaryPolicy.DERIVED_FROM_AMR;
+        }
         Instant authenticationTime = SecurityContextStampSupport.extractInstant(authentication, config.getAuthTimeKeys());
         String authenticationType = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationTypeKeys());
+        String authenticationTypeEvidenceState = BridgeSemanticBoundaryPolicy.EXPLICIT_CUSTOMER_SIGNAL;
         if (authenticationType == null) {
+            authenticationType = AuthenticationMethodReferences.methodName(
+                    AuthenticationMethodReferences.methodsOf(methodReferences));
+            authenticationTypeEvidenceState = BridgeSemanticBoundaryPolicy.DERIVED_FROM_AMR;
+        }
+        if (authenticationType == null) {
+            // Only the class is known; it names no login method, so the stamp says where the value came from.
             authenticationType = authentication.getClass().getSimpleName();
+            authenticationTypeEvidenceState = BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK;
         }
         String authenticationAssurance = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationAssuranceKeys());
+        String principalType = SecurityContextStampSupport.extractString(authentication, config.getPrincipalTypeKeys());
+        String principalTypeEvidenceState = BridgeSemanticBoundaryPolicy.EXPLICIT_CUSTOMER_SIGNAL;
+        if (principalType == null) {
+            Object principal = authentication.getPrincipal();
+            principalType = principal != null ? principal.getClass().getSimpleName() : "AuthenticationPrincipal";
+            principalTypeEvidenceState = BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK;
+        }
+        attributes.put("authenticationTypeEvidenceState", authenticationTypeEvidenceState);
+        attributes.put("principalTypeEvidenceState", principalTypeEvidenceState);
         attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
-        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
+        attributes.put("mfaCompletedEvidenceState", mfaCompletedEvidenceState);
         attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
 
         return Optional.of(new AuthenticationStamp(
                 principalId,
                 resolveDisplayName(authentication, config),
-                resolvePrincipalType(authentication, config),
+                principalType,
                 true,
                 authenticationType,
                 "SECURITY_CONTEXT",
@@ -106,14 +138,5 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
         }
         String principalId = SecurityContextStampSupport.extractPrincipalId(authentication);
         return principalId != null ? principalId : authentication.getName();
-    }
-
-    private String resolvePrincipalType(Authentication authentication, BridgeProperties.Authentication.SecurityContext config) {
-        String extracted = SecurityContextStampSupport.extractString(authentication, config.getPrincipalTypeKeys());
-        if (extracted != null) {
-            return extracted;
-        }
-        Object principal = authentication.getPrincipal();
-        return principal != null ? principal.getClass().getSimpleName() : "AuthenticationPrincipal";
     }
 }

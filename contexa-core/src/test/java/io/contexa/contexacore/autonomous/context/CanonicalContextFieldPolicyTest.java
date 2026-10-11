@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.context;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +64,24 @@ class CanonicalContextFieldPolicyTest {
                 .isEqualTo(ContextCoverageLevel.SCOPE_AWARE);
         assertThat(CanonicalContextFieldPolicy.determineCoverageLevel(businessAware))
                 .isEqualTo(ContextCoverageLevel.BUSINESS_AWARE);
+    }
+
+    @Test
+    void companyRecordsAloneMakeAFrictionProfile() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder()
+                        .onCall(CanonicalSecurityContext.OnCallRecord.builder().onCall(true).build())
+                        .build())
+                .build();
+
+        // W2-6: a host that states only structured company records still states a friction profile.
+        assertThat(CanonicalContextFieldPolicy.hasFrictionProfile(context)).isTrue();
+        assertThat(CanonicalContextFieldPolicy.hasFrictionProfile(CanonicalSecurityContext.builder()
+                .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder().build()).build())).isFalse();
+        // A host that looked records up and found none still states facts: none found (P2 correction 3).
+        assertThat(CanonicalContextFieldPolicy.hasFrictionProfile(CanonicalSecurityContext.builder()
+                .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder()
+                        .checkedRecordKinds(new ArrayList<>(List.of("TICKET"))).build()).build())).isTrue();
     }
 
     @Test

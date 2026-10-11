@@ -29,7 +29,6 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -114,7 +113,7 @@ public class AdminOverrideService {
                             .eventId(UUID.randomUUID().toString())
                             .source(SecurityEvent.EventSource.IAM)
                             .userId(userId)
-                            .timestamp(LocalDateTime.now())
+                            .timestamp(Instant.now())
                             .description("Admin approved override - learning")
                             .build();
             triggerBaselineUpdate(userId, eventForLearning, override);

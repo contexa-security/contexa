@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.inference;
 
+import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.execution.ObjectiveResourceCompatibilityCatalog;
 import org.springframework.util.StringUtils;
 
@@ -46,7 +47,10 @@ public class ObjectiveDriftEvaluator {
 
         String objectiveFamily = normalizeText(delegation.getObjectiveFamily());
         ObjectiveResourceCompatibilityCatalog.ObjectiveContract contract = compatibilityCatalog.resolve(objectiveFamily);
+        // The facts name the request by its one action family, as every other line of the prompt does; the delegated
+        // scope is compared in the delegation's own operation vocabulary.
         String currentActionFamily = resolveCurrentActionFamily(context);
+        String currentOperation = compatibilityCatalog.normalizeOperationFamily(currentActionFamily);
         String currentResourceFamily = resolveCurrentResourceFamily(context);
         String currentResourceId = resolveCurrentResourceId(context);
 
@@ -71,8 +75,13 @@ public class ObjectiveDriftEvaluator {
         if (StringUtils.hasText(objectiveFamily)) {
             facts.add("Objective family: " + objectiveFamily);
         }
+        boolean operationUnknown = ObjectiveResourceCompatibilityCatalog.UNKNOWN_OPERATION.equalsIgnoreCase(currentOperation);
         if (StringUtils.hasText(currentActionFamily)) {
             facts.add("Current action family: " + currentActionFamily);
+            if (StringUtils.hasText(currentOperation) && !operationUnknown
+                    && !currentOperation.equalsIgnoreCase(currentActionFamily)) {
+                facts.add("Current action family compared as delegated operation: " + currentOperation);
+            }
         }
         if (StringUtils.hasText(currentResourceFamily)) {
             facts.add("Current resource family: " + currentResourceFamily);
@@ -93,9 +102,16 @@ public class ObjectiveDriftEvaluator {
         boolean compared = false;
         boolean drift = false;
 
-        if (StringUtils.hasText(currentActionFamily) && !comparedActionFamilies.isEmpty()) {
+        if (operationUnknown && !comparedActionFamilies.isEmpty()) {
+            // An action no source names, or one the delegation vocabulary has no operation for, cannot be compared with
+            // the delegated scope: neither inside nor outside it.
+            facts.add(ActionFamily.UNKNOWN.name().equalsIgnoreCase(currentActionFamily)
+                    ? "Current action family is unknown; it is not compared with delegated action scope evidence."
+                    : "Current action family has no delegated operation; it is not compared with delegated action scope evidence.");
+        }
+        if (StringUtils.hasText(currentOperation) && !operationUnknown && !comparedActionFamilies.isEmpty()) {
             compared = true;
-            boolean actionAllowed = comparedActionFamilies.stream().anyMatch(currentActionFamily::equalsIgnoreCase);
+            boolean actionAllowed = comparedActionFamilies.stream().anyMatch(currentOperation::equalsIgnoreCase);
             drift = drift || !actionAllowed;
             facts.add(actionAllowed
                     ? "Current action family is listed in delegated action scope evidence."
@@ -120,19 +136,19 @@ public class ObjectiveDriftEvaluator {
                     : "Current resource does not match delegated raw resource constraints.");
         }
 
-        if (Boolean.TRUE.equals(delegation.getContainmentOnly()) && StringUtils.hasText(currentActionFamily)) {
+        if (Boolean.TRUE.equals(delegation.getContainmentOnly()) && StringUtils.hasText(currentOperation)) {
             compared = true;
-            boolean containmentAligned = "CONTAIN".equalsIgnoreCase(currentActionFamily)
-                    || "READ".equalsIgnoreCase(currentActionFamily)
-                    || "QUERY".equalsIgnoreCase(currentActionFamily)
-                    || "RETRIEVE".equalsIgnoreCase(currentActionFamily);
+            boolean containmentAligned = "CONTAIN".equalsIgnoreCase(currentOperation)
+                    || "READ".equalsIgnoreCase(currentOperation)
+                    || "QUERY".equalsIgnoreCase(currentOperation)
+                    || "RETRIEVE".equalsIgnoreCase(currentOperation);
             drift = drift || !containmentAligned;
             if (!containmentAligned) {
                 facts.add("Containment-only delegated scope evidence does not include the current action family.");
             }
         }
 
-        if (Boolean.FALSE.equals(delegation.getPrivilegedExportAllowed()) && "EXPORT".equalsIgnoreCase(currentActionFamily)) {
+        if (Boolean.FALSE.equals(delegation.getPrivilegedExportAllowed()) && "EXPORT".equalsIgnoreCase(currentOperation)) {
             compared = true;
             drift = true;
             facts.add("Delegated scope evidence marks privileged export as disallowed.");
@@ -204,7 +220,7 @@ public class ObjectiveDriftEvaluator {
         String candidate = firstText(
                 context.getRoleScopeProfile() != null ? context.getRoleScopeProfile().getCurrentActionFamily() : null,
                 context.getResource() != null ? context.getResource().getActionFamily() : null);
-        return compatibilityCatalog.normalizeOperationFamily(candidate);
+        return ActionFamily.nameOrRaw(candidate);
     }
 
     private String resolveCurrentResourceFamily(CanonicalSecurityContext context) {

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacommon.security.bridge;
 
+import io.contexa.contexacommon.domain.TruthValues;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.Instant;
@@ -82,7 +83,8 @@ public class RequestAttributeAuthBridge implements AuthBridge {
         }
 
         Object authenticated = request.getAttribute(properties.getFlatAuthenticated());
-        if (authenticated != null && !Boolean.parseBoolean(authenticated.toString())) {
+        // Only a value that reads as true signs the request in; anything else that is present does not.
+        if (authenticated != null && !Boolean.TRUE.equals(TruthValues.parse(authenticated))) {
             return null;
         }
         Object principal = request.getAttribute(properties.getFlatPrincipalId());

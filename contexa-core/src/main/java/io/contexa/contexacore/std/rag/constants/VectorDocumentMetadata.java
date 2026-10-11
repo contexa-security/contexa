@@ -66,6 +66,13 @@ public final class VectorDocumentMetadata {
     public static final String TYPE_LAYER2_FEEDBACK = "layer2_feedback";
 
     public static final String USER_ID = "userId";
+    public static final String SESSION_ID = "sessionId";
+    /**
+     * Where a behaviour record stands in learning. A record marked {@link #LEARNING_STATE_HELD} is held back from
+     * promotion into the usual behaviour and is not retrieved as a past record; a record without the key is learned.
+     */
+    public static final String LEARNING_STATE = "learningState";
+    public static final String LEARNING_STATE_HELD = "HELD";
     public static final String CURRENT_ACTIVITY = "currentActivity";
     public static final String ACTIVITY_SEQUENCE = "activitySequence";
     public static final String THREAT_TYPE = "threatType";

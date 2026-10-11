@@ -42,7 +42,8 @@ dependencies {
     testRuntimeOnly 'org.flywaydb:flyway-database-postgresql'
 }
 
-// The engine reads ZoneId.systemDefault(); tests run in the same time zone as the containers (ADR-09).
+// The engine reads event hours in the configured company time zone (UTC, application.yml); tests still run in UTC,
+// the time zone of the containers (ADR-09).
 tasks.named('test') {
     systemProperty 'user.timezone', 'UTC'
     useJUnitPlatform {
