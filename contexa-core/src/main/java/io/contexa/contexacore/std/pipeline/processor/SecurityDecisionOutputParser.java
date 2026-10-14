@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.pipeline.processor;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 
@@ -72,6 +73,7 @@ public class SecurityDecisionOutputParser {
                     null,
                     null,
                     null,
+                    List.of(),
                     List.of());
             recordMetadata(
                     context,
@@ -104,8 +106,11 @@ public class SecurityDecisionOutputParser {
             }
         }
 
+        // W4-2: the output contract v3 names it reason; a v19 response names it reasoning.
         String extractedReasoning = firstNonBlank(
+                asString(getCaseInsensitive(fields, "reason")),
                 asString(getCaseInsensitive(fields, "reasoning")),
+                extractQuotedField(raw, "reason"),
                 extractQuotedField(raw, "reasoning"),
                 extractLine(REASONING_LINE, raw));
         String reasoning = normalizeReasoning(extractedReasoning);
@@ -127,9 +132,11 @@ public class SecurityDecisionOutputParser {
         }
 
         String mitre = firstNonBlank(
-                asString(getCaseInsensitive(fields, "mitre")),
+                mitreText(getCaseInsensitive(fields, "mitre")),
                 extractQuotedField(raw, "mitre"),
                 extractLine(MITRE_LINE, raw));
+        List<SecurityDecisionOutputContract.Citation> reasonCodes = reasonCodes(getCaseInsensitive(fields, "reasonCodes"));
+        addMetadata(context, "securityDecisionReasonCodeCount", reasonCodes.size());
         List<String> rawEvidenceRefs = firstNonNull(
                 asStringList(getCaseInsensitive(fields, "evidenceRefs")),
                 asStringList(getCaseInsensitive(fields, "evidenceReferences")),
@@ -137,7 +144,8 @@ public class SecurityDecisionOutputParser {
         List<String> evidenceRefs = normalizeEvidenceRefs(rawEvidenceRefs);
 
         boolean coreFieldsPresent = !actionResult.fallbackApplied();
-        SecurityDecisionResponseLite parsed = buildResponse(actionResult.action(), reasoning, riskScore, confidence, mitre, evidenceRefs);
+        SecurityDecisionResponseLite parsed = buildResponse(
+                actionResult.action(), reasoning, riskScore, confidence, mitre, evidenceRefs, reasonCodes);
         recordMetadata(
                 context,
                 coreFieldsPresent,
@@ -155,7 +163,8 @@ public class SecurityDecisionOutputParser {
             Double riskScore,
             Double confidence,
             String mitre,
-            List<String> evidenceRefs) {
+            List<String> evidenceRefs,
+            List<SecurityDecisionOutputContract.Citation> reasonCodes) {
         SecurityDecisionResponseLite response = new SecurityDecisionResponseLite();
         response.setAction(action);
         response.setReasoning(reasoning);
@@ -163,7 +172,47 @@ public class SecurityDecisionOutputParser {
         response.setConfidence(confidence);
         response.setMitre(mitre);
         response.setEvidenceRefs(evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs));
+        response.setReasonCodes(List.copyOf(reasonCodes));
         return response;
+    }
+
+    /**
+     * The reason codes of a v3 response (W4-2): each item's code and fact ID, trimmed and upper-cased; an item without
+     * a code is not a reason. Whether a code and its fact hold is the response checker's (W4-5).
+     */
+    private List<SecurityDecisionOutputContract.Citation> reasonCodes(Object value) {
+        if (!(value instanceof Iterable<?> items)) {
+            return List.of();
+        }
+        List<SecurityDecisionOutputContract.Citation> citations = new ArrayList<>();
+        for (Object item : items) {
+            if (!(item instanceof Map<?, ?> fields)) {
+                continue;
+            }
+            String code = asString(fields.get("code"));
+            if (code == null) {
+                continue;
+            }
+            String fact = asString(fields.get("fact"));
+            citations.add(new SecurityDecisionOutputContract.Citation(
+                    code.trim().toUpperCase(Locale.ROOT), fact != null ? fact.trim().toUpperCase(Locale.ROOT) : null));
+        }
+        return citations;
+    }
+
+    /** The v3 response gives MITRE techniques as a list; the response keeps them as one text. */
+    private String mitreText(Object value) {
+        if (value instanceof Iterable<?> items) {
+            List<String> techniques = new ArrayList<>();
+            for (Object item : items) {
+                String text = asString(item);
+                if (text != null) {
+                    techniques.add(text.trim());
+                }
+            }
+            return techniques.isEmpty() ? null : String.join(", ", techniques);
+        }
+        return asString(value);
     }
 
     private void recordMetadata(

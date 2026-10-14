@@ -121,17 +121,9 @@ class SecurityDecisionForwardingPayloadMapperTest {
                 .containsEntry("promptEvidenceCompleteness", payload.getPromptEvidenceCompleteness())
                 .containsEntry("promptRuntimeTelemetryLinked", true)
                 .containsEntry("promptRuntimeTelemetryLayer", "Layer2")
-                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
-                .containsEntry("officialVerificationTemperature", 0.0d)
-                .containsEntry("officialVerificationTopP", 0.2d)
-                .containsEntry("officialVerificationSeed", 7)
-                .containsEntry("officialVerificationMaxTokens", 96);
+                .doesNotContainKeys("officialVerificationPinnedModelId", "officialVerificationTemperature", "officialVerificationTopP", "officialVerificationSeed", "officialVerificationMaxTokens");
         assertThat(payload.getPromptRuntimeTelemetry())
-                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
-                .containsEntry("officialVerificationTemperature", 0.0d)
-                .containsEntry("officialVerificationTopP", 0.2d)
-                .containsEntry("officialVerificationSeed", 7)
-                .containsEntry("officialVerificationMaxTokens", 96);
+                .doesNotContainKeys("officialVerificationPinnedModelId", "officialVerificationTemperature", "officialVerificationTopP", "officialVerificationSeed", "officialVerificationMaxTokens");
     }
 
     @Test

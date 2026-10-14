@@ -8,6 +8,7 @@ import { SourceMark } from '../../components/common/SourceMark';
 import { useUrlModal } from '../../components/common/useUrlModal';
 import { RouteScreen } from '../../components/journey/RouteScreen';
 import { PromptBundles } from '../../components/inside/PromptBundles';
+import { countedCall } from '../../components/inside/promptSections';
 import { StateScreen } from '../../components/StateScreen';
 import { count, seconds } from '../../journey/format';
 import experience from './Experience.module.css';
@@ -31,8 +32,8 @@ export default function PromptPage() {
   const exchanges = useExchanges(runId, 1, runId !== null);
   const modal = useUrlModal('prompt-original');
   const lines = anatomy.data?.promptLines ?? null;
-  const call = exchanges.data?.calls[0] ?? null;
-  const modelCall = anatomy.data?.interpretation.calls[0] ?? null;
+  const call = exchanges.data ? countedCall(exchanges.data.calls) : null;
+  const modelCall = anatomy.data ? countedCall(anatomy.data.interpretation.calls) : null;
   return (
     <RouteScreen
       title={t('prompt.title')}

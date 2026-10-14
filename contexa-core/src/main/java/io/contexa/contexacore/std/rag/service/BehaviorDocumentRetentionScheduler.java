@@ -20,6 +20,7 @@ import io.contexa.contexacore.properties.ContexaRagProperties;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.ai.vectorstore.VectorStore;
+import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -44,6 +45,7 @@ public class BehaviorDocumentRetentionScheduler {
     private final VectorStore vectorStore;
     private final ContexaRagProperties ragProperties;
     private final Clock clock;
+    private VectorStoreCacheLayer vectorStoreCacheLayer;
 
     public BehaviorDocumentRetentionScheduler(VectorStore vectorStore, ContexaRagProperties ragProperties) {
         this(vectorStore, ragProperties, Clock.systemDefaultZone());
@@ -55,6 +57,11 @@ public class BehaviorDocumentRetentionScheduler {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    /** The vector search cache, cleared after expired records of any user are deleted (W2-15). */
+    public void setVectorStoreCacheLayer(VectorStoreCacheLayer vectorStoreCacheLayer) {
+        this.vectorStoreCacheLayer = vectorStoreCacheLayer;
+    }
+
     @Scheduled(cron = "${contexa.rag.etl.behavior.retention-cleanup-cron:0 45 3 * * *}")
     @SchedulerLock(name = LOCK_NAME, lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void deleteExpiredBehaviorDocuments() {
@@ -64,6 +71,9 @@ public class BehaviorDocumentRetentionScheduler {
         }
         try {
             vectorStore.delete(expired);
+            if (vectorStoreCacheLayer != null) {
+                vectorStoreCacheLayer.invalidateAll();
+            }
         } catch (RuntimeException e) {
             log.error("[BehaviorDocumentRetention] Expired behaviour documents could not be deleted: retentionDays={}",
                     ragProperties.getEtl().getBehavior().getRetentionDays(), e);

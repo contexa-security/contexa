@@ -93,25 +93,23 @@ class PromptGenerationStepTest {
         assertThat(context.getMetadata("rawPromptHash", String.class)).startsWith("sha256:");
         assertThat(context.getMetadata("promptExecutionMetadata", Object.class)).isNotNull();
 
-        assertThat(context.getMetadata("promptCacheSystemStable", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("promptCacheSystemHash", String.class)).startsWith("sha256:");
-        assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
-        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isEqualTo("FINAL_USER_PROMPT");
-        assertThat(context.getMetadata("pqaRawPromptRole", String.class)).isEqualTo("TRACEABILITY_ONLY");
+        assertThat(context.getMetadata("promptRenderCacheSystemStable", Boolean.class)).isTrue();
+        assertThat(context.getMetadata("promptRenderCacheSystemHash", String.class)).startsWith("sha256:");
+        assertThat(context.getMetadata("promptRenderCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
+        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isNull();
+        assertThat(context.getMetadata("pqaRawPromptRole", String.class)).isNull();
 
         PromptExecutionMetadata executionMetadata = context.getMetadata("promptExecutionMetadata", PromptExecutionMetadata.class);
         assertThat(context.getMetadata("promptCompressionApplied", Boolean.class))
                 .isEqualTo(executionMetadata.promptCompressionLedger().compressionApplied());
         Map<String, Object> eventMetadata = event.getMetadata();
         assertThat(eventMetadata)
-                .containsEntry("promptLineageCaptureMode", "LIGHTWEIGHT_RUNTIME")
                 .containsEntry("promptRuntimeTelemetryLinked", true)
                 .containsEntry("promptRuntimeTelemetryLayer", "LIGHTWEIGHT_RUNTIME")
-                .containsEntry("promptCacheSystemStable", true)
-                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
-                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
-                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY");
-        assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
+                .containsEntry("promptRenderCacheSystemStable", true)
+                .containsEntry("promptRenderCacheContextMode", "FULL_FIELD_PRESERVED")
+                .doesNotContainKeys("pqaReferencePrompt", "pqaRawPromptRole");
+        assertThat(eventMetadata.get("promptRenderCacheSystemHash")).asString().startsWith("sha256:");
         assertThat(eventMetadata).doesNotContainKeys(
                 "promptSourceContextLedger",
                 "promptRawUserFieldLedger",
@@ -126,7 +124,7 @@ class PromptGenerationStepTest {
     }
 
     @Test
-    void executeShouldKeepFullLineageForOfficialVerificationMarkers() {
+    void executeKeepsOnlyTheLightweightRecordForOfficialVerificationMarkers() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties());
@@ -170,66 +168,26 @@ class PromptGenerationStepTest {
 
         assertThat(result).isNotNull();
         Map<String, Object> eventMetadata = event.getMetadata();
-        assertThat(eventMetadata).containsKeys(
-                "promptSourceContextLedger",
-                "promptRawUserFieldLedger",
-                "promptFinalUserFieldLedger",
-                "promptUserFieldDiffLedger",
-                "promptFieldStateLedger",
-                "promptFieldStateSummary");
         assertThat(eventMetadata)
-                .containsEntry("promptLineageCaptureMode", "FULL_OFFICIAL_VERIFICATION")
-                .containsEntry("promptCacheSystemStable", true)
-                .containsEntry("promptCacheContextMode", "FULL_FIELD_PRESERVED")
-                .containsEntry("pqaReferencePrompt", "FINAL_USER_PROMPT")
-                .containsEntry("pqaRawPromptRole", "TRACEABILITY_ONLY")
+                .containsEntry("promptRuntimeTelemetryLinked", true)
+                .containsEntry("promptRuntimeTelemetryLayer", "LIGHTWEIGHT_RUNTIME")
                 .containsEntry("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")
-                .containsEntry("officialVerificationMaxTokens", 4096);
-        assertThat(eventMetadata.get("promptCacheSystemHash")).asString().startsWith("sha256:");
-        assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(InstanceOfAssertFactories.MAP)
-                        .containsEntry("sourcePath", "securityEvent.metadata.requestPath")
-                        .containsEntry("valueText", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001"));
-        assertThat(eventMetadata.get("promptSourceContextLedger")).asList()
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(InstanceOfAssertFactories.MAP)
-                        .containsEntry("sourcePath", "sessionContext.userId")
-                        .containsEntry("valueText", "persona_fin_lead"))
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(InstanceOfAssertFactories.MAP)
-                        .containsEntry("sourcePath", "behaviorAnalysis.personalBaselineEvidence.scope"))
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(InstanceOfAssertFactories.MAP)
-                        .containsEntry("sourcePath", "relatedDocuments.size")
-                        .containsEntry("valueText", "0"));
-        assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
-                .anySatisfy(item -> assertThat(item)
-                        .asInstanceOf(InstanceOfAssertFactories.MAP)
-                        .containsEntry("fieldKey", "source:securityEvent.metadata.requestPath")
-                        .containsEntry("fieldState", "VALUE_PRESENT")
-                        .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
-                        .containsEntry("remediationOwner", "REQUEST_CONTEXT_PRODUCER"));
-        assertThat(eventMetadata.get("promptFinalUserFieldLedger")).asList()
-                .allSatisfy(item -> {
-                    Map<?, ?> map = (Map<?, ?>) item;
-                    String label = String.valueOf(map.get("label"));
-                    assertThat(label).doesNotStartWith("bullet.");
-                    assertThat(label).doesNotStartWith("User is requesting");
-                });
-        assertThat(eventMetadata.get("promptFieldStateLedger")).asList()
-                .anySatisfy(item -> {
-                    assertThat(item)
-                            .asInstanceOf(InstanceOfAssertFactories.MAP)
-                            .containsEntry("sourceType", "FINAL_USER_PROMPT_FIELD")
-                            .containsEntry("qualityRelevance", "LLM_DECISION_CONTRACT")
-                            .containsKey("metricCodes");
-                    assertThat(((Map<?, ?>) item).get("metricCodes")).asList().isNotEmpty();
-                });
+                .doesNotContainKeys(
+                        "promptLineageCaptureMode",
+                        "promptSourceContextLedger",
+                        "promptRawUserFieldLedger",
+                        "promptFinalUserFieldLedger",
+                        "promptUserFieldDiffLedger",
+                        "promptFieldStateLedger",
+                        "promptFieldStateSummary",
+                        "systemPrompt",
+                        "userPrompt",
+                        "rawSystemPrompt",
+                        "rawUserPrompt");
     }
 
     @Test
-    void executeShouldPreserveRawIdentityPromptIntoFinalPromptAndEventMetadata() {
+    void executeShouldPreserveRawIdentityPromptIntoFinalPrompt() {
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
                 new TieredStrategyProperties());
@@ -286,25 +244,14 @@ class PromptGenerationStepTest {
         assertThat(promptResult.getRawUserPrompt()).isNotBlank();
         assertThat(context.getMetadata("promptTransformationMode", String.class)).isEqualTo("IDENTITY");
         assertThat(context.getMetadata("promptRawTruthParity", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("promptUserFieldDiffCount", Integer.class)).isZero();
-        assertThat(context.getMetadata("promptCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
-        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isEqualTo("FINAL_USER_PROMPT");
-
-        Map<String, Object> eventMetadata = event.getMetadata();
-        assertThat(eventMetadata.get("rawSystemPrompt")).isEqualTo(promptResult.getRawSystemPrompt());
-        assertThat(eventMetadata.get("rawUserPrompt")).isEqualTo(promptResult.getRawUserPrompt());
-        assertThat(eventMetadata.get("systemPrompt")).isEqualTo(promptResult.getSystemPrompt());
-        assertThat(eventMetadata.get("userPrompt")).isEqualTo(promptResult.getUserPrompt());
-        assertThat(eventMetadata)
-                .containsEntry("promptLineageCaptureMode", "FULL_OFFICIAL_VERIFICATION")
-                .containsKeys(
-                        "promptFieldStateLedger",
-                        "promptSourceContextLedger",
-                        "rawSystemPromptHash",
-                        "rawUserPromptHash",
-                        "systemPromptHash",
-                        "userPromptHash");
+        assertThat(context.getMetadata("promptRenderCacheContextMode", String.class)).isEqualTo("FULL_FIELD_PRESERVED");
+        assertThat(context.getMetadata("pqaReferencePrompt", String.class)).isNull();
+        assertThat(event.getMetadata())
+                .containsKeys("rawSystemPromptHash", "rawUserPromptHash", "systemPromptHash", "userPromptHash")
+                .doesNotContainKeys("rawSystemPrompt", "rawUserPrompt", "systemPrompt", "userPrompt",
+                        "promptFieldStateLedger", "promptSourceContextLedger");
     }
+
     private BaselineEvidenceSnapshot noDataBaselineEvidence() {
         return new BaselineEvidenceSnapshot(
                 LearningEvidenceScope.PERSONAL,

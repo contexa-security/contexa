@@ -87,12 +87,18 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
 
     @Override
     public Optional<ChatModel> resolvePrimaryChatModel(String priorityConfig) {
-        return resolvePrimary(getChatBindings(), priorityConfig, ChatModel.class);
+        return resolvePrimary(getChatBindings(), priorityConfig, ChatModel.class, true);
+    }
+
+    @Override
+    public Optional<ChatModel> resolveProviderChatModel(String provider) {
+        // The fixed selection: the named provider's bindings only, never another provider's.
+        return resolvePrimary(getChatBindings(), provider, ChatModel.class, false);
     }
 
     @Override
     public Optional<EmbeddingModel> resolvePrimaryEmbeddingModel(String priorityConfig) {
-        return resolvePrimary(getEmbeddingBindings(), priorityConfig, EmbeddingModel.class);
+        return resolvePrimary(getEmbeddingBindings(), priorityConfig, EmbeddingModel.class, true);
     }
 
     @Override
@@ -122,7 +128,8 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
         }
     }
 
-    private <T> Optional<T> resolvePrimary(List<LlmRuntimeBinding> bindings, String priorityConfig, Class<T> beanType) {
+    private <T> Optional<T> resolvePrimary(List<LlmRuntimeBinding> bindings, String priorityConfig, Class<T> beanType,
+                                           boolean anyBindingAfterThePriority) {
         RuntimeException firstFailure = null;
         for (String provider : parsePriority(priorityConfig)) {
             List<LlmRuntimeBinding> providerBindings = bindings.stream()
@@ -143,6 +150,9 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
             }
         }
 
+        if (!anyBindingAfterThePriority) {
+            return Optional.empty();
+        }
         for (LlmRuntimeBinding binding : bindings.stream().sorted(bindingComparator()).toList()) {
             try {
                 return Optional.of(applicationContext.getBean(binding.getBeanName(), beanType));
@@ -371,7 +381,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                     "spring.ai.azure.openai.chat.options.model"
             );
             case "anthropic" -> List.of("spring.ai.anthropic.chat.options.model");
-            case "ollama" -> List.of();
+            case "ollama" -> List.of("spring.ai.ollama.chat.options.model");
             default -> List.of();
         };
     }
@@ -382,7 +392,7 @@ public class SpringLlmRuntimeCatalog implements LlmRuntimeCatalog {
                     "spring.ai.openai.embedding.options.model",
                     "spring.ai.azure.openai.embedding.options.model"
             );
-            case "ollama" -> List.of();
+            case "ollama" -> List.of("spring.ai.ollama.embedding.options.model");
             default -> List.of();
         };
     }

@@ -15,7 +15,13 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacommon.domain.TruthValues;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import java.time.Instant;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -38,7 +44,10 @@ import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.SaasDetectionStrategyPackService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -50,6 +59,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
@@ -86,9 +96,6 @@ import reactor.core.publisher.Mono;
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
     private static final ExecutorService RAG_EXECUTOR = createRagExecutor();
-    private static final String CONFIRMED_MALICIOUS_POLICY = "TRUSTED_CONFIRMED_MALICIOUS_SIGNAL";
-    private static final String CONFIRMED_MALICIOUS_POLICY_SOURCE = "anomalySignalSource";
-    private static final String CONFIRMED_MALICIOUS_POLICY_VERSION = "1";
     private static final String SAME_RESOURCE_RAG_ALLOW_REASONING =
             "Authorization allows access, and authorized RAG is relevant to the same resource.";
     private static final String SAME_RESOURCE_RAG_ESTABLISHED_BASELINE_ALLOW_REASONING =
@@ -100,10 +107,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     private static final String LIMITED_BASELINE_ALLOW_REASONING =
             "Authorization allows access with a limited baseline, "
                     + "and no concrete risk or verification requirement is present.";
-    private static final String CONFIRMED_MALICIOUS_BLOCK_REASONING =
-            "A trusted internal security signal confirmed malicious activity; final autonomous action is BLOCK.";
-    private static final Set<String> CONFIRMED_MALICIOUS_MARKERS = Set.of(
-            "ATTACK", "MALICIOUS", "EXFILTRATION", "INJECTION", "COMPROMISE", "FORGERY");
 
     private static ExecutorService createRagExecutor() {
         return new ThreadPoolExecutor(
@@ -134,6 +137,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
+    private MinimumActionRules.Settings minimumActionSettings = MinimumActionRules.Settings.DEFAULTS;
+    private String minimumActionMode = "OBSERVE";
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
     protected final PromptContextAuditRecorder promptContextAuditRecorder;
     protected final StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry;
@@ -717,8 +722,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (context.getLastRequestIntervalMs() == null) {
             context.setLastRequestIntervalMs(resolveLongMetadata(metadata, "lastRequestIntervalMs"));
         }
-        if (context.getContextBindingHashMismatch() == null) {
-            context.setContextBindingHashMismatch(resolveBooleanMetadata(metadata, "contextBindingHashMismatch"));
+        // A change of device or network within the session, when the event already carries one (W2-14).
+        if (!StringUtils.hasText(context.getSessionDeviceChange())) {
+            context.setSessionDeviceChange(firstTextMetadata(metadata, "sessionDeviceChange"));
+        }
+        if (!StringUtils.hasText(context.getSessionNetworkChange())) {
+            context.setSessionNetworkChange(firstTextMetadata(metadata, "sessionNetworkChange"));
         }
         if (!StringUtils.hasText(context.getPreviousUserAgentOS())) {
             context.setPreviousUserAgentOS(firstTextMetadata(metadata, "previousUserAgentOS"));
@@ -765,11 +774,15 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                                                        double similarityThreshold) {
         int requestedTopK = Math.max(topK, 1);
         String retrievalPurpose = getContextRetrievalPurpose();
+        String searchId = beginRagSearch(event);
         if (unifiedVectorService == null) {
             capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
                     "VECTOR_SERVICE_UNAVAILABLE", null);
             markRagRetrievalUnavailable(event, requestedTopK, null);
             return Collections.emptyList();
+        }
+        if (readsPastRecordsExactly(event)) {
+            return searchPastRecordsExactly(event, searchId, retrievalPurpose, requestedTopK);
         }
         try {
             String targetResource = eventEnricher.getTargetResource(event).orElse(null);
@@ -811,7 +824,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                             limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
                 }
                 capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
-                annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
+                annotateRagSearchResult(event, searchId, requestedTopK, documents, limitedAuthorizedPromptContext);
                 return limitedAuthorizedPromptContext.documents();
             }
             // 1. Search behavior documents scoped to the current user.
@@ -912,7 +925,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         limitAuthorizedPromptContext(authorizedPromptContext, requestedTopK);
             }
             capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
-            annotateRagSearchResult(event, requestedTopK, documents, limitedAuthorizedPromptContext);
+            annotateRagSearchResult(event, searchId, requestedTopK, documents, limitedAuthorizedPromptContext);
             return limitedAuthorizedPromptContext.documents();
 
         } catch (Exception e) {
@@ -929,6 +942,148 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     "VECTOR_STORE_SEARCH_FAILED", targetException);
             return Collections.emptyList();
         }
+    }
+
+    /** Whether the event runs a v20 bundle, which reads its past records by the exact lookup (W3-18). */
+    private boolean readsPastRecordsExactly(SecurityEvent event) {
+        return runsV20Bundle(event);
+    }
+
+    /** The minimum-action rule settings the host configured and how a weaker decision is handled (W4-4). */
+    public void setMinimumActionSettings(MinimumActionRules.Settings settings, String mode) {
+        this.minimumActionSettings = settings != null ? settings : MinimumActionRules.Settings.DEFAULTS;
+        this.minimumActionMode = mode != null ? mode : "OBSERVE";
+    }
+
+    /**
+     * Records the minimum-action rules the decision facts of the request meet and whether the decision is weaker
+     * (W4-4, plan 7). The decision is kept as it is: observe mode only records; correcting it is the response check's
+     * (W4-5). The rules read the facts the prompt stated, from the canonical context the prompt was built on.
+     */
+    protected void applyMinimumActionRules(SecurityDecision decision, SecurityEvent event) {
+        if (decision == null || event == null || event.getMetadata() == null
+                || !(event.getMetadata().get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext canonical)
+                || canonical.getDecisionFacts() == null) {
+            return;
+        }
+        CanonicalSecurityContext.Resource resource = canonical.getResource();
+        List<MinimumActionRules.Hit> hits = MinimumActionRules.evaluate(canonical.getDecisionFacts(),
+                resource != null ? resource.getResourceClass() : null,
+                resource != null ? resource.getActionFamily() : null,
+                minimumActionSettings);
+        if (hits.isEmpty()) {
+            return;
+        }
+        String decided = decision.getAction() != null ? decision.getAction().name() : null;
+        List<Map<String, Object>> findings = new ArrayList<>();
+        for (MinimumActionRules.Hit hit : hits) {
+            Map<String, Object> finding = new LinkedHashMap<>();
+            finding.put("rule", hit.rule().name());
+            finding.put("code", hit.rule().code());
+            finding.put("requiredAction", hit.requiredAction());
+            finding.put("dimensions", hit.dimensions().stream().map(Enum::name).toList());
+            finding.put("decidedAction", decided);
+            finding.put("violated", MinimumActionRules.violatedBy(decided, List.of(hit)));
+            findings.add(finding);
+        }
+        Map<String, Object> metadata = ensureMutableEventMetadata(event);
+        metadata.put("minimumActionMode", minimumActionMode);
+        metadata.put("minimumActionFindings", List.copyOf(findings));
+    }
+
+    /** Whether the event runs a v20 bundle (dictionary blocks, output contract v3). */
+    private boolean runsV20Bundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS;
+    }
+
+    /** The bundle the event runs, fixed on the event for its later prompts; null without a template. */
+    protected SecurityDecisionPromptBundles.Bundle promptBundleOf(SecurityEvent event) {
+        return promptTemplate != null && event != null ? promptTemplate.promptBundle(event) : null;
+    }
+
+    /**
+     * The past records of a v20 request (W3-18): the user's own allowed records of the request's action family, read by
+     * an exact metadata lookup with no embedding call. The records are counted on the request's target, on other
+     * targets and through its entry point; those shown are the ones on its target first, then the latest, then by the
+     * stored ID. A similarity decides nothing here.
+     */
+    private List<Document> searchPastRecordsExactly(SecurityEvent event, String searchId, String retrievalPurpose,
+                                                    int requestedTopK) {
+        String userId = event.getUserId();
+        if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
+            log.error("[{}] userId missing - skipping the past record lookup for account isolation", getLayerName());
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK, "USER_ID_MISSING", null);
+            markRagRetrievalNotExecuted(event, requestedTopK, "USER_ID_MISSING");
+            return Collections.emptyList();
+        }
+        PastRecordQuery query = unifiedVectorService.pastRecordQuery();
+        if (query == null || !query.available()) {
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                    "EXACT_PAST_RECORD_LOOKUP_UNAVAILABLE", null);
+            markRagRetrievalUnavailable(event, requestedTopK, null);
+            return Collections.emptyList();
+        }
+        PastRecordRelevance.Subject request = PastRecordRelevance.Subject.ofRequest(event.getMetadata(),
+                eventEnricher.getTargetResource(event).orElse(null));
+        if (request.actionFamily() == null) {
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK, "ACTION_FAMILY_UNKNOWN", null);
+            markRagRetrievalNotExecuted(event, requestedTopK, "ACTION_FAMILY_UNKNOWN");
+            return Collections.emptyList();
+        }
+        try {
+            PastRecordScope scope = new PastRecordScope(userId, retrievalPurpose, request.actionFamily().name(),
+                    sessionIdsOf(event));
+            List<PastRecordGroup> groups = query.groups(scope);
+            List<String> sameTargetPaths = groups.stream()
+                    .filter(group -> group.path() != null && PastRecordRelevance.YES.equals(PastRecordRelevance.sameTarget(
+                            request, PastRecordRelevance.Subject.ofRecord(groupMetadata(group), null))))
+                    .map(PastRecordGroup::path)
+                    .distinct()
+                    .toList();
+            List<Document> documents = query.records(scope, sameTargetPaths, requestedTopK);
+            annotateRagSearchPlan(event, "EXACT_PAST_RECORD_LOOKUP", 1,
+                    List.of("PERSONAL_QUERY", "BROAD_QUERY", "BASELINE_QUERY", "SUPPORTING_QUERY"));
+            AuthorizedPromptContext limitedAuthorizedPromptContext = documents.isEmpty()
+                    ? limitAuthorizedPromptContext(null, requestedTopK)
+                    : limitAuthorizedPromptContext(
+                    promptContextAuthorizationService.authorize(event, retrievalPurpose, documents), requestedTopK);
+            capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
+            annotateRagSearchResult(event, searchId, requestedTopK, documents, limitedAuthorizedPromptContext);
+            annotatePastRecordCounts(event, searchId, PastRecordCounts.of(request, groups));
+            return limitedAuthorizedPromptContext.documents();
+        }
+        catch (RuntimeException exception) {
+            log.error("[{}] Past record lookup failed", getLayerName(), exception);
+            markRagRetrievalUnavailable(event, requestedTopK, exception);
+            capturePromptContextAuditFallback(event, retrievalPurpose, requestedTopK,
+                    "EXACT_PAST_RECORD_LOOKUP_FAILED", exception);
+            return Collections.emptyList();
+        }
+    }
+
+    private static Map<String, Object> groupMetadata(PastRecordGroup group) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("requestPath", group.path());
+        if (group.pathFamily() != null) {
+            metadata.put("pathFamily", group.pathFamily());
+        }
+        return metadata;
+    }
+
+    /**
+     * The counted facts of the lookup, written only by the event's latest search, as its outcome is. The candidates of
+     * an exact lookup are the records it counted, not the ones it read up to its limit (W3-19: one number of past
+     * records in the state line and in the counts).
+     */
+    private void annotatePastRecordCounts(SecurityEvent event, String searchId, PastRecordCounts counts) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null || Boolean.TRUE.equals(metadata.get("ragTimedOut"))
+                || !Objects.equals(searchId, metadata.get("ragSearchId"))) {
+            return;
+        }
+        metadata.put(PastRecordCounts.EVENT_METADATA_KEY, counts.toMetadata());
+        metadata.put("ragCandidateDocumentCount", (int) Math.min(Integer.MAX_VALUE, counts.total()));
     }
 
     private boolean isLayer1SingleUserRagSearchEnabled() {
@@ -1063,8 +1218,28 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.put("deniedDocumentCount", 0);
     }
 
+    /**
+     * Starts a past record search on the event (N-MISS-1 D8). A search after one that timed out keeps that state apart
+     * as the earlier retrieval state and writes its own outcome; the id lets only the event's latest search write it.
+     */
+    private String beginRagSearch(SecurityEvent event) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null) {
+            return null;
+        }
+        if (Boolean.TRUE.equals(metadata.get("ragTimedOut"))) {
+            Object earlier = metadata.get("ragRetrievalState");
+            metadata.put("ragEarlierRetrievalState", earlier != null ? String.valueOf(earlier) : "TIMEOUT");
+            metadata.put("ragTimedOut", false);
+        }
+        String searchId = UUID.randomUUID().toString();
+        metadata.put("ragSearchId", searchId);
+        return searchId;
+    }
+
     private void annotateRagSearchResult(
             SecurityEvent event,
+            String searchId,
             int requestedTopK,
             List<Document> candidateDocuments,
             AuthorizedPromptContext authorizedPromptContext) {
@@ -1072,7 +1247,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (metadata == null) {
             return;
         }
-        if (Boolean.TRUE.equals(metadata.get("ragTimedOut"))) {
+        // A search whose wait ran out, or that a newer search on the event overtook, does not write its late outcome.
+        if (Boolean.TRUE.equals(metadata.get("ragTimedOut")) || !Objects.equals(searchId, metadata.get("ragSearchId"))) {
             return;
         }
         int candidateCount = candidateDocuments != null ? candidateDocuments.size() : 0;
@@ -1189,17 +1365,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return family != ActionFamily.UNKNOWN ? family.name() : null;
     }
 
-    /** The resource class from the classification values only (sensitivity first, then type), as in the prompt. */
+    /**
+     * The resource class from the classification values only (sensitivity first, then type), as in the prompt; a family
+     * hint names a business category and is not one of them (W2-10).
+     */
     private String resourceClassOf(SecurityEvent event) {
         Map<String, Object> metadata = event != null ? event.getMetadata() : null;
         if (metadata == null) {
             return null;
         }
-        return SecuritySemanticNormalizer.normalizeResourceFamily(
+        return SecuritySemanticNormalizer.normalizeResourceClass(
                 metadata.get("resourceSensitivity"),
                 metadata.get("sensitivity"),
                 metadata.get("Sensitivity"),
-                metadata.get("resourceFamily"),
                 metadata.get("resourceType"));
     }
 
@@ -1218,14 +1396,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             int topK,
             double similarityThreshold,
             Filter.Expression filterExpression) {
+        // A vector store orders by distance alone (W0-8): ask a margin more (as many again) and choose by the fixed keys
+        // of the past record ranking, so that the same input gives the same records at the cut (W3-3).
+        int limit = Math.max(1, topK);
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(query)
-                .topK(Math.max(1, topK))
+                .topK(limit * 2)
                 .similarityThreshold(similarityThreshold)
                 .filterExpression(filterExpression)
                 .build();
         List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-        return documents == null ? List.of() : documents;
+        return documents == null ? List.of() : PastRecordRanking.top(documents, limit);
     }
 
     private List<Document> searchSupportingBehaviorDocuments(
@@ -1353,12 +1534,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (document == null) {
                 continue;
             }
-            String key = firstNonBlankTextValue(
-                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.ID) : null),
-                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.ARTIFACT_ID) : null),
-                    textValue(document.getMetadata() != null ? document.getMetadata().get(VectorDocumentMetadata.EVENT_ID) : null),
-                    textValue(document.getMetadata() != null ? document.getMetadata().get("requestPath") : null),
-                    document.getText());
+            // One record once, whichever query found it: its event, else its text (W3-3).
+            String key = PastRecordRanking.recordKey(document);
             if (!StringUtils.hasText(key) || !deduped.containsKey(key)) {
                 deduped.put(key, document);
             }
@@ -1666,7 +1843,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
         applyOpenAiRuntimeOptions(request, event);
         StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
-        request.withParameter("structuredOutputMode", resolveStructuredOutputMode(event, structuredOutputCapability).name());
+        StructuredOutputMode structuredOutputMode = resolveStructuredOutputMode(event, structuredOutputCapability);
+        request.withParameter("structuredOutputMode", structuredOutputMode.name());
+        // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
+        // v19 bundle keeps its own format, and without native output the system text states the schema.
+        if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED && runsV20Bundle(event)) {
+            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, SecurityDecisionOutputContract.providerSchema());
+        }
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         request.withParameter("structuredOutputValidationMaxAttempts", 1);
         request.withParameter("strictResponsePostprocessing", true);
@@ -1705,8 +1888,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             modelHint = firstNonBlank(
                     event.getMetadata().get("requestedModelId"),
                     event.getMetadata().get("preferredModel"),
-                    event.getMetadata().get("runtimeModelId"),
-                    event.getMetadata().get("officialVerificationPinnedModelId"));
+                    event.getMetadata().get("runtimeModelId"));
             providerHint = firstNonBlank(
                     event.getMetadata().get("selectedModelProvider"),
                     event.getMetadata().get("providerResponseModel"));
@@ -1719,6 +1901,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             SecurityDecisionResponse pipelineResponse) {
         if (decision == null || pipelineResponse == null) {
             return;
+        }
+        // W4-3: the reason codes the model gave stay with the decision, as the model gave them.
+        if (pipelineResponse.getReasonCodes() != null && !pipelineResponse.getReasonCodes().isEmpty()) {
+            decision.setReasonCodes(List.copyOf(pipelineResponse.getReasonCodes()));
         }
         if (pipelineResponse.getFieldProvenance() != null
                 && !pipelineResponse.getFieldProvenance().isEmpty()) {
@@ -1795,15 +1981,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         Map<String, Object> metadata = event.getMetadata();
         ZeroTrustAction finalAction = decision.resolveAutonomousAction();
-        String anomalySource = firstNonBlank(metadata.get("anomalySignalSource"));
-        String anomalySignal = firstNonBlank(metadata.get("anomalySignal"));
-        if (finalAction == ZeroTrustAction.BLOCK
-                && "OFFICIAL_VERIFICATION_INTERNAL".equalsIgnoreCase(anomalySource)
-                && isConfirmedMaliciousSignal(anomalySignal)) {
-            setCanonicalReasoning(decision, CONFIRMED_MALICIOUS_BLOCK_REASONING);
-            return;
-        }
-
         if (finalAction == ZeroTrustAction.ALLOW) {
             boolean personalBaselineEstablished = Boolean.TRUE.equals(
                     booleanValue(metadata.get("personalBaselineEstablished")))
@@ -1876,53 +2053,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                         .toList()));
     }
 
-    protected void applyTrustedConfirmedMaliciousConstraint(SecurityDecision decision, SecurityEvent event) {
-        if (decision == null || event == null || event.getMetadata() == null
-                || decision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {
-            return;
-        }
-
-        Map<String, Object> metadata = event.getMetadata();
-        String source = firstNonBlank(metadata.get("anomalySignalSource"));
-        String signal = firstNonBlank(metadata.get("anomalySignal"));
-        if (!"OFFICIAL_VERIFICATION_INTERNAL".equalsIgnoreCase(source)
-                || !isConfirmedMaliciousSignal(signal)) {
-            return;
-        }
-
-        ZeroTrustAction previousAction = decision.resolveAutonomousAction();
-        preserveModelReasoning(decision);
-        decision.setAutonomousAction(ZeroTrustAction.BLOCK);
-        decision.setAutonomyConstraintApplied(true);
-        List<String> reasons = decision.getAutonomyConstraintReasons() == null
-                ? new ArrayList<>()
-                : new ArrayList<>(decision.getAutonomyConstraintReasons());
-        if (!reasons.contains("CONFIRMED_MALICIOUS_ACTIVITY")) {
-            reasons.add("CONFIRMED_MALICIOUS_ACTIVITY");
-        }
-        decision.setAutonomyConstraintReasons(reasons);
-        decision.setAutonomyConstraintPolicy(CONFIRMED_MALICIOUS_POLICY);
-        decision.setAutonomyConstraintSource(CONFIRMED_MALICIOUS_POLICY_SOURCE);
-        decision.setAutonomyConstraintVersion(CONFIRMED_MALICIOUS_POLICY_VERSION);
-        String summary = "A trusted internal security signal confirmed malicious activity; final autonomous action was constrained from "
-                + previousAction + " to BLOCK.";
-        decision.setAutonomyConstraintSummary(summary);
-        String reasoning = decision.getReasoning();
-        if (reasoning == null || reasoning.isBlank()) {
-            decision.setReasoning(summary);
-        } else if (!reasoning.contains(summary)) {
-            decision.setReasoning(reasoning + "\n" + summary);
-        }
-    }
-
-    private boolean isConfirmedMaliciousSignal(String signal) {
-        if (signal == null || signal.isBlank()) {
-            return false;
-        }
-        String normalized = signal.trim().toUpperCase(Locale.ROOT);
-        return normalized.startsWith("CONFIRMED_")
-                && CONFIRMED_MALICIOUS_MARKERS.stream().anyMatch(normalized::contains);
-    }
     private Boolean booleanValue(Object value) {
         return TruthValues.parse(value);
     }
@@ -1968,26 +2098,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         copyRuntimeSelectionOption(metadata, request, "decisionBoundaryMode");
         copyRuntimeSelectionOption(metadata, request, "openAiReasoningEffort");
         copyRuntimeSelectionOption(metadata, request, "openAiVerbosity");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationDecisionBoundaryMode");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationPinnedModelId");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationTemperature");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationTopP");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationSeed");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationMaxTokens");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationDisableRetries");
-        copyRuntimeSelectionOption(metadata, request, "officialVerificationDisableOllamaThinking");
-        if (request.getParameter("officialVerificationDecisionBoundaryMode", Object.class) == null
-                && hasOfficialVerificationRuntimeOption(metadata)) {
-            request.withParameter("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
-        }
     }
 
     protected void applyOpenAiRuntimeOptions(SecurityDecisionRequest request, SecurityEvent event) {
         if (request == null) {
-            return;
-        }
-        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
-        if (hasOfficialVerificationRuntimeOption(metadata)) {
             return;
         }
         String reasoningEffort = resolveOpenAiReasoningEffort();
@@ -2002,6 +2116,24 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (maxOutputTokens > 0) {
             request.withParameter("platformSecurityDecisionMaxTokens", maxOutputTokens);
         }
+        // P3-EXTRA-9: the layer's model call limit bounds the provider call, which waits on its own executor; waiting
+        // on the pipeline cannot bound it, since the pipeline runs on the calling thread.
+        long callTimeoutMs = resolveConfiguredCallTimeoutMs();
+        if (callTimeoutMs > 0) {
+            request.withParameter("platformSecurityDecisionCallTimeoutMs", callTimeoutMs);
+        }
+    }
+
+    /** Layer 1's model call limit; Layer 2 sets none of its own. */
+    protected long resolveConfiguredCallTimeoutMs() {
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            return 0L;
+        }
+        return tieredStrategyProperties != null && tieredStrategyProperties.getLayer1() != null
+                && tieredStrategyProperties.getLayer1().getTimeout() != null
+                ? tieredStrategyProperties.getLayer1().getTimeout().getLlmMs()
+                : 0L;
     }
 
     protected int resolveConfiguredMaxOutputTokens() {
@@ -2050,20 +2182,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (value != null) {
             request.withParameter(key, value);
         }
-    }
-
-    private boolean hasOfficialVerificationRuntimeOption(Map<String, Object> metadata) {
-        if (metadata == null || metadata.isEmpty()) {
-            return false;
-        }
-        return metadata.containsKey("officialVerificationDecisionBoundaryMode")
-                || metadata.containsKey("officialVerificationPinnedModelId")
-                || metadata.containsKey("officialVerificationTemperature")
-                || metadata.containsKey("officialVerificationTopP")
-                || metadata.containsKey("officialVerificationSeed")
-                || metadata.containsKey("officialVerificationMaxTokens")
-                || metadata.containsKey("officialVerificationDisableRetries")
-                || metadata.containsKey("officialVerificationDisableOllamaThinking");
     }
 
     protected PromptBudgetProfile resolvePromptBudgetProfile(SecurityEvent event) {

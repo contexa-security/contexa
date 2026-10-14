@@ -101,6 +101,7 @@ class DefaultCanonicalSecurityContextProviderTest {
         event.addMetadata("recentMfaFailureCount", 2);
         event.addMetadata("lastMfaUsedAt", "2026-03-24T08:58:00");
         event.addMetadata("failedLoginAttempts", 1);
+        event.addMetadata("failedLoginWindowMinutes", 5);
         event.addMetadata("recentRequestCount", 7);
         event.addMetadata("recentChallengeCount", 2);
         event.addMetadata("recentBlockCount", 1);
@@ -218,6 +219,9 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getAuthorization().getMethodExecutionFailure()).isEqualTo("BusinessNotFoundException");
         assertThat(context.getSession().getRecentMfaElsewhereAt()).isEqualTo("2026-03-23T13:40:00Z");
         assertThat(context.getSession().getRecentMfaFailureCount()).isEqualTo(2);
+        // W3-12: the window the core counted the failed logins in travels with the count.
+        assertThat(context.getSession().getFailedLoginAttempts()).isEqualTo(1);
+        assertThat(context.getSession().getFailedLoginWindowMinutes()).isEqualTo(5);
         assertThat(context.getSession().getLastMfaUsedAt()).isEqualTo("2026-03-24T08:58:00");
         assertThat(context.getSession().getRecentChallengeCount()).isEqualTo(2);
         assertThat(context.getSession().getRecentBlockCount()).isEqualTo(1);
@@ -523,6 +527,177 @@ class DefaultCanonicalSecurityContextProviderTest {
     }
 
     @Test
+    void aResourceHasOneClassAndOneCategoryThatNeverStandForEachOther() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/api/projects/W04/exports");
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("resourceSensitivity", "RESTRICTED");
+        event.addMetadata("currentResourceFamily", "PUBLIC_RELEASES");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // W2-10: the class comes from the sensitivity; the word PUBLIC inside the category's name is no class.
+        assertThat(context.getResource().getResourceClass()).isEqualTo("CRITICAL");
+        assertThat(context.getResource().getResourceCategory()).isEqualTo("PUBLIC_RELEASES");
+        assertThat(context.getRoleScopeProfile().getCurrentResourceFamily()).isEqualTo("PUBLIC_RELEASES");
+    }
+
+    @Test
+    void aFamilyHintMadeOfAClassWordIsNoCategoryAndNoClass() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/api/reports/7");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("currentResourceFamily", "CRITICAL");
+        event.addMetadata("resourceType", "REPORT");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // The hint names a class, so the category comes from the type; a family hint is not a classification value.
+        assertThat(context.getResource().getResourceCategory()).isEqualTo("REPORT");
+        assertThat(context.getRoleScopeProfile().getCurrentResourceFamily()).isEqualTo("REPORT");
+        assertThat(context.getResource().getResourceClass()).isNull();
+    }
+
+    @Test
+    void aDelegatedScopeIsNotComparedWithAClassWord() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .build();
+        event.addMetadata("requestPath", "/api/projects/W04/exports");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("currentActionFamily", "READ");
+        event.addMetadata("currentResourceFamily", "CRITICAL");
+        event.addMetadata("agentId", "agent-summary");
+        event.addMetadata("objectiveFamily", "READ_ONLY_INCIDENT_SUMMARY");
+        event.addMetadata("allowedOperations", List.of("READ"));
+        event.addMetadata("allowedResources", List.of("TENANT_DATA"));
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // A read of tenant data under a read-only tenant data delegation: the class word CRITICAL is not the resource.
+        assertThat(context.getDelegation().getDelegated()).isTrue();
+        assertThat(context.getDelegation().getObjectiveDrift()).isFalse();
+        assertThat(context.getDelegation().getObjectiveDriftSummary()).doesNotContain("Current resource family: CRITICAL");
+    }
+
+    @Test
+    void theOfficialCategoryComesBeforeTheHintsAndTheDescriptor() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent official = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        official.addMetadata("requestPath", "/api/projects/W04/exports");
+        official.addMetadata("resourceCategory", "TRANSFER_PACKAGES");
+        official.addMetadata("currentResourceFamily", "PROJECT_DOCUMENTS");
+        official.addMetadata("protectableResourceCategory", "DOCUMENT_STORE");
+        SecurityEvent described = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        described.addMetadata("requestPath", "/api/projects/W04/exports");
+        described.addMetadata("protectableResourceCategory", "DOCUMENT_STORE");
+
+        // W2-11: the request's official field, then the unprefixed hints, then the protected method's descriptor.
+        CanonicalSecurityContext first = provider.resolve(official).orElseThrow();
+        assertThat(first.getResource().getResourceCategory()).isEqualTo("TRANSFER_PACKAGES");
+        assertThat(first.getRoleScopeProfile().getCurrentResourceFamily()).isEqualTo("TRANSFER_PACKAGES");
+        assertThat(provider.resolve(described).orElseThrow().getResource().getResourceCategory())
+                .isEqualTo("DOCUMENT_STORE");
+    }
+
+    @Test
+    void theProtectedMethodsDescriptorFillsWhatTheNamedResourceHasNoDescriptorFor() {
+        InMemoryResourceContextRegistry registry = new InMemoryResourceContextRegistry();
+        registry.register(new ResourceContextDescriptor("x.Operations#exportDocuments", null, null, "PROJECT_DOCUMENTS",
+                "RESTRICTED", List.of(), List.of("EXPORT"), null, true));
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(registry, new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        event.addMetadata("requestPath", "/api/projects/W04/exports");
+        event.addMetadata("resourceId", "document:GB-500-0001");
+        event.addMetadata("protectableResourceId", "x.Operations#exportDocuments");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // The resource the request names has no descriptor; the method it went through has one (W2-11).
+        assertThat(context.getResource().getResourceCategory()).isEqualTo("PROJECT_DOCUMENTS");
+        assertThat(context.getResource().getResourceClass()).isEqualTo("CRITICAL");
+        assertThat(context.getResource().getExportSensitive()).isTrue();
+        assertThat(context.getResource().getPrivileged()).isNull();
+    }
+
+    @Test
+    void theDescriptorsAllowedActionsAreNoPermissionScopeOfTheRequester() {
+        InMemoryResourceContextRegistry registry = new InMemoryResourceContextRegistry();
+        registry.register(new ResourceContextDescriptor("x.Operations#exportDocuments", null, null, "PROJECT_DOCUMENTS",
+                "RESTRICTED", List.of(), List.of("EXPORT"), null, true));
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(registry, new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        event.addMetadata("requestPath", "/api/projects/W04/exports");
+        event.addMetadata("protectableResourceId", "x.Operations#exportDocuments");
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // N-ID-1 (D6, Q-69): what a protected method allows is not a permission scope the requester holds; the scope
+        // tags stay the authorization's own (none here).
+        assertThat(context.getAuthorization() == null ? List.of() : context.getAuthorization().getScopeTags()).isEmpty();
+    }
+
+    @Test
+    void theProtectedMethodsPrivilegedFlagMarksTheResourceNotTheRequester() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        event.addMetadata("requestPath", "/api/admin/role-grants");
+        event.addMetadata("effectiveRoles", List.of("ROLE_ADMIN"));
+        event.addMetadata("protectablePrivileged", true);
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // P3 gate: a privileged method is a fact of the resource; the requester's authorization says nothing of it.
+        assertThat(context.getResource().getPrivileged()).isTrue();
+        assertThat(context.getAuthorization().getPrivileged()).isNull();
+    }
+
+    @Test
+    void theHostsMoveFactsHaveTheirPlaceWithoutAnImpossibleTravel() {
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(new InMemoryResourceContextRegistry(), new ContextCoverageEvaluator());
+        SecurityEvent moved = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        moved.addMetadata("requestPath", "/api/projects/W04/exports");
+        moved.addMetadata("geoLatitude", 37.5665);
+        moved.addMetadata("geoLongitude", 126.978);
+        moved.addMetadata("travelDistanceKm", 325);
+        moved.addMetadata("travelElapsedMinutes", 40);
+        moved.addMetadata("previousLocation", "Busan, KR");
+        moved.addMetadata("baselineConfidence", 0.82);
+        SecurityEvent confidenceOnly = SecurityEvent.builder().userId("alice").sessionId("session-1").build();
+        confidenceOnly.addMetadata("requestPath", "/api/projects/W04/exports");
+        confidenceOnly.addMetadata("baselineConfidence", 0.82);
+
+        CanonicalSecurityContext.Movement movement = provider.resolve(moved).orElseThrow().getLocation().getMovement();
+
+        // W2-13: the move is a fact of its own; it used to reach no field of the context.
+        assertThat(movement.getDistanceKm()).isEqualTo(325);
+        assertThat(movement.getElapsedMinutes()).isEqualTo(40);
+        assertThat(movement.getPreviousLocation()).isEqualTo("Busan, KR");
+        assertThat(movement.getLatitude()).isEqualTo(37.5665);
+        assertThat(movement.getBaselineConfidence()).isEqualTo(0.82);
+        CanonicalSecurityContext.Location withoutMove = provider.resolve(confidenceOnly).orElseThrow().getLocation();
+        assertThat(withoutMove == null || withoutMove.getMovement() == null).isTrue();
+    }
+
+    @Test
     void resolveShouldApplyCanonicalHardeningAfterProviderContribution() {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(
                 new InMemoryResourceContextRegistry(),
@@ -651,6 +826,37 @@ class DefaultCanonicalSecurityContextProviderTest {
                 new SessionDecisionRecord(Instant.parse("2026-09-30T03:17:00Z"), "POST", "/api/customer/export", null,
                         "EXPORT", "CHALLENGE"));
         assertThat(context.getRequestObservedAt()).isEqualTo(Instant.parse("2026-09-30T03:18:00Z"));
+    }
+
+    @Test
+    void resolveCarriesTheSessionsChangeOfDeviceAndNetworkIntoTheContext() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        store.setSessionFirstClientIfAbsent("session-1", "UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator(),
+                        new DefaultSessionNarrativeCollector(store));
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .timestamp(Instant.parse("2026-09-30T03:18:00Z"))
+                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                        + "Version/17.5 Safari/605.1.15")
+                .sourceIp("203.0.113.9")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/export");
+        event.addMetadata("actionFamily", "EXPORT");
+        event.addMetadata("isProtectable", true);
+
+        CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
+
+        // W2-14: the session narrative's changes reach the context and the event, where the strategy reads them.
+        assertThat(context.getSessionNarrativeProfile().getSessionDeviceChange())
+                .isEqualTo("Chrome/140 on WINDOWS -> Safari/17 on MAC");
+        assertThat(context.getSessionNarrativeProfile().getSessionNetworkChange())
+                .isEqualTo("10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24");
+        assertThat(event.getMetadata()).containsEntry("sessionDeviceChange", "Chrome/140 on WINDOWS -> Safari/17 on MAC");
     }
 
     @Test

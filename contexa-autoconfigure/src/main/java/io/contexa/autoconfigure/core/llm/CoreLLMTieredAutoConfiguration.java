@@ -22,6 +22,7 @@ import io.contexa.autoconfigure.core.llm.runtime.SpringLlmRuntimeCatalog;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
+import io.contexa.contexacore.std.llm.client.ThinkingGenerationAdvisor;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
@@ -105,6 +106,9 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private SecurityPlaneProperties securityPlaneProperties;
 
+    @Autowired
+    private ObjectProvider<ObservationRegistry> observationRegistryProvider;
+
     @Bean
     @ConditionalOnMissingBean
     public LlmRuntimeCatalog llmRuntimeCatalog(
@@ -153,7 +157,7 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.llm.selection.chat", name = "mode", havingValue = "fixed")
     public ChatModel fixedPrimaryChatModel(LlmRuntimeCatalog llmRuntimeCatalog) {
         String provider = resolveFixedChatProvider();
-        return llmRuntimeCatalog.resolvePrimaryChatModel(provider)
+        return llmRuntimeCatalog.resolveProviderChatModel(provider)
                 .orElseThrow(() -> new IllegalStateException(
                         "No chat runtime binding could be resolved for fixed provider '" + provider + "'. "
                                 + "Configure exactly one contexa.llm.selection.chat.priority value and the matching Spring AI chat runtime."));
@@ -175,14 +179,17 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnBean(name = "primaryChatModel")
     public ChatClient.Builder contexaPrimaryChatClientBuilder(
             @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
-        return ChatClient.builder(primaryChatModel);
+        // Spring AI's entity conversion and streamed content read the first generation, where Claude puts its thinking.
+        return ChatClient.builder(primaryChatModel, observationRegistry(), null, null)
+                .defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(name = "primaryChatModel")
     public ChatClient primaryChatClient(@Qualifier("primaryChatModel") ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
-        ChatClient.Builder builder = ChatClient.builder(primaryChatModel);
+        ChatClient.Builder builder = ChatClient.builder(primaryChatModel, observationRegistry(), null, null)
+                .defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
         List<Advisor> advisors = advisorRegistry.getEnabled();
         if (!advisors.isEmpty()) {
             builder = builder.defaultAdvisors(advisors.toArray(new Advisor[0]));
@@ -218,7 +225,16 @@ public class CoreLLMTieredAutoConfiguration {
             throw new IllegalStateException(missingChatRuntimeConfigurationMessage());
         }
 
-        return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry, securityPlaneProperties);
+        UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler,
+                tieredLLMProperties, advisorRegistry, securityPlaneProperties);
+        orchestrator.setObservationRegistry(observationRegistry());
+        return orchestrator;
+    }
+
+    /** The application's observation registry, or none when it has no single one. */
+    private ObservationRegistry observationRegistry() {
+        return observationRegistryProvider != null
+                ? observationRegistryProvider.getIfUnique(() -> ObservationRegistry.NOOP) : ObservationRegistry.NOOP;
     }
 
     @Bean(name = "llmClient")

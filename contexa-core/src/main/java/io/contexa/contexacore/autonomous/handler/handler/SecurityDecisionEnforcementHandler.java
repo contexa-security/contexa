@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -67,6 +68,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final Supplier<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterSupplier;
     private final SecurityContextDataStore securityContextDataStore;
     private final ContextObservationRecorder contextObservationRecorder;
+    private VerificationLearningService verificationLearningService;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -152,6 +154,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.contextObservationRecorder = contextObservationRecorder;
     }
 
+    /** Holds the request a restriction stops so that it is learned once the user is verified (W5-2). */
+    public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
+        this.verificationLearningService = verificationLearningService;
+    }
+
     private boolean isEnforcementDisabled() {
         return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
     }
@@ -184,6 +191,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             enforceDecision(userId, event, result, sideEffectsEnabled);
             if (isCurrentProcessingOwner(event)) {
                 commitContextObservations(event, result.getAction(), sideEffectsEnabled);
+                if (sideEffectsEnabled) {
+                    holdForVerification(event, result.getAction());
+                }
             }
         } catch (UnauditedFinalDecisionException e) {
             // Already reported through the throttled observation failure log.
@@ -328,6 +338,29 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             handleBlockDecision(userId, event, result);
         }
         commitContextObservations(event, action.name(), true);
+        holdForVerification(event, action.name());
+    }
+
+    /**
+     * Holds the request a restriction stops (CHALLENGE, ESCALATE or BLOCK, as enforced: no action is ESCALATE) so that
+     * it is learned once the user is verified (W5-2).
+     */
+    private void holdForVerification(SecurityEvent event, String action) {
+        if (verificationLearningService == null) {
+            return;
+        }
+        ZeroTrustAction enforced = action == null || action.isBlank()
+                ? ZeroTrustAction.ESCALATE : ZeroTrustAction.fromString(action);
+        if (enforced != ZeroTrustAction.CHALLENGE && enforced != ZeroTrustAction.ESCALATE
+                && enforced != ZeroTrustAction.BLOCK) {
+            return;
+        }
+        try {
+            verificationLearningService.hold(event, enforced);
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to hold a stopped request: eventId={}",
+                    event.getEventId(), e);
+        }
     }
 
     /** Records the request's staged context observations under its final outcome, once (W2-7). */

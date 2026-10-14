@@ -569,6 +569,38 @@ class BaselineLearningServiceTest {
     }
 
     @Test
+    @DisplayName("Resource class learning should never take the class from a family hint (W2-10)")
+    void shouldNotLearnAClassFromAFamilyHint() {
+        when(baselineDataStore.getUserBaseline("org1_user3")).thenReturn(BaselineVector.builder()
+                .userId("org1_user3")
+                .avgTrustScore(0.9)
+                .avgRequestCount(1L)
+                .updateCount(1L)
+                .build());
+
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/api/releases/R-1");
+        event.addMetadata("resourceFamily", "PUBLIC_RELEASES");
+
+        assertThat(service.learnIfNormal("org1_user3", decision, event)).isTrue();
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("org1_user3"), captor.capture());
+        // The hint names a business category: the word PUBLIC in it is no class.
+        String[] families = captor.getValue().getFrequentResourceFamilies();
+        assertThat(families == null ? new String[0] : families).doesNotContain("PUBLIC");
+    }
+
+    @Test
     @DisplayName("New user warning should preserve the full current IP and avoid broken guidance text")
     void shouldBuildReadableNewUserWarning() {
         when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
@@ -580,7 +612,9 @@ class BaselineLearningServiceTest {
                 .timestamp(LocalDateTime.of(2026, 3, 30, 2, 10).atZone(ZoneId.systemDefault()).toInstant())
                 .build();
 
-        String warning = service.buildBaselinePromptContext("org1_user1", event);
+        // The new-user warning is the baseline evidence summary of a user without a personal baseline (W3-5: the
+        // prompt context method that also returned it had no caller and was removed).
+        String warning = service.buildBaselineEvidenceSnapshot("org1_user1", event).summary();
 
         assertThat(warning).contains("IP: 192.168.1.100 (range 192.168.1.0/24)");
         assertThat(warning).contains("PersonalBaselineStatus: NOT_ESTABLISHED");

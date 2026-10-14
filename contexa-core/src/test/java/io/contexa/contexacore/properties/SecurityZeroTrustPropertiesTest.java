@@ -15,12 +15,37 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityZeroTrustPropertiesTest {
+
+    /** W4-4: the minimum-action rules start observing with the dictionary's defaults and bind their keys. */
+    @Test
+    void theMinimumActionRulesStartObservingWithTheDictionaryDefaults() {
+        SecurityZeroTrustProperties defaults = new SecurityZeroTrustProperties();
+
+        assertThat(defaults.getMinimumAction().getMode()).isEqualTo(SecurityZeroTrustProperties.MinimumActionMode.OBSERVE);
+        assertThat(defaults.getMinimumAction().toRules()).isEqualTo(MinimumActionRules.Settings.DEFAULTS);
+
+        SecurityZeroTrustProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                "contexa.security.zerotrust.minimum-action.mode", "ENFORCE",
+                "contexa.security.zerotrust.minimum-action.identity.min-deviations", "3",
+                "contexa.security.zerotrust.minimum-action.policy-satisfaction.enabled", "false")))
+                .bind("contexa.security.zerotrust", SecurityZeroTrustProperties.class).get();
+
+        assertThat(bound.getMinimumAction().getMode()).isEqualTo(SecurityZeroTrustProperties.MinimumActionMode.ENFORCE);
+        assertThat(bound.getMinimumAction().toRules())
+                .isEqualTo(new MinimumActionRules.Settings(true, 3, "SENSITIVE", true, false));
+    }
 
     @Test
     @DisplayName("DISABLED and OBSERVE must not allow AI decision analysis")

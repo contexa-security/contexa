@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 public final class AnatomyBuilder {
 
     /** Raised when the anatomy's shape or a rule of copying changes; stored anatomies keep the version they had. */
-    public static final int VERSION = 9;
+    public static final int VERSION = 10;
 
     /**
      * The dimensions the core compares (its label names). The current value label and the comparison label are read

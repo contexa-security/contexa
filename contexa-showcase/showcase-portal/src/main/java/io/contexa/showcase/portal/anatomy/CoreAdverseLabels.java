@@ -19,8 +19,9 @@ public final class CoreAdverseLabels {
     /**
      * @param key       the label as the inspector names it (lower case; the prompt's case does not matter)
      * @param condition TRUE or FALSE (any occurrence with that value), POSITIVE (the last value is a count of at least
-     *                  one), DENY_OR_BLOCK (the last value), TRUSTED_SIGNAL (the last value is neither none nor unknown
-     *                  and the last AnomalySignalTrust is TRUSTED_VERIFICATION_INPUT)
+     *                  one), DENY_OR_BLOCK (the last value), STATED (the last value is neither blank, unknown, none nor
+     *                  not applicable), TRUSTED_SIGNAL (the last value is neither none nor unknown and the last
+     *                  AnomalySignalTrust is TRUSTED_VERIFICATION_INPUT)
      */
     public record Rule(String key, String condition) {
     }
@@ -37,7 +38,8 @@ public final class CoreAdverseLabels {
             new Rule("approvalrequired", "TRUE"),
             new Rule("approvalmissing", "TRUE"),
             new Rule("blockeduser", "TRUE"),
-            new Rule("contextbindinghashmismatch", "TRUE"),
+            new Rule("sessiondevicechange", "STATED"),
+            new Rule("sessionnetworkchange", "STATED"),
             new Rule("currentresourcefamilypresentindeniedrolescope", "TRUE"),
             new Rule("currentactionfamilypresentindeniedrolescope", "TRUE"),
             new Rule("currentresourcefamilypresentinexpectedrolescope", "FALSE"),
@@ -92,6 +94,8 @@ public final class CoreAdverseLabels {
             case "POSITIVE" -> positive(last);
             case "DENY_OR_BLOCK" -> "deny".equals(last) || "block".equals(last);
             case "SIGNAL" -> !last.isBlank() && !"none".equals(last) && !"unknown".equals(last);
+            case "STATED" -> !last.isBlank() && !"none".equals(last) && !"unknown".equals(last)
+                    && !"not_applicable".equals(last);
             default -> false;
         };
     }

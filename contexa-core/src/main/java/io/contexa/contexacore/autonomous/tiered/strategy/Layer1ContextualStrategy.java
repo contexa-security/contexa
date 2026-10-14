@@ -247,6 +247,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .responseActionFallbackAction(decision.getResponseActionFallbackAction())
                 .reasoning(decision.getReasoning())
                 .llmReasoning(decision.getLlmReasoning())
+                .reasonCodes(decision.getReasonCodes())
                 .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())
@@ -262,6 +263,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
         long sessionContextMs = 0L;
         long ragSearchMs = 0L;
+        long ragBlockedMs = 0L;
         long behaviorAnalysisMs = 0L;
         long promptBuildMs = 0L;
         long llmExecutionMs = 0L;
@@ -274,29 +276,35 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long postProcessMs = 0L;
 
         try {
+            // The past record search starts at the entry and runs while the stages before the prompt work (W3-4).
+            long ragSearchStart = System.currentTimeMillis();
+            PendingRagRetrieval pendingRag = startRelatedContextRetrieval(event);
+
             long sessionContextStart = System.currentTimeMillis();
             SessionContext sessionContext = buildSessionContext(event);
             sessionContextMs = System.currentTimeMillis() - sessionContextStart;
 
-            long ragSearchStart = System.currentTimeMillis();
-            RagRetrievalOutcome ragOutcome = retrieveRelatedContextWithinBudget(event);
-            List<Document> relatedDocuments = ragOutcome.relatedDocuments();
-            List<String> similarEvents = ragOutcome.similarEvents();
-            ragSearchMs = System.currentTimeMillis() - ragSearchStart;
-
-
             long behaviorAnalysisStart = System.currentTimeMillis();
-            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
+            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, List.of());
             behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
 
             long promptBuildStart = System.currentTimeMillis();
             SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
             SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
             annotateThreatKnowledgeContext(event, behaviorCtx);
-
-            cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
-
             promptBuildMs = System.currentTimeMillis() - promptBuildStart;
+
+            // The records are first needed here: wait for them as long as the wait allows from here.
+            long ragWaitStart = System.currentTimeMillis();
+            RagRetrievalOutcome ragOutcome = awaitRelatedContext(event, pendingRag);
+            ragBlockedMs = pendingRag.blockedMs() + (System.currentTimeMillis() - ragWaitStart);
+            ragSearchMs = System.currentTimeMillis() - ragSearchStart;
+            List<Document> relatedDocuments = ragOutcome.relatedDocuments();
+            behaviorAnalysis.setSimilarEvents(ragOutcome.similarEvents());
+
+            long escalationCacheStart = System.currentTimeMillis();
+            cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
+            promptBuildMs += System.currentTimeMillis() - escalationCacheStart;
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
@@ -338,8 +346,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setLlmDecisionPresent(true);
             decision.setTechnicalFallbackApplied(false);
             applySecurityDecisionRuntimeTelemetry(decision, pipelineResponse);
-            applyTrustedConfirmedMaliciousConstraint(decision, event);
             applyCanonicalDecisionReasoning(decision, event, relatedDocuments);
+            applyMinimumActionRules(decision, event);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
             runtimeTelemetryMs = System.currentTimeMillis() - runtimeTelemetryStart;
@@ -360,6 +368,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     behaviorAnalysis,
                     sessionContextMs,
                     ragSearchMs,
+                    ragBlockedMs,
                     behaviorAnalysisMs,
                     promptBuildMs,
                     llmExecutionMs,
@@ -370,6 +379,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     event,
                     sessionContextMs,
                     ragSearchMs,
+                    ragBlockedMs,
                     behaviorAnalysisMs,
                     promptBuildMs,
                     llmExecutionMs,
@@ -497,18 +507,43 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 
-    private RagRetrievalOutcome retrieveRelatedContextWithinBudget(SecurityEvent event) {
-        long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
-        long ragWaitMs = resolveLayer1RagWaitMs(event, ragTimeoutMs);
-        boolean officialVerification = isOfficialVerificationEvent(event);
-        SecurityEvent retrievalEvent = officialVerification ? event : copyEventForRagRetrieval(event);
-        Future<RagRetrievalOutcome> future = null;
+    /**
+     * Starts the past record search at the analysis entry (W3-4). The search runs on a copy of the event while the stages
+     * before the prompt work and is waited for where the records are first needed.
+     */
+    private PendingRagRetrieval startRelatedContextRetrieval(SecurityEvent event) {
+        // W3-18: the bundle decides how the past records are read, so it is fixed on the event before the search copy.
+        promptBundleOf(event);
+        return submitRelatedContextRetrieval(copyEventForRagRetrieval(event));
+    }
+
+    private PendingRagRetrieval submitRelatedContextRetrieval(SecurityEvent retrievalEvent) {
         try {
-            future = ragRetrievalExecutor.submit(() -> {
+            Future<RagRetrievalOutcome> future = ragRetrievalExecutor.submit(() -> {
                 List<Document> relatedDocuments = searchRelatedContext(retrievalEvent);
                 List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
                 return new RagRetrievalOutcome(relatedDocuments, similarEvents);
             });
+            return new PendingRagRetrieval(retrievalEvent, future, null, null, 0L);
+        }
+        catch (RuntimeException submitFailure) {
+            return new PendingRagRetrieval(retrievalEvent, null, submitFailure, null, 0L);
+        }
+    }
+
+    /** Waits for a started past record search for as long as the wait allows, counted from here. */
+    private RagRetrievalOutcome awaitRelatedContext(SecurityEvent event, PendingRagRetrieval pending) {
+        if (pending.outcome() != null) {
+            return pending.outcome();
+        }
+        long ragTimeoutMs = Math.max(1L, tieredStrategyProperties.getLayer1().getTimeout().getRagMs());
+        long ragWaitMs = resolveLayer1RagWaitMs(event, ragTimeoutMs);
+        SecurityEvent retrievalEvent = pending.retrievalEvent();
+        Future<RagRetrievalOutcome> future = pending.future();
+        try {
+            if (pending.failure() != null) {
+                throw pending.failure();
+            }
 
             long retrievalStartedAt = System.currentTimeMillis();
             RagRetrievalOutcome outcome = future.get(ragWaitMs, TimeUnit.MILLISECONDS);
@@ -565,9 +600,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private long resolveLayer1RagWaitMs(SecurityEvent event, long ragTimeoutMs) {
         long fullTimeoutMs = Math.max(1L, ragTimeoutMs);
-        if (isOfficialVerificationEvent(event)) {
-            return fullTimeoutMs;
-        }
         long interactiveWaitMs = tieredStrategyProperties.getLayer1().getTimeout().getInteractiveRagWaitMs();
         if (interactiveWaitMs <= 0L) {
             return fullTimeoutMs;
@@ -576,9 +608,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
     private boolean shouldContinueRagWarmupAfterInteractiveTimeout(SecurityEvent event) {
-        if (isOfficialVerificationEvent(event)) {
-            return false;
-        }
         TieredStrategyProperties.Layer1.Timeout timeout = tieredStrategyProperties.getLayer1().getTimeout();
         return timeout != null && timeout.isBackgroundRagWarmupOnInteractiveTimeout();
     }
@@ -629,37 +658,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 || key.equals("promptContextAuditPayload")
                 || key.equals("promptContextAuditForwarded");
     }
-    private boolean isOfficialVerificationEvent(SecurityEvent event) {
-        if (event == null || event.getMetadata() == null) {
-            return false;
-        }
-        Map<String, Object> metadata = event.getMetadata();
-        Object boundaryMode = metadata.get("officialVerificationDecisionBoundaryMode");
-        if (boundaryMode != null && "OFFICIAL_VERIFICATION_RUNTIME".equalsIgnoreCase(boundaryMode.toString())) {
-            return true;
-        }
-        Object scenario = metadata.get("scenario");
-        if (scenario != null && scenario.toString().startsWith("OFFICIAL_VERIFICATION")) {
-            return true;
-        }
-        Object requestPath = firstPresent(metadata, "requestPath", "path", "resourceUrl", "requestUri");
-        return requestPath != null
-                && requestPath.toString().contains("/admin/api/enterprise/verification/runtime/probe/");
-    }
-
-    private Object firstPresent(Map<String, Object> metadata, String... keys) {
-        if (metadata == null || keys == null) {
-            return null;
-        }
-        for (String key : keys) {
-            Object value = metadata.get(key);
-            if (value != null) {
-                return value;
-            }
-        }
-        return null;
-    }
-
     private void annotateRagInteractiveBudget(SecurityEvent event,
                                               long ragWaitMs,
                                               long ragTimeoutMs,
@@ -877,10 +875,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 && Boolean.TRUE.equals(event.getMetadata().get("ragUnavailable"));
     }
 
-    private void recordLayer1TimingMetadata(
+    void recordLayer1TimingMetadata(
             SecurityEvent event,
             long sessionContextMs,
             long ragSearchMs,
+            long ragBlockedMs,
             long behaviorAnalysisMs,
             long promptBuildMs,
             long pipelineBlockMs,
@@ -897,6 +896,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
         event.addMetadata("layer1SessionContextMs", sessionContextMs);
         event.addMetadata("layer1RagSearchMs", ragSearchMs);
+        // The search runs while the stages before the prompt work: only the time blocked on it adds to the total (W3-4).
+        event.addMetadata("layer1RagWaitMs", ragBlockedMs);
         event.addMetadata("layer1BehaviorAnalysisMs", behaviorAnalysisMs);
         event.addMetadata("layer1PromptPreparationMs", promptBuildMs);
         event.addMetadata("layer1PipelineBlockMs", pipelineBlockMs);
@@ -907,7 +908,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         event.addMetadata("layer1RuntimeTelemetryApplyMs", runtimeTelemetryMs);
         event.addMetadata("layer1EscalateClassificationMs", escalateClassificationMs);
         event.addMetadata("layer1ContextEnrichMs", contextEnrichMs);
-        long accountedMs = sessionContextMs + ragSearchMs + behaviorAnalysisMs + promptBuildMs + pipelineBlockMs
+        long accountedMs = sessionContextMs + ragBlockedMs + behaviorAnalysisMs + promptBuildMs + pipelineBlockMs
                 + responseValidateMs + postProcessMs + promptTelemetryMs + decisionConvertMs + runtimeTelemetryMs
                 + escalateClassificationMs + contextEnrichMs;
         long unaccountedMs = Math.max(0L, totalMs - accountedMs);
@@ -964,6 +965,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                            BaseBehaviorAnalysis behaviorAnalysis,
                                            long sessionContextMs,
                                            long ragSearchMs,
+                                           long ragBlockedMs,
                                            long behaviorAnalysisMs,
                                            long promptBuildMs,
                                            long llmExecutionMs,
@@ -982,7 +984,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         sessionData.put("llmExecutionMs", llmExecutionMs);
         sessionData.put("responseParseMs", responseParseMs);
         sessionData.put("postProcessMs", postProcessMs);
-        sessionData.put("preLlmPreparationMs", sessionContextMs + ragSearchMs + behaviorAnalysisMs + promptBuildMs);
+        // The search overlaps the earlier stages (W3-4): only the time blocked on it is preparation time.
+        sessionData.put("preLlmPreparationMs", sessionContextMs + ragBlockedMs + behaviorAnalysisMs + promptBuildMs);
 
         decision.setSessionContext(sessionData);
         if (decision.getBehaviorPatterns() == null) {
@@ -1103,6 +1106,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
             return requestPath != null ? requestPath.toString() : null;
         }
+    }
+
+    /**
+     * A past record search started at the analysis entry: the event it runs on, its future or the failure to start it,
+     * or its outcome when it was already waited for, with the time the analysis was blocked on it.
+     */
+    private record PendingRagRetrieval(
+            SecurityEvent retrievalEvent,
+            Future<RagRetrievalOutcome> future,
+            RuntimeException failure,
+            RagRetrievalOutcome outcome,
+            long blockedMs) {
     }
 
     private record RagRetrievalOutcome(

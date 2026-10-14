@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +95,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             result.setResponseActionFallbackAction(analysisResult.getResponseActionFallbackAction());
             result.setReasoning(analysisResult.getReasoning());
             result.setLlmReasoning(analysisResult.getLlmReasoning());
+            result.setReasonCodes(analysisResult.getReasonCodes());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
@@ -184,6 +185,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     result.setAction(resolveEnforcedAction(layer1Assessment));
                     result.setReasoning(layer1Assessment.getReasoning());
                     result.setLlmReasoning(layer1Assessment.getLlmReasoning());
+                    result.setReasonCodes(layer1Assessment.getReasonCodes());
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -238,7 +240,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 int escalates = sample.escalates();
                 int total = sample.total();
                 double escalateRate = sample.escalateRate();
-                if (!isOfficialVerificationRuntime(event) && escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
+                if (escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
                     log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
                             escalates, total, String.format("%.1f", escalateRate * 100), event.getEventId());
                     publishEscalateProtectionTriggered(userId, requestPath, escalates, total);
@@ -299,6 +301,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 copyResponseActionFallback(result, layer2Assessment);
                 result.setReasoning(layer2Assessment.getReasoning());
                 result.setLlmReasoning(layer2Assessment.getLlmReasoning());
+                result.setReasonCodes(layer2Assessment.getReasonCodes());
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
@@ -344,6 +347,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                 result.setProposedAction(layer1Assessment.getAction());
                 result.setLlmReasoning(layer1Assessment.getLlmReasoning());
+                result.setReasonCodes(layer1Assessment.getReasonCodes());
                 result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -505,6 +509,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         private String proposedAction;
         private String reasoning;
         private String llmReasoning;
+        private List<SecurityDecisionOutputContract.Citation> reasonCodes;
         private Boolean llmDecisionPresent;
         private Boolean technicalFallbackApplied;
         private String technicalFallbackCategory;
@@ -581,6 +586,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .mitigationActions(new ArrayList<>(recommendedActions))
                     .reasoning(reasoningPrefix + (reasoning != null ? reasoning : "No additional reasoning"))
                     .llmReasoning(llmReasoning)
+                    .reasonCodes(reasonCodes)
                     .autonomyConstraintApplied(autonomyConstraintApplied)
                     .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
                     .autonomyConstraintSummary(autonomyConstraintSummary)
@@ -910,19 +916,6 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         }
     }
 
-    private boolean isOfficialVerificationRuntime(SecurityEvent event) {
-        if (event == null || event.getMetadata() == null) {
-            return false;
-        }
-        Object boundaryMode = event.getMetadata().get("officialVerificationDecisionBoundaryMode");
-        if (boundaryMode != null
-                && "OFFICIAL_VERIFICATION_RUNTIME".equalsIgnoreCase(String.valueOf(boundaryMode).trim())) {
-            return true;
-        }
-        Object scenario = event.getMetadata().get("scenario");
-        return scenario != null
-                && String.valueOf(scenario).trim().toUpperCase(Locale.ROOT).startsWith("OFFICIAL_VERIFICATION");
-    }
     private Map<String, Object> buildErrorMetadata(SecurityEvent event) {
         String requestPath = extractRequestPath(event);
         return buildListenerMetadata(event, requestPath);

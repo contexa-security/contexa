@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
+import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
@@ -54,6 +55,7 @@ public class UserEngineStatePurger {
     private final VectorStore vectorStore;
     private final IForceLogoutService forceLogoutService;
     private final List<UserStatePurgeContributor> contributors;
+    private VectorStoreCacheLayer vectorStoreCacheLayer;
 
     public UserEngineStatePurger(
             ZeroTrustActionRepository actionRepository,
@@ -74,6 +76,11 @@ public class UserEngineStatePurger {
         this.vectorStore = vectorStore;
         this.forceLogoutService = forceLogoutService;
         this.contributors = contributors == null ? List.of() : List.copyOf(contributors);
+    }
+
+    /** The vector search cache, cleared of the user's searches when the user's records go (W2-15). */
+    public void setVectorStoreCacheLayer(VectorStoreCacheLayer vectorStoreCacheLayer) {
+        this.vectorStoreCacheLayer = vectorStoreCacheLayer;
     }
 
     public UserEngineStatePurgeResult purge(String userId) {
@@ -113,6 +120,9 @@ public class UserEngineStatePurger {
     private void deleteDecisionHistory(String userId) {
         Filter.Expression userDocuments = new FilterExpressionBuilder().eq(RAG_USER_METADATA_KEY, userId).build();
         vectorStore.delete(userDocuments);
+        if (vectorStoreCacheLayer != null) {
+            vectorStoreCacheLayer.invalidateForUser(userId);
+        }
     }
 
     private void step(String name, boolean available, Runnable action, List<String> purged, Map<String, String> failed) {

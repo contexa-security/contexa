@@ -31,7 +31,6 @@ import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacommon.security.network.ClientIpResolutionPolicy;
 import io.contexa.contexacommon.security.network.ClientIpResolver;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
@@ -61,22 +60,19 @@ public final class RequestInfoExtractor {
         }
 
         String requestId = extractRequestId(request);
-        boolean runtimeOverrideHeadersAllowed = hasRuntimeOverrideCapability(request);
+        // The model settings of a request come from request attributes an application sets; no header chooses them.
         String requestedModelId = firstNonBlankText(
-                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Model-Id", "requestedModelId"),
-                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Preferred-Model", "preferredModel"),
-                extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Runtime-Model-Id", "runtimeModelId"));
-        Double runtimeTemperature = extractDoubleRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Temperature", "temperature", "runtimeTemperature");
-        Double runtimeTopP = extractDoubleRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Top-P", "topP", "runtimeTopP");
-        Integer runtimeSeed = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Seed", "seed", "runtimeSeed");
-        Integer runtimeMaxTokens = extractIntegerRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Max-Tokens", "maxTokens", "runtimeMaxTokens");
-        Boolean runtimeDisableRetries = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Retries", "disableRetries");
-        Boolean runtimeDisableOllamaThinking = extractBooleanRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, "X-Contexa-Disable-Ollama-Thinking", "disableOllamaThinking");
-        // Like the other override headers, the anomaly signal header is a signal only with the server-issued
-        // capability; without it the text is the requester's own claim and is carried apart as untrusted text.
-        String anomalySignalHeader = extractHeader(request, "X-Contexa-Anomaly-Signal");
-        String anomalySignal = runtimeOverrideHeadersAllowed ? anomalySignalHeader : null;
-        String untrustedAnomalySignalClaim = runtimeOverrideHeadersAllowed ? null : anomalySignalHeader;
+                extractAttributeText(request, "requestedModelId"),
+                extractAttributeText(request, "preferredModel"),
+                extractAttributeText(request, "runtimeModelId"));
+        Double runtimeTemperature = extractDoubleAttribute(request, "temperature", "runtimeTemperature");
+        Double runtimeTopP = extractDoubleAttribute(request, "topP", "runtimeTopP");
+        Integer runtimeSeed = extractIntegerAttribute(request, "seed", "runtimeSeed");
+        Integer runtimeMaxTokens = extractIntegerAttribute(request, "maxTokens", "runtimeMaxTokens");
+        Boolean runtimeDisableRetries = extractBooleanAttribute(request, "disableRetries");
+        Boolean runtimeDisableOllamaThinking = extractBooleanAttribute(request, "disableOllamaThinking");
+        // An anomaly signal header is the requester's own claim and is carried apart as untrusted text.
+        String untrustedAnomalySignalClaim = extractHeader(request, "X-Contexa-Anomaly-Signal");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
         String tenantId = firstNonBlankText(
@@ -88,7 +84,6 @@ public final class RequestInfoExtractor {
                 authenticationStampAttribute(request, "organizationId", "orgId"));
         String decisionBoundaryMode = deriveDecisionBoundaryMode(
                 request,
-                runtimeOverrideHeadersAllowed,
                 requestedModelId,
                 runtimeTemperature,
                 runtimeTopP,
@@ -101,7 +96,7 @@ public final class RequestInfoExtractor {
                 .method(request.getMethod())
                 .clientIp(extractClientIp(request, security))
                 .userAgent(extractUserAgent(request))
-                .sessionId(OfficialVerificationRequestContext.resolveSessionId(request))
+                .sessionId(RequestIdentity.sessionId(request))
                 .contextBindingHash(SessionFingerprintUtil.generateContextBindingHash(request))
                 .requestId(requestId)
                 .clientRequestId(extractClientRequestId(request))
@@ -112,22 +107,7 @@ public final class RequestInfoExtractor {
                 .queryString(request.getQueryString())
                 .remoteHost(request.getRemoteHost())
                 .protocol(request.getProtocol())
-                .scenario(extractScenario(request))
-                .demoRunId(extractHeader(request, "X-Contexa-Demo-Run-Id"))
-                .demoPhase(extractHeader(request, "X-Contexa-Demo-Phase"))
-                .roundKey(extractHeader(request, "X-Contexa-Round-Key"))
-                .behaviorPhase(extractHeader(request, "X-Contexa-Behavior-Phase"))
-                .anomalySignal(anomalySignal)
-                .anomalySignalSource(anomalySignal != null ? "OFFICIAL_VERIFICATION_INTERNAL" : null)
                 .untrustedAnomalySignalClaim(untrustedAnomalySignalClaim)
-                .pqaPromptFaultScenario(extractAttributeText(request, "pqaPromptFaultScenario"))
-                .pqaPromptFaultRejected(Boolean.TRUE.equals(request.getAttribute("pqaPromptFaultRejected"))
-                        || extractHeader(request, "X-PQA-Prompt-Fault") != null)
-                .pqaPromptFaultRejectedSource(extractAttributeText(request, "pqaPromptFaultRejectedSource") != null
-                        ? extractAttributeText(request, "pqaPromptFaultRejectedSource")
-                        : extractHeader(request, "X-PQA-Prompt-Fault") != null
-                                ? "UNTRUSTED_REQUEST_HEADER"
-                                : null)
                 .decisionBoundaryMode(decisionBoundaryMode)
                 .runtimeTemperature(runtimeTemperature)
                 .runtimeTopP(runtimeTopP)
@@ -135,9 +115,6 @@ public final class RequestInfoExtractor {
                 .runtimeMaxTokens(runtimeMaxTokens)
                 .runtimeDisableRetries(runtimeDisableRetries)
                 .runtimeDisableOllamaThinking(runtimeDisableOllamaThinking)
-                .simulatedUserAgentLabel(runtimeOverrideHeadersAllowed
-                        ? extractHeader(request, "X-Simulated-User-Agent-Label")
-                        : null)
                 .secure(request.isSecure())
                 .isNewSession(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_SESSION)))
                 .isNewUser(castToBoolean(RequestSecurityContextAttributes.read(request, Field.NEW_USER)))
@@ -262,7 +239,7 @@ public final class RequestInfoExtractor {
                 request.getMethod(),
                 extractClientIp(request, security),
                 extractUserAgent(request),
-                OfficialVerificationRequestContext.resolveSessionId(request),
+                RequestIdentity.sessionId(request),
                 requestId,
                 request.getServletPath(),
                 request.getQueryString(),
@@ -306,23 +283,10 @@ public final class RequestInfoExtractor {
             return fromAttribute;
         }
 
-        if (!hasRuntimeOverrideCapability(request)) {
-            return null;
-        }
-
-        Instant fromPrimaryHeader = parseObservedAt(request.getHeader("X-Contexa-Observed-At"));
-        if (fromPrimaryHeader != null) {
-            return fromPrimaryHeader;
-        }
-
-        return parseObservedAt(request.getHeader("X-Simulated-Observed-At"));
+        return null;
     }
 
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
-        if (hasRuntimeOverrideCapability(request)) {
-            return ClientIpResolver.resolveLegacy(request);
-        }
-
         if (security == null) {
             return ClientIpResolver.resolveLegacy(request);
         }
@@ -333,22 +297,7 @@ public final class RequestInfoExtractor {
         ));
     }
 
-    /**
-     * Runtime override and simulation headers are honored only for probes issued by this
-     * server. Scenario markers and request paths are client controlled and never qualify.
-     */
-    private static boolean hasRuntimeOverrideCapability(HttpServletRequest request) {
-        return request != null && OfficialVerificationProbeHeaders.isAuthorizedRuntimeOverride(
-                request.getHeader(OfficialVerificationProbeHeaders.RUNTIME_OVERRIDE_CAPABILITY));
-    }
-
     public static String extractUserAgent(HttpServletRequest request) {
-        if (hasRuntimeOverrideCapability(request)) {
-            String simulated = request.getHeader("X-Simulated-User-Agent");
-            if (simulated != null && !simulated.isEmpty()) {
-                return simulated;
-            }
-        }
         String userAgent = request.getHeader("User-Agent");
         return userAgent != null ? userAgent : "unknown";
     }
@@ -359,12 +308,8 @@ public final class RequestInfoExtractor {
             return text;
         }
         // A client X-Request-ID only correlates with the caller's logs (extractClientRequestId); reusing it must not let
-        // one request be taken for another, so the processing id is a server id unless the request carries the
-        // server issued capability.
-        String header = request.getHeader(CLIENT_REQUEST_ID_HEADER);
-        String resolved = header != null && !header.isBlank() && hasRuntimeOverrideCapability(request)
-                ? header
-                : UUID.randomUUID().toString();
+        // one request be taken for another, so the processing id is always a server id.
+        String resolved = UUID.randomUUID().toString();
         request.setAttribute(REQUEST_ID_ATTRIBUTE, resolved);
         return resolved;
     }
@@ -390,16 +335,6 @@ public final class RequestInfoExtractor {
             return null;
         }
         return text.length() > CLIENT_REQUEST_ID_MAX_LENGTH ? text.substring(0, CLIENT_REQUEST_ID_MAX_LENGTH) : text;
-    }
-
-    public static String extractScenario(HttpServletRequest request) {
-        // The scenario drives official verification classification and escalation protection
-        // scoping downstream, so a client supplied value must not reach the event payload.
-        if (!hasRuntimeOverrideCapability(request)) {
-            return null;
-        }
-        String scenario = request.getHeader("X-Contexa-Scenario");
-        return (scenario != null && !scenario.isBlank()) ? scenario.trim() : null;
     }
 
     private static Instant parseObservedAt(Object rawValue) {
@@ -505,7 +440,6 @@ public final class RequestInfoExtractor {
 
     private static String deriveDecisionBoundaryMode(
             HttpServletRequest request,
-            boolean runtimeOverrideHeadersAllowed,
             String requestedModelId,
             Double runtimeTemperature,
             Double runtimeTopP,
@@ -513,11 +447,7 @@ public final class RequestInfoExtractor {
             Integer runtimeMaxTokens,
             Boolean runtimeDisableRetries,
             Boolean runtimeDisableOllamaThinking) {
-        String explicitBoundaryMode = extractRuntimeHeaderOrAttribute(
-                request,
-                runtimeOverrideHeadersAllowed,
-                "X-Contexa-Decision-Boundary-Mode",
-                "decisionBoundaryMode");
+        String explicitBoundaryMode = extractAttributeText(request, "decisionBoundaryMode");
         if (explicitBoundaryMode != null && !explicitBoundaryMode.isBlank()) {
             return explicitBoundaryMode;
         }
@@ -534,23 +464,8 @@ public final class RequestInfoExtractor {
     }
 
 
-    private static String extractRuntimeHeaderOrAttribute(
-            HttpServletRequest request,
-            boolean runtimeOverrideHeadersAllowed,
-            String headerName,
-            String... attributeNames) {
-        if (runtimeOverrideHeadersAllowed) {
-            return extractHeaderOrAttribute(request, headerName, attributeNames);
-        }
-        return extractAttributeText(request, attributeNames);
-    }
-
-    private static Double extractDoubleRuntimeHeaderOrAttribute(
-            HttpServletRequest request,
-            boolean runtimeOverrideHeadersAllowed,
-            String headerName,
-            String... attributeNames) {
-        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
+    private static Double extractDoubleAttribute(HttpServletRequest request, String... attributeNames) {
+        String value = extractAttributeText(request, attributeNames);
         if (value == null) {
             return null;
         }
@@ -561,12 +476,8 @@ public final class RequestInfoExtractor {
         }
     }
 
-    private static Integer extractIntegerRuntimeHeaderOrAttribute(
-            HttpServletRequest request,
-            boolean runtimeOverrideHeadersAllowed,
-            String headerName,
-            String... attributeNames) {
-        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
+    private static Integer extractIntegerAttribute(HttpServletRequest request, String... attributeNames) {
+        String value = extractAttributeText(request, attributeNames);
         if (value == null) {
             return null;
         }
@@ -577,17 +488,11 @@ public final class RequestInfoExtractor {
         }
     }
 
-    private static Boolean extractBooleanRuntimeHeaderOrAttribute(
-            HttpServletRequest request,
-            boolean runtimeOverrideHeadersAllowed,
-            String headerName,
-            String... attributeNames) {
-        String value = extractRuntimeHeaderOrAttribute(request, runtimeOverrideHeadersAllowed, headerName, attributeNames);
-        if (value == null) {
-            return null;
-        }
-        return TruthValues.parse(value);
+    private static Boolean extractBooleanAttribute(HttpServletRequest request, String... attributeNames) {
+        String value = extractAttributeText(request, attributeNames);
+        return value == null ? null : TruthValues.parse(value);
     }
+
     private static Integer extractIntegerHeaderOrAttribute(HttpServletRequest request, String headerName, String... attributeNames) {
         String value = extractHeaderOrAttribute(request, headerName, attributeNames);
         if (value == null) {
@@ -739,17 +644,7 @@ public final class RequestInfoExtractor {
         private final String queryString;
         private final String remoteHost;
         private final String protocol;
-        private final String scenario;
-        private final String demoRunId;
-        private final String demoPhase;
-        private final String roundKey;
-        private final String behaviorPhase;
-        private final String anomalySignal;
-        private final String anomalySignalSource;
         private final String untrustedAnomalySignalClaim;
-        private final String pqaPromptFaultScenario;
-        private final Boolean pqaPromptFaultRejected;
-        private final String pqaPromptFaultRejectedSource;
         private final String decisionBoundaryMode;
         private final Double runtimeTemperature;
         private final Double runtimeTopP;

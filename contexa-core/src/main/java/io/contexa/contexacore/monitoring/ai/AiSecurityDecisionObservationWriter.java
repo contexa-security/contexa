@@ -30,12 +30,16 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 @Slf4j
 public class AiSecurityDecisionObservationWriter {
 
+    /** Why the provider gave no decision, as the orchestrator names it; kept as the failure type. */
+    private static final Set<String> PROVIDER_ANSWER_FAILURES =
+            Set.of("OUTPUT_TRUNCATED", "PROVIDER_REFUSAL", "PROVIDER_OVERLOADED", "PROVIDER_REQUEST_REJECTED");
     private static final String LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE = "UNKNOWN";
     private static final String LEGACY_TRIGGER_RELATION_NOT_APPLICABLE = "NOT_APPLICABLE";
     private static final String LEGACY_OUTCOME_NOT_APPLICABLE = "NOT_APPLICABLE";
@@ -150,6 +154,10 @@ public class AiSecurityDecisionObservationWriter {
         Map<String, Object> storedMetadata = metadataWithLatencyBreakdown(metadata, result, System.currentTimeMillis());
         if (result != null && result.getReasoning() != null) {
             storedMetadata.put("finalDecisionReasoning", SensitiveValueSanitizer.sanitizeText(result.getReasoning()));
+        }
+        // W4-3: the reason codes the model gave with the fact IDs they cite, next to the final reasoning.
+        if (result != null && result.getReasonCodes() != null && !result.getReasonCodes().isEmpty()) {
+            storedMetadata.put("finalDecisionReasonCodes", result.getReasonCodes());
         }
         if (contextBindingHash != null) {
             storedMetadata.put("contextBindingHash", contextBindingHash);
@@ -524,6 +532,10 @@ public class AiSecurityDecisionObservationWriter {
         }
         if (containsProviderTimeout(structuredFailure) || containsProviderTimeout(failureReason)) {
             return "PROVIDER_CALL_TIMEOUT";
+        }
+        // Why the provider gave no decision, as the orchestrator named it.
+        if (structuredFailure != null && PROVIDER_ANSWER_FAILURES.contains(structuredFailure.trim())) {
+            return structuredFailure.trim();
         }
         if (containsQueueTimeout(structuredFailure) || containsQueueTimeout(failureReason)) {
             return "QUEUE_TIMEOUT";

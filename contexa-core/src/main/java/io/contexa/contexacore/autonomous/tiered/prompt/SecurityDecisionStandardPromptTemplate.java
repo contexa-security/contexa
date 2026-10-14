@@ -34,6 +34,7 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.*;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import lombok.Getter;
 import lombok.Setter;
@@ -52,14 +53,55 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.11-v19.5",
+                    "2026.10.14-v19.12",
                     "CORTEX_PROMPT_CONTRACT_V2",
                     PromptReleaseStatus.PRODUCTION,
                     "contexa-cortex-core",
-                    "P2-COMPUTED-FACTS-DELEGATED-2026-10-11",
+                    "P3-GATE-GOLDEN-INPUTS-2026-10-14",
                     "protocol-938648df",
                     null,
-                    "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction)",
+                    "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction), and a change of device or of network within the session stated against the client the session first came from, in place of the binding-hash mismatch no code produced (W2-14), and the observed work pattern from the host's access history only, a missing history stated rather than the work profile repeated (W2-12); the budget profiles fitted to the v20 prompts, the render unchanged (TO-5); the verifier contracts left the bundle, the render unchanged (R4-B9); the interactive past record wait is 600 ms, the render unchanged (P3-EXTRA-4); golden inputs from the P3 gate measurement, the render unchanged (P2-CHANGE-25)",
+                    List.of(
+                            "STRICT_JSON_SCHEMA",
+                            "LOW_TEMPERATURE_SECURITY_DECISION",
+                            "EVIDENCE_ONLY_RETRIEVAL",
+                            "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI"
+                    ),
+                    SecurityDecisionStandardPromptTemplate.class.getName());
+
+    /**
+     * The v20 bundle (W3-16): the dictionary user prompt of P3, shipped next to the v19 bundle and run only when a
+     * selector chooses it. W3-18 changed its past records ({@code 2026.10.12-v20.2}), W3-19 gave each fact two lines
+     * state one source ({@code 2026.10.13-v20}), P3 extra 12 drew the fact IDs of every cited block
+     * ({@code 2026.10.13-v20.2}), W3-5 left out the items the user removed (Q-61, Q-73, {@code 2026.10.13-v20.3}) and
+     * the W3-19 notations that repeated one source were left out (Q-79, {@code 2026.10.13-v20.4}) and the dictionary
+     * form of the differences from the usual took a value without differences that states the closest past record
+     * (P3 extra 39, {@code 2026.10.13-v20.5}), the fact lines left out the instructions their producers write with
+     * the facts (TO-1 to TO-3, Q-84, Q-85) and the dictionary's UNKNOWN form took the renderer's words (P3 extra
+     * 37, {@code 2026.10.13-v20.6}), the bundle got its own system text (TO-4, W4-1 brought forward,
+     * {@code 2026.10.13-v20.7}), the budget profiles were fitted to its prompts (TO-5, {@code 2026.10.13-v20.8})
+     * and the facts and boundaries of the learning stage and of covered work were made clear (LU-1 to LU-4,
+     * {@code 2026.10.14-v20.9}, then the differences from a baseline not established yet,
+     * {@code 2026.10.14-v20.10}), the server-issued trusted signal left the dictionary and the system text (R4-T,
+     * {@code 2026.10.14-v20.11}), the verifier contracts left the bundle (R4-B9, {@code 2026.10.14-v20.12}) and the
+     * P3 extra work changed the wait, two session values and an example (P3-EXTRA-4, 13, 18, 34,
+     * {@code 2026.10.14-v20.13}) and the golden inputs came from the P3 gate measurement, so it ships as
+     * {@code 2026.10.14-v20.14}; the
+     * earlier v20 manifests stay as the records of what they were. It is not approved for runtime and not evaluated yet (version management 10: evaluation and
+     * approval come in P6 to P8).
+     */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V20_PROMPT_GOVERNANCE =
+            new PromptGovernanceDescriptor(
+                    "cortex.security-decision",
+                    STANDARD_TEMPLATE_KEY,
+                    "2026.10.14-v20.14",
+                    "CORTEX_PROMPT_CONTRACT_V3",
+                    PromptReleaseStatus.DRAFT,
+                    "contexa-cortex-core",
+                    "P3-GATE-GOLDEN-INPUTS-2026-10-14",
+                    "NOT-EVALUATED",
+                    "2026.10.14-v19.12",
+                    "Zero Trust runtime decision prompt in the v20 dictionary format: every user prompt line an entry of the prompt dictionary in its blocks (W3-1, W3-2); past records one per line, read by an exact lookup within the action family and counted on the target (W3-3, W3-4, W3-18); the items the user approved for removal left out (Q-61, Q-73, W3-5); untrusted texts in their own block (W3-6); budget trimming by dictionary priority without cutting a value (W3-7); stable parts first with a prompt cache key (W3-8); a Layer2 second pass that adds only what it found (W3-9); missing-knowledge kinds, source grades and data conflicts (W3-12); fact IDs and relative times in every cited block (W3-13, P3 extra 12); runtime rules under dictionary names (W3-14); one source per fact (W3-19, Q-79); one deviation form (P3 extra 39); fact lines without the instructions written with their facts and the UNKNOWN form from the renderer's words (TO-1 to TO-3, P3 extra 37); the v20 system text in the plan 6.3 order, with one set of boundaries on dictionary facts and the decision process in block order (TO-4, W4-1, P3 extra 33); the budget profiles fitted to these prompts (TO-5); the role scope line states its evidence state, the low-risk boundary counts only an unmet requirement and an established comparison, a covered-work boundary, the approval use the host reports or this session's count, one line per record, the reasoning limit for explanations, and differences from a baseline not established yet stated as such (LU-1 to LU-4); the server-issued trusted signal fact and the rules on it removed (R4-T, Q-78); the verifier contracts left the bundle (R4-B9); the interactive past record wait is 600 ms, a session denial without a method and a blank session type draw no empty text, the deviation example is the resolver form (P3-EXTRA-4, 13, 18, 34); golden inputs from the P3 gate measurement, the render unchanged (P2-CHANGE-25)",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -103,12 +145,33 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             PromptContextComposer promptContextComposer,
             PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
             PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider) {
+        this(eventEnricher,
+                tieredStrategyProperties,
+                canonicalSecurityContextProvider,
+                promptContextComposer,
+                promptGovernanceDescriptorResolver,
+                promptRuntimeGovernanceRuleProvider,
+                null);
+    }
+
+    /**
+     * @param promptBundleSelector chooses the bundle each request runs (W3-16); null for the configured bundle
+     *                             ({@code contexa.security.tiered.prompt-bundle.active})
+     */
+    public SecurityDecisionStandardPromptTemplate(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer,
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
+            PromptRuntimeGovernanceRuleProvider promptRuntimeGovernanceRuleProvider,
+            PromptBundleSelector promptBundleSelector) {
         this(new SecurityDecisionPromptSections(
                 eventEnricher,
                 tieredStrategyProperties,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
-                SECURITY_DECISION_PROMPT_GOVERNANCE,
+                promptBundleSelector,
                 promptGovernanceDescriptorResolver,
                 promptRuntimeGovernanceRuleProvider));
     }
@@ -121,6 +184,26 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public SecurityDecisionStandardPromptTemplate(SecurityDecisionPromptSections promptSections) {
         super(SecurityDecisionResponseLite.class);
         this.promptSections = promptSections;
+    }
+
+    /**
+     * The system prompt with the output format of the bundle the event runs (TO-4): the v20 bundle's wording check names
+     * the dictionary's facts.
+     */
+    @Override
+    public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
+        String domainPrompt = generateDomainSystemPrompt(request, systemMetadata);
+        String formatInstructions = shouldIncludeFormatInstructions(request)
+                ? SecurityDecisionContractSectionBuilder.formatInstructions(v20Bundle(request)) : null;
+        return assembleSystemPrompt(domainPrompt, formatInstructions, null);
+    }
+
+    /** Whether the request's event runs the v20 bundle; its bundle is fixed on the event by its first prompt. */
+    private boolean v20Bundle(AIRequest<? extends DomainContext> request) {
+        return request instanceof SecurityDecisionRequest securityDecisionRequest
+                && securityDecisionRequest.getContext() != null
+                && promptBundle(securityDecisionRequest.getContext().getSecurityEvent()).layout()
+                == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS;
     }
 
     @Override
@@ -156,6 +239,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     @Override
     public PromptGovernanceDescriptor getPromptGovernanceDescriptor() {
         return SECURITY_DECISION_PROMPT_GOVERNANCE;
+    }
+
+    /** The bundle the event runs, fixed on the event for its later prompts (W3-16, W3-18). */
+    public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
+        return promptSections.bundleOf(event);
     }
 
     @Override
@@ -245,13 +333,21 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
                 securityDecisionRequest.getParameter("promptBudgetProfile", String.class),
                 null);
         StructuredOutputMode structuredOutputMode = resolveStructuredOutputMode(securityDecisionRequest);
-        StructuredPrompt structuredPrompt = buildStructuredPrompt(
+        // W3-9: a Layer2 second pass keeps the first prompt and adds only the facts it gathered.
+        SecurityDecisionPromptSections.SecondPass secondPass = SecurityDecisionPromptSections.SecondPass.of(
+                securityDecisionRequest.getParameter("layer2FirstPassUserPrompt", String.class),
+                securityDecisionRequest.getParameter("layer2FirstPassVerdict", String.class),
+                securityDecisionRequest.getParameter("layer2FirstPassPastRecordsState", String.class));
+        // W3-7: the prompt budget is counted for the model the request names, as the reported budget is.
+        StructuredPrompt structuredPrompt = promptSections.buildStructuredPrompt(
                 context.getSecurityEvent(),
                 context.getSessionContext(),
                 context.getBehaviorAnalysis(),
                 context.getRelatedDocuments(),
                 budgetProfile,
-                structuredOutputMode
+                structuredOutputMode,
+                PromptGovernanceSupport.resolveRequestedModelHint(securityDecisionRequest),
+                secondPass
         );
         request.withParameter(STRUCTURED_PROMPT_CACHE_KEY, structuredPrompt);
         return structuredPrompt;
@@ -333,7 +429,10 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
         private String currentUserAgentBrowser;
         private Long lastRequestIntervalMs;
         private String previousPath;
-        private Boolean contextBindingHashMismatch;
+        /** The session's first device and this request's when they differ, "first -> current" (W2-14). */
+        private String sessionDeviceChange;
+        /** The session's first network and this request's when they differ, "first -> current" (W2-14). */
+        private String sessionNetworkChange;
         private Double baselineAvgRequestRate;
         private boolean personalBaselineAvailable;
         private boolean personalBaselineEstablished;
@@ -466,8 +565,12 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             return previousPath;
         }
 
-        public Boolean getContextBindingHashMismatch() {
-            return contextBindingHashMismatch;
+        public String getSessionDeviceChange() {
+            return sessionDeviceChange;
+        }
+
+        public String getSessionNetworkChange() {
+            return sessionNetworkChange;
         }
 
         public Double getBaselineAvgRequestRate() {

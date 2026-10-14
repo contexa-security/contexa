@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -51,6 +52,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
+import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
 
 public class DefaultProtectableWorkProfileCollector implements ProtectableWorkProfileCollector {
@@ -66,6 +68,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     private static final String SERIALIZATION_VERSION_V2 = "v2";
     private static final String SERIALIZATION_VERSION_V3 = "v3";
     private static final String SERIALIZATION_VERSION_V4 = "v4";
+    private static final String SERIALIZATION_VERSION_V5 = "v5";
     private static final String PROFILE_KEY = "PERSONAL_WORK_PROFILE";
     private static final String COLLECTOR_ID = "PROTECTABLE_WORK_PROFILE_COLLECTOR";
 
@@ -164,12 +167,42 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 observation.actionFamily(),
                 observation.actionFamilySourceKey(),
                 observation.actionFamilyFallback(),
-                firstText(observation.sensitivity(), observation.resourceFamily()),
+                classValueOf(observation),
                 observation.pathTemplate(),
                 observation.requestPath(),
                 observation.sessionKey(),
                 "ALLOWED".equals(observation.decisionState()),
-                observation.requestedItems());
+                observation.requestedItems(),
+                observation.weight());
+    }
+
+    /**
+     * Records a request a restriction stopped, once the user was verified, as an observation at the given weight and
+     * at the request's own time (W5-2).
+     */
+    @Override
+    public void recordVerified(SecurityEvent event, double weight) {
+        if (event == null || !StringUtils.hasText(event.getUserId())) {
+            return;
+        }
+        WorkProfileObservation observation = createObservation(event);
+        if (!shouldPersist(observation)) {
+            return;
+        }
+        dataStore.addWorkProfileObservation(resolveTenantId(event), event.getUserId().trim(),
+                serialize(observation.withWeight(weight)));
+    }
+
+    /**
+     * The classification value the observation holds: its sensitivity, which carries a classifying type too (W2-11),
+     * else its family when that came from the type (observations stored before W2-11). A family hint the host declared
+     * names a business category and never decides the class (W2-10).
+     */
+    private String classValueOf(WorkProfileObservation observation) {
+        if (StringUtils.hasText(observation.sensitivity())) {
+            return observation.sensitivity();
+        }
+        return "resourceType".equals(observation.resourceFamilySourceKey()) ? observation.resourceFamily() : null;
     }
 
     private Optional<ProtectableWorkProfileSnapshot> buildSnapshot(
@@ -342,12 +375,12 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         appendQualityWarning(qualityWarnings, actionField);
         appendQualityWarning(qualityWarnings, densityField);
         if (observationCount < 10) {
-            qualityWarnings.add("Work profile baseline is thin; treat pattern claims as provisional until more allowed observations accumulate.");
+            qualityWarnings.add("Work profile baseline is thin; " + ContextEvidenceGuidance.PATTERN_CLAIMS_PROVISIONAL + ".");
         }
         if (!actionField.getFallbackSourceKeys().isEmpty()) {
-            qualityWarnings.add("Action family baseline includes fallback-derived signals; do not treat it as a standalone indicator of user intent.");
+            qualityWarnings.add("Action family baseline includes fallback-derived signals; " + ContextEvidenceGuidance.NOT_AN_INTENT_INDICATOR + ".");
         }
-        qualityWarnings.add("This profile describes enacted post-auth access behavior, not approved business intent, approval lineage, or delegated objective.");
+        qualityWarnings.add(ContextEvidenceGuidance.WORK_PROFILE_NOTE);
 
         List<ContextEvidenceRecord> evidenceRecords = observations.stream()
                 .sorted((left, right) -> Long.compare(right.timestampMs(), left.timestampMs()))
@@ -374,8 +407,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 .overallQualityGrade(overallGrade)
                 .overallQualityScore(overallScore)
                 .scopeLimitations(List.of(
-                        "Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.",
-                        "Approval lineage, delegated intent, and human purpose require friction, delegation, or enterprise memory context."))
+                        ContextEvidenceGuidance.WORK_PROFILE_USE,
+                        ContextEvidenceGuidance.WORK_PROFILE_PURPOSE_SOURCES))
                 .qualityWarnings(qualityWarnings)
                 .fieldRecords(fieldRecords)
                 .evidenceRecords(evidenceRecords)
@@ -826,12 +859,14 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     private ResolvedSignal resolveResourceFamily(Map<String, Object> metadata) {
+        // The official field first, the unprefixed hints, the protected method's descriptor, then the type (W2-11).
         return resolveSignal(metadata,
                 true,
+                "resourceCategory",
                 "currentResourceFamily",
                 "resourceFamily",
-                true, "resourceType",
-                true, "resourceCategory");
+                "protectableResourceCategory",
+                true, "resourceType");
     }
 
     /** The request's action family as the context gives it; a family the host did not declare is a fallback. */
@@ -843,12 +878,23 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         return new ResolvedSignal(action.family().name(), action.sourceKey(), action.inferred());
     }
 
+    /**
+     * The request's sensitivity, else a classification value its type states (W2-11): the canonical class reads both,
+     * and the type is no longer the observation's family once a category is declared.
+     */
     private ResolvedSignal resolveSensitivity(Map<String, Object> metadata) {
-        return resolveSignal(metadata,
+        ResolvedSignal stated = resolveSignal(metadata,
                 true,
                 "resourceSensitivity",
                 "sensitivity",
                 true, "sensitivityLevel");
+        if (stated.value() != null || metadata == null) {
+            return stated;
+        }
+        Object type = metadata.get("resourceType");
+        return SecuritySemanticNormalizer.normalizeResourceClass(type) != null
+                ? new ResolvedSignal(normalizeToken(type.toString()), "resourceType", true)
+                : stated;
     }
 
     private ResolvedBoolean resolveProtectable(Map<String, Object> metadata) {
@@ -876,6 +922,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         Boolean sensitivityBased = resolveBoolean(
                 metadata.get("isSensitiveResource"),
                 metadata.get("privileged"),
+                metadata.get("protectablePrivileged"),
                 metadata.get("exportSensitive"));
         if (sensitivityBased != null) {
             return new ResolvedBoolean(sensitivityBased, "isSensitiveResource", true);
@@ -948,8 +995,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         };
     }
 
+    /** An observation counted whole keeps the v4 form; one learned after a verification adds its weight (v5). */
     private String serialize(WorkProfileObservation observation) {
-        return SERIALIZATION_VERSION_V4
+        boolean whole = observation.weight() == 1.0;
+        return (whole ? SERIALIZATION_VERSION_V4 : SERIALIZATION_VERSION_V5)
                 + "|" + encodeNullable(observation.observationId())
                 + "|" + observation.timestampMs()
                 + "|" + encodeNullableBoolean(observation.protectable())
@@ -971,7 +1020,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 + "|" + encodeNullable(observation.pathTemplate())
                 + "|" + encodeNullable(observation.sessionKey())
                 + "|" + encodeNullable(observation.requestedItems() != null
-                ? observation.requestedItems().toString() : null);
+                ? observation.requestedItems().toString() : null)
+                + (whole ? "" : "|" + observation.weight());
     }
 
     private WorkProfileObservation deserialize(String raw) {
@@ -980,8 +1030,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         }
         String[] parts = raw.split("\\|", -1);
         try {
-            // v3 adds the URL template and the session key, v4 the item count; older observations read without them.
-            boolean v4 = SERIALIZATION_VERSION_V4.equals(parts[0]) && parts.length == 22;
+            // v3 adds the URL template and the session key, v4 the item count, v5 the weight of a request learned
+            // after a verification (W5-2); older observations read without them, counted whole.
+            boolean v5 = SERIALIZATION_VERSION_V5.equals(parts[0]) && parts.length == 23;
+            boolean v4 = v5 || SERIALIZATION_VERSION_V4.equals(parts[0]) && parts.length == 22;
             boolean v3 = v4 || SERIALIZATION_VERSION_V3.equals(parts[0]) && parts.length == 21;
             if (v3 || SERIALIZATION_VERSION_V2.equals(parts[0]) && parts.length == 19) {
                 return new WorkProfileObservation(
@@ -1005,7 +1057,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         decodeBoolean(parts[18]),
                         v3 ? decodeNullable(parts[19]) : null,
                         v3 ? decodeNullable(parts[20]) : null,
-                        v4 ? decodeItems(decodeNullable(parts[21])) : null);
+                        v4 ? decodeItems(decodeNullable(parts[21])) : null,
+                        v5 ? Double.parseDouble(parts[22]) : 1.0);
             }
             if (parts.length == 7) {
                 String fingerprint = String.join("|", parts);
@@ -1260,7 +1313,32 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             boolean protectableFallback,
             String pathTemplate,
             String sessionKey,
-            Integer requestedItems) {
+            Integer requestedItems,
+            double weight) {
+
+        /** An observation counted whole. */
+        private WorkProfileObservation(String observationId, long timestampMs, String requestPath,
+                                       String requestPathSourceKey, boolean requestPathFallback, String resourceFamily,
+                                       String resourceFamilySourceKey, boolean resourceFamilyFallback,
+                                       String actionFamily, String actionFamilySourceKey, boolean actionFamilyFallback,
+                                       String sensitivity, String sensitivitySourceKey, boolean sensitivityFallback,
+                                       String decisionState, Boolean protectable, String protectableSourceKey,
+                                       boolean protectableFallback, String pathTemplate, String sessionKey,
+                                       Integer requestedItems) {
+            this(observationId, timestampMs, requestPath, requestPathSourceKey, requestPathFallback, resourceFamily,
+                    resourceFamilySourceKey, resourceFamilyFallback, actionFamily, actionFamilySourceKey,
+                    actionFamilyFallback, sensitivity, sensitivitySourceKey, sensitivityFallback, decisionState,
+                    protectable, protectableSourceKey, protectableFallback, pathTemplate, sessionKey, requestedItems,
+                    1.0);
+        }
+
+        private WorkProfileObservation withWeight(double weight) {
+            return new WorkProfileObservation(observationId, timestampMs, requestPath, requestPathSourceKey,
+                    requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
+                    actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
+                    sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
+                    pathTemplate, sessionKey, requestedItems, weight);
+        }
     }
 
     private static Integer decodeItems(String value) {

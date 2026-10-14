@@ -22,7 +22,14 @@ public record PromptSlot(
         Object sourceValue,
         String renderedValue,
         String narrative,
-        String priority) {
+        String priority,
+        PromptDictionaryEntry dictionaryEntry) {
+
+    /** A rendered line without a dictionary entry. */
+    public PromptSlot(String slotKey, String section, String label, Object sourceValue, String renderedValue,
+                      String narrative, String priority) {
+        this(slotKey, section, label, sourceValue, renderedValue, narrative, priority, null);
+    }
 
     public static final String UNSCOPED_SECTION = "UNSCOPED";
     public static final String DEFAULT_PRIORITY = "STANDARD";

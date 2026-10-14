@@ -84,13 +84,23 @@ public interface BusinessContextLookup {
     record AssignmentStatus(boolean assigned, String responsibility) {
     }
 
-    /** @param approvedAt when the approval was decided; null when the record does not say (survey D5) */
+    /**
+     * @param approvedAt when the approval was decided; null when the record does not say (survey D5)
+     * @param usedItems  items already delivered under the approval before the request: the requester's exports of its
+     *                   project within its validity (LU-2); null when not counted
+     */
     record ApprovalCoverage(boolean covered, String approvalKey, String approver, String purpose, int maxItems,
-                            Instant validFrom, Instant validUntil, List<String> mismatches, Instant approvedAt) {
+                            Instant validFrom, Instant validUntil, List<String> mismatches, Instant approvedAt,
+                            Integer usedItems) {
 
         public ApprovalCoverage(boolean covered, String approvalKey, String approver, String purpose, int maxItems,
                                 Instant validFrom, Instant validUntil, List<String> mismatches) {
-            this(covered, approvalKey, approver, purpose, maxItems, validFrom, validUntil, mismatches, null);
+            this(covered, approvalKey, approver, purpose, maxItems, validFrom, validUntil, mismatches, null, null);
+        }
+
+        public ApprovalCoverage(boolean covered, String approvalKey, String approver, String purpose, int maxItems,
+                                Instant validFrom, Instant validUntil, List<String> mismatches, Instant approvedAt) {
+            this(covered, approvalKey, approver, purpose, maxItems, validFrom, validUntil, mismatches, approvedAt, null);
         }
 
         public static ApprovalCoverage none() {

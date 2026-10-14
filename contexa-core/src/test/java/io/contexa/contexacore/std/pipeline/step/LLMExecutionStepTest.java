@@ -284,6 +284,28 @@ class LLMExecutionStepTest {
     private AIRequest<TestContext> securityRequest() {
         return new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
     }
+    /** P3-EXTRA-9: the platform's model call limit of a security decision reaches the execution context. */
+    @Test
+    void securityDecisionCarriesThePlatformCallLimitToTheProviderCall() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-call-limit");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("call limit prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponse.class);
+        AIRequest<TestContext> request = new AIRequest<>(new TestContext(), new TemplateType("security"),
+                new DiagnosisType("decision"));
+        request.withParameter("responseType", SecurityDecisionResponse.class);
+        request.withParameter("platformSecurityDecisionCallTimeoutMs", 1500L);
+
+        step.execute(request, context).block();
+
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry(ExecutionContext.CALL_TIMEOUT_MS, 1500L);
+    }
+
     @Test
     void securityDecisionShouldIgnoreRuntimeOptionsAndApplyPlatformOutputLimit() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
@@ -332,42 +354,78 @@ class LLMExecutionStepTest {
         assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.decisionBoundaryMode", String.class)).isEqualTo("decisionBoundaryMode");
     }
 
+    /**
+     * R4-L4: a security decision takes no model and no output limit from the request; the former verification pin is
+     * an ignored override like any other, and the model call uses the configured model and the platform limit.
+     */
     @Test
-    void securityDecisionShouldAllowOfficialVerificationPinnedModelAndOutputLimit() {
+    void aSecurityDecisionTakesNoPinnedModelOrOutputLimitFromTheRequest() {
         RecordingLlmClient llmClient = new RecordingLlmClient();
         llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
         LLMExecutionStep step = new LLMExecutionStep(llmClient);
-        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-official-pinned-model");
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-no-pinned-model");
         context.addStepResult(
                 PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
                 new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
-
-        TestContext domainContext = new TestContext();
-        AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("requestedModelId", "client-selected-model");
+        AIRequest<TestContext> request = new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
         request.withParameter("officialVerificationPinnedModelId", "gpt-5-nano");
         request.withParameter("officialVerificationMaxTokens", 128);
-        request.withParameter("temperature", 0.0d);
 
-        Object response = step.execute(request, context).block();
+        step.execute(request, context).block();
 
-        assertThat(response).isEqualTo(llmClient.rawResponse);
-        assertThat(llmClient.lastExecutionContext).isNotNull();
-        assertThat(llmClient.lastExecutionContext.getPreferredModel()).isEqualTo("gpt-5-nano");
-        assertThat(llmClient.lastExecutionContext.getMaxTokens()).isEqualTo(128);
-        assertThat(llmClient.lastExecutionContext.getTemperature()).isNull();
+        assertThat(llmClient.lastExecutionContext.getPreferredModel()).isNull();
+        assertThat(llmClient.lastExecutionContext.getMaxTokens()).isNull();
         assertThat(llmClient.lastExecutionContext.getMetadata())
-                .containsEntry("requestedModelId", "gpt-5-nano")
-                .containsEntry("preferredModel", "gpt-5-nano")
-                .containsEntry("runtimeModelId", "gpt-5-nano")
-                .containsEntry("requestedModelSourceKey", "officialVerificationPinnedModelId")
-                .containsEntry("maxTokens", 128)
-                .doesNotContainKey("temperature");
-        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored", Boolean.class)).isTrue();
-        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.preferredModel", String.class)).isEqualTo("requestedModelId");
-        assertThat(context.getMetadata("securityDecisionRuntimeOverrideIgnored.temperature", String.class)).isEqualTo("temperature");
+                .doesNotContainEntry("requestedModelSourceKey", "officialVerificationPinnedModelId");
     }
+
+    /** W4-2: the output schema the strategy asked for reaches the model call, and whether it went out comes back. */
+    @Test
+    void securityDecisionShouldPassTheOutputSchemaToTheModelCall() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
+        llmClient.outputSchemaApplied = true;
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-output-schema");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponse.class);
+        AIRequest<TestContext> request = new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("responseType", SecurityDecisionResponse.class);
+        request.withParameter(ExecutionContext.OUTPUT_SCHEMA, "{\"type\":\"object\"}");
+
+        step.execute(request, context).block();
+
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry(ExecutionContext.OUTPUT_SCHEMA, "{\"type\":\"object\"}");
+        assertThat(context.getMetadata(ExecutionContext.OUTPUT_SCHEMA_APPLIED, Boolean.class)).isTrue();
+    }
+
+    /** W3-8: the prompt cache key the prompt step recorded reaches the model call, and whether it was sent comes back. */
+    @Test
+    void securityDecisionShouldPassThePromptCacheKeyToTheModelCall() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Canonical facts support this request.\"}";
+        llmClient.promptCacheKeyApplied = true;
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = new PipelineExecutionContext("exec-security-prompt-cache-key");
+        context.addStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+                new PromptGenerationResult(new Prompt("runtime selection prompt"), "system", "user", Map.of(), null));
+        context.addMetadata("aiGenerationType", SecurityDecisionResponse.class);
+        context.addMetadata("promptCacheKey", "contexa-0123456789abcdef");
+        AIRequest<TestContext> request = new AIRequest<>(new TestContext(), new TemplateType("security"), new DiagnosisType("decision"));
+        request.withParameter("responseType", SecurityDecisionResponse.class);
+
+        step.execute(request, context).block();
+
+        assertThat(llmClient.lastExecutionContext.getMetadata())
+                .containsEntry("promptCacheKey", "contexa-0123456789abcdef");
+        assertThat(context.getMetadata("promptCacheKeyApplied", Boolean.class)).isTrue();
+    }
+
     @Test
     void executeShouldDeriveActualPromptBudgetTelemetryFromProviderUsage() {
         ObservedPromptTokenUsageRegistry.clear();
@@ -386,10 +444,11 @@ class LLMExecutionStepTest {
         context.addMetadata("aiGenerationType", SecurityDecisionResponseLite.class);
         context.addMetadata("budgetMaxInputTokens", 1500);
         context.addMetadata("llmTotalPromptLength", 1860);
+        // R4-L4: the calibration is kept under the model the provider answered with; no request pins it.
+        context.addMetadata("providerResponseModel", "gpt-4o-mini");
 
         TestContext domainContext = new TestContext();
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("officialVerificationPinnedModelId", "gpt-4o-mini");
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 
         try {
@@ -479,7 +538,6 @@ class LLMExecutionStepTest {
 
         TestContext domainContext = new TestContext();
         AIRequest<TestContext> request = new AIRequest<>(domainContext, new TemplateType("security"), new DiagnosisType("decision"));
-        request.withParameter("officialVerificationPinnedModelId", "gpt-4o-mini");
         request.withParameter("nativeStructuredOutputEnabled", false);
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
 
@@ -531,6 +589,8 @@ class LLMExecutionStepTest {
         private Integer actualCompletionTokens;
         private Integer actualTotalTokens;
         private Boolean actualTokenUsageAvailable;
+        private Boolean promptCacheKeyApplied;
+        private Boolean outputSchemaApplied;
 
         @Override
         public Mono<String> execute(ExecutionContext context) {
@@ -595,6 +655,12 @@ class LLMExecutionStepTest {
             }
             if (actualTokenUsageAvailable != null) {
                 context.addMetadata("actualTokenUsageAvailable", actualTokenUsageAvailable);
+            }
+            if (outputSchemaApplied != null) {
+                context.addMetadata(ExecutionContext.OUTPUT_SCHEMA_APPLIED, outputSchemaApplied);
+            }
+            if (promptCacheKeyApplied != null) {
+                context.addMetadata("promptCacheKeyApplied", promptCacheKeyApplied);
             }
         }
     }

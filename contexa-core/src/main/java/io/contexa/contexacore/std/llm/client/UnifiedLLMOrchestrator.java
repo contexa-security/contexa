@@ -29,6 +29,8 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionOutputParser;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -42,16 +44,20 @@ import java.util.concurrent.TimeoutException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
@@ -63,6 +69,19 @@ import reactor.util.retry.Retry;
 @RequiredArgsConstructor
 public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClient {
 
+    /**
+     * Spring AI's exceptions for a provider's HTTP error: a 4xx is non-transient, a 5xx transient (the retry module is
+     * not a dependency of the core, so they are told by name).
+     */
+    private static final String NON_TRANSIENT_AI_EXCEPTION = "org.springframework.ai.retry.NonTransientAiException";
+    private static final String TRANSIENT_AI_EXCEPTION = "org.springframework.ai.retry.TransientAiException";
+    /** Spring AI's message of a provider's HTTP error: "HTTP 400 - {body}". */
+    private static final Pattern HTTP_STATUS = Pattern.compile("^HTTP (\\d{3})\\b");
+    /** The 4xx statuses that may pass when the same request is sent again: a timeout, a conflict, a rate limit. */
+    private static final Set<Integer> RETRYABLE_CLIENT_STATUSES = Set.of(408, 409, 429);
+    private static final int PROVIDER_OVERLOADED_STATUS = 529;
+    private static final String EMPTY_RESPONSE_MESSAGE = "LLM response is null or empty";
+
     private final ModelSelectionStrategy modelSelectionStrategy;
     private final StreamingHandler streamingHandler;
     private final TieredLLMProperties tieredLLMProperties;
@@ -73,6 +92,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final ConcurrentHashMap<ChatModel, ChatClient> chatClientNoAdvisorCache = new ConcurrentHashMap<>();
     private final SecurityDecisionOutputParser securityDecisionOutputParser = new SecurityDecisionOutputParser();
     private volatile List<Advisor> cachedAdvisorSnapshot = List.of();
+    private volatile ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
     private final ProviderThrottle providerThrottle = new ProviderThrottle();
     private static final AtomicInteger PROVIDER_CALL_THREAD_SEQUENCE = new AtomicInteger();
     private static final ExecutorService PROVIDER_CALL_EXECUTOR = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -119,7 +139,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     if (response == null || response.isBlank()) {
                         String requestId = context.getRequestId();
                         log.error("LLM response is null or empty - RequestId: {}", requestId);
-                        throw new IllegalStateException("LLM response is null or empty"
+                        throw new IllegalStateException(EMPTY_RESPONSE_MESSAGE
                                 + (requestId != null && !requestId.isBlank() ? " - RequestId: " + requestId : ""));
                     }
                     return response;
@@ -150,7 +170,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                 ChatClient chatClient = buildChatClient(selectedModel, context.getAdvisorEnabled());
 
-                return streamingHandler.handleStreaming(chatClient, context, selectedModel);
+                // A stream asked with tools (streamTools, streamToolCallbacks) goes where the tools are attached.
+                return Boolean.TRUE.equals(context.getToolExecutionEnabled())
+                        ? streamingHandler.handleStreamingWithTools(chatClient, context, selectedModel)
+                        : streamingHandler.handleStreaming(chatClient, context, selectedModel);
             } catch (Exception e) {
                 log.error("LLM Streaming failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
@@ -215,7 +238,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     log.error("LLM security decision raw guarded execution failed - RequestId: {}",
                             context.getRequestId(), error);
                     context.addMetadata("rawExecutionSucceeded", false);
-                    String failureCategory = isTimeoutFailure(error) ? providerTimeoutFailureCategory(context) : "MODEL_UNAVAILABLE";
+                    String failureCategory = isTimeoutFailure(error)
+                            ? providerTimeoutFailureCategory(context) : providerFailureCategory(context, error);
                     context.addMetadata("structuredOutputFailureCategory", failureCategory);
                     context.addMetadata("securityDecisionParseFailureCategory", failureCategory);
                     context.addMetadata("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
@@ -224,6 +248,54 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     context.addMetadata("structuredOutputComplete", true);
                     return Mono.just(targetType.cast(parseSecurityDecisionRawResponse("", context)));
                 });
+    }
+
+    /**
+     * Why a call that did not time out gave no decision: the provider stopped at the output limit (its reasoning or
+     * thinking may use it up), refused, sent an empty answer, was overloaded or refused the request itself; otherwise
+     * the model was unavailable.
+     */
+    private String providerFailureCategory(ExecutionContext context, Throwable error) {
+        Object finish = context != null ? context.getMetadata().get("providerFinishReason") : null;
+        String reason = finish != null ? finish.toString().trim().toLowerCase(Locale.ROOT) : "";
+        if ("length".equals(reason) || "max_tokens".equals(reason)) {
+            return "OUTPUT_TRUNCATED";
+        }
+        if ("refusal".equals(reason) || "content_filter".equals(reason)) {
+            return "PROVIDER_REFUSAL";
+        }
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage() != null ? current.getMessage() : "";
+            if (message.startsWith(EMPTY_RESPONSE_MESSAGE)) {
+                return "EMPTY_RESPONSE";
+            }
+            Integer status = httpStatus(message);
+            if ((status != null && status == PROVIDER_OVERLOADED_STATUS) || message.contains("overloaded_error")) {
+                return "PROVIDER_OVERLOADED";
+            }
+            if (isA(current, NON_TRANSIENT_AI_EXCEPTION)
+                    && (status == null || !RETRYABLE_CLIENT_STATUSES.contains(status))) {
+                return "PROVIDER_REQUEST_REJECTED";
+            }
+            current = current.getCause();
+        }
+        return "MODEL_UNAVAILABLE";
+    }
+
+    private static Integer httpStatus(String message) {
+        Matcher matcher = HTTP_STATUS.matcher(message != null ? message.trim() : "");
+        return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+    }
+
+    /** Whether the throwable is of the named class or one of its subclasses. */
+    private static boolean isA(Throwable throwable, String className) {
+        for (Class<?> type = throwable.getClass(); type != null; type = type.getSuperclass()) {
+            if (type.getName().equals(className)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean securityDecisionParsingFallbackApplied(ExecutionContext context) {
@@ -405,7 +477,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             ExecutionContext context,
             ChatModel selectedModel,
             Callable<T> providerCall) {
-        long timeoutMs = providerCallTimeoutMs();
+        long timeoutMs = providerCallTimeoutMs(context);
         if (context != null && timeoutMs > 0L) {
             context.addMetadata("providerCallTimeoutMs", timeoutMs);
         }
@@ -475,7 +547,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     }
 
     private void enforceProviderCallTimeout(ExecutionContext context, ChatModel selectedModel, long providerCallMs) {
-        long timeoutMs = providerCallTimeoutMs();
+        long timeoutMs = providerCallTimeoutMs(context);
         if (timeoutMs <= 0L) {
             return;
         }
@@ -512,13 +584,26 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         context.addMetadata("providerCallFailureCategory", failureCategory);
         context.addMetadata("providerCallFailureClass", error.getClass().getName());
         context.addMetadata("providerCallFailureMessage", SensitiveValueSanitizer.sanitizeText(error.getMessage()));
-        context.addMetadata("providerCallTimeoutMs", providerCallTimeoutMs());
+        context.addMetadata("providerCallTimeoutMs", providerCallTimeoutMs(context));
         if ("PROVIDER_CALL_TIMEOUT".equals(failureCategory)) {
             context.addMetadata("providerCallExceededTimeout", true);
             context.addMetadata("decisionFailureCategory", "PROVIDER_CALL_TIMEOUT");
             context.addMetadata("structuredOutputFailureCategory", "PROVIDER_CALL_TIMEOUT");
             context.addMetadata("securityDecisionParseFailureCategory", "PROVIDER_CALL_TIMEOUT");
         }
+    }
+
+    /** The platform's provider call limit, lowered to the calling layer's model call limit when it sets one. */
+    private long providerCallTimeoutMs(ExecutionContext context) {
+        long platformMs = providerCallTimeoutMs();
+        long layerMs = context != null && context.getMetadata() != null
+                && context.getMetadata().get(ExecutionContext.CALL_TIMEOUT_MS) instanceof Number number
+                ? number.longValue()
+                : 0L;
+        if (layerMs <= 0L) {
+            return platformMs;
+        }
+        return platformMs <= 0L ? layerMs : Math.min(platformMs, layerMs);
     }
 
     private long providerCallTimeoutMs() {
@@ -860,11 +945,40 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 StructuredOutputMode.LEGACY_RAW);
     }
 
+    /**
+     * The answer text. A provider that returns its thinking as generations before the answer (Anthropic's thinking
+     * blocks, which carry their signature, and redacted ones, which carry their data) has its answer in the other
+     * generations, and with thinking alone (the output limit stopped it before the answer) no answer came back.
+     */
     private String extractResponseText(ChatResponse chatResponse) {
         if (chatResponse == null || chatResponse.getResult() == null || chatResponse.getResult().getOutput() == null) {
             return null;
         }
-        return chatResponse.getResult().getOutput().getText();
+        StringBuilder answer = new StringBuilder();
+        boolean answered = false;
+        boolean thought = false;
+        for (Generation generation : chatResponse.getResults()) {
+            AssistantMessage output = generation != null ? generation.getOutput() : null;
+            if (output == null) {
+                continue;
+            }
+            if (isThinking(output)) {
+                thought = true;
+                continue;
+            }
+            answered = true;
+            if (output.getText() != null) {
+                answer.append(output.getText());
+            }
+        }
+        if (!thought) {
+            return chatResponse.getResult().getOutput().getText();
+        }
+        return answered ? answer.toString() : null;
+    }
+
+    private static boolean isThinking(AssistantMessage output) {
+        return ThinkingGenerationAdvisor.isThinking(output);
     }
 
     private void captureResponseMetadata(ExecutionContext context, ChatModel selectedModel, ChatResponse chatResponse) {
@@ -876,6 +990,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return;
         }
 
+        // The finish reason of the answer: a cut at the output limit or a refusal is told apart when no decision came.
+        String finishReason = answerFinishReason(chatResponse);
+        if (finishReason != null) {
+            context.addMetadata("providerFinishReason", finishReason);
+        }
         ChatResponseMetadata metadata = chatResponse.getMetadata();
         if (metadata == null) {
             context.addMetadata("actualTokenUsageAvailable", false);
@@ -900,6 +1019,23 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         Integer promptTokens = usage != null ? usage.getPromptTokens() : null;
         Integer completionTokens = usage != null ? usage.getCompletionTokens() : null;
         Integer totalTokens = usage != null ? usage.getTotalTokens() : null;
+        // Anthropic counts its prompt cache reads and writes apart from its input tokens; the prompt tokens are all of
+        // them, as OpenAI counts them.
+        Object nativeUsage = usage != null ? usage.getNativeUsage() : null;
+        Integer cacheReads = nativeInteger(nativeUsage, "cacheReadInputTokens");
+        Integer cacheWrites = nativeInteger(nativeUsage, "cacheCreationInputTokens");
+        if (promptTokens != null && (cacheReads != null || cacheWrites != null)) {
+            promptTokens += (cacheReads != null ? cacheReads : 0) + (cacheWrites != null ? cacheWrites : 0);
+            totalTokens = completionTokens != null ? promptTokens + completionTokens : promptTokens;
+        }
+        if (cacheWrites != null) {
+            context.addMetadata("cacheWritePromptTokens", cacheWrites);
+        }
+        // The reasoning tokens OpenAI counts inside its output tokens.
+        Integer reasoningTokens = nativeInteger(nativeValue(nativeUsage, "completionTokenDetails"), "reasoningTokens");
+        if (reasoningTokens != null) {
+            context.addMetadata("reasoningTokens", reasoningTokens);
+        }
         boolean usageAvailable = promptTokens != null || completionTokens != null || totalTokens != null;
         context.addMetadata("actualTokenUsageAvailable", usageAvailable);
         if (promptTokens != null) {
@@ -912,12 +1048,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             context.addMetadata("actualTotalTokens", totalTokens);
         }
 
+        // A provider that reports no cached token count leaves the hit unknown, so no hit value is recorded.
         Integer cachedPromptTokens = extractCachedPromptTokens(metadata, usage);
         if (cachedPromptTokens != null) {
             context.addMetadata("cachedPromptTokens", cachedPromptTokens);
             context.addMetadata("promptCacheHit", cachedPromptTokens > 0);
-        } else if (context.getMetadata().containsKey("promptCacheEligible")) {
-            context.addMetadata("promptCacheHit", false);
         }
     }
 
@@ -930,13 +1065,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return null;
         }
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            String key = entry.getKey() != null ? entry.getKey().toLowerCase(Locale.ROOT) : "";
+            if (entry.getValue() instanceof Number number) {
+                // A number under another name (a creation time, an evaluation count) is no cached token count.
+                if (key.contains("cached")) {
+                    return number.intValue();
+                }
+                continue;
+            }
             Integer extracted = extractCachedPromptTokensFromUnknown(entry.getValue());
             if (extracted != null) {
                 return extracted;
-            }
-            if (entry.getKey() != null && entry.getKey().toLowerCase(Locale.ROOT).contains("cached")
-                    && entry.getValue() instanceof Number number) {
-                return number.intValue();
             }
         }
         return null;
@@ -988,7 +1127,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             }
         } catch (Exception ignored) {
         }
-        for (String methodName : List.of("cachedTokens", "getCachedTokens")) {
+        for (String methodName : List.of("cachedTokens", "getCachedTokens", "cacheReadInputTokens")) {
             try {
                 Object value = source.getClass().getMethod(methodName).invoke(source);
                 if (value instanceof Number number) {
@@ -998,6 +1137,44 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             }
         }
         return null;
+    }
+
+    /** A count a provider's own usage object reports, read by its accessor; null when it has none. */
+    private static Integer nativeInteger(Object nativeUsage, String accessor) {
+        return nativeValue(nativeUsage, accessor) instanceof Number number ? number.intValue() : null;
+    }
+
+    /** A value a provider's own usage object reports, read by its accessor; null when it has none. */
+    private static Object nativeValue(Object nativeUsage, String accessor) {
+        if (nativeUsage == null) {
+            return null;
+        }
+        try {
+            return nativeUsage.getClass().getMethod(accessor).invoke(nativeUsage);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The finish reason of the answer generation (a thinking generation comes first), else of the first one. */
+    private static String answerFinishReason(ChatResponse chatResponse) {
+        String first = null;
+        for (Generation generation : chatResponse.getResults()) {
+            if (generation == null || generation.getMetadata() == null) {
+                continue;
+            }
+            String reason = generation.getMetadata().getFinishReason();
+            if (reason == null || reason.isBlank()) {
+                continue;
+            }
+            if (first == null) {
+                first = reason;
+            }
+            if (generation.getOutput() != null && !isThinking(generation.getOutput())) {
+                return reason;
+            }
+        }
+        return first;
     }
 
     private boolean hasRuntimeOptions(ExecutionContext context) {
@@ -1060,70 +1237,32 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     @Override
     public Mono<ChatResponse> callToolsResponse(Prompt prompt, List<Object> toolProviders) {
-
-        return Mono.fromCallable(() -> {
-            ExecutionContext context = ExecutionContext.builder()
-                    .prompt(prompt)
-                    .toolProviders(toolProviders)
-                    .toolExecutionEnabled(true)
-                    .build();
-
-            ChatModel model = modelSelectionStrategy.selectModel(context);
-
-            if (model == null) {
-                throw new IllegalStateException(
-                        "No LLM model configured. " +
-                                "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
-            }
-            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
-
-            ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
-
-            Prompt normalizedPrompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(prompt, context, model);
-            var promptSpec = client.prompt(normalizedPrompt);
-            if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
-                promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
-            }
-            if (toolProviders != null && !toolProviders.isEmpty()) {
-                promptSpec = promptSpec.tools(toolProviders.toArray());
-            }
-
-            return promptSpec.call().chatResponse();
-        });
+        ExecutionContext context = ExecutionContext.builder()
+                .prompt(prompt)
+                .toolProviders(toolProviders)
+                .toolExecutionEnabled(true)
+                .build();
+        return executeChatResponse(context);
     }
 
     @Override
     public Mono<ChatResponse> callToolCallbacksResponse(Prompt prompt, ToolCallback[] toolCallbacks) {
+        ExecutionContext context = ExecutionContext.builder()
+                .prompt(prompt)
+                .toolCallbacks(List.of(toolCallbacks))
+                .toolExecutionEnabled(true)
+                .build();
+        return executeChatResponse(context);
+    }
 
-        return Mono.fromCallable(() -> {
-            ExecutionContext context = ExecutionContext.builder()
-                    .prompt(prompt)
-                    .toolCallbacks(List.of(toolCallbacks))
-                    .toolExecutionEnabled(true)
-                    .build();
-
-            ChatModel model = modelSelectionStrategy.selectModel(context);
-
-            if (model == null) {
-                throw new IllegalStateException(
-                        "No LLM model configured. " +
-                                "Add at least one Spring AI chat provider starter to the application dependencies, configure the matching provider under spring.ai.*, and ensure a ChatModel bean is available to CONTEXA.");
-            }
-            ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
-
-            ChatClient client = buildChatClient(model, context.getAdvisorEnabled());
-
-            Prompt normalizedPrompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(prompt, context, model);
-            var promptSpec = client.prompt(normalizedPrompt);
-            if (toolCallbacks != null && toolCallbacks.length > 0) {
-                promptSpec = promptSpec.toolCallbacks(toolCallbacks);
-            }
-            if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
-                promptSpec = promptSpec.tools(context.getToolProviders().toArray());
-            }
-
-            return promptSpec.call().chatResponse();
-        });
+    /**
+     * The whole response of a call, on the same path as execute: the model selection, the options and the tools, the
+     * provider time limit, the response metadata, and the retry of a failure that may pass when sent again.
+     */
+    private Mono<ChatResponse> executeChatResponse(ExecutionContext context) {
+        Mono<ChatResponse> execution = Mono.fromCallable(() -> executeForChatResponse(context))
+                .doOnError(error -> log.error("LLM tool call failed - RequestId: {}", context.getRequestId(), error));
+        return isRetryDisabled(context) ? execution : execution.retryWhen(llmProviderRetry("LLM tool call", context));
     }
 
     @Override
@@ -1152,10 +1291,18 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return stream(context);
     }
 
+    /** The observation registry the ChatClients observe through (Spring AI's chat client and advisor observations). */
+    public void setObservationRegistry(ObservationRegistry observationRegistry) {
+        this.observationRegistry = observationRegistry != null ? observationRegistry : ObservationRegistry.NOOP;
+        chatClientCache.clear();
+        chatClientNoAdvisorCache.clear();
+    }
+
     private ChatClient buildChatClient(ChatModel model, Boolean advisorEnabled) {
         ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(model);
         if (!isAdvisorEnabled(advisorEnabled)) {
-            return chatClientNoAdvisorCache.computeIfAbsent(model, m -> ChatClient.builder(m).build());
+            return chatClientNoAdvisorCache.computeIfAbsent(model,
+                    m -> chatClientBuilder(m).defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE).build());
         }
 
         List<Advisor> currentAdvisors = advisorRegistry.getEnabled();
@@ -1166,12 +1313,16 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return chatClientCache.computeIfAbsent(model, m -> {
-            ChatClient.Builder builder = ChatClient.builder(m);
+            ChatClient.Builder builder = chatClientBuilder(m).defaultAdvisors(ThinkingGenerationAdvisor.INSTANCE);
             if (!currentAdvisors.isEmpty()) {
                 builder = builder.defaultAdvisors(currentAdvisors.toArray(new Advisor[0]));
             }
             return builder.build();
         });
+    }
+
+    private ChatClient.Builder chatClientBuilder(ChatModel model) {
+        return ChatClient.builder(model, observationRegistry, null, null);
     }
 
     private boolean isAdvisorEnabled(ExecutionContext context) {
@@ -1216,7 +1367,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private boolean isRetryableProviderFailure(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
-            if (current instanceof IOException) {
+            if (isA(current, NON_TRANSIENT_AI_EXCEPTION)) {
+                // The provider refused the request itself (an HTTP 4xx): sent again it gets the same answer, unless
+                // the status is a timeout, a conflict or a rate limit.
+                Integer status = httpStatus(current.getMessage());
+                return status != null && RETRYABLE_CLIENT_STATUSES.contains(status);
+            }
+            if (isA(current, TRANSIENT_AI_EXCEPTION) || current instanceof IOException) {
                 return true;
             }
             String className = current.getClass().getName();
@@ -1242,7 +1399,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     || normalized.contains("requests per min")
                     || normalized.contains("tokens per min")
                     || normalized.contains("try again in")
-                    || (className != null && className.toLowerCase(Locale.ROOT).contains("transientai"))
                     || (className != null && className.toLowerCase(Locale.ROOT).contains("ratelimit"))) {
                 return true;
             }

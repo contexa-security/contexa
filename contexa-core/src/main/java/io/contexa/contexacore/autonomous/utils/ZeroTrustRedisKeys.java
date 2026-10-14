@@ -129,6 +129,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:session:previous-ids:%s", NAMESPACE, sessionId);
     }
 
+    public static String sessionFirstClient(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:first-client:%s", NAMESPACE, sessionId);
+    }
+
     public static String sessionNarrativeActions(String sessionId) {
         validateSessionId(sessionId);
         return String.format("%s:session:narrative:actions:%s", NAMESPACE, sessionId);
@@ -182,6 +187,12 @@ public class ZeroTrustRedisKeys {
     public static String userAuthorizationScopeState(String scopeKey) {
         validateScopeKey(scopeKey);
         return String.format("%s:role-scope:authorization-state:%s", NAMESPACE, scopeKey);
+    }
+
+    /** The facts of the user's requests a restriction stopped, kept to be learned after verification (W5-2). */
+    public static String verificationLearning(String userId) {
+        validateUserId(userId);
+        return String.format("%s:context:user:verification-learning:%s", NAMESPACE, userId);
     }
 
     public static String userLastRequestTime(String userId) {

@@ -21,6 +21,8 @@ import java.util.Objects;
  * @param timeZone            time zone of the virtual company
  * @param modelSettings       the model settings control D sends with every analysis, per layer (reasoning effort,
  *                            verbosity, output limit); null for specifications recorded before they were reported
+ * @param promptBundle        the security decision prompt bundle control D runs (LU-6); null for specifications
+ *                            recorded before it was reported, or when D does not know it
  */
 public record ExecutionSpec(
         String codeCommit,
@@ -35,7 +37,16 @@ public record ExecutionSpec(
         String ruleVersion,
         String contractVersion,
         String timeZone,
-        Map<String, Object> modelSettings) {
+        Map<String, Object> modelSettings,
+        String promptBundle) {
+
+    public ExecutionSpec(String codeCommit, String engineVersion, String effectiveMode,
+                         Map<String, String> endpointProtection, String chatModel, String embeddingModel,
+                         int embeddingDimensions, String promptHash, String templateId, String ruleVersion,
+                         String contractVersion, String timeZone, Map<String, Object> modelSettings) {
+        this(codeCommit, engineVersion, effectiveMode, endpointProtection, chatModel, embeddingModel,
+                embeddingDimensions, promptHash, templateId, ruleVersion, contractVersion, timeZone, modelSettings, null);
+    }
 
     /**
      * The prompt hash of a run in which the engine made no model call (refused by the permission check or by an earlier
@@ -54,6 +65,7 @@ public record ExecutionSpec(
         Objects.requireNonNull(ruleVersion, "ruleVersion");
         Objects.requireNonNull(timeZone, "timeZone");
         modelSettings = modelSettings == null || modelSettings.isEmpty() ? null : Map.copyOf(modelSettings);
+        promptBundle = promptBundle == null || promptBundle.isBlank() ? null : promptBundle;
         if (embeddingDimensions <= 0) {
             throw new IllegalArgumentException("embeddingDimensions must be positive");
         }

@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context.resolver;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.RoleScopeProfile;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -33,10 +34,12 @@ public class RoleScopeProfileResolver extends AbstractProfileResolver<RoleScopeP
 
     @Override
     protected RoleScopeProfile doResolve(Map<String, Object> metadata, CanonicalSecurityContext context) {
-        String currentResourceFamily = text(
+        // The role scope compares business categories: the resource's category (official field, hints, descriptor), else
+        // the hint the collector wrote back; a class word or the resource's class never stands in for one (W2-10, W2-11).
+        String currentResourceFamily = SecuritySemanticNormalizer.normalizeResourceCategory(
+                context.getResource() != null ? context.getResource().getResourceCategory() : null,
                 metadata.get("currentResourceFamily"),
-                metadata.get("current_resource_family"),
-                context.getResource() != null ? context.getResource().getResourceType() : null);
+                metadata.get("current_resource_family"));
         String currentActionFamily = text(
                 metadata.get("currentActionFamily"),
                 metadata.get("current_action_family"),

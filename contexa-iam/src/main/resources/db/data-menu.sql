@@ -129,7 +129,9 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.aiMonitor.failures',      '/contexa/admin/ai-monitor/failures',    '',                'ai-monitor', 3,  TRUE, 'CORE',       'ai-monitor-failures'),
     ('menu.aiMonitor.readiness',     '/contexa/admin/ai-monitor/readiness',   '',                'ai-monitor', 4,  TRUE, 'CORE',       'ai-monitor-readiness'),
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
-    ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence')
+    ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
+    ('menu.pqa.inspection.overview', '/contexa/admin/prompt-inspection',               '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-inspection-overview'),
+    ('menu.pqa.inspection.packages', '/contexa/admin/prompt-inspection/packages',      '',       'prompt-quality', 4, TRUE, 'CORE',       'prompt-inspection-packages')
 ),
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page

@@ -93,7 +93,24 @@ public final class BaselineViewCalculator {
             String requestPath,
             String sessionKey,
             boolean allowed,
-            Integer items) {
+            Integer items,
+            double weight) {
+
+        /** An observation counted whole. */
+        public Observation(
+                long timestampMs,
+                String actionFamily,
+                String actionSourceKey,
+                boolean actionInferred,
+                String resourceClass,
+                String pathTemplate,
+                String requestPath,
+                String sessionKey,
+                boolean allowed,
+                Integer items) {
+            this(timestampMs, actionFamily, actionSourceKey, actionInferred, resourceClass, pathTemplate, requestPath,
+                    sessionKey, allowed, items, 1.0);
+        }
 
         /** An observation without an item count. */
         public Observation(
@@ -109,6 +126,15 @@ public final class BaselineViewCalculator {
             this(timestampMs, actionFamily, actionSourceKey, actionInferred, resourceClass, pathTemplate, requestPath,
                     sessionKey, allowed, null);
         }
+    }
+
+    /**
+     * An observation's weight in the usual values: its decay by age times its own weight, which is lower for a
+     * request learned after a verification (W5-2).
+     */
+    private static double decayed(Observation observation, long nowMs) {
+        double own = Double.isNaN(observation.weight()) ? 1.0 : Math.max(0.0, observation.weight());
+        return Math.pow(0.5, (nowMs - observation.timestampMs()) / (HALF_LIFE_DAYS * DAY_MS)) * own;
     }
 
     /** The observations a view describes and why the window is what it is. */
@@ -223,7 +249,7 @@ public final class BaselineViewCalculator {
                     || nowMs - observation.timestampMs() > DAY_OF_WEEK_DAYS * DAY_MS) {
                 continue;
             }
-            double weight = Math.pow(0.5, (nowMs - observation.timestampMs()) / (HALF_LIFE_DAYS * DAY_MS));
+            double weight = decayed(observation, nowMs);
             int day = LocalDateTime.ofInstant(Instant.ofEpochMilli(observation.timestampMs()), zone)
                     .getDayOfWeek().getValue();
             dayWeights.merge(day, weight, Double::sum);
@@ -244,7 +270,7 @@ public final class BaselineViewCalculator {
         int privileged = 0;
 
         for (Observation observation : observations) {
-            double weight = Math.pow(0.5, (nowMs - observation.timestampMs()) / (HALF_LIFE_DAYS * DAY_MS));
+            double weight = decayed(observation, nowMs);
             LocalDateTime at = LocalDateTime.ofInstant(Instant.ofEpochMilli(observation.timestampMs()), zone);
             hourWeights.merge(at.getHour(), weight, Double::sum);
             hourCounts.merge(at.getHour(), 1, Integer::sum);
@@ -274,7 +300,7 @@ public final class BaselineViewCalculator {
                 inferredBySource.merge(StringUtils.hasText(observation.actionSourceKey())
                         ? observation.actionSourceKey() : "an unnamed source", 1, Integer::sum);
             }
-            String resourceClass = SecuritySemanticNormalizer.normalizeResourceFamily(observation.resourceClass());
+            String resourceClass = SecuritySemanticNormalizer.normalizeResourceClass(observation.resourceClass());
             if (StringUtils.hasText(resourceClass)) {
                 classCounts.merge(resourceClass, 1, Integer::sum);
             }
@@ -366,6 +392,24 @@ public final class BaselineViewCalculator {
             }
         }
         return bindings.isEmpty() ? null : String.join(",", bindings);
+    }
+
+    /**
+     * The variable names of a URL template ({@code projectKey} for {@code /api/projects/{projectKey}/exports}), joined
+     * by ", ", or null without a variable. A fact line names the variables: their values are the requester's text
+     * (N-INJ-1), and the names come from the host's template, never from the values.
+     */
+    public static String variables(String template) {
+        if (!StringUtils.hasText(template)) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (String segment : segments(template)) {
+            if (segment.length() > 2 && segment.startsWith("{") && segment.endsWith("}")) {
+                names.add(segment.substring(1, segment.length() - 1));
+            }
+        }
+        return names.isEmpty() ? null : String.join(", ", names);
     }
 
     private static String[] segments(String path) {

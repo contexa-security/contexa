@@ -2,6 +2,7 @@ package io.contexa.contexacore.verification.capture;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,15 +12,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -36,9 +34,8 @@ class SealedEvidencePromptTraceStoreTest {
     void captureAndConsumeLifecycle() {
         SecurityEvent event = buildEvent("req-001", "evt-001");
         PromptGenerationResult promptResult = mockPromptResult();
-        VerificationCaptureContext context = mockContext(event, promptResult);
 
-        store.capture(context);
+        store.capture(decisionContext(event), promptResult);
         store.complete(event);
 
         SealedEvidencePromptSnapshot snapshot = store.consume("req-001");
@@ -46,14 +43,7 @@ class SealedEvidencePromptTraceStoreTest {
         assertThat(snapshot.requestId()).isEqualTo("req-001");
         assertThat(snapshot.systemPrompt()).isEqualTo("system prompt");
         assertThat(snapshot.userPrompt()).isEqualTo("user prompt");
-        assertThat(snapshot.metadata()).containsKeys(
-                "promptSourceContextLedger",
-                "promptRawUserFieldLedger",
-                "promptFinalUserFieldLedger",
-                "promptUserFieldDiffLedger",
-                "promptFieldStateLedger",
-                "promptFieldStateSummary");
-        assertThat(snapshot.metadata().get("promptFieldStateLedger")).asList().isNotEmpty();
+        assertThat(snapshot.metadata()).containsEntry("promptVersion", "v1");
     }
 
     @Test
@@ -64,7 +54,7 @@ class SealedEvidencePromptTraceStoreTest {
     @Test
     void consumeRemovesSnapshotFromStore() {
         SecurityEvent event = buildEvent("req-002", "evt-002");
-        store.capture(mockContext(event, mockPromptResult()));
+        store.capture(decisionContext(event), mockPromptResult());
         store.complete(event);
 
         SealedEvidencePromptSnapshot first = store.consume("req-002");
@@ -75,22 +65,54 @@ class SealedEvidencePromptTraceStoreTest {
     }
 
     @Test
-    void pendingSnapshotCanBeConsumedWhenLayer1CompletionWasNotObserved() {
+    void aSnapshotIsNotHandedOutBeforeLayer1Completed() {
         SecurityEvent event = buildEvent("req-003", "evt-003");
-        store.capture(mockContext(event, mockPromptResult()));
-        // Not calling complete()
+        store.capture(decisionContext(event), mockPromptResult());
 
-        SealedEvidencePromptSnapshot snapshot = store.consume("req-003");
-
-        assertThat(snapshot).isNotNull();
-        assertThat(snapshot.requestId()).isEqualTo("req-003");
         assertThat(store.consume("req-003")).isNull();
+
+        store.complete(event);
+        assertThat(store.consume("req-003")).isNotNull();
+    }
+
+    @Test
+    void noCompletedSnapshotIsHandedOutUnderAnotherKey() {
+        SecurityEvent event = buildEvent("req-010", "evt-010");
+        event.getMetadata().put(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY, "trace-010");
+        store.capture(decisionContext(event), mockPromptResult());
+        store.complete(event);
+
+        assertThat(store.consume("req-010")).isNull();
+        assertThat(store.consume("trace-010")).isNotNull();
+    }
+
+    @Test
+    void aFaultMarkedEventIsLeftAsItCame() {
+        SecurityEvent event = buildEvent("req-011", "evt-011");
+        event.getMetadata().put("pqaPromptFaultApplied", true);
+        event.getMetadata().put("pqaPromptFaultScenario", "rag_scope_slot_fault");
+        store.capture(decisionContext(event), mockPromptResult());
+
+        assertThat(event.getMetadata()).containsEntry("pqaPromptFaultScenario", "rag_scope_slot_fault")
+                .doesNotContainKey("pqaPromptFaultSource");
+    }
+
+    @Test
+    void theSnapshotMetadataIsThePromptMetadataAsItCame() {
+        SecurityEvent event = buildEvent("req-012", "evt-012");
+        PromptGenerationResult promptResult = mockPromptResult();
+        store.capture(decisionContext(event), promptResult);
+        store.complete(event);
+
+        SealedEvidencePromptSnapshot snapshot = store.consume("req-012");
+        assertThat(snapshot.metadata().getClass().getSimpleName()).isNotEqualTo("LazyDelegatingMap");
+        assertThat(snapshot.metadata()).isEqualTo(promptResult.getMetadata());
     }
 
     @Test
     void findDoesNotRemoveSnapshot() {
         SecurityEvent event = buildEvent("req-004", "evt-004");
-        store.capture(mockContext(event, mockPromptResult()));
+        store.capture(decisionContext(event), mockPromptResult());
         store.complete(event);
 
         assertThat(store.find("req-004")).isNotNull();
@@ -99,15 +121,16 @@ class SealedEvidencePromptTraceStoreTest {
 
     @Test
     void captureIgnoresNullContext() {
-        store.capture(null);
+        store.capture(null, mockPromptResult());
         // No exception
     }
 
     @Test
     void captureIgnoresNullPromptResult() {
         SecurityEvent event = buildEvent("req-005", "evt-005");
-        store.capture(mockContext(event, null));
-        // No exception
+        store.capture(decisionContext(event), null);
+        store.complete(event);
+        assertThat(store.consume("req-005")).isNull();
     }
 
     @Test
@@ -133,49 +156,31 @@ class SealedEvidencePromptTraceStoreTest {
 
         assertThat(store.consume("req-aspect-subclass")).isNotNull();
     }
-    @Test
-    void typedAdapterSupportsSecurityDecisionSubclass() {
-        SecurityEvent event = buildEvent("req-subclass", "evt-subclass");
-        SecurityDecisionContext subclass = new SecurityDecisionContext(event, null, null, List.of()) {
-        };
-
-        store.capture(new SecurityDecisionCaptureContextAdapter(subclass, mockPromptResult()));
-        store.complete(event);
-
-        assertThat(store.consume("req-subclass")).isNotNull();
-    }
 
     @Test
     void ttlExpiresPendingAndCompletedSnapshots() {
         MutableClock clock = new MutableClock(Instant.parse("2026-07-15T00:00:00Z"));
-        store = new SealedEvidencePromptTraceStore(
-                null,
-                Runnable::run,
-                new VerificationCaptureStoreOptions(Duration.ofSeconds(1), 2, 2),
-                clock);
+        store = new SealedEvidencePromptTraceStore(new VerificationCaptureStoreOptions(Duration.ofSeconds(1), 2, 2), clock);
         SecurityEvent completed = buildEvent("req-expired-completed", "evt-expired-completed");
-        store.capture(mockContext(completed, mockPromptResult()));
+        store.capture(decisionContext(completed), mockPromptResult());
         store.complete(completed);
         clock.advance(Duration.ofSeconds(2));
         assertThat(store.find("req-expired-completed")).isNull();
 
         SecurityEvent pending = buildEvent("req-expired-pending", "evt-expired-pending");
-        store.capture(mockContext(pending, mockPromptResult()));
+        store.capture(decisionContext(pending), mockPromptResult());
         clock.advance(Duration.ofSeconds(2));
+        store.complete(pending);
         assertThat(store.consume("req-expired-pending")).isNull();
     }
 
     @Test
     void maximumCountsEvictOldestPendingAndCompletedSnapshots() {
         MutableClock clock = new MutableClock(Instant.parse("2026-07-15T00:00:00Z"));
-        store = new SealedEvidencePromptTraceStore(
-                null,
-                Runnable::run,
-                new VerificationCaptureStoreOptions(Duration.ofHours(1), 2, 2),
-                clock);
+        store = new SealedEvidencePromptTraceStore(new VerificationCaptureStoreOptions(Duration.ofHours(1), 2, 2), clock);
         for (int index = 1; index <= 3; index++) {
             SecurityEvent event = buildEvent("req-completed-" + index, "evt-completed-" + index);
-            store.capture(mockContext(event, mockPromptResult()));
+            store.capture(decisionContext(event), mockPromptResult());
             store.complete(event);
             clock.advance(Duration.ofSeconds(1));
         }
@@ -183,13 +188,18 @@ class SealedEvidencePromptTraceStoreTest {
         assertThat(store.find("req-completed-2")).isNotNull();
         assertThat(store.find("req-completed-3")).isNotNull();
 
+        List<SecurityEvent> pending = new ArrayList<>();
         for (int index = 1; index <= 3; index++) {
             SecurityEvent event = buildEvent("req-pending-" + index, "evt-pending-" + index);
-            store.capture(mockContext(event, mockPromptResult()));
+            store.capture(decisionContext(event), mockPromptResult());
+            pending.add(event);
             clock.advance(Duration.ofSeconds(1));
         }
+        store.complete(pending.get(0));
         assertThat(store.consume("req-pending-1")).isNull();
+        store.complete(pending.get(1));
         assertThat(store.consume("req-pending-2")).isNotNull();
+        store.complete(pending.get(2));
         assertThat(store.consume("req-pending-3")).isNotNull();
     }
 
@@ -198,54 +208,19 @@ class SealedEvidencePromptTraceStoreTest {
         SecurityEvent first = buildEvent("req-duplicate", "evt-duplicate-1");
         PromptGenerationResult firstPrompt = mockPromptResult();
         when(firstPrompt.getUserPrompt()).thenReturn("first prompt");
-        store.capture(mockContext(first, firstPrompt));
+        store.capture(decisionContext(first), firstPrompt);
         store.complete(first);
 
         SecurityEvent second = buildEvent("req-duplicate", "evt-duplicate-2");
         PromptGenerationResult secondPrompt = mockPromptResult();
         when(secondPrompt.getUserPrompt()).thenReturn("second prompt");
-        store.capture(mockContext(second, secondPrompt));
+        store.capture(decisionContext(second), secondPrompt);
         store.complete(second);
 
         assertThat(store.consume("req-duplicate").userPrompt()).isEqualTo("second prompt");
         assertThat(store.consume("req-duplicate")).isNull();
     }
 
-    @Test
-    void arbitraryFaultScenarioIsNotProjectedWithoutAnAppliedOfficialFault() {
-        SecurityEvent event = buildEvent("req-untrusted-fault", "evt-untrusted-fault");
-        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
-        event.addMetadata("officialVerification.pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
-
-        store.capture(mockContext(event, mockPromptResult()));
-        store.complete(event);
-
-        SealedEvidencePromptSnapshot snapshot = store.consume("req-untrusted-fault");
-        assertThat(snapshot).isNotNull();
-        assertThat(snapshot.userPrompt()).isEqualTo("user prompt");
-        assertThat(snapshot.metadata())
-                .doesNotContainKeys(
-                        "pqaPromptFaultScenario",
-                        "pqaPromptFaultApplied",
-                        "pqaPromptFaultSource");
-    }
-
-    @Test
-    void rejectedExecutorDoesNotRetainSnapshotAfterShutdown() {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.shutdownNow();
-        store = new SealedEvidencePromptTraceStore(
-                null,
-                executor,
-                VerificationCaptureStoreOptions.defaults(),
-                Clock.systemUTC());
-        SecurityEvent event = buildEvent("req-shutdown", "evt-shutdown");
-
-        assertThatThrownBy(() -> store.capture(mockContext(event, mockPromptResult())))
-                .isInstanceOf(RejectedExecutionException.class);
-        assertThat(executor.isShutdown()).isTrue();
-        assertThat(store.consume("req-shutdown")).isNull();
-    }
     private SecurityEvent buildEvent(String requestId, String eventId) {
         SecurityEvent event = SecurityEvent.builder().build();
         event.setEventId(eventId);
@@ -255,11 +230,10 @@ class SealedEvidencePromptTraceStoreTest {
         return event;
     }
 
-    private VerificationCaptureContext mockContext(SecurityEvent event, PromptGenerationResult promptResult) {
-        VerificationCaptureContext context = mock(VerificationCaptureContext.class);
-        when(context.securityEvent()).thenReturn(event);
-        when(context.relatedDocuments()).thenReturn(List.of());
-        when(context.promptExecution()).thenReturn(promptResult);
+    private SecurityDecisionContext decisionContext(SecurityEvent event) {
+        SecurityDecisionContext context = mock(SecurityDecisionContext.class);
+        when(context.getSecurityEvent()).thenReturn(event);
+        when(context.getRelatedDocuments()).thenReturn(List.of());
         return context;
     }
 
@@ -289,23 +263,16 @@ class SealedEvidencePromptTraceStoreTest {
             current = current.plus(duration);
         }
     }
+
     private PromptGenerationResult mockPromptResult() {
         PromptGenerationResult result = mock(PromptGenerationResult.class);
         when(result.getSystemPrompt()).thenReturn("system prompt");
         when(result.getUserPrompt()).thenReturn("user prompt");
         when(result.getRawSystemPrompt()).thenReturn("raw system");
         when(result.getRawUserPrompt()).thenReturn("raw user");
-
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("promptSourceContextLedger", "val");
-        metadata.put("promptRawUserFieldLedger", "val");
-        metadata.put("promptFinalUserFieldLedger", "val");
-        metadata.put("promptUserFieldDiffLedger", "val");
-        metadata.put("promptFieldStateLedger", List.of("item"));
-        metadata.put("promptFieldStateSummary", "val");
+        metadata.put("promptVersion", "v1");
         when(result.getMetadata()).thenReturn(metadata);
-
         return result;
     }
-
 }

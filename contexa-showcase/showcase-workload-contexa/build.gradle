@@ -31,6 +31,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    // The model comparison runs control D on an Anthropic chat model as well; the embeddings stay on OpenAI.
+    implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 
     testImplementation 'org.springframework.security:spring-security-test'

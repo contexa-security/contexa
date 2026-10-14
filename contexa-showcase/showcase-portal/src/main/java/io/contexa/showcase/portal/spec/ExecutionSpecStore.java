@@ -51,7 +51,8 @@ public class ExecutionSpecStore {
                 rules.path("sha256").asText(),
                 contractVersion,
                 engine.path("timeZone").asText(),
-                modelSettings(engine));
+                modelSettings(engine),
+                engine.path("promptBundle").isTextual() ? engine.path("promptBundle").asText() : null);
     }
 
     /** A build fact control D must report; a specification is never recorded with a filled-in value (survey P1). */
@@ -84,10 +85,10 @@ public class ExecutionSpecStore {
                         insert into execution_spec (spec_id, spec_hash, code_commit, engine_version, effective_mode,
                                                     endpoint_protection, chat_model, embedding_model,
                                                     embedding_dimensions, prompt_hash, template_id, rule_version,
-                                                    contract_version, time_zone, model_settings)
+                                                    contract_version, time_zone, model_settings, prompt_bundle)
                         values (:id, :hash, :commit, :engine, :mode, cast(:protection as jsonb), :chat, :embedding,
                                 :dimensions, :prompt, :template, :rule, :contract, :zone,
-                                cast(:modelSettings as jsonb))
+                                cast(:modelSettings as jsonb), :bundle)
                         on conflict (spec_hash) do nothing""",
                 new MapSqlParameterSource("id", UUID.randomUUID()).addValue("hash", hash)
                         .addValue("commit", spec.codeCommit()).addValue("engine", spec.engineVersion())
@@ -96,7 +97,8 @@ public class ExecutionSpecStore {
                         .addValue("dimensions", spec.embeddingDimensions()).addValue("prompt", spec.promptHash())
                         .addValue("template", spec.templateId()).addValue("rule", spec.ruleVersion())
                         .addValue("contract", spec.contractVersion()).addValue("zone", spec.timeZone())
-                        .addValue("modelSettings", spec.modelSettings() == null ? null : write(spec.modelSettings())));
+                        .addValue("modelSettings", spec.modelSettings() == null ? null : write(spec.modelSettings()))
+                        .addValue("bundle", spec.promptBundle()));
         return hash;
     }
 
@@ -105,12 +107,12 @@ public class ExecutionSpecStore {
         return jdbc.query("""
                         select code_commit, engine_version, effective_mode, endpoint_protection::text, chat_model,
                                embedding_model, embedding_dimensions, prompt_hash, template_id, rule_version,
-                               contract_version, time_zone, model_settings::text
+                               contract_version, time_zone, model_settings::text, prompt_bundle
                           from execution_spec where spec_hash = :hash""",
                 new MapSqlParameterSource("hash", specHash), (rs, n) -> new ExecutionSpec(rs.getString(1),
                         rs.getString(2), rs.getString(3), readProtection(rs.getString(4)), rs.getString(5),
                         rs.getString(6), rs.getInt(7), rs.getString(8), rs.getString(9), rs.getString(10),
-                        rs.getString(11), rs.getString(12), readSettings(rs.getString(13))))
+                        rs.getString(11), rs.getString(12), readSettings(rs.getString(13)), rs.getString(14)))
                 .stream().findFirst();
     }
 

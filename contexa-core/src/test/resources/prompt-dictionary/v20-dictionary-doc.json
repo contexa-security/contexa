@@ -1,0 +1,2026 @@
+{
+ "source": "docs/showcase/프롬프트-v20-사전.md section 2; 프롬프트-컨텍스트-보존-대조표.md sections 1 (다, 라) and 2",
+ "entries": [
+  {
+   "block": "USER_BASELINE",
+   "name": "Evidence",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "Context",
+    "ContextEvidenceLimitation",
+    "ContextTrustLimitation",
+    "ContextTrustWarning",
+    "ObservedPatternEvidenceScope",
+    "ObservedScopeSummary",
+    "ProfileSource"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "BaselineStatus",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "NONE",
+   "preservedLabels": [
+    "Baseline",
+    "BaselineSupportSummary"
+   ],
+   "citedByDecision": [
+    "BASELINE_NOT_ESTABLISHED"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualHours",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualDays",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualNetworks",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualDevices",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualLoginMethods",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualTargets",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualActions",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualResourceClass",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualExportSize",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualRequestRate",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "not learned",
+   "preservedLabels": [
+    "Normal",
+    "Observed"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualSessionLength",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "UsualPrivilegedActions",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "SeasonalPattern",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "KnownRareTasks",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "WorkProfile",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "ProtectableInvocationDensity",
+    "WorkProfileSummary"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "USER_BASELINE",
+   "name": "PeerReference",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "PeerCohortId",
+    "PeerCohortSummary",
+    "Runtime",
+    "Seed",
+    "SupportingBaselineStatus",
+    "SupportingBaselineSummary",
+    "Use"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": true
+  },
+  {
+   "block": "SESSION",
+   "name": "SessionAge",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "NewSession"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "LoginMethod",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "AuthMethod",
+    "AuthenticationType",
+    "BridgeAuthenticationSource",
+    "CurrentAuthenticationType",
+    "MfaVerified",
+    "SessionAuthMethod"
+   ],
+   "citedByDecision": [
+    "DEVIATION_LOGIN_METHOD"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "ChallengeVerified",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "none",
+   "preservedLabels": [
+    "COMPLETED",
+    "MFA"
+   ],
+   "citedByDecision": [
+    "CHALLENGE_VERIFIED_IN_SESSION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "RecentMfaElsewhere",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "MfaVerified"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "FailedLogins",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "FailedLoginAttempts"
+   ],
+   "citedByDecision": [
+    "FAILED_LOGINS",
+    "MFA_FAILURES"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "MfaFailures",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "FailedLoginAttempts"
+   ],
+   "citedByDecision": [
+    "FAILED_LOGINS",
+    "MFA_FAILURES"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "RequestsInSession",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "this is the first",
+   "preservedLabels": [
+    "RecentSessionActionCount",
+    "RecentSessionActionSample"
+   ],
+   "citedByDecision": [
+    "PRIOR_CHALLENGE_IN_SESSION",
+    "REPEAT_IN_SESSION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "RecentRequests",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "SessionRequestsPerMinute"
+   ],
+   "citedByDecision": [
+    "DEVIATION_RATE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "ConcurrentSessions",
+   "grades": [
+    "COMPUTED",
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "PasswordAge",
+   "grades": [
+    "COMPUTED",
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "RecentSensitiveAccess",
+   "grades": [
+    "COMPUTED",
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SESSION",
+   "name": "RecentDenied",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "RecentDeniedAuthorizations"
+   ],
+   "citedByDecision": [
+    "PAST_DENIED_SAME_ACTION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Subject",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "BridgeSubjectKey",
+    "ExternalSubjectId",
+    "OrganizationId",
+    "TenantId"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Roles",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "BridgeAuthorizationSource"
+   ],
+   "citedByDecision": [
+    "ROLE_SCOPE_OUTSIDE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Permissions",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "BridgeAuthorizationSource"
+   ],
+   "citedByDecision": [
+    "ROLE_SCOPE_OUTSIDE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Time",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "EventId",
+    "Timestamp",
+    "User"
+   ],
+   "citedByDecision": [
+    "DEVIATION_DAY",
+    "DEVIATION_TIME"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Action",
+   "grades": [
+    "HOST",
+    "INFERRED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "ResourceId"
+   ],
+   "citedByDecision": [
+    "DEVIATION_ACTION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Target",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "path template variable",
+   "preservedLabels": [],
+   "citedByDecision": [
+    "DEVIATION_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Size",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "DEVIATION_SIZE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "ResourceClass",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "SensitiveResource"
+   ],
+   "citedByDecision": [
+    "DEVIATION_RESOURCE_CLASS",
+    "P1",
+    "P2"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Network",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "CurrentNetwork",
+    "CurrentOS",
+    "CurrentUA"
+   ],
+   "citedByDecision": [
+    "DEVIATION_NETWORK",
+    "P1",
+    "P2"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "REQUEST",
+   "name": "Device",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "CurrentBrowser",
+    "CurrentOperatingSystem",
+    "DeviceScreenResolution"
+   ],
+   "citedByDecision": [
+    "DEVIATION_DEVICE",
+    "P1",
+    "P2"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "DeviationsFromBaseline",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "0 of 8 compared",
+   "preservedLabels": [
+    "CurrentRequestClosestObservedOverlap",
+    "CurrentRequestCombinationComparedDimensions",
+    "CurrentRequestCombinationEvidenceScope",
+    "CurrentRequestCombinationSeenCount",
+    "StrongestCurrentRequestCombinationDelta"
+   ],
+   "citedByDecision": [
+    "DEVIATION_*",
+    "P1",
+    "P2"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "SameAsBaseline",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "Current",
+    "PresentInObserved"
+   ],
+   "citedByDecision": [
+    "BASELINE_MATCH"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Policy",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "ApprovalRequired"
+   ],
+   "citedByDecision": [
+    "P3"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "PolicySatisfied",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "ApprovalGranted",
+    "ApprovalMissing",
+    "ApprovalStatus"
+   ],
+   "citedByDecision": [
+    "P3",
+    "POLICY_*"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Approval",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "ApprovalLineage",
+    "FrictionSummary"
+   ],
+   "citedByDecision": [
+    "P3"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Assignment",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "ASSIGNED_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Ticket",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "ASSIGNED_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "OnCall",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "ASSIGNED_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Travel",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "ASSIGNED_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "RepeatInSession",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "RENDERED_VALUE",
+   "missingText": "first",
+   "preservedLabels": [],
+   "citedByDecision": [
+    "P3",
+    "REPEAT_IN_SESSION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "RoleScope",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "RoleScopeDeltaSummary",
+    "RoleScopeEvidenceState",
+    "StrongestRoleScopeDelta"
+   ],
+   "citedByDecision": [
+    "ROLE_SCOPE_OUTSIDE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "RecentPermissionChanges",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "RECENT_PERMISSION_CHANGE",
+    "TEMPORARY_ELEVATION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "TemporaryElevation",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "RECENT_PERMISSION_CHANGE",
+    "TEMPORARY_ELEVATION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "AuthorizationEffect",
+   "grades": [
+    "COMPUTED",
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "AuthorizationEffectProvenance",
+    "AuthorizationEffectStageNote"
+   ],
+   "citedByDecision": [
+    "AUTHORIZATION_CONFLICT"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "DataConflicts",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "OrganizationId",
+    "TenantConflict",
+    "TenantId"
+   ],
+   "citedByDecision": [
+    "DATA_CONFLICT",
+    "TENANT_CONFLICT"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Movement",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "DEVIATION_MOVEMENT"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "SessionDeviceChange",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "OBSERVATION"
+   ],
+   "citedByDecision": [
+    "P1",
+    "SESSION_DEVICE_CHANGE",
+    "SESSION_NETWORK_CHANGE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "SessionNetworkChange",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "OBSERVATION"
+   ],
+   "citedByDecision": [
+    "P1",
+    "SESSION_DEVICE_CHANGE",
+    "SESSION_NETWORK_CHANGE"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "ClientSignals",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": true,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "CLIENT_SIGNAL_TAMPERING"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "BlockedUser",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "BREAK_GLASS"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "BreakGlass",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "BREAK_GLASS"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "PeerCohort",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [
+    "PeerCohortId",
+    "PeerCohortSummary"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "Delegation",
+   "grades": [
+    "HOST"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "BridgeDelegationSource",
+    "ObjectiveFamilies"
+   ],
+   "citedByDecision": [
+    "DELEGATION_SCOPE_DRIFT"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "DECISION_FACTS",
+   "name": "ThreatMatch",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "ApplicableContexts",
+    "ConfidenceBand",
+    "CrossTenantObjectiveMisusePackSummary",
+    "LearningSummary",
+    "Lift",
+    "OutcomeSummary",
+    "PolicySummary",
+    "PromotedDetectionStrategyCount",
+    "PromotionSummary",
+    "RecommendedSignals",
+    "SupportingContextOnly"
+   ],
+   "citedByDecision": [
+    "THREAT_MATCH"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "PastRecordsState",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "HistoricalComparableCount",
+    "No",
+    "RagAuthorizationReason",
+    "RagDeniedDocumentCount",
+    "RagDocumentScopeReason",
+    "RagPermissionFiltered",
+    "RagProjectionState",
+    "RagScopeReason",
+    "RagSearchExecuted"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "PastRecordCounts",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "PAST_RECORD_SAME_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "PastRecord{i}",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "ComparableExample",
+    "RagDocumentAuthorizationReason"
+   ],
+   "citedByDecision": [
+    "PAST_RECORD_SAME_TARGET"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "PastDeniedDecision{i}",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "PAST_DENIED_SAME_ACTION"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "SupportingCases",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "SupportingComparableCount",
+    "SupportingComparableExample1",
+    "SupportingComparableSummary"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": true
+  },
+  {
+   "block": "PAST_RECORDS",
+   "name": "ValidatedCases",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": true,
+   "missing": "LINE_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "CohortPreference",
+    "FreshnessState",
+    "KnowledgeAssistedCaseCount",
+    "MemoryRiskProfile",
+    "ObjectiveAwareReasoningMemory",
+    "ReasoningMemorySummary",
+    "ReasoningState",
+    "RecallPriority",
+    "RetentionTier",
+    "RetrievalWeight"
+   ],
+   "citedByDecision": [
+    "VALIDATED_CASE_MATCH"
+   ],
+   "referenceOnly": false
+  },
+  {
+   "block": "UNKNOWN",
+   "name": "Coverage",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "ALWAYS_PRESENT",
+   "missingText": null,
+   "preservedLabels": [
+    "BridgeCompletenessLevel",
+    "BridgeCompletenessSummary",
+    "BridgeRemediationHints",
+    "CoverageLevel",
+    "CoverageSummary",
+    "MissingKnowledgeWarning"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "UNKNOWN",
+   "name": "Unknown",
+   "grades": [],
+   "conditional": false,
+   "missing": "BLOCK_OMITTED",
+   "missingText": null,
+   "preservedLabels": [
+    "MissingKnowledgeWarning"
+   ],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "UNTRUSTED_TEXT",
+   "name": "UntrustedText{i}",
+   "grades": [
+    "UNTRUSTED"
+   ],
+   "conditional": false,
+   "missing": "BLOCK_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SECOND_PASS",
+   "name": "FirstPassVerdict",
+   "grades": [
+    "INFERRED"
+   ],
+   "conditional": false,
+   "missing": "BLOCK_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SECOND_PASS",
+   "name": "NewlyKnown",
+   "grades": [
+    "COMPUTED"
+   ],
+   "conditional": false,
+   "missing": "BLOCK_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [],
+   "referenceOnly": false
+  },
+  {
+   "block": "SECOND_PASS",
+   "name": "NewPastRecord{i}",
+   "grades": [
+    "LEARNED"
+   ],
+   "conditional": false,
+   "missing": "BLOCK_OMITTED",
+   "missingText": null,
+   "preservedLabels": [],
+   "citedByDecision": [
+    "PAST_RECORD_SAME_TARGET"
+   ],
+   "referenceOnly": false
+  }
+ ],
+ "blockHeaders": {
+  "PAST_RECORDS": [
+   "HistoricalComparableScope",
+   "HistoricalComparableSummary"
+  ]
+ },
+ "preservedFacts": [
+  {
+   "label": "MissingKnowledgeWarning",
+   "place": "근거 충분성 표시(6.1에 표기 형식 없음, W0-5); 커버리지 경고는 UNKNOWN Coverage 줄(W3-8)",
+   "places": [
+    "UNKNOWN.Unknown",
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "RagDocumentScopeReason",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "ContextTrustWarning",
+   "place": "근거 충분성 표시(6.1에 표기 형식 없음, W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ContextTrustLimitation",
+   "place": "근거 충분성 표시(6.1에 표기 형식 없음, W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ContextEvidenceLimitation",
+   "place": "출처 등급 표시(6.1은 등급 다섯만 있음, 수집기·대체 비율 자리 없음, W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "WorkProfileSummary",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ]
+  },
+  {
+   "label": "(라벨 없음) ^- Context provenance summary:",
+   "place": "출처 등급·근거 충분성 표시(W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "HistoricalComparableSummary",
+   "place": "PAST RECORDS 블록 머리의 출처 표시(W0-5)",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ]
+  },
+  {
+   "label": "RagScopeReason",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagDocumentAuthorizationReason",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "CoverageSummary",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "BridgeCompletenessSummary",
+   "place": "UNKNOWN 목록(연동 안 됨) — 연동 범위 자체는 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationComparedDimensions",
+   "place": "DECISION FACTS.DeviationsFromBaseline·SameAsBaseline이 모든 비교 차원을 적으면 남음(W0-5에서 확인)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "(라벨 없음) ^- Context trust profile is available for",
+   "place": "근거 충분성 표시(W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "(라벨 없음) ^- (Personal work profile/Role scope profile) evid",
+   "place": "근거 충분성 표시(W0-5)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ComparableExample1",
+   "place": "6.5 과거 기록 형식에 민감도 자리 없음(W0-5에서 추가)",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagAuthorizationReason",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "ResourceId",
+   "place": "REQUEST.Action은 경로 틀만 있음. 메서드 이름 자리 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "StrongestCurrentRequestCombinationDelta",
+   "place": "DECISION FACTS.DeviationsFromBaseline(빈도) — 겹침 수 자리는 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "SupportingBaselineSummary",
+   "place": "USER BASELINE.PeerReference는 개인 기준선이 없을 때만. 개인 기준선이 있을 때의 자리 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "FrictionSummary",
+   "place": "DECISION FACTS 업무 사실의 출처 등급(host) 표시",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ]
+  },
+  {
+   "label": "SupportingComparableSummary",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationEvidenceScope",
+   "place": "출처 표시(W0-5)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "ObservedPatternEvidenceScope",
+   "place": "USER BASELINE 블록 머리의 출처 표시",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "RoleScopeDeltaSummary",
+   "place": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "ObservedScopeSummary",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "AuthorizationEffectProvenance",
+   "place": "DECISION FACTS.AuthorizationEffect(출처·정책 ID)",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ]
+  },
+  {
+   "label": "StrongestRoleScopeDelta",
+   "place": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "BridgeCompletenessLevel",
+   "place": "UNKNOWN 목록 — 수준 자체는 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "SupportingBaselineStatus",
+   "place": "USER BASELINE.PeerReference — 개인 기준선이 있을 때 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "BridgeAuthenticationSource",
+   "place": "SESSION.LoginMethod의 출처 표시",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "BridgeAuthorizationSource",
+   "place": "REQUEST.Roles의 출처 표시",
+   "places": [
+    "REQUEST.Permissions",
+    "REQUEST.Roles"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationSeenCount",
+   "place": "DECISION FACTS.DeviationsFromBaseline(빈도)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "PromptQualityVerificationRequired",
+   "place": "사용자 승인으로 뺌(원칙 14, Q-73 T1, 2026-10-13)",
+   "places": [
+    "REMOVED:Q-73"
+   ]
+  },
+  {
+   "label": "RoleScopeEvidenceState",
+   "place": "DECISION FACTS.RoleScope의 근거 충분성 표시",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "RagProjectionState",
+   "place": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "ProtectableInvocationDensity",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ]
+  },
+  {
+   "label": "CoverageLevel",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "RecentSessionActionCount",
+   "place": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "ProfileSource",
+   "place": "USER BASELINE 블록 머리의 출처 표시",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "HistoricalComparableScope",
+   "place": "PAST RECORDS 블록 머리의 출처 표시",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ]
+  },
+  {
+   "label": "RagPermissionFiltered",
+   "place": "PAST RECORDS.PastRecordsState — 거름 여부 자리 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "SupportingComparableCount",
+   "place": "6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "RagDeniedDocumentCount",
+   "place": "PAST RECORDS.PastRecordsState — 거부 수 자리 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "SensitiveResource",
+   "place": "REQUEST.ResourceClass(원값 병기)",
+   "places": [
+    "REQUEST.ResourceClass"
+   ]
+  },
+  {
+   "label": "RagSearchExecuted",
+   "place": "PAST RECORDS.PastRecordsState(not retrieved)",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "CurrentRequestClosestObservedOverlap",
+   "place": "DECISION FACTS.DeviationsFromBaseline — 겹침 수 자리 6.1에 자리 없음(W0-5에서 추가 또는 사용자 승인)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "SessionRequestsPerMinute",
+   "place": "SESSION.RecentRequests(창·단위 명시, 기준을 고쳐서)",
+   "places": [
+    "SESSION.RecentRequests"
+   ]
+  },
+  {
+   "label": "BaselineSupportSummary",
+   "place": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "(보조 블록 안) Baseline gap status: SPARSE_PERSONAL_HISTORY",
+   "place": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "(보조 블록 안) This user is not flagged as new, but personal be…",
+   "place": "USER BASELINE.BaselineStatus, REQUEST.Subject(계정 나이)",
+   "places": [
+    "REQUEST.Subject",
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "(보조 블록 안) No direct personal comparable evidence is availa…",
+   "place": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  }
+ ],
+ "pendingFacts": [
+  {
+   "label": "ExternalSubjectId",
+   "place": "REQUEST.Subject(`external subject 〈ID〉`)",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "BridgeSubjectKey",
+   "place": "REQUEST.Subject(`external subject 〈ID〉`)",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "DeviceScreenResolution",
+   "place": "REQUEST.Device(`screen 〈해상도〉`)",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "AnomalySignalSource",
+   "place": "R4-T로 뺌(Q-78 요청 4): 서버 발급 신뢰 신호와 그 출처. 요청자 주장은 UNTRUSTED TEXT",
+   "places": [
+    "REMOVED:Q-78"
+   ]
+  },
+  {
+   "label": "TrustProfileKey",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustCollectorId",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustProfileSummary",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustProvenanceSummary",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustScopeLimitations",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustQualityWarnings",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustFieldAudits",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustEvidence",
+   "place": "근거 표시 줄 `Evidence`(1.3)의 원천. 프로필 키·수집기 ID는 `collector`에",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "PeerCohortId",
+   "place": "USER BASELINE.PeerReference, DECISION FACTS.PeerCohort",
+   "places": [
+    "DECISION_FACTS.PeerCohort",
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "PeerCohortSummary",
+   "place": "USER BASELINE.PeerReference, DECISION FACTS.PeerCohort",
+   "places": [
+    "DECISION_FACTS.PeerCohort",
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "ReasoningMemorySummary",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "KnowledgeAssistedCaseCount",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ObjectiveAwareReasoningMemory",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RetentionTier",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RecallPriority",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "FreshnessState",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ReasoningState",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "CohortPreference",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "MemoryRiskProfile",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RetrievalWeight",
+   "place": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ObjectiveFamilies",
+   "place": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "MemoryGuardrails",
+   "place": "시스템 글 증거 규칙(지시문이라 사용자 프롬프트에 두지 않음, 6.3 순서 7)",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "CrossTenantObjectiveMisusePackSummary",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "BridgeDelegationSource",
+   "place": "DECISION FACTS.Delegation의 출처",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "BridgeRemediationHints",
+   "place": "UNKNOWN.Coverage",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "EventId",
+   "place": "REQUEST.Time(설정을 켰을 때 `event 〈ID〉 at 〈원시 시각〉`)",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "Timestamp",
+   "place": "REQUEST.Time(설정을 켰을 때 `event 〈ID〉 at 〈원시 시각〉`)",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "OBSERVATION",
+   "place": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "CurrentOS",
+   "place": "REQUEST.Device(호출되지 않는 섹션이라 지금도 나가지 않음)",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "CurrentUA",
+   "place": "REQUEST.Device(호출되지 않는 섹션이라 지금도 나가지 않음)",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "SupportingComparableExample1",
+   "place": "PAST RECORDS.SupportingCases",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "SupportingContextOnly",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PromotedDetectionStrategyCount",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ConfidenceBand",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Lift",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "RecommendedSignals",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ApplicableContexts",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PolicySummary",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "OutcomeSummary",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "LearningSummary",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PromotionSummary",
+   "place": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Use only for dimensions",
+   "place": "USER BASELINE.PeerReference(`for dimensions 〈차원〉`). W0-7 정정: 지시문이 아니라 조직 기준선에 비어 있는 차원이라는 사실이다",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Runtime weight",
+   "place": "USER BASELINE.PeerReference(`weight 〈값〉 (〈가중 상태〉)`). Seed policy는 가중 상태를 말로 쓴 문장과 수치 반복이다(W0-7)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Seed policy",
+   "place": "USER BASELINE.PeerReference(`weight 〈값〉 (〈가중 상태〉)`). Seed policy는 가중 상태를 말로 쓴 문장과 수치 반복이다(W0-7)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Baseline gap impact",
+   "place": "시스템 글 증거 규칙과 BaselineStatus",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "Baseline evidence constraints",
+   "place": "시스템 글 증거 규칙과 BaselineStatus",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  }
+ ]
+}

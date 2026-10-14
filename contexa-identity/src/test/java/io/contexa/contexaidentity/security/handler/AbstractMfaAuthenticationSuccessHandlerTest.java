@@ -37,6 +37,7 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
@@ -468,6 +469,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         private final ZeroTrustActionRepository actionRepository = mock(ZeroTrustActionRepository.class);
         private final SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
         private final SecurityLearningService learningService = mock(SecurityLearningService.class);
+        private final VerificationLearningService verificationLearning = mock(VerificationLearningService.class);
 
         @Test
         @DisplayName("a login MFA does not release a CHALLENGE and is recorded as a login MFA")
@@ -498,6 +500,36 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
             verify(dataStore).addSessionAction(eq("session-1"), record.capture());
             assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
+        }
+
+        @Test
+        @DisplayName("the passed step-up learns the request the challenge stopped from its own facts (W5-2)")
+        void challengeMfaLearnsTheChallengedRequest() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            when(actionRepository.getAnalysisData("admin")).thenReturn(new ZeroTrustActionRepository.ZeroTrustAnalysisData(
+                    "CHALLENGE", 0.6, 0.8, null, 1, null, null, null, "request-1", null, null));
+            when(verificationLearning.learnStepUp("admin", "request-1")).thenReturn(true);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), completedFactorContext(true));
+
+            verify(verificationLearning).learnStepUp("admin", "request-1");
+            verify(learningService, never()).learnAndStore(anyString(), any(), any());
+        }
+
+        @Test
+        @DisplayName("without the facts of the challenged request the step-up is learned as before (W5-2)")
+        void challengeMfaWithoutHeldFactsLearnsAsBefore() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.CHALLENGE);
+            when(actionRepository.getAnalysisData("admin")).thenReturn(new ZeroTrustActionRepository.ZeroTrustAnalysisData(
+                    "CHALLENGE", 0.6, 0.8, null, 1, null, null, null, "request-2", null, null));
+            when(verificationLearning.learnStepUp("admin", "request-2")).thenReturn(false);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), completedFactorContext(true));
+
+            verify(verificationLearning).learnStepUp("admin", "request-2");
+            verify(learningService).learnAndStore(eq("admin"), any(), any());
         }
 
         @Test
@@ -573,6 +605,10 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
             when(applicationContext.getBeanProvider(AISessionSecurityContextRepository.class)).thenReturn(provider);
             when(provider.getIfAvailable()).thenReturn(aiRepository);
             when(applicationContext.getBean(SecurityContextDataStore.class)).thenReturn(dataStore);
+            @SuppressWarnings("unchecked")
+            ObjectProvider<VerificationLearningService> verificationProvider = mock(ObjectProvider.class);
+            when(applicationContext.getBeanProvider(VerificationLearningService.class)).thenReturn(verificationProvider);
+            when(verificationProvider.getIfAvailable()).thenReturn(verificationLearning);
             return new TestHandler(
                     tokenService,
                     mock(AuthResponseWriter.class),

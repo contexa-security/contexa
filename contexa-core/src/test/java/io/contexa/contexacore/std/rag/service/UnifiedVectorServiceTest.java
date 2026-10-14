@@ -26,9 +26,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -121,7 +124,71 @@ class UnifiedVectorServiceTest {
         unifiedVectorService.storeDocument(document);
 
         verify(vectorStore, times(2)).add(any());
-        verify(cacheLayer).invalidateAfterWrite();
+        verify(cacheLayer).invalidateAfterWrite(any());
+    }
+
+    @Test
+    @DisplayName("an event's document gets an id from the event and its type, so storing it again overwrites it (W2-15)")
+    @SuppressWarnings("unchecked")
+    void storeDocument_givesAnEventsDocumentAStableId() {
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(new PgVectorStoreProperties(), cacheLayer,
+                vectorStore);
+        String expected = UUID.nameUUIDFromBytes("behavior:event-1".getBytes(StandardCharsets.UTF_8)).toString();
+
+        unifiedVectorService.storeDocument(new Document("first", Map.of("documentType", "behavior", "eventId", "event-1")));
+        unifiedVectorService.storeDocument(new Document("again", Map.of("documentType", "behavior", "eventId", "event-1")));
+        unifiedVectorService.storeDocument(new Document("threat", Map.of("documentType", "threat", "eventId", "event-1")));
+
+        ArgumentCaptor<List<Document>> stored = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore, times(3)).add(stored.capture());
+        List<Document> documents = stored.getAllValues().stream().map(batch -> batch.get(0)).toList();
+        assertThat(documents.get(0).getId()).isEqualTo(expected);
+        assertThat(documents.get(1).getId()).isEqualTo(expected);
+        assertThat(documents.get(1).getText()).isEqualTo("again");
+        assertThat(documents.get(2).getId()).isNotEqualTo(expected);
+        assertThat(documents).allSatisfy(document -> assertThat(document.getMetadata()).containsEntry("id", document.getId()));
+    }
+
+    @Test
+    @DisplayName("a document without an event keeps its own id, and its metadata names the same id (W2-15)")
+    @SuppressWarnings("unchecked")
+    void storeDocument_keepsTheIdOfADocumentWithoutAnEvent() {
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(new PgVectorStoreProperties(), cacheLayer,
+                vectorStore);
+        Document document = new Document("policy note", Map.of("documentType", "policy"));
+
+        unifiedVectorService.storeDocument(document);
+
+        ArgumentCaptor<List<Document>> stored = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore).add(stored.capture());
+        assertThat(stored.getValue().get(0).getId()).isEqualTo(document.getId());
+        assertThat(stored.getValue().get(0).getMetadata()).containsEntry("id", document.getId());
+    }
+
+    @Test
+    @DisplayName("a store clears the cached searches of the stored documents (W2-15)")
+    @SuppressWarnings("unchecked")
+    void storeDocument_clearsTheCachedSearchesOfTheStoredDocuments() {
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(new PgVectorStoreProperties(), cacheLayer,
+                vectorStore);
+
+        unifiedVectorService.storeDocument(new Document("memory", Map.of("documentType", "behavior", "userId", "alice")));
+
+        ArgumentCaptor<List<Document>> invalidated = ArgumentCaptor.forClass(List.class);
+        verify(cacheLayer).invalidateAfterWrite(invalidated.capture());
+        assertThat(invalidated.getValue()).singleElement()
+                .satisfies(document -> assertThat(document.getMetadata()).containsEntry("userId", "alice"));
+    }
+
+    @Test
+    @DisplayName("vector writes run on the vector executor and carry no engine database transaction (W2-15)")
+    void vectorWritesCarryNoEngineTransaction() throws NoSuchMethodException {
+        assertThat(UnifiedVectorService.class.getMethod("storeDocument", Document.class)
+                .isAnnotationPresent(Transactional.class)).isFalse();
+        assertThat(UnifiedVectorService.class.getMethod("storeDocuments", List.class)
+                .isAnnotationPresent(Transactional.class)).isFalse();
+        assertThat(UnifiedVectorService.class.getMethod("deleteDocuments", List.class)
+                .isAnnotationPresent(Transactional.class)).isFalse();
     }
 
     @Test

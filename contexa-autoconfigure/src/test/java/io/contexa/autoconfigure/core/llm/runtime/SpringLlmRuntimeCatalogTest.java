@@ -69,6 +69,56 @@ class SpringLlmRuntimeCatalogTest {
         verify(applicationContext, never()).getBean("openAiChatModel", ChatModel.class);
     }
 
+    /** A fixed provider is never replaced by another provider's chat model when it has no binding. */
+    @Test
+    void theFixedProviderIsNeverReplacedByAnotherProvider() {
+        ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+        ConfigurableListableBeanFactory beanFactory = mock(ConfigurableListableBeanFactory.class);
+        BeanDefinition openAiDefinition = mock(BeanDefinition.class);
+        when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
+        when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"openAiChatModel"});
+        when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[0]);
+        Mockito.doReturn((Class<?>) OpenAiRuntimeStub.class).when(beanFactory).getType("openAiChatModel", false);
+        when(beanFactory.containsBeanDefinition("openAiChatModel")).thenReturn(true);
+        when(beanFactory.getBeanDefinition("openAiChatModel")).thenReturn(openAiDefinition);
+        when(openAiDefinition.isPrimary()).thenReturn(false);
+        ChatModel openAiChatModel = mock(ChatModel.class);
+        when(applicationContext.getBean("openAiChatModel", ChatModel.class)).thenReturn(openAiChatModel);
+        SpringLlmRuntimeCatalog catalog = new SpringLlmRuntimeCatalog(applicationContext, new ContexaProperties(),
+                new ContexaLlmBindingProperties());
+
+        assertThat(catalog.resolveProviderChatModel("anthropic")).isEmpty();
+        assertThat(catalog.resolveProviderChatModel("openai")).containsSame(openAiChatModel);
+    }
+
+    /** An Ollama model's binding takes its model id from Spring AI's Ollama options, so its provider is known. */
+    @Test
+    void shouldExposeSpringOllamaConfiguredModelsAsBindingIds() {
+        ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+        ConfigurableListableBeanFactory beanFactory = mock(ConfigurableListableBeanFactory.class);
+        when(applicationContext.getBeanFactory()).thenReturn(beanFactory);
+        when(applicationContext.getEnvironment()).thenReturn(new MockEnvironment()
+                .withProperty("spring.ai.ollama.chat.options.model", "qwen3:8b")
+                .withProperty("spring.ai.ollama.embedding.options.model", "nomic-embed-text"));
+        when(beanFactory.getBeanNamesForType(ChatModel.class, true, false)).thenReturn(new String[]{"ollamaChatModel"});
+        when(beanFactory.getBeanNamesForType(EmbeddingModel.class, true, false)).thenReturn(new String[]{"ollamaEmbeddingModel"});
+        Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaChatModel", false);
+        Mockito.doReturn((Class<?>) OllamaRuntimeStub.class).when(beanFactory).getType("ollamaEmbeddingModel", false);
+        when(beanFactory.containsBeanDefinition("ollamaChatModel")).thenReturn(false);
+        when(beanFactory.containsBeanDefinition("ollamaEmbeddingModel")).thenReturn(false);
+
+        SpringLlmRuntimeCatalog catalog = new SpringLlmRuntimeCatalog(
+                applicationContext,
+                new ContexaProperties(),
+                new ContexaLlmBindingProperties());
+
+        LlmRuntimeBinding chatBinding = catalog.findChatBinding("qwen3:8b").orElseThrow();
+        LlmRuntimeBinding embeddingBinding = catalog.findEmbeddingBinding("nomic-embed-text").orElseThrow();
+
+        assertThat(chatBinding.getProvider()).isEqualTo("ollama");
+        assertThat(embeddingBinding.getProvider()).isEqualTo("ollama");
+    }
+
     @Test
     void shouldExposeSpringOpenAiConfiguredModelsAsBindingIds() {
         ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);

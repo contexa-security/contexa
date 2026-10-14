@@ -80,6 +80,8 @@ public class LLMExecutionStep implements PipelineStep {
             "actualTokenUsageAvailable",
             "promptCacheHit",
             "cachedPromptTokens",
+            "promptCacheKeyApplied",
+            ExecutionContext.OUTPUT_SCHEMA_APPLIED,
             "chatModelClass",
             "providerModelSelectionMs",
             "providerChatClientBuildMs",
@@ -485,11 +487,19 @@ public class LLMExecutionStep implements PipelineStep {
         ResolvedValue<String> openAiVerbosity = resolveStringParameter(request, context,
                 "openAiVerbosity",
                 "runtimeOpenAiVerbosity");
+        ResolvedValue<String> promptCacheKey = resolveStringParameter(request, context, "promptCacheKey");
+        ResolvedValue<String> outputSchema = resolveStringParameter(request, context, ExecutionContext.OUTPUT_SCHEMA);
         ResolvedValue<Boolean> disableRetries = resolveBooleanParameter(request, context, "disableRetries");
         ResolvedValue<Boolean> disableOllamaThinking = resolveBooleanParameter(request, context, "disableOllamaThinking");
         ResolvedValue<String> boundaryMode = resolveStringParameter(request, context, "decisionBoundaryMode");
         if (securityDecisionTarget) {
-            requestedModel = resolveOfficialVerificationPinnedModel(request, context, requestedModel);
+            // P3-EXTRA-9: the platform's model call limit, set by the strategy and never by the request.
+            ResolvedValue<Integer> callTimeoutMs =
+                    resolveIntegerParameter(request, context, "platformSecurityDecisionCallTimeoutMs");
+            if (callTimeoutMs != null && callTimeoutMs.value() > 0) {
+                executionContext.addMetadata(ExecutionContext.CALL_TIMEOUT_MS, callTimeoutMs.value().longValue());
+            }
+            requestedModel = nullIfSecurityOverride(context, "preferredModel", requestedModel);
             temperature = nullIfSecurityOverride(context, "temperature", temperature);
             topP = nullIfSecurityOverride(context, "topP", topP);
             seed = nullIfSecurityOverride(context, "seed", seed);
@@ -534,6 +544,13 @@ public class LLMExecutionStep implements PipelineStep {
         if (openAiVerbosity != null) {
             recordMetadata(context, executionContext, "openAiVerbosity", openAiVerbosity.value());
         }
+        if (promptCacheKey != null) {
+            executionContext.addMetadata("promptCacheKey", promptCacheKey.value());
+        }
+        // W4-2: the output schema the provider enforces when its options support structured output.
+        if (outputSchema != null) {
+            executionContext.addMetadata(ExecutionContext.OUTPUT_SCHEMA, outputSchema.value());
+        }
         if (disableRetries != null) {
             executionContext.addMetadata("disableRetries", disableRetries.value());
             recordMetadata(context, executionContext, "disableRetries", disableRetries.value());
@@ -575,28 +592,11 @@ public class LLMExecutionStep implements PipelineStep {
         return executionContext;
     }
 
-    private <T extends DomainContext> ResolvedValue<String> resolveOfficialVerificationPinnedModel(
-            AIRequest<T> request,
-            PipelineExecutionContext context,
-            ResolvedValue<String> blockedRuntimeModel) {
-        ResolvedValue<String> pinnedModel = resolveStringParameter(request, context, "officialVerificationPinnedModelId");
-        if (pinnedModel != null) {
-            recordIgnoredSecurityOverride(context, "preferredModel", blockedRuntimeModel);
-            return new ResolvedValue<>(pinnedModel.value(), "officialVerificationPinnedModelId");
-        }
-        return nullIfSecurityOverride(context, "preferredModel", blockedRuntimeModel);
-    }
-
     private <T extends DomainContext> ResolvedValue<Integer> resolveTrustedSecurityMaxTokens(
             AIRequest<T> request,
             PipelineExecutionContext context,
             ResolvedValue<Integer> blockedRuntimeMaxTokens) {
         recordIgnoredSecurityOverride(context, "maxTokens", blockedRuntimeMaxTokens);
-        ResolvedValue<Integer> officialMaxTokens =
-                resolveIntegerParameter(request, context, "officialVerificationMaxTokens");
-        if (officialMaxTokens != null) {
-            return new ResolvedValue<>(officialMaxTokens.value(), "officialVerificationMaxTokens");
-        }
         ResolvedValue<Integer> platformMaxTokens =
                 resolveIntegerParameter(request, context, "platformSecurityDecisionMaxTokens");
         if (platformMaxTokens != null) {
@@ -651,13 +651,13 @@ public class LLMExecutionStep implements PipelineStep {
             PipelineExecutionContext context,
             Class<?> targetType) {
         String modelHint = null;
+        // A security decision runs on the configured model, so no request names its model.
         ResolvedValue<String> requestedModel = isSecurityDecisionTarget(targetType)
-                ? resolveStringParameter(request, context, "officialVerificationPinnedModelId")
+                ? null
                 : resolveStringParameter(request, context,
                         "requestedModelId",
                         "preferredModel",
-                        "runtimeModelId",
-                        "officialVerificationPinnedModelId");
+                        "runtimeModelId");
         if (requestedModel != null) {
             modelHint = requestedModel.value();
         }

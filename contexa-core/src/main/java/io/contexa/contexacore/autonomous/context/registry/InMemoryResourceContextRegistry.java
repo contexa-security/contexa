@@ -25,6 +25,7 @@ public class InMemoryResourceContextRegistry implements ResourceContextRegistry 
 
     private final Map<String, ResourceContextDescriptor> resources = new ConcurrentHashMap<>();
 
+    @Override
     public void register(ResourceContextDescriptor descriptor) {
         if (descriptor == null || descriptor.resourceId() == null || descriptor.resourceId().isBlank()) {
             return;

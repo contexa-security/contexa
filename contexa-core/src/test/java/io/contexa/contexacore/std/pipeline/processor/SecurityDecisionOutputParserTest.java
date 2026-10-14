@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.pipeline.processor;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityDecisionOutputParserTest {
 
     private final SecurityDecisionOutputParser parser = new SecurityDecisionOutputParser();
+
+    /** W4-2: the output contract v3 response: action, reason codes with fact IDs, reason, nullable audit fields. */
+    @Test
+    void parseShouldReadTheOutputContractV3Response() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-v3");
+
+        SecurityDecisionResponseLite result = parser.parse("""
+                {"action":"CHALLENGE","reasonCodes":[{"code":"deviation_time","fact":"f1"},\
+                {"code":"MIN_P3_POLICY_NOT_SATISFIED","fact":"F4"},{"fact":"F2"}],\
+                "reason":"The 03:00 export differs from usual and no record covers it.",\
+                "riskScore":null,"confidence":0.8,"mitre":["T1567","T1078"]}
+                """, context);
+
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(result.getReasonCodes()).containsExactly(
+                new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"),
+                new SecurityDecisionOutputContract.Citation("MIN_P3_POLICY_NOT_SATISFIED", "F4"));
+        assertThat(result.getReasoning()).isEqualTo("The 03:00 export differs from usual and no record covers it.");
+        assertThat(result.getRiskScore()).isNull();
+        assertThat(result.getConfidence()).isEqualTo(0.8d);
+        assertThat(result.getMitre()).isEqualTo("T1567, T1078");
+        assertThat(context.getMetadata("securityDecisionReasonCodeCount", Integer.class)).isEqualTo(2);
+        assertThat(context.getMetadata("securityDecisionParseFailureCategory", String.class)).isEqualTo("NONE");
+    }
+
+    /** W4-2: a v19 response has no reason codes. */
+    @Test
+    void parseShouldLeaveTheReasonCodesOfAV19ResponseEmpty() {
+        SecurityDecisionResponseLite result = parser.parse(
+                "{\"action\":\"ALLOW\",\"reasoning\":\"Known session context supports the read request.\"}",
+                new PipelineExecutionContext("parse-v19"));
+
+        assertThat(result.getReasonCodes()).isEmpty();
+        assertThat(result.getReasoning()).isEqualTo("Known session context supports the read request.");
+    }
 
     @Test
     void parseShouldUseValidJsonValues() {

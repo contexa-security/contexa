@@ -137,6 +137,8 @@ public class CanonicalSecurityContext {
         /** When the user last completed MFA in some session while this session has none of its own (ISO-8601). */
         private String recentMfaElsewhereAt;
         private Integer failedLoginAttempts;
+        /** The window in minutes the failed logins were counted in, when the core counted them (W3-12). */
+        private Integer failedLoginWindowMinutes;
         private Integer recentRequestCount;
         private Integer recentChallengeCount;
         private Integer recentBlockCount;
@@ -192,6 +194,26 @@ public class CanonicalSecurityContext {
         private String asn;
         /** What kind of network the request comes from, as the host declares it ({@code NetworkZone}). */
         private String networkZone;
+        /** The move the host measured since the user's previous location; null when it states none (W2-13). */
+        private Movement movement;
+    }
+
+    /**
+     * The host's facts about where the request comes from and how far that is from the previous location: the facts an
+     * impossible-travel judgement rests on, beside the host's own yes or no (W2-13, S-9).
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Movement {
+        private Double latitude;
+        private Double longitude;
+        private Integer distanceKm;
+        private Integer elapsedMinutes;
+        private String previousLocation;
+        /** How sure the host is of the location baseline the move is measured from, 0 to 1. */
+        private Double baselineConfidence;
     }
 
     @Data
@@ -208,6 +230,16 @@ public class CanonicalSecurityContext {
         /** How many items the request asks for, as the host counted them (W2-6). */
         private Integer requestedItems;
         private String sensitivity;
+        /**
+         * The resource class, its sensitivity grade in one vocabulary (CRITICAL, SENSITIVE, NORMAL, PUBLIC), from the
+         * classification values only (sensitivity, then type). Never a business category (W2-10).
+         */
+        private String resourceClass;
+        /**
+         * What kind of business resource it is (REPORT, AUDIT_LOG, PROJECT_DOCUMENTS), as the host names it. Never a
+         * class: the role scope and the delegated scope are compared in this vocabulary (W2-10).
+         */
+        private String resourceCategory;
         private String requestPath;
         /** The URL template the host matched, else the request path with its identifiers generalized. */
         private String pathFamily;
@@ -350,6 +382,13 @@ public class CanonicalSecurityContext {
         /** The same decisions as records, with their targets and item counts (W2-5), oldest first. */
         @Builder.Default
         private List<SessionDecisionRecord> sessionDecisions = new ArrayList<>();
+        /**
+         * The device the session first came from and this request's when their operating system or browser differs,
+         * "first -> current" (W2-14).
+         */
+        private String sessionDeviceChange;
+        /** The network the session first came from and this request's when they differ, "first -> current" (W2-14). */
+        private String sessionNetworkChange;
     }
 
     @Data
@@ -388,6 +427,10 @@ public class CanonicalSecurityContext {
     @AllArgsConstructor
     public static class RoleScopeProfile {
         private String summary;
+        /**
+         * The request's resource category ({@link Resource#getResourceCategory()}), compared with the expected and
+         * forbidden resource families, which are categories too; never a class (W2-10).
+         */
         private String currentResourceFamily;
         private String currentActionFamily;
         @Builder.Default

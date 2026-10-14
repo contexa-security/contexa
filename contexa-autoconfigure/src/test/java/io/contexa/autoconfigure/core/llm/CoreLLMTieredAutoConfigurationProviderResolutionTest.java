@@ -101,6 +101,24 @@ class CoreLLMTieredAutoConfigurationProviderResolutionTest {
                 .hasMessageContaining("ChatModel bean");
     }
 
+    /** The fixed selection asks the catalog for the named provider only and fails when it has none. */
+    @Test
+    void theFixedSelectionTakesTheNamedProviderOnly() {
+        CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();
+        ReflectionTestUtils.setField(configuration, "contexaProperties", new ContexaProperties());
+        ContexaLlmSelectionProperties selectionProperties = new ContexaLlmSelectionProperties();
+        selectionProperties.getChat().setMode(ContexaLlmSelectionProperties.Mode.FIXED);
+        selectionProperties.getChat().setPriority("anthropic");
+        ReflectionTestUtils.setField(configuration, "contexaLlmSelectionProperties", selectionProperties);
+        LlmRuntimeCatalog catalog = mock(LlmRuntimeCatalog.class);
+        when(catalog.resolveProviderChatModel("anthropic")).thenReturn(Optional.empty());
+        when(catalog.resolvePrimaryChatModel("anthropic")).thenReturn(Optional.of(mock(ChatModel.class)));
+
+        assertThatThrownBy(() -> configuration.fixedPrimaryChatModel(catalog))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fixed provider 'anthropic'");
+    }
+
     @Test
     void shouldResolveSpringPrimaryChatModelThroughDedicatedCatalogPath() {
         CoreLLMTieredAutoConfiguration configuration = new CoreLLMTieredAutoConfiguration();

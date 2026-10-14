@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.support;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ public final class SecuritySemanticNormalizer {
     /** Words a client gives for a device class or for no value; none of them names an operating system. */
     private static final Set<String> NOT_OPERATING_SYSTEMS =
             Set.of("DESKTOP", "MOBILE", "TABLET", "UNKNOWN", "OTHER", "NONE", "NA", "N/A", "NULL");
+    /** Every word {@link #classificationLevel} reads as a class, and UNKNOWN. */
+    private static final Set<String> CLASS_WORDS = Set.of("CRITICAL", "RESTRICTED", "SENSITIVE", "HIGH", "CONFIDENTIAL",
+            "SECRET", "NORMAL", "MEDIUM", "INTERNAL", "STANDARD", "PUBLIC", "LOW", "UNKNOWN");
     private static final String DEVICE_SYSTEM_SEPARATOR = " on ";
 
     private SecuritySemanticNormalizer() {
@@ -89,7 +93,7 @@ public final class SecuritySemanticNormalizer {
      * values belong here (sensitivity, resource type, an already normalized class): callers never pass business labels,
      * paths, categories or other free text, because a word inside such text is not a classification.
      */
-    public static String normalizeResourceFamily(Object... rawValues) {
+    public static String normalizeResourceClass(Object... rawValues) {
         for (Object rawValue : rawValues) {
             String level = classificationLevel(rawValue);
             if (level != null) {
@@ -99,7 +103,50 @@ public final class SecuritySemanticNormalizer {
         return null;
     }
 
-    /** The same classification as {@link #normalizeResourceFamily} on the sensitivity scale (CRITICAL, HIGH, MEDIUM, LOW). */
+    /**
+     * The resource's class: the context's own field, else the classification values the resource holds (sensitivity,
+     * then type). A category never decides a class.
+     */
+    public static String resourceClassOf(CanonicalSecurityContext.Resource resource) {
+        if (resource == null) {
+            return null;
+        }
+        if (StringUtils.hasText(resource.getResourceClass())) {
+            return resource.getResourceClass();
+        }
+        return normalizeResourceClass(resource.getSensitivity(), resource.getResourceType());
+    }
+
+    /**
+     * What kind of business resource the first value names (REPORT, AUDIT_LOG, PROJECT_DOCUMENTS), as a token. A value
+     * made only of class words (CRITICAL, HIGH, PUBLIC, ...) names a class, not a category, and is passed over: the role
+     * scope and the delegated scope compare categories, where a class word would be compared as one.
+     */
+    public static String normalizeResourceCategory(Object... rawValues) {
+        for (Object rawValue : rawValues) {
+            String candidate = normalizeToken(rawValue);
+            if (StringUtils.hasText(candidate) && !classWordsOnly(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static boolean classWordsOnly(String candidate) {
+        boolean anyWord = false;
+        for (String word : candidate.split("[^A-Z0-9]+")) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (!CLASS_WORDS.contains(word)) {
+                return false;
+            }
+            anyWord = true;
+        }
+        return anyWord;
+    }
+
+    /** The same classification as {@link #normalizeResourceClass} on the sensitivity scale (CRITICAL, HIGH, MEDIUM, LOW). */
     public static String normalizeSensitivity(Object... rawValues) {
         for (Object rawValue : rawValues) {
             String level = classificationLevel(rawValue);

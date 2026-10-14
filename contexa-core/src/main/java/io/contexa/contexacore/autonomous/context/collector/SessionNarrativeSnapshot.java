@@ -45,5 +45,15 @@ public class SessionNarrativeSnapshot implements ContextSnapshot {
     List<String> sessionDecisionHistory;
     /** The same decisions as records, with their targets and item counts (W2-5). */
     List<SessionDecisionRecord> sessionDecisions;
+    /**
+     * The device the session first came from and this request's, when their operating system or browser differs
+     * ({@code Chrome/140 on WINDOWS -> Safari/17 on MAC}, W2-14); null when they do not differ or either is unknown.
+     */
+    String sessionDeviceChange;
+    /**
+     * The network the session first came from and this request's, when they differ
+     * ({@code 10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24}, W2-14); null when they do not differ or either is unknown.
+     */
+    String sessionNetworkChange;
     String summary;
 }

@@ -24,6 +24,7 @@ import static org.mockito.Mockito.*;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -351,6 +352,55 @@ class ZeroTrustChallengeFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("a request the CHALLENGE in force stops is kept in its session (N-SES-1, G4-1)")
+    void aRequestStoppedByTheChallengeIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        filter.setChallengeProcedureAvailable(false);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        setUpChallengeAuthentication();
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(unanalysed).recordRequest(authentication, ZeroTrustAction.CHALLENGE);
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("a request stopped while the step-up is being opened is kept in its session too (N-SES-1, G4-1)")
+    void aRequestStoppedWhileTheStepUpOpensIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        setUpChallengeAuthentication();
+        when(sessionRepository.getSessionId(request)).thenReturn(null);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.CHALLENGE);
+        when(lockService.tryLock(anyString(), anyString(), any())).thenReturn(false);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(unanalysed).recordRequest(authentication, ZeroTrustAction.CHALLENGE);
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("a request the filter lets through is not recorded by it (N-SES-1)")
+    void aRequestLetThroughIsNotRecordedByTheFilter() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/dashboard");
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(actionRepository.getCurrentAction(eq("testUser"), any())).thenReturn(ZeroTrustAction.ALLOW);
+        setUpAuthentication();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(unanalysed, never()).recordRequest(any(), any());
     }
 
     private void setUpChallengeAuthentication() {

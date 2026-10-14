@@ -375,7 +375,8 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
 
     /**
      * The approval the lookup found. The lookup checks the record's state and project against the request; without
-     * a STATUS or TARGET mismatch they are APPROVED and the requested project, with one they are not stated.
+     * a STATUS or TARGET mismatch they are APPROVED and the requested project, with one they are not stated. The items
+     * already delivered under it are the lookup's count (LU-2).
      */
     static CanonicalSecurityContext.ApprovalRecord approvalRecord(ApprovalCoverage approval, String target) {
         if (approval == null || approval.approvalKey() == null) {
@@ -389,6 +390,7 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
                 .purpose(approval.purpose())
                 .target(mismatches.contains("TARGET") ? null : target)
                 .maxItems(approval.maxItems() > 0 ? approval.maxItems() : null)
+                .usedItems(approval.usedItems())
                 .validFrom(approval.validFrom())
                 .validUntil(approval.validUntil())
                 .decidedAt(approval.approvedAt())

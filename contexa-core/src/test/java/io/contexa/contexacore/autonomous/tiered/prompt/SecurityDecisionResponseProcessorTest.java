@@ -22,7 +22,7 @@ import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionResponsePro
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-
+
 class SecurityDecisionResponseProcessorTest {
 
     @Test
@@ -51,7 +51,8 @@ class SecurityDecisionResponseProcessorTest {
                 Map.entry("confidence", "MODEL"),
                 Map.entry("reasoning", "MODEL"),
                 Map.entry("mitre", "MODEL"),
-                Map.entry("evidenceRefs", "MODEL"));
+                Map.entry("evidenceRefs", "MODEL"),
+                Map.entry("reasonCodes", "ABSENT"));
     }
 
     @Test
@@ -73,6 +74,35 @@ class SecurityDecisionResponseProcessorTest {
         assertThat(response.getReasoning()).isEqualTo("Role scope is provisional");
         assertThat(context.getMetadata("securityDecisionPostprocessingRepairApplied", Boolean.class)).isTrue();
         assertThat(context.getMetadata("securityDecisionPostprocessingRepairFields", List.class)).contains("reasoning");
+    }
+
+    /** W4-2: a v3 response keeps its reason codes and its reason within the contract's 200 characters. */
+    @Test
+    void wrapResponseShouldKeepTheReasonCodesAndTheV3ReasonLimit() {
+        String sentence = "Unexplained overnight administrative exports targeting restricted engineering repositories "
+                + "combined with unfamiliar workstation fingerprints, atypical authentication sequences, escalating "
+                + "request velocity, and missing managerial authorization collectively warrant verification.";
+        SecurityDecisionResponseLite v3 = new SecurityDecisionResponseLite();
+        v3.setAction("CHALLENGE");
+        v3.setReasoning(sentence);
+        v3.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+        SecurityDecisionResponseLite v19 = new SecurityDecisionResponseLite();
+        v19.setAction("CHALLENGE");
+        v19.setReasoning(sentence);
+        SecurityDecisionResponseProcessor processor = new SecurityDecisionResponseProcessor();
+
+        SecurityDecisionResponse v3Response = (SecurityDecisionResponse) processor.wrapResponse(
+                v3, new PipelineExecutionContext("req-v3"));
+        SecurityDecisionResponse v19Response = (SecurityDecisionResponse) processor.wrapResponse(
+                v19, new PipelineExecutionContext("req-v19"));
+
+        assertThat(v3Response.getReasonCodes())
+                .containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
+        assertThat(v3Response.getReasoning()).hasSizeLessThanOrEqualTo(SecurityDecisionOutputContract.MAX_REASON_CHARACTERS);
+        assertThat(v3Response.getFieldProvenance()).containsEntry("reasonCodes", "MODEL");
+        assertThat(v19Response.getReasonCodes()).isEmpty();
+        assertThat(v19Response.getReasoning()).hasSizeGreaterThan(SecurityDecisionOutputContract.MAX_REASON_CHARACTERS);
+        assertThat(v19Response.getFieldProvenance()).containsEntry("reasonCodes", "ABSENT");
     }
 
     @Test

@@ -76,6 +76,8 @@ class AnatomyBuilderTest {
         assertThat(anatomy.figures().departureCount()).as("the items rendered as not in the baseline")
                 .isEqualTo(anatomy.juxtaposition().departures().size());
         assertThat(anatomy.promptLines().userPhysical()).isEqualTo(243);
+        assertThat(anatomy.promptLines().layout()).as("a v19 prompt keeps its seven bundles (W3-10)")
+                .isEqualTo(PromptLines.V19_SECTIONS);
         assertThat(anatomy.promptLines().sections()).hasSize(18)
                 .noneMatch(section -> section.bundle().equals("OTHER"));
         assertThat(anatomy.promptLines().bundles()).containsExactly(new PromptLines.Bundle("RULES", 107),

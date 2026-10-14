@@ -176,6 +176,63 @@ class ObjectiveDriftEvaluatorTest {
                         || fact.contains("Current action family is not listed"));
     }
 
+    @Test
+    void theDelegatedScopeIsComparedWithTheResourcesCategory() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/reports/7")
+                        .resourceType("CRITICAL")
+                        .resourceClass("CRITICAL")
+                        .resourceCategory("TENANT_DATA")
+                        .actionFamily("READ")
+                        .requestPath("/api/reports/7")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentActionFamily("READ")
+                        .build())
+                .build();
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("READ_ONLY_INCIDENT_SUMMARY")
+                .allowedOperations(List.of("READ"))
+                .allowedResources(List.of("TENANT_DATA"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        // W2-10: the type said CRITICAL, a class; the delegated scope names categories.
+        assertThat(evaluation.currentResourceFamily()).isEqualTo("TENANT_DATA");
+        assertThat(evaluation.objectiveDrift()).isFalse();
+    }
+
+    @Test
+    void aClassWordTypeLeavesTheCategoryToThePathAndNotToTheClass() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/projects/W04/exports")
+                        .resourceType("CRITICAL")
+                        .resourceClass("CRITICAL")
+                        .actionFamily("READ")
+                        .requestPath("/api/projects/W04/exports")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentActionFamily("READ")
+                        .build())
+                .build();
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("READ_ONLY_INCIDENT_SUMMARY")
+                .allowedOperations(List.of("READ"))
+                .allowedResources(List.of("TENANT_DATA"))
+                .build();
+
+        ObjectiveDriftEvaluation evaluation = evaluator.evaluate(delegation, context);
+
+        assertThat(evaluation.currentResourceFamily()).isEqualTo("TENANT_DATA");
+        assertThat(evaluation.objectiveDrift()).isFalse();
+        assertThat(evaluation.facts()).doesNotContain("Current resource family: CRITICAL");
+    }
+
     private static CanonicalSecurityContext context(String actionFamily) {
         return CanonicalSecurityContext.builder()
                 .resource(CanonicalSecurityContext.Resource.builder()
@@ -185,6 +242,34 @@ class ObjectiveDriftEvaluatorTest {
                         .build())
                 .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
                         .currentActionFamily(actionFamily)
+                        .build())
+                .build();
+    }
+
+    @Test
+    void aRequestedResourceBroaderThanTheConstraintIsOutsideIt() {
+        CanonicalSecurityContext.Delegation delegation = CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .objectiveFamily("READ_ONLY_INCIDENT_SUMMARY")
+                .allowedOperations(List.of("READ"))
+                .allowedResources(List.of("/api/tenants/t1/reports"))
+                .build();
+
+        ObjectiveDriftEvaluation broader = evaluator.evaluate(delegation, read("/api/tenants/t1"));
+        ObjectiveDriftEvaluation within = evaluator.evaluate(delegation, read("/api/tenants/t1/reports/7"));
+
+        // N-ID-1 (D5): the request lies within a raw constraint when its resource starts with it; a constraint that
+        // starts with the request's resource names something narrower than what is asked for.
+        assertThat(broader.facts()).anyMatch(fact -> fact.contains("Current resource does not match delegated raw resource constraints"));
+        assertThat(within.facts()).anyMatch(fact -> fact.contains("Current resource matches delegated raw resource constraints"));
+    }
+
+    private static CanonicalSecurityContext read(String path) {
+        return CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId(path)
+                        .actionFamily("READ")
+                        .requestPath(path)
                         .build())
                 .build();
     }

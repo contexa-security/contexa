@@ -17,7 +17,6 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -30,11 +29,7 @@ public class PromptGenerationStep implements PipelineStep {
     private final PromptEvidenceComposer promptEvidenceComposer;
 
     public PromptGenerationStep(PromptGenerator promptGenerator) {
-        this(promptGenerator, new TieredStrategyProperties());
-    }
-
-    public PromptGenerationStep(PromptGenerator promptGenerator, TieredStrategyProperties tieredStrategyProperties) {
-        this.promptEvidenceComposer = new PromptEvidenceComposer(promptGenerator, tieredStrategyProperties);
+        this.promptEvidenceComposer = new PromptEvidenceComposer(promptGenerator);
     }
 
     @Override

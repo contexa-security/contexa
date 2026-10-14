@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 public class ProviderHttpCapture implements ClientHttpRequestInterceptor {
 
     static final String CHAT_PATH = "/chat/completions";
+    /** Anthropic's Messages API, read the same way (model comparison). */
+    static final String MESSAGES_PATH = "/v1/messages";
 
     private final ModelExchanges exchanges;
 
@@ -35,8 +37,9 @@ public class ProviderHttpCapture implements ClientHttpRequestInterceptor {
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution)
             throws IOException {
         ModelExchanges.Pending pending = exchanges.current();
+        String path = request.getURI().getPath();
         if (pending == null || request.getMethod() != HttpMethod.POST
-                || !request.getURI().getPath().endsWith(CHAT_PATH)) {
+                || !(path.endsWith(CHAT_PATH) || path.endsWith(MESSAGES_PATH))) {
             return execution.execute(request, body);
         }
         pending.requestOptions = exchanges.requestOptions(body);

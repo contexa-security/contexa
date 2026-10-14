@@ -167,8 +167,8 @@ public final class PromptGovernanceSupport {
         String normalizedUserPrompt = userPrompt != null ? userPrompt : "";
         String normalizedRawSystemPrompt = rawSystemPrompt != null ? rawSystemPrompt : "";
         String normalizedRawUserPrompt = rawUserPrompt != null ? rawUserPrompt : "";
-        String combinedPrompt = normalizedSystemPrompt + "\n---\n" + normalizedUserPrompt;
-        String combinedRawPrompt = normalizedRawSystemPrompt + "\n---\n" + normalizedRawUserPrompt;
+        String combinedPrompt = combinedPrompt(normalizedSystemPrompt, normalizedUserPrompt);
+        String combinedRawPrompt = combinedPrompt(normalizedRawSystemPrompt, normalizedRawUserPrompt);
         PromptTokenEstimator promptTokenEstimator = PROMPT_TOKEN_ESTIMATOR_REGISTRY.resolve(modelHint);
         PromptTokenEstimate estimated =
                 promptTokenEstimator.estimate(modelHint, normalizedSystemPrompt, normalizedUserPrompt, budgetProfile);
@@ -222,8 +222,7 @@ public final class PromptGovernanceSupport {
         for (String key : List.of(
                 "requestedModelId",
                 "preferredModel",
-                "runtimeModelId",
-                "officialVerificationPinnedModelId")) {
+                "runtimeModelId")) {
             Object value = request.getParameter(key, Object.class);
             if (value instanceof String text && !text.isBlank()) {
                 return text.trim();
@@ -264,6 +263,15 @@ public final class PromptGovernanceSupport {
                 templateClass.getName());
     }
 
+    /**
+     * The text the prompt hash is taken of: the system prompt, a {@code ---} line and the user prompt (R1b-3: the one form
+     * the render metadata, the sealed package and the prompt inspector use).
+     */
+    public static String combinedPrompt(String systemPrompt, String userPrompt) {
+        return systemPrompt + "\n---\n" + userPrompt;
+    }
+
+    /** A hash as the prompt metadata and the sealed package keep it: {@code sha256:} and the lowercase hex digest. */
     public static String sha256(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

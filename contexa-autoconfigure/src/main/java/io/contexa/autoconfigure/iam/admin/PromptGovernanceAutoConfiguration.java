@@ -11,6 +11,7 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseApprovalR
 import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseWorkflowRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRollbackRecordRepository;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceEmpiricalEvalService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceJpaLedgerWriter;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceLifecycleLedgerService;
@@ -66,6 +67,27 @@ public class PromptGovernanceAutoConfiguration {
             ObjectMapper objectMapper
     ) {
         return new JdbcPromptGovernanceDescriptorResolver(jdbcTemplate, objectMapper);
+    }
+
+    /**
+     * The registry implementation of the bundle selector (W3-16): the security decision runs the release of the
+     * request's scope by its state and canary share when {@code contexa.security.tiered.prompt-bundle.selector} is
+     * {@code registry}; otherwise it runs the configured bundle. It shares the resolver's cached releases when the
+     * resolver is the JDBC resolver.
+     */
+    @Bean
+    @ConditionalOnMissingBean(PromptBundleSelector.class)
+    @ConditionalOnProperty(prefix = "contexa.security.tiered.prompt-bundle", name = "selector", havingValue = "registry")
+    public PromptBundleSelector promptBundleSelector(
+            PromptGovernanceDescriptorResolver promptGovernanceDescriptorResolver,
+            @Qualifier("contexaJdbcTemplate") JdbcTemplate jdbcTemplate,
+            ObjectMapper objectMapper
+    ) {
+        JdbcPromptGovernanceDescriptorResolver registry =
+                promptGovernanceDescriptorResolver instanceof JdbcPromptGovernanceDescriptorResolver jdbcResolver
+                        ? jdbcResolver
+                        : new JdbcPromptGovernanceDescriptorResolver(jdbcTemplate, objectMapper);
+        return registry.registrySelector();
     }
 
     @Bean

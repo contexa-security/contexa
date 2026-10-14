@@ -145,11 +145,11 @@ class CompanyRecordsEvaluatorTest {
         FrictionProfile nothingLookedUp = FrictionProfile.builder()
                 .policies(new ArrayList<>(List.of(exportPolicy()))).build();
         assertThat(evaluate(nothingLookedUp, request(300, List.of())).policy().describe())
-                .isEqualTo("unknown — not known: approvals were not looked up; the assignment to GB-500 was not looked "
-                        + "up; tickets were not looked up");
+                .isEqualTo("unknown — not known: approvals were not looked up; the assignment to this target was not "
+                        + "looked up; tickets were not looked up");
         nothingLookedUp.setCheckedRecordKinds(new ArrayList<>(List.of("APPROVAL", "TICKET", "ASSIGNMENT")));
         assertThat(evaluate(nothingLookedUp, request(300, List.of())).policy().describe())
-                .isEqualTo("no — no approval for GB-500");
+                .isEqualTo("no — no approval for this target");
     }
 
     @Test
@@ -162,7 +162,7 @@ class CompanyRecordsEvaluatorTest {
         RecordCheck check = evaluate(profile(List.of(expired), List.of(), exportPolicy()), request(10, List.of()))
                 .approvals().get(0);
         assertThat(check.failures()).containsExactly(PolicyReason.EXPIRED);
-        assertThat(check.notes()).containsExactly("valid 09-27 14:20..09-29 14:20, the request is outside it");
+        assertThat(check.notes()).containsExactly("valid 09-27 14:20..09-29 14:20 (from 3 days before to 24 h before this request), the request is outside it");
 
         ApprovalRecord otherTarget = approval("APR-3", 500).hostMismatches(new ArrayList<>(List.of("TARGET")))
                 .target(null).build();
@@ -195,7 +195,8 @@ class CompanyRecordsEvaluatorTest {
 
         assertThat(evaluation.tickets().get(0).claimFalse()).isTrue();
         assertThat(evaluation.policy().reason()).isEqualTo(PolicyReason.NO_RECORD);
-        assertThat(evaluation.policy().detail()).isEqualTo("no approval for GB-500");
+        // N-INJ-1: without a host record target, the request path's value is the requester's text.
+        assertThat(evaluation.policy().detail()).isEqualTo("no approval for this target");
     }
 
     @Test
@@ -239,7 +240,8 @@ class CompanyRecordsEvaluatorTest {
 
         assertThat(evaluation.policy().reason()).isEqualTo(PolicyReason.EXPIRED);
         assertThat(evaluation.policy().describe())
-                .isEqualTo("no — ticket TCK-1 valid 09-30 08:20..09-30 12:20, the request is outside it");
+                .isEqualTo("no — ticket TCK-1 valid 09-30 08:20..09-30 12:20 (from 6 h before to 2 h before this request), "
+                        + "the request is outside it");
     }
 
     @Test

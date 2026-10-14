@@ -141,6 +141,22 @@ public class CanonicalSecurityContextHardener {
         location.setIpBand(SecuritySemanticNormalizer.normalizeNetwork(null, normalizeText(location.getIpBand())));
         location.setAsn(normalizeUpperText(location.getAsn()));
         location.setNetworkZone(NetworkZone.nameOf(location.getNetworkZone()));
+        CanonicalSecurityContext.Movement movement = location.getMovement();
+        if (movement != null) {
+            // A value outside what it can measure states nothing (W2-13).
+            movement.setLatitude(within(movement.getLatitude(), -90, 90));
+            movement.setLongitude(within(movement.getLongitude(), -180, 180));
+            movement.setDistanceKm(movement.getDistanceKm() != null && movement.getDistanceKm() < 0
+                    ? null : movement.getDistanceKm());
+            movement.setElapsedMinutes(movement.getElapsedMinutes() != null && movement.getElapsedMinutes() < 0
+                    ? null : movement.getElapsedMinutes());
+            movement.setPreviousLocation(normalizeText(movement.getPreviousLocation()));
+            movement.setBaselineConfidence(within(movement.getBaselineConfidence(), 0, 1));
+        }
+    }
+
+    private static Double within(Double value, double low, double high) {
+        return value == null || value.isNaN() || value < low || value > high ? null : value;
     }
 
     private void hardenResource(CanonicalSecurityContext.Resource resource) {
@@ -150,6 +166,8 @@ public class CanonicalSecurityContextHardener {
         resource.setAuthorText(normalizeText(resource.getAuthorText()));
         resource.setRequestedItems(normalizeInteger(resource.getRequestedItems()));
         resource.setSensitivity(SecuritySemanticNormalizer.normalizeSensitivity(resource.getSensitivity()));
+        resource.setResourceClass(SecuritySemanticNormalizer.normalizeResourceClass(resource.getResourceClass()));
+        resource.setResourceCategory(SecuritySemanticNormalizer.normalizeResourceCategory(resource.getResourceCategory()));
         resource.setRequestPath(normalizeText(resource.getRequestPath()));
         resource.setHttpMethod(normalizeUpperText(resource.getHttpMethod()));
         resource.setActionFamily(SecuritySemanticNormalizer.normalizeActionFamily(resource.getActionFamily(), resource.getHttpMethod()));

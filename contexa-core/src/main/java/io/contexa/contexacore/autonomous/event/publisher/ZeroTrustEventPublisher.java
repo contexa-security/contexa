@@ -23,14 +23,14 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.autonomous.utils.OfficialVerificationRequestContext;
+import io.contexa.contexacore.autonomous.utils.RequestIdentity;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -72,6 +72,9 @@ public class ZeroTrustEventPublisher {
 
     @Autowired(required = false)
     private SecurityZeroTrustProperties securityZeroTrustProperties;
+
+    @Autowired(required = false)
+    private ResourceContextRegistry resourceContextRegistry;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
@@ -238,30 +241,8 @@ public class ZeroTrustEventPublisher {
             payload.put("contextBindingHash", requestInfo.getContextBindingHash());
             payload.put("clientIp", requestInfo.getClientIp());
             payload.put("userAgent", requestInfo.getUserAgent());
-            payload.put("scenario", requestInfo.getScenario());
-            payload.put("demoRunId", requestInfo.getDemoRunId());
-            payload.put("demoPhase", requestInfo.getDemoPhase());
-            if (requestInfo.getRoundKey() != null) {
-                payload.put("roundKey", requestInfo.getRoundKey());
-            }
-            if (requestInfo.getBehaviorPhase() != null) {
-                payload.put("behaviorPhase", requestInfo.getBehaviorPhase());
-            }
-            if (requestInfo.getAnomalySignal() != null) {
-                payload.put("anomalySignal", requestInfo.getAnomalySignal());
-                payload.put("anomalySignalSource", requestInfo.getAnomalySignalSource());
-            }
             if (requestInfo.getUntrustedAnomalySignalClaim() != null) {
                 payload.put("untrustedAnomalySignalClaim", requestInfo.getUntrustedAnomalySignalClaim());
-            }
-            if (requestInfo.getPqaPromptFaultScenario() != null) {
-                OfficialVerificationProbeHeaders.authorizeFaultMetadata(
-                        payload, requestInfo.getPqaPromptFaultScenario());
-                payload.put("pqaPromptFaultSource", "OFFICIAL_VERIFICATION_INTERNAL");
-            }
-            if (Boolean.TRUE.equals(requestInfo.getPqaPromptFaultRejected())) {
-                payload.put("pqaPromptFaultRejected", true);
-                payload.put("pqaPromptFaultRejectedSource", requestInfo.getPqaPromptFaultRejectedSource());
             }
             if (requestInfo.getDecisionBoundaryMode() != null) {
                 payload.put("decisionBoundaryMode", requestInfo.getDecisionBoundaryMode());
@@ -357,12 +338,14 @@ public class ZeroTrustEventPublisher {
             }
             if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
                 payload.put("impossibleTravel", true);
-                payload.put("travelDistanceKm", requestInfo.getTravelDistanceKm());
-                payload.put("travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
-                payload.put("previousLocation", requestInfo.getPreviousLocation());
             }
+            // The move facts travel whether or not the host also calls the move impossible (W2-13).
+            putIfAbsent(payload, "travelDistanceKm", requestInfo.getTravelDistanceKm());
+            putIfAbsent(payload, "travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
+            putIfAbsent(payload, "previousLocation", requestInfo.getPreviousLocation());
             promoteOfficialContextFields(requestInfo, payload);
         }
+        promoteProtectableDescriptor(payload);
 
         populateAuthenticationFallback(authentication, payload);
         populateStoredSecurityContext(effectiveUserId, requestInfo, payload);
@@ -393,11 +376,6 @@ public class ZeroTrustEventPublisher {
         if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)
                 || attributes.getRequest() == null) {
             return null;
-        }
-        Object managedResourceUrl =
-                attributes.getRequest().getAttribute("officialVerification.protectableResourceUrl");
-        if (managedResourceUrl != null && StringUtils.hasText(String.valueOf(managedResourceUrl))) {
-            return String.valueOf(managedResourceUrl).trim();
         }
         Object pattern = attributes.getRequest().getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         return pattern == null || !StringUtils.hasText(String.valueOf(pattern))
@@ -474,7 +452,7 @@ public class ZeroTrustEventPublisher {
         try {
             ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attrs != null) {
-                String requestedUserId = OfficialVerificationRequestContext.resolveUserId(attrs.getRequest());
+                String requestedUserId = RequestIdentity.userId(attrs.getRequest());
                 if (StringUtils.hasText(requestedUserId)) {
                     return requestedUserId;
                 }
@@ -667,6 +645,33 @@ public class ZeroTrustEventPublisher {
         putIfAbsent(payload, "objectiveDriftSummary", requestInfo.getObjectiveDriftSummary());
     }
 
+    void setResourceContextRegistry(ResourceContextRegistry resourceContextRegistry) {
+        this.resourceContextRegistry = resourceContextRegistry;
+    }
+
+    /**
+     * What the host declared about the protected method (W2-11): category, sensitivity, label, type, its one action,
+     * privileged and export-sensitive. The category, the action and the privileged flag go under keys of their own,
+     * apart from what the request states; a value the request already states stays. A privileged method is a fact of
+     * the resource, not an authorization the requester holds, so it never takes the requester's privileged key.
+     */
+    private void promoteProtectableDescriptor(Map<String, Object> payload) {
+        if (resourceContextRegistry == null || !(payload.get("protectableResourceId") instanceof String resourceId)) {
+            return;
+        }
+        resourceContextRegistry.findByResourceId(resourceId).ifPresent(descriptor -> {
+            putIfAbsent(payload, "protectableResourceCategory", descriptor.resourceCategory());
+            putIfAbsent(payload, "resourceSensitivity", descriptor.sensitivity());
+            putIfAbsent(payload, "resourceLabel", descriptor.businessLabel());
+            putIfAbsent(payload, "resourceType", descriptor.resourceType());
+            if (descriptor.allowedActionFamilies().size() == 1) {
+                putIfAbsent(payload, "protectableActionFamily", descriptor.allowedActionFamilies().get(0));
+            }
+            putIfAbsent(payload, "protectablePrivileged", descriptor.privileged());
+            putIfAbsent(payload, "exportSensitive", descriptor.exportSensitive());
+        });
+    }
+
     private void promoteOfficialContextFields(RequestInfo requestInfo, Map<String, Object> payload) {
         if (requestInfo == null || requestInfo.getOfficialContextFields() == null || requestInfo.getOfficialContextFields().isEmpty()) {
             return;
@@ -764,6 +769,7 @@ public class ZeroTrustEventPublisher {
                 Integer failures = securityContextDataStore.findRecentLoginFailures(userId, windowStart, now);
                 if (failures != null) {
                     payload.put("failedLoginAttempts", failures);
+                    payload.put("failedLoginWindowMinutes", windowMinutes);
                 }
             }
         } catch (RuntimeException exception) {

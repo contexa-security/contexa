@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.collector.ContextObservationRec
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -51,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -118,6 +120,50 @@ class SecurityDecisionEnforcementHandlerTest {
         verify(actionRepository).saveFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-1");
         verify(blockingSignalBroadcaster).registerBlockAndAwait("user-1");
+    }
+
+    @Test
+    @DisplayName("the request a restriction stops is held to be learned once the user is verified (W5-2)")
+    void restrictionDecision_holdsTheRequestForLearningAfterVerification() {
+        VerificationLearningService verification = mock(VerificationLearningService.class);
+        handler.setVerificationLearningService(verification);
+        for (ZeroTrustAction action : List.of(ZeroTrustAction.CHALLENGE, ZeroTrustAction.ESCALATE,
+                ZeroTrustAction.BLOCK, ZeroTrustAction.ALLOW)) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .userId("user-held")
+                    .sourceIp("10.0.0.9")
+                    .userAgent("TestAgent")
+                    .build();
+            event.addMetadata("requestId", "request-" + action.name());
+            SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+            context.addMetadata("processingResult", ProcessingResult.builder()
+                    .success(true).action(action.name()).riskScore(0.6).confidence(0.8).reasoning("r").build());
+
+            handler.handle(context);
+
+            if (action == ZeroTrustAction.ALLOW) {
+                verify(verification, never()).hold(any(), eq(ZeroTrustAction.ALLOW));
+            } else {
+                verify(verification).hold(event, action);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("a restriction observed in a shadow boundary holds nothing (W5-2)")
+    void shadowRestriction_holdsNothing() {
+        VerificationLearningService verification = mock(VerificationLearningService.class);
+        handler.setVerificationLearningService(verification);
+        SecurityEvent event = SecurityEvent.builder().userId("user-shadow").sourceIp("10.0.0.9").userAgent("A").build();
+        event.addMetadata("decisionBoundaryMode", "SHADOW");
+        SecurityEventContext context = SecurityEventContext.builder().securityEvent(event).build();
+        context.addMetadata("processingResult", ProcessingResult.builder()
+                .success(true).action(ZeroTrustAction.CHALLENGE.name()).riskScore(0.6).confidence(0.8).reasoning("r")
+                .build());
+
+        handler.handle(context);
+
+        verify(verification, never()).hold(any(), any());
     }
 
     @Test

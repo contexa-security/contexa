@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.context.decision;
 
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.AccessHistoryRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.ApprovalRecord;
@@ -28,8 +29,10 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.Policy
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.RoleScopeProfile;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TicketRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.TravelRecord;
+import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentLearningContextSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.learning.evidence.ObservedPatternSnapshot;
@@ -39,6 +42,7 @@ import org.springframework.util.StringUtils;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
@@ -73,6 +77,9 @@ public final class DecisionFactsResolver {
     public static final String ROLE_SCOPE = "RoleScope";
     public static final String DATA_CONFLICTS = "DataConflicts";
     public static final String PEER_COHORT = "PeerCohort";
+    public static final String MOVEMENT = "Movement";
+    public static final String SESSION_DEVICE_CHANGE = "SessionDeviceChange";
+    public static final String SESSION_NETWORK_CHANGE = "SessionNetworkChange";
 
     private static final long HOUR_MS = 60L * 60L * 1_000L;
     private static final String EXPORT = "EXPORT";
@@ -105,7 +112,9 @@ public final class DecisionFactsResolver {
         roleScope(facts, context);
         dataConflicts(facts, context);
         peerCohort(facts, context);
-        return new DecisionFacts(facts.known, deviations, records.policy(), facts.unknown);
+        movement(facts, context);
+        sessionClientChanges(facts, context);
+        return new DecisionFacts(facts.known, deviations, records.policy(), facts.unknown, facts.unavailable);
     }
 
     // ---- comparison with the usual behaviour
@@ -121,7 +130,7 @@ public final class DecisionFactsResolver {
         boolean personalLearned = personal != null && personal.available() && personal.hasAnyObservedFacts();
         Integer learned = personal != null && personal.updateCount() != null
                 ? personal.updateCount().intValue() : null;
-        Explainers explainers = explainers(context, records);
+        Explainers explainers = explainers(context, records, personal);
         LocalDateTime at = request.at() != null ? LocalDateTime.ofInstant(request.at(), zone) : null;
 
         List<Deviation> deviations = new ArrayList<>();
@@ -169,13 +178,16 @@ public final class DecisionFactsResolver {
                 : Deviation.notCompared(DeviationDimension.LOGIN_METHOD, login));
 
         String target = request.target();
+        // The prompt names the target's variables; their values are the requester's text (N-INJ-1).
+        String targetNames = target != null && context.getResource() != null
+                ? BaselineViewCalculator.variables(context.getResource().getPathFamily()) : null;
         // A target is compared only where the usual behaviour has usual targets of the same kind (projectKey=…):
         // documents and customers are each read once in the usual course, so a new one is no departure.
         deviations.add(windowObserved && target != null && hasUsualTargetOfKind(view, target)
-                ? compare(DeviationDimension.TARGET, request.targetValues(),
+                ? compare(DeviationDimension.TARGET, targetNames,
                 !view.counts().targets().containsKey(target), count(view.counts().targets(), target),
                 view.observations(), explainers)
-                : Deviation.notCompared(DeviationDimension.TARGET, request.targetValues()));
+                : Deviation.notCompared(DeviationDimension.TARGET, targetNames));
 
         String action = action(context, current);
         deviations.add(windowObserved && action != null && !view.actionCounts().isEmpty()
@@ -184,7 +196,7 @@ public final class DecisionFactsResolver {
                 : Deviation.notCompared(DeviationDimension.ACTION, action));
 
         String resourceClass = current != null
-                ? SecuritySemanticNormalizer.normalizeResourceFamily(current.resourceFamily()) : null;
+                ? SecuritySemanticNormalizer.normalizeResourceClass(current.resourceFamily()) : null;
         Map<String, Integer> classCounts = classCounts(view);
         deviations.add(windowObserved && resourceClass != null && !classCounts.isEmpty()
                 ? compare(DeviationDimension.RESOURCE_CLASS, resourceClass, !classCounts.containsKey(resourceClass),
@@ -234,11 +246,18 @@ public final class DecisionFactsResolver {
     }
 
     private static Deviation.Explanation explain(DeviationDimension dimension, Explainers explainers) {
-        return explainers.by(dimension) != null ? Deviation.Explanation.EXPLAINED : Deviation.Explanation.UNEXPLAINED;
+        if (explainers.by(dimension) != null) {
+            return Deviation.Explanation.EXPLAINED;
+        }
+        return explainers.established() ? Deviation.Explanation.UNEXPLAINED : Deviation.Explanation.NOT_ESTABLISHED;
     }
 
-    /** What may explain a difference: the record covering the work, and the trip holding the request address. */
-    private record Explainers(String coveringRecord, String trip) {
+    /**
+     * What may explain a difference: the record covering the work, and the trip holding the request address. A
+     * difference nothing explains is unexplained only against an established personal baseline, the one BaselineStatus
+     * calls ESTABLISHED; while the baseline is learned it is stated as such (LU-1).
+     */
+    private record Explainers(String coveringRecord, String trip, boolean established) {
 
         String by(DeviationDimension dimension) {
             return switch (dimension.explainer()) {
@@ -249,13 +268,16 @@ public final class DecisionFactsResolver {
         }
     }
 
-    private static Explainers explainers(CanonicalSecurityContext context, CompanyRecordsEvaluator.Evaluation records) {
+    private static Explainers explainers(CanonicalSecurityContext context, CompanyRecordsEvaluator.Evaluation records,
+                                         BaselineEvidenceSnapshot personal) {
         String covering = records.covering().map(RecordCheck::recordId).orElse(null);
         TravelRecord travel = context.getFrictionProfile() != null ? context.getFrictionProfile().getTravel() : null;
         String trip = travel != null && Boolean.TRUE.equals(tripHoldsAddress(travel, clientIp(context)))
                 ? "trip " + (StringUtils.hasText(travel.getPlanId()) ? travel.getPlanId() : "registered by the host")
                 : null;
-        return new Explainers(covering, trip);
+        boolean established = personal != null && personal.status() == BaselineEvidenceStatus.AVAILABLE
+                && personal.established();
+        return new Explainers(covering, trip, established);
     }
 
     /**
@@ -339,8 +361,11 @@ public final class DecisionFactsResolver {
     private static void deviationFacts(Facts facts, List<Deviation> deviations, LearningContextEvidence evidence) {
         List<Deviation> compared = deviations.stream().filter(Deviation::compared).toList();
         if (compared.isEmpty()) {
-            facts.unknown(DEVIATIONS_FROM_BASELINE);
-            facts.unknown(SAME_AS_BASELINE);
+            // The baseline learning exists but has nothing to compare with yet (dictionary 1.4 unavailable-now).
+            String reason = evidence == null || evidence.baselineView() == null || !evidence.baselineView().observed()
+                    ? "no learned baseline" : "no dimension compared";
+            facts.unavailable(DEVIATIONS_FROM_BASELINE, reason);
+            facts.unavailable(SAME_AS_BASELINE, reason);
             return;
         }
         List<Deviation> different = compared.stream().filter(Deviation::different).toList();
@@ -349,12 +374,13 @@ public final class DecisionFactsResolver {
         if (!different.isEmpty()) {
             value.append(" -> ").append(different.stream().map(Deviation::describe).collect(Collectors.joining("; ")));
         }
-        // The past records are searched within the request's resource, so their action, resource class and path
-        // family match by construction; the closest one is compared on what the search leaves free (P2 correction 3).
+        // The past records are read within the request's action family (W3-18), its target's first, and the counts
+        // state how many are on its target; the closest one read is compared on the hour, the login method and the
+        // browser (P2 correction 3).
         String overlap = evidence != null ? evidence.currentRequestClosestOverlapOutsideRetrievalScope() : null;
         if (overlap != null && overlap.contains("/")) {
-            value.append("; closest past record of this resource matches ").append(overlap.replace("/", " of "))
-                    .append(" on time, login method and browser");
+            value.append("; closest of the past records read for this action matches ")
+                    .append(overlap.replace("/", " of ")).append(" on time, login method and browser");
         }
         List<String> explaining = different.stream().map(Deviation::explainedBy).filter(StringUtils::hasText)
                 .distinct().toList();
@@ -424,11 +450,14 @@ public final class DecisionFactsResolver {
                 ApprovalRecord record = friction.getApprovalRecords().stream()
                         .filter(approval -> approval != null && check.recordId().equals(approval.getApprovalId()))
                         .findFirst().orElse(null);
-                lines.add(describeApproval(record, check, zone));
+                String line = describeApproval(record, check, request.at(), zone);
+                if (!lines.contains(line)) {
+                    lines.add(line);
+                }
             }
             facts.add(APPROVAL, String.join("; ", lines),
                     records.approvals().stream().anyMatch(RecordCheck::valid) ? List.of("APPROVAL_COVERS") : List.of(),
-                    records.approvals().stream().map(RecordCheck::recordId).toList(), DecisionFact.HOST);
+                    records.approvals().stream().map(RecordCheck::recordId).distinct().toList(), DecisionFact.HOST);
         }
 
         facts.add(ASSIGNMENT, assignment(friction, request), friction != null && friction.getAssignment() != null
@@ -442,7 +471,11 @@ public final class DecisionFactsResolver {
                 TicketRecord record = friction.getTicketRecords().stream()
                         .filter(ticket -> ticket != null && check.recordId().equals(ticket.getTicketId()))
                         .findFirst().orElse(null);
-                lines.add(describeTicket(record, check, zone));
+                // A record the host states twice (found and named by the requester) is one line (LU-3).
+                String line = describeTicket(record, check, request.at(), zone);
+                if (!lines.contains(line)) {
+                    lines.add(line);
+                }
                 if (check.valid() && !codes.contains("TICKET_COVERS")) {
                     codes.add("TICKET_COVERS");
                 }
@@ -463,7 +496,8 @@ public final class DecisionFactsResolver {
         Boolean onCallNow = records.onCall();
         facts.add(ON_CALL, onCallNow == null ? null : onCallNow
                         ? "on call" + (StringUtils.hasText(onCall.getTeam()) ? " (" + onCall.getTeam() + ")" : "")
-                        + (onCall.getEndsAt() != null ? " until " + CompanyRecordsEvaluator.wallClock(onCall.getEndsAt(), zone) : "")
+                        + (onCall.getEndsAt() != null
+                        ? " until " + CompanyRecordsEvaluator.wallClock(onCall.getEndsAt(), request.at(), zone) : "")
                         : "not on call",
                 Boolean.TRUE.equals(onCallNow) ? List.of("ON_CALL") : List.of(), List.of(), DecisionFact.HOST);
 
@@ -485,7 +519,7 @@ public final class DecisionFactsResolver {
         }
     }
 
-    static String describeApproval(ApprovalRecord record, RecordCheck check, ZoneId zone) {
+    static String describeApproval(ApprovalRecord record, RecordCheck check, Instant at, ZoneId zone) {
         StringBuilder text = new StringBuilder(check.recordId());
         if (record != null) {
             if (StringUtils.hasText(record.getApprover())) {
@@ -498,13 +532,16 @@ public final class DecisionFactsResolver {
                 appendPart(text, "up to " + CompanyRecordsEvaluator.number(record.getMaxItems()) + " items");
             }
             if (check.usedBefore() != null) {
-                appendPart(text, "used " + CompanyRecordsEvaluator.number(check.usedBefore()) + " before this request");
+                // Without the host's count the core counted this session only (LU-2).
+                appendPart(text, "used " + CompanyRecordsEvaluator.number(check.usedBefore())
+                        + (record.getUsedItems() != null ? " before this request" : " in this session before this request"));
             }
             if (record.getValidFrom() != null || record.getValidUntil() != null) {
-                appendPart(text, "valid " + CompanyRecordsEvaluator.window(record.getValidFrom(), record.getValidUntil(), zone));
+                appendPart(text, "valid " + CompanyRecordsEvaluator.window(record.getValidFrom(), record.getValidUntil(),
+                        at, zone));
             }
             appendPart(text, record.getDecidedAt() != null
-                    ? "decided " + CompanyRecordsEvaluator.wallClock(record.getDecidedAt(), zone)
+                    ? "decided " + CompanyRecordsEvaluator.wallClock(record.getDecidedAt(), at, zone)
                     : "decision time not recorded");
             if (record.getPendingApprovers() != null && !record.getPendingApprovers().isEmpty()) {
                 appendPart(text, "pending " + String.join(", ", record.getPendingApprovers()));
@@ -519,11 +556,13 @@ public final class DecisionFactsResolver {
         return text.toString();
     }
 
-    static String describeTicket(TicketRecord record, RecordCheck check, ZoneId zone) {
+    static String describeTicket(TicketRecord record, RecordCheck check, Instant at, ZoneId zone) {
+        // A ticket the requester names is the requester's text: it is drawn once, as an untrusted text (N-INJ-1).
         if (check.claimFalse()) {
-            return check.recordId() + " named by the requester does not exist";
+            return "the ticket named by the requester does not exist";
         }
-        StringBuilder text = new StringBuilder(check.recordId());
+        boolean claimed = record != null && Boolean.TRUE.equals(record.getClaimedByRequester());
+        StringBuilder text = new StringBuilder(claimed ? "the ticket named by the requester" : check.recordId());
         if (record != null) {
             if (StringUtils.hasText(record.getKind())) {
                 text.append(' ').append(record.getKind().trim().toUpperCase(Locale.ROOT));
@@ -535,10 +574,8 @@ public final class DecisionFactsResolver {
             appendPart(text, record.getPurpose());
             appendPart(text, record.getTarget());
             if (record.getValidFrom() != null || record.getValidUntil() != null) {
-                appendPart(text, "valid " + CompanyRecordsEvaluator.window(record.getValidFrom(), record.getValidUntil(), zone));
-            }
-            if (Boolean.TRUE.equals(record.getClaimedByRequester())) {
-                appendPart(text, "named by the requester");
+                appendPart(text, "valid " + CompanyRecordsEvaluator.window(record.getValidFrom(), record.getValidUntil(),
+                        at, zone));
             }
         }
         text.append(check.valid() ? " — covers this request" : " — does not cover: " + String.join("; ", check.notes()));
@@ -585,8 +622,8 @@ public final class DecisionFactsResolver {
                 .filter(decision -> decision != null && action != null && action.equals(decision.actionFamily()))
                 .toList();
         if (sameAction.isEmpty()) {
-            return "first " + what + (request.targetValues() != null ? " of " + request.targetValues() : "")
-                    + " in this session";
+            // The target's values are the requester's text (N-INJ-1): the repeat says 'this target'.
+            return "first " + what + (request.target() != null ? " of this target" : "") + " in this session";
         }
         StringBuilder text = new StringBuilder(ordinal(sameAction.size() + 1)).append(' ').append(what)
                 .append(" in this session");
@@ -594,14 +631,14 @@ public final class DecisionFactsResolver {
             List<SessionDecisionRecord> sameTarget = sameAction.stream()
                     .filter(decision -> request.target().equals(decision.target())).toList();
             if (!sameTarget.isEmpty()) {
-                text.append(", ").append(sameTarget.size()).append(" earlier of ").append(request.targetValues());
+                text.append(", ").append(sameTarget.size()).append(" earlier of the same target");
                 int exported = sameTarget.stream()
                         .filter(decision -> decision.items() != null
                                 && ALLOW.equalsIgnoreCase(String.valueOf(decision.outcome())))
                         .mapToInt(SessionDecisionRecord::items).sum();
                 if (exported > 0) {
-                    text.append("; ").append(CompanyRecordsEvaluator.number(exported)).append(" items exported to ")
-                            .append(request.targetValues()).append(" before this request");
+                    text.append("; ").append(CompanyRecordsEvaluator.number(exported))
+                            .append(" items exported to the same target before this request");
                 }
             }
         }
@@ -610,36 +647,56 @@ public final class DecisionFactsResolver {
 
     private static void roleScope(Facts facts, CanonicalSecurityContext context) {
         RoleScopeProfile scope = context.getRoleScopeProfile();
-        if (scope == null || (scope.getExpectedActionFamilies().isEmpty() && scope.getExpectedResourceFamilies().isEmpty()
-                && scope.getActionFamilyDrift() == null && scope.getResourceFamilyDrift() == null)) {
+        if (scope == null) {
             facts.unknown(ROLE_SCOPE);
+            return;
+        }
+        if (scope.getExpectedActionFamilies().isEmpty() && scope.getExpectedResourceFamilies().isEmpty()
+                && scope.getActionFamilyDrift() == null && scope.getResourceFamilyDrift() == null) {
+            facts.unavailable(ROLE_SCOPE, "no scope group lists yet");
             return;
         }
         List<String> parts = new ArrayList<>();
         String action = StringUtils.hasText(scope.getCurrentActionFamily()) ? scope.getCurrentActionFamily()
                 : action(context, null);
+        // A drift the host stated stands; without one the facts compare the request with the scope group's lists the way
+        // the role scope collector does (ignoring case), since the core states no drift of its own (P2 correction 8).
+        Boolean actionOutside = scope.getActionFamilyDrift() != null ? scope.getActionFamilyDrift()
+                : action != null && !scope.getExpectedActionFamilies().isEmpty()
+                ? scope.getExpectedActionFamilies().stream().noneMatch(expected -> action.trim().equalsIgnoreCase(
+                        expected == null ? "" : expected.trim())) : null;
+        String category = scope.getCurrentResourceFamily();
+        Boolean categoryOutside = scope.getResourceFamilyDrift() != null ? scope.getResourceFamilyDrift()
+                : StringUtils.hasText(category) && !scope.getExpectedResourceFamilies().isEmpty()
+                ? scope.getExpectedResourceFamilies().stream().noneMatch(expected -> category.trim().equalsIgnoreCase(
+                        expected == null ? "" : expected.trim())) : null;
         if (action != null && !scope.getExpectedActionFamilies().isEmpty()) {
-            parts.add("action " + action + (Boolean.TRUE.equals(scope.getActionFamilyDrift()) ? " outside" : " within")
+            parts.add("action " + action + (Boolean.TRUE.equals(actionOutside) ? " outside" : " within")
                     + " the scope group's actions (" + String.join(", ", scope.getExpectedActionFamilies()) + ")");
         }
-        if (StringUtils.hasText(scope.getCurrentResourceFamily()) && !scope.getExpectedResourceFamilies().isEmpty()) {
-            parts.add("class " + scope.getCurrentResourceFamily()
-                    + (Boolean.TRUE.equals(scope.getResourceFamilyDrift()) ? " outside" : " within")
-                    + " the scope group's classes (" + String.join(", ", scope.getExpectedResourceFamilies()) + ")");
+        // The role scope compares business categories, not the resource's class (W2-10).
+        if (StringUtils.hasText(category) && !scope.getExpectedResourceFamilies().isEmpty()) {
+            parts.add("category " + category
+                    + (Boolean.TRUE.equals(categoryOutside) ? " outside" : " within")
+                    + " the scope group's categories (" + String.join(", ", scope.getExpectedResourceFamilies()) + ")");
         }
         if (Boolean.TRUE.equals(scope.getCurrentActionFamilyInDeniedScope())) {
             parts.add("action in the scope group's denied actions");
         }
         if (Boolean.TRUE.equals(scope.getCurrentResourceFamilyInDeniedScope())) {
-            parts.add("class in the scope group's denied classes");
+            parts.add("category in the scope group's denied categories");
         }
-        boolean outside = Boolean.TRUE.equals(scope.getActionFamilyDrift())
-                || Boolean.TRUE.equals(scope.getResourceFamilyDrift())
+        boolean outside = Boolean.TRUE.equals(actionOutside)
+                || Boolean.TRUE.equals(categoryOutside)
                 || Boolean.TRUE.equals(scope.getCurrentActionFamilyInDeniedScope())
                 || Boolean.TRUE.equals(scope.getCurrentResourceFamilyInDeniedScope());
         if (parts.isEmpty()) {
-            facts.unknown(ROLE_SCOPE);
+            facts.unavailable(ROLE_SCOPE, "nothing to compare in this request");
             return;
+        }
+        // The evidence state the dictionary entry names (LU-1): lists of thin or inferred evidence are provisional.
+        if (CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
+            parts.add("evidence PROVISIONAL");
         }
         facts.add(ROLE_SCOPE, String.join("; ", parts), outside ? List.of("ROLE_SCOPE_OUTSIDE") : List.of(),
                 List.of(), DecisionFact.LEARNED);
@@ -671,9 +728,15 @@ public final class DecisionFactsResolver {
 
     private static void peerCohort(Facts facts, CanonicalSecurityContext context) {
         PeerCohortProfile cohort = context.getPeerCohortProfile();
-        if (cohort == null || (cohort.getPreferredActionFamilies().isEmpty() && cohort.getPreferredResources().isEmpty()
-                && cohort.getOutlierAgainstCohort() == null)) {
+        // A profile without any cohort fact (only a summary anchored to the department name) is no cohort source
+        // (N-MISS-1 D4).
+        if (cohort == null || !hasCohortFact(cohort)) {
             facts.unknown(PEER_COHORT);
+            return;
+        }
+        if (cohort.getPreferredActionFamilies().isEmpty() && cohort.getPreferredResources().isEmpty()
+                && cohort.getOutlierAgainstCohort() == null) {
+            facts.unavailable(PEER_COHORT, "no cohort comparison data yet");
             return;
         }
         List<String> parts = new ArrayList<>();
@@ -692,6 +755,79 @@ public final class DecisionFactsResolver {
         }
         facts.add(PEER_COHORT, (StringUtils.hasText(cohort.getCohortId()) ? "cohort " + cohort.getCohortId() + ": " : "")
                 + String.join("; ", parts), List.of(), List.of(), DecisionFact.LEARNED);
+    }
+
+    /** Whether a cohort source gave the profile a fact: its id, its usual lists or bands, or the outlier mark. */
+    private static boolean hasCohortFact(PeerCohortProfile cohort) {
+        return StringUtils.hasText(cohort.getCohortId())
+                || !cohort.getPreferredActionFamilies().isEmpty()
+                || !cohort.getPreferredResources().isEmpty()
+                || StringUtils.hasText(cohort.getNormalProtectableFrequencyBand())
+                || StringUtils.hasText(cohort.getNormalSensitivityBand())
+                || cohort.getOutlierAgainstCohort() != null;
+    }
+
+    /**
+     * The move the host measured, beside its own impossible-travel yes or no (W2-13). Stated only when the host gives a
+     * move; the parts it leaves out are named unknown.
+     */
+    private static void movement(Facts facts, CanonicalSecurityContext context) {
+        CanonicalSecurityContext.Location location = context.getLocation();
+        CanonicalSecurityContext.Movement movement = location != null ? location.getMovement() : null;
+        if (movement == null) {
+            return;
+        }
+        String previous = StringUtils.hasText(movement.getPreviousLocation())
+                ? movement.getPreviousLocation() : "an unknown previous location";
+        String current = currentPlace(location, movement);
+        String distance = movement.getDistanceKm() != null ? movement.getDistanceKm() + " km" : "an unknown distance";
+        String elapsed = movement.getElapsedMinutes() != null ? movement.getElapsedMinutes() + " min" : "an unknown time";
+        StringBuilder value = new StringBuilder(previous + " -> " + current + " " + distance + " in " + elapsed);
+        if (movement.getBaselineConfidence() != null) {
+            value.append("; location baseline confidence ").append(movement.getBaselineConfidence());
+        }
+        Boolean impossible = context.getIntent() != null ? context.getIntent().getImpossibleTravel() : null;
+        if (impossible != null) {
+            value.append(impossible ? "; the host states an impossible travel" : "; the host states no impossible travel");
+        }
+        facts.add(MOVEMENT, value.toString(), Boolean.TRUE.equals(impossible) ? List.of("IMPOSSIBLE_TRAVEL") : List.of(),
+                List.of(), DecisionFact.HOST);
+    }
+
+    /**
+     * A change of device or of network within the session, against the client the session first came from (W2-14).
+     * Stated only when the session narrative found one.
+     */
+    private static void sessionClientChanges(Facts facts, CanonicalSecurityContext context) {
+        CanonicalSecurityContext.SessionNarrativeProfile narrative = context.getSessionNarrativeProfile();
+        if (narrative == null) {
+            return;
+        }
+        if (StringUtils.hasText(narrative.getSessionDeviceChange())) {
+            facts.add(SESSION_DEVICE_CHANGE, narrative.getSessionDeviceChange() + " in the same session",
+                    List.of("SESSION_DEVICE_CHANGE"), List.of(), DecisionFact.COMPUTED);
+        }
+        if (StringUtils.hasText(narrative.getSessionNetworkChange())) {
+            facts.add(SESSION_NETWORK_CHANGE, narrative.getSessionNetworkChange() + " in the same session",
+                    List.of("SESSION_NETWORK_CHANGE"), List.of(), DecisionFact.COMPUTED);
+        }
+    }
+
+    private static String currentPlace(CanonicalSecurityContext.Location location, CanonicalSecurityContext.Movement movement) {
+        List<String> names = new ArrayList<>();
+        if (StringUtils.hasText(location.getCity())) {
+            names.add(location.getCity());
+        }
+        if (StringUtils.hasText(location.getCountry())) {
+            names.add(location.getCountry());
+        }
+        if (!names.isEmpty()) {
+            return String.join(", ", names);
+        }
+        if (movement.getLatitude() != null && movement.getLongitude() != null) {
+            return movement.getLatitude() + "," + movement.getLongitude();
+        }
+        return "an unknown current location";
     }
 
     // ---- helpers
@@ -736,7 +872,7 @@ public final class DecisionFactsResolver {
                 continue;
             }
             Integer value = integer(entry.substring(split + 1));
-            String name = SecuritySemanticNormalizer.normalizeResourceFamily(entry.substring(0, split));
+            String name = SecuritySemanticNormalizer.normalizeResourceClass(entry.substring(0, split));
             if (name != null && value != null) {
                 counts.merge(name, value, Integer::sum);
             }
@@ -815,6 +951,7 @@ public final class DecisionFactsResolver {
 
         private final List<DecisionFact> known = new ArrayList<>();
         private final List<String> unknown = new ArrayList<>();
+        private final Map<String, String> unavailable = new LinkedHashMap<>();
 
         void add(String name, String value, String source) {
             add(name, value, List.of(), List.of(), source);
@@ -825,13 +962,20 @@ public final class DecisionFactsResolver {
                 unknown(name);
                 return;
             }
-            known.add(new DecisionFact("F" + (known.size() + 1), name, value, codes, recordIds, source));
+            // The fact ID is the one the prompt draws (W3-13, DecisionFacts.withPromptIds).
+            known.add(new DecisionFact(null, name, value, codes, recordIds, source));
         }
 
         void unknown(String name) {
             if (!unknown.contains(name)) {
                 unknown.add(name);
             }
+        }
+
+        /** An unknown fact whose source could not give it for this request (dictionary 1.4 unavailable-now). */
+        void unavailable(String name, String reason) {
+            unknown(name);
+            unavailable.put(name, reason);
         }
     }
 }

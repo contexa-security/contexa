@@ -3,6 +3,7 @@ package io.contexa.showcase.workload.contexa.internal;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.showcase.workload.contexa.inbox.DemoInboxEmailService;
 import io.contexa.showcase.workload.contexa.observation.AnalysisEventRecorder;
@@ -57,6 +58,8 @@ public class ContexaInternalController {
                                    List<UsageLedger.ModelCall> modelCalls, Instant receivedAt) {
     }
 
+    private static final String ANTHROPIC = "anthropic";
+
     private final RunPrincipalService principals;
     private final SharedAccountGuard sharedAccounts;
     private final OrphanPrincipalSweeper orphans;
@@ -69,6 +72,7 @@ public class ContexaInternalController {
     private final RequestReceipts receipts;
     private final ObjectProvider<TieredStrategyProperties> tieredProperties;
     private final SecurityZeroTrustProperties zeroTrust;
+    private final String chatProvider;
     private final String chatModel;
     private final String embeddingModel;
     private final int embeddingDimensions;
@@ -84,7 +88,9 @@ public class ContexaInternalController {
                                      ModelExchanges exchanges, RequestReceipts receipts,
                                      ObjectProvider<TieredStrategyProperties> tieredProperties,
                                      SecurityZeroTrustProperties zeroTrust,
+                                     @Value("${spring.ai.model.chat:openai}") String chatProvider,
                                      @Value("${spring.ai.openai.chat.options.model:}") String chatModel,
+                                     @Value("${spring.ai.anthropic.chat.options.model:}") String anthropicChatModel,
                                      @Value("${spring.ai.openai.embedding.options.model:}") String embeddingModel,
                                      @Value("${spring.ai.openai.embedding.options.dimensions:0}") int embeddingDimensions,
                                      ObjectProvider<BuildProperties> build,
@@ -103,7 +109,9 @@ public class ContexaInternalController {
         this.receipts = receipts;
         this.tieredProperties = tieredProperties;
         this.zeroTrust = zeroTrust;
-        this.chatModel = chatModel;
+        // Model comparison: the model of the chat provider D runs, so templates and runs record the model that decided.
+        this.chatProvider = chatProvider;
+        this.chatModel = ANTHROPIC.equals(chatProvider) ? anthropicChatModel : chatModel;
         this.embeddingModel = embeddingModel;
         this.embeddingDimensions = embeddingDimensions;
         this.build = build;
@@ -203,6 +211,7 @@ public class ContexaInternalController {
         engine.put("engineVersion", properties == null ? null : properties.getVersion());
         engine.put("codeCommit", properties == null ? null : properties.get("git.commit"));
         engine.put("effectiveMode", zeroTrust.isEnabled() ? zeroTrust.getMode().name() : "DISABLED");
+        engine.put("chatProvider", chatProvider);
         engine.put("chatModel", chatModel);
         engine.put("embeddingModel", embeddingModel);
         engine.put("embeddingDimensions", embeddingDimensions);
@@ -212,10 +221,18 @@ public class ContexaInternalController {
         // The model settings the engine sends with every analysis (R-20): they change the verdicts, so a run records them.
         TieredStrategyProperties tiered = tieredProperties.getIfAvailable();
         if (tiered != null) {
-            engine.put("layer1Model", modelSettings(tiered.getLayer1().getOpenAiReasoningEffort(),
-                    tiered.getLayer1().getOpenAiVerbosity(), tiered.getLayer1().getMaxOutputTokens()));
-            engine.put("layer2Model", modelSettings(tiered.getLayer2().getOpenAiReasoningEffort(),
-                    tiered.getLayer2().getOpenAiVerbosity(), tiered.getLayer2().getMaxOutputTokens()));
+            // An Anthropic request carries no OpenAI reasoning effort or verbosity; only its output limit is sent.
+            boolean openAi = !ANTHROPIC.equals(chatProvider);
+            engine.put("layer1Model", modelSettings(openAi ? tiered.getLayer1().getOpenAiReasoningEffort() : null,
+                    openAi ? tiered.getLayer1().getOpenAiVerbosity() : null, tiered.getLayer1().getMaxOutputTokens()));
+            engine.put("layer2Model", modelSettings(openAi ? tiered.getLayer2().getOpenAiReasoningEffort() : null,
+                    openAi ? tiered.getLayer2().getOpenAiVerbosity() : null, tiered.getLayer2().getMaxOutputTokens()));
+            // The prompt bundle the configuration runs (LU-6): one this build cannot run falls back to the build's
+            // default, as in the core; the registry selector chooses per request, so it is not stated then.
+            if (tiered.getPromptBundle().getSelector() == TieredStrategyProperties.PromptBundle.Selector.CONFIGURATION) {
+                engine.put("promptBundle", SecurityDecisionPromptBundles.find(tiered.getPromptBundle().getActive())
+                        .orElse(SecurityDecisionPromptBundles.DEFAULT).version());
+            }
         }
         // True only on a development stack that accepts forced decisions; the portal refuses to record replays then.
         engine.put("forcedActions", forcedActions);

@@ -28,7 +28,6 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.Ticket
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -217,8 +216,7 @@ public final class CompanyRecordsEvaluator {
         }
         checkValidity(failures, record.getValidFrom(), record.getValidUntil(), host, request.at(), zone);
         if (record.getDecidedAt() != null && request.at() != null && record.getDecidedAt().isAfter(request.at())) {
-            failures.add(PolicyReason.LATE,
-                    "decided " + minutes(request.at(), record.getDecidedAt()) + " min after this request");
+            failures.add(PolicyReason.LATE, "decided " + RelativeTime.of(record.getDecidedAt(), request.at()));
         }
         Integer usedBefore = null;
         Integer limit = record.getMaxItems();
@@ -307,7 +305,7 @@ public final class CompanyRecordsEvaluator {
                                       ZoneId zone) {
         boolean outside = at != null && ((from != null && at.isBefore(from)) || (until != null && !at.isBefore(until)));
         if (outside) {
-            failures.add(PolicyReason.EXPIRED, "valid " + window(from, until, zone) + ", the request is outside it");
+            failures.add(PolicyReason.EXPIRED, "valid " + window(from, until, at, zone) + ", the request is outside it");
         }
         else if (host.contains("VALIDITY")) {
             failures.add(PolicyReason.EXPIRED, "is outside its validity (host)");
@@ -619,25 +617,26 @@ public final class CompanyRecordsEvaluator {
         if (profile.getAccessHistory() != null && StringUtils.hasText(profile.getAccessHistory().getTarget())) {
             return profile.getAccessHistory().getTarget();
         }
-        String values = request.targetValues();
-        return values != null ? values : "this target";
+        // Without a host record target, the values of the request path are the requester's text (N-INJ-1).
+        return "this target";
     }
 
     static String number(int value) {
         return String.format(Locale.ROOT, "%,d", value);
     }
 
-    static String window(Instant from, Instant until, ZoneId zone) {
+    /** A validity window on the event clock and where its ends are from the request (W3-13). */
+    static String window(Instant from, Instant until, Instant request, ZoneId zone) {
+        String relative = RelativeTime.window(from, until, request);
         return (from != null ? WALL_CLOCK.format(from.atZone(zone)) : "") + ".."
-                + (until != null ? WALL_CLOCK.format(until.atZone(zone)) : "");
+                + (until != null ? WALL_CLOCK.format(until.atZone(zone)) : "")
+                + (relative != null ? " (" + relative + ")" : "");
     }
 
-    static String wallClock(Instant at, ZoneId zone) {
-        return WALL_CLOCK.format(at.atZone(zone));
-    }
-
-    private static long minutes(Instant from, Instant to) {
-        return Duration.between(from, to).toMinutes();
+    /** A time on the event clock and how far it is from the request (W3-13). */
+    static String wallClock(Instant at, Instant request, ZoneId zone) {
+        String relative = RelativeTime.of(at, request);
+        return WALL_CLOCK.format(at.atZone(zone)) + (relative != null ? " (" + relative + ")" : "");
     }
 
     private static String upper(String value) {

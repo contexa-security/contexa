@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class InMemorySecurityContextDataStore implements SecurityContextDataStore, ExpiringStateStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
+    private static final int MAX_HELD_VERIFICATION_REQUESTS = 50;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
     private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
@@ -77,7 +78,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, List<String>> sessionNarrativeActionFamilies = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> sessionDecisions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> sessionProtectableAccesses = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<Long>> sessionRequestIntervals = new ConcurrentHashMap<>();
+    /** Each interval with the time of its request when known (N-SES-1). */
+    private final ConcurrentHashMap<String, List<String>> sessionRequestIntervals = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> workProfileObservations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> roleScopeObservations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> permissionChangeObservations = new ConcurrentHashMap<>();
@@ -85,6 +87,9 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, Long> sessionStartedAt = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> sessionLastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> sessionPreviousPaths = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> sessionFirstClients = new ConcurrentHashMap<>();
+    /** The facts of each user's requests a restriction stopped, by request id (W5-2). */
+    private final ConcurrentHashMap<String, Map<String, String>> verificationLearning = new ConcurrentHashMap<>();
     /** The ids a session had before its id was replaced, newest first (P2 correction 5). */
     private final ConcurrentHashMap<String, List<String>> sessionPreviousIds = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
@@ -162,6 +167,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         moveValue(sessionLastRequestTimes, fromSessionId, toSessionId);
         moveValue(sessionPreviousPaths, fromSessionId, toSessionId);
         moveValue(sessionRisks, fromSessionId, toSessionId);
+        moveValue(sessionFirstClients, fromSessionId, toSessionId);
         List<String> earlier = sessionPreviousIds.remove(fromSessionId);
         sessionPreviousIds.compute(toSessionId, (key, current) -> {
             List<String> ids = new ArrayList<>();
@@ -179,6 +185,18 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public List<String> getSessionPreviousIds(String sessionId) {
         return sessionId == null ? List.of() : sessionPreviousIds.getOrDefault(sessionId, List.of());
+    }
+
+    @Override
+    public void setSessionFirstClientIfAbsent(String sessionId, String firstClient) {
+        if (sessionId != null && firstClient != null) {
+            sessionFirstClients.putIfAbsent(sessionId, firstClient);
+        }
+    }
+
+    @Override
+    public String getSessionFirstClient(String sessionId) {
+        return sessionId == null ? null : sessionFirstClients.get(sessionId);
     }
 
     private static <T> void moveSequence(ConcurrentHashMap<String, List<T>> target, String fromKey, String toKey) {
@@ -217,8 +235,14 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void addSessionNarrativeActionFamily(String sessionId, String actionFamily, long requestTimestamp) {
+        appendToStringSequence(sessionNarrativeActionFamilies, sessionId,
+                SessionNarrativeEntries.encode(requestTimestamp, actionFamily), MAX_SESSION_ACTIONS);
+    }
+
+    @Override
     public List<String> getRecentSessionNarrativeActionFamilies(String sessionId, int count) {
-        return recentStringSequence(sessionNarrativeActionFamilies.get(sessionId), count);
+        return SessionNarrativeEntries.recentInRequestOrder(copyOf(sessionNarrativeActionFamilies.get(sessionId)), count);
     }
 
     @Override
@@ -227,35 +251,30 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void addSessionProtectableAccess(String sessionId, String resourcePath, long requestTimestamp) {
+        appendToStringSequence(sessionProtectableAccesses, sessionId,
+                SessionNarrativeEntries.encode(requestTimestamp, resourcePath), MAX_SESSION_ACTIONS);
+    }
+
+    @Override
     public List<String> getRecentSessionProtectableAccesses(String sessionId, int count) {
-        return recentStringSequence(sessionProtectableAccesses.get(sessionId), count);
+        return SessionNarrativeEntries.recentInRequestOrder(copyOf(sessionProtectableAccesses.get(sessionId)), count);
     }
 
     @Override
     public void addSessionRequestInterval(String sessionId, long intervalMs) {
-        sessionRequestIntervals.compute(sessionId, (key, intervals) -> {
-            if (intervals == null) {
-                intervals = Collections.synchronizedList(new ArrayList<>());
-            }
-            intervals.add(intervalMs);
-            while (intervals.size() > MAX_SESSION_ACTIONS) {
-                intervals.remove(0);
-            }
-            return intervals;
-        });
+        appendToStringSequence(sessionRequestIntervals, sessionId, Long.toString(intervalMs), MAX_SESSION_ACTIONS);
+    }
+
+    @Override
+    public void addSessionRequestInterval(String sessionId, long intervalMs, long requestTimestamp) {
+        appendToStringSequence(sessionRequestIntervals, sessionId,
+                SessionNarrativeEntries.encode(requestTimestamp, Long.toString(intervalMs)), MAX_SESSION_ACTIONS);
     }
 
     @Override
     public List<Long> getRecentSessionRequestIntervals(String sessionId, int count) {
-        List<Long> intervals = sessionRequestIntervals.get(sessionId);
-        if (intervals == null || intervals.isEmpty()) {
-            return Collections.emptyList();
-        }
-        synchronized (intervals) {
-            int size = intervals.size();
-            int fromIndex = Math.max(0, size - count);
-            return new ArrayList<>(intervals.subList(fromIndex, size));
-        }
+        return SessionNarrativeEntries.recentIntervalsInRequestOrder(copyOf(sessionRequestIntervals.get(sessionId)), count);
     }
 
     @Override
@@ -286,6 +305,19 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public String getSessionPreviousPath(String sessionId) {
         return sessionPreviousPaths.get(sessionId);
+    }
+
+    @Override
+    public void recordSessionLastRequest(String sessionId, long timestamp, String path) {
+        sessionLastRequestTimes.compute(sessionId, (key, recorded) -> {
+            if (recorded != null && recorded > timestamp) {
+                return recorded;
+            }
+            if (path != null) {
+                sessionPreviousPaths.put(sessionId, path);
+            }
+            return timestamp;
+        });
     }
 
     @Override
@@ -430,10 +462,40 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void holdVerificationLearning(String userId, String requestId, String record) {
+        if (userId == null || requestId == null || record == null) {
+            return;
+        }
+        verificationLearning.compute(userId, (key, held) -> {
+            Map<String, String> records = held != null ? held : new LinkedHashMap<>();
+            records.remove(requestId);
+            records.put(requestId, record);
+            while (records.size() > MAX_HELD_VERIFICATION_REQUESTS) {
+                records.remove(records.keySet().iterator().next());
+            }
+            return records;
+        });
+    }
+
+    @Override
+    public String takeVerificationLearning(String userId, String requestId) {
+        if (userId == null || requestId == null) {
+            return null;
+        }
+        String[] taken = new String[1];
+        verificationLearning.computeIfPresent(userId, (key, held) -> {
+            taken[0] = held.remove(requestId);
+            return held.isEmpty() ? null : held;
+        });
+        return taken[0];
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null) {
             return;
         }
+        verificationLearning.remove(userId);
         String tenantScopedSuffix = "::" + userId;
         for (Map<String, ?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
@@ -657,6 +719,15 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         return value != null && !value.trim().isEmpty();
     }
 
+    private static List<String> copyOf(List<String> sequence) {
+        if (sequence == null) {
+            return Collections.emptyList();
+        }
+        synchronized (sequence) {
+            return new ArrayList<>(sequence);
+        }
+    }
+
     private List<String> recentStringSequence(List<String> sequence, int count) {
         if (sequence == null || sequence.isEmpty()) {
             return Collections.emptyList();
@@ -739,6 +810,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         sessionLastRequestTimes.remove(sessionId);
         sessionPreviousPaths.remove(sessionId);
         sessionPreviousIds.remove(sessionId);
+        sessionFirstClients.remove(sessionId);
     }
 
     private String composeWorkProfileKey(String tenantId, String userId) {

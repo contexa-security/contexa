@@ -61,6 +61,8 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
                         metadata.get("burstPattern"),
                         metadata.get("requestBurstPattern"),
                         metadata.get("burstDetected")))
+                .sessionDeviceChange(text(metadata.get("sessionDeviceChange")))
+                .sessionNetworkChange(text(metadata.get("sessionNetworkChange")))
                 .build();
 
         if (!StringUtils.hasText(profile.getSummary())) {
@@ -80,7 +82,9 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
                 || !profile.getSessionActionSequence().isEmpty()
                 || !profile.getSessionProtectableSequence().isEmpty()
                 || profile.getBurstPattern() != null
-                || (profile.getSessionDecisions() != null && !profile.getSessionDecisions().isEmpty());
+                || (profile.getSessionDecisions() != null && !profile.getSessionDecisions().isEmpty())
+                || StringUtils.hasText(profile.getSessionDeviceChange())
+                || StringUtils.hasText(profile.getSessionNetworkChange());
     }
 
     @Override

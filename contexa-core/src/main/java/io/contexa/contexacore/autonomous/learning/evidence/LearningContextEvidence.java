@@ -188,8 +188,8 @@ public record LearningContextEvidence(
 
     /**
      * The closest personal past record's overlap with the request on the hour, the login method and the browser
-     * ({@code 1/3}): the past records are searched within the request's resource, so their action, resource class and
-     * path family match by construction (P2 correction 3).
+     * ({@code 1/3}), among the records read for the request: they are read within its action family, those of its
+     * target first (W3-18), whose counts are stated apart, so the overlap does not count the scope (P2 correction 3).
      */
     public String currentRequestClosestOverlapOutsideRetrievalScope() {
         if (current == null || personalRetrievedEvidence.isEmpty()) {

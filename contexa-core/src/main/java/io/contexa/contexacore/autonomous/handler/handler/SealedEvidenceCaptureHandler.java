@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
@@ -33,8 +34,6 @@ import org.springframework.util.StringUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -47,12 +46,14 @@ import java.util.concurrent.RejectedExecutionException;
  *
  * The decision pipeline can run on a request thread (synchronous protectable decisions), so the
  * handler only takes a detached snapshot of the event context on the calling thread. Package assembly,
- * duplicate lookups and the database insert run on the dedicated capture executor. A capture that
- * cannot be scheduled or fails is logged and dropped; it never blocks or fails decision enforcement.
+ * the processing owner check and the database insert run on the dedicated capture executor. A capture
+ * that cannot be scheduled or fails is logged and dropped; it never blocks or fails decision enforcement.
  *
  * Prompt originals are consumed from SealedEvidencePromptTraceStore, which is filled by
  * SealedEvidencePromptCaptureAspect and SealedEvidenceLayer1CompletionAspect. When no prompt trace
- * exists for the event, the assembler rejects the package and nothing is stored.
+ * exists for the event, the assembler rejects the package and nothing is stored. The store hands a
+ * trace out once, so a decision is sealed once; the unique idempotency key of the package table
+ * absorbs what is left, a race between nodes.
  */
 @Slf4j
 public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
@@ -68,17 +69,28 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
     private final SealedEvidencePackageRepository repository;
     private final Executor captureExecutor;
     private final SecurityContextDataStore securityContextDataStore;
-    private final Set<String> inFlightCaptureKeys = ConcurrentHashMap.newKeySet();
+    private final SealedEvidenceCaptureSampling sampling;
 
     public SealedEvidenceCaptureHandler(
             SealedEvidencePackageAssembler assembler,
             SealedEvidencePackageRepository repository,
             Executor captureExecutor,
             SecurityContextDataStore securityContextDataStore) {
+        this(assembler, repository, captureExecutor, securityContextDataStore, SealedEvidenceCaptureSampling.ALL);
+    }
+
+    /** R4-S6: seals only the packages the sampling keeps; the four-argument constructor seals every package. */
+    public SealedEvidenceCaptureHandler(
+            SealedEvidencePackageAssembler assembler,
+            SealedEvidencePackageRepository repository,
+            Executor captureExecutor,
+            SecurityContextDataStore securityContextDataStore,
+            SealedEvidenceCaptureSampling sampling) {
         this.assembler = Objects.requireNonNull(assembler, "assembler must not be null");
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.captureExecutor = Objects.requireNonNull(captureExecutor, "captureExecutor must not be null");
         this.securityContextDataStore = securityContextDataStore;
+        this.sampling = Objects.requireNonNull(sampling, "sampling must not be null");
     }
 
     @Override
@@ -103,24 +115,15 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
     @Override
     public boolean handle(SecurityEventContext context) {
         SecurityEvent event = context.getSecurityEvent();
-        if (!isCurrentProcessingOwner(event)) {
-            return true;
-        }
-        String captureKey = resolveCaptureKey(event);
-        if (captureKey != null && !inFlightCaptureKeys.add(captureKey)) {
-            return true;
-        }
         try {
             SecurityEventContext snapshot = detachedSnapshot(context);
-            captureExecutor.execute(() -> capture(snapshot, captureKey));
+            captureExecutor.execute(() -> capture(snapshot));
         } catch (RejectedExecutionException e) {
-            release(captureKey);
-            log.error("[{}] Sealed evidence capture rejected by the capture executor: eventId={}, captureKey={}",
-                    HANDLER_NAME, event.getEventId(), captureKey, e);
+            log.error("[{}] Sealed evidence capture rejected by the capture executor: eventId={}",
+                    HANDLER_NAME, event.getEventId(), e);
         } catch (RuntimeException e) {
-            release(captureKey);
-            log.error("[{}] Failed to schedule sealed evidence capture: eventId={}, captureKey={}",
-                    HANDLER_NAME, event.getEventId(), captureKey, e);
+            log.error("[{}] Failed to schedule sealed evidence capture: eventId={}",
+                    HANDLER_NAME, event.getEventId(), e);
         }
         return true;
     }
@@ -144,22 +147,23 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
         return ORDER;
     }
 
-    private void capture(SecurityEventContext snapshot, String captureKey) {
+    /**
+     * Assembles the package from the decision's prompt trace and stores it while this node still owns the event's
+     * processing; the owner is asked last because it can change while the package is assembled.
+     */
+    private void capture(SecurityEventContext snapshot) {
         SecurityEvent event = snapshot.getSecurityEvent();
         try {
-            if (!isCurrentProcessingOwner(event) || isAlreadyCaptured(event)) {
-                return;
-            }
             SealedEvidencePackage evidencePackage = assembler.assemble(snapshot);
             if (evidencePackage == null || !isCurrentProcessingOwner(event)) {
                 return;
             }
+            if (!sampling.shouldSeal(evidencePackage)) {
+                return;
+            }
             saveIfAbsent(evidencePackage);
         } catch (RuntimeException e) {
-            log.error("[{}] Failed to capture sealed evidence: eventId={}, captureKey={}",
-                    HANDLER_NAME, event.getEventId(), captureKey, e);
-        } finally {
-            release(captureKey);
+            log.error("[{}] Failed to capture sealed evidence: eventId={}", HANDLER_NAME, event.getEventId(), e);
         }
     }
 
@@ -172,12 +176,6 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
             }
             throw e;
         }
-    }
-
-    private boolean isAlreadyCaptured(SecurityEvent event) {
-        return isAlreadyCaptured(
-                metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY),
-                resolveCorrelationId(event));
     }
 
     private boolean isAlreadyCaptured(String idempotencyKey, String correlationId) {
@@ -223,32 +221,6 @@ public class SealedEvidenceCaptureHandler implements SecurityEventHandler {
         Map<String, Object> metadata = event.getMetadata();
         return metadata != null && (Boolean.TRUE.equals(TruthValues.parse(metadata.get("protectableDeclared")))
                 || metadata.containsKey("protectableMethod"));
-    }
-
-    private String resolveCaptureKey(SecurityEvent event) {
-        String identity = metadataText(event, SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY);
-        return identity != null ? identity : resolveCorrelationId(event);
-    }
-
-    /**
-     * Mirrors the correlation id that SealedEvidencePackageAssembler stores with the package.
-     */
-    private String resolveCorrelationId(SecurityEvent event) {
-        String requestId = metadataText(event, "requestId");
-        if (requestId != null) {
-            return requestId;
-        }
-        String correlationId = metadataText(event, "correlationId");
-        if (correlationId != null) {
-            return correlationId;
-        }
-        return event != null && StringUtils.hasText(event.getEventId()) ? event.getEventId().trim() : null;
-    }
-
-    private void release(String captureKey) {
-        if (captureKey != null) {
-            inFlightCaptureKeys.remove(captureKey);
-        }
     }
 
     /**

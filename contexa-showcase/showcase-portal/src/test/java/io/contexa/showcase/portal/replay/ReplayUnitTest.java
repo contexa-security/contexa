@@ -207,6 +207,23 @@ class ReplayUnitTest {
         assertThat(free.reasoning()).isEqualTo("Something else.");
     }
 
+    /** W4-3: the engine reason carries the reason codes the engine recorded; a v19 record has none. */
+    @Test
+    void theEngineReasonCarriesTheRecordedReasonCodes() throws Exception {
+        ReplayViews views = new ReplayViews(null, null, json, null);
+        String v3 = json.writeValueAsString(Map.of("finalDecisionReasonCodes",
+                List.of(Map.of("code", "DEVIATION_TIME", "fact", "F1"), Map.of("code", "MIN_P3_POLICY_NOT_SATISFIED",
+                        "fact", "F4"))));
+
+        ReplayView.EngineReason coded = views.engineReason(Optional.of(decisionWith("The export time differs.", v3)));
+        ReplayView.EngineReason v19 = views.engineReason(Optional.of(decisionWith("Something else.", "{}")));
+
+        assertThat(coded.reasonCodes()).containsExactly(new ReplayView.ReasonCode("DEVIATION_TIME", "F1"),
+                new ReplayView.ReasonCode("MIN_P3_POLICY_NOT_SATISFIED", "F4"));
+        assertThat(coded.canonical()).isNull();
+        assertThat(v19.reasonCodes()).isEmpty();
+    }
+
     private static RunSummary run(String runId, String engine) {
         return new RunSummary(runId, "A3", "v" + runId, "org-" + runId, "COMPLETED", null, List.of(
                 new StepSummary(1, "EXPORT", "/api/projects/GB-500/exports",

@@ -32,6 +32,7 @@ import io.contexa.contexaiam.security.xacml.pep.ProtectableResourceCertification
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
@@ -47,7 +48,9 @@ import org.springframework.boot.web.reactive.function.client.WebClientCustomizer
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Role;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -106,41 +109,40 @@ public class IamInfrastructureAutoConfiguration {
                 Duration.ofMillis(Math.max(0L, zeroTrustProperties.getProtectable().getRapidReentryWindowMs())));
     }
 
+    /**
+     * The @Protectable method advisor. The auto-proxy creator looks advisors up while post-processors are registered,
+     * so this advisor takes its collaborators as providers and resolves them once every singleton exists (or at its
+     * first call): resolving them at its creation made their whole graph (the decision service, the language models,
+     * the data sources) miss the post-processors not yet registered, and left @Protectable methods among them
+     * unprotected. It is an infrastructure bean, as Spring Security's method advisors are.
+     */
     @Bean
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     @ConditionalOnMissingBean
-    public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
-            ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
-            ProtectableRapidReentryGuard protectableRapidReentryGuard,
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
+    public static AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
+            ObjectProvider<ProtectableMethodAuthorizationManager> protectableMethodAuthorizationManager,
+            ObjectProvider<ProtectableRapidReentryGuard> protectableRapidReentryGuard,
+            ObjectProvider<ZeroTrustEventPublisher> zeroTrustEventPublisher,
             ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider,
             ObjectProvider<ProtectableResourceCertificationGate> protectableResourceCertificationGateProvider,
             ObjectProvider<ProtectableLlmSuppressionWriter> protectableLlmSuppressionWriterProvider,
             ObjectProvider<AuthorizationDenialRecorder> authorizationDenialRecorderProvider,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
-        AuthorizationManagerMethodInterceptor interceptor = new AuthorizationManagerMethodInterceptor(
-                pointcut,
-                protectableMethodAuthorizationManager,
-                protectableRapidReentryGuard);
-        interceptor.setZeroTrustEventPublisher(zeroTrustEventPublisher);
-        SynchronousProtectableDecisionService synchronousProtectableDecisionService = synchronousProtectableDecisionServiceProvider.getIfAvailable();
-        if (synchronousProtectableDecisionService != null) {
-            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
-        }
-        ProtectableResourceCertificationGate protectableResourceCertificationGate = protectableResourceCertificationGateProvider.getIfAvailable();
-        if (protectableResourceCertificationGate != null) {
-            interceptor.setProtectableResourceCertificationGate(protectableResourceCertificationGate);
-        }
-        ProtectableLlmSuppressionWriter suppressionWriter = protectableLlmSuppressionWriterProvider.getIfAvailable();
-        if (suppressionWriter != null) {
-            interceptor.setProtectableLlmSuppressionWriter(suppressionWriter);
-        }
-        AuthorizationDenialRecorder authorizationDenialRecorder = authorizationDenialRecorderProvider.getIfAvailable();
-        if (authorizationDenialRecorder != null) {
-            interceptor.setAuthorizationDenialRecorder(authorizationDenialRecorder);
-        }
-        interceptor.setSecurityZeroTrustProperties(securityZeroTrustProperties);
+        AtomicReference<AuthorizationManagerMethodInterceptor> advisor = new AtomicReference<>();
+        AuthorizationManagerMethodInterceptor interceptor = new AuthorizationManagerMethodInterceptor(pointcut, () -> {
+            AuthorizationManagerMethodInterceptor resolving = advisor.get();
+            resolving.setAuthorizationManager(protectableMethodAuthorizationManager.getObject());
+            resolving.setRapidReentryGuard(protectableRapidReentryGuard.getObject());
+            resolving.setZeroTrustEventPublisher(zeroTrustEventPublisher.getObject());
+            synchronousProtectableDecisionServiceProvider.ifAvailable(resolving::setSynchronousProtectableDecisionService);
+            protectableResourceCertificationGateProvider.ifAvailable(resolving::setProtectableResourceCertificationGate);
+            protectableLlmSuppressionWriterProvider.ifAvailable(resolving::setProtectableLlmSuppressionWriter);
+            authorizationDenialRecorderProvider.ifAvailable(resolving::setAuthorizationDenialRecorder);
+            resolving.setSecurityZeroTrustProperties(securityZeroTrustProperties.getObject());
+        });
+        advisor.set(interceptor);
         return interceptor;
     }
 

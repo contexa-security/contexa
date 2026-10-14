@@ -55,27 +55,17 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
             sensitiveAccessCount = (int) history.stream().filter(ObservedAccessRecord::sensitive).count();
         }
 
-        List<String> frequentResources = resolveStringList(
-                metadata.get("frequentResources"),
-                metadata.get("observedResources"),
-                metadata.get("topResources"));
-        if (frequentResources.isEmpty() && !history.isEmpty()) {
-            frequentResources = topValues(history.stream()
-                    .map(ObservedAccessRecord::resourceId)
-                    .filter(StringUtils::hasText)
-                    .toList());
-        }
+        // The lists come from the host's access history only: the work profile writes its frequent families back
+        // under the same metadata key, so a list key would make the work profile a second source of itself (W2-12).
+        List<String> frequentResources = history.isEmpty() ? List.of() : topValues(history.stream()
+                .map(ObservedAccessRecord::resourceId)
+                .filter(StringUtils::hasText)
+                .toList());
 
-        List<String> frequentActionFamilies = resolveStringList(
-                metadata.get("frequentActionFamilies"),
-                metadata.get("observedActionFamilies"),
-                metadata.get("topActionFamilies"));
-        if (frequentActionFamilies.isEmpty() && !history.isEmpty()) {
-            frequentActionFamilies = topValues(history.stream()
-                    .map(ObservedAccessRecord::actionFamily)
-                    .filter(StringUtils::hasText)
-                    .toList());
-        }
+        List<String> frequentActionFamilies = history.isEmpty() ? List.of() : topValues(history.stream()
+                .map(ObservedAccessRecord::actionFamily)
+                .filter(StringUtils::hasText)
+                .toList());
         // One vocabulary with the current request: families stated in another one (CREATE, DOWNLOAD) read as today.
         frequentActionFamilies = frequentActionFamilies.stream()
                 .map(this::normalizeActionFamily)
@@ -193,39 +183,6 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
                 .limit(TOP_LIMIT)
                 .map(Map.Entry::getKey)
                 .toList();
-    }
-
-    private List<String> resolveStringList(Object... rawValues) {
-        List<String> values = new ArrayList<>();
-        for (Object rawValue : rawValues) {
-            if (rawValue == null) {
-                continue;
-            }
-            if (rawValue instanceof Collection<?> collection) {
-                for (Object item : collection) {
-                    addString(values, item);
-                }
-                continue;
-            }
-            if (rawValue.toString().contains(",")) {
-                for (String token : rawValue.toString().split(",")) {
-                    addString(values, token);
-                }
-                continue;
-            }
-            addString(values, rawValue);
-        }
-        return values.stream().distinct().limit(TOP_LIMIT).toList();
-    }
-
-    private void addString(List<String> values, Object rawValue) {
-        if (rawValue == null) {
-            return;
-        }
-        String text = rawValue.toString().trim();
-        if (!text.isBlank()) {
-            values.add(text);
-        }
     }
 
     private Integer resolveInteger(Object... values) {

@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.context.collector.ContextObservationRec
 import io.contexa.contexacore.autonomous.store.SessionRecordsIdChangeListener;
 import io.contexa.contexacore.autonomous.event.support.EventTimeZoneRegistrar;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
@@ -41,8 +43,10 @@ import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IForceLogoutService;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDictionary;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
@@ -66,6 +70,7 @@ import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.autonomous.tiered.strategy.AbstractTieredStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -89,6 +94,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -136,6 +142,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceR
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlanProvider;
 import io.contexa.contexacore.autonomous.context.prompt.PromptSlotRenderer;
 import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacore.autonomous.context.registry.ProtectableResourceContextScanner;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 
 @AutoConfiguration
@@ -206,6 +213,13 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ProtectableResourceContextScanner protectableResourceContextScanner(
+            ListableBeanFactory beanFactory, ResourceContextRegistry resourceContextRegistry) {
+        return new ProtectableResourceContextScanner(beanFactory, resourceContextRegistry);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ContextCoverageEvaluator contextCoverageEvaluator() {
         return new ContextCoverageEvaluator();
     }
@@ -247,7 +261,7 @@ public class CoreAutonomousAutoConfiguration {
     public PromptContextComposer promptContextComposer(ObjectProvider<PromptSlotPlanProvider> slotPlanProvider) {
         return new PromptContextComposer(
                 new PromptSlotRenderer(),
-                slotPlanProvider.getIfAvailable(PromptSlotPlanProvider::unscoped));
+                slotPlanProvider.getIfAvailable(SecurityDecisionPromptDictionary::slotPlanProvider));
     }
 
     /** Where the context collectors stage a request's observations until its final decision commits them (W2-7). */
@@ -299,14 +313,17 @@ public class CoreAutonomousAutoConfiguration {
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer,
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
-            ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider) {
+            ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider,
+            ObjectProvider<PromptBundleSelector> promptBundleSelector) {
+        // Without a selector bean the configured bundle runs (contexa.security.tiered.prompt-bundle.active, W3-16).
         return new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
                 canonicalSecurityContextProvider,
                 promptContextComposer,
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
-                promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none));
+                promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none),
+                promptBundleSelector.getIfAvailable());
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -431,8 +448,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
             @Qualifier("layer1RagRetrievalExecutor") ExecutorService layer1RagRetrievalExecutor,
-            TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer1ContextualStrategy(
+            TieredStrategyProperties tieredStrategyProperties,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
                 unifiedVectorService,
                 dataStore,
                 securityEventEnricher,
@@ -450,6 +468,14 @@ public class CoreAutonomousAutoConfiguration {
                 tieredStrategyProperties,
                 structuredOutputCapabilityRegistry,
                 layer1RagRetrievalExecutor);
+        applyMinimumActionSettings(strategy, securityZeroTrustProperties);
+        return strategy;
+    }
+
+    /** The host's minimum-action rule settings (W4-4) for a security decision strategy. */
+    private static void applyMinimumActionSettings(AbstractTieredStrategy strategy, SecurityZeroTrustProperties properties) {
+        strategy.setMinimumActionSettings(properties.getMinimumAction().toRules(),
+                properties.getMinimumAction().getMode().name());
     }
 
     private ThreadFactory namedThreadFactory(String prefix) {
@@ -481,8 +507,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PromptContextAuditRecorder> promptContextAuditRecorder,
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
-            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry) {
-        return new Layer2ExpertStrategy(
+            StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        Layer2ExpertStrategy strategy = new Layer2ExpertStrategy(
                 approvalService,
                 dataStore,
                 securityEventEnricher,
@@ -500,6 +527,8 @@ public class CoreAutonomousAutoConfiguration {
                 promptContextAuditRecorder.getIfAvailable(),
                 pipelineOrchestrator.getIfAvailable(),
                 structuredOutputCapabilityRegistry);
+        applyMinimumActionSettings(strategy, securityZeroTrustProperties);
+        return strategy;
     }
 
     @Bean
@@ -551,6 +580,30 @@ public class CoreAutonomousAutoConfiguration {
                 contextObservationRecorder);
     }
 
+    /** Learns, once the user is verified, the request a restriction stopped, at a reduced weight (W5-2). */
+    @Bean
+    @ConditionalOnMissingBean
+    public VerificationLearningService verificationLearningService(
+            SecurityContextDataStore securityContextDataStore,
+            ObjectProvider<SecurityLearningService> securityLearningService,
+            ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new VerificationLearningService(securityContextDataStore, securityLearningService.getIfAvailable(),
+                protectableWorkProfileCollector.getIfAvailable(), securityZeroTrustProperties);
+    }
+
+    /** Keeps a request answered by the decision in force, which reaches no analysis, in its session (N-SES-1). */
+    @Bean
+    @ConditionalOnMissingBean
+    public UnanalysedRequestRecorder unanalysedRequestRecorder(
+            SessionNarrativeCollector sessionNarrativeCollector,
+            ContextObservationRecorder contextObservationRecorder,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ZeroTrustEventPublisher zeroTrustEventPublisher) {
+        return new UnanalysedRequestRecorder(sessionNarrativeCollector, contextObservationRecorder,
+                securityZeroTrustProperties, zeroTrustEventPublisher);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public SessionRecordsIdChangeListener sessionRecordsIdChangeListener(
@@ -564,12 +617,15 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustEventListener zeroTrustEventListener,
             SecurityPlaneAgent securityPlaneAgent,
-            ZeroTrustActionRepository actionRepository) {
-        return new SynchronousProtectableDecisionService(
+            ZeroTrustActionRepository actionRepository,
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+        SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
                 securityPlaneAgent,
                 actionRepository);
+        service.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        return service;
     }
     /**
      * The step-up flow of a CHALLENGE decided in the request starts through the identity module's starter (its
@@ -704,8 +760,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<ColdPathEventProcessor> coldPathEventProcessor,
             ObjectProvider<VectorStore> vectorStore,
             ObjectProvider<IForceLogoutService> forceLogoutService,
-            ObjectProvider<UserStatePurgeContributor> contributors) {
-        return new UserEngineStatePurger(
+            ObjectProvider<UserStatePurgeContributor> contributors,
+            ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer) {
+        UserEngineStatePurger purger = new UserEngineStatePurger(
                 zeroTrustActionRepository,
                 blockingSignalBroadcaster.getIfAvailable(),
                 blockMfaStateStore.getIfAvailable(),
@@ -715,6 +772,8 @@ public class CoreAutonomousAutoConfiguration {
                 vectorStore.getIfUnique(),
                 forceLogoutService.getIfAvailable(),
                 contributors.orderedStream().toList());
+        purger.setVectorStoreCacheLayer(vectorStoreCacheLayer.getIfAvailable());
+        return purger;
     }
 
     /** Removes the security bridge's mirror users of a deleted account; skips itself without the user tables. */

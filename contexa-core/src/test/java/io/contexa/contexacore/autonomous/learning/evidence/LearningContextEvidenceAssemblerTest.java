@@ -154,6 +154,39 @@ class LearningContextEvidenceAssemblerTest {
     }
 
     @Test
+    @DisplayName("the current class is the resource's class, never the role scope's category (W2-10)")
+    void theCurrentClassIsNeverTheRoleScopesCategory() {
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.10.0.20").build();
+        CanonicalSecurityContext categoryOnly = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .requestPath("/api/releases/R-1")
+                        .resourceCategory("PUBLIC_RELEASES")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentResourceFamily("PUBLIC_RELEASES")
+                        .build())
+                .build();
+        CanonicalSecurityContext classified = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .requestPath("/api/releases/R-1")
+                        .resourceClass("SENSITIVE")
+                        .resourceCategory("PUBLIC_RELEASES")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentResourceFamily("PUBLIC_RELEASES")
+                        .build())
+                .build();
+
+        // The word PUBLIC in the category's name used to make the request a PUBLIC resource.
+        assertThat(assembler.assemble("alice", event, categoryOnly, behaviorAnalysis, List.of())
+                .current().resourceFamily()).isNull();
+        assertThat(assembler.assemble("alice", event, classified, behaviorAnalysis, List.of())
+                .current().resourceFamily()).isEqualTo("SENSITIVE");
+    }
+
+    @Test
     @DisplayName("the observed hours are the usual-behaviour view's window and every observed list is sorted (W2-3)")
     void theObservedHoursComeFromTheBaselineViewAndEveryListIsSorted() {
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
@@ -295,5 +328,32 @@ class LearningContextEvidenceAssemblerTest {
                         "StrongestCurrentRequestCombinationDelta",
                         "CurrentRequestCombinationSummary",
                         "ObservedComparableCombination1");
+    }
+
+    @Test
+    @DisplayName("past records of equal similarity keep one order: the document ID breaks the tie (W3-3)")
+    void pastRecordsOfEqualSimilarityAreOrderedByTheirDocumentId() {
+        SecurityEvent event = SecurityEvent.builder().userId("alice").sourceIp("10.10.0.20").build();
+        List<Document> documents = List.of(record("event-3"), record("event-1"), record("event-2"));
+
+        LearningContextEvidence evidence = assembler.assemble("alice", event, null,
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), documents);
+        LearningContextEvidence turned = assembler.assemble("alice", event, null,
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of(record("event-2"), record("event-1"), record("event-3")));
+
+        assertThat(evidence.personalRetrievedEvidence()).extracting(RetrievedBehaviorEvidence::artifactId)
+                .containsExactly("event-1", "event-2", "event-3");
+        assertThat(turned.personalRetrievedEvidence()).extracting(RetrievedBehaviorEvidence::artifactId)
+                .containsExactly("event-1", "event-2", "event-3");
+    }
+
+    private static Document record(String eventId) {
+        return Document.builder()
+                .id("doc-" + eventId)
+                .text("behavior summary " + eventId)
+                .metadata(Map.of("documentType", "behavior", "userId", "alice", "eventId", eventId,
+                        "requestPath", "/api/documents/D-1", "actionFamily", "READ"))
+                .score(0.75)
+                .build();
     }
 }

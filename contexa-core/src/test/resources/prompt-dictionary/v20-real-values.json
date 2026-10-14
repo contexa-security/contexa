@@ -1,0 +1,94 @@
+{
+ "source": "real v20 user prompts of 2026-10-12: control D (showcase portal database) and the host sealed packages 490-502, extracted by p0/repro/w312_format_report.py; values written in the single vocabulary of their source that the W3-1 patterns did not accept (W3-12); SESSION.ChallengeVerified is the same real value (run-90090ef490a6 step 5: at 14:23, 1 min before the request) in the W3-13 relative time form; UNKNOWN.Coverage is the same real value (BUSINESS_AWARE, bridge AUTHORIZATION_CONTEXT) in the W3-5 form without the sentences that restate a level (Q-73 T2)",
+ "values": {
+  "DECISION_FACTS.Assignment": [
+   "not the account manager of CUS-0001",
+   "not the account manager of CUS-0012",
+   "not the account manager of CUS-0023",
+   "not the account manager of CUS-0045",
+   "not assigned to GB-500; worked on GB-500 on 0 of the last 30 days",
+   "not the account manager of CUS-0034"
+  ],
+  "DECISION_FACTS.AuthorizationEffect": [
+   "ALLOW (METHOD_AUTHORIZATION_CHECK)",
+   "ALLOW (METHOD_AUTHORIZATION_BEFORE_EXECUTION)"
+  ],
+  "DECISION_FACTS.PolicySatisfied": [
+   "yes — ticket TCK-90090ef490a6-1 covers HX-200",
+   "unknown — not known: approval APR-e99eb2e1e0ff-1: the items exported under it outside this session (the host does not report them)",
+   "yes — ticket TCK-376f2d77c4be-1 covers HX-200",
+   "unknown — not known: approval APR-9233dd98d81b-1: the items exported under it outside this session (the host does not report them)",
+   "yes — ticket TCK-8c5e5e8dafdb-1 covers HX-200",
+   "unknown — not known: approval APR-207bbbb47c22-1: the items exported under it outside this session (the host does not report them)"
+  ],
+  "DECISION_FACTS.RoleScope": [
+   "action READ within the scope group's actions (READ, EXPORT)",
+   "action EXPORT within the scope group's actions (READ, EXPORT)",
+   "action READ within the scope group's actions (READ)"
+  ],
+  "DECISION_FACTS.Ticket": [
+   "TCK-90090ef490a6-1 by pm-11, INCIDENT_RECOVERY, HX-200, valid 09-30 12:20..09-30 20:20 — covers this request",
+   "no ticket found",
+   "TCK-376f2d77c4be-1 by pm-11, INCIDENT_RECOVERY, HX-200, valid 09-30 12:20..09-30 20:20 — covers this request",
+   "TCK-8c5e5e8dafdb-1 by pm-11, INCIDENT_RECOVERY, HX-200, valid 09-30 12:20..09-30 20:20 — covers this request",
+   "TCK-4810e21d2351-1 by pm-03, INCIDENT_RECOVERY, HX-450, valid 09-29 21:17..09-30 01:17 — does not cover: valid 09-29 21:17..09-30 01:17, the request is outside it",
+   "TCK-7a96ac6be209-1 by pm-03, INCIDENT_RECOVERY, HX-450, valid 09-29 21:17..09-30 01:17 — does not cover: valid 09-29 21:17..09-30 01:17, the request is outside it"
+  ],
+  "SESSION.ChallengeVerified": [
+   "none",
+   "at 14:23 (1 min before this request)"
+  ],
+  "UNKNOWN.Coverage": [
+   "context coverage BUSINESS_AWARE; bridge AUTHORIZATION_CONTEXT"
+  ],
+  "USER_BASELINE.BaselineStatus": [
+   "ESTABLISHED (25 learned requests, personal baseline AVAILABLE)",
+   "ESTABLISHED (26 learned requests, personal baseline AVAILABLE)",
+   "ESTABLISHED (27 learned requests, personal baseline AVAILABLE)",
+   "ESTABLISHED (28 learned requests, personal baseline AVAILABLE)",
+   "ESTABLISHED (29 learned requests, personal baseline AVAILABLE)",
+   "ESTABLISHED (47 learned requests, personal baseline AVAILABLE)",
+   "SPARSE_PERSONAL_HISTORY (personal baseline NO_DATA)"
+  ],
+  "USER_BASELINE.UsualDevices": [
+   "Chrome/140 on WINDOWS",
+   "Edge/140 on WINDOWS",
+   "not learned",
+   "browsers Edge/140; systems WINDOWS",
+   "browsers Chrome/140; systems WINDOWS"
+  ],
+  "USER_BASELINE.UsualExportSize": [
+   "up to 29 items per export (median 17, 4 exports)",
+   "up to 29 items per export (median 17, 5 exports)",
+   "up to 14 items per export (median 10, 4 exports)",
+   "not learned"
+  ],
+  "USER_BASELINE.UsualHours": [
+   "09-11, 13-14, 17 (seen 9,10,11,12,13,14,16,17)",
+   "10-11, 13-14, 17 (seen 9,10,11,12,13,14,16,17)",
+   "10-12, 14-16 (seen 8,9,10,11,12,13,14,15,16,17)",
+   "not learned"
+  ],
+  "USER_BASELINE.UsualNetworks": [
+   "10.40.12.0/24",
+   "10.40.21.0/24",
+   "not learned"
+  ],
+  "USER_BASELINE.UsualResourceClass": [
+   "NORMAL 21",
+   "NORMAL 25",
+   "SENSITIVE 24",
+   "not learned"
+  ],
+  "USER_BASELINE.UsualTargets": [
+   "projectKey=PLM-OPS",
+   "projectKey=HX-310",
+   "not learned"
+  ],
+  "USER_BASELINE.WorkProfile": [
+   "21 protected requests in the last 7 days; protectable share 1.00",
+   "25 protected requests in the last 7 days; protectable share 1.00",
+   "24 protected requests in the last 7 days; protectable share 1.00"
+  ]
+ }
+}

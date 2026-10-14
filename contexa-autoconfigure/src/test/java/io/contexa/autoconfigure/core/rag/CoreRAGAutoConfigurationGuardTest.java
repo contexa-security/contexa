@@ -18,6 +18,7 @@ package io.contexa.autoconfigure.core.rag;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.rag.service.PgVectorPastRecordQuery;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +27,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -62,6 +65,47 @@ class CoreRAGAutoConfigurationGuardTest {
                 "io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration",
                 "io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration",
                 "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration");
+    }
+
+    @Test
+    @DisplayName("the vector executor runs the configured number of threads, sixteen by default (W2-15)")
+    void theVectorExecutorRunsTheConfiguredNumberOfThreads() {
+        contextRunner.run(context -> {
+            ThreadPoolExecutor executor = context.getBean("vectorOperationExecutor", ThreadPoolExecutor.class);
+            assertThat(executor.getCorePoolSize()).isEqualTo(16);
+            assertThat(executor.getMaximumPoolSize()).isEqualTo(16);
+        });
+        contextRunner.withPropertyValues("contexa.vectorstore.pgvector.parallel-threads=6").run(context -> {
+            ThreadPoolExecutor executor = context.getBean("vectorOperationExecutor", ThreadPoolExecutor.class);
+            assertThat(executor.getCorePoolSize()).isEqualTo(6);
+            assertThat(executor.getMaximumPoolSize()).isEqualTo(6);
+        });
+    }
+
+    @Test
+    @DisplayName("the metadata index is set up at start only when Spring AI initialises the schema (W2-15)")
+    void theMetadataIndexIsSetUpOnlyWhenTheSchemaIsInitialised() {
+        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=true")
+                .run(context -> assertThat(context).hasBean("pgVectorMetadataIndexInitializer"));
+        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("spring.ai.vectorstore.pgvector.initialize-schema=false")
+                .run(context -> assertThat(context).doesNotHaveBean("pgVectorMetadataIndexInitializer"));
+    }
+
+    @Test
+    @DisplayName("the vector service reads past records by the exact pgvector lookup on the configured table (W3-18)")
+    void theVectorServiceReadsPastRecordsByTheExactLookupOnTheConfiguredTable() {
+        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .run(context -> {
+                    // A store that is not pgvector cannot answer the exact lookup.
+                    assertThat(context.getBean(UnifiedVectorService.class).pastRecordQuery())
+                            .isInstanceOf(PgVectorPastRecordQuery.class);
+                    assertThat(context.getBean(UnifiedVectorService.class).pastRecordQuery().available()).isFalse();
+                });
+        contextRunner.withBean(VectorStore.class, () -> mock(VectorStore.class))
+                .withPropertyValues("spring.ai.vectorstore.pgvector.table-name=not a table")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

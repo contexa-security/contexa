@@ -31,8 +31,7 @@ class SecurityDecisionPromptSectionsSessionTimelineTest {
     void theSampleIsTheMostRecentActions() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
         SecurityDecisionStandardPromptTemplate.SessionContext sessionContext =
                 new SecurityDecisionStandardPromptTemplate.SessionContext();
         sessionContext.setRecentActions(List.of(
@@ -48,5 +47,29 @@ class SecurityDecisionPromptSectionsSessionTimelineTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(sample).contains("/api/third", "/api/fourth").doesNotContain("/api/first", "/api/second");
+    }
+
+    @Test
+    @DisplayName("the timeline states a change of device or network within the session, and nothing without one (W2-14)")
+    void theTimelineStatesTheSessionsChangedParts() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext =
+                new SecurityDecisionStandardPromptTemplate.SessionContext();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis changed =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        changed.setSessionDeviceChange("Chrome/140 on WINDOWS -> Safari/17 on MAC");
+        changed.setSessionNetworkChange("10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24");
+
+        String section = sections.buildSessionTimelineSection(sessionContext, changed);
+        String plain = sections.buildSessionTimelineSection(sessionContext,
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis());
+
+        assertThat(section)
+                .contains("SessionDeviceChange: Chrome/140 on WINDOWS -> Safari/17 on MAC in the same session\n")
+                .contains("SessionNetworkChange: 10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24 in the same session\n")
+                .doesNotContain("ContextBindingHashMismatch");
+        assertThat(plain).doesNotContain("SessionDeviceChange", "SessionNetworkChange");
     }
 }

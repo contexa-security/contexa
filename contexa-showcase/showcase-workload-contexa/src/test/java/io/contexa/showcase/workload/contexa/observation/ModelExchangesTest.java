@@ -41,6 +41,17 @@ class ModelExchangesTest {
              "usage":{"prompt_tokens":7624,"completion_tokens":93,
                       "completion_tokens_details":{"reasoning_tokens":0}}}""".formatted(SESSION);
 
+    private static final String ANTHROPIC_REQUEST = """
+            {"model":"claude-haiku-5-5","max_tokens":2048,
+             "system":[{"type":"text","text":"rules","cache_control":{"type":"ephemeral"}}],
+             "messages":[{"role":"user","content":"facts"}]}""";
+    private static final String ANTHROPIC_RESPONSE = """
+            {"model":"claude-haiku-5-5","type":"message","stop_reason":"end_turn",
+             "content":[{"type":"thinking","thinking":"The user works here.","signature":"sig"},
+                        {"type":"text","text":"{\\"action\\":\\"ALLOW\\"}"}],
+             "usage":{"input_tokens":3329,"cache_creation_input_tokens":0,"cache_read_input_tokens":4372,
+                      "output_tokens":838,"output_tokens_details":{"thinking_tokens":734}}}""";
+
     private final ModelExchanges exchanges = new ModelExchanges(
             Clock.fixed(Instant.parse("2026-10-06T00:00:00Z"), ZoneOffset.UTC), new ObjectMapper());
     private final ProviderHttpCapture capture = new ProviderHttpCapture(exchanges);
@@ -79,6 +90,30 @@ class ModelExchangesTest {
         assertThat(retry.answer()).isEqualTo("second answer");
         assertThat(retry.finishReason()).isEqualTo("STOP");
         assertThat(retry.reasoningTokens()).isNull();
+    }
+
+    /**
+     * An Anthropic Messages call (model comparison): the answer is the text after the thinking, the prompt tokens are
+     * every input token as OpenAI counts them (the uncached ones, the cache reads and the cache writes), the thinking
+     * tokens are the reasoning tokens, and the system prompt is kept as the system prompt, not as an option.
+     */
+    @Test
+    void keepsAnAnthropicCallWithItsAnswerAfterTheThinkingAndEveryInputToken() throws Exception {
+        exchanges.begin("req-4", "rules", "facts");
+        capture.intercept(request(HttpMethod.POST, "/v1/messages"), ANTHROPIC_REQUEST.getBytes(StandardCharsets.UTF_8),
+                (request, body) -> reply(ANTHROPIC_RESPONSE));
+        exchanges.complete("client-model", "client answer", "CLIENT", 1L, 2L, true, null);
+
+        ModelExchanges.Exchange call = exchanges.of("req-4").get(0);
+        assertThat(call.model()).isEqualTo("claude-haiku-5-5");
+        assertThat(call.answer()).isEqualTo("{\"action\":\"ALLOW\"}");
+        assertThat(call.finishReason()).isEqualTo("end_turn");
+        assertThat(call.promptTokens()).isEqualTo(7701L);
+        assertThat(call.completionTokens()).isEqualTo(838L);
+        assertThat(call.reasoningTokens()).isEqualTo(734L);
+        assertThat(call.requestOptions()).containsEntry("max_tokens", 2048).containsEntry("messageCount", 1)
+                .containsEntry("systemCacheBlocks", 1).doesNotContainKey("system").doesNotContainKey("messages");
+        assertThat(call.providerResponse()).contains("\"cache_read_input_tokens\":4372");
     }
 
     @Test

@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -87,6 +88,10 @@ public class SecurityZeroTrustProperties {
     @NestedConfigurationProperty
     private BaselineSettings baseline = new BaselineSettings();
 
+    /** The minimum-action rules of the security decision (plan 7, dictionary 6, W4-4). */
+    @NestedConfigurationProperty
+    private MinimumActionSettings minimumAction = new MinimumActionSettings();
+
     @Data
     public static class ThreatSettings {
         private double initial = 0.3;
@@ -134,6 +139,11 @@ public class SecurityZeroTrustProperties {
         public static class LearningSettings {
             private boolean enabled = true;
             private double alpha = 0.1;
+            /**
+             * The weight of a request learned after the user passed the step-up its decision asked for, or after an
+             * administrator released its block, against an allowed request's 1 (W5-2).
+             */
+            private double verifiedWeight = 0.5;
         }
 
         @Data
@@ -169,5 +179,37 @@ public class SecurityZeroTrustProperties {
     public static class RedisSettings {
         private int timeout = 5000;
         private int updateIntervalSeconds = 30;
+    }
+
+    /** How a decision weaker than a minimum-action rule is handled. */
+    public enum MinimumActionMode {
+        OBSERVE,
+        ENFORCE
+    }
+
+    @Data
+    public static class MinimumActionSettings {
+        private MinimumActionMode mode = MinimumActionMode.OBSERVE;
+        private IdentityRule identity = new IdentityRule();
+        private RuleSwitch newDeviceExport = new RuleSwitch();
+        private RuleSwitch policySatisfaction = new RuleSwitch();
+
+        /** The rule settings these keys give (contexa.security.zerotrust.minimum-action.*). */
+        public MinimumActionRules.Settings toRules() {
+            return new MinimumActionRules.Settings(identity.isEnabled(), identity.getMinDeviations(),
+                    identity.getMinResourceClass(), newDeviceExport.isEnabled(), policySatisfaction.isEnabled());
+        }
+    }
+
+    @Data
+    public static class IdentityRule {
+        private boolean enabled = true;
+        private int minDeviations = 2;
+        private String minResourceClass = "SENSITIVE";
+    }
+
+    @Data
+    public static class RuleSwitch {
+        private boolean enabled = true;
     }
 }

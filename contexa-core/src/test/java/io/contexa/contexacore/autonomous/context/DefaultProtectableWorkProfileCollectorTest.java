@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileSnapshot;
@@ -369,7 +370,7 @@ class DefaultProtectableWorkProfileCollectorTest {
         ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme", start.plusHours(1),
                 "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null)).orElseThrow();
 
-        // W2-6 (P2-변경-4): the observation keeps the export's item count, and the view states the usual export size.
+        // W2-6 (P2-CHANGE-4): the observation keeps the export's item count, and the view states the usual export size.
         assertThat(stored).startsWith("v4|");
         assertThat(snapshot.getBaselineView().exportSize()).isEqualTo(new BaselineView.ExportSize(1, 40, 40));
 
@@ -430,6 +431,73 @@ class DefaultProtectableWorkProfileCollectorTest {
 
         // The three reads under the old id are still the period being judged (P2 correction 5).
         assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
+    }
+
+    @Test
+    void collect_neverCountsAFamilyHintAsTheUsualClass() {
+        for (int index = 0; index < 4; index++) {
+            collect(event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, index),
+                    "/api/releases/R-" + index, "GET", "READ", "PUBLIC_RELEASES", null, true, true, null));
+        }
+        SecurityEvent typed = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 10),
+                "/api/releases/R-4", "GET", "READ", null, null, true, true, null);
+        typed.addMetadata("resourceType", "CONFIDENTIAL");
+        collect(typed);
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 9, 20), "/api/releases/R-5", "GET", "READ", "PUBLIC_RELEASES",
+                        null, true, true, null))
+                .orElseThrow();
+
+        // W2-10: the category's word PUBLIC is no class; a classification value in the type still is one.
+        assertThat(snapshot.getBaselineView().observations()).isEqualTo(5);
+        assertThat(snapshot.getBaselineView().resourceClasses()).containsExactly("SENSITIVE=1");
+    }
+
+    @Test
+    void collect_countsAClassifyingTypeEvenWhenACategoryIsDeclared() {
+        for (int index = 0; index < 3; index++) {
+            SecurityEvent declared = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, index),
+                    "/api/releases/R-" + index, "GET", "READ", null, null, true, true, null);
+            declared.addMetadata("resourceCategory", "RELEASE_NOTES");
+            declared.addMetadata("resourceType", "CONFIDENTIAL");
+            collect(declared);
+        }
+
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme",
+                        LocalDateTime.of(2026, 3, 24, 9, 20), "/api/releases/R-5", "GET", "READ", null, "HIGH",
+                        true, true, null))
+                .orElseThrow();
+
+        // W2-11: the category is the family; the type's classification still counts as the class, as in the context.
+        assertThat(snapshot.getBaselineView().resourceClasses()).containsExactly("SENSITIVE=3");
+    }
+
+    @Test
+    @DisplayName("a request learned after its verification is an observation at its weight and its own time (W5-2)")
+    void recordVerified_keepsTheRequestAtItsWeightAndItsOwnTime() {
+        LocalDateTime night = LocalDateTime.of(2026, 3, 24, 3, 17);
+        SecurityEvent export = event("alice", "tenant-acme", night, "/api/projects/PLM-OPS/exports", "POST", "EXPORT",
+                "REPORT", "HIGH", true, true, null);
+        export.addMetadata("requestItems", 4831);
+
+        collector.recordVerified(export, 0.5);
+
+        List<String> stored = dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10);
+        assertThat(stored).singleElement().satisfies(line -> {
+            assertThat(line).startsWith("v5|").endsWith("|0.5");
+            assertThat(line.split("\\|", -1)[2])
+                    .isEqualTo(String.valueOf(night.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+        });
+        ProtectableWorkProfileSnapshot snapshot = collect(event("alice", "tenant-acme", night.plusHours(6),
+                "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null)).orElseThrow();
+        assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
+        assertThat(snapshot.getBaselineView().exportSize()).isEqualTo(new BaselineView.ExportSize(1, 4831, 4831));
+        // A whole weight keeps the ordinary form.
+        collector.recordVerified(event("bob", "tenant-acme", night, "/api/documents/D-2", "GET", "READ", "REPORT",
+                "HIGH", true, true, null), 1.0);
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "bob", 10)).singleElement()
+                .satisfies(line -> assertThat(line).startsWith("v4|"));
     }
 
     private SecurityEvent event(

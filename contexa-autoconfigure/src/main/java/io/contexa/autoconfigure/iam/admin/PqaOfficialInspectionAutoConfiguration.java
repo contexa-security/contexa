@@ -144,7 +144,6 @@ import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOffici
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationRemediationGroupWriter;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationReverificationResultRepository;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationRunBatchWriter;
-import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcSealedEvidencePackageRepository;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.OfficialVerificationSnapshotRowMapper;
 import io.contexa.contexaiam.admin.promptquality.official.persistence.JdbcOfficialVerificationSnapshotCleanupRepository;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
@@ -273,20 +272,6 @@ public class PqaOfficialInspectionAutoConfiguration {
         return new OfficialMetricPurposeContractCatalogBootstrap(writer);
     }
 
-    @Bean(name = "pqaSealedEvidencePackageIntegrity")
-    @ConditionalOnMissingBean(SealedEvidencePackageIntegrity.class)
-    public SealedEvidencePackageIntegrity pqaSealedEvidencePackageIntegrity() {
-        return new SealedEvidencePackageIntegrity();
-    }
-
-    @Bean(name = "pqaSealedEvidencePackageRepository")
-    @ConditionalOnMissingBean(SealedEvidencePackageRepository.class)
-    @ConditionalOnBean(name = "contexaJdbcTemplate")
-    public SealedEvidencePackageRepository pqaSealedEvidencePackageRepository(
-            @Qualifier("contexaJdbcTemplate") JdbcOperations jdbcOperations) {
-        return new JdbcSealedEvidencePackageRepository(jdbcOperations);
-    }
-
     @Bean(name = "pqaSealedEvidencePackageLookupService")
     @ConditionalOnMissingBean(SealedEvidencePackageLookupPort.class)
     public SealedEvidencePackageLookupService pqaSealedEvidencePackageLookupService(
@@ -358,12 +343,6 @@ public class PqaOfficialInspectionAutoConfiguration {
     public PromptQualityOfficialMetricCatalog pqaPromptQualityOfficialMetricCatalog(
             OfficialVerificationMetricCatalog metricCatalog) {
         return new DefaultPromptQualityOfficialMetricCatalog(metricCatalog);
-    }
-
-    @Bean(name = "pqaCanonicalSecurityContextSerializer")
-    @ConditionalOnMissingBean(CanonicalSecurityContextSerializer.class)
-    public CanonicalSecurityContextSerializer pqaCanonicalSecurityContextSerializer(ObjectMapper objectMapper) {
-        return new CanonicalSecurityContextSerializer(objectMapper);
     }
 
     @Bean(name = "pqaVerificationPromptReplayBuilder")

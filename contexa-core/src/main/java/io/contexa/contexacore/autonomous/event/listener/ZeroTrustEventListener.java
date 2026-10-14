@@ -19,11 +19,11 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import java.util.Locale;
 
 @Slf4j
 public class ZeroTrustEventListener {
@@ -31,6 +31,7 @@ public class ZeroTrustEventListener {
     private final SecurityEventPublisher securityEventPublisher;
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private UnanalysedRequestRecorder unanalysedRequestRecorder;
 
     public ZeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
@@ -39,6 +40,10 @@ public class ZeroTrustEventListener {
         this.securityEventPublisher = securityEventPublisher;
         this.actionRepository = actionRepository;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
+    }
+
+    public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
+        this.unanalysedRequestRecorder = unanalysedRequestRecorder;
     }
 
     @EventListener
@@ -82,9 +87,6 @@ public class ZeroTrustEventListener {
             return false;
         }
         if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
-            if (isOfficialVerificationAuthorizationEvent(event)) {
-                return true;
-            }
             return !shouldSkipPublishing(event.getUserId(), generateAuthorizationContextBindingHash(event));
         }
         return true;
@@ -111,9 +113,24 @@ public class ZeroTrustEventListener {
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
         if (!shouldPublishAuthorizationEvent(event)) {
+            recordUnanalysed(event);
             return;
         }
         securityEventPublisher.publishGenericSecurityEvent(event);
+    }
+
+    /** A request answered by the decision in force reaches no analysis; its session still keeps it (N-SES-1). */
+    private void recordUnanalysed(ZeroTrustSpringEvent event) {
+        String userId = event.getUserId();
+        if (unanalysedRequestRecorder == null || userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            unanalysedRequestRecorder.record(event,
+                    actionRepository.getCurrentAction(userId, generateAuthorizationContextBindingHash(event)));
+        } catch (Exception e) {
+            log.error("[ZeroTrustEventListener] Failed to record a request that was not analysed: userId={}", userId, e);
+        }
     }
 
     private void processSessionEvent(ZeroTrustSpringEvent event) {
@@ -126,22 +143,6 @@ public class ZeroTrustEventListener {
 
     private void processCustomEvent(ZeroTrustSpringEvent event) {
         securityEventPublisher.publishGenericSecurityEvent(event);
-    }
-
-    private boolean isOfficialVerificationAuthorizationEvent(ZeroTrustSpringEvent event) {
-        if (event == null) {
-            return false;
-        }
-        Object scenario = event.getPayloadValue("scenario");
-        if (scenario != null) {
-            String normalizedScenario = scenario.toString().trim().toUpperCase(Locale.ROOT);
-            if (normalizedScenario.startsWith("OFFICIAL_VERIFICATION")) {
-                return true;
-            }
-        }
-        Object requestPath = event.getPayloadValue("requestPath");
-        return requestPath != null
-                && requestPath.toString().contains("/admin/api/enterprise/verification/runtime/probe/");
     }
 
     private boolean shouldSkipPublishing(String userId, String contextBindingHash) {

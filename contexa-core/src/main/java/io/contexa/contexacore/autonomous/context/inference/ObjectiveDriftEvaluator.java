@@ -227,9 +227,10 @@ public class ObjectiveDriftEvaluator {
         if (context == null) {
             return null;
         }
+        // The delegated scope names business categories: the request's category, never its class (W2-10).
         String explicit = firstText(
                 context.getRoleScopeProfile() != null ? context.getRoleScopeProfile().getCurrentResourceFamily() : null,
-                context.getResource() != null ? context.getResource().getResourceType() : null);
+                context.getResource() != null ? context.getResource().getResourceCategory() : null);
         if (StringUtils.hasText(explicit)) {
             return compatibilityCatalog.normalizeResourceFamily(explicit);
         }
@@ -270,9 +271,10 @@ public class ObjectiveDriftEvaluator {
             String prefix = normalizedConstraint.substring(0, normalizedConstraint.length() - 1);
             return normalizedCurrent.startsWith(prefix);
         }
+        // The request lies within a constraint that its resource starts with; a constraint that starts with the
+        // request's resource names something narrower than what is asked for (N-ID-1).
         return normalizedCurrent.equalsIgnoreCase(normalizedConstraint)
-                || normalizedCurrent.startsWith(normalizedConstraint)
-                || normalizedConstraint.startsWith(normalizedCurrent);
+                || normalizedCurrent.startsWith(normalizedConstraint);
     }
 
     private String resolveComparisonSource(

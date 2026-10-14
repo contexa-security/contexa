@@ -68,15 +68,60 @@ public interface SecurityContextDataStore {
         return List.of();
     }
 
+    /**
+     * Records, once, the client a session first came from as the session narrative collector encodes it (operating
+     * system, browser, network, address and user agent fingerprint). A later call for the same session changes nothing
+     * (W2-14).
+     */
+    default void setSessionFirstClientIfAbsent(String sessionId, String firstClient) {
+    }
+
+    /** The client the session first came from; null when the store keeps none. */
+    default String getSessionFirstClient(String sessionId) {
+        return null;
+    }
+
+    /**
+     * Keeps the facts of a request a restriction stopped (CHALLENGE, ESCALATE or BLOCK), so that they are learned at
+     * a reduced weight once the user is verified or an administrator releases the block (W5-2). A store that keeps
+     * none learns nothing from them.
+     */
+    default void holdVerificationLearning(String userId, String requestId, String record) {
+    }
+
+    /** Takes, once, the facts kept for the user's request; null when none are kept. */
+    default String takeVerificationLearning(String userId, String requestId) {
+        return null;
+    }
+
     void addSessionNarrativeActionFamily(String sessionId, String actionFamily);
+
+    /**
+     * Adds the action family of a request made at {@code requestTimestamp}. A session's requests can be decided, and
+     * so recorded, out of the order they were made; the session's sequences are read in the order the requests were
+     * made (N-SES-1). A store that keeps no request time adds the family in the order of the calls.
+     */
+    default void addSessionNarrativeActionFamily(String sessionId, String actionFamily, long requestTimestamp) {
+        addSessionNarrativeActionFamily(sessionId, actionFamily);
+    }
 
     List<String> getRecentSessionNarrativeActionFamilies(String sessionId, int count);
 
     void addSessionProtectableAccess(String sessionId, String resourcePath);
 
+    /** Adds the protected resource a request made at {@code requestTimestamp} accessed, as the families are added. */
+    default void addSessionProtectableAccess(String sessionId, String resourcePath, long requestTimestamp) {
+        addSessionProtectableAccess(sessionId, resourcePath);
+    }
+
     List<String> getRecentSessionProtectableAccesses(String sessionId, int count);
 
     void addSessionRequestInterval(String sessionId, long intervalMs);
+
+    /** Adds the interval before a request made at {@code requestTimestamp}, as the families are added. */
+    default void addSessionRequestInterval(String sessionId, long intervalMs, long requestTimestamp) {
+        addSessionRequestInterval(sessionId, intervalMs);
+    }
 
     List<Long> getRecentSessionRequestIntervals(String sessionId, int count);
 
@@ -91,6 +136,22 @@ public interface SecurityContextDataStore {
     void setSessionPreviousPath(String sessionId, String path);
 
     String getSessionPreviousPath(String sessionId);
+
+    /**
+     * Records a request of the session as its last one, its time and, when given, its path, unless a later request of
+     * the session is already recorded: requests decided out of the order they were made leave the latest one made
+     * (N-SES-1). A store that cannot compare and set at once does it in two steps.
+     */
+    default void recordSessionLastRequest(String sessionId, long timestamp, String path) {
+        Long recorded = getSessionLastRequestTime(sessionId);
+        if (recorded != null && recorded > timestamp) {
+            return;
+        }
+        setSessionLastRequestTime(sessionId, timestamp);
+        if (path != null) {
+            setSessionPreviousPath(sessionId, path);
+        }
+    }
 
     void setSessionRisk(String sessionId, double riskScore);
 

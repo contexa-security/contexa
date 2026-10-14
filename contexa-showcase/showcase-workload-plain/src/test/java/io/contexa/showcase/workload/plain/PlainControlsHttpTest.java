@@ -21,6 +21,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,9 @@ class PlainControlsHttpTest {
             assertThat(json(export).path("deliveredItems").asInt()).isEqualTo(4831);
             assertThat(jdbc.queryForObject("select status from export_job where request_id = ?", String.class, requestId))
                     .isEqualTo("COMPLETED");
+            // LU-2 fix: the export keeps the company time of its request, which an approval's use is counted by.
+            assertThat(jdbc.queryForObject("select company_at from export_job where request_id = ?",
+                    Timestamp.class, requestId)).isEqualTo(Timestamp.from(at(TimeSlot.DAWN)));
             assertThat(jdbc.queryForObject("select rule_id from rule_decision_log where request_id = ?", String.class,
                     requestId)).isEqualTo("RBAC");
         }

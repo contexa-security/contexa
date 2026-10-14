@@ -67,13 +67,13 @@ class ThreatSignalMatcherServiceTest {
                         "geoCountry", "KR"))
                 .build();
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
-        behaviorAnalysis.setContextBindingHashMismatch(true);
+        behaviorAnalysis.setSessionDeviceChange("Chrome/140 on WINDOWS -> Safari/17 on MAC");
 
         ThreatIntelligenceMatchContext context = service.buildContext(event, behaviorAnalysis, List.of(
                 signal("signal-session", "session_hijack", "KR", List.of("session"), List.of("session_integrity_risk"))), 3);
 
         assertThat(context.hasMatches()).isTrue();
-        assertThat(context.matchedSignals().get(0).matchedFacts()).contains("The current session shows a binding anomaly that is consistent with session hijacking attempts.");
+        assertThat(context.matchedSignals().get(0).matchedFacts()).contains("The current session changed device or network mid-session, which is consistent with session hijacking attempts.");
     }
 
     @Test

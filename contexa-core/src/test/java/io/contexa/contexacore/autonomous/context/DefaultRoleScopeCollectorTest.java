@@ -247,6 +247,35 @@ class DefaultRoleScopeCollectorTest {
     }
 
     @Test
+    @DisplayName("collect keeps a protected method declared privileged out of the requester's authorization scope")
+    void collect_keepsAMethodDeclaredPrivilegedOutOfTheAuthorizationScope() {
+        collect(event(
+                LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ADMIN"),
+                List.of(),
+                List.of("role.grant"),
+                "READ",
+                "PROJECT_ACCESS",
+                true));
+        SecurityEvent grant = event(
+                LocalDateTime.of(2026, 3, 26, 9, 20),
+                List.of("ROLE_ADMIN"),
+                List.of(),
+                List.of("role.grant"),
+                "ADMIN",
+                "PROJECT_ACCESS",
+                true);
+        grant.addMetadata("protectablePrivileged", true);
+
+        RoleScopeSnapshot snapshot = collect(grant).orElseThrow();
+
+        // P3 gate: calling a privileged method changes no permission of the requester and opens no elevation window.
+        assertThat(snapshot.getRecentPermissionChanges()).isEmpty();
+        assertThat(snapshot.getTemporaryElevation()).isNull();
+        assertThat(snapshot.getElevatedPrivilegeWindowActive()).isFalse();
+    }
+
+    @Test
     @DisplayName("a refused read of one resource family keeps a read of another resource family out of denied scope")
     void collect_comparesDeniedScopeByRefusedPair() {
         collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
@@ -333,6 +362,34 @@ class DefaultRoleScopeCollectorTest {
         assertThat(snapshot.getCurrentActionFamily()).isEqualTo("EXPORT");
         assertThat(snapshot.getExpectedActionFamilies()).containsExactly("WRITE");
         assertThat(snapshot.getActionFamilyDrift()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a family hint made only of class words is no scope category (W2-10)")
+    void collect_passesOverAClassWordForTheScopeCategory() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+                List.of("report.read"), "READ", "CRITICAL", true));
+        SecurityEvent current = event(LocalDateTime.of(2026, 3, 26, 9, 30), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "CRITICAL", true);
+        current.addMetadata("resourceType", "REPORT");
+
+        RoleScopeSnapshot snapshot = collect(current).orElseThrow();
+
+        // The scope compares business categories; CRITICAL is a class, so the type names the category.
+        assertThat(snapshot.getCurrentResourceFamily()).isEqualTo("REPORT");
+        assertThat(snapshot.getExpectedResourceFamilies()).doesNotContain("CRITICAL");
+    }
+
+    @Test
+    @DisplayName("the request's official category comes before the unprefixed hint (W2-11)")
+    void collect_readsTheOfficialCategoryFirst() {
+        SecurityEvent current = event(LocalDateTime.of(2026, 3, 26, 9, 30), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true);
+        current.addMetadata("resourceCategory", "AUDIT_LOG");
+
+        RoleScopeSnapshot snapshot = collect(current).orElseThrow();
+
+        assertThat(snapshot.getCurrentResourceFamily()).isEqualTo("AUDIT_LOG");
     }
 
     private SecurityEvent event(

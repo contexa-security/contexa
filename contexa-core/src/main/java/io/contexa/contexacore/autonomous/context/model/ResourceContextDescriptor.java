@@ -17,13 +17,41 @@ package io.contexa.contexacore.autonomous.context.model;
 
 import java.util.List;
 
+/**
+ * What the host declares about a protected resource: its type, business label and category, sensitivity, the roles
+ * and actions it allows, and whether it is privileged or exports sensitive data. A null value declares nothing.
+ *
+ * @param resourceCategory the business category (W2-11); never a sensitivity grade
+ * @param privileged       whether the resource is privileged; null when the host did not state it
+ * @param exportSensitive  whether the resource exports sensitive data; null when the host did not state it
+ */
 public record ResourceContextDescriptor(
         String resourceId,
         String resourceType,
         String businessLabel,
+        String resourceCategory,
         String sensitivity,
         List<String> allowedRoleFamilies,
         List<String> allowedActionFamilies,
-        boolean privileged,
-        boolean exportSensitive) {
+        Boolean privileged,
+        Boolean exportSensitive) {
+
+    public ResourceContextDescriptor {
+        allowedRoleFamilies = allowedRoleFamilies == null ? List.of() : List.copyOf(allowedRoleFamilies);
+        allowedActionFamilies = allowedActionFamilies == null ? List.of() : List.copyOf(allowedActionFamilies);
+    }
+
+    /** A descriptor that states both flags and no category, as registries built it before W2-11. */
+    public ResourceContextDescriptor(
+            String resourceId,
+            String resourceType,
+            String businessLabel,
+            String sensitivity,
+            List<String> allowedRoleFamilies,
+            List<String> allowedActionFamilies,
+            boolean privileged,
+            boolean exportSensitive) {
+        this(resourceId, resourceType, businessLabel, null, sensitivity, allowedRoleFamilies, allowedActionFamilies,
+                privileged, exportSensitive);
+    }
 }

@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,11 +31,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -100,6 +103,30 @@ class ZeroTrustEventListenerTest {
         listener.handleZeroTrustEvent(event);
 
         // then - ALLOW action means shouldSkipPublishing returns true
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(event);
+    }
+
+    /**
+     * R4-L3: a request path and a scenario are the client's own text, so an authorization event that names the former
+     * verification probe path or scenario is filtered like any other; nothing in it forces an analysis.
+     */
+    @Test
+    void anAuthorizationEventNamingTheProbePathIsFilteredLikeAnyOther() {
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-probe")
+                .sessionId("session-probe")
+                .clientIp("10.0.0.9")
+                .userAgent("TestAgent")
+                .payload(new HashMap<>(Map.of(
+                        "requestPath", "/shop/admin/api/enterprise/verification/runtime/probe/normal/1",
+                        "scenario", "OFFICIAL_VERIFICATION_RUNTIME")))
+                .build();
+        when(actionRepository.getCurrentAction(anyString(), anyString())).thenReturn(ZeroTrustAction.ALLOW);
+
+        listener.handleZeroTrustEvent(event);
+
         verify(securityEventPublisher, never()).publishGenericSecurityEvent(event);
     }
 
@@ -205,5 +232,48 @@ class ZeroTrustEventListenerTest {
         listener.handleZeroTrustEvent(event);
 
         verify(securityEventPublisher, never()).publishGenericSecurityEvent(event);
+    }
+
+    @Test
+    @DisplayName("a request answered by the decision in force is kept in its session without analysis (N-SES-1)")
+    void authorizationEvent_decisionInForce_isRecordedWithoutAnalysis() {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        listener.setUnanalysedRequestRecorder(unanalysed);
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-allowed")
+                .sessionId("session-allowed")
+                .clientIp("10.0.0.7")
+                .userAgent("TestAgent")
+                .build();
+        String contextBindingHash = listener.generateAuthorizationContextBindingHash(event);
+        when(actionRepository.getCurrentAction("user-allowed", contextBindingHash)).thenReturn(ZeroTrustAction.ALLOW);
+
+        listener.handleZeroTrustEvent(event);
+
+        verify(securityEventPublisher, never()).publishGenericSecurityEvent(event);
+        verify(unanalysed).record(event, ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("a request that goes to analysis is not recorded by the listener (N-SES-1)")
+    void authorizationEvent_pendingAnalysis_isNotRecordedByTheListener() {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        listener.setUnanalysedRequestRecorder(unanalysed);
+        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.builder("test")
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType("METHOD")
+                .userId("user-pending")
+                .sessionId("session-pending")
+                .clientIp("10.0.0.8")
+                .userAgent("TestAgent")
+                .build();
+        when(actionRepository.getCurrentAction(anyString(), any())).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        listener.handleZeroTrustEvent(event);
+
+        verify(securityEventPublisher).publishGenericSecurityEvent(event);
+        verify(unanalysed, never()).record(any(), any());
     }
 }

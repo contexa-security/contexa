@@ -10,12 +10,12 @@ import java.util.regex.Pattern;
 
 /**
  * The prompt version management tables as the OSS {@code db/schema.sql} defines them, for tests on an empty database:
- * the canonical DDL, not a copy of it.
+ * the canonical DDL, not a copy of it, with the statements that change an existing table.
  */
 public final class PromptGovernanceTestSchema {
 
     private static final Pattern GOVERNANCE_DDL = Pattern.compile(
-            "(?is)^create\\s+(unique\\s+)?(table|index)\\s+if\\s+not\\s+exists\\s+.*\\bprompt_governance_.*");
+            "(?is)^(create\\s+(unique\\s+)?(table|index)\\s+if\\s+not\\s+exists|alter\\s+table)\\s+.*\\bprompt_governance_.*");
 
     private PromptGovernanceTestSchema() {
     }

@@ -21,6 +21,7 @@ import { Modal } from '../common/Modal';
 import { Icon } from '../Icon';
 import { Comparison } from '../inside/Comparison';
 import { PromptBundles } from '../inside/PromptBundles';
+import { countedCall } from '../inside/promptSections';
 import { StateScreen } from '../StateScreen';
 import { VerdictChip } from '../VerdictChip';
 import { DETAIL_TABS, useDetail, type DetailTab } from './useDetail';
@@ -543,12 +544,12 @@ function Process({ view }: TabProps) {
   );
 }
 
-/** The prompt (anat-2): the same seven bundles as the tries' "inside the prompt", read from this request's record. */
+/** The prompt (anat-2): the same bundles as the tries' "inside the prompt", read from this request's record. */
 function Prompt({ view, runId, step }: TabProps) {
   const { t } = useTranslation();
   const exchanges = useExchanges(runId, step, true);
   const data: ExchangesView | null = exchanges.data ?? null;
-  const call = data?.calls[0] ?? null;
+  const call = data ? countedCall(data.calls) : null;
   if (exchanges.isPending) {
     return <StateScreen kind="loading" />;
   }

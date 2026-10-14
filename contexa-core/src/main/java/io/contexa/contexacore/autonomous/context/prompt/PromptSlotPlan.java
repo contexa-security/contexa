@@ -22,7 +22,14 @@ public record PromptSlotPlan(
         String canonicalContextPath,
         String sourceProducer,
         String priority,
-        String truncationPolicy) {
+        String truncationPolicy,
+        PromptDictionaryEntry dictionaryEntry) {
+
+    /** A plan without a dictionary entry (slot contract rows and plans outside the v20 dictionary). */
+    public PromptSlotPlan(String slotKey, String sectionKey, String labelKey, String canonicalContextPath,
+                          String sourceProducer, String priority, String truncationPolicy) {
+        this(slotKey, sectionKey, labelKey, canonicalContextPath, sourceProducer, priority, truncationPolicy, null);
+    }
 
     public static PromptSlotPlan unscoped(String sectionKey, String labelKey) {
         return new PromptSlotPlan(
@@ -43,6 +50,7 @@ public record PromptSlotPlan(
                 sourceValue,
                 renderedValue,
                 narrative,
-                priority);
+                priority,
+                dictionaryEntry);
     }
 }

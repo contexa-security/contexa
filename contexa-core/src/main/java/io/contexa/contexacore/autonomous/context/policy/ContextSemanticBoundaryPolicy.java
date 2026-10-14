@@ -66,10 +66,10 @@ public final class ContextSemanticBoundaryPolicy {
         if (WORK_PROFILE_KEY.equals(profileKey) && workProfileView != null && workProfileView.observed()
                 && workProfileView.evidenceGrade() != BaselineView.EvidenceGrade.STRONG) {
             return "Context evidence for " + profileKey + " is " + workProfileView.evidenceSummary()
-                    + "; do not use it as a standalone reasoning anchor.";
+                    + "; " + ContextEvidenceGuidance.NOT_A_REASONING_ANCHOR + ".";
         }
         return "Context evidence for " + profileKey
-                + " is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.";
+                + " is thin, fallback-heavy, or comparison-incomplete; " + ContextEvidenceGuidance.NOT_A_REASONING_ANCHOR + ".";
     }
 
     public static boolean requiresEvidenceCaution(ContextFieldTrustRecord fieldRecord) {

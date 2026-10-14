@@ -50,6 +50,30 @@ class ExecutionSpecHasherTest {
                 .contains("\"modelSettings\":{\"layer1Model\":{\"maxOutputTokens\":1024,\"reasoningEffort\":\"low\"");
     }
 
+    /**
+     * LU-6 (P3 extra 46): two measurements that differ only in the prompt bundle are two specifications and two
+     * settings; a specification recorded before the bundle was reported keeps its hash.
+     */
+    @Test
+    void thePromptBundleSeparatesSettingsAndLeavesOlderSpecificationsAsTheyWere() {
+        ExecutionSpec before = spec(Map.of("/work/exports", "sync"), "tpl-1", "ENFORCE", settings("low", 2048));
+        ExecutionSpec v19 = withBundle(before, "2026.10.13-v19.9");
+        ExecutionSpec v20 = withBundle(before, "2026.10.14-v20.9");
+
+        assertThat(ExecutionSpecHasher.canonicalJson(before)).doesNotContain("promptBundle");
+        assertThat(ExecutionSpecHasher.canonicalJson(v20)).contains("\"promptBundle\":\"2026.10.14-v20.9\"");
+        assertThat(ExecutionSpecHasher.hash(v20)).isNotEqualTo(ExecutionSpecHasher.hash(v19));
+        assertThat(ExecutionSpecHasher.settingHash(v20, "v1")).isNotEqualTo(ExecutionSpecHasher.settingHash(v19, "v1"))
+                .isNotEqualTo(ExecutionSpecHasher.settingHash(before, "v1"));
+    }
+
+    private static ExecutionSpec withBundle(ExecutionSpec spec, String bundle) {
+        return new ExecutionSpec(spec.codeCommit(), spec.engineVersion(), spec.effectiveMode(),
+                spec.endpointProtection(), spec.chatModel(), spec.embeddingModel(), spec.embeddingDimensions(),
+                spec.promptHash(), spec.templateId(), spec.ruleVersion(), spec.contractVersion(), spec.timeZone(),
+                spec.modelSettings(), bundle);
+    }
+
     @Test
     void hashIsStableAndIndependentOfMapInsertionOrder() {
         Map<String, String> first = new LinkedHashMap<>();

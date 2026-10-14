@@ -24,10 +24,15 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
+import io.contexa.contexacore.std.rag.service.VectorSearchScope;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 @Slf4j
 public class VectorStoreCacheLayer {
@@ -46,7 +51,52 @@ public class VectorStoreCacheLayer {
         this.tieredStrategyProperties = tieredStrategyProperties;
     }
 
+    /** A cache whose searches run with the pgvector settings they need (W2-15). */
+    public VectorStoreCacheLayer(VectorStore vectorStore, TieredStrategyProperties tieredStrategyProperties,
+                                 PgVectorSearchSettings searchSettings) {
+        this.vectorStore = vectorStore;
+        this.tieredStrategyProperties = tieredStrategyProperties;
+        this.searchSettings = searchSettings;
+    }
+
+    /**
+     * After a write, clears the cached searches the written documents can change: their users', their organisations'
+     * and those that require neither (W2-15). Other users' searches stay cached.
+     */
+    public void invalidateAfterWrite(Collection<Document> documents) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled()
+                || !tieredStrategyProperties.getVectorCache().isInvalidateOnWrite()
+                || documents == null || documents.isEmpty()) {
+            return;
+        }
+        List<VectorSearchScope> written = documents.stream().map(VectorSearchScope::ofDocument).toList();
+        invalidateMatching(search -> written.stream().anyMatch(scope -> scope.reaches(search)));
+    }
+
+    /** After a user's records are purged, clears that user's cached searches and those that require no user (W2-15). */
+    public void invalidateForUser(String userId) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled() || userId == null) {
+            return;
+        }
+        VectorSearchScope purged = new VectorSearchScope(userId, null);
+        invalidateMatching(purged::reaches);
+    }
+
+    private void invalidateMatching(Predicate<VectorSearchScope> reached) {
+        for (String key : List.copyOf(cache.asMap().keySet())) {
+            if (reached.test(scopes.getOrDefault(key, UNSCOPED))) {
+                cache.invalidate(key);
+                scopes.remove(key);
+            }
+        }
+    }
+
+    private static final VectorSearchScope UNSCOPED = new VectorSearchScope(null, null);
+
     private Cache<String, List<Document>> cache;
+    /** The scope of each cached search, so that a write clears only the searches it can change (W2-15). */
+    private final ConcurrentHashMap<String, VectorSearchScope> scopes = new ConcurrentHashMap<>();
+    private PgVectorSearchSettings searchSettings;
 
     @PostConstruct
     public void init() {
@@ -54,7 +104,12 @@ public class VectorStoreCacheLayer {
 
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
                 .maximumSize(vectorCache.getMaxSize())
-                .expireAfterWrite(vectorCache.getExpireMinutes(), TimeUnit.MINUTES);
+                .expireAfterWrite(vectorCache.getExpireMinutes(), TimeUnit.MINUTES)
+                .evictionListener((key, value, cause) -> {
+                    if (key != null) {
+                        scopes.remove(key);
+                    }
+                });
 
         if (vectorCache.isRecordStats()) {
             builder.recordStats();
@@ -72,10 +127,12 @@ public class VectorStoreCacheLayer {
         try {
             String cacheKey = generateCacheKey(request);
 
-            return cache.get(cacheKey, ignored -> {
-                List<Document> result = vectorStore.similaritySearch(request);
+            List<Document> documents = cache.get(cacheKey, ignored -> {
+                List<Document> result = search(request);
                 return result != null ? List.copyOf(result) : List.of();
             });
+            scopes.put(cacheKey, VectorSearchScope.of(request.getFilterExpression()));
+            return documents;
 
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Error during similarity search", e);
@@ -114,11 +171,16 @@ public class VectorStoreCacheLayer {
         }
 
         try {
-            return vectorStore.similaritySearch(request);
+            return search(request);
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Fallback search failed", e);
             throw new VectorSearchException("Vector store fallback search failed", e);
         }
+    }
+
+    /** The store's search, with the pgvector settings the request needs when the store is pgvector (W2-15). */
+    private List<Document> search(SearchRequest request) {
+        return searchSettings != null ? searchSettings.search(vectorStore, request) : vectorStore.similaritySearch(request);
     }
 
     public void add(List<Document> documents) {
@@ -142,7 +204,10 @@ public class VectorStoreCacheLayer {
 
         cache.asMap().keySet().stream()
                 .filter(key -> key.startsWith("q:" + query))
-                .forEach(cache::invalidate);
+                .forEach(key -> {
+                    cache.invalidate(key);
+                    scopes.remove(key);
+                });
 
     }
 
@@ -153,6 +218,7 @@ public class VectorStoreCacheLayer {
         }
 
         cache.invalidateAll();
+        scopes.clear();
     }
 
     public void invalidateAll() {
@@ -161,6 +227,7 @@ public class VectorStoreCacheLayer {
         }
 
         cache.invalidateAll();
+        scopes.clear();
     }
 
     public CacheStatistics getStatistics() {

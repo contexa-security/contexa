@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import org.springframework.beans.factory.ObjectProvider;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistController;
@@ -44,10 +46,13 @@ public class IamAdminBlacklistAutoConfiguration {
             ApplicationEventPublisher eventPublisher,
             CentralAuditFacade centralAuditFacade,
             BlockingSignalBroadcaster blockingDecisionRegistry,
-            MessageSource messageSource) {
-        return new BlockedUserService(
+            MessageSource messageSource,
+            ObjectProvider<VerificationLearningService> verificationLearningService) {
+        BlockedUserService service = new BlockedUserService(
                 blockedUserJpaRepository, adminOverrideService, actionRedisRepository,
                 eventPublisher, centralAuditFacade, blockingDecisionRegistry, messageSource);
+        service.setVerificationLearningService(verificationLearningService.getIfAvailable());
+        return service;
     }
 
     @Bean

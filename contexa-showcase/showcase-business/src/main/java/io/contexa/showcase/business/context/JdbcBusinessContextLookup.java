@@ -187,13 +187,19 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
         if (principal.isEmpty()) {
             return ApprovalCoverage.none();
         }
+        // The approval's use (LU-2): what the requester received from its project within its validity before the request,
+        // by the company time of each export (its start is on the wall clock of the business service).
         List<ApprovalCoverage> candidates = database.jdbc().query("""
-                        select approval_key, requester, approver, project_key, purpose, max_items, valid_from,
-                               valid_until, status, approved_at
-                          from approval
-                         where requester = :employee and (run_id is null or run_id = :run)
-                         order by approval_key""",
-                params().addValue("employee", principal.get().employeeKey()).addValue("run", principal.get().runId()),
+                        select a.approval_key, a.requester, a.approver, a.project_key, a.purpose, a.max_items,
+                               a.valid_from, a.valid_until, a.status, a.approved_at,
+                               (select coalesce(sum(j.delivered_items), 0) from export_job j
+                                 where j.username = :username and j.project_key = a.project_key
+                                   and j.company_at >= a.valid_from and j.company_at < least(a.valid_until, :at))
+                          from approval a
+                         where a.requester = :employee and (a.run_id is null or a.run_id = :run)
+                         order by a.approval_key""",
+                params().addValue("employee", principal.get().employeeKey()).addValue("run", principal.get().runId())
+                        .addValue("username", principal.get().username()).addValue("at", Timestamp.from(at)),
                 (rs, n) -> {
                     List<String> mismatches = new ArrayList<>();
                     String approver = rs.getString(3);
@@ -216,7 +222,7 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
                         mismatches.add("STATUS");
                     }
                     return new ApprovalCoverage(mismatches.isEmpty(), rs.getString(1), approver, rs.getString(5),
-                            maxItems, from, until, List.copyOf(mismatches), instant(rs, 10));
+                            maxItems, from, until, List.copyOf(mismatches), instant(rs, 10), rs.getInt(11));
                 });
         return best(candidates, ApprovalCoverage::covered, coverage -> distance(coverage.mismatches()))
                 .orElse(ApprovalCoverage.none());

@@ -3,14 +3,11 @@ package io.contexa.contexacore.verification.evidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageResolver;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +25,6 @@ import java.util.Objects;
 public final class SealedEvidencePromptEvidenceBackfill {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
-    private static final HexFormat HEX = HexFormat.of();
 
     private SealedEvidencePromptEvidenceBackfill() {
     }
@@ -137,7 +133,7 @@ public final class SealedEvidencePromptEvidenceBackfill {
         if (!StringUtils.hasText(promptText)) {
             return;
         }
-        writer.write(sha256Prefixed(promptText));
+        writer.write(PromptGovernanceSupport.sha256(promptText));
         recoveredFields.add(fieldName);
     }
 
@@ -192,17 +188,6 @@ public final class SealedEvidencePromptEvidenceBackfill {
             }
         }
         return null;
-    }
-
-    private static String sha256Prefixed(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return "sha256:" + HEX.formatHex(hash);
-        }
-        catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm not available", e);
-        }
     }
 
     private static SealedEvidencePackage copyOf(SealedEvidencePackage source) {

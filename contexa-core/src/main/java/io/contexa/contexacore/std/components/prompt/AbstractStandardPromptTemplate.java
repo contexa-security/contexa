@@ -230,7 +230,8 @@ public abstract class AbstractStandardPromptTemplate<T> extends AbstractBaseProm
      * @param systemMetadata the system metadata
      * @return the complete assembled system prompt
      */
-    private String assembleSystemPrompt(String domainPrompt, String formatInstructions, String systemMetadata) {
+    /** The system prompt as the model gets it: the domain prompt, then the output format and the context when given. */
+    public static String assembleSystemPrompt(String domainPrompt, String formatInstructions, String systemMetadata) {
         StringBuilder prompt = new StringBuilder();
 
         prompt.append(domainPrompt.trim());

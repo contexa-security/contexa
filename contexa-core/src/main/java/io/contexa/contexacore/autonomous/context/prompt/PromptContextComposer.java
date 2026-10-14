@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
+import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.context.support.NetworkZone;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import java.util.ArrayList;
@@ -448,10 +449,7 @@ public class PromptContextComposer {
         appendLine(section, "HttpMethod", resource.getHttpMethod());
         appendLine(section, "ActionFamily", resource.getActionFamily());
         appendLine(section, "ResourceType", resource.getResourceType());
-        appendLine(section, "CurrentResourceFamily",
-                SecuritySemanticNormalizer.normalizeResourceFamily(
-                        resource.getSensitivity(),
-                        resource.getResourceType()));
+        appendLine(section, "CurrentResourceFamily", SecuritySemanticNormalizer.resourceClassOf(resource));
         appendLine(section, "BusinessLabel", resource.getBusinessLabel());
         // The author's own words stay apart from the business facts and are said to be untrusted (W2-6).
         appendLine(section, "ResourceAuthorText", StringUtils.hasText(resource.getAuthorText())
@@ -486,6 +484,19 @@ public class PromptContextComposer {
     private void appendObservedScopeSection(StringBuilder section, CanonicalSecurityContext context) {
         CanonicalSecurityContext.ObservedScope observedScope = context != null ? context.getObservedScope() : null;
         if (observedScope == null) {
+            // The observed scope comes from the host's access history only (W2-12). Without it the section states
+            // that the history is missing rather than leaving the comparison out (Q-70).
+            if (context == null) {
+                return;
+            }
+            section.append("\n=== OBSERVED WORK PATTERN CONTEXT ===\n");
+            appendLine(section, "ProfileSource", "NONE - the host gave no access history");
+            appendLine(section, "ObservedScopeSummary",
+                    "No host access history; the resources and action families used before are unknown.");
+            appendNoHistoryComparison(section, "CurrentResourcePresentInObservedHistory",
+                    resolveCurrentResourceValue(context));
+            appendNoHistoryComparison(section, "CurrentActionFamilyPresentInObservedHistory",
+                    resolveCurrentActionFamily(context));
             return;
         }
 
@@ -509,6 +520,12 @@ public class PromptContextComposer {
                 resolveCurrentActionFamily(context),
                 observedScope.getFrequentActionFamilies(),
                 presentInObservedHistory(observedScope.getRareCurrentActionFamily()));
+    }
+
+    private void appendNoHistoryComparison(StringBuilder section, String label, String currentValue) {
+        if (StringUtils.hasText(currentValue)) {
+            appendLine(section, label, "UNKNOWN - the host gave no access history; do not infer");
+        }
     }
 
     private Boolean presentInObservedHistory(Boolean rareInObservedHistory) {
@@ -613,9 +630,7 @@ public class PromptContextComposer {
         CanonicalSecurityContext.Resource resource = context != null ? context.getResource() : null;
         String currentResourceFamily = firstText(
                 roleScopeProfile.getCurrentResourceFamily(),
-                SecuritySemanticNormalizer.normalizeResourceFamily(
-                        resource != null ? resource.getSensitivity() : null,
-                        resource != null ? resource.getResourceType() : null));
+                SecuritySemanticNormalizer.resourceClassOf(resource));
         String currentActionFamily = firstText(
                 roleScopeProfile.getCurrentActionFamily(),
                 SecuritySemanticNormalizer.normalizeActionFamily(
@@ -830,16 +845,16 @@ public class PromptContextComposer {
         appendLine(section, "AgentId", delegation.getAgentId());
         appendLine(section, "ObjectiveId", delegation.getObjectiveId());
         appendLineOrExplainedUnknown(section, "ObjectiveFamily", delegation.getObjectiveFamily(),
-                "delegation context supplied no objective family; do not infer objective family.");
+                "delegation context supplied no objective family; " + ContextEvidenceGuidance.NO_INFERRED_OBJECTIVE_FAMILY + ".");
         appendLineOrExplainedUnknown(section, "ObjectiveSummary", delegation.getObjectiveSummary(),
-                "delegation context supplied no objective summary; do not infer objective summary.");
+                "delegation context supplied no objective summary; " + ContextEvidenceGuidance.NO_INFERRED_OBJECTIVE_SUMMARY + ".");
         appendList(section, "AllowedOperations", delegation.getAllowedOperations());
         appendList(section, "AllowedResources", delegation.getAllowedResources());
         appendLine(section, "ApprovalRequired", delegation.getApprovalRequired());
         appendLine(section, "PrivilegedExportAllowed", delegation.getPrivilegedExportAllowed());
         appendLine(section, "ContainmentOnly", delegation.getContainmentOnly());
         appendLineOrExplainedUnknown(section, "ObjectiveAlignmentEvidence", delegation.getObjectiveDriftSummary(),
-                "delegation context supplied no objective alignment evidence; do not infer business intent.");
+                "delegation context supplied no objective alignment evidence; " + ContextEvidenceGuidance.NO_INFERRED_BUSINESS_INTENT + ".");
     }
 
     private void appendReasoningMemorySection(StringBuilder section, CanonicalSecurityContext.ReasoningMemoryProfile reasoningMemoryProfile) {

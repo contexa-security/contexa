@@ -31,13 +31,19 @@ spring:
       mode: never
   ai:
     model:
-      chat: openai
+      # The chat provider: openai, or anthropic for the model comparison; the embeddings stay on OpenAI.
+      chat: ${SHOWCASE_CHAT_PROVIDER:openai}
       embedding: openai
     openai:
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
           model: ${SHOWCASE_CHAT_MODEL:gpt-5-nano}
+    anthropic:
+      api-key: ${SHOWCASE_ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: ${SHOWCASE_ANTHROPIC_CHAT_MODEL:claude-haiku-5-5}
       embedding:
         options:
           model: ${SHOWCASE_EMBEDDING_MODEL:text-embedding-3-small}
@@ -65,7 +71,7 @@ contexa:
   llm:
     selection:
       chat:
-        priority: openai
+        priority: ${SHOWCASE_CHAT_PROVIDER:openai}
       embedding:
         priority: openai
   vectorstore:
@@ -80,6 +86,16 @@ contexa:
         # Template memory documents carry the company time of the learned history; keep them for the template's
         # life instead of the 90-day default measured against the wall clock (docs/showcase/ADR.md ADR-23).
         retention-days: 400
+  pqa:
+    oss:
+      sealed-evidence:
+        # Every decision is measured, inspected and audited from its sealed package, so every decision is sealed
+        # (R4-S6, default 1%).
+        sample-percent: 100
+        retention:
+          # The prompt audit compares new sealed packages with those of earlier bundle versions, so a package
+          # whose latest inspection found nothing wrong is kept as long as the others (R4-S5, default 30 days).
+          clean-period: 90d
 server:
   address: ${SHOWCASE_BIND_ADDRESS:127.0.0.1}
   # The client address comes only from the signed internal context, never from proxy headers.

@@ -191,21 +191,6 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    @DisplayName("observed-at header should populate request info observedAt for server issued probes")
-    void extractShouldIncludeObservedAtFromHeaders() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
-        request.addHeader("X-Request-ID", "req-observed-at");
-        request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
-        addServerIssuedProbeCapability(request);
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getObservedAt()).isNotNull();
-        assertThat(requestInfo.getObservedAt().toString()).isEqualTo("2026-02-03T00:15:00Z");
-    }
-
-    @Test
     @DisplayName("generic requested model header should be ignored for ordinary security requests")
     void extractShouldIgnoreRequestedModelIdFromGenericHeader() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
@@ -243,8 +228,6 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getRuntimeMaxTokens()).isNull();
         assertThat(requestInfo.getRuntimeDisableRetries()).isNull();
         assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isNull();
-        assertThat(requestInfo.getAnomalySignal()).isNull();
-        assertThat(requestInfo.getAnomalySignalSource()).isNull();
         assertThat(requestInfo.getUntrustedAnomalySignalClaim()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
     }
 
@@ -266,20 +249,6 @@ class RequestInfoExtractorTest {
         assertThat(firstInfo.getClientRequestId()).isEqualTo("client-req-1");
         assertThat(secondInfo.getClientRequestId()).isEqualTo("client-req-1");
         assertThat(RequestInfoExtractor.extractRequestId(first)).isEqualTo(firstInfo.getRequestId());
-    }
-
-    @Test
-    @DisplayName("a server issued official verification probe keeps its X-Request-ID as the processing id")
-    void aServerIssuedProbeKeepsItsRequestId() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/normal/resource-001");
-        request.addHeader("X-Request-ID", "probe-req-1");
-        addServerIssuedProbeCapability(request);
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getRequestId()).isEqualTo("probe-req-1");
-        assertThat(requestInfo.getClientRequestId()).isNull();
     }
 
     @Test
@@ -305,36 +274,6 @@ class RequestInfoExtractorTest {
         String clientRequestId = RequestInfoExtractor.extractClientRequestId(request);
 
         assertThat(clientRequestId).startsWith("abcInjected: yes").hasSize(128).doesNotContain("\r", "\n", "\u0007");
-    }
-
-    @Test
-    @DisplayName("canonical runtime headers should be allowed for server issued official verification probes")
-    void extractShouldAllowCanonicalRuntimeHeadersForOfficialVerificationProbe() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
-        request.addHeader("X-Request-ID", "req-runtime-selection-official");
-        addServerIssuedProbeCapability(request);
-        request.addHeader("X-Contexa-Model-Id", "qwen3:8b");
-        request.addHeader("X-Contexa-Temperature", "0.0");
-        request.addHeader("X-Contexa-Top-P", "0.2");
-        request.addHeader("X-Contexa-Seed", "7");
-        request.addHeader("X-Contexa-Max-Tokens", "96");
-        request.addHeader("X-Contexa-Disable-Retries", "true");
-        request.addHeader("X-Contexa-Disable-Ollama-Thinking", "true");
-        request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getDecisionBoundaryMode()).isEqualTo("RUNTIME_MODEL_SELECTION");
-        assertThat(requestInfo.getRequestedModelId()).isEqualTo("qwen3:8b");
-        assertThat(requestInfo.getRuntimeTemperature()).isEqualTo(0.0d);
-        assertThat(requestInfo.getRuntimeTopP()).isEqualTo(0.2d);
-        assertThat(requestInfo.getRuntimeSeed()).isEqualTo(7);
-        assertThat(requestInfo.getRuntimeMaxTokens()).isEqualTo(96);
-        assertThat(requestInfo.getRuntimeDisableRetries()).isTrue();
-        assertThat(requestInfo.getRuntimeDisableOllamaThinking()).isTrue();
-        assertThat(requestInfo.getAnomalySignal()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
-        assertThat(requestInfo.getAnomalySignalSource()).isEqualTo("OFFICIAL_VERIFICATION_INTERNAL");
     }
 
     @Test
@@ -431,19 +370,6 @@ class RequestInfoExtractorTest {
     }
 
     @Test
-    void ordinaryFaultHeaderCannotEnablePromptFaultAndIsRecordedAsRejected() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/ordinary/resource");
-        request.addHeader("X-PQA-Prompt-Fault", "RUNTIME_SLOT_MULTI_FAULT");
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getPqaPromptFaultScenario()).isNull();
-        assertThat(requestInfo.getPqaPromptFaultRejected()).isTrue();
-        assertThat(requestInfo.getPqaPromptFaultRejectedSource()).isEqualTo("UNTRUSTED_REQUEST_HEADER");
-    }
-
-    @Test
     @DisplayName("client scenario marker and probe path alone should not unlock overrides or simulation")
     void clientOfficialVerificationMarkersShouldNotUnlockOverridesOrSimulation() {
         MockHttpServletRequest request = clientForgedProbeRequest();
@@ -478,31 +404,6 @@ class RequestInfoExtractorTest {
                 RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
 
         assertClientOverridesIgnored(request, requestInfo);
-    }
-
-    @Test
-    @DisplayName("server issued runtime capability should honor boundary mode and simulation headers")
-    void serverIssuedRuntimeCapabilityShouldHonorBoundaryModeAndSimulationHeaders() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
-        request.setRemoteAddr("127.0.0.1");
-        request.addHeader("User-Agent", "Probe-Transport/1.0");
-        request.addHeader("X-Forwarded-For", "198.51.100.20");
-        request.addHeader("X-Simulated-User-Agent", "Mozilla/5.0 Simulated Chrome/120");
-        request.addHeader("X-Simulated-User-Agent-Label", "Simulated Chrome");
-        request.addHeader("X-Simulated-Observed-At", "2026-02-03T09:15:00+09:00");
-        request.addHeader("X-Contexa-Decision-Boundary-Mode", "SHADOW");
-        request.addHeader("X-Contexa-Scenario", "OFFICIAL_VERIFICATION_BSR");
-        addServerIssuedProbeCapability(request);
-
-        RequestInfoExtractor.RequestInfo requestInfo =
-                RequestInfoExtractor.extract(request, new TieredStrategyProperties().getSecurity());
-
-        assertThat(requestInfo.getDecisionBoundaryMode()).isEqualTo("SHADOW");
-        assertThat(requestInfo.getUserAgent()).isEqualTo("Mozilla/5.0 Simulated Chrome/120");
-        assertThat(requestInfo.getSimulatedUserAgentLabel()).isEqualTo("Simulated Chrome");
-        assertThat(requestInfo.getObservedAt()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
-        assertThat(requestInfo.getClientIp()).isEqualTo("198.51.100.20");
-        assertThat(requestInfo.getScenario()).isEqualTo("OFFICIAL_VERIFICATION_BSR");
     }
 
     private static MockHttpServletRequest clientForgedProbeRequest() {
@@ -544,20 +445,10 @@ class RequestInfoExtractorTest {
         assertThat(requestInfo.getSimulatedUserAgentLabel()).isNull();
         assertThat(requestInfo.getObservedAt()).isNull();
         assertThat(requestInfo.getClientIp()).isEqualTo("10.0.0.10");
-        assertThat(requestInfo.getScenario()).isNull();
-        assertThat(requestInfo.getAnomalySignal()).isNull();
-        assertThat(requestInfo.getAnomalySignalSource()).isNull();
         assertThat(requestInfo.getUntrustedAnomalySignalClaim()).isEqualTo("CONFIRMED_CREDENTIAL_EXFILTRATION");
         assertThat(RequestInfoExtractor.extractClientIp(request, new TieredStrategyProperties().getSecurity()))
                 .isEqualTo("10.0.0.10");
         assertThat(RequestInfoExtractor.extractUserAgent(request)).isEqualTo("RealBrowser/1.0");
         assertThat(RequestInfoExtractor.extractObservedAt(request)).isNull();
-        assertThat(RequestInfoExtractor.extractScenario(request)).isNull();
-    }
-
-    private static void addServerIssuedProbeCapability(MockHttpServletRequest request) {
-        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
-        headers.setRuntimeOverrideCapability();
-        headers.asMap().forEach(request::addHeader);
     }
 }

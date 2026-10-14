@@ -28,6 +28,7 @@ import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -143,6 +144,8 @@ public class DefaultStreamingHandler implements StreamingHandler {
             Prompt prompt = ProviderAwareChatOptionsFactory.normalizePromptOptions(context.getPrompt(), context, selectedModel);
             var promptSpec = chatClient.prompt(prompt);
             promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
+            // The tool providers' tools go to the model, which calls them while it answers.
+            promptSpec = promptSpec.tools(context.getToolProviders().toArray());
 
             Flux<String> rawResponseFlux = promptSpec.stream().content();
 
@@ -221,9 +224,10 @@ public class DefaultStreamingHandler implements StreamingHandler {
         Integer timeout = tieredLLMProperties.getTimeoutForTier(tier);
 
         return switch (tier) {
+            // Only a timeout becomes the timeout answer; any other failure stays an error the caller sees.
             case 1 -> responseFlux
                     .timeout(Duration.ofMillis(timeout))
-                    .onErrorReturn("TIMEOUT");
+                    .onErrorReturn(TimeoutException.class, "TIMEOUT");
             case 2 -> {
                 int bufferMs = Math.max(50, timeout / 6);
                 yield responseFlux

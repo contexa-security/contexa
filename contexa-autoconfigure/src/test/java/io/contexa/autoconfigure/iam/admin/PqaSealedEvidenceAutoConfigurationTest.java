@@ -11,22 +11,25 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
-import io.contexa.contexacore.verification.capture.PromptEvidenceMetadataProvider;
 import io.contexa.contexacore.verification.capture.SealedEvidenceLayer1CompletionAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptCaptureAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRetentionScheduler;
+import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -52,7 +55,6 @@ class PqaSealedEvidenceAutoConfigurationTest {
             "sealedEvidenceCaptureHandler");
 
     private static final List<Class<?>> CAPTURE_TYPES = List.of(
-            PromptEvidenceMetadataProvider.class,
             SealedEvidencePromptTraceStore.class,
             SealedEvidencePromptCaptureAspect.class,
             SealedEvidenceLayer1CompletionAspect.class,
@@ -100,7 +102,6 @@ class PqaSealedEvidenceAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(SealedEvidencePromptCaptureAspect.class);
                     assertThat(context).doesNotHaveBean(SealedEvidenceLayer1CompletionAspect.class);
                     assertThat(context).doesNotHaveBean(SealedEvidencePackageAssembler.class);
-                    assertThat(context).doesNotHaveBean(PromptEvidenceMetadataProvider.class);
                     assertThat(context).doesNotHaveBean("pqaOssSealedEvidenceCaptureExecutor");
                     assertThat(context).doesNotHaveBean(SecurityEventHandler.class);
                     assertThat(context).doesNotHaveBean(SealedEvidencePackageRetentionScheduler.class);
@@ -137,6 +138,48 @@ class PqaSealedEvidenceAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean(SealedEvidencePackageRetentionScheduler.class);
                     assertThat(context).hasSingleBean(SealedEvidenceCaptureHandler.class);
                 });
+    }
+
+    /** R4-S4 (D-C): the retention period the host sets reaches the assembler; a period that is not positive fails fast. */
+    @Test
+    void theRetentionPeriodTheHostSetsReachesTheAssembler() {
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.period=30d")
+                .run(context -> assertThat(ReflectionTestUtils.getField(
+                        context.getBean(SealedEvidencePackageAssembler.class), "retention")).isEqualTo(Duration.ofDays(30)));
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .run(context -> assertThat(ReflectionTestUtils.getField(
+                        context.getBean(SealedEvidencePackageAssembler.class), "retention")).isEqualTo(Duration.ofDays(90)));
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.retention.period=0s")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    /** R4-S6: the handler seals a stable share (1% by default) and every decision of the window after a change. */
+    @Test
+    void theCaptureSampleTheHostSetsReachesTheHandler() {
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .run(context -> {
+                    assertThat(context).hasSingleBean(SealedEvidenceCaptureSampling.class);
+                    SealedEvidenceCaptureSampling sampling = context.getBean(SealedEvidenceCaptureSampling.class);
+                    assertThat(sampling).isInstanceOf(VersionChangeCaptureSampling.class);
+                    assertThat(ReflectionTestUtils.getField(sampling, "samplePercent")).isEqualTo(1);
+                    assertThat(ReflectionTestUtils.getField(sampling, "fullCaptureAfterChange")).isEqualTo(1000);
+                    assertThat(ReflectionTestUtils.getField(context.getBean(SealedEvidenceCaptureHandler.class),
+                            "sampling")).isSameAs(sampling);
+                });
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.sample-percent=100",
+                        "contexa.pqa.oss.sealed-evidence.full-capture-after-change=0")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(SealedEvidenceCaptureSampling.class);
+                    SealedEvidenceCaptureSampling sampling = context.getBean(SealedEvidenceCaptureSampling.class);
+                    assertThat(ReflectionTestUtils.getField(sampling, "samplePercent")).isEqualTo(100);
+                    assertThat(ReflectionTestUtils.getField(sampling, "fullCaptureAfterChange")).isEqualTo(0);
+                });
+        runner.withBean(SealedEvidencePackageRepository.class, () -> mock(SealedEvidencePackageRepository.class))
+                .withPropertyValues("contexa.pqa.oss.sealed-evidence.sample-percent=0")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

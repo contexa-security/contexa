@@ -1,0 +1,487 @@
+{
+ "source": "control D sealed evidence package 4916 (showcase engine database, 2026-10-12, case A3, v20, W3-9 fix build): the work profile baseline view and the context trust profiles of the canonical context, as sealed",
+ "baselineView": {
+  "state": "ESTABLISHED",
+  "counts": {
+   "days": {
+    "1": 5,
+    "2": 5,
+    "3": 5,
+    "4": 5,
+    "5": 5
+   },
+   "hours": {
+    "9": 2,
+    "10": 3,
+    "11": 6,
+    "12": 2,
+    "13": 4,
+    "14": 4,
+    "16": 1,
+    "17": 3
+   },
+   "targets": {
+    "projectKey=PLM-OPS": 5,
+    "documentKey=PLM-OPS-NTE-00028": 1,
+    "documentKey=PLM-OPS-NTE-00157": 1,
+    "documentKey=PLM-OPS-NTE-00168": 1,
+    "documentKey=PLM-OPS-NTE-00183": 1,
+    "documentKey=PLM-OPS-NTE-00191": 1,
+    "documentKey=PLM-OPS-NTE-00284": 1,
+    "documentKey=PLM-OPS-SPC-00058": 1,
+    "documentKey=PLM-OPS-SPC-00081": 1,
+    "documentKey=PLM-OPS-SPC-00155": 1,
+    "documentKey=PLM-OPS-SPC-00170": 1,
+    "documentKey=PLM-OPS-SPC-00175": 1,
+    "documentKey=PLM-OPS-SPC-00232": 1,
+    "documentKey=PLM-OPS-SPC-00234": 1,
+    "documentKey=PLM-OPS-SPC-00248": 1,
+    "documentKey=PLM-OPS-SPC-00265": 1,
+    "documentKey=PLM-OPS-SPC-00277": 1,
+    "documentKey=PLM-OPS-SPC-00282": 1,
+    "documentKey=PLM-OPS-SPC-00307": 1,
+    "documentKey=PLM-OPS-SPC-00393": 1,
+    "documentKey=PLM-OPS-SPC-00418": 1
+   },
+   "dayObservations": 25,
+   "busiestActiveHourRequests": 2
+  },
+  "seenDays": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "seenHours": [
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   16,
+   17
+  ],
+  "usualDays": [
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "exportSize": {
+   "exports": 5,
+   "medianItems": 17,
+   "largestItems": 29
+  },
+  "usualHours": [
+   10,
+   11,
+   13,
+   14,
+   17
+  ],
+  "windowDays": 7,
+  "daysCovered": 5,
+  "windowBasis": "the last 7 days hold 25 observations",
+  "actionCounts": {
+   "READ": 20,
+   "EXPORT": 5
+  },
+  "observations": 25,
+  "usualDevices": [
+   "Chrome/140 on WINDOWS"
+  ],
+  "usualTargets": [
+   "projectKey=PLM-OPS"
+  ],
+  "evidenceGrade": "LIMITED",
+  "usualBrowsers": [
+   "Chrome/140"
+  ],
+  "usualNetworks": [
+   "10.40.12.0/24"
+  ],
+  "evidenceCauses": [
+   "action family inferred from protectableMethod in 25 of 25 observations",
+   "workProfile.protectableInvocationDensity needs caution: observations=25 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived | fallbackSources=className+methodName"
+  ],
+  "knownRareTasks": [],
+  "learnedUpdates": 25,
+  "resourceClasses": [
+   "NORMAL=25"
+  ],
+  "privilegedActions": 0,
+  "usualLoginMethods": [
+   "PASSWORD"
+  ],
+  "usualSessionMinutes": null,
+  "readWriteExportRatio": "80:0:20",
+  "requestsPerActiveHour": 1.19,
+  "usualOperatingSystems": [
+   "WINDOWS"
+  ]
+ },
+ "contextTrustProfiles": [
+  {
+   "summary": "Observations 25 | Days covered 5 | Resources /api/projects/PLM-OPS/exports, /api/documents/PLM-OPS-NTE-00028/download, /api/documents/PLM-OPS-NTE-00157, /api/documents/PLM-OPS-NTE-00168/download, /api/documents/PLM-OPS-NTE-00183, /api/documents/PLM-OPS-NTE-00191 | Actions READ, EXPORT | Protectable density 1.00",
+   "profileKey": "PERSONAL_WORK_PROFILE",
+   "collectorId": "PROTECTABLE_WORK_PROFILE_COLLECTOR",
+   "fieldRecords": [
+    {
+     "fieldPath": "workProfile.frequentProtectableResources",
+     "sourceKeys": [
+      "requestPath"
+     ],
+     "daysCovered": 5,
+     "evidenceIds": [
+      "69bb3bd4-b0bb-39ca-924c-6715646bf054",
+      "22b9d347-9883-3146-a143-e9b7e5f36a18",
+      "7e45cd7b-36f7-33f9-9756-1fdc28827b98",
+      "e194ef83-a930-3633-921f-1dbcc397dfec",
+      "6bd4ce72-62b0-3fe5-8a50-0fb6dc59a221",
+      "fa8804b3-3458-3132-aef3-8516ccdafedc"
+     ],
+     "intendedUse": "Compare the current resource against prior protectable access scope.",
+     "unknownRate": 0.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "STRONG",
+     "qualityScore": 100,
+     "qualitySummary": "observations=25 | daysCovered=5 | fallback=0% | unknown=0% | evidenceState=partial",
+     "semanticMeaning": "Protectable resources this subject actually reached through allowed post-auth requests.",
+     "observationCount": 25,
+     "provenanceSummary": "observations=25,daysCovered=5,sources=requestPath,fallbackSources=none,fallback=0%,unknown=0%",
+     "fallbackSourceKeys": []
+    },
+    {
+     "fieldPath": "workProfile.frequentActionFamilies",
+     "sourceKeys": [
+      "protectableMethod"
+     ],
+     "daysCovered": 5,
+     "evidenceIds": [
+      "69bb3bd4-b0bb-39ca-924c-6715646bf054",
+      "22b9d347-9883-3146-a143-e9b7e5f36a18",
+      "7e45cd7b-36f7-33f9-9756-1fdc28827b98",
+      "e194ef83-a930-3633-921f-1dbcc397dfec",
+      "6bd4ce72-62b0-3fe5-8a50-0fb6dc59a221",
+      "fa8804b3-3458-3132-aef3-8516ccdafedc"
+     ],
+     "intendedUse": "Compare the current action family against prior business operation patterns.",
+     "unknownRate": 0.0,
+     "fallbackRate": 1.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 35,
+     "qualitySummary": "observations=25 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived",
+     "semanticMeaning": "Canonical action families previously exercised by this subject.",
+     "observationCount": 25,
+     "provenanceSummary": "observations=25,daysCovered=5,sources=protectableMethod,fallbackSources=protectableMethod,fallback=100%,unknown=0%",
+     "fallbackSourceKeys": [
+      "protectableMethod"
+     ]
+    },
+    {
+     "fieldPath": "workProfile.normalAccessWindow",
+     "sourceKeys": [
+      "event.timestamp"
+     ],
+     "daysCovered": 5,
+     "evidenceIds": [
+      "69bb3bd4-b0bb-39ca-924c-6715646bf054",
+      "22b9d347-9883-3146-a143-e9b7e5f36a18",
+      "7e45cd7b-36f7-33f9-9756-1fdc28827b98",
+      "e194ef83-a930-3633-921f-1dbcc397dfec",
+      "6bd4ce72-62b0-3fe5-8a50-0fb6dc59a221",
+      "fa8804b3-3458-3132-aef3-8516ccdafedc"
+     ],
+     "intendedUse": "Use as timing context, not as a standalone anomaly rule.",
+     "unknownRate": 0.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "STRONG",
+     "qualityScore": 100,
+     "qualitySummary": "observations=25 | daysCovered=5 | fallback=0% | unknown=0% | evidenceState=partial",
+     "semanticMeaning": "Observed access-hour and access-day envelope for this subject.",
+     "observationCount": 25,
+     "provenanceSummary": "observations=25,daysCovered=5,sources=event.timestamp,fallbackSources=none,fallback=0%,unknown=0%",
+     "fallbackSourceKeys": []
+    },
+    {
+     "fieldPath": "workProfile.protectableInvocationDensity",
+     "sourceKeys": [
+      "className+methodName"
+     ],
+     "daysCovered": 5,
+     "evidenceIds": [
+      "69bb3bd4-b0bb-39ca-924c-6715646bf054",
+      "22b9d347-9883-3146-a143-e9b7e5f36a18",
+      "7e45cd7b-36f7-33f9-9756-1fdc28827b98",
+      "e194ef83-a930-3633-921f-1dbcc397dfec",
+      "6bd4ce72-62b0-3fe5-8a50-0fb6dc59a221",
+      "fa8804b3-3458-3132-aef3-8516ccdafedc"
+     ],
+     "intendedUse": "Estimate how much of the subject's recent workload touches protectable scope.",
+     "unknownRate": 0.0,
+     "fallbackRate": 1.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 35,
+     "qualitySummary": "observations=25 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived",
+     "semanticMeaning": "Share of observations that were explicitly classified as protectable.",
+     "observationCount": 25,
+     "provenanceSummary": "observations=25,daysCovered=5,sources=className+methodName,fallbackSources=className+methodName,fallback=100%,unknown=0%",
+     "fallbackSourceKeys": [
+      "className+methodName"
+     ]
+    }
+   ],
+   "evidenceRecords": [
+    {
+     "flags": [
+      "actionFamilyFallback",
+      "protectableFallback"
+     ],
+     "summary": "2026-09-29T16:04:00Z | ALLOWED | protectable | READ | /api/documents/PLM-OPS-SPC-00175 | sensitivity=INTERNAL",
+     "evidenceId": "131e2d62-1d5a-35c4-acf9-8037c5cf1fe7",
+     "observedAt": "2026-09-29T16:04:00Z",
+     "sourceKeys": {
+      "protectable": "className+methodName",
+      "requestPath": "requestPath",
+      "sensitivity": "resourceSensitivity",
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": true,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "actionFamilyFallback",
+      "protectableFallback"
+     ],
+     "summary": "2026-09-29T13:52:00Z | ALLOWED | protectable | EXPORT | /api/projects/PLM-OPS/exports | sensitivity=INTERNAL",
+     "evidenceId": "abea2084-d5d4-3837-bcee-2373df95b9ae",
+     "observedAt": "2026-09-29T13:52:00Z",
+     "sourceKeys": {
+      "protectable": "className+methodName",
+      "requestPath": "requestPath",
+      "sensitivity": "resourceSensitivity",
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": true,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "actionFamilyFallback",
+      "protectableFallback"
+     ],
+     "summary": "2026-09-29T11:58:00Z | ALLOWED | protectable | READ | /api/documents/PLM-OPS-NTE-00157 | sensitivity=INTERNAL",
+     "evidenceId": "2aafafc1-aa01-3dbe-9c4d-055b5b60c716",
+     "observedAt": "2026-09-29T11:58:00Z",
+     "sourceKeys": {
+      "protectable": "className+methodName",
+      "requestPath": "requestPath",
+      "sensitivity": "resourceSensitivity",
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": true,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "actionFamilyFallback",
+      "protectableFallback"
+     ],
+     "summary": "2026-09-29T11:57:00Z | ALLOWED | protectable | READ | /api/documents/PLM-OPS-SPC-00277 | sensitivity=INTERNAL",
+     "evidenceId": "0a07611d-2b3b-3a7e-b171-8f54606bd646",
+     "observedAt": "2026-09-29T11:57:00Z",
+     "sourceKeys": {
+      "protectable": "className+methodName",
+      "requestPath": "requestPath",
+      "sensitivity": "resourceSensitivity",
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": true,
+     "decisionState": "ALLOWED"
+    }
+   ],
+   "qualityWarnings": [
+    "workProfile.frequentActionFamilies has thin or fallback-heavy evidence; observations=25 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived",
+    "workProfile.protectableInvocationDensity has thin or fallback-heavy evidence; observations=25 | daysCovered=5 | fallback=100% | unknown=0% | evidenceState=fallback-derived",
+    "Action family baseline includes fallback-derived signals; do not treat it as a standalone indicator of user intent.",
+    "This profile describes enacted post-auth access behavior, not approved business intent, approval lineage, or delegated objective."
+   ],
+   "scopeLimitations": [
+    "Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.",
+    "Approval lineage, delegated intent, and human purpose require friction, delegation, or enterprise memory context."
+   ],
+   "provenanceSummary": "collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=25,daysCovered=5,resourceSources=requestPath,actionSources=protectableMethod,resourceFallback=0%,actionFallback=100%",
+   "overallQualityGrade": "REJECTED",
+   "overallQualityScore": 30
+  },
+  {
+   "summary": "Allowed observations 25 | Expected actions READ, EXPORT",
+   "profileKey": "ROLE_SCOPE_PROFILE",
+   "collectorId": "ROLE_SCOPE_COLLECTOR",
+   "fieldRecords": [
+    {
+     "fieldPath": "roleScope.expectedResourceFamilies",
+     "sourceKeys": [],
+     "daysCovered": 5,
+     "evidenceIds": [],
+     "intendedUse": "Compare the current resource family against role-scoped historical reach.",
+     "unknownRate": 1.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 20,
+     "qualitySummary": "observations=25 | days=5 | fallbackRate=0.0 | unknownRate=1.0 | evidenceState=unknown-heavy",
+     "semanticMeaning": "Resource families exercised under the current authorization scope.",
+     "observationCount": 25,
+     "provenanceSummary": "Observations 25 | Days covered 5",
+     "fallbackSourceKeys": []
+    },
+    {
+     "fieldPath": "roleScope.expectedActionFamilies",
+     "sourceKeys": [
+      "protectableMethod"
+     ],
+     "daysCovered": 5,
+     "evidenceIds": [
+      "38648d52-0b99-3fc7-9d0f-1ef679e57f3e",
+      "60944abe-21e8-36d2-af42-49aa3dc75eb4",
+      "33d132a5-1423-329b-871d-e3cb926ea250",
+      "961b2860-291b-39a1-97e6-c90364c3284d",
+      "a6bc8355-f3ae-3500-9810-eb45e826a9c4",
+      "aceb6a24-ac06-3a36-a8f8-fbad818e0b68"
+     ],
+     "intendedUse": "Compare the current action family against role-scoped historical execution.",
+     "unknownRate": 0.0,
+     "fallbackRate": 1.0,
+     "qualityGrade": "MODERATE",
+     "qualityScore": 62,
+     "qualitySummary": "observations=25 | days=5 | fallbackRate=1.0 | unknownRate=0.0 | evidenceState=fallback-derived",
+     "semanticMeaning": "Action families exercised under the current authorization scope.",
+     "observationCount": 25,
+     "provenanceSummary": "Observations 25 | Days covered 5 | Sources protectableMethod",
+     "fallbackSourceKeys": [
+      "protectableMethod"
+     ]
+    },
+    {
+     "fieldPath": "roleScope.forbiddenResourceFamilies",
+     "sourceKeys": [],
+     "daysCovered": 0,
+     "evidenceIds": [],
+     "intendedUse": "Use as negative scope evidence, not as a complete tenant policy graph.",
+     "unknownRate": 1.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 24,
+     "qualitySummary": "observations=1 | days=0 | fallbackRate=0.0 | unknownRate=1.0 | evidenceState=thin coverage, unknown-heavy",
+     "semanticMeaning": "Resource families explicitly denied or blocked under the same authorization scope.",
+     "observationCount": 1,
+     "provenanceSummary": "Observations 0",
+     "fallbackSourceKeys": []
+    },
+    {
+     "fieldPath": "roleScope.forbiddenActionFamilies",
+     "sourceKeys": [],
+     "daysCovered": 0,
+     "evidenceIds": [],
+     "intendedUse": "Use as negative scope evidence, not as a complete tenant policy graph.",
+     "unknownRate": 1.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 24,
+     "qualitySummary": "observations=1 | days=0 | fallbackRate=0.0 | unknownRate=1.0 | evidenceState=thin coverage, unknown-heavy",
+     "semanticMeaning": "Action families explicitly denied or blocked under the same authorization scope.",
+     "observationCount": 1,
+     "provenanceSummary": "Observations 0",
+     "fallbackSourceKeys": []
+    },
+    {
+     "fieldPath": "roleScope.recentPermissionChanges",
+     "sourceKeys": [],
+     "daysCovered": 0,
+     "evidenceIds": [],
+     "intendedUse": "Use as recent permission-drift context, not as proof that the current request is legitimate.",
+     "unknownRate": 1.0,
+     "fallbackRate": 0.0,
+     "qualityGrade": "REJECTED",
+     "qualityScore": 28,
+     "qualitySummary": "observations=1 | days=0 | fallbackRate=0.0 | unknownRate=1.0 | evidenceState=thin coverage, unknown-heavy",
+     "semanticMeaning": "Recent authorization scope changes that may explain temporary elevation or scope expansion.",
+     "observationCount": 1,
+     "provenanceSummary": "Permission-change context from explicit request hints or observed authorization-scope fingerprint changes.",
+     "fallbackSourceKeys": []
+    }
+   ],
+   "evidenceRecords": [
+    {
+     "flags": [
+      "ALLOWED"
+     ],
+     "summary": "Effective roles SC_ADMIN | action=READ | decision=ALLOWED",
+     "evidenceId": "91a85246-bb26-3705-8591-b7dbc8d6caaf",
+     "observedAt": "2026-09-29T16:04:00Z",
+     "sourceKeys": {
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": null,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "ALLOWED"
+     ],
+     "summary": "Effective roles SC_ADMIN | action=EXPORT | decision=ALLOWED",
+     "evidenceId": "957903e1-b896-391b-8cdb-9ca6e4b40175",
+     "observedAt": "2026-09-29T13:52:00Z",
+     "sourceKeys": {
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": null,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "ALLOWED"
+     ],
+     "summary": "Effective roles SC_ADMIN | action=READ | decision=ALLOWED",
+     "evidenceId": "de70a1e8-f62c-301f-9a38-038902d7db2e",
+     "observedAt": "2026-09-29T11:58:00Z",
+     "sourceKeys": {
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": null,
+     "decisionState": "ALLOWED"
+    },
+    {
+     "flags": [
+      "ALLOWED"
+     ],
+     "summary": "Effective roles SC_ADMIN | action=READ | decision=ALLOWED",
+     "evidenceId": "20ddf13d-1d62-35a5-8ab0-83bfbbbca0d1",
+     "observedAt": "2026-09-29T11:57:00Z",
+     "sourceKeys": {
+      "actionFamily": "protectableMethod"
+     },
+     "protectable": null,
+     "decisionState": "ALLOWED"
+    }
+   ],
+   "qualityWarnings": [
+    "Role scope field roleScope.expectedResourceFamilies has thin or fallback-heavy evidence; do not use it as a standalone reasoning anchor.",
+    "Role scope field roleScope.recentPermissionChanges has thin or fallback-heavy evidence; do not use it as a standalone reasoning anchor.",
+    "Expected action family baseline includes fallback-derived semantics; confirm intent with approval lineage or delegated objective.",
+    "This profile describes enacted or denied authorization scope after authentication, not the full tenant policy graph or business objective by itself."
+   ],
+   "scopeLimitations": [
+    "Use this profile to understand role-scoped reach and recent permission-change evidence after authorization, not to infer human purpose by itself.",
+    "Approval lineage, delegated objective, and business intent still require friction, delegation, or enterprise memory context."
+   ],
+   "provenanceSummary": "Effective roles SC_ADMIN | Roles from effectiveRoles | Permissions from authorities | Allowed role-scope observations 25",
+   "overallQualityGrade": "WEAK",
+   "overallQualityScore": 30
+  }
+ ]
+}

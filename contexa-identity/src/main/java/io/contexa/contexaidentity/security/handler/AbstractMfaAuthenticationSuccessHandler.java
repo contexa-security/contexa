@@ -38,6 +38,8 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import org.springframework.beans.factory.ObjectProvider;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -757,10 +759,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
+                // The request the challenge stopped, read before the ALLOW replaces the decision that names it (W5-2).
+                String challengedRequestId = challengedRequestId(userId);
                 // Bind to the session the client uses next: MFA success has already rotated the session id.
                 String contextBindingHash = SessionFingerprintUtil.generateNextRequestContextBindingHash(request);
                 actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
-                learnOnLlmChallengedMfaSuccess(userId, request, factorContext);
+                learnOnLlmChallengedMfaSuccess(userId, request, factorContext, challengedRequestId);
             }
 
             if (blockingSignalBroadcaster != null) {
@@ -828,8 +832,40 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return request.getSession(false) != null ? request.getSession(false).getId() : null;
     }
 
+    @Nullable
+    private String challengedRequestId(String userId) {
+        try {
+            ZeroTrustActionRepository.ZeroTrustAnalysisData analysis = actionRedisRepository.getAnalysisData(userId);
+            return analysis != null ? analysis.requestId() : null;
+        } catch (Exception e) {
+            safeLogError("[MFA] Failed to read the challenged request of user: {}", e, userId);
+            return null;
+        }
+    }
+
+    @Nullable
+    private VerificationLearningService verificationLearningService() {
+        try {
+            ObjectProvider<VerificationLearningService> provider =
+                    applicationContext.getBeanProvider(VerificationLearningService.class);
+            return provider != null ? provider.getIfAvailable() : null;
+        } catch (Exception e) {
+            safeLogError("[MFA] Failed to look up the verification learning service", e);
+            return null;
+        }
+    }
+
+    /**
+     * Learns the request the challenge stopped from its own facts at a reduced weight (W5-2). Without kept facts the
+     * step-up is learned as before, from the step-up request.
+     */
     private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request,
-                                                  @Nullable FactorContext factorContext) {
+                                                  @Nullable FactorContext factorContext,
+                                                  @Nullable String challengedRequestId) {
+        VerificationLearningService verificationLearning = verificationLearningService();
+        if (verificationLearning != null && verificationLearning.learnStepUp(userId, challengedRequestId)) {
+            return;
+        }
         try {
             String originalIp = null;
             if (factorContext != null) {

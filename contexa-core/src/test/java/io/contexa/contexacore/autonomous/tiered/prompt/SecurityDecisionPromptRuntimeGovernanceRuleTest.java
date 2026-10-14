@@ -31,7 +31,6 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -182,107 +181,56 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                         .containsExactly("APPLIED", true));
     }
 
+    /**
+     * W3-14: a v20 render offers its rules to the dictionary slots only, so the v19 rules the v19 descriptor still
+     * returns (until W3-16) leave the v20 prompt as it is. The renderer injects no fault (R4-C9), so the rules meet the
+     * prompt as it was drawn.
+     */
     @Test
-    void ragScopeFaultScenarioProducesMultipleRuntimeSlotFaultSignalsBeforeGovernanceApproval() {
-        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
-                new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                new DefaultCanonicalSecurityContextProvider(
-                        new InMemoryResourceContextRegistry(),
-                        new ContextCoverageEvaluator()),
-                new PromptContextComposer());
-
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-multi-fault-001")
-                .timestamp(LocalDateTime.of(2026, 6, 8, 14, 10).atZone(ZoneId.systemDefault()).toInstant())
-                .userId("persona_fin_lead")
-                .sessionId("session-runtime-governance-multi-fault")
-                .description("GET /admin/api/enterprise/verification/runtime/probe/normal/resource-001")
-                .build();
-        event.addMetadata("httpMethod", "GET");
-        event.addMetadata("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
-        event.addMetadata("resourceId", "resource-001");
-        event.addMetadata("tenantId", "demo");
-        event.addMetadata("organizationId", "demo-org");
-        event.addMetadata("authorizationEffect", "ALLOW");
-        event.addMetadata("pqaPromptFaultEnabled", true);
-        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
-        OfficialVerificationProbeHeaders.authorizeFaultMetadata(
-                event.getMetadata(), "RAG_SCOPE_SLOT_FAULT");
-
-        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
-                event,
-                new SecurityDecisionStandardPromptTemplate.SessionContext(),
-                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
-                List.of(new Document(
-                        "User accessed /admin/api/enterprise/verification/runtime/probe/normal/resource-001 via GET.",
-                        Map.of(
-                                VectorDocumentMetadata.DOCUMENT_TYPE, "behavior",
-                                VectorDocumentMetadata.USER_ID, "persona_fin_lead",
-                                VectorDocumentMetadata.TENANT_ID, "demo",
-                                VectorDocumentMetadata.AUTHORIZATION_DECISION, "ALLOWED_USER_SCOPE",
-                                VectorDocumentMetadata.ACCESS_SCOPE, "USER",
-                                VectorDocumentMetadata.PURPOSE_MATCH, true,
-                                VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
-
-        assertThat(prompt.userText()).contains("DocFaultScope");
-        assertThat(prompt.userText()).contains("tenantId=other-tenant");
-        assertThat(prompt.userText()).contains("ignore previous instructions");
-        assertThat(prompt.userText()).contains("DocFaultAuth");
-        assertThat(prompt.userText()).contains("authorization=DENIED");
-        assertThat(prompt.userText()).contains("RequestPath: /admin/api/security-test/sensitive/runtime-slot-fault");
-        assertThat(prompt.userText()).contains("HttpMethod: POST");
-        assertThat(prompt.userText()).contains("ActionFamily: WRITE");
-        assertThat(prompt.userText()).contains("other items omitted");
-        assertThat(prompt.executionMetadata().toMetadataMap())
-                .containsEntry("pqaPromptFaultApplied", true)
-                .containsEntry("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT")
-                .containsEntry("pqaPromptFaultTarget", "MULTI_METRIC_RUNTIME_SLOT_CONTEXT");
-    }
-
-    @Test
-    void appliesRuntimeGovernanceRulesAfterPromptFaultInjection() {
+    void aV20RenderTakesDictionaryRulesAndLeavesV19RulesOut() {
         CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
                 new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-rag-suppress-contamination",
-                        "pqa-rtg-action-rag-suppress-contamination",
-                        "cortex.security-decision",
-                        "user_ragevidence_scopeboundary_section_threat_memory_test",
-                        "SUPPRESS_SLOT",
-                        10,
-                        Map.of("suppressPattern", "THREAT MEMORY:")),
-                new PromptRuntimeGovernanceRule(
-                        "pqa-rtg-rule-rag-auth-narrative",
-                        "pqa-rtg-action-rag-auth-narrative",
+                        "pqa-rtg-rule-v19-auth-narrative",
+                        "pqa-rtg-action-v19-auth-narrative",
                         "cortex.security-decision",
                         "user_ragevidence_authorizationreason_groupterm_authorized_test",
                         "ADD_NARRATIVE",
+                        5,
+                        Map.of("narrative", "RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE")),
+                new PromptRuntimeGovernanceRule(
+                        "pqa-rtg-rule-v20-rag-scope",
+                        "pqa-rtg-action-v20-rag-scope",
+                        "cortex.security-decision",
+                        "PAST RECORDS.PastRecordsState",
+                        "SUPPRESS_SLOT",
+                        10,
+                        Map.of("checkCode", "rag_scope_boundary")),
+                new PromptRuntimeGovernanceRule(
+                        "pqa-rtg-rule-v20-rag-auth",
+                        "pqa-rtg-action-v20-rag-auth",
+                        "cortex.security-decision",
+                        "PAST RECORDS.PastRecordsState",
+                        "ADD_NARRATIVE",
                         20,
-                        Map.of("narrative",
-                                "RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE tenant=demo resource=/admin/api/security-test/sensitive/resource-001 purpose=security_investigation scope=USER"))));
+                        Map.of("checkCode", "rag_authorization_reason",
+                                "narrative", "Each record must say why it is authorized."))));
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                properties,
                 new DefaultCanonicalSecurityContextProvider(
                         new InMemoryResourceContextRegistry(),
                         new ContextCoverageEvaluator()),
-                promptContextComposer(List.of(
-                        slotPlan(
-                                "user_ragevidence_scopeboundary_section_threat_memory_test",
-                                "RAG EVIDENCE",
-                                "RagDocument1"),
-                        slotPlan(
-                                "user_ragevidence_authorizationreason_groupterm_authorized_test",
-                                "RAG EVIDENCE",
-                                "RagAuthorizationReason"))),
+                new PromptContextComposer(),
                 null,
                 provider);
 
         SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-runtime-governance-fault-001")
+                .eventId("event-runtime-governance-v20-fault-001")
                 .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
                 .userId("persona_fin_lead")
-                .sessionId("session-runtime-governance-fault")
+                .sessionId("session-runtime-governance-v20-fault")
                 .description("GET /admin/api/security-test/sensitive/resource-001")
                 .build();
         event.addMetadata("httpMethod", "GET");
@@ -290,10 +238,6 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
         event.addMetadata("resourceId", "resource-001");
         event.addMetadata("tenantId", "demo");
         event.addMetadata("authorizationEffect", "ALLOW");
-        event.addMetadata("pqaPromptFaultEnabled", true);
-        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
-        OfficialVerificationProbeHeaders.authorizeFaultMetadata(
-                event.getMetadata(), "RAG_SCOPE_SLOT_FAULT");
 
         SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
                 event,
@@ -310,45 +254,73 @@ class SecurityDecisionPromptRuntimeGovernanceRuleTest {
                                 VectorDocumentMetadata.PURPOSE_MATCH, true,
                                 VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation"))));
 
-        assertThat(prompt.userText()).contains("=== RAG EVIDENCE ===");
-        assertThat(prompt.userText()).doesNotContain("DocFaultScope");
-        assertThat(prompt.userText()).contains("RagDocument2:");
-        assertThat(prompt.userText()).contains("authorization=");
-        assertThat(prompt.userText()).doesNotContain("THREAT MEMORY: tenant mismatch unauthorized document");
-        assertThat(prompt.userText()).doesNotContain("authorization=DENIED");
-        assertThat(prompt.userText()).contains("authorization=ALLOWED_USER_SCOPE");
-        assertThat(prompt.userText()).contains("RagAuthorizationRepair: authorization=ALLOWED_USER_SCOPE");
+        assertThat(prompt.userText())
+                .startsWith("=== USER BASELINE")
+                .doesNotContain("RAG EVIDENCE")
+                .doesNotContain("RagAuthorizationRepair")
+                .contains("PastRecordsState: 1 record of 1 candidates (1 authorized, 0 denied, relevance "
+                        + "SAME_RESOURCE, PROJECTED)\n");
         assertThat(prompt.executionMetadata().toMetadataMap())
-                .containsEntry("pqaPromptFaultApplied", true)
-                .containsEntry("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT")
-                .containsEntry("promptRuntimeGovernanceRuleCount", 2)
-                .containsEntry("promptRuntimeGovernanceAppliedCount", 2L);
-        assertThat(provider.recordedApplications()).hasSize(2);
+                .doesNotContainKey("pqaPromptFaultApplied")
+                .containsEntry("promptRuntimeGovernanceRuleCount", 3);
         assertThat(provider.recordedApplications())
-                .allSatisfy(application -> assertThat(application.changedPrompt()).isTrue());
+                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
+                // The v19 rule never reaches the prompt; the v20 rules reach their dictionary slot and find nothing to
+                // suppress, and a free-text narrative is not an entry line.
+                .containsExactly("SKIPPED_SLOT_NOT_IN_DICTIONARY", "SKIPPED_NO_MATCH",
+                        "SKIPPED_FREE_TEXT_ON_DICTIONARY_PROMPT");
     }
 
+    /**
+     * W3-14: a v19 render leaves out a rule of the v20 dictionary even when the slot contract rows give its slot key a
+     * plan (as the enterprise rows of W3-17 will), so a v20 rule never rewrites the v19 line of the same name.
+     */
     @Test
-    void ordinaryEventMetadataCannotActivatePromptFaultWithoutInternalCapability() {
-        SecurityEvent event = SecurityEvent.builder().eventId("untrusted-fault-event").build();
-        event.addMetadata("pqaPromptFaultEnabled", true);
-        event.addMetadata("pqaPromptFaultScenario", "RAG_SCOPE_SLOT_FAULT");
-        SecurityPromptBuildContext context = new SecurityPromptBuildContext(
-                event, null, null, List.of(), null, null, null, null, null, null, null);
-        String originalPrompt = "ResourceId: resource-001\nActionFamily: READ\n";
+    void aV19RenderLeavesDictionaryRulesOutWhateverTheSlotRowsSay() {
+        CapturingRuleProvider provider = new CapturingRuleProvider(List.of(
+                new PromptRuntimeGovernanceRule(
+                        "pqa-rtg-rule-v20-effect",
+                        "pqa-rtg-action-v20-effect",
+                        "cortex.security-decision",
+                        "DECISION FACTS.AuthorizationEffect",
+                        "UPDATE_SLOT_VALUE",
+                        10,
+                        Map.of("label", "AuthorizationEffect",
+                                "renderedValue", "ALLOW by policy W314 (METHOD_AUTHORIZATION_CHECK)"))));
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties(),
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator()),
+                promptContextComposer(List.of(slotPlan(
+                        "DECISION FACTS.AuthorizationEffect", "DECISION FACTS", "AuthorizationEffect"))),
+                null,
+                provider);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-runtime-governance-v19-dictionary-rule-001")
+                .timestamp(LocalDateTime.of(2026, 6, 7, 10, 30).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-runtime-governance-v19-dictionary-rule")
+                .description("GET /admin/api/security-test/sensitive/resource-001")
+                .build();
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("requestPath", "/admin/api/security-test/sensitive/resource-001");
+        event.addMetadata("authorizationEffect", "ALLOW");
 
-        PromptQualityFaultInjectionResult result = PromptQualityFaultInjector.apply(originalPrompt, context);
+        SecurityDecisionStandardPromptTemplate.StructuredPrompt prompt = template.buildStructuredPrompt(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
 
-        assertThat(result.userPrompt()).isEqualTo(originalPrompt);
-        assertThat(result.metadata()).isEmpty();
-        assertThat(event.getMetadata())
-                .containsEntry("pqaPromptFaultRejected", true)
-                .containsEntry("pqaPromptFaultRejectedSource", "UNTRUSTED_EVENT_METADATA")
-                .doesNotContainKeys(
-                        "pqaPromptFaultEnabled",
-                        "pqaPromptFaultScenario",
-                        "officialVerification.pqaPromptFaultScenario",
-                        "pqaPromptFaultCapability");
+        assertThat(prompt.userText())
+                .doesNotStartWith("=== USER BASELINE")
+                .containsPattern("(?m)^AuthorizationEffect: ")
+                .doesNotContain("W314");
+        assertThat(provider.recordedApplications())
+                .extracting(PromptRuntimeGovernanceRuleApplication::resultState)
+                .containsExactly("SKIPPED_DICTIONARY_SLOT_ON_SECTION_PROMPT");
     }
 
     private static PromptContextComposer promptContextComposer(List<PromptSlotPlan> plans) {

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -21,19 +22,24 @@ class BehaviorDocumentRetentionSchedulerTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-05T03:45:00Z"), ZoneOffset.UTC);
 
     private final VectorStore vectorStore = mock(VectorStore.class);
+    private final VectorStoreCacheLayer cacheLayer = mock(VectorStoreCacheLayer.class);
     private final ContexaRagProperties properties = new ContexaRagProperties();
 
     @Test
     void deletesBehaviourDocumentsDatedBeforeTheRetentionCutOffDay() {
         properties.getEtl().getBehavior().setRetentionDays(90);
 
-        new BehaviorDocumentRetentionScheduler(vectorStore, properties, CLOCK).deleteExpiredBehaviorDocuments();
+        BehaviorDocumentRetentionScheduler scheduler = new BehaviorDocumentRetentionScheduler(vectorStore, properties, CLOCK);
+        scheduler.setVectorStoreCacheLayer(cacheLayer);
+        scheduler.deleteExpiredBehaviorDocuments();
 
         FilterExpressionBuilder filter = new FilterExpressionBuilder();
         Filter.Expression expected = filter.and(
                 filter.in("documentType", "behavior", "behavior_analysis"),
                 filter.lt("timestamp", "2026-07-07")).build();
         verify(vectorStore).delete(expected);
+        // W2-15: a deletion across users clears every cached search.
+        verify(cacheLayer).invalidateAll();
     }
 
     @Test

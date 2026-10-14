@@ -20,8 +20,8 @@ public class GeneratedPromptObservationConfiguration {
 
     @Bean
     SealedEvidencePromptTraceStore generatedPromptTraceStore() {
-        return new SealedEvidencePromptTraceStore(null, Runnable::run,
-                new VerificationCaptureStoreOptions(Duration.ofMinutes(5), 64, 64), Clock.systemUTC());
+        return new SealedEvidencePromptTraceStore(new VerificationCaptureStoreOptions(Duration.ofMinutes(5), 64, 64),
+                Clock.systemUTC());
     }
 
     @Bean

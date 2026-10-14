@@ -190,10 +190,12 @@ export interface DecisionAnatomyView {
     readonly adverseChecked: number;
   };
   /**
-   * Content lines of the prompt the engine sent, counted by the server (D-38): the seven bundles add up to the total.
-   * Null when no text of the step was kept.
+   * Content lines of the prompt the engine sent, counted by the server (D-38): the bundles add up to the total. A v19
+   * prompt is counted under the seven bundles, a v20 prompt under one bundle per block (W3-10). Null when no text of
+   * the step was kept.
    */
   readonly promptLines: {
+    readonly layout: 'V19_SECTIONS' | 'V20_BLOCKS';
     readonly total: number;
     readonly system: number;
     readonly user: number;
@@ -204,7 +206,20 @@ export interface DecisionAnatomyView {
     /** In the screen's order. */
     readonly bundles: readonly {
       readonly bundle:
-        'RULES' | 'REQUEST' | 'IDENTITY' | 'USUAL' | 'HISTORY' | 'COMPANY' | 'UNKNOWN' | 'OTHER';
+        | 'RULES'
+        | 'REQUEST'
+        | 'IDENTITY'
+        | 'USUAL'
+        | 'HISTORY'
+        | 'COMPANY'
+        | 'UNKNOWN'
+        | 'SESSION'
+        | 'USER_BASELINE'
+        | 'DECISION_FACTS'
+        | 'PAST_RECORDS'
+        | 'UNTRUSTED_TEXT'
+        | 'SECOND_PASS'
+        | 'OTHER';
       readonly lines: number;
     }[];
   } | null;

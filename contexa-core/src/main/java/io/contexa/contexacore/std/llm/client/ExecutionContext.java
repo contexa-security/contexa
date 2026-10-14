@@ -33,6 +33,15 @@ import java.util.Map;
 @Accessors(chain = true)
 public class ExecutionContext {
 
+    /** The calling layer's model call limit in milliseconds, which lowers the provider call limit (P3-EXTRA-9). */
+    public static final String CALL_TIMEOUT_MS = "callTimeoutMs";
+
+    /** The JSON schema the provider enforces on the response when its options support structured output (W4-2). */
+    public static final String OUTPUT_SCHEMA = "outputSchema";
+
+    /** Set when the output schema went out with the provider options (W4-2). */
+    public static final String OUTPUT_SCHEMA_APPLIED = "outputSchemaApplied";
+
     private Prompt prompt;
     private String requestId;
     private String userId;

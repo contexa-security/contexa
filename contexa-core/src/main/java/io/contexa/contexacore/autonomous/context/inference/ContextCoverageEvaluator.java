@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.CanonicalContextFieldPolicy;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
+import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 
 public class ContextCoverageEvaluator {
@@ -49,7 +50,7 @@ public class ContextCoverageEvaluator {
         else {
             missingCriticalFacts.add("Actor identity is unavailable.");
             remediationHints.add("Propagate an internal or external subject identifier through the bridge or event metadata.");
-            confidenceWarnings.add("Actor identity is missing; continuity and user-specific reasoning should remain conservative.");
+            confidenceWarnings.add("Actor identity is missing; " + ContextEvidenceGuidance.ACTOR_REASONING_CONSERVATIVE + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasSessionIdentity(context)) {
@@ -76,17 +77,17 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Authorization scope evidence is available, but authorization effect is still partial.");
             missingCriticalFacts.add("Authorization effect is unavailable.");
             remediationHints.add("Propagate a resolved authorization effect such as ALLOW, DENY, CHALLENGE, or ESCALATE for the current request.");
-            confidenceWarnings.add("Authorization scope exists without a resolved authorization effect; privilege conclusions should remain conservative.");
+            confidenceWarnings.add("Authorization scope exists without a resolved authorization effect; " + ContextEvidenceGuidance.PRIVILEGE_CONSERVATIVE + ".");
         }
         else if (CanonicalContextFieldPolicy.hasAuthorizationEffect(context)) {
             availableFacts.add("Current request authorization effect is available.");
             remediationHints.add("Propagate effective permissions or scope tags for broader authorization-scope analysis when they exist.");
-            confidenceWarnings.add("Broader authorization scope metadata is unavailable; do not infer permissions beyond the current request authorization effect.");
+            confidenceWarnings.add("Broader authorization scope metadata is unavailable; " + ContextEvidenceGuidance.NO_PERMISSIONS_BEYOND_EFFECT + ".");
         }
         else {
             missingCriticalFacts.add("Authorization scope is unavailable.");
             remediationHints.add("Propagate effective permissions or scope tags for the current request.");
-            confidenceWarnings.add("Authorization scope is partial; privilege and scope conclusions should remain conservative.");
+            confidenceWarnings.add("Authorization scope is partial; " + ContextEvidenceGuidance.PRIVILEGE_AND_SCOPE_CONSERVATIVE + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasResourceIdentity(context)) {
@@ -142,7 +143,7 @@ public class ContextCoverageEvaluator {
         }
         else {
             remediationHints.add("Propagate request anomaly signals such as bot user-agent, referer, language, TLS, and header-order observations when available.");
-            confidenceWarnings.add("Request intent signals are partial; client anomaly reasoning should remain conservative.");
+            confidenceWarnings.add("Request intent signals are partial; " + ContextEvidenceGuidance.CLIENT_ANOMALY_CONSERVATIVE + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasObservedScope(context)) {
@@ -175,17 +176,17 @@ public class ContextCoverageEvaluator {
             BaselineView view = workProfileView(context);
             confidenceWarnings.add(view != null && view.observed()
                     ? "Personal work profile evidence is " + view.evidenceSummary()
-                            + "; do not treat it as a standalone proof of normal behavior."
-                    : "Personal work profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of normal behavior.");
+                            + "; " + ContextEvidenceGuidance.NOT_A_PROOF_OF_NORMAL_BEHAVIOR + "."
+                    : "Personal work profile exists but remains thin, fallback-heavy, or comparison-incomplete; " + ContextEvidenceGuidance.NOT_A_PROOF_OF_NORMAL_BEHAVIOR + ".");
         }
         else if (CanonicalContextFieldPolicy.hasWorkProfileEvidence(context)) {
             availableFacts.add("Personal work profile evidence is available but not yet trust-qualified.");
             remediationHints.add("Attach personal work profile trust assessment before using work-pattern claims as a strong reasoning anchor.");
-            confidenceWarnings.add("Personal work profile evidence is present without an explicit trust assessment; keep work-pattern conclusions conservative.");
+            confidenceWarnings.add("Personal work profile evidence is present without an explicit trust assessment; " + ContextEvidenceGuidance.WORK_PATTERN_CONSERVATIVE + ".");
         }
         else {
             remediationHints.add("Build personal work profile signals such as frequent resources, action families, and request rates.");
-            confidenceWarnings.add("Personal work profile is missing; do not claim the current request matches long-term normal work patterns.");
+            confidenceWarnings.add("Personal work profile is missing; " + ContextEvidenceGuidance.NO_CLAIM_OF_NORMAL_PATTERNS + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasRoleScopeProfile(context)) {
@@ -193,18 +194,18 @@ public class ContextCoverageEvaluator {
                 availableFacts.add("Role scope profile is available.");
             } else {
                 availableFacts.add("Role scope comparison evidence is available, but explicit authorization facts are still partial.");
-                confidenceWarnings.add("Role scope evidence currently reflects observed or inferred execution patterns more than explicit authorization facts; keep business-scope conclusions conservative.");
+                confidenceWarnings.add("Role scope evidence currently reflects observed or inferred execution patterns more than explicit authorization facts; " + ContextEvidenceGuidance.BUSINESS_SCOPE_CONSERVATIVE + ".");
             }
         }
         else if (CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
             availableFacts.add("Role scope profile evidence is available but provisional.");
             remediationHints.add("Increase explicit role-scope evidence and reduce fallback-derived comparisons before treating role scope as a strong reasoning anchor.");
-            confidenceWarnings.add("Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; do not treat it as a standalone proof of authorized business scope.");
+            confidenceWarnings.add("Role scope profile exists but remains thin, fallback-heavy, or comparison-incomplete; " + ContextEvidenceGuidance.NOT_A_PROOF_OF_BUSINESS_SCOPE + ".");
         }
         else if (CanonicalContextFieldPolicy.hasRoleScopeProfileEvidence(context)) {
             availableFacts.add("Role scope profile evidence is available but not yet trust-qualified.");
             remediationHints.add("Attach role scope trust assessment before using role-scope comparisons as a strong reasoning anchor.");
-            confidenceWarnings.add("Role scope profile evidence is present without an explicit trust assessment; keep role-scope conclusions conservative.");
+            confidenceWarnings.add("Role scope profile evidence is present without an explicit trust assessment; " + ContextEvidenceGuidance.ROLE_SCOPE_CONSERVATIVE + ".");
         }
         else {
             remediationHints.add("Attach role-scoped resource families, action families, and permission change facts.");
@@ -216,7 +217,7 @@ public class ContextCoverageEvaluator {
         }
         else {
             remediationHints.add("Attach peer cohort deltas through enterprise cohort enrichment when available.");
-            confidenceWarnings.add("Peer cohort delta is missing; cohort-based deviation claims should remain conservative.");
+            confidenceWarnings.add("Peer cohort delta is missing; " + ContextEvidenceGuidance.COHORT_DEVIATION_CONSERVATIVE + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasFrictionProfile(context)) {
@@ -224,7 +225,7 @@ public class ContextCoverageEvaluator {
         }
         else {
             remediationHints.add("Propagate challenge, block, escalation, approval, and denied-access history.");
-            confidenceWarnings.add("Friction and approval history is missing; do not assume prior approval, challenge, or denial precedent exists.");
+            confidenceWarnings.add("Friction and approval history is missing; " + ContextEvidenceGuidance.NO_ASSUMED_FRICTION_PRECEDENT + ".");
         }
 
         appendDelegationFacts(context, availableFacts, missingCriticalFacts, remediationHints, confidenceWarnings);
@@ -234,7 +235,7 @@ public class ContextCoverageEvaluator {
         }
         else {
             remediationHints.add("Attach reinforced cases, hard negatives, and reasoning memory facts from enterprise memory services when available.");
-            confidenceWarnings.add("Reasoning memory is missing; avoid assuming prior validated cases or XAI-backed precedents exist.");
+            confidenceWarnings.add("Reasoning memory is missing; " + ContextEvidenceGuidance.NO_ASSUMED_VALIDATED_CASES + ".");
         }
 
         appendBridgeFacts(context, availableFacts, missingCriticalFacts, remediationHints);
@@ -316,7 +317,7 @@ public class ContextCoverageEvaluator {
         else {
             missingCriticalFacts.add("Delegated objective family is unavailable.");
             remediationHints.add("Propagate a canonical objective family so delegated-agent intent can be evaluated without free-text guessing.");
-            confidenceWarnings.add("Delegated objective family is missing; delegated-agent intent should remain conservative.");
+            confidenceWarnings.add("Delegated objective family is missing; " + ContextEvidenceGuidance.DELEGATED_INTENT_CONSERVATIVE + ".");
         }
 
         if (CanonicalContextFieldPolicy.hasObjectiveDriftAssessment(context)) {
@@ -328,7 +329,7 @@ public class ContextCoverageEvaluator {
         else {
             missingCriticalFacts.add("Delegated objective comparison is incomplete.");
             remediationHints.add("Provide comparable current action/resource family inputs so delegated objective comparison can be evaluated before an ALLOW decision.");
-            confidenceWarnings.add("Delegated objective comparison is incomplete; delegated-agent ALLOW conclusions should remain conservative.");
+            confidenceWarnings.add("Delegated objective comparison is incomplete; " + ContextEvidenceGuidance.DELEGATED_ALLOW_CONSERVATIVE + ".");
         }
     }
 

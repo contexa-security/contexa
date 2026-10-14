@@ -48,8 +48,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void buildUserProfileNarrativeShouldExposeCurrentVsObservedDeltas() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-baseline-delta-001")
@@ -178,8 +177,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void theDeviceIsOneLineComparedByTheLearnedPairs() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-device-001")
                 .timestamp(LocalDateTime.of(2026, 4, 17, 10, 4).atZone(ZoneId.systemDefault()).toInstant())
@@ -224,8 +222,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void buildSupportingLearningContextSectionShouldRenderSupportingEvidence() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
@@ -287,8 +284,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void buildUserProfileNarrativeShouldMarkComparisonUnknownWhenObservedEvidenceMissing() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-baseline-delta-missing-observed")
@@ -347,8 +343,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void buildUserProfileNarrativeShouldNameTheActionTheContextGivesTheRequestWithoutLearningEvidence() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-export-without-learning-evidence")
@@ -376,8 +371,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void theUserProfileAndTheSessionTimelineReadTheBaselineView() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
         List<BaselineViewCalculator.Observation> observations = new ArrayList<>();
         long now = LocalDateTime.of(2026, 10, 7, 14, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         for (int index = 0; index < 20; index++) {
@@ -424,8 +418,7 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
     void buildUserProfileNarrativeShouldNameThePathFamilyAsTheHostsUrlTemplateWithoutLearningEvidence() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-read-without-learning-evidence")
@@ -447,5 +440,46 @@ class SecurityDecisionPromptSectionsBaselineDeltaTest {
         // Reading another document is the same kind of request here as in the context (W2-2).
         assertThat(section).contains("CurrentPathFamily: /api/documents/{documentKey}")
                 .doesNotContain("CurrentPathFamily: /api/documents/HX-310-DWG-00001");
+    }
+
+    @Test
+    @DisplayName("buildUserProfileNarrative should never take the request's class from a family hint without learning evidence (W2-10)")
+    void buildUserProfileNarrativeShouldNeverTakeTheClassFromAFamilyHintWithoutLearningEvidence() {
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+
+        SecurityEvent hinted = SecurityEvent.builder()
+                .eventId("event-release-hint-without-learning-evidence")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 5).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-read")
+                .sourceIp("10.10.0.20")
+                .build();
+        hinted.addMetadata("requestPath", "/api/releases/R-1");
+        hinted.addMetadata("httpMethod", "GET");
+        hinted.addMetadata("resourceFamily", "PUBLIC_RELEASES");
+        SecurityEvent classified = SecurityEvent.builder()
+                .eventId("event-release-class-without-learning-evidence")
+                .timestamp(LocalDateTime.of(2026, 4, 18, 10, 6).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("persona_fin_lead")
+                .sessionId("session-read")
+                .sourceIp("10.10.0.20")
+                .build();
+        classified.addMetadata("requestPath", "/api/releases/R-1");
+        classified.addMetadata("httpMethod", "GET");
+        classified.addMetadata("resourceFamily", "PUBLIC_RELEASES");
+        classified.addMetadata("resourceSensitivity", "CONFIDENTIAL");
+
+        String hintedSection = sections.buildUserProfileNarrative(hinted,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), BaselineStatus.ESTABLISHED);
+        String classifiedSection = sections.buildUserProfileNarrative(classified,
+                new SecurityDecisionStandardPromptTemplate.DetectedPatterns(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), BaselineStatus.ESTABLISHED);
+
+        // The word PUBLIC in the category's name is no class; the sensitivity is one.
+        assertThat(hintedSection).doesNotContain("CurrentResourceFamily: PUBLIC");
+        assertThat(classifiedSection).contains("CurrentResourceFamily: SENSITIVE");
     }
 }

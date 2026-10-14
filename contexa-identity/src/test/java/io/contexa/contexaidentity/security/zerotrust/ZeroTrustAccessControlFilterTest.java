@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -276,6 +277,115 @@ class ZeroTrustAccessControlFilterTest {
 
             verify(filterChain, never()).doFilter(eq(request), eq(response));
             verify(response).sendRedirect("/contexa/zero-trust/blocked");
+        }
+    }
+
+    @Test
+    void aRequestStoppedByTheBlockInForceIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(false);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(unanalysed).recordRequest(authentication, ZeroTrustAction.BLOCK);
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+        }
+    }
+
+    @Test
+    void aRequestStoppedByTheEscalationInForceIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        when(request.getHeader("Accept")).thenReturn("text/html");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.ESCALATE);
+            when(actionRedisRepository.getActionFromHash("testUser")).thenReturn(ZeroTrustAction.ESCALATE);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(unanalysed).recordRequest(authentication, ZeroTrustAction.ESCALATE);
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+        }
+    }
+
+    @Test
+    void aRequestStoppedOnceTheBlockStepUpIsExhaustedIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+            when(actionRedisRepository.getBlockMfaFailCount("testUser")).thenReturn(2L);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(unanalysed, times(1)).recordRequest(authentication, ZeroTrustAction.BLOCK);
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+        }
+    }
+
+    @Test
+    void aRequestStoppedWhileTheBlockStepUpOpensIsKeptInItsSession() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/api/customers/CUS-0012");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+            when(actionRedisRepository.getBlockMfaFailCount("testUser")).thenReturn(0L);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(challengeMfaInitializer).initializeChallengeFlow(any(), any(), any());
+            verify(unanalysed, times(1)).recordRequest(authentication, ZeroTrustAction.BLOCK);
+            verify(filterChain, never()).doFilter(eq(request), eq(response));
+        }
+    }
+
+    @Test
+    void aStepUpRequestLetThroughUnderABlockIsNotRecorded() throws Exception {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        filter.setUnanalysedRequestRecorder(unanalysed);
+        when(request.getRequestURI()).thenReturn("/mfa/verify");
+        setUpAuthentication();
+
+        try (MockedStatic<SessionFingerprintUtil> fingerprintMock = mockStatic(SessionFingerprintUtil.class)) {
+            fingerprintMock.when(() -> SessionFingerprintUtil.generateContextBindingHash(any(HttpServletRequest.class)))
+                    .thenReturn(TEST_CONTEXT_BINDING_HASH);
+            when(actionRedisRepository.getCurrentAction("testUser", TEST_CONTEXT_BINDING_HASH))
+                    .thenReturn(ZeroTrustAction.BLOCK);
+            when(actionRedisRepository.isBlockMfaPending("testUser")).thenReturn(true);
+
+            filter.doFilter(request, response, filterChain);
+
+            verify(filterChain).doFilter(request, response);
+            verify(unanalysed, never()).recordRequest(any(), any());
         }
     }
 

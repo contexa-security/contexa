@@ -188,10 +188,8 @@ public class LearningContextEvidenceAssembler {
                         resource != null ? resource.getActionFamily() : null,
                         roleScope != null ? roleScope.getCurrentActionFamily() : null,
                         resource != null ? resource.getHttpMethod() : null),
-                SecuritySemanticNormalizer.normalizeResourceFamily(
-                        resource != null ? resource.getSensitivity() : null,
-                        roleScope != null ? roleScope.getCurrentResourceFamily() : null,
-                        resource != null ? resource.getResourceType() : null));
+                // The class from the classification values only; the role scope's family is a business category (W2-10).
+                SecuritySemanticNormalizer.resourceClassOf(resource));
     }
 
     private BaselineEvidenceSnapshot buildPersonalBaseline(SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
@@ -231,7 +229,7 @@ public class LearningContextEvidenceAssembler {
         List<String> pathFamilies = normalizeStrings(behaviorAnalysis.getBaselineFrequentPaths(), SecuritySemanticNormalizer::normalizePathFamily);
         List<String> authTypes = normalizeStrings(behaviorAnalysis.getBaselineAuthenticationTypes(), SecuritySemanticNormalizer::normalizeAuthenticationType);
         List<String> actionFamilies = normalizeStrings(behaviorAnalysis.getBaselineActionFamilies(), SecuritySemanticNormalizer::normalizeActionFamily);
-        List<String> resourceFamilies = normalizeStrings(behaviorAnalysis.getBaselineResourceFamilies(), SecuritySemanticNormalizer::normalizeResourceFamily);
+        List<String> resourceFamilies = normalizeStrings(behaviorAnalysis.getBaselineResourceFamilies(), SecuritySemanticNormalizer::normalizeResourceClass);
         BaselineEvidenceStatus status = derivePersonalBaselineStatus(behaviorAnalysis);
         String summary = buildBaselineSummary(
                 behaviorAnalysis.isPersonalBaselineEstablished(),
@@ -413,7 +411,7 @@ public class LearningContextEvidenceAssembler {
             addIfText(pathFamilies, SecuritySemanticNormalizer.normalizePathFamily(evidence.pathFamily()));
             addIfText(authenticationTypes, SecuritySemanticNormalizer.normalizeAuthenticationType(evidence.authenticationType()));
             addIfText(actionFamilies, SecuritySemanticNormalizer.normalizeActionFamily(evidence.actionFamily()));
-            addIfText(resourceFamilies, SecuritySemanticNormalizer.normalizeResourceFamily(evidence.resourceSensitivity(), evidence.resourceFamily()));
+            addIfText(resourceFamilies, SecuritySemanticNormalizer.normalizeResourceClass(evidence.resourceSensitivity(), evidence.resourceFamily()));
         }
         return new ObservedPatternSnapshot(
                 immutable(networks),
@@ -586,7 +584,7 @@ public class LearningContextEvidenceAssembler {
                 SecuritySemanticNormalizer.normalizeOperatingSystem(metadata.get("userAgentOS"), metadata.get("deviceOs")),
                 SecuritySemanticNormalizer.normalizeAuthenticationType(firstText(metadata.get("authenticationType"), metadata.get("authMethod"))),
                 SecuritySemanticNormalizer.normalizeActionFamily(firstText(metadata.get("actionFamily"), metadata.get("httpMethod"), metadata.get("action"))),
-                SecuritySemanticNormalizer.normalizeResourceFamily(metadata.get("resourceSensitivity"), metadata.get("sensitivity"), metadata.get("resourceFamily"), metadata.get("resourceType")),
+                SecuritySemanticNormalizer.normalizeResourceClass(metadata.get("resourceSensitivity"), metadata.get("sensitivity"), metadata.get("resourceFamily"), metadata.get("resourceType")),
                 SecuritySemanticNormalizer.normalizeSensitivity(metadata.get("resourceSensitivity"), metadata.get("sensitivity")),
                 firstText(metadata.get("resourceBusinessLabel"), metadata.get("businessLabel")),
                 text(metadata.get("sessionAgeMinutes")),
@@ -717,7 +715,12 @@ public class LearningContextEvidenceAssembler {
     }
 
     private int compareEvidence(RetrievedBehaviorEvidence left, RetrievedBehaviorEvidence right) {
-        return Double.compare(score(right), score(left));
+        int bySimilarity = Double.compare(score(right), score(left));
+        if (bySimilarity != 0) {
+            return bySimilarity;
+        }
+        // Equal similarity keeps one order whatever the retrieval order: the record's ID (W3-3).
+        return Comparator.nullsLast(Comparator.<String>naturalOrder()).compare(left.artifactId(), right.artifactId());
     }
 
     private double score(RetrievedBehaviorEvidence evidence) {

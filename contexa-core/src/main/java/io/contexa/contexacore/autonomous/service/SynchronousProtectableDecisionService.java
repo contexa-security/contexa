@@ -35,6 +35,7 @@ public class SynchronousProtectableDecisionService {
     private final ZeroTrustEventListener zeroTrustEventListener;
     private final SecurityPlaneAgent securityPlaneAgent;
     private final ZeroTrustActionRepository actionRepository;
+    private UnanalysedRequestRecorder unanalysedRequestRecorder;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -45,6 +46,10 @@ public class SynchronousProtectableDecisionService {
         this.zeroTrustEventListener = zeroTrustEventListener;
         this.securityPlaneAgent = securityPlaneAgent;
         this.actionRepository = actionRepository;
+    }
+
+    public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
+        this.unanalysedRequestRecorder = unanalysedRequestRecorder;
     }
 
     public SyncDecisionResult analyze(MethodInvocation methodInvocation, Authentication authentication) {
@@ -63,13 +68,17 @@ public class SynchronousProtectableDecisionService {
             return currentResult(event, userId, contextBindingHash, processingContext);
         }
 
-        return currentResult(event, userId, contextBindingHash, null);
+        // The decision in force answers the request without analysis; its session still keeps it (N-SES-1).
+        SyncDecisionResult result = currentResult(event, userId, contextBindingHash, null);
+        recordUnanalysed(event, result.action());
+        return result;
     }
 
     /**
      * The restriction in force for the caller of an asynchronous {@code @Protectable}: a stored BLOCK, CHALLENGE or
      * ESCALATE restricts every request of the user, so it is checked before the method runs. Null when none is in
-     * force or when the event is inside a shadow boundary.
+     * force or when the event is inside a shadow boundary. The restricted request does not run and reaches no
+     * analysis; its session still keeps it (N-SES-1).
      */
     public ZeroTrustAction storedRestriction(MethodInvocation methodInvocation, Authentication authentication) {
         ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildMethodAuthorizationEvent(
@@ -83,8 +92,18 @@ public class SynchronousProtectableDecisionService {
         }
         ZeroTrustAction action = actionRepository.getCurrentAction(
                 event.getUserId(), zeroTrustEventListener.generateAuthorizationContextBindingHash(event));
-        return action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
-                || action == ZeroTrustAction.ESCALATE ? action : null;
+        if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
+                || action == ZeroTrustAction.ESCALATE) {
+            recordUnanalysed(event, action);
+            return action;
+        }
+        return null;
+    }
+
+    private void recordUnanalysed(ZeroTrustSpringEvent event, ZeroTrustAction action) {
+        if (unanalysedRequestRecorder != null) {
+            unanalysedRequestRecorder.record(event, action);
+        }
     }
 
     private SyncDecisionResult currentResult(

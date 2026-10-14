@@ -16,7 +16,6 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -113,19 +112,6 @@ class SessionFingerprintUtilClientIpTrustTest {
         String hash = SessionFingerprintUtil.generateContextBindingHash(request(PROXY_IP, CLIENT_IP));
 
         assertThat(hash).isEqualTo(expectedHash(CLIENT_IP));
-    }
-
-    @Test
-    @DisplayName("A probe carrying the server issued capability keeps its simulated client IP")
-    void serverIssuedProbeKeepsSimulatedClientIp() {
-        MockHttpServletRequest request = request(PROXY_IP, CLIENT_IP);
-        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
-        headers.setRuntimeOverrideCapability();
-        headers.asMap().forEach(request::addHeader);
-
-        assertThat(SessionFingerprintUtil.extractClientIp(request))
-                .isEqualTo(RequestInfoExtractor.extractClientIp(request, new TieredStrategyProperties().getSecurity()))
-                .isEqualTo(CLIENT_IP);
     }
 
     @ParameterizedTest

@@ -36,6 +36,11 @@ import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeSnaps
 
 class DefaultSessionNarrativeCollectorTest {
 
+    private static final String WINDOWS_CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            + "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+    private static final String MAC_SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 "
+            + "(KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+
     private SecurityContextDataStore dataStore;
     private DefaultSessionNarrativeCollector collector;
 
@@ -150,6 +155,25 @@ class DefaultSessionNarrativeCollectorTest {
         assertThat(snapshot.getSessionActionSequence()).containsExactly("READ");
         assertThat(snapshot.getSessionProtectableSequence()).isEmpty();
         assertThat(snapshot.getBurstPattern()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a protected method declared privileged makes a protectable request")
+    void collect_countsAMethodDeclaredPrivilegedAsProtectable() {
+        SecurityEvent grant = SecurityEvent.builder()
+                .sessionId("session-grant")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 20, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .description("POST /api/admin/role-grants")
+                .build();
+        grant.addMetadata("requestPath", "/api/admin/role-grants");
+        grant.addMetadata("httpMethod", "POST");
+        grant.addMetadata("actionFamily", "ADMIN");
+        grant.addMetadata("protectablePrivileged", true);
+
+        SessionNarrativeSnapshot snapshot = collect(grant).orElseThrow();
+
+        // P3 gate: the method's declaration travels under its own key and still marks the request protectable.
+        assertThat(snapshot.getSessionProtectableSequence()).containsExactly("/api/admin/role-grants");
     }
 
     @Test
@@ -317,6 +341,108 @@ class DefaultSessionNarrativeCollectorTest {
 
         assertThat(snapshot.getSessionActionSequence()).containsExactly("WRITE", "READ");
         assertThat(snapshot.getPreviousActionFamily()).isEqualTo("WRITE");
+    }
+
+    @Test
+    @DisplayName("a change of device and of network is stated against the client the session first came from (W2-14)")
+    void collect_statesTheChangesAgainstTheSessionsFirstClient() {
+        SessionNarrativeSnapshot first = collect(clientEvent("session-client", 0, WINDOWS_CHROME, "10.40.12.7",
+                "CORPORATE")).orElseThrow();
+        SessionNarrativeSnapshot moved = collect(clientEvent("session-client", 1, MAC_SAFARI, "203.0.113.9",
+                "EXTERNAL")).orElseThrow();
+        SessionNarrativeSnapshot back = collect(clientEvent("session-client", 2, WINDOWS_CHROME, "10.40.12.40",
+                "CORPORATE")).orElseThrow();
+
+        assertThat(first.getSessionDeviceChange()).isNull();
+        assertThat(first.getSessionNetworkChange()).isNull();
+        assertThat(moved.getSessionDeviceChange()).isEqualTo("Chrome/140 on WINDOWS -> Safari/17 on MAC");
+        assertThat(moved.getSessionNetworkChange()).isEqualTo("10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24 (EXTERNAL)");
+        // The comparison is with the first client, not the previous request: back on it, nothing changed.
+        assertThat(back.getSessionDeviceChange()).isNull();
+        assertThat(back.getSessionNetworkChange()).isNull();
+    }
+
+    @Test
+    @DisplayName("the first client is recorded once a decision is known; a browser update is no change of device (W2-14)")
+    void collect_recordsTheFirstClientOnCommitAndSetsTheBrowserVersionAside() {
+        SecurityEvent first = clientEvent("session-commit", 0, WINDOWS_CHROME, "10.40.12.7", null);
+        collector.collect(first);
+        assertThat(dataStore.getSessionFirstClient("session-commit")).isNull();
+        collector.recorder().commit(first, "CHALLENGE", false);
+        assertThat(dataStore.getSessionFirstClient("session-commit")).isEqualTo("UA|WINDOWS|Chrome/140|10.40.12.0/24|");
+
+        SessionNarrativeSnapshot updated = collect(clientEvent("session-commit", 1,
+                WINDOWS_CHROME.replace("Chrome/140", "Chrome/141"), "10.40.12.7", null)).orElseThrow();
+
+        assertThat(updated.getSessionDeviceChange()).isNull();
+        assertThat(updated.getSessionNetworkChange()).isNull();
+    }
+
+    @Test
+    @DisplayName("a client that names no browser is a change from a browser; a request without one is not compared (W2-14)")
+    void collect_aScriptClientIsAChangeAndAMissingUserAgentIsNotCompared() {
+        collect(clientEvent("session-script", 0, WINDOWS_CHROME, "10.40.12.7", null));
+
+        SessionNarrativeSnapshot script = collect(clientEvent("session-script", 1, "python-requests/2.31", "10.40.12.7",
+                null)).orElseThrow();
+        SessionNarrativeSnapshot unnamed = collect(clientEvent("session-script", 2, null, "10.40.12.7", null)).orElseThrow();
+
+        assertThat(script.getSessionDeviceChange())
+                .isEqualTo("Chrome/140 on WINDOWS -> a client that names no browser or operating system");
+        assertThat(unnamed.getSessionDeviceChange()).isNull();
+        assertThat(unnamed.getSessionNetworkChange()).isNull();
+    }
+
+    @Test
+    @DisplayName("the first client follows the session to the id it gets at a step-up (W2-14)")
+    void collect_comparesWithTheFirstClientAfterTheSessionIdChanges() {
+        collect(clientEvent("session-before-step-up", 0, WINDOWS_CHROME, "10.40.12.7", null));
+        dataStore.moveSessionRecords("session-before-step-up", "session-after-step-up");
+
+        SessionNarrativeSnapshot after = collect(clientEvent("session-after-step-up", 1, MAC_SAFARI, "10.40.12.7", null))
+                .orElseThrow();
+
+        assertThat(after.getSessionDeviceChange()).isEqualTo("Chrome/140 on WINDOWS -> Safari/17 on MAC");
+    }
+
+    @Test
+    @DisplayName("requests of one session decided out of the order they were made are read in the order made (N-SES-1, G4-2)")
+    void requestsDecidedOutOfOrderAreReadInTheOrderTheyWereMade() {
+        SecurityEvent first = event("session-order", LocalDateTime.of(2026, 3, 25, 9, 0, 0),
+                "/api/projects/A/documents", "GET", true, "READ");
+        first.addMetadata("requestId", "request-a");
+        SecurityEvent second = event("session-order", LocalDateTime.of(2026, 3, 25, 9, 0, 1),
+                "/api/projects/B/exports", "POST", true, "EXPORT");
+        second.addMetadata("requestId", "request-b");
+        // Both are resolved before either is decided, and the later one is decided first.
+        collector.collect(first);
+        collector.collect(second);
+        collector.recorder().commit(second, "CHALLENGE", true);
+        collector.recorder().commit(first, "ALLOW", true);
+
+        SecurityEvent next = event("session-order", LocalDateTime.of(2026, 3, 25, 9, 0, 11),
+                "/api/customer/list", "GET", true, "READ");
+        next.addMetadata("requestId", "request-c");
+        SessionNarrativeSnapshot snapshot = collector.collect(next).orElseThrow();
+
+        assertThat(snapshot.getSessionProtectableSequence())
+                .containsExactly("/api/projects/A/documents", "/api/projects/B/exports", "/api/customer/list");
+        assertThat(snapshot.getSessionActionSequence()).containsExactly("READ", "EXPORT", "READ");
+        assertThat(snapshot.getPreviousPath()).isEqualTo("/api/projects/B/exports");
+        assertThat(snapshot.getLastRequestIntervalMs()).isEqualTo(10_000L);
+        assertThat(snapshot.getSessionDecisions()).extracting(SessionDecisionRecord::path)
+                .containsExactly("/api/projects/A/documents", "/api/projects/B/exports");
+    }
+
+    private SecurityEvent clientEvent(String sessionId, int minute, String userAgent, String sourceIp, String zone) {
+        SecurityEvent event = event(sessionId, LocalDateTime.of(2026, 3, 25, 9, minute), "/api/customer/list", "GET",
+                true, "READ");
+        event.setUserAgent(userAgent);
+        event.setSourceIp(sourceIp);
+        if (zone != null) {
+            event.addMetadata("networkZone", zone);
+        }
+        return event;
     }
 
     private SecurityEvent event(String sessionId,

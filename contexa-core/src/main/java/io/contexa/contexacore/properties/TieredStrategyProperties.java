@@ -32,6 +32,27 @@ public class TieredStrategyProperties {
     private Truncation truncation = new Truncation();
     private Security security = new Security();
     private PromptRuntime promptRuntime = new PromptRuntime();
+    private PromptBundle promptBundle = new PromptBundle();
+
+    /**
+     * Which prompt bundle the security decision runs (W3-16, version management function 4): by default the bundle this
+     * configuration names, or the registry's state, scope and canary share. A bundle the build cannot run falls back to
+     * the build's default bundle.
+     */
+    @Data
+    public static class PromptBundle {
+
+        public enum Selector {
+            CONFIGURATION,
+            REGISTRY
+        }
+
+        /** The bundle version the configuration selector runs; blank for the build's default bundle. */
+        private String active;
+
+        /** Which selector chooses the bundle: this configuration, or the prompt governance registry. */
+        private Selector selector = Selector.CONFIGURATION;
+    }
 
     @Data
     public static class Security {
@@ -43,10 +64,9 @@ public class TieredStrategyProperties {
 
     @Data
     public static class PromptRuntime {
-        public enum PromptLineageCaptureMode {
-            ALWAYS,
-            OFFICIAL_VERIFICATION,
-            DISABLED
+        public enum BudgetEnforcement {
+            OBSERVE_ONLY,
+            ENFORCE
         }
 
         /**
@@ -58,11 +78,7 @@ public class TieredStrategyProperties {
          * Prompt runtime telemetry remains on by default for official verification and rollout diagnostics.
          */
         private boolean telemetryEnabled = true;
-        /**
-         * Full prompt lineage is expensive and is intended for official verification evidence.
-         * Runtime security decisions keep lightweight prompt telemetry by default.
-         */
-        private PromptLineageCaptureMode lineageCaptureMode = PromptLineageCaptureMode.OFFICIAL_VERIFICATION;
+        private BudgetEnforcement budgetEnforcement = BudgetEnforcement.OBSERVE_ONLY;
 
         public boolean isNativeStructuredOutputEnabledForProfile(String profileKey) {
             if (!nativeStructuredOutputEnabled) {
@@ -107,7 +123,8 @@ public class TieredStrategyProperties {
         private int expireMinutes = 5;
         private boolean enabled = true;
         private boolean recordStats = true;
-        private boolean invalidateOnWrite = false;
+        /** Clear the cached searches a write can change: the writer's, its organisation's and unscoped ones (W2-15). */
+        private boolean invalidateOnWrite = true;
     }
 
     @Data
@@ -148,7 +165,12 @@ public class TieredStrategyProperties {
 
             private long ragMs = 8000;
 
-            private long interactiveRagWaitMs = 500;
+            /**
+             * How long an interactive request waits for its past record search where the records are first needed. The
+             * search starts at the analysis entry, so the stages before that point count towards it (W3-4). 600 ms covers
+             * nearly every search: on the showcase engine the 99th percentile took 524 ms (P3-EXTRA-4).
+             */
+            private long interactiveRagWaitMs = 600;
 
             private boolean backgroundRagWarmupOnInteractiveTimeout = true;
         }

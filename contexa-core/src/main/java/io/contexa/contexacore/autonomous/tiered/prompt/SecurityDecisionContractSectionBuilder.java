@@ -25,13 +25,30 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
             """.trim();
 
     static String formatInstructions() {
+        return formatInstructions(false);
+    }
+
+    /**
+     * The output format; the v20 bundle's wording check names the dictionary's facts (TO-4), the v19 bundle's keeps its
+     * labels.
+     */
+    static String formatInstructions(boolean v20) {
+        String wordingCheck = v20
+                ? "Final wording check: decide action first. For ALLOW with records on this target in PastRecordCounts, "
+                + "copy the matching exact system-contract sentence for the current BaselineStatus; for any other ALLOW, "
+                + "copy the matching no-RAG sentence and never mention RAG; never assert an established baseline when "
+                + "BaselineStatus is not ESTABLISHED."
+                : "Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG, copy the matching "
+                + "exact system-contract sentence for the current PersonalBaselineEstablished value; for any other ALLOW, "
+                + "copy the matching no-RAG sentence and never mention RAG; never assert an established baseline when it is "
+                + "false or absent.";
         return """
                 Your response should be in JSON format.
                 Return one RFC8259 compliant JSON object without explanations or markdown.
                 The response must satisfy this JSON Schema:
                 ```%s```
-                Final wording check: decide action first. For ALLOW with SAME_RESOURCE authorized RAG, copy the matching exact system-contract sentence for the current PersonalBaselineEstablished value; for any other ALLOW, copy the matching no-RAG sentence and never mention RAG; never assert an established baseline when it is false or absent.
-                """.formatted(JSON_SCHEMA);
+                %s
+                """.formatted(JSON_SCHEMA, wordingCheck);
     }
 
     static String runtimeReasoningGate() {

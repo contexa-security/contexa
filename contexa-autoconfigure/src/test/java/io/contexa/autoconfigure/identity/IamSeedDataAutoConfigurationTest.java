@@ -39,7 +39,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
-
+
 class IamSeedDataAutoConfigurationTest {
 
     @Test
@@ -179,6 +179,21 @@ class IamSeedDataAutoConfigurationTest {
                 .doesNotContain("owner to");
         assertThat(maintenanceSql.indexOf("create table if not exists ai_security_monitoring_session_summary"))
                 .isLessThan(maintenanceSql.indexOf("alter table ai_security_monitoring_session_summary"));
+    }
+
+    /** R4-S4: the daily retention delete reads expires_at, so new and existing databases index it. */
+    @Test
+    @DisplayName("IAM schema maintenance should index the sealed package expiry the retention delete reads")
+    void iamSchemaMaintenanceIndexesTheSealedPackageExpiry() throws Exception {
+        String schema = new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8);
+
+        String maintenanceSql = IamSeedDataAutoConfiguration.extractIdempotentSchemaMaintenanceSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(schema));
+
+        assertThat(IamSeedDataAutoConfiguration.splitSqlStatements(maintenanceSql).stream()
+                .map(statement -> statement.replaceAll("(?m)--.*$", " ").replaceAll("\\s+", " ").trim()
+                        .toLowerCase(Locale.ROOT)))
+                .contains("create index if not exists idx_sep_expires_at on sealed_evidence_package (expires_at)");
     }
 
     @Test

@@ -23,6 +23,13 @@ public interface ResourceContextRegistry {
 
     Optional<ResourceContextDescriptor> findByResourceId(String resourceId);
 
+    /**
+     * Records what the host declares about one resource; a registry that looks descriptors up elsewhere may ignore
+     * it. The startup scan registers every {@code @Protectable} method here (W2-11).
+     */
+    default void register(ResourceContextDescriptor descriptor) {
+    }
+
     default Optional<ResourceContextDescriptor> findByEvent(CanonicalSecurityContext canonicalContext) {
         if (canonicalContext == null || canonicalContext.getResource() == null) {
             return Optional.empty();

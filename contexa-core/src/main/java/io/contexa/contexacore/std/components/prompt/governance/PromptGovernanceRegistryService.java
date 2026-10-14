@@ -5,7 +5,7 @@ import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceRegistryRecor
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRegistryRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +29,12 @@ public class PromptGovernanceRegistryService {
     public static final String PLATFORM_GLOBAL_SCOPE = "PLATFORM_GLOBAL";
     private static final int DEFAULT_LIMIT = 16;
     private static final int MAX_LIMIT = 40;
-    private static final List<PromptGovernanceDescriptor> PLATFORM_STANDARD_DESCRIPTORS = List.of(
-            SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE
-    );
+    /**
+     * The bundles the build runs, registered at start (version management function 3): a new row takes its
+     * descriptor's status as the first value, so a bundle shipped as a draft is registered as AVAILABLE (W3-16).
+     */
+    private static final List<PromptGovernanceDescriptor> PLATFORM_STANDARD_DESCRIPTORS =
+            SecurityDecisionPromptBundles.ALL.stream().map(SecurityDecisionPromptBundles.Bundle::descriptor).toList();
 
     private final PromptGovernanceRegistryRepository repository;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();

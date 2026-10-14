@@ -35,6 +35,8 @@ public class SecurityDecisionResponse extends AIResponse {
     private String reasoning;
     private String mitre;
     private List<String> evidenceRefs;
+    /** The reason codes of the output contract v3 with the fact IDs they cite (W4-2); empty for a v19 response. */
+    private List<SecurityDecisionOutputContract.Citation> reasonCodes;
     private Map<String, String> fieldProvenance;
 
     public SecurityResponse toSecurityResponse() {
@@ -73,6 +75,7 @@ public class SecurityDecisionResponse extends AIResponse {
         decisionResponse.setReasoning(response.getReasoning());
         decisionResponse.setMitre(response.getMitre());
         decisionResponse.setEvidenceRefs(response.getEvidenceRefs());
+        decisionResponse.setReasonCodes(response.getReasonCodes());
         return decisionResponse;
     }
 }

@@ -29,6 +29,7 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,14 +62,58 @@ class VectorStoreCacheLayerTest {
     }
 
     @Test
-    @DisplayName("Vector cache is not invalidated after writes by default")
-    void shouldKeepSearchCacheAfterWriteByDefault() {
+    @DisplayName("a write clears the searches it can change: the writer's, its organisation's and unscoped ones (W2-15)")
+    void aWriteClearsOnlyTheSearchesItCanChange() {
+        FilterExpressionBuilder filter = new FilterExpressionBuilder();
+        SearchRequest alice = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("userId", "alice").build()).build();
+        SearchRequest bob = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("userId", "bob").build()).build();
+        SearchRequest otherOrganization = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("organizationId", "org-2").build()).build();
+        SearchRequest broad = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("documentType", "behavior").build()).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document("cached")));
+        List.of(alice, bob, otherOrganization, broad).forEach(cacheLayer::similaritySearch);
+
+        cacheLayer.invalidateAfterWrite(List.of(new Document("new", Map.of("userId", "alice", "organizationId", "org-1"))));
+        List.of(alice, bob, otherOrganization, broad).forEach(cacheLayer::similaritySearch);
+
+        verify(vectorStore, times(2)).similaritySearch(alice);
+        verify(vectorStore, times(1)).similaritySearch(bob);
+        verify(vectorStore, times(1)).similaritySearch(otherOrganization);
+        verify(vectorStore, times(2)).similaritySearch(broad);
+    }
+
+    @Test
+    @DisplayName("a purge of one user clears that user's searches and unscoped ones (W2-15)")
+    void aPurgeOfOneUserClearsThatUsersSearches() {
+        FilterExpressionBuilder filter = new FilterExpressionBuilder();
+        SearchRequest alice = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("userId", "alice").build()).build();
+        SearchRequest bob = SearchRequest.builder().query("query").topK(3)
+                .filterExpression(filter.eq("userId", "bob").build()).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document("cached")));
+        List.of(alice, bob).forEach(cacheLayer::similaritySearch);
+
+        cacheLayer.invalidateForUser("alice");
+        List.of(alice, bob).forEach(cacheLayer::similaritySearch);
+
+        verify(vectorStore, times(2)).similaritySearch(alice);
+        verify(vectorStore, times(1)).similaritySearch(bob);
+    }
+
+    @Test
+    @DisplayName("with invalidation on write turned off a write keeps the cache (W2-15)")
+    void invalidationOnWriteCanBeTurnedOff() {
+        properties.getVectorCache().setInvalidateOnWrite(false);
         SearchRequest request = SearchRequest.builder().query("query").topK(3).build();
         when(vectorStore.similaritySearch(request)).thenReturn(List.of(new Document("cached")));
 
-        assertThat(cacheLayer.similaritySearch(request)).hasSize(1);
+        cacheLayer.similaritySearch(request);
+        cacheLayer.invalidateAfterWrite(List.of(new Document("new", Map.of("userId", "alice"))));
         cacheLayer.invalidateAfterWrite();
-        assertThat(cacheLayer.similaritySearch(request)).hasSize(1);
+        cacheLayer.similaritySearch(request);
 
         verify(vectorStore, times(1)).similaritySearch(request);
     }

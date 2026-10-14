@@ -34,6 +34,21 @@ class ExecutionSpecStoreTest {
                         "b".repeat(64), null)));
     }
 
+    /** LU-6 (P3 extra 46): the prompt bundle control D reports is part of the run's specification. */
+    @Test
+    void thePromptBundleControlDReportsIsRecorded() throws Exception {
+        JsonNode rules = json.readTree("{\"sha256\":\"" + "a".repeat(64) + "\"}");
+        String reported = """
+                {"engineVersion":"0.1.0","codeCommit":"abc","effectiveMode":"ENFORCE","chatModel":"gpt-6-luna",
+                 "embeddingModel":"text-embedding-3-small","embeddingDimensions":1024,"timeZone":"UTC",
+                 "endpointProtection":{},"promptBundle":"%s"}""";
+
+        assertThat(ExecutionSpecStore.build(json.readTree(reported.formatted("2026.10.14-v20.9")), rules, "tpl",
+                "b".repeat(64), null).promptBundle()).isEqualTo("2026.10.14-v20.9");
+        assertThat(ExecutionSpecStore.build(json.readTree(reported.replace(",\"promptBundle\":\"%s\"", "")), rules,
+                "tpl", "b".repeat(64), null).promptBundle()).isNull();
+    }
+
     @Test
     void aSpecificationIsNeverRecordedWithAFilledInBuildFact() throws Exception {
         JsonNode rules = json.readTree("{\"sha256\":\"" + "a".repeat(64) + "\"}");

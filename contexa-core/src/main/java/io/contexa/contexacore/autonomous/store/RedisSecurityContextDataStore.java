@@ -46,6 +46,8 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration SESSION_RISK_TTL = Duration.ofHours(1);
     private static final Duration ACTIVITY_TTL = Duration.ofMinutes(10);
     private static final Duration SESSION_NARRATIVE_TTL = ACTIVITY_TTL;
+    /** A block can wait days for an administrator, so the facts of a stopped request are kept for a month (W5-2). */
+    private static final Duration VERIFICATION_LEARNING_TTL = Duration.ofDays(30);
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
@@ -65,6 +67,22 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             "if redis.call('get', KEYS[1]) == ARGV[1] then "
                     + "redis.call('psetex', KEYS[1], " + EVENT_PROCESSING_TTL.toMillis() + ", ARGV[2]); "
                     + "return 1 else return 0 end",
+            Long.class);
+    /**
+     * Records a session's last request (KEYS[1] its time, KEYS[2] when given its path) unless a later request is
+     * already recorded (N-SES-1); the stored time is read as the number it holds.
+     */
+    private static final DefaultRedisScript<Long> RECORD_SESSION_LAST_REQUEST_SCRIPT = new DefaultRedisScript<>(
+            "local current = redis.call('get', KEYS[1]) "
+                    + "if current then "
+                    + "local recorded = tonumber(string.match(current, '%-?%d+')) "
+                    + "local candidate = tonumber(string.match(ARGV[1], '%-?%d+')) "
+                    + "if recorded and candidate and recorded > candidate then return 0 end "
+                    + "end "
+                    + "redis.call('psetex', KEYS[1], " + SESSION_NARRATIVE_TTL.toMillis() + ", ARGV[1]) "
+                    + "if #KEYS > 1 then redis.call('psetex', KEYS[2], " + SESSION_NARRATIVE_TTL.toMillis()
+                    + ", ARGV[2]) end "
+                    + "return 1",
             Long.class);
     private static final String PROCESS_NODE_ID = resolveProcessNodeId();
     private static final long PROCESS_PID = ProcessHandle.current().pid();
@@ -147,6 +165,8 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     ZeroTrustRedisKeys.sessionPreviousPath(toSessionId), SESSION_NARRATIVE_TTL);
             moveValue(ZeroTrustRedisKeys.sessionRisk(fromSessionId), ZeroTrustRedisKeys.sessionRisk(toSessionId),
                     SESSION_RISK_TTL);
+            moveValue(ZeroTrustRedisKeys.sessionFirstClient(fromSessionId),
+                    ZeroTrustRedisKeys.sessionFirstClient(toSessionId), SESSION_NARRATIVE_TTL);
             // The new id remembers the ids the session had, newest first (P2 correction 5).
             String previousIds = ZeroTrustRedisKeys.sessionPreviousIds(toSessionId);
             moveList(ZeroTrustRedisKeys.sessionPreviousIds(fromSessionId), previousIds, SESSION_NARRATIVE_TTL);
@@ -207,9 +227,15 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void addSessionNarrativeActionFamily(String sessionId, String actionFamily, long requestTimestamp) {
+        addSessionNarrativeActionFamily(sessionId, SessionNarrativeEntries.encode(requestTimestamp, actionFamily));
+    }
+
+    @Override
     public List<String> getRecentSessionNarrativeActionFamilies(String sessionId, int count) {
         try {
-            return readStringList(ZeroTrustRedisKeys.sessionNarrativeActions(sessionId), count);
+            return SessionNarrativeEntries.recentInRequestOrder(
+                    readWholeList(ZeroTrustRedisKeys.sessionNarrativeActions(sessionId)), count);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to get session narrative action families: sessionId={}", sessionId, e);
             return Collections.emptyList();
@@ -226,9 +252,15 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void addSessionProtectableAccess(String sessionId, String resourcePath, long requestTimestamp) {
+        addSessionProtectableAccess(sessionId, SessionNarrativeEntries.encode(requestTimestamp, resourcePath));
+    }
+
+    @Override
     public List<String> getRecentSessionProtectableAccesses(String sessionId, int count) {
         try {
-            return readStringList(ZeroTrustRedisKeys.sessionProtectableAccesses(sessionId), count);
+            return SessionNarrativeEntries.recentInRequestOrder(
+                    readWholeList(ZeroTrustRedisKeys.sessionProtectableAccesses(sessionId)), count);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to get session protectable accesses: sessionId={}", sessionId, e);
             return Collections.emptyList();
@@ -245,21 +277,21 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void addSessionRequestInterval(String sessionId, long intervalMs, long requestTimestamp) {
+        try {
+            pushBoundedList(ZeroTrustRedisKeys.sessionRequestIntervals(sessionId),
+                    SessionNarrativeEntries.encode(requestTimestamp, Long.toString(intervalMs)), SESSION_NARRATIVE_TTL,
+                    MAX_SESSION_ACTIONS);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to add session request interval: sessionId={}", sessionId, e);
+        }
+    }
+
+    @Override
     public List<Long> getRecentSessionRequestIntervals(String sessionId, int count) {
         try {
-            String key = ZeroTrustRedisKeys.sessionRequestIntervals(sessionId);
-            List<Object> values = redisTemplate.opsForList().range(key, -count, -1);
-            if (values == null || values.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<Long> intervals = new ArrayList<>(values.size());
-            for (Object value : values) {
-                if (value == null) {
-                    continue;
-                }
-                intervals.add(Long.parseLong(value.toString()));
-            }
-            return intervals;
+            return SessionNarrativeEntries.recentIntervalsInRequestOrder(
+                    readWholeList(ZeroTrustRedisKeys.sessionRequestIntervals(sessionId)), count);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to get session request intervals: sessionId={}", sessionId, e);
             return Collections.emptyList();
@@ -323,12 +355,50 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void setSessionFirstClientIfAbsent(String sessionId, String firstClient) {
+        if (firstClient == null) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().setIfAbsent(ZeroTrustRedisKeys.sessionFirstClient(sessionId), firstClient,
+                    SESSION_NARRATIVE_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to set session first client: sessionId={}", sessionId, e);
+        }
+    }
+
+    @Override
+    public String getSessionFirstClient(String sessionId) {
+        try {
+            return readStringValueAndTouch(ZeroTrustRedisKeys.sessionFirstClient(sessionId), SESSION_NARRATIVE_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get session first client: sessionId={}", sessionId, e);
+            return null;
+        }
+    }
+
+    @Override
     public String getSessionPreviousPath(String sessionId) {
         try {
             return readStringValueAndTouch(ZeroTrustRedisKeys.sessionPreviousPath(sessionId), SESSION_NARRATIVE_TTL);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to get session previous path: sessionId={}", sessionId, e);
             return null;
+        }
+    }
+
+    @Override
+    public void recordSessionLastRequest(String sessionId, long timestamp, String path) {
+        try {
+            List<String> keys = path != null
+                    ? List.of(ZeroTrustRedisKeys.sessionLastRequestTime(sessionId),
+                    ZeroTrustRedisKeys.sessionPreviousPath(sessionId))
+                    : List.of(ZeroTrustRedisKeys.sessionLastRequestTime(sessionId));
+            Object[] values = path != null ? new Object[]{Long.toString(timestamp), path}
+                    : new Object[]{Long.toString(timestamp)};
+            redisTemplate.execute(RECORD_SESSION_LAST_REQUEST_SCRIPT, keys, values);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to record session last request: sessionId={}", sessionId, e);
         }
     }
 
@@ -727,11 +797,46 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void holdVerificationLearning(String userId, String requestId, String record) {
+        if (userId == null || userId.isBlank() || requestId == null || record == null) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.verificationLearning(userId);
+            redisTemplate.opsForHash().put(key, requestId, record);
+            redisTemplate.expire(key, VERIFICATION_LEARNING_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to hold a request for learning after verification: userId={}",
+                    userId, e);
+        }
+    }
+
+    @Override
+    public String takeVerificationLearning(String userId, String requestId) {
+        if (userId == null || userId.isBlank() || requestId == null) {
+            return null;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.verificationLearning(userId);
+            Object record = redisTemplate.opsForHash().get(key, requestId);
+            if (record == null || redisTemplate.opsForHash().delete(key, requestId) == 0) {
+                return null;
+            }
+            return record.toString();
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to take a request held for learning after verification: "
+                    + "userId={}", userId, e);
+            return null;
+        }
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
         }
         List<String> keys = new ArrayList<>(List.of(
+                ZeroTrustRedisKeys.verificationLearning(userId),
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
                 ZeroTrustRedisKeys.authenticationMfaVerified(userId),
@@ -836,6 +941,12 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     private static boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    /** A session narrative list whole (at most {@link #MAX_SESSION_ACTIONS} entries), to be read in request order. */
+    private List<Object> readWholeList(String key) {
+        List<Object> values = redisTemplate.opsForList().range(key, 0, -1);
+        return values == null ? List.of() : values;
     }
 
     private List<String> readStringList(String key, int count) {

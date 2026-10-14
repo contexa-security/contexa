@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -384,12 +385,15 @@ public class IdentitySecurityCoreAutoConfiguration {
             DistributedLockService lockService,
             MfaFlowUrlRegistry mfaFlowUrlRegistry,
             ZeroTrustActionRepository actionRepository,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
 
-        return new ZeroTrustChallengeFilter(
+        ZeroTrustChallengeFilter filter = new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
                 sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry, actionRepository,
                 securityZeroTrustProperties);
+        filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        return filter;
     }
 
     @Bean
@@ -418,10 +422,13 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             BlockingSignalBroadcaster blockingDecisionRegistry,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
-        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+        ZeroTrustAccessControlFilter filter = new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry,
                 securityZeroTrustProperties.getMaxBlockMfaAttempts(), mfaFlowUrlRegistry);
+        filter.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        return filter;
     }
 
     @Bean

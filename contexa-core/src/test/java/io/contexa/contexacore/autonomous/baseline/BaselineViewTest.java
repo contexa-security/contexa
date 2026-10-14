@@ -64,6 +64,31 @@ class BaselineViewTest {
     }
 
     @Test
+    void anObservationLearnedAfterAVerificationCountsAtItsWeight() {
+        List<Observation> whole = new ArrayList<>();
+        List<Observation> weighted = new ArrayList<>();
+        for (int index = 0; index < 7; index++) {
+            whole.add(read(NOW.minusDays(1).withHour(10)));
+            weighted.add(read(NOW.minusDays(1).withHour(10)));
+        }
+        for (int index = 0; index < 2; index++) {
+            LocalDateTime night = NOW.minusDays(1).withHour(3);
+            whole.add(read(night));
+            weighted.add(new Observation(at(night), "READ", "host", false, "INTERNAL", null, "/api/reports/R-3", null,
+                    true, null, 0.25));
+        }
+
+        // Counted whole, two requests at 03:00 keep 10:00 below 80% of the weight (7 of 9): 03:00 is usual.
+        assertThat(calculate(whole).usualHours()).containsExactly(3, 10);
+        // W5-2: learned after a verification at a quarter of the weight, they no longer make 03:00 usual (7 of 7.5);
+        // they are still observations and the hour is still seen.
+        BaselineView view = calculate(weighted);
+        assertThat(view.usualHours()).containsExactly(10);
+        assertThat(view.seenHours()).containsExactly(3, 10);
+        assertThat(view.observations()).isEqualTo(9);
+    }
+
+    @Test
     void theTargetsAreTheTemplateVariablesOfTheRequestPath() {
         assertThat(BaselineViewCalculator.target("/api/projects/{projectKey}/exports", "/api/projects/PLM-OPS/exports"))
                 .isEqualTo("projectKey=PLM-OPS");

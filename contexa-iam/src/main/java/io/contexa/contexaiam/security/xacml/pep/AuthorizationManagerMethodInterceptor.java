@@ -31,6 +31,7 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
@@ -48,11 +49,17 @@ import java.lang.reflect.Method;
 import java.util.function.Supplier;
 
 @Slf4j
-public class AuthorizationManagerMethodInterceptor implements MethodInterceptor, AuthorizationAdvisor {
+public class AuthorizationManagerMethodInterceptor
+        implements MethodInterceptor, AuthorizationAdvisor, SmartInitializingSingleton {
 
     private final Pointcut pointcut;
-    private final ProtectableMethodAuthorizationManager authorizationManager;
-    private final ProtectableRapidReentryGuard rapidReentryGuard;
+    private ProtectableMethodAuthorizationManager authorizationManager;
+    private ProtectableRapidReentryGuard rapidReentryGuard;
+    /**
+     * Sets the collaborators once: the advisor is created while post-processors are registered (the auto-proxy creator
+     * looks its advisors up then), and resolving its collaborators then would create their whole graph early.
+     */
+    private volatile Runnable collaboratorResolver;
     private final MethodAuthorizationDeniedHandler defaultHandler = new ThrowingMethodAuthorizationDeniedHandler();
     private final int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1;
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
@@ -74,8 +81,34 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         this.rapidReentryGuard = rapidReentryGuard;
     }
 
+    /** An advisor whose collaborators are set by the collaborator resolver, before its first call. */
+    public AuthorizationManagerMethodInterceptor(Pointcut pointcut, Runnable collaboratorResolver) {
+        this.pointcut = pointcut;
+        this.collaboratorResolver = collaboratorResolver;
+    }
+
+    /** Resolves the collaborators once every singleton exists, so a missing one still fails the start. */
+    @Override
+    public void afterSingletonsInstantiated() {
+        resolveCollaborators();
+    }
+
+    private void resolveCollaborators() {
+        if (collaboratorResolver == null) {
+            return;
+        }
+        synchronized (this) {
+            Runnable resolver = collaboratorResolver;
+            if (resolver != null) {
+                resolver.run();
+                collaboratorResolver = null;
+            }
+        }
+    }
+
     @Override
     public Object invoke(MethodInvocation mi) throws Throwable {
+        resolveCollaborators();
         Authentication authentication = getAuthentication();
         boolean granted = false;
         boolean publishEvent = true;
@@ -330,6 +363,14 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public boolean isPerInstance() { return true; }
     @Override
     public int getOrder() { return this.order; }
+
+    public void setAuthorizationManager(ProtectableMethodAuthorizationManager authorizationManager) {
+        this.authorizationManager = authorizationManager;
+    }
+
+    public void setRapidReentryGuard(ProtectableRapidReentryGuard rapidReentryGuard) {
+        this.rapidReentryGuard = rapidReentryGuard;
+    }
 
     public void setZeroTrustEventPublisher(ZeroTrustEventPublisher zeroTrustEventPublisher) {
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;

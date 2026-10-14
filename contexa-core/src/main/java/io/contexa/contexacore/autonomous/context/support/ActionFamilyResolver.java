@@ -31,7 +31,9 @@ public final class ActionFamilyResolver {
     public static final String HOST = "host";
     public static final String INFERRED = "inferred";
 
-    private static final List<String> DECLARED_KEYS = List.of("actionFamily", "currentActionFamily", "operation");
+    /** What the host declares: on the request first, then the one action of the protected method's descriptor (W2-11). */
+    private static final List<String> DECLARED_KEYS =
+            List.of("actionFamily", "currentActionFamily", "operation", "protectableActionFamily");
     private static final String METHOD_KEY = "protectableMethod";
     private static final List<String> TEMPLATE_KEYS = List.of("protectableResourceUrl", "resourceUrlTemplate");
     private static final List<String> HTTP_METHOD_KEYS = List.of("httpMethod", "method");

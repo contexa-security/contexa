@@ -1076,86 +1076,6 @@ public class BaselineLearningService {
         return List.copyOf(missingDimensions);
     }
 
-    public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
-        return buildBaselinePromptContext(userId, resolveOrganizationId(currentEvent, userId), currentEvent);
-    }
-
-    public String buildBaselinePromptContext(String userId, String organizationId, SecurityEvent currentEvent) {
-        if (userId == null) {
-            return "Baseline: User ID not available";
-        }
-
-        BaselineVector userBaseline = baselineDataStore.getUserBaseline(userId);
-        BaselineVector orgBaseline = resolveOrganizationBaseline(userId, organizationId);
-
-        if (userBaseline == null && orgBaseline == null) {
-            return buildNewUserWarning(userId, currentEvent);
-        }
-
-        StringBuilder sb = new StringBuilder();
-
-        if (userBaseline != null) {
-            sb.append("Personal Baseline:\n");
-            appendBaselineDetails(sb, userBaseline);
-        } else {
-            sb.append("[NO_PERSONAL_BASELINE] This user has no personal behavioral history.\n");
-        }
-
-        if (orgBaseline != null) {
-            sb.append("\nOrganization Baseline");
-            if (userBaseline == null) {
-                sb.append(" (reference only - NOT this user's personal patterns)");
-            }
-            sb.append(":\n");
-            appendBaselineDetails(sb, orgBaseline);
-        }
-
-        return sb.toString();
-    }
-
-    private void appendBaselineDetails(StringBuilder sb, BaselineVector baseline) {
-        String[] normalIps = baseline.getNormalIpRanges();
-        Integer[] normalHours = baseline.getNormalAccessHours();
-        Integer[] normalDays = baseline.getNormalAccessDays();
-        String[] normalUserAgents = baseline.getNormalUserAgents();
-        String[] normalOS = baseline.getNormalOperatingSystems();
-        String[] frequentPaths = baseline.getFrequentPaths();
-
-        if (normalIps != null && normalIps.length > 0) {
-            sb.append("Known IPs: ").append(String.join(", ", normalIps)).append("\n");
-        }
-
-        if (normalHours != null && normalHours.length > 0) {
-            StringBuilder hours = new StringBuilder();
-            for (int i = 0; i < normalHours.length; i++) {
-                if (i > 0) hours.append(", ");
-                hours.append(normalHours[i]);
-            }
-            sb.append("Known Hours: ").append(hours).append("\n");
-        }
-
-        if (normalDays != null && normalDays.length > 0) {
-            StringBuilder days = new StringBuilder();
-            for (int i = 0; i < normalDays.length; i++) {
-                if (i > 0) days.append(", ");
-                days.append(normalDays[i]);
-            }
-            sb.append("Known Days: ").append(days).append("\n");
-        }
-
-        String uaSignature = normalUserAgents != null && normalUserAgents.length > 0
-                ? extractUASignature(normalUserAgents[0]) : "none";
-        sb.append("Known UA: ").append(uaSignature).append("\n");
-
-        if (normalOS != null && normalOS.length > 0) {
-            sb.append("Known OS: ").append(String.join(", ", normalOS)).append("\n");
-        }
-
-        if (frequentPaths != null && frequentPaths.length > 0) {
-            sb.append("Frequent Paths: ").append(String.join(", ", frequentPaths)).append("\n");
-        }
-    }
-
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {
         StringBuilder sb = new StringBuilder();
 
@@ -1243,12 +1163,11 @@ public class BaselineLearningService {
         if (metadata == null) {
             return null;
         }
-        // Every classification value goes to the same normalizer as the current request and the past records; the
-        // first non-blank value alone could be a business family that names no class.
-        return SecuritySemanticNormalizer.normalizeResourceFamily(
+        // Every classification value goes to the same normalizer as the current request and the past records. A family
+        // hint names a business category and is not one of them (W2-10).
+        return SecuritySemanticNormalizer.normalizeResourceClass(
                 metadata.get("resourceSensitivity"),
                 metadata.get("sensitivity"),
-                metadata.get("resourceFamily"),
                 metadata.get("resourceType"));
     }
 
@@ -1338,7 +1257,7 @@ public class BaselineLearningService {
         }
         return Arrays.stream(values)
                 .filter(value -> StringUtils.hasText(value) && !value.contains("/"))
-                .map(SecuritySemanticNormalizer::normalizeResourceFamily)
+                .map(SecuritySemanticNormalizer::normalizeResourceClass)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();

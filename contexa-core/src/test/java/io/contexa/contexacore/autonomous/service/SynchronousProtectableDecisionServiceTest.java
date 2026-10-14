@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -190,6 +191,61 @@ class SynchronousProtectableDecisionServiceTest {
         when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
 
         assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+    }
+
+    @Test
+    @DisplayName("a sync request answered by the decision in force is kept in its session without analysis (N-SES-1)")
+    void analyze_decisionInForce_isRecordedWithoutAnalysis() {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        service.setUnanalysedRequestRecorder(unanalysed);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(eventListener.shouldPublishAuthorizationEvent(event)).thenReturn(false);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.ALLOW);
+        when(actionRepository.getAnalysisData(USER_ID)).thenReturn(ZeroTrustActionRepository.ZeroTrustAnalysisData.pending());
+
+        SynchronousProtectableDecisionService.SyncDecisionResult result =
+                service.analyze(methodInvocation, authentication);
+
+        assertThat(result.action()).isEqualTo(ZeroTrustAction.ALLOW);
+        verify(securityPlaneAgent, never()).processSecurityEvent(any(SecurityEvent.class));
+        verify(unanalysed).record(event, ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("an analysed sync request is recorded by its analysis, not here (N-SES-1)")
+    void analyze_analysedRequest_isNotRecordedHere() {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        service.setUnanalysedRequestRecorder(unanalysed);
+        bindRequest(request("/admin/reports"));
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class)))
+                .thenReturn(mock(SecurityEventContext.class));
+
+        service.analyze(methodInvocation, authentication);
+
+        verify(unanalysed, never()).record(any(), any());
+    }
+
+    @Test
+    @DisplayName("an asynchronous request stopped by the restriction in force is kept in its session (N-SES-1)")
+    void storedRestriction_restrictedRequestIsRecorded() {
+        UnanalysedRequestRecorder unanalysed = mock(UnanalysedRequestRecorder.class);
+        service.setUnanalysedRequestRecorder(unanalysed);
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH))
+                .thenReturn(ZeroTrustAction.CHALLENGE, ZeroTrustAction.ALLOW);
+
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isEqualTo(ZeroTrustAction.CHALLENGE);
+        // An allowed request runs and reaches the listener, which keeps it (N-SES-1).
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+
+        verify(unanalysed).record(event, ZeroTrustAction.CHALLENGE);
+        verify(unanalysed, never()).record(event, ZeroTrustAction.ALLOW);
     }
 
     private ZeroTrustSpringEvent methodEvent(String path) {

@@ -18,6 +18,8 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
+import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
@@ -38,6 +40,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith({MockitoExtension.class, I18nTestSupport.EnglishLocale.class})
@@ -202,6 +207,40 @@ class BlockedUserServiceTest {
 
             verify(blockedUserJpaRepository).save(blocked);
             assertThat(blocked.getStatus()).isEqualTo(BlockedUserStatus.RESOLVED);
+        }
+
+        @Test
+        @DisplayName("an administrator's ALLOW learns the blocked request from its own facts (W5-2)")
+        void allowReleaseLearnsTheBlockedRequestFromItsOwnFacts() {
+            VerificationLearningService verification = mock(VerificationLearningService.class);
+            service.setVerificationLearningService(verification);
+            BlockedUser blocked = buildBlockedUser(1L, "user1", BlockedUserStatus.BLOCKED);
+            when(blockedUserJpaRepository.findById(1L)).thenReturn(Optional.of(blocked));
+            SecurityEvent held = SecurityEvent.builder().eventId("held-1").userId("user1")
+                    .timestamp(Instant.parse("2026-09-30T03:17:00Z")).build();
+            held.addMetadata("requestPath", "/api/projects/GB-500/exports");
+            when(verification.take("user1", "req-1", VerificationLearningService.Verification.ADMIN_RELEASE))
+                    .thenReturn(Optional.of(held));
+
+            service.resolveBlockById(1L, "admin1", "ALLOW", "Verified owner");
+
+            verify(adminOverrideService).approve(eq("req-1"), eq("user1"), eq("admin1"), eq("BLOCK"), eq("ALLOW"),
+                    eq("Verified owner"), same(held));
+            verify(verification).learnWorkProfile(held);
+        }
+
+        @Test
+        @DisplayName("a release to another action learns nothing from the blocked request (W5-2)")
+        void otherReleaseLearnsNothing() {
+            VerificationLearningService verification = mock(VerificationLearningService.class);
+            service.setVerificationLearningService(verification);
+            BlockedUser blocked = buildBlockedUser(1L, "user1", BlockedUserStatus.BLOCKED);
+            when(blockedUserJpaRepository.findById(1L)).thenReturn(Optional.of(blocked));
+
+            service.resolveBlockById(1L, "admin1", "CHALLENGE", "Ask again");
+
+            verify(verification, never()).take(anyString(), anyString(), any());
+            verify(verification, never()).learnWorkProfile(any());
         }
 
         @Test

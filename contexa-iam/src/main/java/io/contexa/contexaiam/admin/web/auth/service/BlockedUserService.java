@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
@@ -54,6 +55,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final CentralAuditFacade centralAuditFacade;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final MessageSource messageSource;
+    private VerificationLearningService verificationLearningService;
+
+    /** Learns, after an administrator's ALLOW, the blocked request from its own facts (W5-2). */
+    public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
+        this.verificationLearningService = verificationLearningService;
+    }
 
     private String msg(String key, Object... args) {
         return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
@@ -382,7 +389,13 @@ public class BlockedUserService implements IBlockedUserRecorder {
             String reason
     ) {
         try {
-            SecurityEvent blockEvent = SecurityEvent.builder()
+            // An administrator's ALLOW learns the blocked request from its own facts and time (W5-2); without kept
+            // facts the block context is learned as before.
+            SecurityEvent heldRequest = ZeroTrustAction.ALLOW.name().equalsIgnoreCase(resolvedAction)
+                    && verificationLearningService != null
+                    ? verificationLearningService.take(blockedUserId, requestId,
+                    VerificationLearningService.Verification.ADMIN_RELEASE).orElse(null) : null;
+            SecurityEvent blockEvent = heldRequest != null ? heldRequest : SecurityEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .source(SecurityEvent.EventSource.IAM)
                     .userId(blockedUserId)
@@ -402,6 +415,9 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     reason,
                     blockEvent
             );
+            if (heldRequest != null) {
+                verificationLearningService.learnWorkProfile(heldRequest);
+            }
         } catch (Exception e) {
             log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",
                     requestId, e);

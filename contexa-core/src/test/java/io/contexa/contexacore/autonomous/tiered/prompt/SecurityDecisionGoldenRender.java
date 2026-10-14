@@ -24,7 +24,9 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
@@ -116,17 +118,50 @@ final class SecurityDecisionGoldenRender {
      * not depend on the machine that runs the build.
      */
     RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile) {
+        return render(goldenCase, profile, new TieredStrategyProperties());
+    }
+
+    /** Renders with the given settings (the bundle the configuration chooses, W3-16, for example). */
+    RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, TieredStrategyProperties properties) {
+        return render(goldenCase, profile, properties, null);
+    }
+
+    /** Renders the bundle the given selector chooses (W3-16). */
+    RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, PromptBundleSelector selector) {
+        return renderInZone(goldenCase, profile, new TieredStrategyProperties(), null, Map.of(), selector);
+    }
+
+    /** Renders with the given settings and a behaviour analysis (the threat matches of W3-6, for example). */
+    RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, TieredStrategyProperties properties,
+                        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
+        return render(goldenCase, profile, properties, behaviorAnalysis, Map.of());
+    }
+
+    /** Renders with request parameters as well (W3-7: the model a request names). */
+    RenderedCase render(JsonNode goldenCase, PromptBudgetProfile profile, TieredStrategyProperties properties,
+                        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                        Map<String, String> requestParameters) {
+        return renderInZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, null);
+    }
+
+    private RenderedCase renderInZone(JsonNode goldenCase, PromptBudgetProfile profile,
+                                      TieredStrategyProperties properties,
+                                      SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                                      Map<String, String> requestParameters, PromptBundleSelector selector) {
         TimeZone original = TimeZone.getDefault();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         try {
-            return renderInDefaultZone(goldenCase, profile);
+            return renderInDefaultZone(goldenCase, profile, properties, behaviorAnalysis, requestParameters, selector);
         }
         finally {
             TimeZone.setDefault(original);
         }
     }
 
-    private RenderedCase renderInDefaultZone(JsonNode goldenCase, PromptBudgetProfile profile) {
+    private RenderedCase renderInDefaultZone(JsonNode goldenCase, PromptBudgetProfile profile,
+                                             TieredStrategyProperties properties,
+                                             SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                                             Map<String, String> requestParameters, PromptBundleSelector selector) {
         CanonicalSecurityContext canonicalContext = new CanonicalSecurityContextSerializer(OBJECT_MAPPER)
                 .deserialize(goldenCase.path("canonicalContext").toString());
         if (canonicalContext == null) {
@@ -134,21 +169,30 @@ final class SecurityDecisionGoldenRender {
         }
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
+                properties,
                 event -> Optional.of(canonicalContext),
                 new PromptContextComposer(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
-        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
-        SecurityDecisionRequest request = new SecurityDecisionRequest(new SecurityDecisionContext(
-                event(goldenCase),
-                session(goldenCase),
+                selector,
                 null,
+                null);
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
+        SecurityEvent event = event(goldenCase);
+        SecurityDecisionRequest request = new SecurityDecisionRequest(new SecurityDecisionContext(
+                event,
+                session(goldenCase),
+                behaviorAnalysis,
                 documents(goldenCase)));
         request.withParameter("promptBudgetProfile", profile.profileKey());
         request.withParameter("structuredOutputMode", StructuredOutputMode.VALIDATED_CONVERTER.name());
+        requestParameters.forEach(request::withParameter);
         String systemText = template.generateSystemPrompt(request, null);
         String userText = template.generateUserPrompt(request, null);
-        return new RenderedCase(goldenCase.path("caseKey").asText(), profile, systemText, userText);
+        PromptExecutionMetadata executionMetadata = template.buildPromptExecutionMetadata(request, systemText, userText);
+        // The render keeps its own copy of the context; the copy it used (decision facts included) travels with
+        // the event for the sealed evidence.
+        Object used = event.getMetadata().get("sealedEvidence.canonicalContext");
+        return new RenderedCase(goldenCase.path("caseKey").asText(), profile, systemText, userText,
+                used instanceof CanonicalSecurityContext context ? context : null, executionMetadata);
     }
 
     static String digest(List<RenderedCase> rendered) {
@@ -219,6 +263,8 @@ final class SecurityDecisionGoldenRender {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-    record RenderedCase(String caseKey, PromptBudgetProfile profile, String systemText, String userText) {
+    /** One rendered case, with the canonical context the render filled (decision facts included). */
+    record RenderedCase(String caseKey, PromptBudgetProfile profile, String systemText, String userText,
+                        CanonicalSecurityContext canonicalContext, PromptExecutionMetadata executionMetadata) {
     }
 }

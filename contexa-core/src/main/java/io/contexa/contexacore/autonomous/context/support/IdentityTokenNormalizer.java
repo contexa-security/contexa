@@ -121,6 +121,11 @@ public final class IdentityTokenNormalizer {
         if (!StringUtils.hasText(candidate)) {
             return null;
         }
+        // An OAuth2 resource server grants each token scope as a SCOPE_ authority: a permission the token carries,
+        // never a role of the requester (N-ID-1).
+        if (candidate.toUpperCase(Locale.ROOT).startsWith("SCOPE_")) {
+            return null;
+        }
         if (candidate.startsWith("ROLE_")) {
             candidate = candidate.substring("ROLE_".length());
         }

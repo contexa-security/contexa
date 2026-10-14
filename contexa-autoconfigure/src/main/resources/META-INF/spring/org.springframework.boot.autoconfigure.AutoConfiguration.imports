@@ -19,6 +19,8 @@ io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
 # Core LLM
 io.contexa.autoconfigure.core.llm.OpenAiChatModelOptionsAutoConfiguration
+io.contexa.autoconfigure.core.llm.AnthropicChatModelOptionsAutoConfiguration
+io.contexa.autoconfigure.core.llm.OllamaChatModelOptionsAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 
@@ -111,7 +113,9 @@ io.contexa.autoconfigure.iam.admin.IamAdminSessionAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminIpAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PromptGovernanceAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaOfficialInspectionAutoConfiguration
+io.contexa.autoconfigure.iam.admin.SealedEvidenceStoreAutoConfiguration
 io.contexa.autoconfigure.iam.admin.PqaSealedEvidenceAutoConfiguration
+io.contexa.autoconfigure.iam.admin.PromptInspectionAutoConfiguration
 
 # IAM Security Core
 io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration

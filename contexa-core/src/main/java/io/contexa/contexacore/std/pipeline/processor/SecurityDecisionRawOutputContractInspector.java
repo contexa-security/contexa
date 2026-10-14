@@ -135,7 +135,8 @@ public final class SecurityDecisionRawOutputContractInspector {
                 || hasAnyPromptFact(promptText, "approvalrequired", "true")
                 || hasAnyPromptFact(promptText, "approvalmissing", "true")
                 || hasAnyPromptFact(promptText, "blockeduser", "true")
-                || hasAnyPromptFact(promptText, "contextbindinghashmismatch", "true")
+                || statedFact(promptFactValue(promptText, "sessiondevicechange"))
+                || statedFact(promptFactValue(promptText, "sessionnetworkchange"))
                 || hasAnyPromptFact(promptText, "currentresourcefamilypresentindeniedrolescope", "true")
                 || hasAnyPromptFact(promptText, "currentactionfamilypresentindeniedrolescope", "true")
                 || hasAnyPromptFact(promptText, "currentresourcefamilypresentinexpectedrolescope", "false")
@@ -237,6 +238,12 @@ public final class SecurityDecisionRawOutputContractInspector {
 
     private boolean positiveCount(String value) {
         return countAtLeast(value, 1);
+    }
+
+    /** Whether the prompt states the fact: a value that is neither blank, unknown, none nor not applicable (W2-14). */
+    private boolean statedFact(String value) {
+        return value != null && !value.isBlank() && !"unknown".equals(value) && !"none".equals(value)
+                && !"not_applicable".equals(value);
     }
 
     private boolean countAtLeast(String value, int minimum) {

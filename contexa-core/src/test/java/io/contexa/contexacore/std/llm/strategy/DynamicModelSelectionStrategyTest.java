@@ -23,7 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.ai.anthropic.AnthropicChatOptions;
+import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
@@ -44,6 +48,27 @@ class DynamicModelSelectionStrategyTest {
 
     @Mock
     private ChatModel tierModel;
+
+    /**
+     * The primary chat model is the designed path when no model was asked for and no tier model is set, so it is no
+     * fallback; its provider comes from the chat model itself when the registry does not describe its model.
+     */
+    @Test
+    void thePrimaryModelWithoutARequestIsNoFallbackAndNamesItsProvider() {
+        ChatModel anthropic = AnthropicChatModel.builder()
+                .anthropicApi(AnthropicApi.builder().apiKey("test").build())
+                .defaultOptions(AnthropicChatOptions.builder().model("claude-haiku-5-5").build())
+                .build();
+        DynamicModelSelectionStrategy strategy = new DynamicModelSelectionStrategy(modelRegistry,
+                new TieredLLMProperties(), anthropic);
+        ExecutionContext context = ExecutionContext.builder().prompt(new Prompt("security prompt")).build();
+
+        assertThat(strategy.selectModel(context)).isSameAs(anthropic);
+        assertThat(context.getMetadata())
+                .containsEntry("selectedModelId", "claude-haiku-5-5")
+                .containsEntry("selectedModelProvider", "anthropic")
+                .containsEntry("modelSelectionFallbackUsed", false);
+    }
 
     @Test
     void selectModelShouldPreferExplicitRequestedModelBeforeTier() {

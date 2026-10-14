@@ -55,6 +55,30 @@
       "description": "Whether expired sealed evidence packages are deleted on schedule. Ignored when contexa.enterprise.enabled is true."
     },
     {
+      "name": "contexa.pqa.oss.sealed-evidence.sample-percent",
+      "type": "java.lang.Integer",
+      "defaultValue": 1,
+      "description": "Share of requests (1 to 100) whose decision is sealed, chosen by a stable hash of the request id, outside the full-capture window. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.full-capture-after-change",
+      "type": "java.lang.Integer",
+      "defaultValue": 1000,
+      "description": "Decisions sealed in full after the node starts (a new inspector or dictionary version comes with a new build) and after the active prompt bundle changes. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.retention.period",
+      "type": "java.time.Duration",
+      "defaultValue": "90d",
+      "description": "How long a sealed evidence package is kept; the package's expiry is its capture time plus this period. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
+      "name": "contexa.pqa.oss.sealed-evidence.retention.clean-period",
+      "type": "java.time.Duration",
+      "defaultValue": "30d",
+      "description": "How long a sealed evidence package whose latest prompt inspection found nothing wrong (PASS or NOT_APPLICABLE) is kept, unless an official verification run names it; other packages keep retention.period. Runs on retention.cleanup-cron while prompt inspection and retention are enabled. Ignored when contexa.enterprise.enabled is true."
+    },
+    {
       "name": "contexa.pqa.oss.sealed-evidence.retention.cleanup-cron",
       "type": "java.lang.String",
       "defaultValue": "0 30 3 * * *",

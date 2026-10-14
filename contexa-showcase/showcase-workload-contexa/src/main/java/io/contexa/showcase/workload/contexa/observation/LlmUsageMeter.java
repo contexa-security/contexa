@@ -2,6 +2,7 @@ package io.contexa.showcase.workload.contexa.observation;
 
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
+import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
@@ -72,7 +73,7 @@ public class LlmUsageMeter extends BaseAdvisor {
             model = metadata.getModel();
             Usage usage = metadata.getUsage();
             if (usage != null) {
-                promptTokens = usage.getPromptTokens() == null ? null : usage.getPromptTokens().longValue();
+                promptTokens = promptTokens(usage);
                 completionTokens = usage.getCompletionTokens() == null ? null
                         : usage.getCompletionTokens().longValue();
             }
@@ -84,6 +85,21 @@ public class LlmUsageMeter extends BaseAdvisor {
         }
         exchanges.complete(model, answer, finishReason, promptTokens, completionTokens, success,
                 failure == null ? null : failure.getClass().getSimpleName());
+    }
+
+    /**
+     * The prompt tokens of a call as OpenAI counts them: Anthropic reports its prompt cache reads and writes apart from
+     * its input tokens, which are Spring AI's prompt tokens.
+     */
+    static Long promptTokens(Usage usage) {
+        if (usage.getPromptTokens() == null) {
+            return null;
+        }
+        long prompt = usage.getPromptTokens();
+        if (usage.getNativeUsage() instanceof AnthropicApi.Usage anthropic) {
+            prompt += value(anthropic.cacheReadInputTokens()) + value(anthropic.cacheCreationInputTokens());
+        }
+        return prompt;
     }
 
     private static String decisionId(ChatClientRequest request) {
@@ -134,9 +150,11 @@ public class LlmUsageMeter extends BaseAdvisor {
             model = metadata.getModel();
             Usage usage = metadata.getUsage();
             if (usage != null) {
-                prompt = value(usage.getPromptTokens());
+                Long counted = promptTokens(usage);
+                prompt = counted == null ? 0 : counted;
                 completion = value(usage.getCompletionTokens());
-                total = value(usage.getTotalTokens());
+                total = usage.getNativeUsage() instanceof AnthropicApi.Usage ? prompt + completion
+                        : value(usage.getTotalTokens());
             }
         }
         String promptText = promptText(request);

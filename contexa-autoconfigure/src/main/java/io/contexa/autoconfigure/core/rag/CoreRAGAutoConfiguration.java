@@ -32,6 +32,9 @@ import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.BehaviorDocumentRetentionScheduler;
+import io.contexa.contexacore.std.rag.service.PgVectorMetadataIndex;
+import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
+import io.contexa.contexacore.std.rag.service.PgVectorPastRecordQuery;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,7 @@ import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -111,8 +115,11 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnBean(VectorStore.class)
     public BehaviorDocumentRetentionScheduler behaviorDocumentRetentionScheduler(
             VectorStore vectorStore,
-            ContexaRagProperties ragProperties) {
-        return new BehaviorDocumentRetentionScheduler(vectorStore, ragProperties);
+            ContexaRagProperties ragProperties,
+            ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer) {
+        BehaviorDocumentRetentionScheduler scheduler = new BehaviorDocumentRetentionScheduler(vectorStore, ragProperties);
+        scheduler.setVectorStoreCacheLayer(vectorStoreCacheLayer.getIfAvailable());
+        return scheduler;
     }
 
     @Bean
@@ -120,16 +127,33 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
-            TieredStrategyProperties tieredStrategyProperties) {
-        return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
+            TieredStrategyProperties tieredStrategyProperties,
+            PgVectorStoreProperties pgVectorStoreProperties) {
+        return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties,
+                new PgVectorSearchSettings(pgVectorStoreProperties));
     }
 
+    /**
+     * The metadata index of the pgvector table, created at start when Spring AI initialises the schema (W2-15), so
+     * that a personal search reads one user's rows directly. A store that is not pgvector has none.
+     */
+    @Bean
+    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnProperty(prefix = "spring.ai.vectorstore.pgvector", name = "initialize-schema", havingValue = "true")
+    public SmartInitializingSingleton pgVectorMetadataIndexInitializer(VectorStore vectorStore, Environment environment) {
+        return () -> PgVectorMetadataIndex.ensureFor(vectorStore,
+                environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
+                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store"));
+    }
+
+    /** Vector searches and stores; all configured threads run before work queues (W2-15). */
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnMissingBean(name = "vectorOperationExecutor")
-    public ExecutorService vectorOperationExecutor() {
+    public ExecutorService vectorOperationExecutor(PgVectorStoreProperties pgVectorStoreProperties) {
+        int threads = Math.max(1, pgVectorStoreProperties.getParallelThreads());
         return new ThreadPoolExecutor(
-                2,
-                8,
+                threads,
+                threads,
                 60L,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(1000),
@@ -144,8 +168,13 @@ public class CoreRAGAutoConfiguration {
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
-            @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor) {
-        return new UnifiedVectorService(properties, cacheLayer, vectorStore, vectorOperationExecutor);
+            @Qualifier("vectorOperationExecutor") ExecutorService vectorOperationExecutor,
+            Environment environment) {
+        // W3-18: the past records of a v20 prompt are read by an exact lookup of the pgvector table.
+        return new UnifiedVectorService(properties, cacheLayer, vectorStore, vectorOperationExecutor,
+                new PgVectorPastRecordQuery(vectorStore,
+                        environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
+                        environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store")));
     }
 
     @Bean

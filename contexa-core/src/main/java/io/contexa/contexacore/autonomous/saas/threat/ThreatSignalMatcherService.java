@@ -226,7 +226,10 @@ public class ThreatSignalMatcherService {
                 && StringUtils.hasText(behaviorAnalysis.getPreviousUserAgentOS())
                 && StringUtils.hasText(behaviorAnalysis.getCurrentUserAgentOS())
                 && !behaviorAnalysis.getPreviousUserAgentOS().equalsIgnoreCase(behaviorAnalysis.getCurrentUserAgentOS());
-        boolean sessionAnomaly = behaviorAnalysis != null && Boolean.TRUE.equals(behaviorAnalysis.getContextBindingHashMismatch());
+        // A change of device or network within the session, as the session narrative found it (W2-14).
+        boolean sessionAnomaly = behaviorAnalysis != null
+                && (StringUtils.hasText(behaviorAnalysis.getSessionDeviceChange())
+                || StringUtils.hasText(behaviorAnalysis.getSessionNetworkChange()));
         Set<String> tags = new LinkedHashSet<>();
         if (StringUtils.hasText(pathCategory)) {
             tags.add("surface_" + normalize(pathCategory));
@@ -302,8 +305,8 @@ public class ThreatSignalMatcherService {
                 boolean matched = false;
                 if (traits.sessionAnomaly()) {
                     matchedFacts.add(caseMode
-                            ? "This request shows a session binding anomaly that aligns with past session hijack outcomes."
-                            : "The current session shows a binding anomaly that is consistent with session hijacking attempts.");
+                            ? "This request changed device or network within its session, which aligns with past session hijack outcomes."
+                            : "The current session changed device or network mid-session, which is consistent with session hijacking attempts.");
                     matched = true;
                 }
                 if ("session".equals(traits.pathCategory())) {

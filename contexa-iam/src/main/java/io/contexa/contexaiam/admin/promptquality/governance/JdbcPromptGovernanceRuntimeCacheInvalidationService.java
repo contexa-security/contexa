@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.governance;
 
-import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityJdbcTimestamps;
+import io.contexa.contexaiam.admin.promptquality.common.PromptQualityJdbcTimestamps;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +9,7 @@ import org.springframework.util.StringUtils;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public class JdbcPromptGovernanceRuntimeCacheInvalidationService
@@ -32,17 +33,37 @@ public class JdbcPromptGovernanceRuntimeCacheInvalidationService
             String publishedBy) {
         String eventId = "pqa-cache-" + UUID.randomUUID();
         Timestamp now = PromptQualityJdbcTimestamps.toTimestamp(PromptQualityJdbcTimestamps.nowText());
+        String scope = safeScope(registryScope);
+        String key = require(promptKey, "promptKey");
+        String version = require(promptVersion, "promptVersion");
+        // PV-23: the event names the release's template key and contract version, read from the registry; a version
+        // without a registry row names none, which clears every template key of the prompt key.
+        List<Map<String, Object>> release = jdbcTemplate.queryForList(
+                """
+                        select template_key, contract_version
+                          from prompt_governance_registry
+                         where registry_scope = ?
+                           and prompt_key = ?
+                           and prompt_version = ?
+                         order by updated_at desc, id desc
+                         limit 1
+                        """,
+                scope,
+                key,
+                version);
         jdbcTemplate.update(
                 """
                         insert into prompt_governance_runtime_cache_invalidation (
-                            event_id, registry_scope, prompt_key, prompt_version,
+                            event_id, registry_scope, prompt_key, template_key, prompt_version, contract_version,
                             invalidation_reason, published_by, published_at, consumed
-                        ) values (?, ?, ?, ?, ?, ?, ?, ?)
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                 eventId,
-                safeScope(registryScope),
-                require(promptKey, "promptKey"),
-                require(promptVersion, "promptVersion"),
+                scope,
+                key,
+                release.isEmpty() ? null : release.get(0).get("template_key"),
+                version,
+                release.isEmpty() ? null : release.get(0).get("contract_version"),
                 value(reason, "PQA governance release changed."),
                 value(publishedBy, "system"),
                 now,

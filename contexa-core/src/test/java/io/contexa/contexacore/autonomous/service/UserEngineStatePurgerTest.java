@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ class UserEngineStatePurgerTest {
     private final InMemoryBaselineDataStore baselines = new InMemoryBaselineDataStore();
     private final InMemorySecurityContextDataStore context = new InMemorySecurityContextDataStore();
     private final VectorStore vectorStore = mock(VectorStore.class);
+    private final VectorStoreCacheLayer cacheLayer = mock(VectorStoreCacheLayer.class);
     private final IForceLogoutService forceLogout = mock(IForceLogoutService.class);
 
     @Test
@@ -55,6 +57,8 @@ class UserEngineStatePurgerTest {
         verify(forceLogout).forceLogoutByUserId(USER, "ACCOUNT_DELETED");
         Filter.Expression userFilter = new FilterExpressionBuilder().eq("userId", USER).build();
         verify(vectorStore).delete(userFilter);
+        // W2-15: the user's cached past-record searches go with the records.
+        verify(cacheLayer).invalidateForUser(USER);
 
         assertThat(actions.getCurrentAction(OTHER, "any-context")).isEqualTo(ZeroTrustAction.BLOCK);
         assertThat(broadcaster.isBlocked(OTHER)).isTrue();
@@ -99,8 +103,10 @@ class UserEngineStatePurgerTest {
     }
 
     private UserEngineStatePurger purger(List<UserStatePurgeContributor> contributors) {
-        return new UserEngineStatePurger(actions, broadcaster, blockMfa, baselines, context, null,
+        UserEngineStatePurger purger = new UserEngineStatePurger(actions, broadcaster, blockMfa, baselines, context, null,
                 vectorStore, forceLogout, contributors);
+        purger.setVectorStoreCacheLayer(cacheLayer);
+        return purger;
     }
 
     private void seed(String user) {

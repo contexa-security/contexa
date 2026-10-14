@@ -27,11 +27,34 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.ModelOptionsUtils;
+import org.springframework.ai.model.tool.StructuredOutputChatOptions;
+import org.springframework.util.ClassUtils;
 
 @Slf4j
 public final class ProviderAwareChatOptionsFactory {
 
     private static final String OPENAI_CHAT_OPTIONS_CLASS = "org.springframework.ai.openai.OpenAiChatOptions";
+    private static final String ANTHROPIC_CHAT_OPTIONS_CLASS = "org.springframework.ai.anthropic.AnthropicChatOptions";
+    private static final boolean OPENAI_OPTIONS_PRESENT =
+            ClassUtils.isPresent(OPENAI_CHAT_OPTIONS_CLASS, ProviderAwareChatOptionsFactory.class.getClassLoader());
+    /** The package names of Spring AI's chat providers other than OpenAI (Azure OpenAI has its own options). */
+    private static final List<String> OTHER_PROVIDER_PACKAGES = List.of(".anthropic.", ".ollama.", ".azure.",
+            ".vertexai.", ".google.", ".bedrock.", ".mistralai.", ".deepseek.", ".minimax.", ".zhipuai.",
+            ".huggingface.", ".oci.");
+    private static final String ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY =
+            "contexa.llm.model-capabilities.anthropic.default-sampling-only-patterns";
+    private static final String ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV =
+            "CONTEXA_LLM_MODEL_CAPABILITIES_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS";
+    /**
+     * The Claude models that refuse any sampling value but the default with a 400 error (the Claude API migration
+     * guides, read on 2026-10-14): Claude Opus 4.7 and later, Claude Sonnet 5.5 and Claude Haiku 5.5.
+     */
+    public static final String ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS =
+            "claude-opus-4-[7-9](?:[.-].*)?,claude-opus-[5-9](?:[.-].*)?,claude-sonnet-5-5(?:[.-].*)?,"
+                    + "claude-haiku-5(?:[.-].*)?";
+    private static final String PROMPT_CACHE_KEY = "promptCacheKey";
+    private static final String PROMPT_CACHE_KEY_APPLIED = "promptCacheKeyApplied";
     private static final String OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY =
             "contexa.llm.model-capabilities.openai.max-completion-token-patterns";
     private static final String OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_ENV =
@@ -48,6 +71,8 @@ public final class ProviderAwareChatOptionsFactory {
     private static final AtomicReference<String> CONFIGURED_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS = new AtomicReference<>();
     private static final AtomicReference<String> CONFIGURED_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS = new AtomicReference<>();
     private static final AtomicReference<String> CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS = new AtomicReference<>();
+    private static final AtomicReference<String> CONFIGURED_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS =
+            new AtomicReference<>();
 
     private ProviderAwareChatOptionsFactory() {
     }
@@ -63,11 +88,26 @@ public final class ProviderAwareChatOptionsFactory {
         setIfText(CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS, ollamaDisableThinkingPatterns);
     }
 
+    /** The Ollama models whose thinking is turned off (from the application configuration). */
+    public static void configureOllamaModelCapabilities(String disableThinkingPatterns) {
+        setIfText(CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS, disableThinkingPatterns);
+    }
+
+    /** The Claude models that take only the default sampling; without a configured list, the documented ones. */
+    public static void configureAnthropicModelCapabilities(String defaultSamplingOnlyPatterns) {
+        setIfText(CONFIGURED_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS, defaultSamplingOnlyPatterns);
+    }
+
     public static ChatOptions normalizeExplicitOptions(ChatOptions options, ExecutionContext context, ChatModel selectedModel) {
         if (options == null) {
             return null;
         }
         String modelName = resolveModelName(context, selectedModel, options);
+        if (isAnthropicModel(selectedModel, context) || isAnthropicOptions(options)) {
+            // Explicit options keep their type (they may carry tool callbacks); only refused sampling values are taken out.
+            return anthropicUsesDefaultSamplingOnly(modelName) && hasSamplingValues(options)
+                    ? withoutSamplingValues(options.copy()) : options;
+        }
         boolean isOpenAi = isOpenAiOptions(options);
         boolean requiresMaxCompletion = requiresMaxCompletionTokens(modelName);
         boolean usesDefaultSamplingOnly = usesDefaultSamplingOnly(modelName);
@@ -94,8 +134,11 @@ public final class ProviderAwareChatOptionsFactory {
             }
         }
 
-        if (!isOpenAi || !requiresMaxCompletion) {
-            return options;
+        if (!isOpenAi) {
+            return withOutputSchema(options, context);
+        }
+        if (!requiresMaxCompletion) {
+            return withOutputSchema(withPromptCacheKey(options, context), context);
         }
 
         Object copy = copyOpenAiOptions(options);
@@ -120,7 +163,7 @@ public final class ProviderAwareChatOptionsFactory {
             }
         }
         applyOpenAiRuntimeOptions(copy, context);
-        return (ChatOptions) copy;
+        return withOutputSchema((ChatOptions) copy, context);
     }
 
     public static ChatOptions normalizeModelDefaultOptions(ChatOptions options) {
@@ -174,6 +217,14 @@ public final class ProviderAwareChatOptionsFactory {
             return;
         }
         ChatOptions options = mutableDefaultOptions(selectedModel);
+        if (isAnthropicOptions(options)) {
+            // Spring AI sends the default temperature it sets (0.8) on every request; a Claude model that refuses any
+            // sampling value but the default loses it, whenever its bean was created.
+            if (anthropicUsesDefaultSamplingOnly(readString(options, "getModel")) && hasSamplingValues(options)) {
+                withoutSamplingValues(options);
+            }
+            return;
+        }
         if (!isOpenAiOptions(options)) {
             return;
         }
@@ -255,13 +306,19 @@ public final class ProviderAwareChatOptionsFactory {
             return ChatOptions.builder().build();
         }
         String modelName = resolveModelName(context, selectedModel, null);
+        if (isAnthropicModel(selectedModel, context)) {
+            return withOutputSchema(buildAnthropicOptions(context, selectedModel, modelName), context);
+        }
         if (isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName)) {
-            return buildOpenAiCompletionTokenOptions(context, selectedModel, modelName);
+            return withOutputSchema(buildOpenAiCompletionTokenOptions(context, selectedModel, modelName), context);
         }
         if (isOllamaModel(selectedModel, context)) {
-            return buildOllamaOptions(context, selectedModel, tieredLLMProperties);
+            return withOutputSchema(buildOllamaOptions(context, selectedModel, tieredLLMProperties), context);
         }
-        return buildGenericChatOptions(context);
+        if (isOpenAiModel(selectedModel, context) && needsOpenAiOptions(context)) {
+            return withOutputSchema(buildOpenAiPromptCacheOptions(context, selectedModel), context);
+        }
+        return withOutputSchema(buildGenericChatOptions(context), context);
     }
 
     public static boolean requiresProviderSpecificOptions(ExecutionContext context, ChatModel selectedModel) {
@@ -269,7 +326,42 @@ public final class ProviderAwareChatOptionsFactory {
         if (isOpenAiModel(selectedModel, context) && requiresMaxCompletionTokens(modelName)) {
             return true;
         }
-        return isOllamaModel(selectedModel, context);
+        if (isOllamaModel(selectedModel, context)) {
+            return true;
+        }
+        return isOpenAiModel(selectedModel, context) && needsOpenAiOptions(context);
+    }
+
+    /**
+     * An OpenAI model outside the completion token rule takes the provider options only for what the generic options
+     * cannot carry: the prompt cache key (W3-8) or the output schema (W4-2).
+     */
+    private static boolean needsOpenAiOptions(ExecutionContext context) {
+        return metadataText(context, PROMPT_CACHE_KEY) != null
+                || metadataText(context, ExecutionContext.OUTPUT_SCHEMA) != null;
+    }
+
+    /**
+     * Puts the context's output schema on a copy of options that support structured output and records that it went
+     * out (W4-2); options that cannot carry a schema stay as they are, and the system text then states the schema.
+     */
+    private static ChatOptions withOutputSchema(ChatOptions options, ExecutionContext context) {
+        String schema = context != null ? metadataText(context, ExecutionContext.OUTPUT_SCHEMA) : null;
+        if (schema == null || !(options instanceof StructuredOutputChatOptions)) {
+            return options;
+        }
+        ChatOptions copy = options.copy();
+        ((StructuredOutputChatOptions) copy).setOutputSchema(schema);
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA_APPLIED, true);
+        return copy;
+    }
+
+    /** Whether a Claude model refuses any sampling value but the default (temperature, top-p, top-k). */
+    public static boolean anthropicUsesDefaultSamplingOnly(String modelName) {
+        return matchesConfiguredModelPattern(
+                modelName,
+                ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY,
+                ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV);
     }
 
     static boolean requiresMaxCompletionTokens(String modelName) {
@@ -284,6 +376,53 @@ public final class ProviderAwareChatOptionsFactory {
                 modelName,
                 OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY,
                 OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_ENV);
+    }
+
+    /**
+     * Anthropic options on a copy of the model's own defaults: Spring AI turns any other options into new Anthropic
+     * options whose prompt cache is off, and those override the cache the defaults configure. A Claude model that
+     * refuses any sampling value but the default gets none.
+     */
+    private static ChatOptions buildAnthropicOptions(ExecutionContext context, ChatModel selectedModel, String modelName) {
+        ChatOptions requested = buildGenericChatOptions(context);
+        ChatOptions defaults = selectedModel != null ? selectedModel.getDefaultOptions() : null;
+        ChatOptions options;
+        if (isAnthropicOptions(defaults)) {
+            options = defaults.copy();
+            ModelOptionsUtils.mergeBeans(requested, options, ChatOptions.class, true);
+        }
+        else {
+            options = requested;
+        }
+        return anthropicUsesDefaultSamplingOnly(modelName) && hasSamplingValues(options)
+                ? withoutSamplingValues(options == requested ? options.copy() : options) : options;
+    }
+
+    private static boolean hasSamplingValues(ChatOptions options) {
+        return options.getTemperature() != null || options.getTopP() != null || options.getTopK() != null;
+    }
+
+    private static ChatOptions withoutSamplingValues(ChatOptions options) {
+        invokeSetter(options, "setTemperature", Double.class, null);
+        invokeSetter(options, "setTopP", Double.class, null);
+        invokeSetter(options, "setTopK", Integer.class, null);
+        return options;
+    }
+
+    private static boolean isAnthropicModel(ChatModel selectedModel, ExecutionContext context) {
+        if (selectedModel != null
+                && selectedModel.getClass().getName().toLowerCase(Locale.ROOT).contains(".anthropic.")) {
+            return true;
+        }
+        if (selectedModel != null && isAnthropicOptions(selectedModel.getDefaultOptions())) {
+            return true;
+        }
+        Object provider = context != null ? context.getMetadata().get("selectedModelProvider") : null;
+        return provider != null && String.valueOf(provider).trim().equalsIgnoreCase("anthropic");
+    }
+
+    private static boolean isAnthropicOptions(Object options) {
+        return options != null && options.getClass().getName().equals(ANTHROPIC_CHAT_OPTIONS_CLASS);
     }
 
     private static ChatOptions buildGenericChatOptions(ExecutionContext context) {
@@ -301,6 +440,49 @@ public final class ProviderAwareChatOptionsFactory {
             optionsBuilder.maxTokens(context.getMaxTokens());
         }
         return optionsBuilder.build();
+    }
+
+    /**
+     * OpenAI options for a model outside the completion token rule: what the generic options carry plus the prompt
+     * cache key (W3-8); the output schema is added after (W4-2). The reasoning model options are left out, since older
+     * models refuse them.
+     */
+    private static ChatOptions buildOpenAiPromptCacheOptions(ExecutionContext context, ChatModel selectedModel) {
+        Object builder = openAiBuilderFromDefaultOptions(selectedModel);
+        if (context.getPreferredModel() != null && !context.getPreferredModel().isBlank()) {
+            invokeBuilder(builder, "model", String.class, context.getPreferredModel());
+        }
+        if (context.getTemperature() != null) {
+            invokeBuilder(builder, "temperature", Double.class, context.getTemperature());
+        }
+        if (context.getTopP() != null) {
+            invokeBuilder(builder, "topP", Double.class, context.getTopP());
+        }
+        if (context.getMaxTokens() != null) {
+            invokeBuilder(builder, "maxTokens", Integer.class, context.getMaxTokens());
+        }
+        ChatOptions options = (ChatOptions) invokeNoArg(builder, "build");
+        applyPromptCacheKey(options, context);
+        return options;
+    }
+
+    private static ChatOptions withPromptCacheKey(ChatOptions options, ExecutionContext context) {
+        if (metadataText(context, PROMPT_CACHE_KEY) == null) {
+            return options;
+        }
+        Object copy = copyOpenAiOptions(options);
+        applyPromptCacheKey(copy, context);
+        return (ChatOptions) copy;
+    }
+
+    /** Sends the request's provider prompt cache key (W3-8) and records that it was sent. */
+    private static void applyPromptCacheKey(Object options, ExecutionContext context) {
+        String promptCacheKey = metadataText(context, PROMPT_CACHE_KEY);
+        if (promptCacheKey == null || !isOpenAiOptions(options)) {
+            return;
+        }
+        invokeSetter(options, "setPromptCacheKey", String.class, promptCacheKey);
+        context.addMetadata(PROMPT_CACHE_KEY_APPLIED, true);
     }
 
     private static ChatOptions buildOpenAiCompletionTokenOptions(
@@ -360,6 +542,7 @@ public final class ProviderAwareChatOptionsFactory {
             invokeSetter(options, "setVerbosity", String.class, verbosity);
             context.addMetadata("openAiVerbosity", verbosity);
         }
+        applyPromptCacheKey(options, context);
     }
     private static Object openAiBuilderFromDefaultOptions(ChatModel selectedModel) {
         ChatOptions defaultOptions = selectedModel != null ? selectedModel.getDefaultOptions() : null;
@@ -401,6 +584,11 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     private static boolean isOpenAiModel(ChatModel selectedModel, ExecutionContext context) {
+        // A model of another provider Spring AI names is never OpenAI, whatever the configured priority says; and
+        // without OpenAI on the classpath no model is.
+        if (isOtherProvidersModel(selectedModel) || !OPENAI_OPTIONS_PRESENT) {
+            return false;
+        }
         if (selectedModel != null && selectedModel.getClass().getName().toLowerCase(Locale.ROOT).contains(".openai.")) {
             return true;
         }
@@ -409,6 +597,17 @@ public final class ProviderAwareChatOptionsFactory {
             return true;
         }
         return "openai".equalsIgnoreCase(configuredChatProvider());
+    }
+
+    /** Whether the model or its default options belong to a provider other than OpenAI, by their package. */
+    private static boolean isOtherProvidersModel(ChatModel selectedModel) {
+        if (selectedModel == null) {
+            return false;
+        }
+        ChatOptions defaults = selectedModel.getDefaultOptions();
+        String model = selectedModel.getClass().getName().toLowerCase(Locale.ROOT);
+        String options = defaults != null ? defaults.getClass().getName().toLowerCase(Locale.ROOT) : "";
+        return OTHER_PROVIDER_PACKAGES.stream().anyMatch(name -> model.contains(name) || options.contains(name));
     }
 
     private static boolean isOpenAiOptions(Object options) {
@@ -491,6 +690,8 @@ public final class ProviderAwareChatOptionsFactory {
             case OPENAI_MAX_COMPLETION_TOKEN_PATTERNS_PROPERTY -> CONFIGURED_OPENAI_MAX_COMPLETION_TOKEN_PATTERNS.get();
             case OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY -> CONFIGURED_OPENAI_DEFAULT_SAMPLING_ONLY_PATTERNS.get();
             case OLLAMA_DISABLE_THINKING_PATTERNS_PROPERTY -> CONFIGURED_OLLAMA_DISABLE_THINKING_PATTERNS.get();
+            case ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS_PROPERTY -> firstNonBlank(
+                    CONFIGURED_ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS.get(), ANTHROPIC_DEFAULT_SAMPLING_ONLY_PATTERNS);
             default -> null;
         };
     }
@@ -548,7 +749,7 @@ public final class ProviderAwareChatOptionsFactory {
         try {
             target.getClass().getMethod(methodName, parameterType).invoke(target, value);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot set OpenAI option " + methodName, e);
+            throw new IllegalStateException("Cannot set chat option " + methodName + " on " + target.getClass().getName(), e);
         }
     }
 

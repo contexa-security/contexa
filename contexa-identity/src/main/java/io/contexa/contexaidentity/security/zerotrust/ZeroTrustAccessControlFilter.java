@@ -22,6 +22,7 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.ResponseBlockedException;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -67,6 +68,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final int maxBlockMfaAttempts;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
+    private UnanalysedRequestRecorder unanalysedRequestRecorder;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -97,6 +99,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         this.blockingDecisionRegistry = blockingDecisionRegistry;
         this.maxBlockMfaAttempts = maxBlockMfaAttempts;
         this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
+    }
+
+    /** Keeps a request this filter stops under the decision in force in its session (N-SES-1). */
+    public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
+        this.unanalysedRequestRecorder = unanalysedRequestRecorder;
     }
 
     @Override
@@ -143,7 +150,10 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         switch (currentAction) {
             case BLOCK -> handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
-            case ESCALATE -> handleEscalate(request, response, userId);
+            case ESCALATE -> {
+                recordStopped(auth, ZeroTrustAction.ESCALATE);
+                handleEscalate(request, response, userId);
+            }
             case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId);
             default -> filterChain.doFilter(request, response);
         }
@@ -160,6 +170,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
             if (failCount >= maxBlockMfaAttempts) {
                 log.error("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
+                recordStopped(auth, ZeroTrustAction.BLOCK);
                 handleBlocked(request, response, userId);
                 return;
             }
@@ -170,12 +181,21 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             }
 
             if (challengeMfaInitializer != null) {
+                recordStopped(auth, ZeroTrustAction.BLOCK);
                 initializeBlockMfa(request, response, auth, userId);
                 return;
             }
         }
 
+        recordStopped(auth, ZeroTrustAction.BLOCK);
         handleBlocked(request, response, userId);
+    }
+
+    /** A request stopped under the decision in force is kept in its session (N-SES-1). */
+    private void recordStopped(Authentication auth, ZeroTrustAction action) {
+        if (unanalysedRequestRecorder != null) {
+            unanalysedRequestRecorder.recordRequest(auth, action);
+        }
     }
 
     private boolean isBlockMfaPending(String userId) {

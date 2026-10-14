@@ -34,8 +34,7 @@ class SecurityDecisionPromptSectionsDetectionStrategyTest {
     void buildThreatLearningSectionIncludesPromotedDetectionStrategiesAsSupportingContext() {
         SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
                 new SecurityEventEnricher(),
-                new TieredStrategyProperties(),
-                SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
+                new TieredStrategyProperties());
 
         SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis =
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();

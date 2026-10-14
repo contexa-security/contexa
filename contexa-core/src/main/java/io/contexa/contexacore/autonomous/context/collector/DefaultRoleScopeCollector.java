@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.context.collector;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -51,6 +52,7 @@ import io.contexa.contexacore.autonomous.context.model.ContextFieldTrustRecord;
 import io.contexa.contexacore.autonomous.context.model.ContextQualityGrade;
 import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
 import io.contexa.contexacore.autonomous.context.policy.ContextSemanticBoundaryPolicy;
+import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 
 public class DefaultRoleScopeCollector implements RoleScopeCollector {
 
@@ -382,15 +384,15 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         appendQualityWarning(qualityWarnings, expectedActionField);
         appendQualityWarning(qualityWarnings, permissionChangeField);
         if (allowedObservations.size() < 3 && currentHints.expectedResourceFamilies().isEmpty() && currentHints.expectedActionFamilies().isEmpty()) {
-            qualityWarnings.add("Role scope baseline is thin; treat expected scope as provisional until more authorized observations accumulate.");
+            qualityWarnings.add("Role scope baseline is thin; " + ContextEvidenceGuidance.EXPECTED_SCOPE_PROVISIONAL + ".");
         }
         if (!forbiddenResourceFamilies.isEmpty() || !forbiddenActionFamilies.isEmpty()) {
             qualityWarnings.add("Forbidden families reflect observed denied scope or explicit blocked hints, not the complete tenant authorization graph.");
         }
         if (!expectedActionField.getFallbackSourceKeys().isEmpty()) {
-            qualityWarnings.add("Expected action family baseline includes fallback-derived semantics; confirm intent with approval lineage or delegated objective.");
+            qualityWarnings.add("Expected action family baseline includes fallback-derived semantics; " + ContextEvidenceGuidance.CONFIRM_INTENT_WITH_LINEAGE + ".");
         }
-        qualityWarnings.add("This profile describes enacted or denied authorization scope after authentication, not the full tenant policy graph or business objective by itself.");
+        qualityWarnings.add(ContextEvidenceGuidance.ROLE_SCOPE_NOTE);
 
         return ContextTrustProfile.builder()
                 .profileKey(PROFILE_KEY)
@@ -410,8 +412,8 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 .overallQualityGrade(overallGrade)
                 .overallQualityScore(overallScore)
                 .scopeLimitations(List.of(
-                        "Use this profile to understand role-scoped reach and recent permission-change evidence after authorization, not to infer human purpose by itself.",
-                        "Approval lineage, delegated objective, and business intent still require friction, delegation, or enterprise memory context."))
+                        ContextEvidenceGuidance.ROLE_SCOPE_USE,
+                        ContextEvidenceGuidance.ROLE_SCOPE_PURPOSE_SOURCES))
                 .qualityWarnings(qualityWarnings)
                 .fieldRecords(fieldRecords)
                 .evidenceRecords(buildEvidenceRecords(
@@ -780,13 +782,15 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
 
     private RoleScopeObservation createObservation(SecurityEvent event, AuthorizationScopeState authorizationScopeState) {
         Map<String, Object> metadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
-        ResolvedSignal resourceFamily = resolveSignal(
+        // The scope compares business categories; a value made only of class words is a class and is passed over (W2-10).
+        // The official field first, the unprefixed hints, the protected method's descriptor, then the type (W2-11).
+        ResolvedSignal resourceFamily = resolveCategorySignal(
                 metadata,
-                true,
+                "resourceCategory",
                 "currentResourceFamily",
-                false, "resourceFamily",
-                true, "resourceType",
-                true, "resourceCategory");
+                "resourceFamily",
+                "protectableResourceCategory",
+                true, "resourceType");
         // The same family the context gives the request: declared value, protected method, URL template, HTTP method.
         ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(metadata);
         ResolvedSignal actionFamily = action.family() == ActionFamily.UNKNOWN
@@ -1192,7 +1196,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
             return;
         }
         warnings.add("Role scope field " + fieldRecord.getFieldPath()
-                + " has thin or fallback-heavy evidence; do not use it as a standalone reasoning anchor.");
+                + " has thin or fallback-heavy evidence; " + ContextEvidenceGuidance.NOT_A_REASONING_ANCHOR + ".");
     }
 
     private ContextQualityGrade resolveGrade(int qualityScore) {
@@ -1532,6 +1536,25 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 continue;
             }
             return new ResolvedSignal(normalizeValueAsToken ? normalizeToken(text) : text.trim(), key, fallback);
+        }
+        return new ResolvedSignal(null, null, false);
+    }
+
+    /** Like {@link #resolveSignal}, for a business category: the first value that is a category, as a token. */
+    private ResolvedSignal resolveCategorySignal(Map<String, Object> metadata, Object... candidates) {
+        if (metadata == null || candidates == null || candidates.length == 0) {
+            return new ResolvedSignal(null, null, false);
+        }
+        for (int index = 0; index < candidates.length; index++) {
+            Object candidate = candidates[index];
+            if (!(candidate instanceof String key)) {
+                continue;
+            }
+            boolean fallback = index > 0 && candidates[index - 1] instanceof Boolean previousFlag && previousFlag;
+            String category = SecuritySemanticNormalizer.normalizeResourceCategory(firstText(metadata.get(key)));
+            if (category != null) {
+                return new ResolvedSignal(category, key, fallback);
+            }
         }
         return new ResolvedSignal(null, null, false);
     }

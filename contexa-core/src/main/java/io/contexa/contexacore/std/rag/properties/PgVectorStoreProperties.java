@@ -43,9 +43,13 @@ public class PgVectorStoreProperties {
     @Max(1000)
     private int batchSize = 100;
 
+    /**
+     * Threads of the vector operation executor: searches, which wait on the embedding call before they read the
+     * database, and stores share it (W2-15). Sized for the engine's concurrent analyses.
+     */
     @Min(1)
     @Max(32)
-    private int parallelThreads = 4;
+    private int parallelThreads = 16;
 
     @Min(1)
     @Max(1000)

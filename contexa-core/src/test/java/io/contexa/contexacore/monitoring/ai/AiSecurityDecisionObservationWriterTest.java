@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcOperations;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,6 +38,32 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiSecurityDecisionObservationWriterTest {
+
+    /** W4-3: the observation keeps the reason codes next to the final reasoning. */
+    @Test
+    void recordDecision_keepsTheReasonCodes() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer = new AiSecurityDecisionObservationWriter(
+                () -> jdbcOperations, new ObjectMapper(), "openai", "gpt-6-luna");
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-w43")
+                .userId("user-1")
+                .sessionId("session-1")
+                .metadata(Map.of("protectableDeclared", true, "requestId", "request-w43"))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .reasoning("The export time differs from usual.")
+                .reasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")))
+                .llmDecisionPresent(true)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+        assertThat(firstInsertArgs(jdbcOperations).get("metadata_json")).asString()
+                .contains("\"finalDecisionReasonCodes\":[{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}]");
+    }
 
     @Test
     @DisplayName("Protectable LLM decision should store one neutral observation with audit fields")
@@ -120,6 +147,37 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args.get("fallback_category")).isEqualTo("JSON_PARSE_ERROR");
         assertThat(args.get("outcome_class")).isEqualTo("NOT_APPLICABLE");
         assertThat(args.get("success")).isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("Why the provider gave no decision is kept as the failure type")
+    void recordDecision_providerAnswerFailure_shouldKeepItsCategory() {
+        for (String category : new String[]{"OUTPUT_TRUNCATED", "PROVIDER_REFUSAL", "PROVIDER_OVERLOADED",
+                "PROVIDER_REQUEST_REJECTED"}) {
+            JdbcOperations jdbcOperations = jdbcOperations();
+            AiSecurityDecisionObservationWriter writer =
+                    new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+            SecurityEvent event = SecurityEvent.builder()
+                    .eventId("event-" + category)
+                    .userId("user-provider")
+                    .metadata(Map.of("requestId", "request-" + category,
+                            "securityDecisionParseFailureCategory", category,
+                            "securityDecisionFallbackReason", "LLM_EXECUTION_FAILED"))
+                    .build();
+            ProcessingResult result = ProcessingResult.builder()
+                    .success(false)
+                    .action(ZeroTrustAction.CHALLENGE.name())
+                    .llmDecisionPresent(false)
+                    .technicalFallbackApplied(true)
+                    .technicalFallbackCategory(category)
+                    .technicalFallbackReason("LLM_EXECUTION_FAILED")
+                    .processingTimeMs(11L)
+                    .build();
+
+            writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+            assertThat(firstInsertArgs(jdbcOperations).get("failure_type")).as(category).isEqualTo(category);
+        }
     }
 
     @Test

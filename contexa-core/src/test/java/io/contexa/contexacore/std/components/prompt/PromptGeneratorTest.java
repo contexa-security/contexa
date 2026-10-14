@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import java.time.ZoneId;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.PromptTemplate;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -483,6 +485,59 @@ class PromptGeneratorTest {
         public TemplateType getSupportedType() {
             return supportedType;
         }
+    }
+
+    /** W3-2: with the v20 user prompt format the generator sends the dictionary blocks and states the layout. */
+    @Test
+    void generatePromptWithTheV20UserPromptFormatSendsTheDictionaryBlocksAndStatesTheLayout() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        SecurityDecisionStandardPromptTemplate v20 = new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties);
+        SecurityDecisionStandardPromptTemplate v19 = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(), new TieredStrategyProperties());
+
+        PromptGenerationResult v20Result = generate(v20);
+        PromptGenerationResult v19Result = generate(v19);
+
+        assertThat(v20Result.getUserPrompt()).startsWith("=== USER BASELINE (learned) ===").contains("=== REQUEST")
+                .doesNotContain("=== CURRENT REQUEST AND EVENT ===");
+        // Since TO-4 the v20 bundle sends its own system text (W4-1 brought forward), not the v19 one.
+        assertThat(v20Result.getSystemPrompt()).isNotEqualTo(v19Result.getSystemPrompt())
+                .contains("Required covered-work boundary").doesNotContain("AnomalySignalTrust");
+        assertThat(layout(v20Result)).isEqualTo("v20-dictionary-blocks");
+        assertThat(layout(v19Result))
+                .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE.promptVersion());
+    }
+
+    private PromptGenerationResult generate(SecurityDecisionStandardPromptTemplate template) {
+        PromptGenerator promptGenerator = new PromptGenerator(List.of(template));
+        promptGenerator.registerTemplate(SecurityDecisionRequest.TEMPLATE_TYPE.name(), template);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-generator-v20")
+                .timestamp(LocalDateTime.of(2026, 3, 26, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-1")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/customer/export")
+                .build();
+        event.addMetadata("httpMethod", "POST");
+        event.addMetadata("requestPath", "/api/customer/export");
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionContext = new SecurityDecisionStandardPromptTemplate.SessionContext();
+        sessionContext.setUserId("alice");
+        sessionContext.setSessionId("session-1");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+        behaviorAnalysis.setPersonalBaselineEvidence(noDataBaselineEvidence());
+        return promptGenerator.generatePrompt(
+                new SecurityDecisionRequest(new SecurityDecisionContext(event, sessionContext, behaviorAnalysis, List.of())),
+                "",
+                "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object layout(PromptGenerationResult result) {
+        Map<String, Object> descriptor = (Map<String, Object>) result.getPromptExecutionMetadata().toMetadataMap()
+                .get("governanceDescriptor");
+        return descriptor.get("userPromptLayoutVersion");
     }
 
     private static final class TestDomainContext extends DomainContext {

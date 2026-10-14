@@ -25,7 +25,8 @@ package io.contexa.contexacore.autonomous.context.decision;
  * @param seen        how many observations of the usual behaviour held the value, null when not counted
  * @param of          how many observations were counted, null when not counted
  * @param usual       the usual value when a count does not say it ({@code up to 29 items per export}), else null
- * @param explanation EXPLAINED, UNEXPLAINED or, without a usual behaviour, UNKNOWN; null for a value seen before
+ * @param explanation EXPLAINED, UNEXPLAINED, NOT_ESTABLISHED while the personal baseline is still learned (LU-1) or,
+ *                    without a usual behaviour, UNKNOWN; null for a value seen before
  * @param explainedBy the record that explains the difference ({@code APR-...}, a trip), null otherwise
  */
 public record Deviation(
@@ -42,6 +43,7 @@ public record Deviation(
     public enum Explanation {
         EXPLAINED,
         UNEXPLAINED,
+        NOT_ESTABLISHED,
         UNKNOWN
     }
 
@@ -66,6 +68,7 @@ public record Deviation(
             text.append(" (").append(switch (explanation) {
                 case EXPLAINED -> "explained by " + explainedBy;
                 case UNEXPLAINED -> "unexplained";
+                case NOT_ESTABLISHED -> "baseline not established";
                 case UNKNOWN -> "unknown: no usual behaviour to compare with";
             }).append(')');
         }

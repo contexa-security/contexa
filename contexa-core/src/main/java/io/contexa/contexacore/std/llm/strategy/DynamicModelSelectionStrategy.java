@@ -27,6 +27,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -38,6 +39,12 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     private static final String METADATA_REQUESTED_MODEL_SOURCE_KEY = "requestedModelSourceKey";
     private static final String METADATA_SELECTED_MODEL_ID = "selectedModelId";
     private static final String METADATA_SELECTED_MODEL_PROVIDER = "selectedModelProvider";
+    /** Spring AI's chat model packages and their providers, Azure OpenAI before OpenAI. */
+    private static final List<Map.Entry<String, String>> MODEL_PACKAGE_PROVIDERS = List.of(
+            Map.entry(".azure.", "azure-openai"), Map.entry(".openai.", "openai"),
+            Map.entry(".anthropic.", "anthropic"), Map.entry(".ollama.", "ollama"),
+            Map.entry(".vertexai.", "google"), Map.entry(".google.", "google"),
+            Map.entry(".bedrock.", "bedrock"), Map.entry(".mistralai.", "mistral"));
     private static final String METADATA_RUNTIME_MODEL_ID = "runtimeModelId";
     private static final String METADATA_MODEL_SELECTION_SOURCE = "modelSelectionSource";
     private static final String METADATA_MODEL_SELECTION_FALLBACK_USED = "modelSelectionFallbackUsed";
@@ -98,7 +105,10 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
             if (primaryChatModel != null) {
                 String selectedModelId = inferModelId(primaryChatModel, null);
-                recordSelection(metadata, selectedModelId, resolveProvider(selectedModelId), "primary_chat_model", true, candidates);
+                String provider = resolveProvider(selectedModelId);
+                // The primary model is a fallback only when a requested or tier model could not be used.
+                recordSelection(metadata, selectedModelId, hasText(provider) ? provider : providerOf(primaryChatModel),
+                        "primary_chat_model", fallbackUsed || tierCandidate != null, candidates);
                 return primaryChatModel;
             }
 
@@ -216,6 +226,17 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         }
         ModelDescriptor descriptor = modelRegistry.getDescriptor(modelId);
         return descriptor != null ? descriptor.getProvider() : null;
+    }
+
+    /** The provider of a chat model by the package Spring AI puts it in; null for a model of no known package. */
+    private static String providerOf(ChatModel model) {
+        String name = model.getClass().getName().toLowerCase(Locale.ROOT);
+        for (Map.Entry<String, String> entry : MODEL_PACKAGE_PROVIDERS) {
+            if (name.contains(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     private String inferModelId(ChatModel model, String fallbackModelId) {

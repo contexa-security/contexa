@@ -182,6 +182,35 @@ class PromptContextAuthorizationServiceTest {
         assertThat(result.deniedReasons()).contains("DENIED_POISONED_KNOWLEDGE");
     }
 
+    /**
+     * P3-EXTRA-2: the authorization marks are added to the document the store found, which keeps its stored id and its
+     * search score, so the sealed record of the related documents still points at the stored rows.
+     */
+    @Test
+    void anAuthorizedDocumentKeepsItsStoredIdAndScore() {
+        TestContext context = new TestContext();
+        context.setUserId("user-1");
+        context.setOrganizationId("tenant-a");
+        AIRequest<TestContext> request = new AIRequest<>(context, new TemplateType("standard"), new DiagnosisType("general"));
+        request.withParameter("retrievalPurpose", "security_investigation");
+        Document stored = Document.builder()
+                .id("stored-row-7")
+                .text("allowed")
+                .metadata(new LinkedHashMap<>(Map.of("documentType", "behavior", "userId", "user-1",
+                        "organizationId", "tenant-a", "id", "doc-1")))
+                .score(0.83)
+                .build();
+
+        AuthorizedPromptContext result = service.authorize(request, List.of(stored));
+
+        assertThat(result.documents()).singleElement().satisfies(document -> {
+            assertThat(document.getId()).isEqualTo("stored-row-7");
+            assertThat(document.getScore()).isEqualTo(0.83);
+            assertThat(document.getMetadata()).containsEntry(VectorDocumentMetadata.AUTHORIZATION_DECISION,
+                    "ALLOWED_USER_SCOPE");
+        });
+    }
+
     private Document document(String text, Map<String, Object> metadata) {
         return new Document(text, new LinkedHashMap<>(metadata));
     }

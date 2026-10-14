@@ -416,8 +416,16 @@ export interface Layer {
   readonly evidence: Evidence;
 }
 
+/** A reason code of the engine's output contract v3 and the ID of the prompt line it cites (W4-3). */
+export interface ReasonCode {
+  readonly code: string;
+  readonly fact: string | null;
+}
+
 export interface EngineReason {
   readonly canonical: string | null;
+  /** The reason codes the engine recorded; empty before the output contract v3. */
+  readonly reasonCodes?: readonly ReasonCode[];
   readonly reasoning: string | null;
   readonly evidenceRefs: readonly string[];
   readonly deltas: readonly string[];

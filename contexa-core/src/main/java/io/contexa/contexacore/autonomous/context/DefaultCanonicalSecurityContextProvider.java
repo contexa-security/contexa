@@ -314,6 +314,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
         enrichFromRegistry(context);
         applyProviderContributions(event, context);
+        classifyResource(context, metadata);
         inferObservedScope(event, context);
         for (ProfileResolver<?> resolver : profileResolvers) {
             applyProfile(resolver, metadata, context);
@@ -511,6 +512,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             backfillMetadata(metadata, "recentChallengeCount", snapshot.getRecentChallengeCount());
             backfillMetadata(metadata, "recentBlockCount", snapshot.getRecentBlockCount());
             backfillMetadata(metadata, "recentEscalationCount", snapshot.getRecentEscalationCount());
+            backfillMetadata(metadata, "sessionDeviceChange", snapshot.getSessionDeviceChange());
+            backfillMetadata(metadata, "sessionNetworkChange", snapshot.getSessionNetworkChange());
             if (snapshot.getSessionDecisionHistory() != null && !snapshot.getSessionDecisionHistory().isEmpty()) {
                 backfillMetadata(metadata, "sessionDecisionHistory", snapshot.getSessionDecisionHistory());
             }
@@ -644,6 +647,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .challengeVerifiedAt(firstText(metadata.get("challengeVerifiedAt")))
                 .recentMfaElsewhereAt(firstText(metadata.get("recentMfaElsewhereAt")))
                 .failedLoginAttempts(resolveInteger(metadata.get("failedLoginAttempts"), metadata.get("failed_login_attempts"), metadata.get("recentLoginFailures")))
+                .failedLoginWindowMinutes(resolveInteger(metadata.get("failedLoginWindowMinutes")))
                 .recentRequestCount(resolveInteger(metadata.get("recentRequestCount"), metadata.get("recent_request_count")))
                 .recentChallengeCount(resolveInteger(metadata.get("recentChallengeCount"), metadata.get("recent_challenge_count"), metadata.get("challengeCount")))
                 .recentBlockCount(resolveInteger(metadata.get("recentBlockCount"), metadata.get("recent_block_count"), metadata.get("blockCount")))
@@ -705,8 +709,25 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .ipBand(SecuritySemanticNormalizer.normalizeNetwork(clientIp, firstText(metadata.get("ipBand"))))
                 .asn(firstText(metadata.get("asn"), metadata.get("geoAsn")))
                 .networkZone(NetworkZone.nameOf(metadata.get("networkZone")))
+                .movement(resolveMovement(metadata))
                 .build();
         return hasLocationData(location) ? location : null;
+    }
+
+    /** The host's move facts, whether or not it also states an impossible travel (W2-13). */
+    private CanonicalSecurityContext.Movement resolveMovement(Map<String, Object> metadata) {
+        CanonicalSecurityContext.Movement movement = CanonicalSecurityContext.Movement.builder()
+                .latitude(resolveDouble(metadata.get("geoLatitude"), metadata.get("latitude")))
+                .longitude(resolveDouble(metadata.get("geoLongitude"), metadata.get("longitude")))
+                .distanceKm(resolveInteger(metadata.get("travelDistanceKm")))
+                .elapsedMinutes(resolveInteger(metadata.get("travelElapsedMinutes")))
+                .previousLocation(firstText(metadata.get("previousLocation")))
+                .baselineConfidence(resolveDouble(metadata.get("baselineConfidence")))
+                .build();
+        boolean stated = movement.getLatitude() != null || movement.getLongitude() != null
+                || movement.getDistanceKm() != null || movement.getElapsedMinutes() != null
+                || StringUtils.hasText(movement.getPreviousLocation());
+        return stated ? movement : null;
     }
 
     private CanonicalSecurityContext.Resource resolveResource(SecurityEvent event, Map<String, Object> metadata) {
@@ -715,7 +736,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         Boolean sensitiveResource = resolveBoolean(metadata.get("isSensitiveResource"), metadata.get("is_sensitive_resource"));
         Boolean verificationRequired = resolveBoolean(
                 metadata.get("protectableVerificationRequired"), metadata.get("verificationRequired"));
-        Boolean privileged = resolveBoolean(metadata.get("privileged"), metadata.get("isPrivileged"));
+        Boolean privileged = resolveBoolean(
+                metadata.get("privileged"), metadata.get("protectablePrivileged"), metadata.get("isPrivileged"));
         Boolean exportSensitive = resolveBoolean(metadata.get("exportSensitive"), metadata.get("isExportSensitive"));
         ActionFamilyResolver.Resolution action = ActionFamilyResolver.resolve(metadata);
         String requestPath = firstText(metadata.get("httpUri"), metadata.get("requestPath"));
@@ -768,7 +790,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 || StringUtils.hasText(location.getCity())
                 || StringUtils.hasText(location.getIpBand())
                 || StringUtils.hasText(location.getAsn())
-                || StringUtils.hasText(location.getNetworkZone()));
+                || StringUtils.hasText(location.getNetworkZone())
+                || location.getMovement() != null);
     }
 
     private String[] splitNameAndVersion(String signature) {
@@ -964,7 +987,13 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     }
 
     private void enrichFromRegistry(CanonicalSecurityContext context) {
-        resourceContextRegistry.findByEvent(context).ifPresent(descriptor -> {
+        // The resource the request names first, else the protected method it went through (W2-11).
+        Object protectableResourceId = context.getAttributes() != null
+                ? context.getAttributes().get("protectableResourceId") : null;
+        resourceContextRegistry.findByEvent(context)
+                .or(() -> resourceContextRegistry.findByResourceId(
+                        protectableResourceId != null ? protectableResourceId.toString() : null))
+                .ifPresent(descriptor -> {
             CanonicalSecurityContext.Resource resource = context.getResource();
             if (resource == null) {
                 resource = new CanonicalSecurityContext.Resource();
@@ -973,6 +1002,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             }
             if (!StringUtils.hasText(resource.getResourceType())) {
                 resource.setResourceType(descriptor.resourceType());
+            }
+            if (!StringUtils.hasText(resource.getResourceCategory())) {
+                resource.setResourceCategory(descriptor.resourceCategory());
             }
             if (!StringUtils.hasText(resource.getBusinessLabel())) {
                 resource.setBusinessLabel(descriptor.businessLabel());
@@ -986,11 +1018,32 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             if (resource.getExportSensitive() == null) {
                 resource.setExportSensitive(descriptor.exportSensitive());
             }
-            CanonicalSecurityContext.Authorization authorization = context.getAuthorization();
-            if (authorization != null && authorization.getScopeTags().isEmpty()) {
-                authorization.setScopeTags(copyList(descriptor.allowedActionFamilies()));
-            }
+            // What a protected method allows is not a permission scope the requester holds: the scope tags stay the
+            // authorization's own (N-ID-1, Q-69).
         });
+    }
+
+    /**
+     * The resource's two standard fields, once the registry and the providers have spoken: its class from the
+     * classification values only, and its business category in the order the role scope collector reads it: the
+     * official field, the unprefixed hints, the protected method's descriptor, the registry, then the type (W2-11).
+     * A class word is never a category, and a category never decides the class.
+     */
+    private void classifyResource(CanonicalSecurityContext context, Map<String, Object> metadata) {
+        CanonicalSecurityContext.Resource resource = context.getResource();
+        if (resource == null) {
+            return;
+        }
+        resource.setResourceClass(SecuritySemanticNormalizer.normalizeResourceClass(
+                resource.getSensitivity(), resource.getResourceType()));
+        resource.setResourceCategory(SecuritySemanticNormalizer.normalizeResourceCategory(
+                metadata.get("resourceCategory"),
+                metadata.get("currentResourceFamily"),
+                metadata.get("current_resource_family"),
+                metadata.get("resourceFamily"),
+                metadata.get("protectableResourceCategory"),
+                resource.getResourceCategory(),
+                resource.getResourceType()));
     }
 
     private void applyProviderContributions(SecurityEvent event, CanonicalSecurityContext context) {
@@ -1095,12 +1148,5 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             facts.addAll(evaluation.facts());
         }
         return String.join(" | ", facts);
-    }
-
-    private List<String> copyList(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(values);
     }
 }

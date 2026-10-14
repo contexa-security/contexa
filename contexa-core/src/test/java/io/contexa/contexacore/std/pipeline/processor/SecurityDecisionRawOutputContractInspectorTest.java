@@ -180,6 +180,28 @@ class SecurityDecisionRawOutputContractInspectorTest {
     }
 
     @Test
+    void shouldTreatAStatedChangeOfDeviceOrNetworkWithinTheSessionAsAdverseEvidence() {
+        // W2-14: the changed parts replace the binding-hash mismatch nobody produced.
+        String allowedMedium = "AuthorizationEffect: ALLOW\nVerificationRequired: false\nMfaVerified: false\n"
+                + "Sensitivity: MEDIUM\n";
+        SecurityDecisionRawOutputContractInspector.Inspection device = inspect(
+                allowedMedium + "SessionDeviceChange: Chrome/140 on WINDOWS -> Safari/17 on MAC in the same session",
+                "CHALLENGE",
+                "The session changed device mid-session.");
+        SecurityDecisionRawOutputContractInspector.Inspection network = inspect(
+                allowedMedium + "SessionNetworkChange: 10.40.12.0/24 (CORPORATE) -> 203.0.113.0/24 in the same session",
+                "CHALLENGE",
+                "The session changed network mid-session.");
+
+        assertThat(device.semanticViolation()).isNull();
+        assertThat(network.semanticViolation()).isNull();
+        assertActionViolation(allowedMedium + "SessionNetworkChange: UNKNOWN",
+                "CHALLENGE",
+                "The session changed network mid-session.",
+                "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+    }
+
+    @Test
     void shouldRejectEscalateThatViolatesRequiredLowRiskAllowBoundary() {
         assertActionViolation(
                 "AuthorizationEffect: ALLOW\nVerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM",

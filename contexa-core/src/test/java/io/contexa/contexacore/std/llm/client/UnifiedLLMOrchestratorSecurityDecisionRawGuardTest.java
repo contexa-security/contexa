@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.retry.NonTransientAiException;
+import org.springframework.ai.retry.TransientAiException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -129,6 +131,51 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
                 .containsEntry("securityDecisionParseFailureCategory", "MODEL_UNAVAILABLE")
                 .containsEntry("securityDecisionFallbackAction", "CHALLENGE")
                 .containsEntry("securityDecisionFallbackReason", "LLM_EXECUTION_FAILED");
+    }
+
+    /**
+     * Why a call gave no decision is named: the provider stopped at the output limit (the thinking used it up), refused,
+     * sent an empty answer, was overloaded or refused the request itself; only what is none of these is the model
+     * being unavailable.
+     */
+    @Test
+    void executeEntityShouldNameWhyTheProviderGaveNoDecision() {
+        String empty = "LLM response is null or empty - RequestId: security-raw-empty";
+        assertThat(failureCategory("max_tokens", new IllegalStateException(empty))).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(failureCategory("LENGTH", new IllegalStateException(empty))).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(failureCategory("refusal", new IllegalStateException(empty))).isEqualTo("PROVIDER_REFUSAL");
+        assertThat(failureCategory("CONTENT_FILTER", new IllegalStateException(empty))).isEqualTo("PROVIDER_REFUSAL");
+        assertThat(failureCategory("end_turn", new IllegalStateException(empty))).isEqualTo("EMPTY_RESPONSE");
+        assertThat(failureCategory(null, new TransientAiException("HTTP 529 - {\"type\":\"overloaded_error\"}")))
+                .isEqualTo("PROVIDER_OVERLOADED");
+        assertThat(failureCategory(null, new NonTransientAiException("HTTP 400 - invalid_request_error")))
+                .isEqualTo("PROVIDER_REQUEST_REJECTED");
+        assertThat(failureCategory(null, new IllegalStateException("connection refused"))).isEqualTo("MODEL_UNAVAILABLE");
+    }
+
+    private String failureCategory(String finishReason, RuntimeException error) {
+        UnifiedLLMOrchestrator orchestrator = new UnifiedLLMOrchestrator(noModelSelection(), noStreaming(),
+                new TieredLLMProperties(), new AdvisorRegistry(), new SecurityPlaneProperties()) {
+            @Override
+            public Mono<String> execute(ExecutionContext context) {
+                if (finishReason != null) {
+                    context.addMetadata("providerFinishReason", finishReason);
+                }
+                return Mono.error(error);
+            }
+        };
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setRequestId("security-raw-category");
+
+        SecurityDecisionResponseLite result = orchestrator
+                .executeEntity(context, SecurityDecisionResponseLite.class)
+                .block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(context.getMetadata().get("structuredOutputFailureCategory"))
+                .isEqualTo(context.getMetadata().get("securityDecisionParseFailureCategory"));
+        return (String) context.getMetadata().get("securityDecisionParseFailureCategory");
     }
 
     private UnifiedLLMOrchestrator orchestratorReturning(String rawResponse) {

@@ -19,6 +19,7 @@ import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustChallengeFlowStarter;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -69,6 +70,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private UnanalysedRequestRecorder unanalysedRequestRecorder;
     private volatile boolean challengeProcedureAvailable = true;
 
     public ZeroTrustChallengeFilter(
@@ -106,6 +108,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
     }
 
     /** Whether the host has an MFA flow in which a challenged user can step up; set when the chains are built. */
+    /** Keeps a request this filter stops under the decision in force in its session (N-SES-1). */
+    public void setUnanalysedRequestRecorder(UnanalysedRequestRecorder unanalysedRequestRecorder) {
+        this.unanalysedRequestRecorder = unanalysedRequestRecorder;
+    }
+
     public void setChallengeProcedureAvailable(boolean challengeProcedureAvailable) {
         this.challengeProcedureAvailable = challengeProcedureAvailable;
     }
@@ -190,6 +197,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter implements Ze
         if (currentAction != ZeroTrustAction.CHALLENGE) {
             filterChain.doFilter(request, response);
             return;
+        }
+
+        // Every way on from here stops the request; the session keeps it under the CHALLENGE (N-SES-1).
+        if (unanalysedRequestRecorder != null) {
+            unanalysedRequestRecorder.recordRequest(auth, ZeroTrustAction.CHALLENGE);
         }
 
         if (!challengeProcedureAvailable) {

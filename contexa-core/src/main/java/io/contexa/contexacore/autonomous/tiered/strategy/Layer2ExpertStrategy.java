@@ -27,6 +27,7 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -201,6 +202,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .responseActionFallbackAction(expertDecision.getResponseActionFallbackAction())
                 .reasoning(expertDecision.getReasoning())
                 .llmReasoning(expertDecision.getLlmReasoning())
+                .reasonCodes(expertDecision.getReasonCodes())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
@@ -218,6 +220,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
 
         long startTime = System.currentTimeMillis();
+        // W3-9: the first pass, read before this pass's search and telemetry overwrite what it left.
+        Layer2SecondPass.FirstPass firstPass = Layer2SecondPass.FirstPass.of(event);
+        // W3-16: the event's first prompt decides; this pass draws the same bundle.
+        boolean secondPass = firstPass.givesASecondPass();
         long ragSearchMs = 0L;
         long sessionContextMs = 0L;
         long behaviorAnalysisMs = 0L;
@@ -245,14 +251,26 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityResponse response;
             SecurityDecisionResponse pipelineResponse = null;
             clearPromptRuntimeTelemetry(event);
-            if (pipelineOrchestrator != null) {
+            List<Document> newPastRecords = secondPass ? firstPass.newPastRecords(relatedDocuments) : List.of();
+            if (secondPass && newPastRecords.isEmpty()) {
+                // W3-9: nothing new to give a second pass; asking again with the same facts only draws again.
+                event.addMetadata("layer2ModelCallSkipped", "NO_NEW_FACTS");
+                SecurityDecisionResponse firstVerdict = new SecurityDecisionResponse();
+                firstVerdict.setAction(firstPass.verdict());
+                firstVerdict.setReasoning(firstPass.reason());
+                response = validateAndFixResponse(firstVerdict.toSecurityResponse());
+            } else if (pipelineOrchestrator != null) {
                 long pipelineStart = System.currentTimeMillis();
-                pipelineResponse = executeSecurityDecisionPipeline(
-                                pipelineOrchestrator,
-                                event,
-                                sessionCtx,
-                                behaviorCtx,
-                                relatedDocuments)
+                // In a second pass the documents are the new past records: the first pass had none.
+                SecurityDecisionRequest request = buildSecurityDecisionRequest(event, sessionCtx, behaviorCtx,
+                        relatedDocuments);
+                if (secondPass) {
+                    request.withParameter("layer2FirstPassUserPrompt", firstPass.userPrompt());
+                    request.withParameter("layer2FirstPassVerdict", firstPass.verdict());
+                    request.withParameter("layer2FirstPassPastRecordsState", firstPass.pastRecordsState());
+                }
+                pipelineResponse = pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
+                                SecurityDecisionResponse.class)
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .block();
                 pipelineBlockMs = System.currentTimeMillis() - pipelineStart;
@@ -278,11 +296,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
-            applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
-            applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
-            applyTrustedConfirmedMaliciousConstraint(expertDecision, event);
+            if (pipelineResponse != null) {
+                applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
+                applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
+            }
             terminalizeLayer2EscalateDecision(expertDecision);
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
+            applyMinimumActionRules(expertDecision, event);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar()
                     && expertDecision.resolveAutonomousAction() == ZeroTrustAction.BLOCK) {

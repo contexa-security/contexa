@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.pipeline.processor;
 
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.ArrayList;
@@ -81,7 +82,14 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         normalized.setRiskScore(normalizedRiskScore);
         normalized.setConfidence(normalizedConfidence);
         normalized.setAction(normalizedAction);
-        String normalizedReasoning = normalizeReasoning(lite.getReasoning(), repairedFields);
+        List<SecurityDecisionOutputContract.Citation> reasonCodes =
+                lite.getReasonCodes() == null ? List.of() : List.copyOf(lite.getReasonCodes());
+        normalized.setReasonCodes(reasonCodes);
+        // W4-2: a v3 response keeps its reason within the contract's limit, which the provider schema cannot carry.
+        int reasoningLimit = reasonCodes.isEmpty()
+                ? MAX_REASONING_CHARS
+                : SecurityDecisionOutputContract.MAX_REASON_CHARACTERS;
+        String normalizedReasoning = normalizeReasoning(lite.getReasoning(), repairedFields, reasoningLimit);
         normalized.setReasoning(normalizedReasoning);
         normalized.setMitre(normalizeMitre(lite.getMitre(), repairedFields));
         normalized.setEvidenceRefs(normalizeEvidenceRefs(lite.getEvidenceRefs(), repairedFields));
@@ -99,6 +107,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         provenance.put("evidenceRefs", response.getEvidenceRefs() == null || response.getEvidenceRefs().isEmpty()
                 ? "ABSENT"
                 : "MODEL");
+        provenance.put("reasonCodes", response.getReasonCodes() == null || response.getReasonCodes().isEmpty()
+                ? "ABSENT"
+                : "MODEL");
         return Map.copyOf(provenance);
     }
 
@@ -110,6 +121,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         lite.setReasoning(response.getReasoning());
         lite.setMitre(response.getMitre());
         lite.setEvidenceRefs(response.getEvidenceRefs());
+        lite.setReasonCodes(response.getReasonCodes());
         return lite;
     }
 
@@ -120,6 +132,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         response.setReasoning(normalized.getReasoning());
         response.setMitre(normalized.getMitre());
         response.setEvidenceRefs(normalized.getEvidenceRefs());
+        response.setReasonCodes(normalized.getReasonCodes());
     }
 
     private Double normalizeNumericScore(Double score, String fieldName, List<String> repairedFields) {
@@ -156,7 +169,7 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         };
     }
 
-    private String normalizeReasoning(String reasoning, List<String> repairedFields) {
+    private String normalizeReasoning(String reasoning, List<String> repairedFields, int maxCharacters) {
         if (reasoning == null || reasoning.isBlank()) {
             return null;
         }
@@ -169,9 +182,9 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
             repairedFields.add("reasoning");
             normalized = firstWords(normalized, MAX_REASONING_WORDS);
         }
-        if (normalized.length() > MAX_REASONING_CHARS) {
+        if (normalized.length() > maxCharacters) {
             repairedFields.add("reasoning");
-            normalized = normalized.substring(0, MAX_REASONING_CHARS).trim();
+            normalized = normalized.substring(0, maxCharacters).trim();
         }
         return normalized.isBlank() ? null : normalized;
     }

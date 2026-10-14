@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
@@ -148,33 +149,26 @@ public class SecurityDecisionPostProcessor {
         return sentence.toString();
     }
 
+    /**
+     * The embedded text of a past record: what was done, and how the record was learned. The decision and its scores
+     * are not embedded (W3-18): they are metadata, which an exact lookup reads, and a similarity search over them only
+     * matched records by their verdict.
+     */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sb = new StringBuilder();
-        Double effectiveRiskScore = resolveEffectiveRiskScore(decision);
-        Double effectiveConfidence = resolveEffectiveConfidence(decision);
-        Double auditRiskScore = decision.resolveAuditRiskScore();
-        Double auditConfidence = decision.resolveAuditConfidence();
 
         sb.append(buildActionSummary(event, decision));
         sb.append("\n");
-
-        sb.append("Decision: proposedAction=").append(decision.getAction() != null ? decision.getAction().name() : "UNKNOWN");
-        ZeroTrustAction autonomousAction = decision.resolveAutonomousAction();
-        if (autonomousAction != null) {
-            sb.append(", autonomousAction=").append(autonomousAction.name());
+        // A request allowed only after its user was verified is learned at a reduced weight, and says so (W5-2).
+        Object verifiedBy = event.getMetadata() != null ? event.getMetadata().get("verifiedBy") : null;
+        if (verifiedBy != null) {
+            sb.append("LearnedAfter: ").append(verifiedBy).append(" verification");
+            Object weight = event.getMetadata().get("verificationWeight");
+            if (weight != null) {
+                sb.append(" at weight ").append(weight);
+            }
+            sb.append("\n");
         }
-        sb.append(", riskScore=").append(formatScore(effectiveRiskScore));
-        sb.append(", confidence=").append(formatScore(effectiveConfidence));
-        if (auditRiskScore != null) {
-            sb.append(", llmAuditRiskScore=").append(formatScore(auditRiskScore));
-        }
-        if (auditConfidence != null) {
-            sb.append(", llmAuditConfidence=").append(formatScore(auditConfidence));
-        }
-        if (decision.getProcessingLayer() > 0) {
-            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
-        }
-        sb.append("\n");
 
         if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
             sb.append("AutonomyConstraint: ")
@@ -483,6 +477,8 @@ public class SecurityDecisionPostProcessor {
             copyIfPresent(eventMeta, metadata, "organization_id");
             copyIfPresent(eventMeta, metadata, "orgId");
             copyIfPresent(eventMeta, metadata, "resourceId");
+            copyIfPresent(eventMeta, metadata, "verifiedBy");
+            copyIfPresent(eventMeta, metadata, "verificationWeight");
             copyIfPresent(eventMeta, metadata, "resourceType");
             copyIfPresent(eventMeta, metadata, "resourceCategory");
             copyIfPresent(eventMeta, metadata, "resourceSensitivity");
@@ -498,6 +494,17 @@ public class SecurityDecisionPostProcessor {
             copyIfPresent(eventMeta, metadata, "country");
             copyIfPresent(eventMeta, metadata, "city");
             copyIfPresent(eventMeta, metadata, "ipBand");
+            // The past record form (W3-3) states the request's item count and network zone: the values the decision
+            // used (the canonical context, where a host may state the zone), else the event's.
+            CanonicalSecurityContext decided = eventMeta.get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext context
+                    ? context
+                    : null;
+            putFirstPresent(metadata, "requestItems",
+                    decided != null && decided.getResource() != null ? decided.getResource().getRequestedItems() : null,
+                    eventMeta.get("requestItems"));
+            putFirstPresent(metadata, "networkZone",
+                    decided != null && decided.getLocation() != null ? decided.getLocation().getNetworkZone() : null,
+                    eventMeta.get("networkZone"));
             copyIfPresent(eventMeta, metadata, "asn");
             copyIfPresent(eventMeta, metadata, "deviceOs");
             copyIfPresent(eventMeta, metadata, "deviceOsVersion");
@@ -530,9 +537,9 @@ public class SecurityDecisionPostProcessor {
         if (normalizedAuthenticationType != null) {
             metadata.put("authenticationType", normalizedAuthenticationType);
         }
-        String normalizedResourceFamily = SecuritySemanticNormalizer.normalizeResourceFamily(
+        // The record keeps the request's class under resourceFamily, from the classification values only (W2-10).
+        String normalizedResourceFamily = SecuritySemanticNormalizer.normalizeResourceClass(
                 metadata.get("resourceSensitivity"),
-                metadata.get("resourceFamily"),
                 metadata.get("resourceType"));
         if (normalizedResourceFamily != null) {
             metadata.put("resourceFamily", normalizedResourceFamily);
@@ -575,9 +582,11 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    private static String formatScore(Double score) {
-        if (score == null || Double.isNaN(score)) return "N/A";
-        return String.format("%.2f", score);
+    private static void putFirstPresent(Map<String, Object> target, String key, Object decided, Object stated) {
+        Object value = decided != null ? decided : stated;
+        if (value != null) {
+            target.put(key, value);
+        }
     }
 
     private static String resolveOrganizationId(SecurityEvent event) {
@@ -643,11 +652,6 @@ public class SecurityDecisionPostProcessor {
         if (value != null && !value.isBlank()) {
             target.put(key, value);
         }
-    }
-
-    private static String formatScore(double score) {
-        if (Double.isNaN(score)) return "N/A";
-        return String.format("%.2f", score);
     }
 
     private static String truncate(String text, int maxLen) {

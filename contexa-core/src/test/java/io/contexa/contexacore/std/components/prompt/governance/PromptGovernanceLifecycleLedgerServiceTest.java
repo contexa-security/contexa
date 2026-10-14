@@ -10,6 +10,7 @@ import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceReleaseApprov
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceRollbackRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,13 +67,22 @@ class PromptGovernanceLifecycleLedgerServiceTest {
 
         service.syncPlatformLifecycleLedgers();
 
+        // One declaration row per bundle the build runs: the v19 bundle and the v20 bundle (W3-16).
+        int bundles = PromptGovernanceRegistryService.platformStandardDescriptors().size();
+        assertThat(bundles).isEqualTo(2);
         verify(promptGovernanceRegistryService).syncPlatformRegistry();
-        verify(changeRepository).save(any(PromptGovernanceChangeRecord.class));
-        verify(evaluationRepository).save(any(PromptGovernanceEvaluationRecord.class));
-        verify(releaseApprovalRepository).save(any(PromptGovernanceReleaseApprovalRecord.class));
-        // The platform descriptor declares no rollback target (its former target has no text), so no READY rollback
-        // row is written (W1-18, PV-3).
-        verify(rollbackRepository, never()).save(any(PromptGovernanceRollbackRecord.class));
+        verify(changeRepository, times(bundles)).save(any(PromptGovernanceChangeRecord.class));
+        verify(evaluationRepository, times(bundles)).save(any(PromptGovernanceEvaluationRecord.class));
+        verify(releaseApprovalRepository, times(bundles)).save(any(PromptGovernanceReleaseApprovalRecord.class));
+        // The v19 bundle declares no rollback target (its former target has no text), so it gets no rollback row. The
+        // v20 bundle declares the v19 bundle of this build: its row records the declared target, not a ready rollback
+        // (W1-18, PV-3).
+        ArgumentCaptor<PromptGovernanceRollbackRecord> rollback = ArgumentCaptor.forClass(PromptGovernanceRollbackRecord.class);
+        verify(rollbackRepository).save(rollback.capture());
+        assertThat(rollback.getValue().getPromptVersion()).isEqualTo("2026.10.14-v20.14");
+        assertThat(rollback.getValue().getRollbackTargetPromptVersion()).isEqualTo("2026.10.14-v19.12");
+        assertThat(rollback.getValue().getRollbackState()).isEqualTo("TARGET_DECLARED");
+        assertThat(rollback.getValue().getRollbackReadinessState()).isEqualTo("WORKFLOW_MISSING");
     }
 
     @Test

@@ -15,6 +15,12 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import org.mockito.ArgumentCaptor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -87,6 +93,22 @@ class Layer1ContextualStrategyTest {
                 pipelineOrchestrator,
                 new TieredStrategyProperties()
         );
+    }
+
+    /** W4-3: the reason codes of the model response reach the assessment. */
+    @Test
+    void evaluate_keepsTheReasonCodesOfTheResponse() {
+        SecurityEvent event = buildTestEvent();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("CHALLENGE");
+        response.setReasoning("The export time differs from usual.");
+        response.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        ThreatAssessment assessment = strategy.evaluate(event);
+
+        assertThat(assessment.getReasonCodes()).containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
     }
 
     @Test
@@ -320,11 +342,17 @@ class Layer1ContextualStrategyTest {
                         "retrievalPurpose", "security_investigation",
                         "accessScope", "USER"));
 
-        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class)))
-                .thenReturn(List.of())
-                .thenReturn(List.of(currentUserDocument))
-                .thenReturn(List.of())
-                .thenReturn(List.of());
+        // The four queries run in parallel, so the answer goes by content: one query filtered to this user gets the
+        // document, once; the supporting query leaves this user's documents out and must not be the one that gets it.
+        AtomicBoolean userEvidenceGiven = new AtomicBoolean(false);
+        when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
+            SearchRequest request = invocation.getArgument(0);
+            boolean userScoped = request.getFilterExpression() != null
+                    && request.getFilterExpression().toString().contains("user-001");
+            return userScoped && userEvidenceGiven.compareAndSet(false, true)
+                    ? List.of(currentUserDocument)
+                    : List.of();
+        });
 
         TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getRag().setMultiQuerySearchEnabled(true);
@@ -450,80 +478,48 @@ class Layer1ContextualStrategyTest {
         }
     }
 
+    /**
+     * R4-L3: the former verification markers (the boundary mode, a probe path) are event text, so such an event waits for
+     * its past records only as long as any interactive request does.
+     */
     @Test
-    @DisplayName("Official verification RAG timeout should keep full budget cancellation semantics")
-    void analyzeWithContext_officialVerificationRagTimeout_shouldCancelTimedOutLookup() {
+    void anEventNamingTheFormerVerificationMarkersWaitsOnlyTheInteractiveTime() {
         UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
         TieredStrategyProperties properties = new TieredStrategyProperties();
-        AtomicBoolean interrupted = new AtomicBoolean(false);
         properties.getLayer1().getTimeout().setRagMs(50);
         properties.getLayer1().getTimeout().setInteractiveRagWaitMs(10);
-
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class))).thenAnswer(invocation -> {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException interruptedException) {
-                interrupted.set(true);
-                Thread.currentThread().interrupt();
-            }
+            Thread.sleep(200);
             return List.of();
         });
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.18);
         response.setConfidence(0.82);
         response.setAction("ALLOW");
-        response.setReasoning("Official verification keeps full timeout semantics");
+        response.setReasoning("Interactive wait");
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
-
-        ExecutorService ragExecutor = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>());
+        ExecutorService ragExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
         try {
-            Layer1ContextualStrategy ragTimeoutStrategy = new Layer1ContextualStrategy(
-                    vectorService,
-                    null,
-                    new SecurityEventEnricher(),
+            Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
+                    vectorService, null, new SecurityEventEnricher(),
                     new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    authorizationService,
-                    null,
-                    pipelineOrchestrator,
-                    properties,
-                    null,
-                    ragExecutor
-            );
-
+                    null, null, null, null, null, null, null, authorizationService, null, pipelineOrchestrator,
+                    properties, null, ragExecutor);
             SecurityEvent event = buildTestEvent();
             event.getMetadata().put("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
             event.getMetadata().put("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
 
-            ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
+            strategy.evaluate(event);
 
-            assertThat(assessment).isNotNull();
-            assertThat(assessment.getAction()).isEqualTo("ALLOW");
-            assertThat(event.getMetadata()).containsEntry("ragUnavailable", true);
-            assertThat(event.getMetadata()).containsEntry("ragTimedOut", true);
-            assertThat(event.getMetadata()).containsEntry("ragTimeoutMs", 50L);
-            assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 50L);
+            assertThat(event.getMetadata()).containsEntry("ragInteractiveWaitMs", 10L);
             assertThat(event.getMetadata()).containsEntry("ragFullTimeoutMs", 50L);
-            assertThat(event.getMetadata()).doesNotContainKey("ragBackgroundWarmup");
-            assertThat(interrupted.get()).isTrue();
-            verify(pipelineOrchestrator).execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
         } finally {
             ragExecutor.shutdownNow();
         }
     }
+
     @Test
     @DisplayName("Inner vector timeout must retain its recorded budget-expired state")
     void analyzeWithContext_innerVectorTimeoutPreservesRecordedBudgetExpiry() {
@@ -531,7 +527,8 @@ class Layer1ContextualStrategyTest {
         PromptContextAuthorizationService authorizationService = mock(PromptContextAuthorizationService.class);
         TieredStrategyProperties properties = new TieredStrategyProperties();
         properties.getLayer1().getTimeout().setRagMs(8000);
-        properties.getLayer1().getTimeout().setInteractiveRagWaitMs(10);
+        // R4-L3: the full wait comes from the configuration (interactive wait = full budget), not from event text.
+        properties.getLayer1().getTimeout().setInteractiveRagWaitMs(8000);
 
         when(vectorService.searchSimilar(ArgumentMatchers.any(SearchRequest.class)))
                 .thenThrow(new VectorOperations.VectorStoreException("Vector store similarity search timed out after 4000ms"));
@@ -539,7 +536,7 @@ class Layer1ContextualStrategyTest {
         response.setRiskScore(0.18);
         response.setConfidence(0.82);
         response.setAction("ALLOW");
-        response.setReasoning("Official verification keeps full timeout semantics");
+        response.setReasoning("The full budget keeps the timeout semantics");
         when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
                 .thenReturn(Mono.just(response));
 
@@ -571,8 +568,6 @@ class Layer1ContextualStrategyTest {
             );
 
             SecurityEvent event = buildTestEvent();
-            event.getMetadata().put("officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME");
-            event.getMetadata().put("requestPath", "/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
 
             ThreatAssessment assessment = ragTimeoutStrategy.evaluate(event);
 
@@ -670,6 +665,63 @@ class Layer1ContextualStrategyTest {
         assertThat(secondSession.getRecentActions())
                 .filteredOn(action -> action.contains("AUTHORIZATION_DENIED"))
                 .hasSize(2);
+    }
+
+    /**
+     * W3-18: Layer1 fixes the event's bundle before it copies the event for the past record search, so a v20 request
+     * reads its past records by the exact lookup on the copy and the prompt drawn later keeps the same bundle.
+     */
+    @Test
+    void layer1FixesTheBundleBeforeItsPastRecordSearchAndAV20RequestReadsThemExactly() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/data", "/api/data", "GET", 4, null));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                return List.of();
+            }
+        });
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Usual read");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+        Layer1ContextualStrategy v20Strategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+        SecurityEvent event = buildTestEvent();
+
+        v20Strategy.evaluate(event);
+
+        verify(vectorService, never()).searchSimilar(ArgumentMatchers.any(SearchRequest.class));
+        assertThat(event.getMetadata())
+                .containsEntry("promptBundleSelection.version", SecurityDecisionPromptBundles.V20.version())
+                .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
+                .containsKey("ragPastRecordCounts");
     }
 
     private SecurityEvent buildTestEvent() {

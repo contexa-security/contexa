@@ -171,6 +171,49 @@ class CanonicalSecurityContextHardenerTest {
     }
 
     @Test
+    void hardenStatesTheClassAndTheCategoryEachInItsOwnVocabulary() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceClass("restricted")
+                        .resourceCategory(" audit log ")
+                        .build())
+                .build();
+        CanonicalSecurityContext classWordCategory = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceCategory("HIGH").build())
+                .build();
+
+        CanonicalSecurityContext hardened = new CanonicalSecurityContextHardener().harden(context);
+
+        // W2-10: one class vocabulary, one category form; a class word is never a category.
+        assertThat(hardened.getResource().getResourceClass()).isEqualTo("CRITICAL");
+        assertThat(hardened.getResource().getResourceCategory()).isEqualTo("AUDIT_LOG");
+        assertThat(new CanonicalSecurityContextHardener().harden(classWordCategory).getResource().getResourceCategory())
+                .isNull();
+    }
+
+    @Test
+    void hardenDropsAMoveValueOutsideWhatItCanMeasure() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .location(CanonicalSecurityContext.Location.builder()
+                        .movement(CanonicalSecurityContext.Movement.builder()
+                                .latitude(137.5).longitude(126.978).distanceKm(-5).elapsedMinutes(40)
+                                .previousLocation(" Busan, KR ").baselineConfidence(1.4).build())
+                        .build())
+                .build();
+
+        CanonicalSecurityContext.Movement movement =
+                new CanonicalSecurityContextHardener().harden(context).getLocation().getMovement();
+
+        // W2-13: a latitude beyond 90, a negative distance and a confidence above 1 state nothing.
+        assertThat(movement.getLatitude()).isNull();
+        assertThat(movement.getLongitude()).isEqualTo(126.978);
+        assertThat(movement.getDistanceKm()).isNull();
+        assertThat(movement.getElapsedMinutes()).isEqualTo(40);
+        assertThat(movement.getPreviousLocation()).isEqualTo("Busan, KR");
+        assertThat(movement.getBaselineConfidence()).isNull();
+    }
+
+    @Test
     void hardenStatesTheLookedUpRecordKindsInOneCaseOnce() {
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder()

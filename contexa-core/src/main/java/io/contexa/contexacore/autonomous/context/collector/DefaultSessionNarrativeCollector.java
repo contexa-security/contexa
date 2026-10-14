@@ -21,13 +21,19 @@ import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.SessionStart;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
+import io.contexa.contexacore.autonomous.context.support.NetworkZone;
+import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
@@ -122,6 +128,10 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         String previousActionFamily = actionSequence.size() >= 2 ? actionSequence.get(actionSequence.size() - 2) : null;
         // The session's earlier decisions (this request has none yet): their counts and the most recent of them.
         List<SessionDecisionRecord> decisions = sessionDecisions(sessionId);
+        // The client the session first came from beside this request's (W2-14): a change of device or of network within
+        // one session is a fact of its own. The first client is recorded once a decision on the request is known.
+        SessionClient currentClient = SessionClient.of(event);
+        SessionClient firstClient = SessionClient.decode(dataStore.getSessionFirstClient(sessionId));
 
         SessionNarrativeSnapshot snapshot = SessionNarrativeSnapshot.builder()
                 .sessionId(sessionId)
@@ -143,6 +153,8 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
                         .toList())
                 // Every stored decision, so that what the session already did under an approval is counted whole.
                 .sessionDecisions(decisions == null ? List.of() : decisions)
+                .sessionDeviceChange(SessionClient.deviceChange(firstClient, currentClient))
+                .sessionNetworkChange(SessionClient.networkChange(firstClient, currentClient))
                 .summary(buildSummary(sessionAgeMinutes, previousPath, previousActionFamily, lastRequestIntervalMs, actionSequence, burstPattern))
                 .build();
 
@@ -150,18 +162,21 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         recorder.stage(event, ContextObservationRecorder.SESSION_NARRATIVE, snapshot, commit -> {
             SecurityContextDataStore store = commit.dataStore();
             startSession(store, sessionId, currentTimestamp);
+            // A request is recorded once its decision is known, which can be after a later request of the session
+            // is recorded; the store keeps the request's time so that the session reads in the order made (G4-2).
             if (StringUtils.hasText(currentActionFamily)) {
-                store.addSessionNarrativeActionFamily(sessionId, currentActionFamily);
+                store.addSessionNarrativeActionFamily(sessionId, currentActionFamily, currentTimestamp);
             }
             if (protectablePath != null) {
-                store.addSessionProtectableAccess(sessionId, protectablePath);
+                store.addSessionProtectableAccess(sessionId, protectablePath, currentTimestamp);
             }
             if (interval != null) {
-                store.addSessionRequestInterval(sessionId, interval);
+                store.addSessionRequestInterval(sessionId, interval, currentTimestamp);
             }
-            store.setSessionLastRequestTime(sessionId, currentTimestamp);
-            if (StringUtils.hasText(currentPath)) {
-                store.setSessionPreviousPath(sessionId, currentPath);
+            store.recordSessionLastRequest(sessionId, currentTimestamp,
+                    StringUtils.hasText(currentPath) ? currentPath : null);
+            if (currentClient != null) {
+                store.setSessionFirstClientIfAbsent(sessionId, currentClient.encode());
             }
         });
         return Optional.of(snapshot);
@@ -183,13 +198,34 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
                 ? new ArrayList<>(values.subList(values.size() - limit, values.size())) : values);
     }
 
-    /** The session's recorded decisions, oldest first; null when the store keeps no decision history. */
+    /**
+     * The session's recorded decisions in the order their requests were made; null when the store keeps no decision
+     * history. A decision is recorded once known, which can be out of the order the requests were made (G4-2); a
+     * decision without its time keeps its place after the one before it.
+     */
     private List<SessionDecisionRecord> sessionDecisions(String sessionId) {
         List<String> stored = dataStore.getRecentSessionDecisions(sessionId, MAX_SESSION_DECISIONS);
         if (stored == null) {
             return null;
         }
-        return stored.stream().map(SessionDecisionRecord::decode).filter(Objects::nonNull).toList();
+        List<SessionDecisionRecord> decisions = new ArrayList<>();
+        List<Instant> times = new ArrayList<>();
+        Instant at = Instant.MIN;
+        for (String line : stored) {
+            SessionDecisionRecord decision = SessionDecisionRecord.decode(line);
+            if (decision == null) {
+                continue;
+            }
+            at = decision.at() != null ? decision.at() : at;
+            decisions.add(decision);
+            times.add(at);
+        }
+        List<Integer> order = new ArrayList<>();
+        for (int index = 0; index < decisions.size(); index++) {
+            order.add(index);
+        }
+        order.sort(Comparator.comparing(times::get));
+        return order.stream().map(decisions::get).toList();
     }
 
     private static Integer countOutcome(List<SessionDecisionRecord> decisions, String outcome) {
@@ -309,11 +345,108 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
         return Boolean.TRUE.equals(resolveBoolean(
                 metadata.get("isSensitiveResource"),
                 metadata.get("privileged"),
+                metadata.get("protectablePrivileged"),
                 metadata.get("exportSensitive")));
     }
 
     private Boolean resolveBoolean(Object... candidates) {
         return MetadataValueResolver.resolveBoolean(candidates);
+    }
+
+    /**
+     * A request's client as the session narrative compares it (W2-14): whether the request gave a User-Agent, the
+     * operating system and browser it names, and the network of the request address with the zone the host declares.
+     * The store keeps it as one line.
+     */
+    record SessionClient(boolean userAgentGiven, String operatingSystem, String browser, String network, String zone) {
+
+        private static final String SEPARATOR = "|";
+        private static final String USER_AGENT_GIVEN = "UA";
+        private static final int PARTS = 5;
+
+        /** The request's client; null when the request gives neither a User-Agent nor an address. */
+        static SessionClient of(SecurityEvent event) {
+            String userAgent = event.getUserAgent();
+            boolean userAgentGiven = StringUtils.hasText(userAgent);
+            String network = SecuritySemanticNormalizer.normalizeNetwork(event.getSourceIp(), null);
+            if (!userAgentGiven && network == null) {
+                return null;
+            }
+            Map<String, Object> metadata = event.getMetadata();
+            return new SessionClient(userAgentGiven,
+                    userAgentGiven ? SecurityEventEnricher.extractOSFromUserAgent(userAgent) : null,
+                    userAgentGiven ? SecurityEventEnricher.extractBrowserSignature(userAgent) : null,
+                    network,
+                    metadata != null ? NetworkZone.nameOf(metadata.get("networkZone")) : null);
+        }
+
+        String encode() {
+            return String.join(SEPARATOR, userAgentGiven ? USER_AGENT_GIVEN : "", part(operatingSystem), part(browser),
+                    part(network), part(zone));
+        }
+
+        /** The client a stored line names; null for no line or for a line in a form this version does not read. */
+        static SessionClient decode(String line) {
+            if (!StringUtils.hasText(line)) {
+                return null;
+            }
+            String[] parts = line.split("\\|", -1);
+            if (parts.length != PARTS) {
+                return null;
+            }
+            return new SessionClient(USER_AGENT_GIVEN.equals(parts[0]), blankToNull(parts[1]), blankToNull(parts[2]),
+                    blankToNull(parts[3]), blankToNull(parts[4]));
+        }
+
+        /**
+         * "first -> current" when both requests gave a User-Agent and their operating system or browser differs; a
+         * browser's version is set aside, since a browser updates within a session. Null otherwise.
+         */
+        static String deviceChange(SessionClient first, SessionClient current) {
+            if (first == null || current == null || !first.userAgentGiven() || !current.userAgentGiven()) {
+                return null;
+            }
+            boolean sameSystem = Objects.equals(first.operatingSystem(), current.operatingSystem());
+            boolean sameBrowser = Objects.equals(browserName(first.browser()), browserName(current.browser()));
+            return sameSystem && sameBrowser ? null : first.device() + " -> " + current.device();
+        }
+
+        /** "first -> current" when both requests came from a known network and the two differ; null otherwise. */
+        static String networkChange(SessionClient first, SessionClient current) {
+            if (first == null || current == null || first.network() == null || current.network() == null
+                    || SecuritySemanticNormalizer.sameNetwork(first.network(), current.network())) {
+                return null;
+            }
+            return first.networkLabel() + " -> " + current.networkLabel();
+        }
+
+        private String device() {
+            String device = SecuritySemanticNormalizer.device(browser, operatingSystem);
+            if (device != null) {
+                return device;
+            }
+            return operatingSystem != null ? operatingSystem : "a client that names no browser or operating system";
+        }
+
+        private String networkLabel() {
+            return zone != null ? network + " (" + zone + ")" : network;
+        }
+
+        private static String browserName(String browser) {
+            if (browser == null) {
+                return null;
+            }
+            int slash = browser.indexOf('/');
+            return (slash >= 0 ? browser.substring(0, slash) : browser).toLowerCase(Locale.ROOT);
+        }
+
+        private static String part(String value) {
+            return value == null ? "" : value;
+        }
+
+        private static String blankToNull(String value) {
+            return StringUtils.hasText(value) ? value : null;
+        }
     }
 }
 

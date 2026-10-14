@@ -45,7 +45,7 @@ public class SealedEvidencePromptCaptureAspect {
         }
 
         try {
-            traceStore.capture(new SecurityDecisionCaptureContextAdapter(securityDecisionContext, result));
+            traceStore.capture(securityDecisionContext, result);
         } catch (Exception e) {
             log.error("[SealedEvidence] Failed to capture prompt trace", e);
         }

@@ -1,0 +1,4428 @@
+{
+ "source": "docs/showcase/프롬프트-개선-전수표.md section 1; removal places from 프롬프트-컨텍스트-빼기-확인목록.md (Q-61)",
+ "labels": [
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "UserAgent",
+   "disposition": "통합",
+   "target": "REQUEST.Device(해석 실패 시 UA 원문 일부)",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "NewSession",
+   "disposition": "대체(계산)",
+   "target": "SESSION.SessionAge",
+   "places": [
+    "SESSION.SessionAge"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "NewDevice",
+   "disposition": "대체(계산)",
+   "target": "REQUEST.Device(known/new)",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "NewUser",
+   "disposition": "대체(계산)",
+   "target": "USER BASELINE.BaselineStatus, REQUEST.Subject(계정 나이)",
+   "places": [
+    "USER_BASELINE.BaselineStatus",
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "CurrentAccessHour",
+   "disposition": "통합",
+   "target": "REQUEST.Time",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "AuthenticationType",
+   "disposition": "대체",
+   "target": "SESSION.LoginMethod(출처 등급과 함께)",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "ClientIp",
+   "disposition": "이동",
+   "target": "REQUEST.Network",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "SessionId",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(값이 가려져 판단에 쓸 사실이 없다)"
+  },
+  {
+   "part": "1",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeCompletenessSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "UNKNOWN.Coverage"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeCompletenessLevel",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "UNKNOWN.Coverage"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeAuthenticationSource",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeAuthorizationSource",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Roles",
+    "REQUEST.Permissions"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "CONTEXT COVERAGE",
+   "label": "CoverageSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "UNKNOWN.Coverage"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "CONTEXT COVERAGE",
+   "label": "CoverageLevel",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "UNKNOWN.Coverage"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "CONTEXT COVERAGE",
+   "label": "AvailableFacts",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "AuthorizationEffectStageNote",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "OrganizationId",
+   "disposition": "삭제(충돌 사실로 대체)",
+   "target": "DECISION FACTS.TenantConflict(조건부)",
+   "places": [
+    "DECISION_FACTS.DataConflicts"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "TenantId",
+   "disposition": "삭제(충돌 사실로 대체)",
+   "target": "DECISION FACTS.TenantConflict(조건부)",
+   "places": [
+    "DECISION_FACTS.DataConflicts"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "AuthorizationEffectProvenance",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "FailedLoginAttempts",
+   "disposition": "수정",
+   "target": "SESSION.FailedLogins(창·대상 명시, 값이 있을 때만)",
+   "places": [
+    "SESSION.FailedLogins"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "AuthMethod",
+   "disposition": "대체",
+   "target": "SESSION.LoginMethod",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "Path",
+   "disposition": "통합",
+   "target": "REQUEST.Action",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "MfaVerified",
+   "disposition": "대체",
+   "target": "SESSION.MfaForThisSession, SESSION.ChallengeVerified",
+   "places": [
+    "SESSION.LoginMethod",
+    "SESSION.ChallengeVerified",
+    "SESSION.RecentMfaElsewhere",
+    "SESSION.ChallengeVerified"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "HttpMethod",
+   "disposition": "통합",
+   "target": "REQUEST.Action",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "User",
+   "disposition": "통합",
+   "target": "REQUEST.Subject",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "AuthorizationContext",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "Delegated",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation(대리 실행일 때만), 위임 미사용 앱은 줄 없음",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "ObjectiveAlignmentEvidence",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "ObjectiveSummary",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "ObjectiveFamily",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceBrowserVersion",
+   "disposition": "통합",
+   "target": "REQUEST.Device",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceBrowser",
+   "disposition": "통합",
+   "target": "REQUEST.Device",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceOs",
+   "disposition": "통합",
+   "target": "REQUEST.Device",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "MissingKnowledgeWarning",
+   "disposition": "삭제(근거 충분성은 사실 옆 표시로)",
+   "target": "UNKNOWN 목록, 근거 충분성 표시(재검토 8.1)",
+   "places": [
+    "UNKNOWN.Coverage",
+    "UNKNOWN.Unknown"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "ContextTrustWarning",
+   "disposition": "삭제(근거 충분성은 사실 옆 표시로)",
+   "target": "근거 충분성 표시(재검토 8.1)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "ContextTrustLimitation",
+   "disposition": "삭제(근거 충분성은 사실 옆 표시로)",
+   "target": "근거 충분성 표시(재검토 8.1)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "ContextEvidenceLimitation",
+   "disposition": "삭제(출처 등급은 사실 옆 표시로)",
+   "target": "출처 등급 표시(재검토 8.1)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "MissingKnowledgeDecisionLimit",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "removal list remaining place: 시스템 프롬프트 증거 규칙(6.3 7)"
+  },
+  {
+   "part": "1",
+   "section": "EXPLICIT MISSING KNOWLEDGE",
+   "label": "BaselineGapSupport",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalLineage",
+   "disposition": "분해",
+   "target": "DECISION FACTS.Approval, Assignment, Ticket, OnCall, Travel, AccessHistory, REQUEST.Network(분류)",
+   "places": [
+    "DECISION_FACTS.Approval",
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "FrictionSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalStatus",
+   "disposition": "대체",
+   "target": "DECISION FACTS.ApprovalValidForRequest, Approval",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalGranted",
+   "disposition": "통합",
+   "target": "DECISION FACTS.ApprovalValidForRequest",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalRequired",
+   "disposition": "수정",
+   "target": "DECISION FACTS.ApprovalRequired(정책 이름과 이유)",
+   "places": [
+    "DECISION_FACTS.Policy"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalMissing",
+   "disposition": "대체",
+   "target": "DECISION FACTS.ApprovalValidForRequest",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalTicketId",
+   "disposition": "통합",
+   "target": "DECISION FACTS.Approval(설명 안의 식별자)",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "ApprovalDecisionAgeMinutes",
+   "disposition": "대체",
+   "target": "DECISION FACTS.Approval(발행 시각이 요청 전인지 뒤인지)",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "PrincipalType",
+   "disposition": "대체",
+   "target": "REQUEST.Subject(subjectType: HUMAN_USER·SERVICE_CLIENT·AGENT_RUNTIME)",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "UserId",
+   "disposition": "통합",
+   "target": "REQUEST.Subject",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "AuthorizationEffect",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.AuthorizationEffect(호스트 명시일 때만, 출처·정책 ID), DataConflicts(충돌), SESSION.RecentDeniedAuthorizations",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect",
+    "SESSION.RecentDenied"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "EffectiveRoles",
+   "disposition": "이동",
+   "target": "REQUEST.Roles",
+   "places": [
+    "REQUEST.Roles"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "LOCATION CONTEXT",
+   "label": "IpBand",
+   "disposition": "수정",
+   "target": "REQUEST.Network(대역과 분류)",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "CurrentActionFamilyPresentInObservedHistory",
+   "disposition": "통합",
+   "target": "DECISION FACTS.DeviationsFromBaseline",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "CurrentResourcePresentInObservedHistory",
+   "disposition": "통합",
+   "target": "DECISION FACTS.DeviationsFromBaseline",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "FrequentActionFamilies",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualActions",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "ObservedScopeSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "ProfileSource",
+   "disposition": "삭제",
+   "target": "출처 등급 표시(재검토 8.1)",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "BaselineContextSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE"
+   ],
+   "resolvedBy": "removal list remaining place: USER BASELINE의 개별 줄(BaselineStatus, Usual*)"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "FrequentPaths",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualTargets(경로 틀과 대상, 빈도)",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "WorkProfileSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ProtectableResourceHeatmap",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualTargets",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "FrequentProtectableResources",
+   "disposition": "통합",
+   "target": "USER BASELINE.UsualTargets",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentRequestCombinationSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_LINES:REQUEST"
+   ],
+   "resolvedBy": "removal list remaining place: REQUEST 각 줄"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentRequestCombinationComparedDimensions",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentVsObservedDeltaSummary",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedComparableCombination1",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE",
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "removal list remaining place: USER BASELINE 각 줄, F DeviationsFromBaseline(겹침 수)"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "StrongestCurrentRequestCombinationDelta",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "StrongestCurrentVsObservedDelta",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "removal list remaining place: DECISION FACTS.DeviationsFromBaseline"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentRequestCombinationEvidenceScope",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedPatternEvidenceScope",
+   "disposition": "삭제",
+   "target": "USER BASELINE 블록 머리의 출처 한 줄",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentOperatingSystemPresentInObservedOperatingSystems",
+   "disposition": "통합",
+   "target": "DECISION FACTS.DeviationsFromBaseline(device)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentAuthenticationTypePresentInObservedAuthTypes",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(loginMethod)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentResourceFamilyPresentInObservedResources",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(resourceClass)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentActionFamily",
+   "disposition": "대체",
+   "target": "REQUEST.Action(원천: 등록소·공식 필드 명시값, 없으면 HTTP 유추와 출처 등급)",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentActionFamilyPresentInObservedActions",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(action)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedHours",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualHours",
+   "places": [
+    "USER_BASELINE.UsualHours"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "FrequentSensitiveResourceCategories",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualResourceClass",
+   "places": [
+    "USER_BASELINE.UsualResourceClass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentAccessHourPresentInObservedHours",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(time, 빈도 포함)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentNetworkPresentInObservedNetworks",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(network)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentBrowserPresentInObservedBrowsers",
+   "disposition": "통합",
+   "target": "DECISION FACTS.DeviationsFromBaseline(device)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalAccessHours",
+   "disposition": "통합",
+   "target": "USER BASELINE.UsualHours",
+   "places": [
+    "USER_BASELINE.UsualHours"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentPathPresentInObservedPaths",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(target)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentRequestCombinationSeenCount",
+   "disposition": "삭제",
+   "target": "DECISION FACTS.DeviationsFromBaseline(빈도)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentDayPresentInObservedDays",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(day)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "WorkProfileEvidenceState",
+   "disposition": "대체",
+   "target": "USER BASELINE.BaselineStatus, 근거 충분성 표시",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "PersonalBaselineStatus",
+   "disposition": "통합",
+   "target": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedActionFamilies",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualActions",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "BaselineProfileStatus",
+   "disposition": "이름 변경",
+   "target": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedAuthenticationTypes",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualLoginMethods",
+   "places": [
+    "USER_BASELINE.UsualLoginMethods"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedResourceFamilies",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualResourceClass",
+   "places": [
+    "USER_BASELINE.UsualResourceClass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalReadWriteExportRatio",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualActions",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedOperatingSystems",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualDevices",
+   "places": [
+    "USER_BASELINE.UsualDevices"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentAuthenticationType",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalAccessDays",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualDays(요일 이름)",
+   "places": [
+    "USER_BASELINE.UsualDays"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ProtectableInvocationDensity",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentOperatingSystem",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentVsObservedDeltaCount",
+   "disposition": "대체",
+   "target": "DECISION FACTS.DeviationsFromBaseline(개수)",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentNetwork",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedBrowsers",
+   "disposition": "통합",
+   "target": "USER BASELINE.UsualDevices",
+   "places": [
+    "USER_BASELINE.UsualDevices"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedDays",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualDays",
+   "places": [
+    "USER_BASELINE.UsualDays"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentBrowser",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "ObservedNetworks",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualNetworks",
+   "places": [
+    "USER_BASELINE.UsualNetworks"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "HistoricalBaselineSupport",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "BaselineObservations",
+   "disposition": "통합",
+   "target": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalRequestRate",
+   "disposition": "수정",
+   "target": "USER BASELINE.UsualRequestRate(단위 명시), SESSION.RecentRequests와 같은 단위로 비교",
+   "places": [
+    "USER_BASELINE.UsualRequestRate",
+    "SESSION.RecentRequests"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentRequestClosestObservedOverlap",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "CurrentDayOfWeek",
+   "disposition": "통합",
+   "target": "REQUEST.Time",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "BaselineSupportSummary",
+   "disposition": "삭제",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocumentScopeReason",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument1",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument2",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument3",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagScopeReason",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocumentAuthorizationReason",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument4",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument5",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument6",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument7",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument8",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument9",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument10",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument11",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDocument12",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagAuthorizationReason",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagEvidenceBoundary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "removal list remaining place: 시스템 프롬프트 2(블록 읽는 법)"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDecisionLimit",
+   "disposition": "삭제",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagApplicability",
+   "disposition": "통합",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagProjectionState",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagRetrievalState",
+   "disposition": "이름 변경",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagAuthorizedDocumentCount",
+   "disposition": "통합",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagCandidateDocumentCount",
+   "disposition": "통합",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagPermissionFiltered",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagRelevance",
+   "disposition": "대체",
+   "target": "PAST RECORDS.PastRecord{i}(sameTarget)",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagDeniedDocumentCount",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagSearchExecuted",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RelatedDocumentCount",
+   "disposition": "통합",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RAG EVIDENCE",
+   "label": "RagAbsenceReason",
+   "disposition": "통합",
+   "target": "PAST RECORDS.PastRecordsState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "IntentSignalStatus",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals(값이 있을 때만), UNKNOWN 목록",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "TlsFingerprintAltered",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "AbnormalHeaderOrder",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "LanguageMismatch",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "ImpossibleTravel",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Movement(이동 사실), ClientSignals",
+   "places": [
+    "DECISION_FACTS.Movement"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "MissingReferer",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "BotUserAgent",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ClientSignals",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "BusinessLabel",
+   "disposition": "분해",
+   "target": "REQUEST.Target(범주), REQUEST.Size, UNTRUSTED TEXT",
+   "places": [
+    "REQUEST.Target",
+    "REQUEST.Size"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "CurrentPathFamily",
+   "disposition": "대체",
+   "target": "REQUEST.Action(경로 틀)",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "ResourceId",
+   "disposition": "삭제",
+   "target": "REQUEST.Action(경로 틀)",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "CurrentResourceFamily",
+   "disposition": "대체",
+   "target": "REQUEST.ResourceClass(등급), REQUEST.Target(범주는 따로)",
+   "places": [
+    "REQUEST.ResourceClass",
+    "REQUEST.Target"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "RequestPath",
+   "disposition": "통합",
+   "target": "REQUEST.Action",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "PromptQualityVerificationRequired",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REMOVED:Q-73"
+   ],
+   "resolvedBy": "removed by the user (principle 14, Q-73 T1)"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "SensitiveResource",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.ResourceClass"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "Sensitivity",
+   "disposition": "수정",
+   "target": "REQUEST.ResourceClass(원값 병기)",
+   "places": [
+    "REQUEST.ResourceClass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "ActionFamily",
+   "disposition": "대체",
+   "target": "REQUEST.Action(원천: 등록소·공식 필드 명시값, 없으면 HTTP 유추와 출처 등급)",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "RecentPermissionChanges",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RecentPermissionChanges(늘, 변경 없음과 모름 구분)",
+   "places": [
+    "DECISION_FACTS.RecentPermissionChanges"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "RoleScopeSummary",
+   "disposition": "삭제",
+   "target": "DECISION FACTS.RoleScope(비교 결과가 대신함)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "CurrentResourceFamilyPresentInExpectedRoleScope",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "CurrentResourceFamilyPresentInDeniedRoleScope",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "CurrentActionFamilyPresentInDeniedRoleScope",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "RoleScopeDeltaSummary",
+   "disposition": "삭제",
+   "target": "DECISION FACTS.RoleScope(비교 결과가 대신함)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "StrongestRoleScopeDelta",
+   "disposition": "삭제",
+   "target": "DECISION FACTS.RoleScope(비교 결과가 대신함)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "CurrentActionFamilyPresentInExpectedRoleScope",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ExpectedActionFamilies",
+   "disposition": "통합",
+   "target": "DECISION FACTS.RoleScope(범위 집단의 평소 행동)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ElevatedPrivilegeWindowActive",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.TemporaryElevation(활성일 때)",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "RoleScopeEvidenceState",
+   "disposition": "삭제(근거 충분성은 사실 옆 표시로)",
+   "target": "근거 충분성 표시(재검토 8.1)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "RoleScopeDeltaCount",
+   "disposition": "통합",
+   "target": "DECISION FACTS.RoleScope(다른 항목 수)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "HistoricalComparableSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ],
+   "resolvedBy": "preserved by the block header"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "RecentSessionActionSample",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "ComparableExample1",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionNarrativeSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list remaining place: SESSION 각 줄"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "PreviousPath",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionProtectableSequence",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionAuthMethod",
+   "disposition": "대체",
+   "target": "SESSION.LoginMethod",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "RecentSessionActionCount",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionActionSequence",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "HistoricalComparableScope",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ],
+   "resolvedBy": "preserved by the block header"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionRequestCount",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession(개수)",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionTimelineSupport",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionAgeMinutes",
+   "disposition": "수정",
+   "target": "SESSION.SessionAge(기준 명시: 세션 생성 또는 인증 시각)",
+   "places": [
+    "SESSION.SessionAge"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "BurstPattern",
+   "disposition": "대체",
+   "target": "DECISION FACTS.RepeatInSession",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "HistoricalComparableCount",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "HistoricalComparableEvents",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "PreviousActionFamily",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "LastRequestIntervalMs",
+   "disposition": "대체",
+   "target": "SESSION.RequestsInSession(시각)",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SESSION NARRATIVE CONTEXT",
+   "label": "SessionRequestsPerMinute",
+   "disposition": "삭제",
+   "target": "DECISION FACTS.RepeatInSession",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingEvidenceConstraint",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "removal list remaining place: 시스템 프롬프트 증거 규칙(6.3 7)"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingBaselineSummary",
+   "disposition": "삭제",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingComparableSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingEvidenceNeverReplacesPersonalBaseline",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "removal list remaining place: 시스템 프롬프트 증거 규칙(6.3 7)"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingBaselineStatus",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingEvidenceMode",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "NO_FACT"
+   ],
+   "resolvedBy": "removal list: 없음(블록 이름표·머리 줄은 v20 블록 머리가 대신한다)"
+  },
+  {
+   "part": "1",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingComparableCount",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "FINAL RESPONSE COMPACTNESS - use at most <n> words and <n> characters; never exceed <n> words or <n> character",
+   "disposition": "삭제(시스템 출력 계약으로)",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "removal list N1 (system output contract)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Context provenance summary: collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=<n>,daysCove",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "named in an entry preserved column"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Context provenance summary: Effective roles SC_ADMIN \\",
+   "disposition": "N U",
+   "target": "수집기 내부 출처 문자열",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "named in an entry preserved column"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Context trust profile is available for PERSONAL_WORK_PROFILE.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary Evidence preserves \"Context trust profile available\""
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Personal work profile evidence is available but provisional.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preservation table: evidence line (W0-5)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Context trust profile is available for ROLE_SCOPE_PROFILE.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary Evidence preserves \"Context trust profile available\""
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Role scope profile evidence is available but provisional.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "preservation table: evidence line (W0-5)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Current request authorization effect is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Friction and approval history is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === AUTHENTICATION AND ASSURANCE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Resource business label is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === FRICTION AND APPROVAL HISTORY ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === REQUEST INTENT SIGNAL CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Observed work pattern is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === OBSERVED WORK PATTERN CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Resource sensitivity is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === RESOURCE AND ACTION CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === ROLE AND WORK SCOPE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === DELEGATED OBJECTIVE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === SUPPORTING LEARNING CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === EXPLICIT MISSING KNOWLEDGE ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Context provenance summary: Effective roles SC_ENGINEER \\",
+   "disposition": "N U",
+   "target": "수집기 내부 출처 문자열",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "named in an entry preserved column"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === CURRENT REQUEST AND EVENT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === BRIDGE RESOLUTION CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Resource identity is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Session MFA state is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Session narrative is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === IDENTITY AND ROLE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === SESSION NARRATIVE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Session identity is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Effective roles are available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Location context is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Actor identity is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "- Device context is available.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ],
+   "resolvedBy": "removal list G2 (fixed \"is available\" sentence)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === PERSONAL WORK PROFILE ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === CONTEXT COVERAGE ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === LOCATION CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === DEVICE CONTEXT ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "[header] === RAG EVIDENCE ===",
+   "disposition": "대체",
+   "target": "블록 머리 9개(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)",
+   "places": [
+    "BLOCK_HEADERS"
+   ],
+   "resolvedBy": "section header -> the nine block headers (inventory 2)"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/projects/GB-<n>/exports/stream at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting POST /api/projects/GB-<n>/exports at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/customers/CUS-<n> at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/documents/HX-<n>-DWG-<n> at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting POST /api/admin/role-grants at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/documents/HX-<n>-DWG-<n>/download at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting POST /api/projects/HX-<n>/exports at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/documents/CP-<n>-DWG-<n> at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting POST /api/projects/GB-<n>/exports/async at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/documents/GB-<n>-DWG-<n> at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "2",
+   "section": null,
+   "label": "User is requesting GET /api/documents/DOC-<id>-<n> at <hh:mm>.",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "removal list G9"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "AuthenticationAssurance",
+   "disposition": "조건부",
+   "target": "SESSION.LoginMethod(보증 수준)",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT, FRICTION AND APPROVAL HISTORY",
+   "label": "BlockedUser",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.BlockedUser",
+   "places": [
+    "DECISION_FACTS.BlockedUser"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "ConcurrentSessions",
+   "disposition": "조건부",
+   "target": "SESSION.ConcurrentSessions",
+   "places": [
+    "SESSION.ConcurrentSessions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "LastMfaUsedAt",
+   "disposition": "수정",
+   "target": "SESSION.LoginMethod(마지막 MFA 경과, 이벤트 시계)",
+   "places": [
+    "SESSION.LoginMethod"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "PasswordAgeDays",
+   "disposition": "조건부",
+   "target": "SESSION.PasswordAge",
+   "places": [
+    "SESSION.PasswordAge"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT, FRICTION AND APPROVAL HISTORY",
+   "label": "RecentBlockCount",
+   "disposition": "대체(세션 판정 이력으로 채움)",
+   "target": "SESSION.RequestsInSession(앞선 판정)",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT, FRICTION AND APPROVAL HISTORY",
+   "label": "RecentChallengeCount",
+   "disposition": "대체(세션 판정 이력으로 채움)",
+   "target": "SESSION.RequestsInSession(앞선 판정)",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT, FRICTION AND APPROVAL HISTORY",
+   "label": "RecentEscalationCount",
+   "disposition": "대체(세션 판정 이력으로 채움)",
+   "target": "SESSION.RequestsInSession(앞선 판정)",
+   "places": [
+    "SESSION.RequestsInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "RecentMfaFailureCount",
+   "disposition": "조건부",
+   "target": "SESSION.MfaFailures",
+   "places": [
+    "SESSION.MfaFailures"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "AUTHENTICATION AND ASSURANCE CONTEXT",
+   "label": "RecentRequestCount",
+   "disposition": "수정",
+   "target": "SESSION.RecentRequests(창 명시)",
+   "places": [
+    "SESSION.RecentRequests"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeDelegationSource",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeMissingContexts",
+   "disposition": "대체",
+   "target": "UNKNOWN(연동 미설정)",
+   "places": [
+    "BLOCK_LINES:UNKNOWN"
+   ],
+   "resolvedBy": "block-level target UNKNOWN(연동 미설정)"
+  },
+  {
+   "part": "7",
+   "section": "BRIDGE RESOLUTION CONTEXT",
+   "label": "BridgeRemediationHints",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "UNKNOWN.Coverage"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT COVERAGE",
+   "label": "MissingCriticalFacts",
+   "disposition": "대체",
+   "target": "UNKNOWN(세 종류 구분)",
+   "places": [
+    "BLOCK_LINES:UNKNOWN"
+   ],
+   "resolvedBy": "block-level target UNKNOWN(세 종류 구분)"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustCollectorId",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustEvidence",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustFieldAudits",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustProfileKey",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustProfileSummary",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustProvenanceSummary",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustQualityWarnings",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "CONTEXT QUALITY AND PROVENANCE",
+   "label": "TrustScopeLimitations",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "AgentId",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "AllowedOperations",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "AllowedResources",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "ContainmentOnly",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "ObjectiveId",
+   "disposition": "통합",
+   "target": "DECISION FACTS.Delegation(설명 안의 식별자)",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DELEGATED OBJECTIVE CONTEXT",
+   "label": "PrivilegedExportAllowed",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Delegation",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceFingerprintMatch",
+   "disposition": "조건부",
+   "target": "REQUEST.Device(지문 일치)",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceLanguage",
+   "disposition": "조건부",
+   "target": "REQUEST.Device(언어)",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceOsVersion",
+   "disposition": "통합",
+   "target": "REQUEST.Device",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "DEVICE CONTEXT",
+   "label": "DeviceScreenResolution",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Device"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "BreakGlass",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.BreakGlass",
+   "places": [
+    "DECISION_FACTS.BreakGlass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "FRICTION AND APPROVAL HISTORY",
+   "label": "PendingApproverRoles",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.Approval(대기 승인자)",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "AuthoritySet",
+   "disposition": "조건부(요약)",
+   "target": "REQUEST.Permissions(범위 판단에 쓰는 것만)",
+   "places": [
+    "REQUEST.Permissions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "BridgeSubjectKey",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "Department",
+   "disposition": "조건부",
+   "target": "REQUEST.Subject(부서)",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "EffectivePermissions",
+   "disposition": "통합",
+   "target": "REQUEST.Permissions",
+   "places": [
+    "REQUEST.Permissions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "ExternalSubjectId",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "PolicyId",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.AuthorizationEffect(정책 ID)",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "PolicyVersion",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.AuthorizationEffect(정책 버전)",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "Position",
+   "disposition": "조건부",
+   "target": "REQUEST.Subject(직위)",
+   "places": [
+    "REQUEST.Subject"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "PrivilegedFlow",
+   "disposition": "조건부",
+   "target": "REQUEST.Roles(특권 흐름, 출처 등급)",
+   "places": [
+    "REQUEST.Roles"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "RoleSet",
+   "disposition": "통합",
+   "target": "REQUEST.Roles, DECISION FACTS.DataConflicts(다를 때)",
+   "places": [
+    "REQUEST.Roles",
+    "DECISION_FACTS.DataConflicts"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "IDENTITY AND ROLE CONTEXT",
+   "label": "ScopeTags",
+   "disposition": "조건부",
+   "target": "REQUEST.Roles(범위 태그)",
+   "places": [
+    "REQUEST.Roles"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "LOCATION CONTEXT",
+   "label": "Asn",
+   "disposition": "조건부",
+   "target": "REQUEST.Network(ASN)",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "LOCATION CONTEXT",
+   "label": "City",
+   "disposition": "조건부",
+   "target": "REQUEST.Network(도시)",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "LOCATION CONTEXT",
+   "label": "Country",
+   "disposition": "조건부",
+   "target": "REQUEST.Network(국가), DECISION FACTS.DeviationsFromBaseline",
+   "places": [
+    "REQUEST.Network",
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "FrequentResources",
+   "disposition": "통합",
+   "target": "USER BASELINE.UsualTargets",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OBSERVED WORK PATTERN CONTEXT, FRICTION AND APPROVAL HISTORY",
+   "label": "RecentDeniedAccessCount",
+   "disposition": "조건부",
+   "target": "SESSION.RecentDenied",
+   "places": [
+    "SESSION.RecentDenied"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "RecentProtectableAccessCount",
+   "disposition": "조건부",
+   "target": "USER BASELINE(관측 수)",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE"
+   ],
+   "resolvedBy": "block-level target USER BASELINE(관측 수)"
+  },
+  {
+   "part": "7",
+   "section": "OBSERVED WORK PATTERN CONTEXT",
+   "label": "RecentSensitiveAccessCount",
+   "disposition": "조건부",
+   "target": "SESSION.RecentSensitiveAccess",
+   "places": [
+    "SESSION.RecentSensitiveAccess"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "CohortPreference",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "CrossTenantObjectiveMisuseFacts",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "CrossTenantObjectiveMisusePackSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "FalseNegativeCaseCount",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "FreshnessState",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "HardNegativeCaseCount",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "KnowledgeAssistedCaseCount",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "MatchedSignalKeys",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases(일치한 사실)",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "MemoryGuardrails",
+   "disposition": "삭제(시스템 규칙 후보)",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "MemoryRiskProfile",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ObjectiveAwareReasoningMemory",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ObjectiveFamilies",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ReasoningFacts",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ReasoningMemorySummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ReasoningState",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "RecallPriority",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "ReinforcedCaseCount",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "RetentionTier",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "RetrievalWeight",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "OUTCOME AND REASONING MEMORY",
+   "label": "XaiLinkedFacts",
+   "disposition": "조건부",
+   "target": "PAST RECORDS.ValidatedCases",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CohortNormalProtectableFrequencyBand",
+   "disposition": "수정",
+   "target": "DECISION FACTS.PeerCohort(구간 정의 명시)",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CohortNormalSensitivityBand",
+   "disposition": "수정",
+   "target": "DECISION FACTS.PeerCohort",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CohortPreferredActionFamilies",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.PeerCohort",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CohortPreferredResources",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.PeerCohort",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CurrentActionFamilyPresentInPeerPreferredActions",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.PeerCohort(비교)",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "CurrentResourcePresentInPeerPreferredResources",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.PeerCohort(비교)",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "PeerCohortId",
+   "disposition": "감사 기록",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.PeerReference",
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "PEER COHORT DELTA",
+   "label": "PeerCohortSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.PeerReference",
+    "DECISION_FACTS.PeerCohort"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "LongTailLegitimateTasks",
+   "disposition": "조건부",
+   "target": "USER BASELINE.KnownRareTasks",
+   "places": [
+    "USER_BASELINE.KnownRareTasks"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalPrivilegedActionFrequency",
+   "disposition": "조건부",
+   "target": "USER BASELINE.UsualPrivilegedActions",
+   "places": [
+    "USER_BASELINE.UsualPrivilegedActions"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "NormalSessionLengthMinutes",
+   "disposition": "조건부",
+   "target": "USER BASELINE.UsualSessionLength",
+   "places": [
+    "USER_BASELINE.UsualSessionLength"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "PERSONAL WORK PROFILE",
+   "label": "SeasonalBusinessProfile",
+   "disposition": "조건부",
+   "target": "USER BASELINE.SeasonalPattern",
+   "places": [
+    "USER_BASELINE.SeasonalPattern"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "AnomalySignalSource",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REMOVED:Q-78"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "7",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "AnomalySignalTrust",
+   "disposition": "통합",
+   "target": "R4-T로 뺌(Q-78 요청 4)",
+   "places": [
+    "REMOVED:Q-78"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "REQUEST INTENT SIGNAL CONTEXT",
+   "label": "ObservedAnomalySignal",
+   "disposition": "대체",
+   "target": "UNTRUSTED TEXT(요청자 주장, 서버 발급 신호 칸은 R4-T로 뺌)",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "ExportSensitive",
+   "disposition": "조건부",
+   "target": "REQUEST.ResourceClass(반출 민감 표시)",
+   "places": [
+    "REQUEST.ResourceClass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "PrivilegedResource",
+   "disposition": "조건부",
+   "target": "REQUEST.ResourceClass(특권 표시)",
+   "places": [
+    "REQUEST.ResourceClass"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "RESOURCE AND ACTION CONTEXT",
+   "label": "ResourceType",
+   "disposition": "조건부",
+   "target": "REQUEST.Target(범주)",
+   "places": [
+    "REQUEST.Target"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ElevationWindowSummary",
+   "disposition": "통합",
+   "target": "DECISION FACTS.TemporaryElevation",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ExpectedResourceFamilies",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ForbiddenActionFamilies",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "ForbiddenResourceFamilies",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "NormalApprovalPatterns",
+   "disposition": "수정",
+   "target": "DECISION FACTS.RoleScope(평소 승인 형태)",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "NormalEscalationPatterns",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.RoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "TemporaryElevation",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.TemporaryElevation",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "7",
+   "section": "ROLE AND WORK SCOPE CONTEXT",
+   "label": "TemporaryElevationReason",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.TemporaryElevation(사유), UNTRUSTED TEXT(호스트 글)",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "MitreTactics",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "ObservationWindow",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "RelevantFacts",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch(일치 사실)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "SignalSummary",
+   "disposition": "이동",
+   "target": "UNTRUSTED TEXT(외부 지식)",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ],
+   "resolvedBy": "block-level target UNTRUSTED TEXT(외부 지식)"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "TargetSurfaces",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "ThreatCampaignMatchCount",
+   "disposition": "통합",
+   "target": "DECISION FACTS.ThreatMatch(개수)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "BASELINE",
+   "label": "Baseline evidence constraints",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "8",
+   "section": "BASELINE",
+   "label": "Baseline gap impact",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "SYSTEM_TEXT"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "8",
+   "section": "BASELINE",
+   "label": "Baseline gap status",
+   "disposition": "통합",
+   "target": "USER BASELINE.BaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Cohort",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Cohort tenants",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Runtime weight",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "dictionary 3.3"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Sampled user baselines",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Seed policy",
+   "disposition": "통합",
+   "target": "USER BASELINE.PeerReference(가중 상태)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Snapshot date",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Typical cohort days",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(요일 이름)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Typical cohort hours",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Typical cohort operating systems",
+   "disposition": "조건부",
+   "target": "USER BASELINE.PeerReference(개인 기준선이 없을 때만)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "COHORT BASELINE SEED (SUPPORTING CONTEXT ONLY)",
+   "label": "Use only for dimensions",
+   "disposition": "통합",
+   "target": "USER BASELINE.PeerReference(참고 차원)",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "CURRENT REQUEST AND EVENT",
+   "label": "PayloadSummary",
+   "disposition": "이동",
+   "target": "UNTRUSTED TEXT(본문 일부)",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ],
+   "resolvedBy": "block-level target UNTRUSTED TEXT(본문 일부)"
+  },
+  {
+   "part": "8",
+   "section": "NETWORK",
+   "label": "CurrentOS",
+   "disposition": "삭제(죽은 코드)",
+   "target": "-",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "NETWORK",
+   "label": "CurrentUA",
+   "disposition": "삭제(죽은 코드)",
+   "target": "-",
+   "places": [
+    "REQUEST.Network"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "EVENT",
+   "label": "EventId",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "EVENT",
+   "label": "FailureCount",
+   "disposition": "통합",
+   "target": "SESSION.FailedLogins",
+   "places": [
+    "SESSION.FailedLogins"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "EVENT",
+   "label": "Timestamp",
+   "disposition": "삭제",
+   "target": "REQUEST.Time",
+   "places": [
+    "REQUEST.Time"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "ApplicableContexts",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "ConfidenceBand",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "EvidenceSummary",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "Lift",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "PolicySummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "PromotedDetectionStrategyCount",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "RecommendedSignals",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "RequiredSignals",
+   "disposition": "수정",
+   "target": "DECISION FACTS.ThreatMatch(요구 신호와 일치 여부)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES",
+   "label": "StrategyFamily",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "PROMOTED DETECTION STRATEGIES, THREAT KNOWLEDGE PACK, ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "SupportingContextOnly",
+   "disposition": "삭제(블록 이름으로)",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "Browser Transition",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "Current Browser",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "Current OS",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "OBSERVATION",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange",
+    "DECISION_FACTS.SessionNetworkChange"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "OS Transition",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "Previous Browser",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION DEVICE CHANGE",
+   "label": "Previous OS",
+   "disposition": "대체(세션 서술 수집기가 생산)",
+   "target": "DECISION FACTS.SessionDeviceChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION TIMELINE",
+   "label": "BaselineRequestsPerMinute",
+   "disposition": "대체",
+   "target": "USER BASELINE.UsualRequestRate",
+   "places": [
+    "USER_BASELINE.UsualRequestRate"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION TIMELINE",
+   "label": "ContextBindingHashMismatch",
+   "disposition": "대체(세션 서술 수집기가 같은 세션의 첫 IP·기기와 비교해 바뀐 성분을 사실로 생산하고, 위협 신호 대조와 응답 검사기도 같은 사실을 읽는다)",
+   "target": "DECISION FACTS.SessionDeviceChange·SessionNetworkChange",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange",
+    "DECISION_FACTS.SessionNetworkChange"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SESSION TIMELINE",
+   "label": "SessionRateVsBaseline",
+   "disposition": "대체",
+   "target": "DECISION FACTS.RepeatInSession(같은 단위 비교)",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "SUPPORTING LEARNING CONTEXT",
+   "label": "SupportingComparableExample1",
+   "disposition": "삭제",
+   "target": "PAST RECORDS.SupportingCases",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "CampaignSummary",
+   "disposition": "이동",
+   "target": "UNTRUSTED TEXT(외부 지식)",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ],
+   "resolvedBy": "block-level target UNTRUSTED TEXT(외부 지식)"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "ComparableEvidence",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch(일치 사실)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "FalsePositiveCaution",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch(오탐 주의)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "LearningSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK, ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "Observations",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "OutcomeSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "PromotionSummary",
+   "disposition": "삭제",
+   "target": "-",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "preserved by an entry"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK, ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "Region",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK, ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "Tenants",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK, ACTIVE THREAT CAMPAIGN MATCHES",
+   "label": "ThreatClass",
+   "disposition": "조건부",
+   "target": "DECISION FACTS.ThreatMatch",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "ThreatKnowledgeMatchCount",
+   "disposition": "통합",
+   "target": "DECISION FACTS.ThreatMatch(개수)",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ],
+   "resolvedBy": "target"
+  },
+  {
+   "part": "8",
+   "section": "THREAT KNOWLEDGE PACK",
+   "label": "XaiSummary",
+   "disposition": "이동",
+   "target": "UNTRUSTED TEXT(외부 지식)",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ],
+   "resolvedBy": "block-level target UNTRUSTED TEXT(외부 지식)"
+  },
+  {
+   "part": "8",
+   "section": "USER PROFILE",
+   "label": "UserRoles",
+   "disposition": "통합",
+   "target": "REQUEST.Roles, DECISION FACTS.DataConflicts(다를 때)",
+   "places": [
+    "REQUEST.Roles",
+    "DECISION_FACTS.DataConflicts"
+   ],
+   "resolvedBy": "target"
+  }
+ ]
+}

@@ -4,34 +4,24 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
-import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptSnapshot;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Assembles a SealedEvidencePackage by combining data from three authoritative sources:
@@ -50,19 +40,37 @@ import java.util.regex.Pattern;
  * without verified production evidence of its presence.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class SealedEvidencePackageAssembler {
 
-    private static final Duration DEFAULT_RETENTION = Duration.ofDays(90);
+    /** How long a sealed package is kept when the host sets no retention (R4-S4, D-C). */
+    public static final Duration DEFAULT_RETENTION = Duration.ofDays(90);
     private static final int SEALED_METADATA_TEXT_LIMIT = 512;
     private static final int SEALED_METADATA_GENERIC_LIST_LIMIT = 512;
-    private static final int SEALED_METADATA_FIELD_LEDGER_LIMIT = 512;
-    private static final HexFormat HEX = HexFormat.of();
 
     private final ObjectMapper objectMapper;
     private final CanonicalSecurityContextSerializer contextSerializer;
     private final SealedEvidencePackageIntegrity integrity;
     private final SealedEvidencePromptTraceStore promptTraceStore;
+    private final Duration retention;
+
+    public SealedEvidencePackageAssembler(ObjectMapper objectMapper, CanonicalSecurityContextSerializer contextSerializer,
+                                          SealedEvidencePackageIntegrity integrity,
+                                          SealedEvidencePromptTraceStore promptTraceStore) {
+        this(objectMapper, contextSerializer, integrity, promptTraceStore, DEFAULT_RETENTION);
+    }
+
+    public SealedEvidencePackageAssembler(ObjectMapper objectMapper, CanonicalSecurityContextSerializer contextSerializer,
+                                          SealedEvidencePackageIntegrity integrity,
+                                          SealedEvidencePromptTraceStore promptTraceStore, Duration retention) {
+        this.objectMapper = objectMapper;
+        this.contextSerializer = contextSerializer;
+        this.integrity = integrity;
+        this.promptTraceStore = promptTraceStore;
+        if (retention == null || retention.isNegative() || retention.isZero()) {
+            throw new IllegalArgumentException("Sealed evidence retention must be positive: " + retention);
+        }
+        this.retention = retention;
+    }
 
     /**
      * Assembles a sealed evidence package from the given SecurityEventContext.
@@ -83,8 +91,7 @@ public class SealedEvidencePackageAssembler {
 
         // Source 1: Prompt trace store -- captured by AOP at PromptGenerator.generatePrompt()
         SealedEvidencePromptSnapshot promptSnapshot = promptTraceStore.consume(
-                resolvePromptTraceKey(event, correlationId),
-                correlationId);
+                resolvePromptTraceKey(event, correlationId));
         if (promptSnapshot == null) {
             log.error("[SealedEvidence] Prompt snapshot missing. Sealed package rejected: correlationId={}", correlationId);
             return null;
@@ -115,35 +122,14 @@ public class SealedEvidencePackageAssembler {
         String canonicalContextJson = canonicalContext != null ? contextSerializer.serialize(canonicalContext) : null;
         String baselineSnapshotJson = buildBaselineSnapshot(event);
         String ragResultsJson = buildRagResults(event, promptSnapshot);
-        String promptExecutionMetadataJson = serializePromptExecutionMetadata(
-                promptSnapshot,
-                event.getMetadata(),
-                canonicalContextJson);
+        String promptExecutionMetadataJson = serializePromptExecutionMetadata(promptSnapshot, event.getMetadata());
         String decisionJson = buildDecisionSnapshot(result);
-        UserPromptEvidenceContract.Result evidenceContract = UserPromptEvidenceContract.evaluate(
-                objectMapper,
-                promptSnapshot.userPrompt(),
-                requestFactsJson,
-                authStateJson,
-                canonicalContextJson,
-                baselineSnapshotJson,
-                ragResultsJson,
-                promptExecutionMetadataJson,
-                decisionJson);
         String sealFailureReason = null;
-        if (!evidenceContract.sealable()) {
-            sealFailureReason = "Official verification input contract is not satisfied: "
-                    + summarizeContractViolations(evidenceContract.violations());
-            log.error("[SealedEvidence] User prompt evidence contract failed; package will still be sealed for audit: correlationId={}, reason={}",
-                    correlationId,
-                    sealFailureReason);
-        }
         if (!captureWarnings.isEmpty()) {
-            String captureWarning = "Prompt raw capture incomplete: " + String.join(" ", captureWarnings);
-            sealFailureReason = hasText(sealFailureReason) ? sealFailureReason + " " + captureWarning : captureWarning;
+            sealFailureReason = "Prompt raw capture incomplete: " + String.join(" ", captureWarnings);
             log.error("[SealedEvidence] Prompt raw capture incomplete; package will still be sealed for audit without raw prompt backfill: correlationId={}, reason={}",
                     correlationId,
-                    captureWarning);
+                    sealFailureReason);
         }
 
         SealedEvidencePackage pkg = SealedEvidencePackage.builder()
@@ -184,7 +170,6 @@ public class SealedEvidencePackageAssembler {
                 .rawSystemPromptHash(sha256Prefixed(rawSystemPrompt))
                 .rawUserPromptHash(sha256Prefixed(rawUserPrompt))
                 .promptExecutionMetadataJson(promptExecutionMetadataJson)
-                .promptEvidenceManifestJson(evidenceContract.manifestJson())
                 .sealState(SealedEvidencePackage.SEAL_STATE_SEALED)
                 .sealFailureReason(sealFailureReason)
 
@@ -193,51 +178,11 @@ public class SealedEvidencePackageAssembler {
 
                 .schemaVersion(2)
                 .sealed(true)
-                .expiresAt(Instant.now().plus(DEFAULT_RETENTION))
+                .expiresAt(Instant.now().plus(retention))
                 .build();
 
         pkg.setPackageHash(integrity.computeHash(pkg));
         return pkg;
-    }
-
-    private String summarizeContractViolations(List<Map<String, Object>> violations) {
-        if (violations == null || violations.isEmpty()) {
-            return "Required prompt evidence fields did not satisfy the official verification input contract.";
-        }
-        return violations.stream()
-                .limit(5)
-                .map(this::summarizeContractViolation)
-                .filter(this::hasText)
-                .reduce((left, right) -> left + "; " + right)
-                .orElse("Required prompt evidence fields did not satisfy the official verification input contract.");
-    }
-
-    private String summarizeContractViolation(Map<String, Object> violation) {
-        if (violation == null || violation.isEmpty()) {
-            return null;
-        }
-        String label = firstText(violation, "fieldLabel", "title", "fieldKey");
-        String reason = firstText(violation, "reason", "projectionState", "severity");
-        if (!hasText(label)) {
-            return reason;
-        }
-        if (!hasText(reason)) {
-            return label;
-        }
-        return label + " - " + reason;
-    }
-
-    private String firstText(Map<String, Object> values, String... keys) {
-        if (values == null || keys == null) {
-            return null;
-        }
-        for (String key : keys) {
-            Object value = values.get(key);
-            if (value instanceof String text && hasText(text)) {
-                return text;
-            }
-        }
-        return null;
     }
 
     // --- Source extraction ---
@@ -390,18 +335,12 @@ public class SealedEvidencePackageAssembler {
         List<PastRecordRelevance.Subject> records = List.of();
         if (promptSnapshot != null && promptSnapshot.relatedDocuments() != null) {
             documents = promptSnapshot.relatedDocuments().stream()
-                    .map(this::ragDocumentSummary)
+                    .map(SealedPastRecordSummary::of)
                     .toList();
             records = promptSnapshot.relatedDocuments().stream()
                     .map(document -> document == null
                             ? PastRecordRelevance.Subject.ofRecord(null, null)
                             : PastRecordRelevance.Subject.ofRecord(document.getMetadata(), document.getText()))
-                    .toList();
-        }
-        if ((documents == null || documents.isEmpty()) && faultScenarioApplied(promptSnapshot)) {
-            documents = promptRagDocumentSummaries(promptSnapshot.userPrompt());
-            records = documents.stream()
-                    .map(document -> PastRecordRelevance.Subject.ofRecord(document, null))
                     .toList();
         }
         // The same computation as the prompt and the canonical reasoning: the path template and the target (W2-8).
@@ -415,348 +354,12 @@ public class SealedEvidencePackageAssembler {
                 document.put("sameTarget", PastRecordRelevance.sameTarget(request, records.get(index)));
             }
         }
-        if (documents != null && !documents.isEmpty()) {
+        if (!documents.isEmpty()) {
             rag.put("relatedDocuments", documents);
         }
-        int relatedDocumentCount = documents.size();
         rag.put("ragRelevance", PastRecordRelevance.relevance(request, records));
-        if (faultScenarioApplied(promptSnapshot) && relatedDocumentCount > 0) {
-            applyFaultRagRuntimeMetadata(rag, relatedDocumentCount, documents);
-        }
-        rag.put("relatedDocumentCount", relatedDocumentCount);
-
-        boolean retrievalFailed = truthy(rag.get("ragUnavailable"))
-                || truthy(rag.get("ragTimedOut"))
-                || hasText(objectText(rag.get("ragFailureType")))
-                || hasText(objectText(rag.get("ragFailureMessage")));
-        boolean searchExecuted = rag.containsKey("ragSearchExecuted")
-                ? truthy(rag.get("ragSearchExecuted"))
-                : metadataHasAny(event,
-                "requestedDocumentCount",
-                "allowedDocumentCount",
-                "deniedDocumentCount",
-                "ragRequestedTopK",
-                "ragUnavailable",
-                "ragTimedOut",
-                "ragFailureType",
-                "ragFailureMessage")
-                || relatedDocumentCount > 0;
-        boolean permissionFiltered = rag.containsKey("ragPermissionFiltered")
-                ? truthy(rag.get("ragPermissionFiltered"))
-                : intValue(rag.get("deniedDocumentCount")) > 0
-                || (intValue(rag.get("requestedDocumentCount")) > 0
-                && intValue(rag.get("allowedDocumentCount")) == 0
-                && relatedDocumentCount == 0);
-        boolean zeroResults = searchExecuted && !retrievalFailed && relatedDocumentCount == 0
-                && intValue(rag.get("allowedDocumentCount")) == 0;
-        boolean projectedToFinalPrompt = relatedDocumentCount > 0
-                && relatedDocumentsProjectedToPrompt(promptSnapshot == null ? null : promptSnapshot.userPrompt(), documents);
-
-        String retrievalState = ragRetrievalState(rag, searchExecuted, retrievalFailed, permissionFiltered, zeroResults);
-        String projectionState = ragProjectionState(searchExecuted, retrievalFailed, permissionFiltered, zeroResults,
-                relatedDocumentCount, projectedToFinalPrompt);
-
-        rag.put("ragSearchExecuted", searchExecuted);
-        rag.put("ragPermissionFiltered", permissionFiltered);
-        rag.put("ragZeroResults", zeroResults);
-        rag.put("ragProjectedToFinalPrompt", relatedDocumentCount == 0 ? null : projectedToFinalPrompt);
-        rag.put("ragProjectionState", projectionState);
-        rag.put("ragRetrievalState", retrievalState);
-        rag.put("ragAbsenceReason", ragAbsenceReason(rag, searchExecuted, retrievalFailed, permissionFiltered, zeroResults, relatedDocumentCount, projectedToFinalPrompt));
-
+        rag.put("relatedDocumentCount", documents.size());
         return toJson(rag);
-    }
-
-    private void applyFaultRagRuntimeMetadata(
-            Map<String, Object> rag,
-            int relatedDocumentCount,
-            List<Map<String, Object>> documents) {
-        int denied = 0;
-        for (Map<String, Object> document : documents) {
-            String authorization = objectText(document.get("authorization"));
-        if (hasText(authorization) && !authorization.toLowerCase(Locale.ROOT).contains("allow")) {
-                denied++;
-            }
-        }
-        rag.remove("ragFailureType");
-        rag.remove("ragFailureMessage");
-        rag.remove("ragTimeoutMs");
-        rag.put("ragUnavailable", false);
-        rag.put("ragTimedOut", false);
-        rag.put("requestedDocumentCount", relatedDocumentCount);
-        rag.put("allowedDocumentCount", Math.max(0, relatedDocumentCount - denied));
-        rag.put("deniedDocumentCount", denied);
-        rag.put("ragCandidateDocumentCount", relatedDocumentCount);
-        rag.put("ragAuthorizedDocumentCount", Math.max(0, relatedDocumentCount - denied));
-        rag.put("ragDeniedDocumentCount", denied);
-        rag.put("ragSearchExecuted", true);
-        rag.put("ragRetrievalState", "AVAILABLE");
-        rag.put("ragAbsenceReason", "NONE");
-        rag.put("ragPermissionFiltered", false);
-        rag.put("ragProjectedToFinalPrompt", true);
-        rag.put("ragProjectionState", "PROJECTED");
-    }
-
-    private String ragProjectionState(
-            boolean searchExecuted,
-            boolean retrievalFailed,
-            boolean permissionFiltered,
-            boolean zeroResults,
-            int relatedDocumentCount,
-            boolean projectedToFinalPrompt) {
-        if (!searchExecuted) {
-            return "NOT_EXECUTED_DECLARED";
-        }
-        if (retrievalFailed) {
-            return "UNAVAILABLE_DECLARED";
-        }
-        if (permissionFiltered && relatedDocumentCount == 0) {
-            return "PERMISSION_FILTERED_DECLARED";
-        }
-        if (zeroResults) {
-            return "ZERO_RESULTS_DECLARED";
-        }
-        return projectedToFinalPrompt ? "PROJECTED" : "MISSING_IN_FINAL_PROMPT";
-    }
-
-    private String ragRetrievalState(
-            Map<String, Object> rag,
-            boolean searchExecuted,
-            boolean retrievalFailed,
-            boolean permissionFiltered,
-            boolean zeroResults) {
-        if (!searchExecuted) {
-            return "NOT_EXECUTED";
-        }
-        if (truthy(rag.get("ragTimedOut"))) {
-            return "TIMEOUT";
-        }
-        if (retrievalFailed) {
-            return "FAILED";
-        }
-        if (permissionFiltered) {
-            return "PERMISSION_FILTERED";
-        }
-        if (zeroResults) {
-            return "ZERO_RESULTS";
-        }
-        return "AVAILABLE";
-    }
-
-    private String ragAbsenceReason(
-            Map<String, Object> rag,
-            boolean searchExecuted,
-            boolean retrievalFailed,
-            boolean permissionFiltered,
-            boolean zeroResults,
-            int relatedDocumentCount,
-            boolean projectedToFinalPrompt) {
-        if (!searchExecuted) {
-            return "SEARCH_NOT_EXECUTED";
-        }
-        if (truthy(rag.get("ragTimedOut"))) {
-            return "TIMEOUT";
-        }
-        if (retrievalFailed) {
-            return "PROVIDER_OR_VECTOR_ERROR";
-        }
-        if (permissionFiltered && relatedDocumentCount == 0) {
-            return "PERMISSION_FILTER_EXCLUDED";
-        }
-        if (zeroResults) {
-            return "ZERO_RESULTS";
-        }
-        if (relatedDocumentCount > 0 && !projectedToFinalPrompt) {
-            return "FINAL_PROMPT_NOT_PROJECTED";
-        }
-        return "NONE";
-    }
-
-    private boolean relatedDocumentsProjectedToPrompt(String finalUserPrompt, List<Map<String, Object>> documents) {
-        if (!hasText(finalUserPrompt) || documents == null || documents.isEmpty()) {
-            return false;
-        }
-        String prompt = finalUserPrompt.toLowerCase(Locale.ROOT);
-        if (prompt.contains("rag")
-                || prompt.contains("relateddocuments")
-                || prompt.contains("related documents")
-                || prompt.contains("retrieved document")
-                || prompt.contains("document evidence")
-                || prompt.contains("검색 문서")) {
-            return true;
-        }
-        for (Map<String, Object> document : documents) {
-            if (document == null) {
-                continue;
-            }
-            for (String key : List.of("id", "documentType", "retrievalPurpose", "accessScope", "textPreview")) {
-                String value = objectText(document.get(key));
-            if (hasText(value) && prompt.contains(value.toLowerCase(Locale.ROOT))) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private Map<String, Object> ragDocumentSummary(Document document) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        if (document == null) {
-            return summary;
-        }
-        Map<String, Object> metadata = document.getMetadata();
-        if (metadata != null) {
-            putIfPresent(summary, "id", metadata.get("id"));
-            putIfPresent(summary, "timestamp", metadata.get(VectorDocumentMetadata.TIMESTAMP));
-            putIfPresent(summary, "documentType", metadata.get("documentType"));
-            putIfPresent(summary, "userId", metadata.get("userId"));
-            putIfPresent(summary, "tenantId", metadata.get("tenantId"));
-            putIfPresent(summary, "organizationId", metadata.get("organizationId"));
-            putIfPresent(summary, "resourceId", metadata.get("resourceId"));
-            putIfPresent(summary, "requestPath", metadata.get("requestPath"));
-            // The class comes from the classification values only, never from the document text or its path.
-            putIfPresent(summary, "resourceFamily", firstNonBlank(
-                    objectText(metadata.get("resourceFamily")),
-                    SecuritySemanticNormalizer.normalizeResourceFamily(
-                            metadata.get("resourceSensitivity"), metadata.get("sensitivity"))));
-            putIfPresent(summary, "pathFamily", metadata.get("pathFamily"));
-            putIfPresent(summary, "authorization", firstNonBlank(
-                    objectText(metadata.get(VectorDocumentMetadata.AUTHORIZATION_DECISION)),
-                    objectText(metadata.get("authorization")),
-                    objectText(metadata.get("authorized")),
-                    objectText(metadata.get("allowed"))));
-            putIfPresent(summary, "purpose", firstNonBlank(
-                    objectText(metadata.get(VectorDocumentMetadata.PURPOSE_MATCH)),
-                    objectText(metadata.get("purpose")),
-                    objectText(metadata.get("purposeMatch"))));
-            putIfPresent(summary, "tenantBound", firstNonBlank(
-                    objectText(metadata.get(VectorDocumentMetadata.TENANT_BOUND)),
-                    objectText(metadata.get("tenantBound"))));
-            putIfPresent(summary, "retrievalPurpose", metadata.get("retrievalPurpose"));
-            putIfPresent(summary, "retrievalPolicy", firstNonBlank(
-                    objectText(metadata.get(VectorDocumentMetadata.RETRIEVAL_POLICY_SUMMARY)),
-                    objectText(metadata.get("retrievalPolicy"))));
-            putIfPresent(summary, "accessScope", metadata.get("accessScope"));
-            putIfPresent(summary, "action", metadata.get("action"));
-        }
-        String text = document.getText();
-        if (hasText(text)) {
-            putIfPresent(summary, "pathFamily", firstNonBlank(
-                    objectText(summary.get("pathFamily")),
-                    derivePathFamily(objectText(summary.get("requestPath"))),
-                    derivePathFamily(extractPathToken(text))));
-            summary.put("textPreview", text.length() > 240 ? text.substring(0, 240) : text);
-            summary.put("textLength", text.length());
-        }
-        return summary;
-    }
-
-    private List<Map<String, Object>> promptRagDocumentSummaries(String finalUserPrompt) {
-        if (!hasText(finalUserPrompt)) {
-            return List.of();
-        }
-        List<Map<String, Object>> documents = new ArrayList<>();
-        for (String line : finalUserPrompt.split("\\R+")) {
-            if (!hasText(line) || !line.toLowerCase(Locale.ROOT).contains("ragdocument")) {
-                continue;
-            }
-            Map<String, Object> document = promptRagDocumentSummary(line);
-            if (!document.isEmpty()) {
-                documents.add(document);
-            }
-        }
-        return documents;
-    }
-
-    private Map<String, Object> promptRagDocumentSummary(String line) {
-        Map<String, Object> parsed = parsePromptRagDocumentLine(line);
-        if (parsed.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> summary = new LinkedHashMap<>();
-        putIfPresent(summary, "id", parsed.get("id"));
-        putIfPresent(summary, "documentType", firstNonBlank(objectText(parsed.get("documentType")), objectText(parsed.get("type"))));
-        putIfPresent(summary, "userId", firstNonBlank(objectText(parsed.get("userId")), objectText(parsed.get("user"))));
-        putIfPresent(summary, "tenantId", parsed.get("tenantId"));
-        putIfPresent(summary, "organizationId", parsed.get("organizationId"));
-        putIfPresent(summary, "resourceId", firstNonBlank(objectText(parsed.get("resourceId")), objectText(parsed.get("resource"))));
-        putIfPresent(summary, "requestPath", firstNonBlank(objectText(parsed.get("requestPath")), objectText(parsed.get("path"))));
-        putIfPresent(summary, "authorization", firstNonBlank(
-                objectText(parsed.get("authorization")),
-                objectText(parsed.get("authorized")),
-                objectText(parsed.get("allowed"))));
-        putIfPresent(summary, "purpose", firstNonBlank(
-                objectText(parsed.get("purpose")),
-                objectText(parsed.get("purposeMatch"))));
-        putIfPresent(summary, "tenantBound", parsed.get("tenantBound"));
-        putIfPresent(summary, "retrievalPurpose", parsed.get("retrievalPurpose"));
-        putIfPresent(summary, "retrievalPolicy", parsed.get("retrievalPolicy"));
-        putIfPresent(summary, "accessScope", firstNonBlank(objectText(parsed.get("accessScope")), objectText(parsed.get("scope"))));
-        putIfPresent(summary, "action", parsed.get("action"));
-        String preview = line.trim();
-        summary.put("textPreview", preview.length() > 240 ? preview.substring(0, 240) : preview);
-        summary.put("textLength", preview.length());
-        return summary;
-    }
-
-    private Map<String, Object> parsePromptRagDocumentLine(String line) {
-        if (!hasText(line)) {
-            return Map.of();
-        }
-        String body = line;
-        int open = body.indexOf('[');
-        int close = body.indexOf(']');
-        if (open >= 0 && close > open) {
-            body = body.substring(open + 1, close);
-        }
-        Map<String, Object> values = new LinkedHashMap<>();
-        for (String token : body.split("\\|\\s*|,\\s*")) {
-            if (!hasText(token)) {
-                continue;
-            }
-            int separator = token.indexOf('=');
-            if (separator < 0) {
-                separator = token.indexOf(':');
-            }
-            if (separator <= 0) {
-                if (!values.containsKey("id")) {
-                    values.put("id", token.trim());
-                }
-                continue;
-            }
-            String key = token.substring(0, separator).trim();
-            String value = token.substring(separator + 1).trim();
-            if (hasText(key) && hasText(value)) {
-                values.put(key, value);
-            }
-        }
-        return values;
-    }
-
-    private String derivePathFamily(String path) {
-        if (!hasText(path) || !path.startsWith("/")) {
-            return null;
-        }
-        String clean = path.trim();
-        int queryIndex = clean.indexOf('?');
-        if (queryIndex >= 0) {
-            clean = clean.substring(0, queryIndex);
-        }
-        String[] parts = clean.split("/");
-        if (parts.length >= 5) {
-            return "/" + parts[1] + "/" + parts[2] + "/" + parts[3] + "/" + parts[4] + "/*";
-        }
-        return clean;
-    }
-
-    private String extractPathToken(String text) {
-        if (!hasText(text)) {
-            return null;
-        }
-        Matcher matcher = Pattern
-                .compile("(/[^\\s,;|\\]]+)")
-                .matcher(text);
-        return matcher.find() ? matcher.group(1).trim() : null;
     }
 
     /**
@@ -765,8 +368,7 @@ public class SealedEvidencePackageAssembler {
      */
     private String serializePromptExecutionMetadata(
             SealedEvidencePromptSnapshot promptSnapshot,
-            Map<String, Object> runtimeMetadata,
-            String canonicalContextJson) {
+            Map<String, Object> runtimeMetadata) {
         if (promptSnapshot == null) {
             return null;
         }
@@ -781,12 +383,10 @@ public class SealedEvidencePackageAssembler {
                 runtimeMetadata,
                 "runtimeModelId",
                 "requestedModelId",
-                "preferredModel",
-                "officialVerificationPinnedModelId"));
-        putIfAbsent(metadata, "canonicalContextHash", sha256Prefixed(canonicalContextJson));
-        normalizeFaultedPromptHashes(promptSnapshot, metadata);
+                "preferredModel"));
         return toJson(compactPromptExecutionMetadata(metadata));
     }
+
     private Map<String, Object> compactPromptExecutionMetadata(Map<String, Object> source) {
         if (source == null || source.isEmpty()) {
             return Map.of();
@@ -806,8 +406,7 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "rawSystemPromptHash");
         copyPromptMetadataField(compact, source, "contextHash");
         copyPromptMetadataField(compact, source, "contextBindingHash");
-        copyPromptMetadataField(compact, source, "canonicalContextHash");
-        copyPromptMetadataField(compact, source, "governanceDescriptor");
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR);
         copyPromptMetadataField(compact, source, "promptVersion");
         copyPromptMetadataField(compact, source, "promptBundleVersion");
         copyPromptMetadataField(compact, source, "promptBundleHash");
@@ -826,54 +425,15 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, "promptRawTruthParity");
         copyPromptMetadataField(compact, source, "promptViewTransformationMode");
         copyPromptMetadataField(compact, source, "transformationMode");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleIds");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationRuleIds");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceAppliedCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceAppliedRuleIds");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationStates");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheHit");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheKey");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheState");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheInvalidationId");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheRuleCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheEntryCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheMaxEntries");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleCacheTtlMillis");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceLastKnownGoodTtlMillis");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceInvalidationPolled");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceInvalidationPollIntervalMillis");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceReadFailurePolicy");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceSecurityMandatoryReadFailureAction");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceRuleReadFailure");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceSelectedRuleIds");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceExcludedRules");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationLedgerState");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationLedgerPendingCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationLedgerPendingMaxEntries");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationLedgerDroppedCount");
-        copyPromptMetadataField(compact, source, "promptRuntimeGovernanceApplicationLedgerFailure");
         copyPromptCompressionLedger(compact, source);
-        copyPromptMetadataField(compact, source, "promptFieldStateCount");
-        copyPromptMetadataField(compact, source, "promptBlockingFieldStateCount");
-        copyPromptMetadataField(compact, source, "promptFieldStateSummary");
-        copyPromptMetadataField(compact, source, "promptSourceContextFieldCount");
-        copyPromptMetadataField(compact, source, "promptSourceContextExhaustive");
-        copyPromptMetadataField(compact, source, "promptSourceContextFailureCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldLineageSummary");
-        copyPromptMetadataField(compact, source, "promptRawUserFieldCount");
-        copyPromptMetadataField(compact, source, "promptFinalUserFieldCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldDiffCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldLossCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldChangedCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldAddedCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldCompactedMarkerCount");
-        copyPromptMetadataField(compact, source, "promptUserFieldTruncatedMarkerCount");
-        recordOmittedMetadataLedger(compact, source, "promptSourceContextLedger", "SUMMARY_ONLY");
-        copyPromptFieldStateLedger(compact, source);
-        recordOmittedMetadataLedger(compact, source, "promptRawUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
-        recordOmittedMetadataLedger(compact, source, "promptFinalUserFieldLedger", "NORMALIZED_LEDGER_ONLY");
-        recordOmittedMetadataLedger(compact, source, "promptUserFieldDiffLedger", "NORMALIZED_LEDGER_ONLY");
+        // What the prompt inspector compares a v20 prompt with: the clock its times were drawn on, the retrieval state
+        // and the counted facts of its past records, the baseline state its evidence and status lines state and the
+        // entries its budget took out.
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.EVENT_TIME_ZONE);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_RAG_STATE);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_PAST_RECORD_COUNTS);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_BASELINE_STATUS);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.OMITTED_SECTIONS);
         compact.put("storagePolicy", "OFFICIAL_VERIFICATION_MINIMAL_METADATA_V1");
         return compact;
     }
@@ -916,103 +476,6 @@ public class SealedEvidencePackageAssembler {
         if (value != null) {
             target.put(key, value);
         }
-    }
-
-    private void recordOmittedMetadataLedger(
-            Map<String, Object> target,
-            Map<String, Object> source,
-            String key,
-            String storagePolicy) {
-        if (!source.containsKey(key)) {
-            return;
-        }
-        target.put(key + "StoragePolicy", storagePolicy);
-        target.put(key + "OriginalCount", collectionSize(source.get(key)));
-    }
-
-    private void copyPromptFieldStateLedger(Map<String, Object> target, Map<String, Object> source) {
-        if (!source.containsKey("promptFieldStateLedger")) {
-            return;
-        }
-        List<Object> ledger = compactFieldStateLedger(source.get("promptFieldStateLedger"));
-        target.put("promptFieldStateLedger", ledger);
-        target.put("promptFieldStateLedgerStoragePolicy", "OFFICIAL_RELEVANT_COMPACT_ROWS");
-        target.put("promptFieldStateLedgerOriginalCount", collectionSize(source.get("promptFieldStateLedger")));
-        target.put("promptFieldStateLedgerStoredCount", ledger.size());
-    }
-    private List<Object> compactFieldStateLedger(Object value) {
-        if (!(value instanceof Iterable<?> rows)) {
-            return List.of();
-        }
-        List<Object> result = new ArrayList<>();
-        for (Object row : rows) {
-            if (!(row instanceof Map<?, ?> map) || !officialRelevantFieldStateRow(map)) {
-                continue;
-            }
-            result.add(compactLedgerRow(map));
-            if (result.size() >= SEALED_METADATA_FIELD_LEDGER_LIMIT) {
-                result.add(Map.of("omittedReason", "SEALED_METADATA_FIELD_LEDGER_LIMIT", "limit", SEALED_METADATA_FIELD_LEDGER_LIMIT));
-                break;
-            }
-        }
-        return result;
-    }
-
-    private boolean officialRelevantFieldStateRow(Map<?, ?> row) {
-        return truthy(row.get("blockingCandidate"))
-                || truthy(row.get("rawBlockingCandidate"))
-                || truthy(row.get("officialBlockingCandidate"))
-                || "LLM_DECISION_CONTRACT".equalsIgnoreCase(objectText(row.get("qualityRelevance")))
-                || hasMetricCodes(row.get("metricCodes"));
-    }
-
-    private boolean hasMetricCodes(Object value) {
-        if (value instanceof Iterable<?> iterable) {
-            for (Object ignored : iterable) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<Object> compactLedgerRows(Object value, boolean officialOnly) {
-        if (!(value instanceof Iterable<?> rows)) {
-            return List.of();
-        }
-        List<Object> result = new ArrayList<>();
-        int count = 0;
-        for (Object row : rows) {
-            if (!(row instanceof Map<?, ?> map)) {
-                continue;
-            }
-            if (officialOnly && !officialRelevantFieldStateRow(map)) {
-                continue;
-            }
-            if (count++ >= SEALED_METADATA_GENERIC_LIST_LIMIT) {
-                result.add(Map.of("omittedReason", "SEALED_METADATA_GENERIC_LIST_LIMIT", "limit", SEALED_METADATA_GENERIC_LIST_LIMIT));
-                break;
-            }
-            result.add(compactLedgerRow(map));
-        }
-        return result;
-    }
-
-    private Map<String, Object> compactLedgerRow(Map<?, ?> row) {
-        Map<String, Object> compact = new LinkedHashMap<>();
-        for (Map.Entry<?, ?> entry : row.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            String key = String.valueOf(entry.getKey());
-            Object value = entry.getValue();
-            if (value instanceof Map<?, ?> || value instanceof Iterable<?>) {
-                compact.put(key, compactMetadataValue(value));
-            }
-            else {
-                compact.put(key, compactTextValue(value));
-            }
-        }
-        return compact;
     }
 
     private Object compactMetadataValue(Object value) {
@@ -1060,49 +523,12 @@ public class SealedEvidencePackageAssembler {
                 "sha256", sha256Prefixed(text));
     }
 
-    private int collectionSize(Object value) {
-        if (value instanceof Iterable<?> iterable) {
-            int count = 0;
-            for (Object ignored : iterable) {
-                count++;
-            }
-            return count;
-        }
-        return 0;
-    }
-
-    private void normalizeFaultedPromptHashes(SealedEvidencePromptSnapshot promptSnapshot, Map<String, Object> metadata) {
-        if (!faultScenarioApplied(promptSnapshot)) {
-            return;
-        }
-        String systemPromptHash = sha256Prefixed(promptSnapshot.systemPrompt());
-        String userPromptHash = sha256Prefixed(promptSnapshot.userPrompt());
-        String promptHash = finalPromptHash(promptSnapshot);
-        putIfText(metadata, "promptHash", promptHash);
-        putIfText(metadata, "finalPromptHash", promptHash);
-        putIfText(metadata, "systemPromptHash", systemPromptHash);
-        putIfText(metadata, "userPromptHash", userPromptHash);
-        putIfText(metadata, "llmUserPromptHash", userPromptHash);
-        putIfText(metadata, "finalUserPromptHash", userPromptHash);
-        putIfText(metadata, "rawSystemPromptHash", sha256Prefixed(promptSnapshot.rawSystemPrompt()));
-        putIfText(metadata, "rawUserPromptHash", sha256Prefixed(promptSnapshot.rawUserPrompt()));
-    }
-
-    private void putIfText(Map<String, Object> metadata, String key, String value) {
-        if (metadata != null && hasText(value)) {
-            metadata.put(key, value);
-        }
-    }
-
     /**
      * Section 6 partial: Prompt hash resolution.
      * Primary source: SecurityEvent.metadata (set by prompt runtime telemetry)
      * Fallback: PromptExecutionMetadata from prompt snapshot
      */
     private String resolvePromptHash(SecurityEvent event, SealedEvidencePromptSnapshot promptSnapshot) {
-        if (faultScenarioApplied(promptSnapshot)) {
-            return finalPromptHash(promptSnapshot);
-        }
         String hash = resolveText(event.getMetadata(), "promptHash");
         if (hash != null) {
             return hash;
@@ -1111,23 +537,6 @@ public class SealedEvidencePackageAssembler {
             return promptSnapshot.promptExecutionMetadata().promptHash();
         }
         return null;
-    }
-
-    private boolean faultScenarioApplied(SealedEvidencePromptSnapshot promptSnapshot) {
-        if (promptSnapshot == null || promptSnapshot.metadata() == null) {
-            return false;
-        }
-        Object applied = promptSnapshot.metadata().get("pqaPromptFaultApplied");
-        return applied instanceof Boolean booleanValue
-                ? booleanValue
-                : applied != null && "true".equalsIgnoreCase(String.valueOf(applied));
-    }
-
-    private String finalPromptHash(SealedEvidencePromptSnapshot promptSnapshot) {
-        if (promptSnapshot == null || !hasText(promptSnapshot.systemPrompt()) || !hasText(promptSnapshot.userPrompt())) {
-            return null;
-        }
-        return sha256Prefixed(promptSnapshot.systemPrompt() + "\n---\n" + promptSnapshot.userPrompt());
     }
 
     /**
@@ -1144,6 +553,10 @@ public class SealedEvidencePackageAssembler {
         decision.put("confidence", result.resolveAuditConfidence());
         decision.put("reasoning", result.getReasoning());
         decision.put("llmReasoning", result.getLlmReasoning());
+        // W4-3: the reason codes the model gave with the fact IDs they cite; a v19 decision has none.
+        if (result.getReasonCodes() != null && !result.getReasonCodes().isEmpty()) {
+            decision.put("reasonCodes", result.getReasonCodes());
+        }
         decision.put("processingPath", result.getProcessingPath() != null
                 ? result.getProcessingPath().name() : null);
         decision.put("llmProposedAction", result.getProposedAction());
@@ -1193,18 +606,6 @@ public class SealedEvidencePackageAssembler {
         if (value != null) {
             target.put(key, value);
         }
-    }
-
-    private boolean metadataHasAny(SecurityEvent event, String... keys) {
-        if (event == null || event.getMetadata() == null || keys == null) {
-            return false;
-        }
-        for (String key : keys) {
-            if (event.getMetadata().containsKey(key) && event.getMetadata().get(key) != null) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void putIfPresent(Map<String, Object> target, String key, Object value) {
@@ -1328,35 +729,6 @@ public class SealedEvidencePackageAssembler {
         return text.isBlank() ? null : text;
     }
 
-    private boolean truthy(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof Number number) {
-            return number.intValue() != 0;
-        }
-        String text = objectText(value);
-        return "true".equalsIgnoreCase(text)
-                || "yes".equalsIgnoreCase(text)
-                || "1".equals(text);
-    }
-
-    private int intValue(Object value) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        String text = objectText(value);
-        if (!hasText(text)) {
-            return 0;
-        }
-        try {
-            return Integer.parseInt(text);
-        }
-        catch (NumberFormatException ignored) {
-            return 0;
-        }
-    }
-
     private String toJson(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return null;
@@ -1373,16 +745,8 @@ public class SealedEvidencePackageAssembler {
         return value != null && !value.isBlank();
     }
 
+    /** The hash of a value, none for a blank one. */
     private String sha256Prefixed(String value) {
-        if (!hasText(value)) {
-            return null;
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return "sha256:" + HEX.formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm not available", e);
-        }
+        return hasText(value) ? PromptGovernanceSupport.sha256(value) : null;
     }
 }

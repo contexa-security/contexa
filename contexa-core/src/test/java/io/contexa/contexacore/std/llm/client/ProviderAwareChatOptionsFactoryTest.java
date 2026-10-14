@@ -16,11 +16,18 @@
 package io.contexa.contexacore.std.llm.client;
 
 import org.junit.jupiter.api.Test;
+import io.contexa.contexacore.std.llm.client.vertexai.VertexLikeChatModel;
+import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.ai.anthropic.AnthropicChatOptions;
+import org.springframework.ai.anthropic.api.AnthropicApi;
+import org.springframework.ai.anthropic.api.AnthropicCacheOptions;
+import org.springframework.ai.anthropic.api.AnthropicCacheStrategy;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,6 +35,8 @@ class ProviderAwareChatOptionsFactoryTest {
 
     private static final String CAPABILITY_MODEL = "capability-test-model";
     private static final String LEGACY_MODEL = "legacy-chat-model";
+    private static final String OUTPUT_SCHEMA = "{\"type\":\"object\",\"additionalProperties\":false,"
+            + "\"required\":[\"action\"],\"properties\":{\"action\":{\"type\":\"string\"}}}";
     private static final String MAX_COMPLETION_PATTERNS_PROPERTY =
             "contexa.llm.model-capabilities.openai.max-completion-token-patterns";
     private static final String DEFAULT_SAMPLING_PATTERNS_PROPERTY =
@@ -291,6 +300,293 @@ class ProviderAwareChatOptionsFactoryTest {
         } finally {
             clearOpenAiCapabilities();
         }
+    }
+
+    /** W3-8: the prompt cache key of the request goes to OpenAI with the other runtime options. */
+    @Test
+    void buildRuntimeOptionsShouldSendThePromptCacheKey() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata("selectedModelProvider", "openai");
+        context.addMetadata("promptCacheKey", "contexa-0123456789abcdef");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                    context,
+                    new StubChatModel(OpenAiChatOptions.builder().model(CAPABILITY_MODEL).build()));
+
+            assertThat(options).isInstanceOf(OpenAiChatOptions.class);
+            assertThat(((OpenAiChatOptions) options).getPromptCacheKey()).isEqualTo("contexa-0123456789abcdef");
+            assertThat(context.getMetadata()).containsEntry("promptCacheKeyApplied", true);
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /**
+     * W3-8: an OpenAI model outside the completion token rule gets the prompt cache key too, and nothing else of the
+     * reasoning model options (an older model refuses a reasoning effort).
+     */
+    @Test
+    void anOpenAiModelOutsideTheCompletionTokenRuleGetsOnlyThePromptCacheKey() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.setTemperature(0.2d);
+        context.addMetadata("selectedModelProvider", "openai");
+        context.addMetadata("openAiReasoningEffort", "minimal");
+        context.addMetadata("promptCacheKey", "contexa-0123456789abcdef");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            StubChatModel model = new StubChatModel(OpenAiChatOptions.builder().model(LEGACY_MODEL).build());
+
+            assertThat(ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, model)).isTrue();
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, model);
+
+            assertThat(options).isInstanceOf(OpenAiChatOptions.class);
+            OpenAiChatOptions openAiOptions = (OpenAiChatOptions) options;
+            assertThat(openAiOptions.getPromptCacheKey()).isEqualTo("contexa-0123456789abcdef");
+            assertThat(openAiOptions.getModel()).isEqualTo(LEGACY_MODEL);
+            assertThat(openAiOptions.getMaxTokens()).isEqualTo(96);
+            assertThat(openAiOptions.getMaxCompletionTokens()).isNull();
+            assertThat(openAiOptions.getTemperature()).isEqualTo(0.2d);
+            assertThat(openAiOptions.getReasoningEffort()).isNull();
+            assertThat(context.getMetadata()).containsEntry("promptCacheKeyApplied", true);
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W3-8: explicit OpenAI options of an older model get the key on a copy; the caller's options stay as they were. */
+    @Test
+    void normalizeExplicitOptionsShouldAddThePromptCacheKeyToACopy() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.addMetadata("promptCacheKey", "contexa-0123456789abcdef");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            OpenAiChatOptions explicitOptions = OpenAiChatOptions.builder().model(LEGACY_MODEL).maxTokens(128).build();
+
+            ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    explicitOptions, context, new StubChatModel(explicitOptions));
+
+            assertThat(normalized).isInstanceOf(OpenAiChatOptions.class).isNotSameAs(explicitOptions);
+            assertThat(((OpenAiChatOptions) normalized).getPromptCacheKey()).isEqualTo("contexa-0123456789abcdef");
+            assertThat(((OpenAiChatOptions) normalized).getMaxTokens()).isEqualTo(128);
+            assertThat(explicitOptions.getPromptCacheKey()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W3-8: without a prompt cache key an older OpenAI model keeps the generic options, as before. */
+    @Test
+    void withoutAPromptCacheKeyAnOlderOpenAiModelKeepsTheGenericOptions() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata("selectedModelProvider", "openai");
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            StubChatModel model = new StubChatModel(OpenAiChatOptions.builder().model(LEGACY_MODEL).build());
+
+            assertThat(ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, model)).isFalse();
+            assertThat(ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, model))
+                    .isNotInstanceOf(OpenAiChatOptions.class);
+            assertThat(context.getMetadata()).doesNotContainKey("promptCacheKeyApplied");
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W4-2: a reasoning model gets the output schema as a strict JSON schema response format. */
+    @Test
+    void buildRuntimeOptionsShouldEnforceTheOutputSchema() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata("selectedModelProvider", "openai");
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA, OUTPUT_SCHEMA);
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                    context,
+                    new StubChatModel(OpenAiChatOptions.builder().model(CAPABILITY_MODEL).build()));
+
+            assertThat(options).isInstanceOf(OpenAiChatOptions.class);
+            ResponseFormat format = ((OpenAiChatOptions) options).getResponseFormat();
+            assertThat(format).isNotNull();
+            assertThat(format.getType()).isEqualTo(ResponseFormat.Type.JSON_SCHEMA);
+            assertThat(format.getJsonSchema().getStrict()).isTrue();
+            assertThat(format.getJsonSchema().getSchema()).containsEntry("additionalProperties", false);
+            assertThat(((OpenAiChatOptions) options).getMaxCompletionTokens()).isEqualTo(96);
+            assertThat(context.getMetadata()).containsEntry(ExecutionContext.OUTPUT_SCHEMA_APPLIED, true);
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W4-2: an OpenAI model outside the completion token rule takes the provider options to carry the schema. */
+    @Test
+    void anOpenAiModelOutsideTheCompletionTokenRuleGetsTheOutputSchema() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata("selectedModelProvider", "openai");
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA, OUTPUT_SCHEMA);
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            StubChatModel model = new StubChatModel(OpenAiChatOptions.builder().model(LEGACY_MODEL).build());
+
+            assertThat(ProviderAwareChatOptionsFactory.requiresProviderSpecificOptions(context, model)).isTrue();
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, model);
+
+            assertThat(options).isInstanceOf(OpenAiChatOptions.class);
+            assertThat(((OpenAiChatOptions) options).getResponseFormat().getType())
+                    .isEqualTo(ResponseFormat.Type.JSON_SCHEMA);
+            assertThat(((OpenAiChatOptions) options).getMaxTokens()).isEqualTo(96);
+            assertThat(context.getMetadata()).containsEntry(ExecutionContext.OUTPUT_SCHEMA_APPLIED, true);
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W4-2: explicit options get the schema on a copy; the caller's options stay as they were. */
+    @Test
+    void normalizeExplicitOptionsShouldPutTheOutputSchemaOnACopy() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA, OUTPUT_SCHEMA);
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            OpenAiChatOptions explicitOptions = OpenAiChatOptions.builder().model(LEGACY_MODEL).maxTokens(128).build();
+
+            ChatOptions normalized = ProviderAwareChatOptionsFactory.normalizeExplicitOptions(
+                    explicitOptions, context, new StubChatModel(explicitOptions));
+
+            assertThat(normalized).isInstanceOf(OpenAiChatOptions.class).isNotSameAs(explicitOptions);
+            assertThat(((OpenAiChatOptions) normalized).getResponseFormat().getType())
+                    .isEqualTo(ResponseFormat.Type.JSON_SCHEMA);
+            assertThat(((OpenAiChatOptions) normalized).getMaxTokens()).isEqualTo(128);
+            assertThat(explicitOptions.getResponseFormat()).isNull();
+        } finally {
+            clearOpenAiCapabilities();
+        }
+    }
+
+    /** W4-2: options that cannot carry a schema get none and the context does not claim it went out. */
+    @Test
+    void optionsWithoutStructuredOutputGetNoSchema() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(96);
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA, OUTPUT_SCHEMA);
+
+        ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(
+                context, new StubChatModel(ChatOptions.builder().model("plain-model").build()));
+
+        assertThat(options).isNotInstanceOf(OpenAiChatOptions.class);
+        assertThat(context.getMetadata()).doesNotContainKey(ExecutionContext.OUTPUT_SCHEMA_APPLIED);
+    }
+
+    /**
+     * Claude Haiku 5.5: an Anthropic model keeps its own option type, so the prompt cache its defaults configure goes
+     * out (Spring AI turns generic options into new Anthropic options whose cache is off, and those override the
+     * defaults); the model's defaults stay as they are.
+     */
+    @Test
+    void anAnthropicModelKeepsItsOptionTypeAndItsPromptCache() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(2048);
+        AnthropicChatOptions defaults = AnthropicChatOptions.builder().model("claude-haiku-5-5").maxTokens(500)
+                .cacheOptions(AnthropicCacheOptions.builder().strategy(AnthropicCacheStrategy.SYSTEM_ONLY).build())
+                .build();
+
+        ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context, new StubChatModel(defaults));
+
+        assertThat(options).isInstanceOf(AnthropicChatOptions.class);
+        AnthropicChatOptions anthropic = (AnthropicChatOptions) options;
+        assertThat(anthropic.getModel()).isEqualTo("claude-haiku-5-5");
+        assertThat(anthropic.getMaxTokens()).isEqualTo(2048);
+        assertThat(anthropic.getCacheOptions().getStrategy()).isEqualTo(AnthropicCacheStrategy.SYSTEM_ONLY);
+        assertThat(defaults.getMaxTokens()).as("the model's defaults stay as they are").isEqualTo(500);
+    }
+
+    /**
+     * Claude Haiku 5.5 refuses any sampling value but the default (a 400 error), so it gets no temperature or top-p;
+     * Claude Haiku 4.5 still takes them.
+     */
+    @Test
+    void anAnthropicModelThatTakesOnlyTheDefaultSamplingGetsNoSamplingValues() {
+        assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly("claude-haiku-5-5")).isTrue();
+        assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly("claude-opus-4-7")).isTrue();
+        assertThat(ProviderAwareChatOptionsFactory.anthropicUsesDefaultSamplingOnly("claude-haiku-4-5")).isFalse();
+
+        ChatOptions newer = anthropicOptionsWithSampling("claude-haiku-5-5");
+        assertThat(newer.getTemperature()).isNull();
+        assertThat(newer.getTopP()).isNull();
+        ChatOptions older = anthropicOptionsWithSampling("claude-haiku-4-5");
+        assertThat(older.getTemperature()).isEqualTo(0.2d);
+        assertThat(older.getTopP()).isEqualTo(0.5d);
+    }
+
+    /**
+     * A model of another provider (here one whose package names Vertex AI) is never given OpenAI options because the
+     * configured chat priority names OpenAI.
+     */
+    @Test
+    void anotherProvidersModelGetsNoOpenAiOptionsWhenThePriorityNamesOpenAi() {
+        String previous = System.getProperty("contexa.llm.selection.chat.priority");
+        System.setProperty("contexa.llm.selection.chat.priority", "openai");
+        try {
+            ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+            context.setMaxTokens(64);
+            context.addMetadata("promptCacheKey", "contexa-0123456789abcdef0123456789abcdef");
+
+            ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
+                    new VertexLikeChatModel());
+
+            assertThat(options).isNotInstanceOf(OpenAiChatOptions.class);
+            assertThat(options.getMaxTokens()).isEqualTo(64);
+        }
+        finally {
+            if (previous == null) {
+                System.clearProperty("contexa.llm.selection.chat.priority");
+            }
+            else {
+                System.setProperty("contexa.llm.selection.chat.priority", previous);
+            }
+        }
+    }
+
+    /**
+     * A Claude model whose bean was created before the post-processors still has Spring AI's default temperature (0.8),
+     * which Claude Haiku 5.5 refuses; its defaults lose the refused sampling in place before a call, and an older
+     * Claude model keeps them.
+     */
+    @Test
+    void aClaudeModelsRefusedDefaultSamplingIsTakenOutInPlaceBeforeACall() {
+        AnthropicChatModel newer = anthropicModel("claude-haiku-5-5");
+        AnthropicChatModel older = anthropicModel("claude-haiku-4-5");
+
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(newer);
+        ProviderAwareChatOptionsFactory.normalizeModelDefaultOptionsInPlace(older);
+
+        AnthropicChatOptions newerDefaults = (AnthropicChatOptions) newer.getDefaultOptions();
+        assertThat(newerDefaults.getTemperature()).isNull();
+        assertThat(newerDefaults.getTopK()).isNull();
+        assertThat(newerDefaults.getMaxTokens()).isEqualTo(500);
+        assertThat(((AnthropicChatOptions) older.getDefaultOptions()).getTemperature()).isEqualTo(0.8d);
+    }
+
+    private static AnthropicChatModel anthropicModel(String model) {
+        return AnthropicChatModel.builder()
+                .anthropicApi(AnthropicApi.builder().apiKey("test").build())
+                .defaultOptions(AnthropicChatOptions.builder().model(model).temperature(0.8d).topK(5).maxTokens(500)
+                        .build())
+                .build();
+    }
+
+    private static ChatOptions anthropicOptionsWithSampling(String model) {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(2048);
+        context.setTemperature(0.2d);
+        context.setTopP(0.5d);
+        return ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
+                new StubChatModel(AnthropicChatOptions.builder().model(model).build()));
     }
 
     private static void configureOpenAiCapabilities(String modelName) {

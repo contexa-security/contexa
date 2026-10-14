@@ -20,5 +20,7 @@ public enum OfficialContextSlot {
     SESSION,
     LOCATION,
     DEVICE,
-    INTENT
+    INTENT,
+    /** What the request does to which kind of resource, as the host declares it for this request. */
+    RESOURCE
 }

@@ -293,8 +293,15 @@ public class ReplayViews {
         JsonNode baselineDeltas = metadata.path("renderedLabelMatrix").path("CurrentVsObservedDeltaCount");
         Integer baselineDeltaCount = baselineDeltas.canConvertToInt() || baselineDeltas.asText("").matches("\\d+")
                 ? Integer.valueOf(baselineDeltas.asInt()) : null;
+        // W4-3: the reason codes the engine recorded with the fact IDs they cite (none before the output contract v3).
+        List<ReplayView.ReasonCode> reasonCodes = new ArrayList<>();
+        for (JsonNode code : metadata.path("finalDecisionReasonCodes")) {
+            if (code.hasNonNull("code")) {
+                reasonCodes.add(new ReplayView.ReasonCode(code.path("code").asText(), code.path("fact").asText(null)));
+            }
+        }
         return new EngineReason(canonicalCode(reasoning), reasoning, refs,
-                deltas, metadata.path("resourceSensitivity").asText(null), baselineDeltaCount);
+                deltas, metadata.path("resourceSensitivity").asText(null), baselineDeltaCount, List.copyOf(reasonCodes));
     }
 
     private JsonNode metadata(JsonNode records) {

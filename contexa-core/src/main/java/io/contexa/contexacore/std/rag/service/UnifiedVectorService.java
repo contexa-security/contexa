@@ -15,20 +15,24 @@
  */
 package io.contexa.contexacore.std.rag.service;
 
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.telemetry.SecurityEventTelemetryContext;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.transaction.annotation.Transactional;
 
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +55,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     private final PgVectorStoreProperties properties;
     private final VectorStoreCacheLayer cacheLayer;
     private final VectorStore vectorStore;
+    private final PastRecordQuery pastRecordQuery;
     private final ExecutorService vectorOperationExecutor;
     private final boolean ownsExecutor;
 
@@ -65,7 +70,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore) {
-        this(properties, cacheLayer, vectorStore, createDefaultExecutor(), true);
+        this(properties, cacheLayer, vectorStore, createDefaultExecutor(), true, PastRecordQuery.unavailable());
     }
 
     private static ExecutorService createDefaultExecutor() {
@@ -90,7 +95,20 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
             ExecutorService vectorOperationExecutor) {
-        this(properties, cacheLayer, vectorStore, vectorOperationExecutor, false);
+        this(properties, cacheLayer, vectorStore, vectorOperationExecutor, false, PastRecordQuery.unavailable());
+    }
+
+    /**
+     * @param pastRecordQuery the exact past record lookup of the store (W3-18); without one the v20 prompt states that
+     *                        its past records were not retrieved
+     */
+    public UnifiedVectorService(
+            PgVectorStoreProperties properties,
+            VectorStoreCacheLayer cacheLayer,
+            VectorStore vectorStore,
+            ExecutorService vectorOperationExecutor,
+            PastRecordQuery pastRecordQuery) {
+        this(properties, cacheLayer, vectorStore, vectorOperationExecutor, false, pastRecordQuery);
     }
 
     private UnifiedVectorService(
@@ -98,10 +116,12 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
             VectorStoreCacheLayer cacheLayer,
             VectorStore vectorStore,
             ExecutorService vectorOperationExecutor,
-            boolean ownsExecutor) {
+            boolean ownsExecutor,
+            PastRecordQuery pastRecordQuery) {
         this.properties = properties;
         this.cacheLayer = cacheLayer;
         this.vectorStore = vectorStore;
+        this.pastRecordQuery = pastRecordQuery != null ? pastRecordQuery : PastRecordQuery.unavailable();
         this.vectorOperationExecutor = vectorOperationExecutor != null ? vectorOperationExecutor : createDefaultExecutor();
         this.ownsExecutor = vectorOperationExecutor == null || ownsExecutor;
     }
@@ -122,31 +142,33 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     }
 
     @Override
-    @Transactional(transactionManager = "contexaTransactionManager")
     public void storeDocument(Document document) {
         validateDocument(document);
-        enrichStandardMetadata(document);
+        Document stored = withStableId(document);
+        enrichStandardMetadata(stored);
         executeWithBusyRetry(
                 () -> {
-                    vectorStore.add(List.of(document));
+                    vectorStore.add(List.of(stored));
                     return null;
                 },
                 properties.getStoreTimeoutMs(),
                 "store document",
                 "Failed to store document");
-        cacheLayer.invalidateAfterWrite();
+        cacheLayer.invalidateAfterWrite(List.of(stored));
     }
 
     @Override
-    @Transactional(transactionManager = "contexaTransactionManager")
-    public void storeDocuments(List<Document> documents) {
-        if (documents == null || documents.isEmpty()) {
+    public void storeDocuments(List<Document> requested) {
+        if (requested == null || requested.isEmpty()) {
             return;
         }
 
-        for (Document doc : documents) {
+        List<Document> documents = new ArrayList<>(requested.size());
+        for (Document doc : requested) {
             validateDocument(doc);
-            enrichStandardMetadata(doc);
+            Document stored = withStableId(doc);
+            enrichStandardMetadata(stored);
+            documents.add(stored);
         }
 
         int batchSize = properties.getBatchSize();
@@ -164,7 +186,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
                     "Failed to store document batch");
         }
 
-        cacheLayer.invalidateAfterWrite();
+        cacheLayer.invalidateAfterWrite(documents);
     }
 
 
@@ -194,6 +216,11 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
 
     private String buildFilterExpression(Map<String, Object> filters) {
         return VectorFilterExpressionBuilder.buildEqualityExpression(filters);
+    }
+
+    /** The exact past record lookup of the store (W3-18). */
+    public PastRecordQuery pastRecordQuery() {
+        return pastRecordQuery;
     }
 
     @Override
@@ -234,7 +261,6 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     }
 
     @Override
-    @Transactional(transactionManager = "contexaTransactionManager")
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
             return;
@@ -259,12 +285,35 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
         }
     }
 
+    /**
+     * The document an event's record is stored as (W2-15): its id comes from the event and the document type, so that
+     * storing the same event's record again overwrites the row instead of adding a second one. A document without an
+     * event keeps its own id.
+     */
+    private Document withStableId(Document document) {
+        Map<String, Object> metadata = document.getMetadata();
+        Object eventId = metadata.get(VectorDocumentMetadata.EVENT_ID);
+        Object documentType = metadata.get(VectorDocumentMetadata.DOCUMENT_TYPE);
+        if (eventId == null || documentType == null || eventId.toString().isBlank() || documentType.toString().isBlank()) {
+            return document;
+        }
+        String id = UUID.nameUUIDFromBytes((documentType + ":" + eventId).getBytes(StandardCharsets.UTF_8)).toString();
+        if (id.equals(document.getId())) {
+            return document;
+        }
+        return Document.builder()
+                .id(id)
+                .text(document.getText())
+                .metadata(new HashMap<>(metadata))
+                .score(document.getScore())
+                .build();
+    }
+
     private void enrichStandardMetadata(Document document) {
         Map<String, Object> metadata = document.getMetadata();
 
-        if (!metadata.containsKey("id")) {
-            metadata.put("id", UUID.randomUUID().toString());
-        }
+        // The metadata names the row's own id (W2-15).
+        metadata.put("id", document.getId());
 
         if (!metadata.containsKey("timestamp")) {
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));

@@ -143,7 +143,12 @@ public class ModelExchanges {
             }
             Map<String, Object> options = new LinkedHashMap<>();
             for (Map.Entry<String, JsonNode> field : request.properties()) {
-                if (!"messages".equals(field.getKey())) {
+                if ("system".equals(field.getKey())) {
+                    // An Anthropic request carries its system prompt beside the messages; it is kept as the system
+                    // prompt, and only how many of its blocks were marked for the prompt cache is an option.
+                    options.put("systemCacheBlocks", cachedBlocks(field.getValue()));
+                }
+                else if (!"messages".equals(field.getKey())) {
                     options.put(field.getKey(), json.convertValue(field.getValue(), Object.class));
                 }
             }
@@ -164,6 +169,9 @@ public class ModelExchanges {
         }
         try {
             JsonNode response = json.readTree(body);
+            if (response.path("content").isArray()) {
+                return anthropicAnswer(response);
+            }
             JsonNode choice = response.path("choices").path(0);
             JsonNode usage = response.path("usage");
             return new ProviderAnswer(text(response.path("model")), text(choice.path("message").path("content")),
@@ -173,6 +181,45 @@ public class ModelExchanges {
         } catch (Exception e) {
             return new ProviderAnswer(null, null, null, null, null, null);
         }
+    }
+
+    /**
+     * An Anthropic message: the answer is its text after the thinking; the prompt tokens are every input token, as
+     * OpenAI counts them (the uncached ones, the cache reads and the cache writes); the thinking tokens are its
+     * reasoning tokens.
+     */
+    private static ProviderAnswer anthropicAnswer(JsonNode response) {
+        StringBuilder answer = new StringBuilder();
+        boolean answered = false;
+        for (JsonNode block : response.path("content")) {
+            if ("text".equals(block.path("type").asText())) {
+                answered = true;
+                answer.append(block.path("text").asText());
+            }
+        }
+        JsonNode usage = response.path("usage");
+        Long input = number(usage.path("input_tokens"));
+        Long prompt = input == null ? null : input + orZero(number(usage.path("cache_read_input_tokens")))
+                + orZero(number(usage.path("cache_creation_input_tokens")));
+        return new ProviderAnswer(text(response.path("model")), answered ? answer.toString() : null,
+                text(response.path("stop_reason")), prompt, number(usage.path("output_tokens")),
+                number(usage.path("output_tokens_details").path("thinking_tokens")));
+    }
+
+    private static int cachedBlocks(JsonNode system) {
+        int cached = 0;
+        if (system.isArray()) {
+            for (JsonNode block : system) {
+                if (block.has("cache_control")) {
+                    cached++;
+                }
+            }
+        }
+        return cached;
+    }
+
+    private static long orZero(Long value) {
+        return value == null ? 0L : value;
     }
 
     private static String text(JsonNode node) {

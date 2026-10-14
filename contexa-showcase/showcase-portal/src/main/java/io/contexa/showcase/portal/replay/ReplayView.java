@@ -150,7 +150,11 @@ public final class ReplayView {
      *                           (CurrentVsObservedDeltaCount); null when the record does not hold it
      */
     public record EngineReason(String canonical, String reasoning, List<String> evidenceRefs, List<String> deltas,
-                               String resourceSensitivity, Integer baselineDeltaCount) {
+                               String resourceSensitivity, Integer baselineDeltaCount, List<ReasonCode> reasonCodes) {
+    }
+
+    /** A reason code of the engine's output contract v3 and the ID of the prompt fact it cites (W4-3). */
+    public record ReasonCode(String code, String fact) {
     }
 
     public record Fact(String code, String value) {

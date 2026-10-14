@@ -23,6 +23,7 @@ import io.contexa.showcase.workload.plain.rules.RequestFacts;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -30,6 +31,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -240,5 +242,53 @@ class CompanyAndLookupTest {
         assertThat(runs.remainingRows("run-b2")).isEqualTo(1);
         assertThat(new CompanyRepository(database).storedFingerprint())
                 .as("run rows never change the company").isEqualTo(generated.fingerprint());
+    }
+
+    @Test
+    void anApprovalsUseIsWhatTheRequesterReceivedFromItsProjectWithinItsValidityBeforeTheRequest() {
+        RunRegistry runs = new RunRegistry(database);
+        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database);
+        runs.registerPrincipal("vcccc00000003-adm-a", "run-c3", CompanyBlueprint.ADMIN_A, "org-c3", "tenant-c3");
+        runs.registerPrincipal("vdddd00000004-adm-a", "run-d4", CompanyBlueprint.ADMIN_A, "org-d4", "tenant-d4");
+        Instant dawn = CompanyCalendar.at(ANCHOR, TimeSlot.DAWN);
+        runs.addFacts("run-c3", new RunFacts(List.of(),
+                List.of(new RunFacts.Approval("APR-RUNC3-1", CompanyBlueprint.ADMIN_A, "pm-11",
+                        CompanyBlueprint.A3_TARGET, "AUDIT_SAMPLE", 500, dawn.minus(Duration.ofDays(1)),
+                        dawn.plus(Duration.ofDays(1)), "APPROVED")),
+                List.of()));
+        // Counted: the requester's delivery of the approval's project one minute before. Not counted: another project,
+        // a delivery after the request, one before the approval's validity, and another run's requester.
+        export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn.minus(Duration.ofMinutes(1)));
+        export("run-c3", "vcccc00000003-adm-a", "GB-400", 70, dawn.minus(Duration.ofMinutes(2)));
+        export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 60, dawn.plus(Duration.ofMinutes(1)));
+        export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 50, dawn.minus(Duration.ofDays(2)));
+        export("run-d4", "vdddd00000004-adm-a", CompanyBlueprint.A3_TARGET, 40, dawn.minus(Duration.ofMinutes(3)));
+
+        // LU-2: the host reports the approval's use, so the engine knows the cumulative count beyond the session.
+        assertThat(lookup.approvalExists("vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn).usedItems())
+                .isEqualTo(480);
+        assertThat(lookup.approvalExists("vdddd00000004-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn).usedItems())
+                .as("a requester without an approval has no approval use").isNull();
+
+        runs.deleteRun("run-c3");
+        runs.deleteRun("run-d4");
+    }
+
+    /**
+     * An export as the business service records it: started on the wall clock of the service, with the company time
+     * of its request apart. Company times are days before the wall clock, as on the showcase.
+     */
+    private static void export(String run, String username, String project, int delivered, Instant companyAt) {
+        Instant wallClock = Instant.now();
+        database.jdbc().update("""
+                        insert into export_job (job_id, run_id, request_id, control, username, project_key, mode,
+                                                requested_items, delivered_items, status, started_at, finished_at,
+                                                company_at)
+                        values (gen_random_uuid(), :run, :request, 'D', :user, :project, 'SYNC', :items, :items,
+                                'COMPLETED', :started, :started, :company)""",
+                new MapSqlParameterSource("run", run).addValue("request", run + "-" + companyAt.toEpochMilli())
+                        .addValue("user", username).addValue("project", project).addValue("items", delivered)
+                        .addValue("started", Timestamp.from(wallClock))
+                        .addValue("company", Timestamp.from(companyAt)));
     }
 }

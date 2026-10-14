@@ -63,8 +63,12 @@ class MetadataObservedScopeInferenceServiceTest {
                 .userId("alice")
                 .build();
         event.addMetadata("requestPath", "/api/customer/notes");
-        event.addMetadata("protectableAccessCount", 5);
-        event.addMetadata("frequentActionFamilies", List.of("CREATE", "DOWNLOAD"));
+        event.addMetadata("protectableAccessHistory", List.of(
+                Map.of("resourceId", "/api/customer/notes", "actionFamily", "CREATE", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/notes", "actionFamily", "CREATE", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/notes/7", "actionFamily", "DOWNLOAD", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/notes", "actionFamily", "CREATE", "result", "ALLOWED"),
+                Map.of("resourceId", "/api/customer/notes/8", "actionFamily", "DOWNLOAD", "result", "ALLOWED")));
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .resource(CanonicalSecurityContext.Resource.builder()
                         .resourceId("/api/customer/notes")
@@ -77,5 +81,25 @@ class MetadataObservedScopeInferenceServiceTest {
         // A write is not rare for someone who often creates: one vocabulary on both sides (W2-1).
         assertThat(observedScope.getFrequentActionFamilies()).containsExactly("WRITE", "READ");
         assertThat(observedScope.getRareCurrentActionFamily()).isFalse();
+    }
+
+    @Test
+    void aListUnderAMetadataKeyIsNoObservedScope() {
+        MetadataObservedScopeInferenceService service = new MetadataObservedScopeInferenceService();
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("alice")
+                .build();
+        event.addMetadata("requestPath", "/api/customer/notes");
+        event.addMetadata("frequentActionFamilies", List.of("READ", "EXPORT"));
+        event.addMetadata("frequentResources", List.of("/api/customer/notes"));
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("/api/customer/notes")
+                        .actionFamily("READ")
+                        .build())
+                .build();
+
+        // W2-12: the work profile writes its frequent families back under this key; only the host's history counts.
+        assertThat(service.infer(event, context)).isEmpty();
     }
 }

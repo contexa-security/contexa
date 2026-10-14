@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -64,6 +65,9 @@ public class ThreatAssessment {
     private String responseActionFallbackAction;
     private String reasoning;
     private String llmReasoning;
+
+    /** The reason codes of the output contract v3 with the fact IDs they cite (W4-3); empty for a v19 decision. */
+    private List<SecurityDecisionOutputContract.Citation> reasonCodes;
     private Boolean autonomyConstraintApplied;
     private List<String> autonomyConstraintReasons;
     private String autonomyConstraintSummary;

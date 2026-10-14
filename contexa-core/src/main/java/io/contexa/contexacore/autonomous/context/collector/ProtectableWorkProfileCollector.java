@@ -22,4 +22,11 @@ import java.util.Optional;
 public interface ProtectableWorkProfileCollector {
 
     Optional<ProtectableWorkProfileSnapshot> collect(SecurityEvent event);
+
+    /**
+     * Records a request a restriction stopped as an observation of the user's work, at the given weight, once the
+     * user was verified (W5-2). A collector that keeps no observations records nothing.
+     */
+    default void recordVerified(SecurityEvent event, double weight) {
+    }
 }

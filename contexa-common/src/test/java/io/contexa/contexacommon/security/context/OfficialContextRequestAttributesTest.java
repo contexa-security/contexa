@@ -44,6 +44,18 @@ class OfficialContextRequestAttributesTest {
     }
 
     @Test
+    void theRequestsActionAndResourceCategoryAreOfficialFields() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(OfficialContextField.ACTION_FAMILY.canonicalAttributeKey(), "EXPORT");
+        request.setAttribute("resourceCategory", "PROJECT_DOCUMENTS");
+
+        // W2-11: the canonical attribute and the unprefixed name both declare them.
+        assertThat(OfficialContextRequestAttributes.extractSnapshot(request))
+                .containsEntry("actionFamily", "EXPORT")
+                .containsEntry("resourceCategory", "PROJECT_DOCUMENTS");
+    }
+
+    @Test
     void snapshotProjectionWritesCanonicalAttributeWithoutChangingMetadataKey() {
         MockHttpServletRequest request = new MockHttpServletRequest();
 

@@ -15,6 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.event.publisher;
 
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import io.contexa.contexacore.autonomous.context.registry.ProtectableResourceContextScanner;
+import io.contexa.contexacore.autonomous.context.registry.InMemoryResourceContextRegistry;
+import io.contexa.contexacommon.security.context.OfficialContextField;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
@@ -31,7 +35,6 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.verification.runtime.OfficialVerificationProbeHeaders;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -187,19 +190,13 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("server-verified protectable URL should override the MVC probe route")
-    void shouldPreferServerVerifiedProtectableResourceUrl() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest(
-                "GET",
-                "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/resource-001");
+    @DisplayName("the matched MVC route is the protectable URL and an anomaly header is the requester's claim")
+    void shouldUseTheMatchedRouteAsTheProtectableResourceUrl() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/security-test/sensitive/resource-001");
         request.setAttribute(
                 HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE,
-                "/contexa/admin/api/enterprise/verification/runtime/probe/sensitive/{resourceId}");
-        request.setAttribute(
-                "officialVerification.protectableResourceUrl",
                 "/api/security-test/sensitive/{resourceId}");
         request.addHeader("X-Contexa-Anomaly-Signal", "CONFIRMED_CREDENTIAL_EXFILTRATION");
-        addServerIssuedProbeCapability(request);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -217,8 +214,9 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getPayload())
                 .containsEntry("protectableResourceUrl", "/api/security-test/sensitive/{resourceId}")
                 .containsEntry("resourceUrlTemplate", "/api/security-test/sensitive/{resourceId}")
-                .containsEntry("anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION")
-                .containsEntry("anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")
+                // R4-C9: no capability makes the anomaly header a trusted signal; it is the requester's claim.
+                .containsEntry("untrustedAnomalySignalClaim", "CONFIRMED_CREDENTIAL_EXFILTRATION")
+                .doesNotContainKeys("anomalySignal", "anomalySignalSource")
                 .containsEntry(
                         "resourceId",
                         SampleService.class.getName() + "#protectableApprove");
@@ -305,7 +303,9 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getPayload().get("mfaVerified")).isNotEqualTo(true);
         assertThat(event.getPayload())
                 .containsEntry("recentMfaElsewhereAt", "2026-10-09T03:05:00Z")
-                .containsEntry("failedLoginAttempts", 3);
+                .containsEntry("failedLoginAttempts", 3)
+                // W3-12: the count states the window it was counted in (the default 5 minutes).
+                .containsEntry("failedLoginWindowMinutes", 5);
     }
 
     @Test
@@ -637,32 +637,6 @@ class ZeroTrustEventPublisherTest {
     }
 
     @Test
-    @DisplayName("observed-at header should control authorization event timestamp for server issued probes")
-    void shouldUseObservedAtForAuthorizationEventTimestamp() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
-        request.setRequestedSessionId("session-observed-at");
-        request.addHeader("User-Agent", "JUnit");
-        request.addHeader("X-Contexa-Observed-At", "2026-02-03T09:15:00+09:00");
-        addServerIssuedProbeCapability(request);
-        request.setRemoteAddr("203.0.113.10");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        MethodInvocation invocation = mock(MethodInvocation.class);
-        Method method = SampleService.class.getDeclaredMethod("approve");
-        when(invocation.getMethod()).thenReturn(method);
-
-        ZeroTrustEventPublisher publisher = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
-        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
-                invocation,
-                new UsernamePasswordAuthenticationToken("alice", "n/a"),
-                true,
-                null
-        );
-
-        assertThat(event.getEventTimestamp()).isEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
-    }
-
-    @Test
     @DisplayName("untrusted prompt budget profile header should not affect authorization event payload")
     void shouldIgnorePromptBudgetProfileHeaderInAuthorizationEventPayload() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/api/security-test/sensitive/resource-001");
@@ -792,12 +766,6 @@ class ZeroTrustEventPublisherTest {
         assertThat(event.getEventTimestamp()).isNotEqualTo(Instant.parse("2026-02-03T00:15:00Z"));
     }
 
-    private static void addServerIssuedProbeCapability(MockHttpServletRequest request) {
-        OfficialVerificationProbeHeaders headers = new OfficialVerificationProbeHeaders();
-        headers.setRuntimeOverrideCapability();
-        headers.asMap().forEach(request::addHeader);
-    }
-
     private BridgeResolutionResult createBridgeResolutionResult() {
         return new BridgeResolutionResult(
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
@@ -920,6 +888,96 @@ class ZeroTrustEventPublisherTest {
                         "Bridge completeness reached authentication and authorization context, but delegated execution metadata is incomplete for this request.",
                         List.of("Populate explicit delegated execution metadata when the request is acting on behalf of another principal or scoped objective."))
         );
+    }
+
+    @Test
+    @DisplayName("the protected method's descriptor travels with the request under keys of its own (W2-11)")
+    void shouldCarryTheProtectedMethodsDescriptor() throws Exception {
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(
+                new MockHttpServletRequest("POST", "/api/projects/GB-500/exports")));
+        ZeroTrustEventPublisher publisher = describedPublisher();
+
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                describedInvocation(), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        // The scan and the publisher name the method alike, so the publisher finds what the annotation declared.
+        assertThat(event.getPayload())
+                .containsEntry("protectableResourceCategory", "PROJECT_DOCUMENTS")
+                .containsEntry("resourceSensitivity", "INTERNAL")
+                .containsEntry("protectableActionFamily", "EXPORT")
+                // P3 gate: a privileged method is a fact of the resource, not an authorization the requester holds.
+                .containsEntry("protectablePrivileged", true)
+                .doesNotContainKey("privileged")
+                .doesNotContainKey("resourceCategory")
+                .doesNotContainKey("exportSensitive");
+    }
+
+    @Test
+    @DisplayName("what the request states stays over the protected method's descriptor (W2-11)")
+    void shouldKeepWhatTheRequestStatesOverTheDescriptor() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/projects/GB-500/exports");
+        request.setAttribute("ctxa.context.resourceSensitivity", "RESTRICTED");
+        request.setAttribute(OfficialContextField.RESOURCE_CATEGORY.canonicalAttributeKey(), "TRANSFER_PACKAGES");
+        request.setAttribute(OfficialContextField.ACTION_FAMILY.canonicalAttributeKey(), "READ");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        ZeroTrustEventPublisher publisher = describedPublisher();
+
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                describedInvocation(), new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        assertThat(event.getPayload())
+                .containsEntry("resourceSensitivity", "RESTRICTED")
+                .containsEntry("resourceCategory", "TRANSFER_PACKAGES")
+                .containsEntry("actionFamily", "READ")
+                .containsEntry("protectableResourceCategory", "PROJECT_DOCUMENTS")
+                .containsEntry("protectableActionFamily", "EXPORT");
+    }
+
+    @Test
+    @DisplayName("the move facts travel whether or not the host calls the move impossible (W2-13)")
+    void shouldCarryTheMoveFactsWithoutAnImpossibleTravel() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/projects/GB-500/exports");
+        request.setAttribute("ctxa.context.travelDistanceKm", 325);
+        request.setAttribute("ctxa.context.travelElapsedMinutes", 40);
+        request.setAttribute("ctxa.context.previousLocation", "Busan, KR");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("protectableApprove"));
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+
+        ZeroTrustSpringEvent event = publisher.buildMethodAuthorizationEvent(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        assertThat(event.getPayload())
+                .containsEntry("travelDistanceKm", 325)
+                .containsEntry("travelElapsedMinutes", 40)
+                .containsEntry("previousLocation", "Busan, KR")
+                .doesNotContainKey("impossibleTravel");
+    }
+
+    private static ZeroTrustEventPublisher describedPublisher() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        beanFactory.registerSingleton("described", new DescribedService());
+        InMemoryResourceContextRegistry registry = new InMemoryResourceContextRegistry();
+        new ProtectableResourceContextScanner(beanFactory, registry).afterSingletonsInstantiated();
+        ZeroTrustEventPublisher publisher =
+                new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+        publisher.setResourceContextRegistry(registry);
+        return publisher;
+    }
+
+    private static MethodInvocation describedInvocation() throws NoSuchMethodException {
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(DescribedService.class.getMethod("exportDocuments"));
+        return invocation;
+    }
+
+    public static class DescribedService {
+
+        @Protectable(category = "PROJECT_DOCUMENTS", sensitivity = "INTERNAL", actions = "EXPORT", privileged = true)
+        public void exportDocuments() {
+        }
     }
 
     private static class SampleService {

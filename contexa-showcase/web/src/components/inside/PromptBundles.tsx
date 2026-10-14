@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { DecisionAnatomyView, ExchangeCall } from '../../api/anatomy';
 import { count } from '../../journey/format';
 import styles from '../../pages/try/PromptPage.module.css';
-import { BUNDLES, PLAIN, sectionsOf, trimEnd, type Bundle } from './promptSections';
+import { plainLinesOf, sectionsOf, shownBundles, trimEnd, type Block, type Bundle } from './promptSections';
 
 interface PromptBundlesProps {
   readonly lines: NonNullable<DecisionAnatomyView['promptLines']>;
@@ -11,15 +11,21 @@ interface PromptBundlesProps {
 }
 
 /**
- * The prompt as its seven bundles with the server's line counts, and for the bundle pressed its original lines next to
- * plain words (e1-prompt; the decision details' prompt tab shows the same).
+ * The prompt as its bundles with the server's line counts, and for the bundle pressed its original lines next to
+ * plain words (e1-prompt; the decision details' prompt tab shows the same). A v20 prompt shows one bundle per block
+ * (W3-10).
  */
 export function PromptBundles({ lines, call }: PromptBundlesProps) {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const [picked, setPicked] = useState<Bundle>('COMPANY');
+  const v20 = lines.layout === 'V20_BLOCKS';
+  const bundles = shownBundles(lines);
+  const [picked, setPicked] = useState<Bundle | Block>(v20 ? 'DECISION_FACTS' : 'COMPANY');
+  const name = (bundle: Bundle | Block): string => t(v20 ? `prompt.block.${bundle}` : `prompt.bundle.${bundle}`);
+  const what = (bundle: Bundle | Block): string =>
+    t(v20 ? `prompt.blockWhat.${bundle}` : `prompt.bundleWhat.${bundle}`);
   const sections = sectionsOf(call.userPrompt);
-  const bundleLines = (bundle: Bundle): readonly string[] =>
+  const bundleLines = (bundle: Bundle | Block): readonly string[] =>
     bundle === 'RULES'
       ? (call.systemPrompt ?? '').split('\n')
       : lines.sections
@@ -27,18 +33,11 @@ export function PromptBundles({ lines, call }: PromptBundlesProps) {
           .flatMap((section) => sections.get(section.name) ?? []);
   // A section's trailing blank lines are not lines of text; dropping them keeps the shown count the server's count.
   const original = trimEnd(bundleLines(picked));
-  const plain = original
-    .map((line) => ({
-      line,
-      rule: PLAIN[picked].find((candidate) => line.trim().startsWith(candidate.starts)),
-    }))
-    .filter(
-      (entry): entry is { line: string; rule: { starts: string; key: string } } => entry.rule !== undefined,
-    );
+  const plain = plainLinesOf(lines.layout, picked, original);
   return (
     <div className={styles.layout}>
-      <ol className={styles.bundles} aria-label={t('prompt.bundles')}>
-        {BUNDLES.map((bundle) => (
+      <ol className={styles.bundles} aria-label={t(v20 ? 'prompt.blocks' : 'prompt.bundles')}>
+        {bundles.map((bundle) => (
           <li key={bundle}>
             <button
               type="button"
@@ -46,8 +45,8 @@ export function PromptBundles({ lines, call }: PromptBundlesProps) {
               aria-pressed={picked === bundle}
               onClick={() => setPicked(bundle)}
             >
-              <span className={styles.bundleName}>{t(`prompt.bundle.${bundle}`)}</span>
-              <span className={styles.bundleWhat}>{t(`prompt.bundleWhat.${bundle}`)}</span>
+              <span className={styles.bundleName}>{name(bundle)}</span>
+              <span className={styles.bundleWhat}>{what(bundle)}</span>
               <span className={styles.bundleLines}>
                 {t('prompt.lines', {
                   n: count(lines.bundles.find((entry) => entry.bundle === bundle)?.lines ?? 0, language),
@@ -59,7 +58,7 @@ export function PromptBundles({ lines, call }: PromptBundlesProps) {
       </ol>
       <section className={styles.view} aria-labelledby="prompt-view">
         <h2 id="prompt-view" className={styles.viewTitle}>
-          {t(`prompt.bundle.${picked}`)}
+          {name(picked)}
         </h2>
         {plain.length > 0 ? (
           <ul className={styles.plain} aria-label={t('prompt.plainTitle')}>
@@ -68,7 +67,7 @@ export function PromptBundles({ lines, call }: PromptBundlesProps) {
                 <code className={styles.plainOriginal} data-original>
                   {entry.line.trim()}
                 </code>
-                <span className={styles.plainWords}>{t(entry.rule.key)}</span>
+                <span className={styles.plainWords}>{t(entry.key)}</span>
               </li>
             ))}
           </ul>

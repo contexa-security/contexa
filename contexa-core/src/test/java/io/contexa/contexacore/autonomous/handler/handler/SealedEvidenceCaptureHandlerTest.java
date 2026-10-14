@@ -23,7 +23,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
-import io.contexa.contexacore.verification.capture.VerificationCaptureContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
@@ -47,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -85,7 +86,7 @@ class SealedEvidenceCaptureHandlerTest {
     @Test
     void handleConsumesTheCapturedPromptTraceAndStoresASealedPackageOffTheDecisionThread() {
         SecurityEvent event = event("req-100", "/api/orders");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
         SecurityEventContext context = decisionContext(event, "ALLOW");
 
@@ -115,7 +116,7 @@ class SealedEvidenceCaptureHandlerTest {
     @Test
     void captureUsesTheEventStateObservedAtEnforcementTime() {
         SecurityEvent event = event("req-101", "/api/orders");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
         SecurityEventContext context = decisionContext(event, "ALLOW");
 
@@ -140,25 +141,72 @@ class SealedEvidenceCaptureHandlerTest {
         verify(repository, never()).save(any());
     }
 
+    /**
+     * R4-C1b: the prompt trace is handed out once, so a second capture of the same decision has nothing to assemble.
+     * No lookup runs before the assembly; the database's unique key stays the last guard (duplicateInsertRaceIsAbsorbed).
+     */
     @Test
-    void alreadyCapturedCorrelationIsNotAssembledAgain() {
+    void aSecondCaptureOfTheSameDecisionFindsItsTraceConsumedAndStoresNothing() {
         SecurityEvent event = event("req-103", "/api/orders");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
-        when(repository.findByCorrelationId("req-103"))
-                .thenReturn(Optional.of(SealedEvidencePackage.builder().packageId("existing").build()));
+        SecurityEventContext context = decisionContext(event, "ALLOW");
 
-        handler.handle(decisionContext(event, "ALLOW"));
+        handler.handle(context);
+        handler.handle(context);
+        captureExecutor.runAll();
+
+        verify(repository).save(any());
+        verify(repository, never()).findByCorrelationId(any());
+        verify(repository, never()).findByIdempotencyKey(any());
+        assertThat(traceStore.find("req-103")).isNull();
+    }
+
+    /**
+     * R4-C1b: the processing owner is asked once, on the capture executor right before the package is stored, never on
+     * the thread that enforces the decision.
+     */
+    @Test
+    void theProcessingOwnerIsAskedOnceOffTheDecisionThreadRightBeforeStoring() {
+        SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
+        when(dataStore.isEventProcessingOwner("identity-119", "token-119")).thenReturn(true);
+        SealedEvidenceCaptureHandler ownerAware =
+                new SealedEvidenceCaptureHandler(assembler, repository, captureExecutor, dataStore);
+        SecurityEvent event = event("req-119", "/api/orders");
+        event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY, "identity-119");
+        event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN, "token-119");
+        capture(event);
+        traceStore.complete(event);
+
+        assertThat(ownerAware.handle(decisionContext(event, "ALLOW"))).isTrue();
+        verifyNoInteractions(dataStore);
+
+        captureExecutor.runAll();
+
+        verify(dataStore, times(1)).isEventProcessingOwner("identity-119", "token-119");
+        verify(repository).save(any());
+    }
+
+    /** R4-S6: a package the sampling leaves out is assembled, which consumes its trace, but not stored. */
+    @Test
+    void aPackageTheSamplingLeavesOutIsNotStored() {
+        SealedEvidenceCaptureHandler sampled = new SealedEvidenceCaptureHandler(assembler, repository,
+                captureExecutor, null, evidencePackage -> false);
+        SecurityEvent event = event("req-sampled-out", "/api/orders");
+        capture(event);
+        traceStore.complete(event);
+
+        assertThat(sampled.handle(decisionContext(event, "ALLOW"))).isTrue();
         captureExecutor.runAll();
 
         verify(repository, never()).save(any());
-        assertThat(traceStore.find("req-103")).isNotNull();
+        assertThat(traceStore.find("req-sampled-out")).isNull();
     }
 
     @Test
     void duplicateInsertRaceIsAbsorbed() {
         SecurityEvent event = event("req-104", "/api/orders");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
         when(repository.findByCorrelationId("req-104"))
                 .thenReturn(Optional.empty())
@@ -170,6 +218,7 @@ class SealedEvidenceCaptureHandlerTest {
         captureExecutor.runAll();
 
         verify(repository).save(any());
+        verify(repository).findByCorrelationId("req-104");
         assertThat(context.getProcessingStatus()).isNotEqualTo(SecurityEventContext.ProcessingStatus.FAILED);
     }
 
@@ -188,7 +237,7 @@ class SealedEvidenceCaptureHandlerTest {
     }
 
     @Test
-    void rejectedCaptureIsDroppedWithoutTouchingStorageAndReleasesTheGuard() {
+    void rejectedCaptureIsDroppedWithoutTouchingStorageAndALaterCaptureStillSeals() {
         AtomicBoolean saturated = new AtomicBoolean(true);
         Executor executor = command -> {
             if (saturated.get()) {
@@ -199,7 +248,7 @@ class SealedEvidenceCaptureHandlerTest {
         SealedEvidenceCaptureHandler saturable =
                 new SealedEvidenceCaptureHandler(assembler, repository, executor, null);
         SecurityEvent event = event("req-106", "/api/orders");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
         SecurityEventContext context = decisionContext(event, "ALLOW");
 
@@ -230,7 +279,7 @@ class SealedEvidenceCaptureHandlerTest {
         SecurityEvent event = event("req-108", "/api/orders");
         event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY, "identity-108");
         event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN, "token-108");
-        traceStore.capture(captureContext(event));
+        capture(event);
         traceStore.complete(event);
 
         assertThat(ownerAware.handle(decisionContext(event, "ALLOW"))).isTrue();
@@ -298,18 +347,17 @@ class SealedEvidenceCaptureHandlerTest {
         return context;
     }
 
-    private VerificationCaptureContext captureContext(SecurityEvent event) {
+    private void capture(SecurityEvent event) {
         PromptGenerationResult promptResult = mock(PromptGenerationResult.class);
         when(promptResult.getSystemPrompt()).thenReturn("system prompt");
         when(promptResult.getUserPrompt()).thenReturn("user prompt");
         when(promptResult.getRawSystemPrompt()).thenReturn("raw system");
         when(promptResult.getRawUserPrompt()).thenReturn("raw user");
         when(promptResult.getMetadata()).thenReturn(Map.of("promptVersion", "v1"));
-        VerificationCaptureContext context = mock(VerificationCaptureContext.class);
-        when(context.securityEvent()).thenReturn(event);
-        when(context.relatedDocuments()).thenReturn(List.of());
-        when(context.promptExecution()).thenReturn(promptResult);
-        return context;
+        SecurityDecisionContext context = mock(SecurityDecisionContext.class);
+        when(context.getSecurityEvent()).thenReturn(event);
+        when(context.getRelatedDocuments()).thenReturn(List.of());
+        traceStore.capture(context, promptResult);
     }
 
     private static final class QueuedExecutor implements Executor {

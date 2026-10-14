@@ -21,6 +21,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -29,6 +30,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,15 +39,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -277,6 +284,22 @@ class Layer2ExpertStrategyTest {
         assertThat(strategy.getStrategyName()).isEqualTo("Layer2-Expert-Strategy");
     }
 
+    /** W4-3: the reason codes of the model response reach the expert assessment. */
+    @Test
+    void evaluate_keepsTheReasonCodesOfTheResponse() {
+        SecurityEvent event = buildTestEvent();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("CHALLENGE");
+        response.setReasoning("The export time differs from usual.");
+        response.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        ThreatAssessment assessment = strategy.evaluate(event);
+
+        assertThat(assessment.getReasonCodes()).containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
+    }
+
     @Test
     @DisplayName("evaluate should return ThreatAssessment with shouldEscalate=false")
     void evaluate_returnsAssessmentWithShouldEscalateFalse() {
@@ -356,9 +379,12 @@ class Layer2ExpertStrategyTest {
                 .isEqualTo(Layer2ExpertStrategy.ESCALATE_TERMINAL_POLICY_VERSION);
     }
 
+    /**
+     * R4-L2: no event metadata forces a BLOCK. A signal that names the former probe source is the event's own text, so
+     * the ESCALATE proposal ends as the terminal policy says, without a confirmed-malicious constraint or explanation.
+     */
     @Test
-    @DisplayName("Layer2 terminal fallback keeps a trusted confirmed-malicious BLOCK over an ESCALATE proposal")
-    void performDeepAnalysis_escalateProposalWithConfirmedMaliciousSignal_keepsBlock() {
+    void aSignalNamingTheFormerProbeSourceForcesNoBlock() {
         SecurityDecisionResponse response = new SecurityDecisionResponse();
         response.setRiskScore(0.9);
         response.setConfidence(0.8);
@@ -376,11 +402,223 @@ class Layer2ExpertStrategyTest {
         SecurityDecision decision = strategy.performDeepAnalysis(event);
 
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
-        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
-        assertThat(decision.getAutonomyConstraintReasons())
-                .containsExactly("CONFIRMED_MALICIOUS_ACTIVITY");
-        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("TRUSTED_CONFIRMED_MALICIOUS_SIGNAL");
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintReasons()).doesNotContain("CONFIRMED_MALICIOUS_ACTIVITY");
+        assertThat(decision.getAutonomyConstraintPolicy()).isNotEqualTo("TRUSTED_CONFIRMED_MALICIOUS_SIGNAL");
+        assertThat(decision.getReasoning()).doesNotContain("trusted internal security signal");
+    }
+
+    /** W3-9: a first pass with a model verdict whose past record search came back empty is not asked again. */
+    @Test
+    void aFirstPassWithNothingNewIsNotAskedAgain() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        SecurityEvent event = firstPassEscalated("w39-nothing-new", "ZERO_RESULTS", false, V20_LAYOUT);
+
+        SecurityDecision decision = secondPass.performDeepAnalysis(event);
+
+        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintReasons()).contains("LAYER2_ESCALATE_TERMINALIZED");
+        assertThat(decision.getLlmDecisionPresent()).isTrue();
+        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
+        assertThat(decision.getProcessingLayer()).isEqualTo(2);
+        assertThat(decision.getReasoning()).contains("Business intent remains uncertain.");
+        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
+    }
+
+    /** W3-9: past records the first pass could not retrieve and this pass found are the only facts added. */
+    @Test
+    void aFirstPassThatCouldNotRetrievePastRecordsGetsOnlyTheFoundOnesAdded() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        String eventId = "w39-new-records";
+        List<Document> found = List.of(new Document("past record one", Map.of("id", "past-1")));
+        AbstractTieredStrategy.cacheEscalationContext(eventId, null, null, found);
+        SecurityEvent event = firstPassEscalated(eventId, "TIMEOUT", false, V20_LAYOUT);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
+
+        SecurityDecision decision = secondPass.performDeepAnalysis(event);
+
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(captor.getValue().getParameters())
+                .containsEntry("layer2FirstPassUserPrompt", FIRST_PROMPT)
+                .containsEntry("layer2FirstPassVerdict", "ESCALATE")
+                .containsEntry("layer2FirstPassPastRecordsState", "TIMEOUT");
+        assertThat(captor.getValue().getContext().getRelatedDocuments()).containsExactlyElementsOf(found);
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
+    }
+
+    /**
+     * N-MISS-1 (D8): when Layer2's own search finds the records the first pass's search timed out on, the event records
+     * this search's state with the earlier timeout apart, and the second pass still gets the first pass's state.
+     */
+    @Test
+    void aSearchAfterTheFirstPassTimedOutRecordsItsOwnStateAndTheSecondPassKeepsTheFirst() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        Document record = new Document("User exported project GB-500.", Map.of(
+                "documentType", "behavior",
+                "userId", "user-002",
+                "tenantId", "demo",
+                "organizationId", "demo-org",
+                "retrievalPurpose", "security_investigation",
+                "accessScope", "USER",
+                "eventId", "past-event-1"));
+        when(vectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of(record));
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        Layer2ExpertStrategy secondPass = new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                vectorService,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+        SecurityEvent event = firstPassEscalated("n-miss-1-d8", "TIMEOUT", false, V20_LAYOUT);
+        event.getMetadata().put("ragTimedOut", true);
+        event.getMetadata().put("tenantId", "demo");
+        event.getMetadata().put("organizationId", "demo-org");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
+
+        secondPass.performDeepAnalysis(event);
+
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(captor.getValue().getParameters()).containsEntry("layer2FirstPassPastRecordsState", "TIMEOUT");
+        assertThat(captor.getValue().getContext().getRelatedDocuments()).hasSize(1);
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("ragTimedOut", false)
+                .containsEntry("ragEarlierRetrievalState", "TIMEOUT")
+                .containsEntry("relatedDocumentCount", 1);
+    }
+
+    /** W3-9: without a model verdict (a technical fallback) Layer2 makes the first model decision, as before. */
+    @Test
+    void aFirstPassWithoutAModelVerdictIsAnalysedAsBefore() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        SecurityEvent event = firstPassEscalated("w39-technical", "ZERO_RESULTS", true, V20_LAYOUT);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
+
+        secondPass.performDeepAnalysis(event);
+
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(captor.getValue().getParameters()).doesNotContainKeys(
+                "layer2FirstPassUserPrompt", "layer2FirstPassVerdict", "layer2FirstPassPastRecordsState");
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
+    }
+
+    /** W3-9: the v19 sections stay the comparison baseline, so Layer2 is asked as before. */
+    @Test
+    void theV19FormatAsksLayer2AsBefore() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        SecurityEvent event = firstPassEscalated("w39-v19", "ZERO_RESULTS", false, null);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
+
+        secondPass.performDeepAnalysis(event);
+
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(captor.getValue().getParameters()).doesNotContainKeys(
+                "layer2FirstPassUserPrompt", "layer2FirstPassVerdict", "layer2FirstPassPastRecordsState");
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
+    }
+
+    /**
+     * W3-16: one event runs one bundle, so the first prompt's layout decides the second pass; no setting of this layer
+     * does (the user prompt format setting is gone). A v20 first prompt with nothing new is not asked again.
+     */
+    @Test
+    void theFirstPromptsBundleDecidesTheSecondPassWithoutAnySetting() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        SecurityEvent event = firstPassEscalated("w316-v20-first", "ZERO_RESULTS", false, V20_LAYOUT);
+
+        secondPass.performDeepAnalysis(event);
+
+        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
+    }
+
+    private static final String V20_LAYOUT = "v20-dictionary-blocks";
+    private static final String FIRST_PROMPT = "=== USER BASELINE ===\nEvidence: state NONE\nBaselineStatus: NONE (new account)\n"
+            + "\n=== REQUEST ===\nTime: Wed 03:17\n";
+
+    private Layer2ExpertStrategy strategyWith(TieredStrategyProperties properties) {
+        return new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+    }
+
+    private static SecurityDecisionResponse allow() {
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("The past records show the same work.");
+        return response;
+    }
+
+    /** The event as the cold path hands it to Layer2: the Layer1 assessment and what the first pass left. */
+    private static SecurityEvent firstPassEscalated(String eventId, String pastRecordsState, boolean technicalFallback,
+                                                    String layout) {
+        Map<String, Object> firstPass = new HashMap<>();
+        firstPass.put("layer", "LAYER1");
+        firstPass.put("llmAction", "ESCALATE");
+        firstPass.put("autonomousAction", "ESCALATE");
+        firstPass.put("llmDecisionPresent", !technicalFallback);
+        firstPass.put("technicalFallbackApplied", technicalFallback);
+        firstPass.put("reasoning", "Business intent remains uncertain.");
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("httpMethod", "POST");
+        metadata.put("requestPath", "/api/admin/config");
+        metadata.put("layer1Assessment", Map.copyOf(firstPass));
+        metadata.put("userPrompt", FIRST_PROMPT);
+        if (layout != null) {
+            metadata.put("userPromptLayoutVersion", layout);
+        }
+        metadata.put("ragRetrievalState", pastRecordsState);
+        return SecurityEvent.builder()
+                .eventId(eventId)
+                .userId("user-002")
+                .sessionId("session-002")
+                .sourceIp("10.0.0.50")
+                .userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+                .timestamp(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())
+                .metadata(metadata)
+                .build();
     }
 
     private SecurityEvent buildTestEvent() {

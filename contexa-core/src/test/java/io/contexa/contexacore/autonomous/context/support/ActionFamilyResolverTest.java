@@ -27,6 +27,19 @@ class ActionFamilyResolverTest {
     }
 
     @Test
+    void theProtectedMethodsDeclaredActionComesAfterTheRequestsAndBeforeTheInference() {
+        ActionFamilyResolver.Resolution declared = ActionFamilyResolver.resolve(Map.of(
+                "protectableActionFamily", "EXPORT", "protectableMethod", "x.Y.readDocument", "httpMethod", "GET"));
+        ActionFamilyResolver.Resolution requestFirst = ActionFamilyResolver.resolve(Map.of(
+                "actionFamily", "READ", "protectableActionFamily", "EXPORT"));
+
+        // W2-11: the descriptor of the protected method is a host declaration, below what the request declares.
+        assertThat(declared.family()).isEqualTo(ActionFamily.EXPORT);
+        assertThat(declared.source()).isEqualTo("host:protectableActionFamily");
+        assertThat(requestFirst.family()).isEqualTo(ActionFamily.READ);
+    }
+
+    @Test
     void aDeclaredUnknownStatesNothingAndTheOtherSourcesDecide() {
         ActionFamilyResolver.Resolution resolution = ActionFamilyResolver.resolve(Map.of(
                 "actionFamily", "UNKNOWN", "protectableMethod", EXPORT_METHOD, "httpMethod", "POST"));

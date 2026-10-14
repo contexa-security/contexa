@@ -3,16 +3,16 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.handler.handler.SealedEvidenceCaptureHandler;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.std.components.prompt.CorePromptEvidenceMetadataProvider;
-import io.contexa.contexacore.verification.capture.PromptEvidenceMetadataProvider;
 import io.contexa.contexacore.verification.capture.SealedEvidenceLayer1CompletionAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptCaptureAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceCaptureSampling;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRetentionScheduler;
+import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -33,12 +33,13 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * Runtime capture is the OSS wiring of the real decision pipeline: the prompt capture aspects record
  * the final LLM prompt, and SealedEvidenceCaptureHandler seals it together with the enforced decision
- * on the capture executor. Retention cleanup deletes packages whose expiresAt has passed.
+ * on the capture executor, for the share of decisions the capture sample keeps (R4-S6). Retention cleanup deletes
+ * packages whose expiresAt has passed.
  *
  * When Enterprise is enabled, Enterprise owns capture and retention (its schema keeps sealed packages
  * immutable), so none of these beans are created.
  */
-@AutoConfiguration(after = PqaOfficialInspectionAutoConfiguration.class)
+@AutoConfiguration(after = SealedEvidenceStoreAutoConfiguration.class)
 public class PqaSealedEvidenceAutoConfiguration {
 
     @Configuration(proxyBeanMethods = false)
@@ -80,23 +81,11 @@ public class PqaSealedEvidenceAutoConfiguration {
             return executor;
         }
 
-        @Bean(name = "pqaOssPromptEvidenceMetadataProvider")
-        @ConditionalOnMissingBean(PromptEvidenceMetadataProvider.class)
-        public PromptEvidenceMetadataProvider pqaOssPromptEvidenceMetadataProvider() {
-            return new CorePromptEvidenceMetadataProvider();
-        }
-
         @Bean(name = "pqaOssSealedEvidencePromptTraceStore")
         @ConditionalOnMissingBean(SealedEvidencePromptTraceStore.class)
         public SealedEvidencePromptTraceStore pqaOssSealedEvidencePromptTraceStore(
-                PromptEvidenceMetadataProvider promptEvidenceMetadataProvider,
-                @Qualifier(CAPTURE_EXECUTOR) Executor captureExecutor,
                 PqaOssSealedEvidenceCaptureProperties properties) {
-            return new SealedEvidencePromptTraceStore(
-                    promptEvidenceMetadataProvider,
-                    captureExecutor,
-                    properties.storeOptions(),
-                    Clock.systemUTC());
+            return new SealedEvidencePromptTraceStore(properties.storeOptions(), Clock.systemUTC());
         }
 
         @Bean(name = "pqaOssSealedEvidencePromptCaptureAspect")
@@ -119,12 +108,24 @@ public class PqaSealedEvidenceAutoConfiguration {
                 ObjectMapper objectMapper,
                 CanonicalSecurityContextSerializer canonicalSecurityContextSerializer,
                 SealedEvidencePackageIntegrity sealedEvidencePackageIntegrity,
-                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore) {
+                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore,
+                PqaOssSealedEvidenceCaptureProperties properties) {
             return new SealedEvidencePackageAssembler(
                     objectMapper,
                     canonicalSecurityContextSerializer,
                     sealedEvidencePackageIntegrity,
-                    sealedEvidencePromptTraceStore);
+                    sealedEvidencePromptTraceStore,
+                    properties.getRetention().getPeriod());
+        }
+
+        /** R4-S6, decision D-B: a stable share of the requests, and every decision of the window after a change. */
+        @Bean(name = "pqaOssSealedEvidenceCaptureSampling")
+        @ConditionalOnMissingBean(SealedEvidenceCaptureSampling.class)
+        public SealedEvidenceCaptureSampling pqaOssSealedEvidenceCaptureSampling(
+                ObjectMapper objectMapper,
+                PqaOssSealedEvidenceCaptureProperties properties) {
+            return new VersionChangeCaptureSampling(properties.getSamplePercent(),
+                    properties.getFullCaptureAfterChange(), objectMapper);
         }
 
         @Bean(name = "pqaOssSealedEvidenceCaptureHandler")
@@ -133,12 +134,14 @@ public class PqaSealedEvidenceAutoConfiguration {
                 SealedEvidencePackageAssembler sealedEvidencePackageAssembler,
                 SealedEvidencePackageRepository sealedEvidencePackageRepository,
                 @Qualifier(CAPTURE_EXECUTOR) Executor captureExecutor,
-                ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider) {
+                ObjectProvider<SecurityContextDataStore> securityContextDataStoreProvider,
+                SealedEvidenceCaptureSampling sealedEvidenceCaptureSampling) {
             return new SealedEvidenceCaptureHandler(
                     sealedEvidencePackageAssembler,
                     sealedEvidencePackageRepository,
                     captureExecutor,
-                    securityContextDataStoreProvider.getIfAvailable());
+                    securityContextDataStoreProvider.getIfAvailable(),
+                    sealedEvidenceCaptureSampling);
         }
     }
 }

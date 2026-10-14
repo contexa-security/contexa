@@ -30,7 +30,8 @@ public final class ExecutionSpecHasher {
     /**
      * The measurement setting (W5, V-13): the specification without the per-employee template and the system prompt
      * hash, plus the version the templates were learned under ({@code templateVersion}, TemplateVersions). Runs of
-     * one measurement protocol share it although each protagonist's runs clone a different template.
+     * one measurement protocol share it although each protagonist's runs clone a different template. The prompt
+     * bundle, when control D reports it, tells measurements of different bundles apart (LU-6).
      */
     public static String settingHash(ExecutionSpec spec, String templateVersion) {
         Map<String, Object> fields = new TreeMap<>();
@@ -47,6 +48,10 @@ public final class ExecutionSpecHasher {
         fields.put("templateVersion", templateVersion == null ? "" : templateVersion);
         if (spec.modelSettings() != null) {
             fields.put("modelSettings", sortedCopy(spec.modelSettings()));
+        }
+        // The prompt bundle separates measurements the prompt hash no longer does here (LU-6, P3 extra 46).
+        if (spec.promptBundle() != null) {
+            fields.put("promptBundle", spec.promptBundle());
         }
         try {
             return sha256(CANONICAL_JSON.writeValueAsString(fields));
@@ -72,6 +77,10 @@ public final class ExecutionSpecHasher {
         // Absent for specifications recorded before the model settings were reported, so their hashes stay as they were.
         if (spec.modelSettings() != null) {
             fields.put("modelSettings", sortedCopy(spec.modelSettings()));
+        }
+        // Absent for specifications recorded before the prompt bundle was reported, so their hashes stay as they were.
+        if (spec.promptBundle() != null) {
+            fields.put("promptBundle", spec.promptBundle());
         }
         try {
             return CANONICAL_JSON.writeValueAsString(fields);

@@ -47,6 +47,22 @@ public record PromptExecutionMetadata(
         long generatedAtEpochMs,
         Map<String, Object> supplementalMetadata) {
 
+    /** The governance descriptor's key in the execution metadata. */
+    public static final String GOVERNANCE_DESCRIPTOR = "governanceDescriptor";
+    /** The user prompt layout's key in the governance descriptor (the v20 layout is the dictionary blocks). */
+    public static final String USER_PROMPT_LAYOUT_VERSION = "userPromptLayoutVersion";
+    /** The entries the render took out to fit its budget, as {@code BLOCK.Entry} keys. */
+    public static final String OMITTED_SECTIONS = "omittedSections";
+    /**
+     * The render facts the sealed package keeps for the prompt inspector (R1b-3: the render writes them, the assembler
+     * copies them, the inspector reads them): the clock the times were drawn on, the past record retrieval state, the
+     * counted past record facts and the baseline state.
+     */
+    public static final String EVENT_TIME_ZONE = "eventTimeZone";
+    public static final String PROMPT_RAG_STATE = "promptRagState";
+    public static final String PROMPT_PAST_RECORD_COUNTS = "promptPastRecordCounts";
+    public static final String PROMPT_BASELINE_STATUS = "promptBaselineStatus";
+
     public PromptExecutionMetadata {
         governanceDescriptor = Objects.requireNonNull(governanceDescriptor, "governanceDescriptor");
         budgetProfile = Objects.requireNonNull(budgetProfile, "budgetProfile");
@@ -78,14 +94,14 @@ public record PromptExecutionMetadata(
         Map<String, Object> metadata = new LinkedHashMap<>(governanceDescriptor.toMetadataMap());
         String registryScope = supplementalMetadataValue("registryScope", "PLATFORM_GLOBAL");
         metadata.put("registryScope", registryScope);
-        metadata.put("governanceDescriptor", governanceDescriptorMap(registryScope));
+        metadata.put(GOVERNANCE_DESCRIPTOR, governanceDescriptorMap(registryScope));
         governanceDescriptor.bundle().ifPresent(manifest ->
                 metadata.put("promptBundleSelectionSource", bundleSelectionSource()));
         metadata.putAll(budgetProfile.toMetadataMap());
         metadata.putAll(promptTokenEstimate.toMetadataMap());
         metadata.putAll(promptCompressionLedger.toMetadataMap());
         metadata.put("promptSectionSet", sectionSet);
-        metadata.put("omittedSections", omittedSections);
+        metadata.put(OMITTED_SECTIONS, omittedSections);
         metadata.put("omissionLedger", omissionLedger.stream().map(PromptOmissionRecord::toMetadataMap).toList());
         metadata.put("promptDuplicationInventoryVersion", "P1-SECTION-DUPLICATION-V1");
         metadata.put("promptDuplicationInventory", duplicationInventory.stream().map(PromptDuplicationRecord::toMetadataMap).toList());
@@ -135,10 +151,8 @@ public record PromptExecutionMetadata(
         descriptor.put("recipeId", supplementalMetadataValue("recipeId", null));
         descriptor.put("recipeVersion", supplementalMetadataValue("recipeVersion", governanceDescriptor.promptVersion()));
         descriptor.put("systemPromptVersion", supplementalMetadataValue("systemPromptVersion", governanceDescriptor.promptVersion()));
-        descriptor.put("userPromptLayoutVersion", supplementalMetadataValue("userPromptLayoutVersion", governanceDescriptor.promptVersion()));
+        descriptor.put(USER_PROMPT_LAYOUT_VERSION, supplementalMetadataValue(USER_PROMPT_LAYOUT_VERSION, governanceDescriptor.promptVersion()));
         descriptor.put("contextProjectionVersion", supplementalMetadataValue("contextProjectionVersion", governanceDescriptor.promptVersion()));
-        descriptor.put("pqaIssueIds", supplementalMetadata.getOrDefault("pqaIssueIds", List.of()));
-        descriptor.put("pqaRemediationActionIds", supplementalMetadata.getOrDefault("pqaRemediationActionIds", List.of()));
         return descriptor;
     }
 

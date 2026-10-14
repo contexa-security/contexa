@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.processor;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -73,6 +74,9 @@ public class ProcessingResult {
     private String reasoning;
 
     private String llmReasoning;
+
+    /** The reason codes of the output contract v3 with the fact IDs they cite (W4-3); empty for a v19 decision. */
+    private List<SecurityDecisionOutputContract.Citation> reasonCodes;
 
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();

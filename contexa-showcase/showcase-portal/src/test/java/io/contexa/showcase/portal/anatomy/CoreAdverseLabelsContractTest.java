@@ -40,6 +40,10 @@ class CoreAdverseLabelsContractTest {
         while (count.find()) {
             core.put(count.group(1), "POSITIVE");
         }
+        Matcher stated = Pattern.compile("statedFact\\(promptFactValue\\(promptText, \"([a-z]+)\"\\)\\)").matcher(rule);
+        while (stated.find()) {
+            core.put(stated.group(1), "STATED");
+        }
         assertThat(rule).contains("anomalySignal != null").contains("\"none\".equals(anomalySignal)")
                 .contains("\"unknown\".equals(anomalySignal)")
                 .contains("anomalyTrust.startsWith(\"trusted_verification_input\")");
@@ -64,6 +68,8 @@ class CoreAdverseLabelsContractTest {
                 RecentBlockCount: 2 blocks
                 ObservedAnomalySignal: none
                 CurrentActionFamilyPresentInExpectedRoleScope: true
+                SessionDeviceChange: Chrome/140 on WINDOWS -> Safari/17 on MAC in the same session
+                SessionNetworkChange: UNKNOWN
                 """;
         Map<String, CoreAdverseLabels.Reading> read = new HashMap<>();
         CoreAdverseLabels.read(prompt).forEach(reading -> read.put(reading.label(), reading));
@@ -75,6 +81,8 @@ class CoreAdverseLabelsContractTest {
         assertThat(read.get("observedanomalysignal").met()).isFalse();
         assertThat(read.get("currentactionfamilypresentinexpectedrolescope").met()).isFalse();
         assertThat(read.get("impossibletravel").values()).as("not in the prompt").isEqualTo(List.of());
+        assertThat(read.get("sessiondevicechange").met()).as("a stated change").isTrue();
+        assertThat(read.get("sessionnetworkchange").met()).as("UNKNOWN states no change").isFalse();
         assertThat(CoreAdverseLabels.read(null)).isEmpty();
     }
 

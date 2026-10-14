@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import java.time.Instant;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -35,6 +37,15 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
@@ -42,6 +53,7 @@ import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -73,6 +85,9 @@ import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 @ExtendWith(MockitoExtension.class)
@@ -120,6 +135,21 @@ class AbstractTieredStrategyTest {
                 promptContextAuditForwardingService,
                 tieredStrategyProperties
         );
+    }
+
+    @Test
+    @DisplayName("the strategy reads a change of device or network within the session the event carries (W2-14)")
+    void hydrate_readsTheSessionsChangedPartsFromTheEvent() {
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-moved").build();
+        event.addMetadata("sessionDeviceChange", "Chrome/140 on WINDOWS -> Safari/17 on MAC");
+        event.addMetadata("sessionNetworkChange", "10.40.12.0/24 -> 203.0.113.0/24");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis =
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+
+        strategy.hydrateBehaviorAnalysisRuntimeFacts(analysis, event);
+
+        assertThat(analysis.getSessionDeviceChange()).isEqualTo("Chrome/140 on WINDOWS -> Safari/17 on MAC");
+        assertThat(analysis.getSessionNetworkChange()).isEqualTo("10.40.12.0/24 -> 203.0.113.0/24");
     }
 
     @Test
@@ -339,12 +369,7 @@ class AbstractTieredStrategyTest {
                 .containsEntry("promptEvidenceCompleteness", "SUFFICIENT")
                 .containsEntry("promptRuntimeTelemetryLinked", true)
                 .containsEntry("promptRuntimeTelemetryLayer", "TestLayer")
-                .containsEntry("officialVerificationPinnedModelId", "qwen3:8b")
-                .containsEntry("officialVerificationTemperature", 0.0d)
-                .containsEntry("officialVerificationTopP", 0.2d)
-                .containsEntry("officialVerificationSeed", 7)
-                .containsEntry("officialVerificationMaxTokens", 96)
-                .containsEntry("officialVerificationDisableRetries", true);
+                .doesNotContainKeys("officialVerificationPinnedModelId", "officialVerificationTemperature", "officialVerificationTopP", "officialVerificationSeed", "officialVerificationMaxTokens", "officialVerificationDisableRetries");
         assertThat(event.getMetadata().get("promptSectionSet")).isEqualTo(List.of("CURRENT_REQUEST", "ROLE_SCOPE"));
         assertThat(event.getMetadata()).isInstanceOf(LinkedHashMap.class);
     }
@@ -474,44 +499,39 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("platformSecurityDecisionMaxTokens", Integer.class)).isEqualTo(256);
     }
 
+    /** P3-EXTRA-9: the Layer1 model call limit travels as a platform parameter to the provider call. */
     @Test
-    @DisplayName("buildSecurityDecisionRequest should not auto apply layer OpenAI options for official verification runtime")
-    void buildSecurityDecisionRequest_shouldNotAutoApplyLayerOpenAiOptionsForOfficialVerificationRuntime() {
+    void theLayerOneModelCallLimitTravelsWithTheRequest() {
+        tieredStrategyProperties.getLayer1().getTimeout().setLlmMs(1500);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-call-limit")
+                .metadata(new LinkedHashMap<>())
+                .build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter("platformSecurityDecisionCallTimeoutMs", Long.class)).isEqualTo(1500L);
+    }
+
+    /**
+     * R4-L4: the former verification runtime keys are event text; they neither turn the layer OpenAI options off nor
+     * travel into the request.
+     */
+    @Test
+    void theFormerVerificationRuntimeKeysNeitherSkipTheLayerOptionsNorReachTheRequest() {
         tieredStrategyProperties.getLayer1().setOpenAiReasoningEffort("minimal");
         tieredStrategyProperties.getLayer1().setOpenAiVerbosity("low");
+        tieredStrategyProperties.getLayer1().setMaxOutputTokens(256);
         SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-official-runtime-openai-options")
+                .eventId("event-former-verification-keys")
                 .metadata(new LinkedHashMap<>(Map.of(
                         "officialVerificationPinnedModelId", "qwen3:8b",
-                        "officialVerificationMaxTokens", 96)))
-                .build();
-
-        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
-                event,
-                new SecurityDecisionStandardPromptTemplate.SessionContext(),
-                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
-                List.of());
-
-        assertThat(request.getParameter("openAiReasoningEffort", String.class)).isNull();
-        assertThat(request.getParameter("openAiVerbosity", String.class)).isNull();
-        assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class))
-                .isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
-    }
-    @Test
-    @DisplayName("buildSecurityDecisionRequest should copy official verification runtime options into AI request parameters")
-    void buildSecurityDecisionRequest_shouldCopyOfficialVerificationRuntimeOptions() {
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId("event-official-runtime")
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE",
-                        "promptBudgetProfile", "CORTEX_L1_COMPACT",
-                        "officialVerificationPinnedModelId", "qwen3:8b",
-                        "officialVerificationTemperature", 0.0d,
-                        "officialVerificationTopP", 0.2d,
-                        "officialVerificationSeed", 7,
                         "officialVerificationMaxTokens", 96,
-                        "officialVerificationDisableRetries", true,
-                        "officialVerificationDisableOllamaThinking", true)))
+                        "officialVerificationDecisionBoundaryMode", "OFFICIAL_VERIFICATION_RUNTIME")))
                 .build();
 
         SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
@@ -520,17 +540,11 @@ class AbstractTieredStrategyTest {
                 new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
                 List.of());
 
-        assertThat(request.getParameter("promptBudgetProfile", String.class))
-                .isEqualTo(PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT.profileKey());
-        assertThat(request.getParameter("officialVerificationPinnedModelId", String.class)).isEqualTo("qwen3:8b");
-        assertThat(request.getParameter("officialVerificationTemperature", Double.class)).isEqualTo(0.0d);
-        assertThat(request.getParameter("officialVerificationTopP", Double.class)).isEqualTo(0.2d);
-        assertThat(request.getParameter("officialVerificationSeed", Integer.class)).isEqualTo(7);
-        assertThat(request.getParameter("officialVerificationMaxTokens", Integer.class)).isEqualTo(96);
-        assertThat(request.getParameter("officialVerificationDisableRetries", Boolean.class)).isTrue();
-        assertThat(request.getParameter("officialVerificationDisableOllamaThinking", Boolean.class)).isTrue();
-        assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class))
-                .isEqualTo("OFFICIAL_VERIFICATION_RUNTIME");
+        assertThat(request.getParameter("openAiReasoningEffort", String.class)).isEqualTo("minimal");
+        assertThat(request.getParameter("platformSecurityDecisionMaxTokens", Integer.class)).isEqualTo(256);
+        assertThat(request.getParameter("officialVerificationPinnedModelId", String.class)).isNull();
+        assertThat(request.getParameter("officialVerificationMaxTokens", Integer.class)).isNull();
+        assertThat(request.getParameter("officialVerificationDecisionBoundaryMode", String.class)).isNull();
     }
 
     @Test
@@ -573,6 +587,50 @@ class AbstractTieredStrategyTest {
         assertThat(request.getParameter("nativeStructuredOutputEnabled", Boolean.class)).isTrue();
         assertThat(request.getParameter("structuredOutputMode", String.class))
                 .isIn(StructuredOutputMode.NATIVE_STRUCTURED.name(), StructuredOutputMode.VALIDATED_CONVERTER.name());
+    }
+
+    /** W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3. */
+    @Test
+    void aV20RequestWithNativeStructuredOutputCarriesTheOutputContractSchema() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-w42-native")
+                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
+                .build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of());
+
+        assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
+                .isEqualTo(SecurityDecisionOutputContract.providerSchema());
+    }
+
+    /** W4-2: the v19 bundle keeps its format, and without native structured output the system text states the schema. */
+    @Test
+    void aV19RequestOrOneWithoutNativeStructuredOutputCarriesNoSchema() {
+        SecurityEvent v19 = SecurityEvent.builder()
+                .eventId("event-w42-v19")
+                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.NATIVE_STRUCTURED.name())))
+                .build();
+        SecurityEvent converter = SecurityEvent.builder()
+                .eventId("event-w42-converter")
+                .metadata(new LinkedHashMap<>(Map.of("structuredOutputMode", StructuredOutputMode.VALIDATED_CONVERTER.name())))
+                .build();
+        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        when(promptTemplate.promptBundle(converter)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        for (SecurityEvent event : List.of(v19, converter)) {
+            SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(
+                    event,
+                    new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                    new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                    List.of());
+
+            assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class)).as(event.getEventId()).isNull();
+        }
     }
 
     @Test
@@ -786,6 +844,43 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("searchRelatedContextBase should never name a family hint's word as the request's class (W2-10)")
+    void searchRelatedContextBase_neverNamesAFamilyHintAsTheClass() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-release-class")
+                .userId("persona_fin_lead")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "tenantId", "demo",
+                        "httpMethod", "GET",
+                        "resourceFamily", "PUBLIC_RELEASES")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/releases/R-1"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(
+                            documents,
+                            documents.size(),
+                            documents.size(),
+                            0,
+                            "security_investigation",
+                            List.of());
+                });
+
+        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searchRequestCaptor.capture());
+        assertThat(searchRequestCaptor.getAllValues()).extracting(SearchRequest::getQuery)
+                .allSatisfy(query -> assertThat(query).doesNotContain("resourceFamily: PUBLIC"));
+    }
+
+    @Test
     @DisplayName("enrichBehaviorAnalysisWithBaselineSupport should apply cohort seed runtime weight decision")
     void enrichBehaviorAnalysisWithBaselineSupport_appliesCohortSeedRuntimeWeightDecision() {
         SecurityEvent event = SecurityEvent.builder()
@@ -915,6 +1010,46 @@ class AbstractTieredStrategyTest {
                 .isEqualTo(BaselineEvidenceStatus.MISSING_USER_ID);
     }
 
+    /** W4-3: the reason codes of the model response stay on the decision. */
+    @Test
+    void applySecurityDecisionRuntimeTelemetry_shouldKeepTheReasonCodes() {
+        SecurityDecision decision = SecurityDecision.builder().action(ZeroTrustAction.CHALLENGE).build();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setReasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")));
+
+        strategy.applySecurityDecisionRuntimeTelemetryForTest(decision, response);
+
+        assertThat(decision.getReasonCodes()).containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
+    }
+
+    /** W4-4: in observe mode a decision weaker than a minimum-action rule is recorded and kept as it is. */
+    @Test
+    void applyMinimumActionRules_recordsAWeakerDecisionAndKeepsIt() {
+        CanonicalSecurityContext canonical = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("SENSITIVE").actionFamily("READ").build())
+                .decisionFacts(new DecisionFacts(List.of(), List.of(),
+                        new PolicySatisfaction(false, null, List.of(), "no approval", List.of()), List.of()))
+                .build();
+        SecurityEvent allowEvent = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
+        SecurityEvent challengeEvent = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(Map.of("sealedEvidence.canonicalContext", canonical))).build();
+        SecurityDecision allow = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build();
+        SecurityDecision challenge = SecurityDecision.builder().action(ZeroTrustAction.CHALLENGE).build();
+
+        strategy.applyMinimumActionRulesForTest(allow, allowEvent);
+        strategy.applyMinimumActionRulesForTest(challenge, challengeEvent);
+
+        assertThat(allow.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(allowEvent.getMetadata()).containsEntry("minimumActionMode", "OBSERVE")
+                .containsEntry("minimumActionFindings", List.of(Map.of("rule", "P3_POLICY_NOT_SATISFIED",
+                        "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "CHALLENGE", "dimensions", List.of(),
+                        "decidedAction", "ALLOW", "violated", true)));
+        assertThat(challengeEvent.getMetadata()).containsEntry("minimumActionFindings", List.of(Map.of(
+                "rule", "P3_POLICY_NOT_SATISFIED", "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "CHALLENGE",
+                "dimensions", List.of(), "decidedAction", "CHALLENGE", "violated", false)));
+    }
+
     @Test
     @DisplayName("successful LLM telemetry should preserve the raw model reasoning")
     void applySecurityDecisionRuntimeTelemetry_shouldPreserveRawModelReasoning() {
@@ -932,53 +1067,6 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getTechnicalFallbackApplied()).isFalse();
         assertThat(decision.getLlmReasoning()).isEqualTo("Raw model explanation.");
     }
-
-    @Test
-    @DisplayName("trusted confirmed malicious signal should constrain final action to block")
-    void applyTrustedConfirmedMaliciousConstraint_shouldBlockWithoutReplacingModelProposal() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.CHALLENGE)
-                .reasoning("Model requested additional verification.")
-                .llmDecisionPresent(true)
-                .fieldProvenance(Map.of("reasoning", "MODEL"))
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION_AND_PROMPT_INJECTION_ATTACK",
-                        "anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")))
-                .build();
-
-        strategy.applyTrustedConfirmedMaliciousConstraintForTest(decision, event);
-
-        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.BLOCK);
-        assertThat(decision.getAutonomyConstraintApplied()).isTrue();
-        assertThat(decision.getAutonomyConstraintReasons()).containsExactly("CONFIRMED_MALICIOUS_ACTIVITY");
-        assertThat(decision.getAutonomyConstraintPolicy()).isEqualTo("TRUSTED_CONFIRMED_MALICIOUS_SIGNAL");
-        assertThat(decision.getAutonomyConstraintSource()).isEqualTo("anomalySignalSource");
-        assertThat(decision.getAutonomyConstraintVersion()).isEqualTo("1");
-        assertThat(decision.getReasoning()).contains("constrained from CHALLENGE to BLOCK");
-        assertThat(decision.getLlmReasoning()).isEqualTo("Model requested additional verification.");
-    }
-
-    @Test
-    @DisplayName("untrusted request anomaly should not constrain final action")
-    void applyTrustedConfirmedMaliciousConstraint_shouldIgnoreUntrustedHeader() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.CHALLENGE)
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "anomalySignal", "CONFIRMED_CREDENTIAL_EXFILTRATION_ATTACK",
-                        "anomalySignalSource", "UNTRUSTED_REQUEST_HEADER")))
-                .build();
-
-        strategy.applyTrustedConfirmedMaliciousConstraintForTest(decision, event);
-
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
-        assertThat(decision.getAutonomyConstraintApplied()).isNotEqualTo(Boolean.TRUE);
-    }
-
 
     @Test
     @DisplayName("same-resource authorized RAG should produce the canonical ALLOW explanation")
@@ -1283,31 +1371,173 @@ class AbstractTieredStrategyTest {
         }
     }
 
+    // -- Concrete test implementation of the abstract class --
+
+    private static final String EXPORTS = "/api/projects/{projectKey}/exports";
+    private static final String GB500 = "/api/projects/GB-500/exports";
+
+    /** W3-18: a v20 request reads its past records by the exact lookup of its action family, without a similarity search. */
     @Test
-    @DisplayName("trusted confirmed malicious evidence should produce the canonical BLOCK explanation")
-    void applyCanonicalDecisionReasoning_shouldUseConfirmedMaliciousBlockExplanation() {
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(ZeroTrustAction.BLOCK)
-                .reasoning("No anomaly exists.")
-                .llmDecisionPresent(true)
-                .fieldProvenance(Map.of("reasoning", "MODEL"))
-                .build();
-        SecurityEvent event = SecurityEvent.builder()
-                .metadata(new LinkedHashMap<>(Map.of(
-                        "anomalySignal", "CONFIRMED_PROMPT_INJECTION",
-                        "anomalySignalSource", "OFFICIAL_VERIFICATION_INTERNAL")))
-                .build();
+    void aV20RequestReadsItsPastRecordsByTheExactLookupOfItsActionFamily() {
+        SecurityEvent event = exportEvent("event-w318-exact", true);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        Document sameTarget = new Document("00000000-0000-0000-0000-000000000002", "record same target",
+                Map.of("eventId", "e2", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
+        Document otherTarget = new Document("00000000-0000-0000-0000-000000000003", "record other target",
+                Map.of("eventId", "e3", "requestPath", "/api/projects/PLM-OPS/exports", "pathFamily", EXPORTS,
+                        "actionFamily", "EXPORT"));
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(
+                new PastRecordGroup(EXPORTS, GB500, "POST", 2, LocalDateTime.of(2026, 10, 12, 11, 0)),
+                new PastRecordGroup(EXPORTS, "/api/projects/PLM-OPS/exports", "POST", 1, LocalDateTime.of(2026, 10, 11, 9, 0))),
+                List.of(sameTarget, otherTarget));
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+        authorizeEveryDocument();
 
-        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 5, 0.5d);
 
-        assertThat(decision.getReasoning())
-                .isEqualTo("A trusted internal security signal confirmed malicious activity; "
-                        + "final autonomous action is BLOCK.");
-        assertThat(decision.getLlmReasoning()).isEqualTo("No anomaly exists.");
-        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "PLATFORM_CANONICAL");
+        assertThat(result).containsExactly(sameTarget, otherTarget);
+        verify(unifiedVectorService, never()).searchSimilar(any(SearchRequest.class));
+        assertThat(query.scope).isEqualTo(new PastRecordScope("alice", "security_investigation", "EXPORT", List.of("session-now")));
+        assertThat(query.firstPaths).containsExactly(GB500);
+        assertThat(query.limit).isEqualTo(5);
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("ragSearchMode", "EXACT_PAST_RECORD_LOOKUP")
+                .containsEntry("relatedDocumentCount", 2);
+        assertThat(PastRecordCounts.fromMetadata(event.getMetadata().get("ragPastRecordCounts"))).isEqualTo(
+                new PastRecordCounts("EXPORT", "POST " + EXPORTS, 2, LocalDateTime.of(2026, 10, 12, 11, 0), 1,
+                        LocalDateTime.of(2026, 10, 11, 9, 0), 0, 3));
     }
 
-    // -- Concrete test implementation of the abstract class --
+    /**
+     * W3-19 (one fact, one source): the candidates of an exact lookup are the records it counted, not the ones it read
+     * up to its limit, so the state line and the counts state one number of past records.
+     */
+    @Test
+    void theCandidatesOfAnExactLookupAreTheRecordsItCountedNotTheOnesItRead() {
+        SecurityEvent event = exportEvent("event-w319-candidates", true);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        Document sameTarget = new Document("00000000-0000-0000-0000-000000000012", "record same target",
+                Map.of("eventId", "e12", "requestPath", GB500, "pathFamily", EXPORTS, "actionFamily", "EXPORT"));
+        Document otherTarget = new Document("00000000-0000-0000-0000-000000000013", "record other target",
+                Map.of("eventId", "e13", "requestPath", "/api/projects/PLM-OPS/exports", "pathFamily", EXPORTS,
+                        "actionFamily", "EXPORT"));
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(
+                new PastRecordGroup(EXPORTS, GB500, "POST", 1, LocalDateTime.of(2026, 10, 12, 11, 0)),
+                new PastRecordGroup(EXPORTS, "/api/projects/PLM-OPS/exports", "POST", 14, LocalDateTime.of(2026, 10, 11, 9, 0))),
+                List.of(sameTarget, otherTarget));
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+        authorizeEveryDocument();
+
+        strategy.callSearchRelatedContextBase(event, 2, 0.5d);
+
+        assertThat(event.getMetadata())
+                .containsEntry("relatedDocumentCount", 2)
+                .containsEntry("ragCandidateDocumentCount", 15);
+    }
+
+    @Test
+    void aV20RequestWithoutAnExactLookupSaysThePastRecordsWereNotRetrieved() {
+        SecurityEvent event = exportEvent("event-w318-unavailable", true);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(PastRecordQuery.unavailable());
+
+        assertThat(strategy.callSearchRelatedContextBase(event, 5, 0.5d)).isEmpty();
+        verify(unifiedVectorService, never()).searchSimilar(any(SearchRequest.class));
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "UNAVAILABLE")
+                .doesNotContainKey("ragPastRecordCounts");
+    }
+
+    @Test
+    void aV20RequestWithoutAnActionFamilyIsNotLookedUp() {
+        SecurityEvent event = exportEvent("event-w318-no-action", false);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+
+        assertThat(strategy.callSearchRelatedContextBase(event, 5, 0.5d)).isEmpty();
+        assertThat(query.scope).isNull();
+        verify(unifiedVectorService, never()).searchSimilar(any(SearchRequest.class));
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "NOT_REQUESTED")
+                .containsEntry("ragAbsenceReason", "ACTION_FAMILY_UNKNOWN");
+    }
+
+    /** The v19 bundle stays the comparison baseline: it searches its past records as before. */
+    @Test
+    void aV19RequestSearchesItsPastRecordsAsBefore() {
+        SecurityEvent event = exportEvent("event-w318-v19", true);
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+
+        strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        verify(unifiedVectorService, atLeastOnce()).searchSimilar(any(SearchRequest.class));
+        verify(unifiedVectorService, never()).pastRecordQuery();
+    }
+
+    private static SecurityEvent exportEvent(String eventId, boolean withAction) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("requestPath", withAction ? GB500 : "/x/y");
+        if (withAction) {
+            metadata.put("resourceUrlTemplate", EXPORTS);
+            metadata.put("httpMethod", "POST");
+            metadata.put("actionFamily", "EXPORT");
+            metadata.put("resourceId", "ops#exportDocuments");
+        }
+        return SecurityEvent.builder()
+                .eventId(eventId)
+                .userId("alice")
+                .sessionId("session-now")
+                .metadata(metadata)
+                .build();
+    }
+
+    private void authorizeEveryDocument() {
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(documents, documents.size(), documents.size(), 0,
+                            "security_investigation", List.of());
+                });
+    }
+
+    /** A past record query that keeps what it was asked. */
+    private static final class RecordingPastRecordQuery implements PastRecordQuery {
+
+        private final List<PastRecordGroup> groups;
+        private final List<Document> records;
+        private PastRecordScope scope;
+        private List<String> firstPaths;
+        private int limit;
+
+        private RecordingPastRecordQuery(List<PastRecordGroup> groups, List<Document> records) {
+            this.groups = groups;
+            this.records = records;
+        }
+
+        @Override
+        public boolean available() {
+            return true;
+        }
+
+        @Override
+        public List<PastRecordGroup> groups(PastRecordScope scope) {
+            this.scope = scope;
+            return groups;
+        }
+
+        @Override
+        public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+            this.firstPaths = firstPaths;
+            this.limit = limit;
+            return records;
+        }
+    }
 
     private static class ConcreteStrategy extends AbstractTieredStrategy {
 
@@ -1370,14 +1600,14 @@ class AbstractTieredStrategyTest {
             capturePromptRuntimeTelemetry(event, response);
         }
 
+        void applyMinimumActionRulesForTest(SecurityDecision decision, SecurityEvent event) {
+            applyMinimumActionRules(decision, event);
+        }
+
         void applySecurityDecisionRuntimeTelemetryForTest(
                 SecurityDecision decision,
                 SecurityDecisionResponse response) {
             applySecurityDecisionRuntimeTelemetry(decision, response);
-        }
-
-        void applyTrustedConfirmedMaliciousConstraintForTest(SecurityDecision decision, SecurityEvent event) {
-            applyTrustedConfirmedMaliciousConstraint(decision, event);
         }
 
         void applyCanonicalDecisionReasoningForTest(
@@ -1434,5 +1664,189 @@ class AbstractTieredStrategyTest {
             return "Layer2-Test";
         }
     }
-}
 
+    @Test
+    @DisplayName("searchRelatedContextBase asks a margin more and keeps the same past records whatever order the store returns (W3-3)")
+    void searchRelatedContextBase_ranksPastRecordsByFixedKeysWithAMargin() {
+        List<Document> stored = new ArrayList<>();
+        for (int index = 1; index <= 6; index++) {
+            stored.add(Document.builder()
+                    .id("doc-" + index)
+                    .text("User accessed record " + index)
+                    .metadata(Map.of("userId", "persona_fin_lead", "documentType", "behavior",
+                            "eventId", "event-" + index, "timestamp", "2026-09-24T09:00"))
+                    .score(0.80)
+                    .build());
+        }
+        List<Document> reversed = new ArrayList<>(stored);
+        Collections.reverse(reversed);
+        AtomicBoolean firstRun = new AtomicBoolean(true);
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenAnswer(invocation -> firstRun.get() ? stored : reversed);
+        when(baselineLearningService.describeBaselineMaturity(any(), any()))
+                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
+                        true, true, true, true, true, List.of("ACCESS_HOURS")));
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(documents, documents.size(), documents.size(), 0,
+                            "security_investigation", List.of());
+                });
+
+        List<Document> first = strategy.callSearchRelatedContextBase(pastRecordEvent("event-margin-1"), 3, 0.7d);
+        firstRun.set(false);
+        List<Document> second = strategy.callSearchRelatedContextBase(pastRecordEvent("event-margin-2"), 3, 0.7d);
+
+        assertThat(first).extracting(Document::getId).containsExactly("doc-1", "doc-2", "doc-3");
+        assertThat(second).extracting(Document::getId).containsExactly("doc-1", "doc-2", "doc-3");
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, Mockito.atLeastOnce()).searchSimilar(searchRequestCaptor.capture());
+        assertThat(searchRequestCaptor.getAllValues()).extracting(SearchRequest::getTopK).contains(6).doesNotContain(3);
+    }
+
+    @Test
+    @DisplayName("searchRelatedContextBase keeps one copy of a record that more than one search found, whatever its document ID (W3-3)")
+    void searchRelatedContextBase_keepsOneCopyOfARecordFoundByMoreThanOneSearch() {
+        AtomicInteger copies = new AtomicInteger();
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
+                .thenAnswer(invocation -> List.of(Document.builder()
+                        .id("copy-" + copies.incrementAndGet())
+                        .text("User exported project GB-500")
+                        .metadata(Map.of("userId", "persona_fin_lead", "documentType", "behavior",
+                                "eventId", "event-shared", "timestamp", "2026-09-24T09:00"))
+                        .score(0.80)
+                        .build()));
+        when(baselineLearningService.describeBaselineMaturity(any(), any()))
+                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
+                        true, true, true, true, true, List.of("ACCESS_HOURS")));
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(documents, documents.size(), documents.size(), 0,
+                            "security_investigation", List.of());
+                });
+
+        List<Document> result = strategy.callSearchRelatedContextBase(pastRecordEvent("event-copies"), 3, 0.7d);
+
+        assertThat(copies.get()).isGreaterThan(1);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getMetadata()).containsEntry("eventId", "event-shared");
+    }
+
+    /**
+     * N-MISS-1 (D8): a search after one that timed out on the same event (Layer2 after Layer1) writes what it found and
+     * keeps the earlier timeout as a fact of its own.
+     */
+    @Test
+    void aSearchAfterATimedOutSearchWritesWhatItFoundAndKeepsTheTimeoutApart() {
+        SecurityEvent event = pastRecordEvent("event-after-timeout");
+        event.getMetadata().put("ragTimedOut", true);
+        event.getMetadata().put("ragRetrievalState", "TIMEOUT");
+        event.getMetadata().put("ragAbsenceReason", "TIMEOUT");
+        event.getMetadata().put("relatedDocumentCount", 0);
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of(pastRecord("found-1")));
+        authorizeEveryRecord();
+
+        List<Document> result = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        assertThat(result).hasSize(1);
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "AVAILABLE")
+                .containsEntry("ragTimedOut", false)
+                .containsEntry("relatedDocumentCount", 1)
+                .containsEntry("ragCandidateDocumentCount", 1)
+                .containsEntry("ragEarlierRetrievalState", "TIMEOUT")
+                .doesNotContainKey("ragAbsenceReason");
+    }
+
+    /** N-MISS-1 (D8): a search whose own wait ran out while it ran does not write its late records over the timeout. */
+    @Test
+    void aSearchThatTimedOutWhileRunningDoesNotWriteItsLateRecords() {
+        SecurityEvent event = pastRecordEvent("event-late");
+        event.getMetadata().put("ragTimedOut", false);
+        event.getMetadata().put("ragRetrievalState", "NOT_REQUESTED");
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenAnswer(invocation -> {
+            // The waiting layer gives up while the search still runs on the event it writes.
+            event.getMetadata().put("ragTimedOut", true);
+            event.getMetadata().put("ragRetrievalState", "TIMEOUT");
+            return List.of(pastRecord("late-1"));
+        });
+        authorizeEveryRecord();
+
+        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "TIMEOUT")
+                .containsEntry("ragTimedOut", true)
+                .doesNotContainKey("ragEarlierRetrievalState");
+    }
+
+    /** N-MISS-1 (D8): a search that a newer one on the same event overtook does not write over what the newer found. */
+    @Test
+    void aSearchThatANewerOneOvertookDoesNotWriteOverIt() {
+        SecurityEvent event = pastRecordEvent("event-overtaken");
+        AtomicBoolean newerStarted = new AtomicBoolean();
+        AtomicBoolean newerRunning = new AtomicBoolean();
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenAnswer(invocation -> {
+            if (newerRunning.get()) {
+                return List.of();
+            }
+            if (newerStarted.compareAndSet(false, true)) {
+                newerRunning.set(true);
+                strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+                newerRunning.set(false);
+            }
+            return List.of(pastRecord("older-1"));
+        });
+        authorizeEveryRecord();
+
+        List<Document> older = strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        assertThat(older).isNotEmpty();
+        assertThat(event.getMetadata())
+                .containsEntry("ragRetrievalState", "ZERO_RESULTS")
+                .containsEntry("relatedDocumentCount", 0);
+    }
+
+    private static Document pastRecord(String eventId) {
+        return Document.builder()
+                .id(eventId)
+                .text("User exported project GB-500")
+                .metadata(Map.of("userId", "persona_fin_lead", "documentType", "behavior",
+                        "eventId", eventId, "timestamp", "2026-09-24T09:00"))
+                .score(0.80)
+                .build();
+    }
+
+    private void authorizeEveryRecord() {
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> {
+                    List<Document> documents = invocation.getArgument(2);
+                    return new AuthorizedPromptContext(documents, documents.size(), documents.size(), 0,
+                            "security_investigation", List.of());
+                });
+    }
+
+    private SecurityEvent pastRecordEvent(String eventId) {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId(eventId)
+                .userId("persona_fin_lead")
+                .sourceIp("10.10.0.20")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "resourceId", "resource-001",
+                        "httpMethod", "GET")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/documents/resource-001"));
+        return event;
+    }
+}

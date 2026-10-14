@@ -169,7 +169,8 @@ class BusinessFrictionProviderApprovalTest {
             assertThat(record.getTarget()).isEqualTo("GB-500");
             assertThat(record.getMaxItems()).isEqualTo(5000);
             assertThat(record.getDecidedAt()).isEqualTo(AT.plus(Duration.ofMinutes(20)));
-            assertThat(record.getUsedItems()).as("the shared lookup does not count usage").isNull();
+            // LU-2: the lookup's count of the items already delivered under the approval reaches the engine.
+            assertThat(record.getUsedItems()).isEqualTo(480);
             assertThat(record.getHostCovers()).isTrue();
         });
         // The requester's own ticket does not exist; it is kept with that fact, never as a covering record.
@@ -286,7 +287,7 @@ class BusinessFrictionProviderApprovalTest {
         public ApprovalCoverage approvalExists(String username, String projectKey, int items, Instant at) {
             return approved ? new ApprovalCoverage(true, "APR-1", "pm-11", "PROJECT_TRANSFER", 5000,
                     at.minusSeconds(3600), at.plusSeconds(3600), List.of(),
-                    decidedAfter == null ? null : at.plus(decidedAfter)) : ApprovalCoverage.none();
+                    decidedAfter == null ? null : at.plus(decidedAfter), 480) : ApprovalCoverage.none();
         }
 
         @Override

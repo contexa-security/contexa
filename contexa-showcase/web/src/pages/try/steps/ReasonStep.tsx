@@ -74,6 +74,7 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
 
   const runId = view.runId;
   const canonical = decision.reason?.canonical ?? null;
+  const reasonCodes = decision.reason?.reasonCodes ?? [];
   const action = decision.finalAction;
   const titleKey =
     role === 'owner' && action === 'ALLOW'
@@ -127,6 +128,19 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
       </div>
       <figure className={styles.quote}>
         <figcaption className={styles.quoteLabel}>{t('e1.reason.wrote')}</figcaption>
+        {/* W4-3: the codes the engine cited, each with its fixed meaning and the prompt line it cites. */}
+        {reasonCodes.length > 0 ? (
+          <ul className={styles.reasonFacts} aria-label={t('e1.reason.codes')}>
+            {reasonCodes.map((code) => (
+              <li key={`${code.code}-${code.fact ?? ''}`} className={styles.reasonFact}>
+                {t('e1.reason.codeFact', {
+                  meaning: t(`reasonCode.${code.code}`, { defaultValue: code.code }),
+                  fact: code.fact ?? '-',
+                })}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {/* The sentence alone in the quote; whether the rules set it is said under it, not inside it. */}
         <blockquote className={styles.quoteText}>
           {canonical

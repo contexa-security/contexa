@@ -38,6 +38,8 @@ import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -65,6 +67,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -145,8 +148,12 @@ public class CoreAutonomousEventAutoConfiguration {
     public ZeroTrustEventListener zeroTrustEventListener(
             SecurityEventPublisher securityEventPublisher,
             ZeroTrustActionRepository actionRepository,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+        ZeroTrustEventListener listener =
+                new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
+        listener.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        return listener;
     }
 
     @Bean
@@ -233,6 +240,10 @@ public class CoreAutonomousEventAutoConfiguration {
         if (environment == null) {
             return null;
         }
+        String chatProvider = chatProvider(environment);
+        if (chatProvider != null) {
+            return chatProvider;
+        }
         if (hasText(environment.getProperty("spring.ai.openai.chat.options.model"))) {
             return "openai";
         }
@@ -249,10 +260,28 @@ public class CoreAutonomousEventAutoConfiguration {
         if (environment == null) {
             return null;
         }
+        String chatProvider = chatProvider(environment);
+        if (chatProvider != null) {
+            return environment.getProperty("spring.ai." + chatProvider + ".chat.options.model");
+        }
         return firstText(
                 environment.getProperty("spring.ai.openai.chat.options.model"),
                 environment.getProperty("spring.ai.anthropic.chat.options.model"),
                 environment.getProperty("spring.ai.ollama.chat.options.model"));
+    }
+
+    /**
+     * The chat provider Spring AI runs (spring.ai.model.chat) when its model is set; an application that can switch
+     * providers may set another provider's model as well.
+     */
+    private static String chatProvider(Environment environment) {
+        String configured = environment.getProperty("spring.ai.model.chat");
+        if (!hasText(configured)) {
+            return null;
+        }
+        String provider = configured.trim().toLowerCase(Locale.ROOT);
+        return List.of("openai", "anthropic", "ollama").contains(provider)
+                && hasText(environment.getProperty("spring.ai." + provider + ".chat.options.model")) ? provider : null;
     }
 
     private static String firstText(String... values) {
@@ -283,8 +312,9 @@ public class CoreAutonomousEventAutoConfiguration {
             ObjectProvider<AiSecurityDecisionObservationWriter> aiSecurityDecisionObservationWriterProvider,
             SecurityContextDataStore securityContextDataStore,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider) {
-        return new SecurityDecisionEnforcementHandler(
+            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
+            ObjectProvider<VerificationLearningService> verificationLearningService) {
+        SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
                 blockedUserRecorder,
@@ -294,6 +324,8 @@ public class CoreAutonomousEventAutoConfiguration {
                 aiSecurityDecisionObservationWriterProvider::getIfAvailable,
                 securityContextDataStore,
                 contextObservationRecorderProvider.getIfAvailable());
+        handler.setVerificationLearningService(verificationLearningService.getIfAvailable());
+        return handler;
     }
 
     @Bean

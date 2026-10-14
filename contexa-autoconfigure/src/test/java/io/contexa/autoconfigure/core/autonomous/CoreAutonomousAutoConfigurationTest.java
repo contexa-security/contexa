@@ -16,13 +16,27 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelectionSource;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlan;
+import io.contexa.contexacore.autonomous.context.prompt.PromptSlotPlanProvider;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptDictionary;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -30,11 +44,14 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -147,6 +164,34 @@ class CoreAutonomousAutoConfigurationTest {
             assertThat(canonicalProviderMethod.toGenericString()).contains("SessionNarrativeCollector");
             assertThat(promptTemplateMethod.toGenericString()).contains("CanonicalSecurityContextProvider");
             assertThat(promptTemplateMethod.toGenericString()).contains("PromptContextComposer");
+        }
+
+        @Test
+        @DisplayName("Should draw the prompt with the bundle the selector bean chooses (W3-16)")
+        void shouldDrawThePromptWithTheBundleTheSelectorBeanChooses() {
+            DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+            beans.registerSingleton("promptBundleSelector", (PromptBundleSelector) (context, subject) ->
+                    new PromptBundleSelection("2026.10.14-v20.14", PromptBundleSelectionSource.REGISTRY));
+
+            SecurityDecisionStandardPromptTemplate template = new CoreAutonomousAutoConfiguration()
+                    .securityDecisionStandardPromptTemplate(
+                            new SecurityEventEnricher(),
+                            new TieredStrategyProperties(),
+                            null,
+                            new PromptContextComposer(),
+                            beans.getBeanProvider(PromptGovernanceDescriptorResolver.class),
+                            beans.getBeanProvider(PromptRuntimeGovernanceRuleProvider.class),
+                            beans.getBeanProvider(PromptBundleSelector.class));
+            Map<String, Object> metadata = template.buildStructuredPrompt(
+                            SecurityEvent.builder().eventId("event-w316").userId("alice").build(), null, null, List.of(),
+                            PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT)
+                    .executionMetadata().toMetadataMap();
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> descriptor = (Map<String, Object>) metadata.get("governanceDescriptor");
+            assertThat(descriptor)
+                    .containsEntry("promptVersion", "2026.10.14-v20.14")
+                    .containsEntry("promptBundleSelectionSource", "REGISTRY");
         }
 
         private Method findMethod(String name) {
@@ -277,6 +322,38 @@ class CoreAutonomousAutoConfigurationTest {
             }
 
             assertThat(SessionFingerprintUtil.extractClientIp(request)).isEqualTo("10.0.0.10");
+        }
+    }
+
+    @Nested
+    @DisplayName("Prompt dictionary wiring")
+    class PromptDictionaryWiring {
+
+        @Test
+        @DisplayName("Should give v20 lines their dictionary entry when no slot plan provider bean exists")
+        void shouldUseTheDictionaryWhenNoSlotPlanProviderBeanExists() {
+            ObjectProvider<PromptSlotPlanProvider> none =
+                    new StaticListableBeanFactory().getBeanProvider(PromptSlotPlanProvider.class);
+
+            PromptContextComposer composer = new CoreAutonomousAutoConfiguration().promptContextComposer(none);
+
+            assertThat(composer.planFor("DECISION FACTS", "PolicySatisfied").dictionaryEntry())
+                    .isSameAs(SecurityDecisionPromptDictionary.slotPlanProvider()
+                            .entryFor("DECISION FACTS", "PolicySatisfied").orElseThrow());
+            assertThat(composer.planFor("SESSION NARRATIVE CONTEXT", "SessionAgeMinutes").dictionaryEntry()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should keep the slot plan provider bean when one exists")
+        void shouldKeepAnExistingSlotPlanProviderBean() {
+            StaticListableBeanFactory beans = new StaticListableBeanFactory();
+            PromptSlotPlanProvider own = PromptSlotPlan::unscoped;
+            beans.addBean("ownSlotPlanProvider", own);
+
+            PromptContextComposer composer = new CoreAutonomousAutoConfiguration()
+                    .promptContextComposer(beans.getBeanProvider(PromptSlotPlanProvider.class));
+
+            assertThat(composer.planFor("DECISION FACTS", "PolicySatisfied").dictionaryEntry()).isNull();
         }
     }
 }

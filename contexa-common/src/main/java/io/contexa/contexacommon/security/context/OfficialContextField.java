@@ -49,7 +49,11 @@ public enum OfficialContextField {
     INTENT_LANGUAGE_MISMATCH(OfficialContextSlot.INTENT, "intentLanguageMismatch"),
     INTENT_TLS_FINGERPRINT_ALTERED(OfficialContextSlot.INTENT, "intentTlsFingerprintAltered"),
     INTENT_ABNORMAL_HEADER_ORDER(OfficialContextSlot.INTENT, "intentAbnormalHeaderOrder"),
-    IMPOSSIBLE_TRAVEL(OfficialContextSlot.INTENT, "impossibleTravel");
+    IMPOSSIBLE_TRAVEL(OfficialContextSlot.INTENT, "impossibleTravel"),
+    /** The action family the host declares for this request (READ, WRITE, EXPORT, ...). */
+    ACTION_FAMILY(OfficialContextSlot.RESOURCE, "actionFamily"),
+    /** The business category of the resource the request touches (REPORT, AUDIT_LOG, ...); never a sensitivity grade. */
+    RESOURCE_CATEGORY(OfficialContextSlot.RESOURCE, "resourceCategory");
 
     private static final String CANONICAL_ATTRIBUTE_PREFIX = "ctxa.context.";
 

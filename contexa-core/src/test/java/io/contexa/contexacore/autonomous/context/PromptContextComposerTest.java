@@ -833,4 +833,26 @@ class PromptContextComposerTest {
         }
         return headers;
     }
+
+    @Test
+    void withoutHostAccessHistoryTheObservedWorkPatternSectionSaysSo() {
+        CanonicalSecurityContext context = CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("repro.host.ReproDocuments#read")
+                        .requestPath("/api/documents/D-1")
+                        .actionFamily("READ")
+                        .build())
+                .build();
+
+        String promptSection = new PromptContextComposer().compose(context);
+
+        // Q-70 (keep the lines): without the host's access history the section stays and states that the history is
+        // missing; no list repeats the work profile (W2-12).
+        assertThat(promptSection).contains("=== OBSERVED WORK PATTERN CONTEXT ===\n"
+                + "ProfileSource: NONE - the host gave no access history\n"
+                + "ObservedScopeSummary: No host access history; the resources and action families used before are unknown.\n"
+                + "CurrentResourcePresentInObservedHistory: UNKNOWN - the host gave no access history; do not infer\n"
+                + "CurrentActionFamilyPresentInObservedHistory: UNKNOWN - the host gave no access history; do not infer\n");
+        assertThat(promptSection).doesNotContain("FrequentActionFamilies:", "FrequentResources:");
+    }
 }

@@ -37,6 +37,14 @@ public interface LlmRuntimeCatalog {
 
     Optional<ChatModel> resolvePrimaryChatModel(String priorityConfig);
 
+    /**
+     * The chat model of the named provider only (the fixed selection): without a ready binding of that provider there
+     * is none, never another provider's. A catalog that cannot tell providers apart resolves it as a priority.
+     */
+    default Optional<ChatModel> resolveProviderChatModel(String provider) {
+        return resolvePrimaryChatModel(provider);
+    }
+
     Optional<EmbeddingModel> resolvePrimaryEmbeddingModel(String priorityConfig);
 
     Optional<ChatModel> resolveSpringPrimaryChatModel();

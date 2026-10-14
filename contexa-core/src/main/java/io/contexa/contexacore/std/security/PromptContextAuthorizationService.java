@@ -337,7 +337,13 @@ public class PromptContextAuthorizationService {
             metadata.put(VectorDocumentMetadata.SHARE_SCOPE, decision.accessScope());
         }
         String runtimeText = StringUtils.hasText(decision.runtimeText()) ? decision.runtimeText() : document.getText();
-        return new Document(runtimeText, metadata);
+        // The stored id and the search score stay, so the sealed related documents point at the stored rows.
+        return Document.builder()
+                .id(document.getId())
+                .text(runtimeText)
+                .metadata(metadata)
+                .score(document.getScore())
+                .build();
     }
 
     private void putIfText(Map<String, Object> metadata, String key, String value) {

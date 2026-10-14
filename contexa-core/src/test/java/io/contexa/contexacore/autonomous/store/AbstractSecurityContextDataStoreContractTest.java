@@ -168,6 +168,73 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("a session's narrative is read in the order its requests were made, though decided out of it (N-SES-1)")
+    void sessionNarrative_isReadInTheOrderTheRequestsWereMade() {
+        store.addSessionNarrativeActionFamily("session-order", "READ", 1_000L);
+        store.addSessionProtectableAccess("session-order", "/api/a", 1_000L);
+        // The request made at 2_005 was decided before the one made at 2_000.
+        store.addSessionNarrativeActionFamily("session-order", "DELETE", 2_005L);
+        store.addSessionProtectableAccess("session-order", "/api/c", 2_005L);
+        store.addSessionRequestInterval("session-order", 1_005L, 2_005L);
+        store.addSessionNarrativeActionFamily("session-order", "EXPORT", 2_000L);
+        store.addSessionProtectableAccess("session-order", "/api/b", 2_000L);
+        store.addSessionRequestInterval("session-order", 1_000L, 2_000L);
+
+        assertThat(store.getRecentSessionNarrativeActionFamilies("session-order", 10))
+                .containsExactly("READ", "EXPORT", "DELETE");
+        assertThat(store.getRecentSessionProtectableAccesses("session-order", 10))
+                .containsExactly("/api/a", "/api/b", "/api/c");
+        assertThat(store.getRecentSessionProtectableAccesses("session-order", 2)).containsExactly("/api/b", "/api/c");
+        assertThat(store.getRecentSessionRequestIntervals("session-order", 10)).containsExactly(1_000L, 1_005L);
+    }
+
+    @Test
+    @DisplayName("an entry kept without its request time keeps its place after the entry before it (N-SES-1)")
+    void sessionNarrative_entriesWithoutTheirRequestTimeKeepTheirPlace() {
+        store.addSessionProtectableAccess("session-mixed", "/api/kept-before");
+        store.addSessionProtectableAccess("session-mixed", "/api/late", 3_000L);
+        store.addSessionProtectableAccess("session-mixed", "/api/early", 2_000L);
+        store.addSessionProtectableAccess("session-mixed", "/api/kept-after");
+
+        assertThat(store.getRecentSessionProtectableAccesses("session-mixed", 10))
+                .containsExactly("/api/kept-before", "/api/early", "/api/kept-after", "/api/late");
+    }
+
+    @Test
+    @DisplayName("a session's last request is the latest one made, whichever was decided last (N-SES-1)")
+    void sessionLastRequest_isTheLatestRequestMade() {
+        store.recordSessionLastRequest("session-last", 2_005L, "/api/c");
+        store.recordSessionLastRequest("session-last", 2_000L, "/api/b");
+
+        assertThat(store.getSessionLastRequestTime("session-last")).isEqualTo(2_005L);
+        assertThat(store.getSessionPreviousPath("session-last")).isEqualTo("/api/c");
+
+        store.recordSessionLastRequest("session-last", 3_000L, null);
+        assertThat(store.getSessionLastRequestTime("session-last")).isEqualTo(3_000L);
+        assertThat(store.getSessionPreviousPath("session-last")).isEqualTo("/api/c");
+
+        store.recordSessionLastRequest("session-last", 4_000L, "/api/d");
+        assertThat(store.getSessionLastRequestTime("session-last")).isEqualTo(4_000L);
+        assertThat(store.getSessionPreviousPath("session-last")).isEqualTo("/api/d");
+    }
+
+    @Test
+    @DisplayName("the facts of a request a restriction stopped are kept until they are taken, once (W5-2)")
+    void verificationLearning_isTakenOnce() {
+        store.holdVerificationLearning("user-held", "request-1", "{\"requestPath\":\"/api/a\"}");
+        store.holdVerificationLearning("user-held", "request-2", "{\"requestPath\":\"/api/b\"}");
+
+        assertThat(store.takeVerificationLearning("user-held", "request-1")).isEqualTo("{\"requestPath\":\"/api/a\"}");
+        assertThat(store.takeVerificationLearning("user-held", "request-1")).isNull();
+        assertThat(store.takeVerificationLearning("user-other", "request-2")).isNull();
+        assertThat(store.takeVerificationLearning("user-held", "request-2")).isEqualTo("{\"requestPath\":\"/api/b\"}");
+        // The kept facts are the user's data and go with it.
+        store.holdVerificationLearning("user-held", "request-3", "{}");
+        store.deleteUserData("user-held");
+        assertThat(store.takeVerificationLearning("user-held", "request-3")).isNull();
+    }
+
+    @Test
     @DisplayName("a session's records follow it to the id the container gives it; the old id keeps none (W1-11)")
     void moveSessionRecords_carriesTheSessionToItsNewId() {
         store.addSessionAction("session-old", "03:15 | MFA_LOGIN (multi-factor sign-in) | 10.0.0.1");
@@ -205,6 +272,21 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         assertThat(store.getSessionPreviousIds("session-newer")).containsExactly("session-new", "session-old");
         assertThat(store.getSessionPreviousIds("session-new")).isEmpty();
         assertThat(store.getSessionPreviousIds("session-unknown")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("the client a session first came from is kept once and follows the session to its new id (W2-14)")
+    void sessionFirstClient_isKeptOnceAndFollowsTheSession() {
+        store.setSessionFirstClientIfAbsent("session-first", "UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        store.setSessionFirstClientIfAbsent("session-first", "UA|MAC|Safari/17|203.0.113.0/24|");
+
+        assertThat(store.getSessionFirstClient("session-first"))
+                .isEqualTo("UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        store.moveSessionRecords("session-first", "session-second");
+        assertThat(store.getSessionFirstClient("session-second"))
+                .isEqualTo("UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
+        assertThat(store.getSessionFirstClient("session-first")).isNull();
+        assertThat(store.getSessionFirstClient("session-unknown")).isNull();
     }
 
     @Test

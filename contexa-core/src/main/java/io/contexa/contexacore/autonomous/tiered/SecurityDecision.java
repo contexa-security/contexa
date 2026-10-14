@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -61,6 +62,9 @@ public class SecurityDecision {
      * autonomy constraints replace the operator-facing explanation.
      */
     private String llmReasoning;
+
+    /** The reason codes of the output contract v3 with the fact IDs they cite (W4-3); empty for a v19 decision. */
+    private List<SecurityDecisionOutputContract.Citation> reasonCodes;
 
     private List<String> iocIndicators;
     private Map<String, String> mitreMapping;

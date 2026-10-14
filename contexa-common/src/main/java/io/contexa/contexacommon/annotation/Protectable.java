@@ -73,4 +73,29 @@ public @interface Protectable {
      * resources whose response can be delivered within the 3-second SLA.
      */
     boolean sync() default false;
+
+    /**
+     * The business category of the protected resource (for example {@code REPORT} or {@code PROJECT_DOCUMENTS}).
+     * The role scope and the delegated scope are compared in this vocabulary. Blank declares nothing; a value made
+     * only of sensitivity words is not a category.
+     */
+    String category() default "";
+
+    /**
+     * The sensitivity of the protected resource ({@code PUBLIC}, {@code INTERNAL}, {@code CONFIDENTIAL},
+     * {@code RESTRICTED}, ...). A value the host sets on the request takes precedence. Blank declares nothing.
+     */
+    String sensitivity() default "";
+
+    /**
+     * The action families the method performs ({@code READ}, {@code EXPORT}, ...). With exactly one, it is the
+     * request's declared action family unless the host declares another on the request. Empty declares nothing.
+     */
+    String[] actions() default {};
+
+    /** Whether the method is privileged. Only {@code true} declares it; {@code false} leaves it unstated. */
+    boolean privileged() default false;
+
+    /** Whether the method exports sensitive data. Only {@code true} declares it; {@code false} leaves it unstated. */
+    boolean exportSensitive() default false;
 }

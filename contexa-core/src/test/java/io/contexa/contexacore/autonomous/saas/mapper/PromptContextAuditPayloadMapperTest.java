@@ -96,11 +96,11 @@ class PromptContextAuditPayloadMapperTest {
         assertThat(payload.getUserPrompt()).isNull();
         assertThat(payload.getSystemPromptHash()).isEqualTo("sha256:system");
         assertThat(payload.getUserPromptHash()).isEqualTo("sha256:user");
-        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationPinnedModelId", "qwen3:8b");
-        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTemperature", 0.0d);
-        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationTopP", 0.2d);
-        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationSeed", 7);
-        assertThat(payload.getPromptRuntimeTelemetry()).containsEntry("officialVerificationMaxTokens", 96);
+        assertThat(payload.getPromptRuntimeTelemetry()).doesNotContainKey("officialVerificationPinnedModelId");
+        assertThat(payload.getPromptRuntimeTelemetry()).doesNotContainKey("officialVerificationTemperature");
+        assertThat(payload.getPromptRuntimeTelemetry()).doesNotContainKey("officialVerificationTopP");
+        assertThat(payload.getPromptRuntimeTelemetry()).doesNotContainKey("officialVerificationSeed");
+        assertThat(payload.getPromptRuntimeTelemetry()).doesNotContainKey("officialVerificationMaxTokens");
     }
 
     @Test

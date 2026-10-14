@@ -31,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,6 +89,44 @@ class ColdPathEventProcessorTest {
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getProcessingPath()).isEqualTo(ProcessingResult.ProcessingPath.COLD_PATH);
         verify(expertStrategy, never()).evaluate(any(SecurityEvent.class));
+    }
+
+    /** W4-3: the reason codes of the deciding layer reach the processing result (Layer1 decides, then Layer2). */
+    @Test
+    void theDecidingLayersReasonCodesReachTheResult() {
+        SecurityEvent event = SecurityEvent.builder().userId("user-w43").sourceIp("10.0.0.9").build();
+        event.addMetadata("requestPath", "/api/test");
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .action(ZeroTrustAction.ALLOW.name())
+                .reasoning("Usual work")
+                .reasonCodes(List.of(new SecurityDecisionOutputContract.Citation("BASELINE_MATCH", "F2")))
+                .shouldEscalate(false)
+                .build();
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+
+        ProcessingResult layer1 = processor.processEvent(event, 0.2);
+
+        assertThat(layer1.getReasonCodes())
+                .containsExactly(new SecurityDecisionOutputContract.Citation("BASELINE_MATCH", "F2"));
+
+        ThreatAssessment escalating = ThreatAssessment.builder()
+                .action(ZeroTrustAction.ESCALATE.name())
+                .reasoning("Escalating")
+                .reasonCodes(List.of(new SecurityDecisionOutputContract.Citation("MATERIAL_CONTRADICTION", "F7")))
+                .shouldEscalate(true)
+                .build();
+        ThreatAssessment expert = ThreatAssessment.builder()
+                .action(ZeroTrustAction.CHALLENGE.name())
+                .reasoning("Verify")
+                .reasonCodes(List.of(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1")))
+                .shouldEscalate(false)
+                .build();
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(escalating);
+        when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(expert);
+
+        ProcessingResult layer2 = processor.processEvent(event, 0.5);
+
+        assertThat(layer2.getReasonCodes()).containsExactly(new SecurityDecisionOutputContract.Citation("DEVIATION_TIME", "F1"));
     }
 
     @Test
@@ -283,17 +322,19 @@ class ColdPathEventProcessorTest {
         assertThat(result.getAutonomyConstraintApplied()).isTrue();
     }
 
+    /**
+     * R4-L3: the former verification markers (a probe path, an OFFICIAL_VERIFICATION scenario, the verification
+     * boundary mode) are event text like any other, so such runs get the escalate overload protection too.
+     */
     @Test
-    @DisplayName("official verification runs should bypass escalate overload protection and continue to Layer2")
-    void officialVerificationRuns_shouldBypassEscalateProtection() {
+    void runsNamingTheFormerVerificationMarkersGetTheEscalateProtection() {
         ThreatAssessment layer1Assessment = ThreatAssessment.builder()
                 .riskScore(0.6)
                 .confidence(0.4)
                 .action(ZeroTrustAction.ESCALATE.name())
-                .reasoning("Official verification escalation")
+                .reasoning("Escalation")
                 .shouldEscalate(true)
                 .build();
-
         ThreatAssessment layer2Assessment = ThreatAssessment.builder()
                 .riskScore(0.7)
                 .confidence(0.8)
@@ -301,15 +342,15 @@ class ColdPathEventProcessorTest {
                 .reasoning("Thin evidence requires challenge")
                 .shouldEscalate(false)
                 .build();
-
         when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
         when(expertStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer2Assessment);
 
         ProcessingResult result = null;
         for (int index = 0; index < 11; index++) {
+            // One user, so the runs share one protection window (the window is per tenant or user and scenario).
             SecurityEvent event = SecurityEvent.builder()
-                    .userId("user-ov-" + index)
-                    .sourceIp("10.0.1." + index)
+                    .userId("user-marker")
+                    .sourceIp("10.0.2.1")
                     .build();
             event.addMetadata("requestPath", "/api/enterprise/verification/runtime/probe/sensitive/resource-001");
             event.addMetadata("scenario", "OFFICIAL_VERIFICATION_CDC_RESOURCE_SURGE");
@@ -318,11 +359,8 @@ class ColdPathEventProcessorTest {
         }
 
         assertThat(result).isNotNull();
-        assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
-        assertThat(result.getReasoning()).isEqualTo("Thin evidence requires challenge");
-        assertThat(result.getAnalysisData()).containsEntry("decisionAppliedStage", "LAYER2");
-        verify(expertStrategy, times(11)).evaluate(any(SecurityEvent.class));
+        assertThat(result.getAnalysisData()).doesNotContainEntry("decisionAppliedStage", "LAYER2");
+        verify(expertStrategy, times(10)).evaluate(any(SecurityEvent.class));
     }
 
     @Test

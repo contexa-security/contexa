@@ -1,0 +1,2451 @@
+{
+ "source": "v19 labels of the security decision user prompt and their v20 places: inventory section 1 of docs/showcase/프롬프트-개선-전수표.md (the test resource prompt-dictionary/v19-inventory-places.json), plus the two label aliases the runtime governance rule applier accepted (Method, Resource ID). A place is a dictionary entry (BLOCK.Entry, block enum name) or NO_FACT, SYSTEM_TEXT, SOURCE_GRADE, BLOCK_HEADERS, BLOCK_HEADER:<block> or BLOCK_LINES:<block>.",
+ "labels": [
+  {
+   "label": "UserAgent",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "NewSession",
+   "places": [
+    "SESSION.SessionAge"
+   ]
+  },
+  {
+   "label": "NewDevice",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "NewUser",
+   "places": [
+    "USER_BASELINE.BaselineStatus",
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "CurrentAccessHour",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "AuthenticationType",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "ClientIp",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "SessionId",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "BridgeCompletenessSummary",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "BridgeCompletenessLevel",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "BridgeAuthenticationSource",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "BridgeAuthorizationSource",
+   "places": [
+    "REQUEST.Roles",
+    "REQUEST.Permissions"
+   ]
+  },
+  {
+   "label": "CoverageSummary",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "CoverageLevel",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "AvailableFacts",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "AuthorizationEffectStageNote",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ]
+  },
+  {
+   "label": "OrganizationId",
+   "places": [
+    "DECISION_FACTS.DataConflicts"
+   ]
+  },
+  {
+   "label": "TenantId",
+   "places": [
+    "DECISION_FACTS.DataConflicts"
+   ]
+  },
+  {
+   "label": "AuthorizationEffectProvenance",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ]
+  },
+  {
+   "label": "FailedLoginAttempts",
+   "places": [
+    "SESSION.FailedLogins"
+   ]
+  },
+  {
+   "label": "AuthMethod",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "Path",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "MfaVerified",
+   "places": [
+    "SESSION.LoginMethod",
+    "SESSION.ChallengeVerified",
+    "SESSION.RecentMfaElsewhere"
+   ]
+  },
+  {
+   "label": "HttpMethod",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "User",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "AuthorizationContext",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "Delegated",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ObjectiveAlignmentEvidence",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ObjectiveSummary",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ObjectiveFamily",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "DeviceBrowserVersion",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "DeviceBrowser",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "DeviceOs",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "MissingKnowledgeWarning",
+   "places": [
+    "UNKNOWN.Coverage",
+    "UNKNOWN.Unknown"
+   ]
+  },
+  {
+   "label": "ContextTrustWarning",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ContextTrustLimitation",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ContextEvidenceLimitation",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "MissingKnowledgeDecisionLimit",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "BaselineGapSupport",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "ApprovalLineage",
+   "places": [
+    "DECISION_FACTS.Approval",
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "FrictionSummary",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ]
+  },
+  {
+   "label": "ApprovalStatus",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ]
+  },
+  {
+   "label": "ApprovalGranted",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ]
+  },
+  {
+   "label": "ApprovalRequired",
+   "places": [
+    "DECISION_FACTS.Policy"
+   ]
+  },
+  {
+   "label": "ApprovalMissing",
+   "places": [
+    "DECISION_FACTS.PolicySatisfied"
+   ]
+  },
+  {
+   "label": "ApprovalTicketId",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ]
+  },
+  {
+   "label": "ApprovalDecisionAgeMinutes",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ]
+  },
+  {
+   "label": "PrincipalType",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "UserId",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "AuthorizationEffect",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect",
+    "SESSION.RecentDenied"
+   ]
+  },
+  {
+   "label": "EffectiveRoles",
+   "places": [
+    "REQUEST.Roles"
+   ]
+  },
+  {
+   "label": "IpBand",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "CurrentActionFamilyPresentInObservedHistory",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentResourcePresentInObservedHistory",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "FrequentActionFamilies",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ]
+  },
+  {
+   "label": "ObservedScopeSummary",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "ProfileSource",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "BaselineContextSummary",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE"
+   ]
+  },
+  {
+   "label": "FrequentPaths",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ]
+  },
+  {
+   "label": "WorkProfileSummary",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ]
+  },
+  {
+   "label": "ProtectableResourceHeatmap",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ]
+  },
+  {
+   "label": "FrequentProtectableResources",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationSummary",
+   "places": [
+    "BLOCK_LINES:REQUEST"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationComparedDimensions",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentVsObservedDeltaSummary",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "ObservedComparableCombination1",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE",
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "StrongestCurrentRequestCombinationDelta",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "StrongestCurrentVsObservedDelta",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationEvidenceScope",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "ObservedPatternEvidenceScope",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "CurrentOperatingSystemPresentInObservedOperatingSystems",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentAuthenticationTypePresentInObservedAuthTypes",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentResourceFamilyPresentInObservedResources",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentActionFamily",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "CurrentActionFamilyPresentInObservedActions",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "ObservedHours",
+   "places": [
+    "USER_BASELINE.UsualHours"
+   ]
+  },
+  {
+   "label": "FrequentSensitiveResourceCategories",
+   "places": [
+    "USER_BASELINE.UsualResourceClass"
+   ]
+  },
+  {
+   "label": "CurrentAccessHourPresentInObservedHours",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentNetworkPresentInObservedNetworks",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentBrowserPresentInObservedBrowsers",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "NormalAccessHours",
+   "places": [
+    "USER_BASELINE.UsualHours"
+   ]
+  },
+  {
+   "label": "CurrentPathPresentInObservedPaths",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentRequestCombinationSeenCount",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentDayPresentInObservedDays",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "WorkProfileEvidenceState",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "PersonalBaselineStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "ObservedActionFamilies",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ]
+  },
+  {
+   "label": "BaselineProfileStatus",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "ObservedAuthenticationTypes",
+   "places": [
+    "USER_BASELINE.UsualLoginMethods"
+   ]
+  },
+  {
+   "label": "ObservedResourceFamilies",
+   "places": [
+    "USER_BASELINE.UsualResourceClass"
+   ]
+  },
+  {
+   "label": "NormalReadWriteExportRatio",
+   "places": [
+    "USER_BASELINE.UsualActions"
+   ]
+  },
+  {
+   "label": "ObservedOperatingSystems",
+   "places": [
+    "USER_BASELINE.UsualDevices"
+   ]
+  },
+  {
+   "label": "CurrentAuthenticationType",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "NormalAccessDays",
+   "places": [
+    "USER_BASELINE.UsualDays"
+   ]
+  },
+  {
+   "label": "ProtectableInvocationDensity",
+   "places": [
+    "USER_BASELINE.WorkProfile"
+   ]
+  },
+  {
+   "label": "CurrentOperatingSystem",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "CurrentVsObservedDeltaCount",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentNetwork",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "ObservedBrowsers",
+   "places": [
+    "USER_BASELINE.UsualDevices"
+   ]
+  },
+  {
+   "label": "ObservedDays",
+   "places": [
+    "USER_BASELINE.UsualDays"
+   ]
+  },
+  {
+   "label": "CurrentBrowser",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "ObservedNetworks",
+   "places": [
+    "USER_BASELINE.UsualNetworks"
+   ]
+  },
+  {
+   "label": "HistoricalBaselineSupport",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "BaselineObservations",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "NormalRequestRate",
+   "places": [
+    "USER_BASELINE.UsualRequestRate",
+    "SESSION.RecentRequests"
+   ]
+  },
+  {
+   "label": "CurrentRequestClosestObservedOverlap",
+   "places": [
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "CurrentDayOfWeek",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "BaselineSupportSummary",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "RagDocumentScopeReason",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagDocument1",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument2",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument3",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagScopeReason",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagDocumentAuthorizationReason",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument4",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument5",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument6",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument7",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument8",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument9",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument10",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument11",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDocument12",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagAuthorizationReason",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagEvidenceBoundary",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "RagDecisionLimit",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagApplicability",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagProjectionState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagRetrievalState",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagAuthorizedDocumentCount",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagCandidateDocumentCount",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagPermissionFiltered",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagRelevance",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "RagDeniedDocumentCount",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagSearchExecuted",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RelatedDocumentCount",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "RagAbsenceReason",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "IntentSignalStatus",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "TlsFingerprintAltered",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "AbnormalHeaderOrder",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "LanguageMismatch",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "ImpossibleTravel",
+   "places": [
+    "DECISION_FACTS.Movement"
+   ]
+  },
+  {
+   "label": "MissingReferer",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "BotUserAgent",
+   "places": [
+    "DECISION_FACTS.ClientSignals"
+   ]
+  },
+  {
+   "label": "BusinessLabel",
+   "places": [
+    "REQUEST.Target",
+    "REQUEST.Size"
+   ]
+  },
+  {
+   "label": "CurrentPathFamily",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "ResourceId",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "CurrentResourceFamily",
+   "places": [
+    "REQUEST.ResourceClass",
+    "REQUEST.Target"
+   ]
+  },
+  {
+   "label": "RequestPath",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "PromptQualityVerificationRequired",
+   "places": [
+    "REMOVED:Q-73"
+   ]
+  },
+  {
+   "label": "SensitiveResource",
+   "places": [
+    "REQUEST.ResourceClass"
+   ]
+  },
+  {
+   "label": "Sensitivity",
+   "places": [
+    "REQUEST.ResourceClass"
+   ]
+  },
+  {
+   "label": "ActionFamily",
+   "places": [
+    "REQUEST.Action"
+   ]
+  },
+  {
+   "label": "RecentPermissionChanges",
+   "places": [
+    "DECISION_FACTS.RecentPermissionChanges"
+   ]
+  },
+  {
+   "label": "RoleScopeSummary",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "CurrentResourceFamilyPresentInExpectedRoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "CurrentResourceFamilyPresentInDeniedRoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "CurrentActionFamilyPresentInDeniedRoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "RoleScopeDeltaSummary",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "StrongestRoleScopeDelta",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "CurrentActionFamilyPresentInExpectedRoleScope",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "ExpectedActionFamilies",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "ElevatedPrivilegeWindowActive",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ]
+  },
+  {
+   "label": "RoleScopeEvidenceState",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "RoleScopeDeltaCount",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "HistoricalComparableSummary",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ]
+  },
+  {
+   "label": "RecentSessionActionSample",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "ComparableExample1",
+   "places": [
+    "PAST_RECORDS.PastRecord{i}"
+   ]
+  },
+  {
+   "label": "SessionNarrativeSummary",
+   "places": [
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "PreviousPath",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "SessionProtectableSequence",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "SessionAuthMethod",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "RecentSessionActionCount",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "SessionActionSequence",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "HistoricalComparableScope",
+   "places": [
+    "BLOCK_HEADER:PAST_RECORDS"
+   ]
+  },
+  {
+   "label": "SessionRequestCount",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "SessionTimelineSupport",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "SessionAgeMinutes",
+   "places": [
+    "SESSION.SessionAge"
+   ]
+  },
+  {
+   "label": "BurstPattern",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ]
+  },
+  {
+   "label": "HistoricalComparableCount",
+   "places": [
+    "PAST_RECORDS.PastRecordsState"
+   ]
+  },
+  {
+   "label": "HistoricalComparableEvents",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "PreviousActionFamily",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "LastRequestIntervalMs",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "SessionRequestsPerMinute",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ]
+  },
+  {
+   "label": "SupportingEvidenceConstraint",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "SupportingBaselineSummary",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "SupportingComparableSummary",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "SupportingEvidenceNeverReplacesPersonalBaseline",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "SupportingBaselineStatus",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "SupportingEvidenceMode",
+   "places": [
+    "NO_FACT"
+   ]
+  },
+  {
+   "label": "SupportingComparableCount",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "FINAL RESPONSE COMPACTNESS - use at most <n> words and <n> characters; never exceed <n> words or <n> character",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "- Context provenance summary: collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=<n>,daysCove",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Context provenance summary: Effective roles SC_ADMIN \\",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Context trust profile is available for PERSONAL_WORK_PROFILE.",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Personal work profile evidence is available but provisional.",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Context trust profile is available for ROLE_SCOPE_PROFILE.",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Role scope profile evidence is available but provisional.",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "- Current request authorization effect is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Friction and approval history is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === AUTHENTICATION AND ASSURANCE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Resource business label is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === FRICTION AND APPROVAL HISTORY ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === REQUEST INTENT SIGNAL CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Observed work pattern is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === OBSERVED WORK PATTERN CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Resource sensitivity is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === RESOURCE AND ACTION CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === ROLE AND WORK SCOPE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === DELEGATED OBJECTIVE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === SUPPORTING LEARNING CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === EXPLICIT MISSING KNOWLEDGE ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Context provenance summary: Effective roles SC_ENGINEER \\",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "[header] === CURRENT REQUEST AND EVENT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === BRIDGE RESOLUTION CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Resource identity is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Session MFA state is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Session narrative is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === IDENTITY AND ROLE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === SESSION NARRATIVE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "- Session identity is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Effective roles are available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Location context is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Actor identity is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "- Device context is available.",
+   "places": [
+    "REQUEST.Subject",
+    "REQUEST.Roles",
+    "BLOCK_LINES:SESSION"
+   ]
+  },
+  {
+   "label": "[header] === PERSONAL WORK PROFILE ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === CONTEXT COVERAGE ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === LOCATION CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === DEVICE CONTEXT ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "[header] === RAG EVIDENCE ===",
+   "places": [
+    "BLOCK_HEADERS"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/projects/GB-<n>/exports/stream at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting POST /api/projects/GB-<n>/exports at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/customers/CUS-<n> at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/documents/HX-<n>-DWG-<n> at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting POST /api/admin/role-grants at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/documents/HX-<n>-DWG-<n>/download at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting POST /api/projects/HX-<n>/exports at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/documents/CP-<n>-DWG-<n> at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting POST /api/projects/GB-<n>/exports/async at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/documents/GB-<n>-DWG-<n> at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "User is requesting GET /api/documents/DOC-<id>-<n> at <hh:mm>.",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "AuthenticationAssurance",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "BlockedUser",
+   "places": [
+    "DECISION_FACTS.BlockedUser"
+   ]
+  },
+  {
+   "label": "ConcurrentSessions",
+   "places": [
+    "SESSION.ConcurrentSessions"
+   ]
+  },
+  {
+   "label": "LastMfaUsedAt",
+   "places": [
+    "SESSION.LoginMethod"
+   ]
+  },
+  {
+   "label": "PasswordAgeDays",
+   "places": [
+    "SESSION.PasswordAge"
+   ]
+  },
+  {
+   "label": "RecentBlockCount",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "RecentChallengeCount",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "RecentEscalationCount",
+   "places": [
+    "SESSION.RequestsInSession"
+   ]
+  },
+  {
+   "label": "RecentMfaFailureCount",
+   "places": [
+    "SESSION.MfaFailures"
+   ]
+  },
+  {
+   "label": "RecentRequestCount",
+   "places": [
+    "SESSION.RecentRequests"
+   ]
+  },
+  {
+   "label": "BridgeDelegationSource",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "BridgeMissingContexts",
+   "places": [
+    "BLOCK_LINES:UNKNOWN"
+   ]
+  },
+  {
+   "label": "BridgeRemediationHints",
+   "places": [
+    "UNKNOWN.Coverage"
+   ]
+  },
+  {
+   "label": "MissingCriticalFacts",
+   "places": [
+    "BLOCK_LINES:UNKNOWN"
+   ]
+  },
+  {
+   "label": "TrustCollectorId",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustEvidence",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustFieldAudits",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustProfileKey",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustProfileSummary",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustProvenanceSummary",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustQualityWarnings",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "TrustScopeLimitations",
+   "places": [
+    "USER_BASELINE.Evidence"
+   ]
+  },
+  {
+   "label": "AgentId",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "AllowedOperations",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "AllowedResources",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ContainmentOnly",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ObjectiveId",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "PrivilegedExportAllowed",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "DeviceFingerprintMatch",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "DeviceLanguage",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "DeviceOsVersion",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "DeviceScreenResolution",
+   "places": [
+    "REQUEST.Device"
+   ]
+  },
+  {
+   "label": "BreakGlass",
+   "places": [
+    "DECISION_FACTS.BreakGlass"
+   ]
+  },
+  {
+   "label": "PendingApproverRoles",
+   "places": [
+    "DECISION_FACTS.Approval"
+   ]
+  },
+  {
+   "label": "AuthoritySet",
+   "places": [
+    "REQUEST.Permissions"
+   ]
+  },
+  {
+   "label": "BridgeSubjectKey",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "Department",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "EffectivePermissions",
+   "places": [
+    "REQUEST.Permissions"
+   ]
+  },
+  {
+   "label": "ExternalSubjectId",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "PolicyId",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ]
+  },
+  {
+   "label": "PolicyVersion",
+   "places": [
+    "DECISION_FACTS.AuthorizationEffect"
+   ]
+  },
+  {
+   "label": "Position",
+   "places": [
+    "REQUEST.Subject"
+   ]
+  },
+  {
+   "label": "PrivilegedFlow",
+   "places": [
+    "REQUEST.Roles"
+   ]
+  },
+  {
+   "label": "RoleSet",
+   "places": [
+    "REQUEST.Roles",
+    "DECISION_FACTS.DataConflicts"
+   ]
+  },
+  {
+   "label": "ScopeTags",
+   "places": [
+    "REQUEST.Roles"
+   ]
+  },
+  {
+   "label": "Asn",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "City",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "Country",
+   "places": [
+    "REQUEST.Network",
+    "DECISION_FACTS.DeviationsFromBaseline"
+   ]
+  },
+  {
+   "label": "FrequentResources",
+   "places": [
+    "USER_BASELINE.UsualTargets"
+   ]
+  },
+  {
+   "label": "RecentDeniedAccessCount",
+   "places": [
+    "SESSION.RecentDenied"
+   ]
+  },
+  {
+   "label": "RecentProtectableAccessCount",
+   "places": [
+    "BLOCK_LINES:USER_BASELINE"
+   ]
+  },
+  {
+   "label": "RecentSensitiveAccessCount",
+   "places": [
+    "SESSION.RecentSensitiveAccess"
+   ]
+  },
+  {
+   "label": "CohortPreference",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "CrossTenantObjectiveMisuseFacts",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "CrossTenantObjectiveMisusePackSummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "FalseNegativeCaseCount",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "FreshnessState",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "HardNegativeCaseCount",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "KnowledgeAssistedCaseCount",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "MatchedSignalKeys",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "MemoryGuardrails",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "MemoryRiskProfile",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ObjectiveAwareReasoningMemory",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ObjectiveFamilies",
+   "places": [
+    "DECISION_FACTS.Delegation"
+   ]
+  },
+  {
+   "label": "ReasoningFacts",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ReasoningMemorySummary",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ReasoningState",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RecallPriority",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "ReinforcedCaseCount",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RetentionTier",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "RetrievalWeight",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "XaiLinkedFacts",
+   "places": [
+    "PAST_RECORDS.ValidatedCases"
+   ]
+  },
+  {
+   "label": "CohortNormalProtectableFrequencyBand",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "CohortNormalSensitivityBand",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "CohortPreferredActionFamilies",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "CohortPreferredResources",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "CurrentActionFamilyPresentInPeerPreferredActions",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "CurrentResourcePresentInPeerPreferredResources",
+   "places": [
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "PeerCohortId",
+   "places": [
+    "USER_BASELINE.PeerReference",
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "PeerCohortSummary",
+   "places": [
+    "USER_BASELINE.PeerReference",
+    "DECISION_FACTS.PeerCohort"
+   ]
+  },
+  {
+   "label": "LongTailLegitimateTasks",
+   "places": [
+    "USER_BASELINE.KnownRareTasks"
+   ]
+  },
+  {
+   "label": "NormalPrivilegedActionFrequency",
+   "places": [
+    "USER_BASELINE.UsualPrivilegedActions"
+   ]
+  },
+  {
+   "label": "NormalSessionLengthMinutes",
+   "places": [
+    "USER_BASELINE.UsualSessionLength"
+   ]
+  },
+  {
+   "label": "SeasonalBusinessProfile",
+   "places": [
+    "USER_BASELINE.SeasonalPattern"
+   ]
+  },
+  {
+   "label": "AnomalySignalSource",
+   "places": [
+    "REMOVED:Q-78"
+   ]
+  },
+  {
+   "label": "AnomalySignalTrust",
+   "places": [
+    "REMOVED:Q-78"
+   ]
+  },
+  {
+   "label": "ObservedAnomalySignal",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ]
+  },
+  {
+   "label": "ExportSensitive",
+   "places": [
+    "REQUEST.ResourceClass"
+   ]
+  },
+  {
+   "label": "PrivilegedResource",
+   "places": [
+    "REQUEST.ResourceClass"
+   ]
+  },
+  {
+   "label": "ResourceType",
+   "places": [
+    "REQUEST.Target"
+   ]
+  },
+  {
+   "label": "ElevationWindowSummary",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ]
+  },
+  {
+   "label": "ExpectedResourceFamilies",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "ForbiddenActionFamilies",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "ForbiddenResourceFamilies",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "NormalApprovalPatterns",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "NormalEscalationPatterns",
+   "places": [
+    "DECISION_FACTS.RoleScope"
+   ]
+  },
+  {
+   "label": "TemporaryElevation",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ]
+  },
+  {
+   "label": "TemporaryElevationReason",
+   "places": [
+    "DECISION_FACTS.TemporaryElevation"
+   ]
+  },
+  {
+   "label": "MitreTactics",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ObservationWindow",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "RelevantFacts",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "SignalSummary",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ]
+  },
+  {
+   "label": "TargetSurfaces",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ThreatCampaignMatchCount",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Baseline evidence constraints",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "Baseline gap impact",
+   "places": [
+    "SYSTEM_TEXT"
+   ]
+  },
+  {
+   "label": "Baseline gap status",
+   "places": [
+    "USER_BASELINE.BaselineStatus"
+   ]
+  },
+  {
+   "label": "Cohort",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Cohort tenants",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Runtime weight",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Sampled user baselines",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Seed policy",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Snapshot date",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Typical cohort days",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Typical cohort hours",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Typical cohort operating systems",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "Use only for dimensions",
+   "places": [
+    "USER_BASELINE.PeerReference"
+   ]
+  },
+  {
+   "label": "PayloadSummary",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ]
+  },
+  {
+   "label": "CurrentOS",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "CurrentUA",
+   "places": [
+    "REQUEST.Network"
+   ]
+  },
+  {
+   "label": "EventId",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "FailureCount",
+   "places": [
+    "SESSION.FailedLogins"
+   ]
+  },
+  {
+   "label": "Timestamp",
+   "places": [
+    "REQUEST.Time"
+   ]
+  },
+  {
+   "label": "ApplicableContexts",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ConfidenceBand",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "EvidenceSummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Lift",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PolicySummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PromotedDetectionStrategyCount",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "RecommendedSignals",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "RequiredSignals",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "StrategyFamily",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "SupportingContextOnly",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Browser Transition",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "Current Browser",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "Current OS",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "OBSERVATION",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange",
+    "DECISION_FACTS.SessionNetworkChange"
+   ]
+  },
+  {
+   "label": "OS Transition",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "Previous Browser",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "Previous OS",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange"
+   ]
+  },
+  {
+   "label": "BaselineRequestsPerMinute",
+   "places": [
+    "USER_BASELINE.UsualRequestRate"
+   ]
+  },
+  {
+   "label": "ContextBindingHashMismatch",
+   "places": [
+    "DECISION_FACTS.SessionDeviceChange",
+    "DECISION_FACTS.SessionNetworkChange"
+   ]
+  },
+  {
+   "label": "SessionRateVsBaseline",
+   "places": [
+    "DECISION_FACTS.RepeatInSession"
+   ]
+  },
+  {
+   "label": "SupportingComparableExample1",
+   "places": [
+    "PAST_RECORDS.SupportingCases"
+   ]
+  },
+  {
+   "label": "CampaignSummary",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ]
+  },
+  {
+   "label": "ComparableEvidence",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "FalsePositiveCaution",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "LearningSummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Observations",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "OutcomeSummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "PromotionSummary",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Region",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "Tenants",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ThreatClass",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "ThreatKnowledgeMatchCount",
+   "places": [
+    "DECISION_FACTS.ThreatMatch"
+   ]
+  },
+  {
+   "label": "XaiSummary",
+   "places": [
+    "BLOCK_LINES:UNTRUSTED_TEXT"
+   ]
+  },
+  {
+   "label": "UserRoles",
+   "places": [
+    "REQUEST.Roles",
+    "DECISION_FACTS.DataConflicts"
+   ]
+  },
+  {
+   "label": "Method",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "aliasOf": "HttpMethod"
+  },
+  {
+   "label": "Resource ID",
+   "places": [
+    "REQUEST.Action"
+   ],
+   "aliasOf": "ResourceId"
+  }
+ ]
+}

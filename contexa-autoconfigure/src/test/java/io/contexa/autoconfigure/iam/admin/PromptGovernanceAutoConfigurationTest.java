@@ -10,6 +10,7 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseApprovalR
 import io.contexa.contexacore.repository.prompt.PromptGovernanceReleaseWorkflowRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRollbackRecordRepository;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceEmpiricalEvalService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceJpaLedgerWriter;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceLifecycleLedgerService;
@@ -94,6 +95,20 @@ class PromptGovernanceAutoConfigurationTest {
                         assertThat(context).as(type.getSimpleName()).doesNotHaveBean(type);
                     }
                     assertThat(context).doesNotHaveBean("promptGovernanceRegistryBootstrapRunner");
+                });
+    }
+
+    /** W3-16: the registry chooses the bundle only when the configuration says so; the OSS default is the configuration. */
+    @Test
+    void theRegistrySelectsTheBundleOnlyWhenTheConfigurationSaysSo() {
+        runner.run(context -> assertThat(context).doesNotHaveBean(PromptBundleSelector.class));
+        runner.withPropertyValues("contexa.security.tiered.prompt-bundle.selector=configuration")
+                .run(context -> assertThat(context).doesNotHaveBean(PromptBundleSelector.class));
+        runner.withPropertyValues("contexa.security.tiered.prompt-bundle.selector=registry")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(PromptBundleSelector.class);
+                    assertThat(context).hasSingleBean(PromptGovernanceDescriptorResolver.class);
                 });
     }
 
