@@ -1,6 +1,7 @@
 package io.contexa.showcase.portal.anatomy;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator;
 import io.contexa.showcase.portal.replay.ReplayView;
@@ -12,11 +13,14 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -66,14 +70,17 @@ public class BeforeSend {
      * @param businessFacts  the same step's company facts as the shared business lookup returned them (the run's
      *                       stored step result), so the screen needs no second request to list them (C-13)
      * @param sensitivity    the resource sensitivity the engine received
-     * @param boundary       the four conditions of the judgment rules' elevated-risk boundary in the engine's input
+     * @param boundary       the four conditions of the judgment rules' elevated-risk boundary in the engine's input;
+     *                       null when its system text states the minimum action rules instead (N-K5-1)
+     * @param minimumRules   N-K5-1: the minimum action rules of the engine's system text, each with the engine's
+     *                       finding; null when the text states none or was not kept
      */
     public record View(String runId, int stepNo, Instant startedAt, Instant companyTime,
                        List<DecisionAnatomy.Comparison> usualVsNow, Map<String, Usual> usual,
                        List<DecisionAnatomy.Comparison> departures, int departureCount,
                        List<CoreAdverseLabels.Reading> companyAdverse, Map<String, Object> company,
                        List<String> companyFacts, List<ReplayView.Fact> businessFacts, String sensitivity,
-                       Boundary boundary) {
+                       Boundary boundary, MinimumRules minimumRules) {
 
         /** How many company record labels were read as adverse: the screen's "flagged by company records". */
         @JsonProperty("companyAdverseCount")
@@ -86,7 +93,7 @@ public class BeforeSend {
      * The judgment rules' elevated-risk boundary (the core's decision rules: never ALLOW when sensitivity is HIGH or
      * CRITICAL, the personal baseline is ESTABLISHED, a current-vs-observed label departs and ApprovalMissing=true), read
      * from what the engine received. A condition is null when its value is not in the record (the prompt text passed
-     * its retention period).
+     * its retention period). A v20 system text with the minimum action rules states no such boundary (N-K5-1).
      */
     public record Boundary(boolean sensitive, Boolean established, boolean departs, boolean approvalMissing) {
 
@@ -98,6 +105,39 @@ public class BeforeSend {
             }
             return established;
         }
+    }
+
+    /**
+     * N-K5-1: the minimum action rules of a v20 system text (W4-4), in place of the elevated-risk boundary that text no
+     * longer states: the rules the engine received, each with whether the engine found it met. The portal evaluates no
+     * rule: the engine evaluates them on the facts it sealed (MinimumActionRules) and keeps what it found met in the
+     * step's decision record (its metadata minimumActionFindings).
+     *
+     * @param rules the rules of the text, in its order
+     */
+    public record MinimumRules(List<MinimumRule> rules) {
+
+        /** Whether a rule applies: the screen's "hard line applies"; null when the engine's record is unknown. */
+        @JsonProperty("applies")
+        public Boolean applies() {
+            if (rules.stream().anyMatch(rule -> Boolean.TRUE.equals(rule.met()))) {
+                return Boolean.TRUE;
+            }
+            return rules.stream().allMatch(rule -> Boolean.FALSE.equals(rule.met())) ? Boolean.FALSE : null;
+        }
+    }
+
+    /**
+     * One minimum action rule as the system text states it.
+     *
+     * @param code  the rule's reason code (MIN_P1_IDENTITY_DEVIATION)
+     * @param line  the rule's line as sent, so a screen gives it the words of exactly that line
+     * @param floor the floor the line names (CHALLENGE, ESCALATE); null when the line names none (the v20.15 text named
+     *              it in its head)
+     * @param met   whether the step's decision record has the rule among its minimum action findings (the engine records
+     *              only the rules it found met); null without the record
+     */
+    public record MinimumRule(String code, String line, String floor, Boolean met) {
     }
 
     /** The answer; {@code comparison} is null when no run of the same definition and template exists. */
@@ -170,19 +210,34 @@ public class BeforeSend {
         }
         DecisionAnatomy.Context context = anatomy.get().context();
         DecisionAnatomy.Juxtaposition juxtaposition = anatomy.get().juxtaposition();
-        List<String> prompts = jdbc.queryForList("""
-                        select e.user_prompt from run_model_exchange e
+        MapSqlParameterSource step = new MapSqlParameterSource("run", runId).addValue("step", stepNo);
+        // N-K5-1: the first call's system text too, for the minimum action rules it states.
+        List<Map<String, Object>> calls = jdbc.queryForList("""
+                        select e.user_prompt, s.prompt_text from run_model_exchange e
+                          left join run_system_prompt s on s.system_prompt_sha256 = e.system_prompt_sha256
                          where e.run_id = :run and e.step_no = :step and e.user_prompt is not null
-                         order by e.call_no limit 1""",
-                new MapSqlParameterSource("run", runId).addValue("step", stepNo), String.class);
+                         order by e.call_no limit 1""", step);
+        String prompt = calls.isEmpty() ? null : (String) calls.get(0).get("user_prompt");
+        String systemPrompt = calls.isEmpty() ? null : (String) calls.get(0).get("prompt_text");
+        List<String> records = jdbc.queryForList("""
+                        select d.records::text from run_decision d
+                         where d.run_id = :run and d.step_no = :step
+                         order by d.decided_at limit 1""", step, String.class);
+        MinimumRules rules;
+        try {
+            rules = minimumRules(systemPrompt, records.isEmpty() ? null : records.get(0));
+        } catch (IOException e) {
+            throw new UncheckedIOException("the decision records of " + runId + " step " + stepNo, e);
+        }
+        // A text that states the minimum action rules states no elevated-risk boundary.
+        Boundary boundary = rules != null ? null : boundary(prompt, juxtaposition.sensitivity(),
+                juxtaposition.departures().size(), juxtaposition.coreAdverseLabels());
         return Optional.of(new View(runId, stepNo, instant(startedAt), instant(companyTime), context.usualVsNow(),
-                prompts.isEmpty() ? Map.of() : usual(prompts.get(0)), juxtaposition.departures(),
+                prompt == null ? Map.of() : usual(prompt), juxtaposition.departures(),
                 juxtaposition.departures().size(), companyAdverse(juxtaposition.coreAdverseLabels()),
                 context.company(), juxtaposition.companyFacts(),
                 replayViews.storedStep(runId, stepNo).map(ReplayView.StepResult::companyFacts).orElse(List.of()),
-                juxtaposition.sensitivity(),
-                boundary(prompts.isEmpty() ? null : prompts.get(0), juxtaposition.sensitivity(),
-                        juxtaposition.departures().size(), juxtaposition.coreAdverseLabels())));
+                juxtaposition.sensitivity(), boundary, rules));
     }
 
     /** The elevated-risk boundary's conditions in the engine's input. */
@@ -198,6 +253,60 @@ public class BeforeSend {
         boolean approvalMissing = readings != null && readings.stream()
                 .anyMatch(reading -> reading.met() && "approvalmissing".equals(reading.label()));
         return new Boundary(sensitive, established, departures > 0, approvalMissing);
+    }
+
+    /** A rule line of the minimum action rules: its number, its reason code and its conditions (W4-4). */
+    private static final Pattern RULE_LINE = Pattern.compile("P\\d+ (MIN_[A-Z0-9_]+): .*");
+    /** The floor a rule line names (Floor: CHALLENGE); the v20.15 text named it in its head only. */
+    private static final Pattern FLOOR = Pattern.compile("Floor: ([A-Z]+)");
+    private static final ObjectMapper RECORDS = new ObjectMapper();
+
+    /**
+     * N-K5-1: the minimum action rules a system text states, each with whether the step's decision records (as stored,
+     * a JSON array) have it among the engine's findings; null when the text states none or is not kept.
+     */
+    static MinimumRules minimumRules(String systemPrompt, String records) throws IOException {
+        if (systemPrompt == null) {
+            return null;
+        }
+        List<String> lines = systemPrompt.lines().toList();
+        int head = 0;
+        while (head < lines.size() && !lines.get(head).startsWith("Minimum action rules")) {
+            head++;
+        }
+        Set<String> found = findings(records);
+        List<MinimumRule> rules = new ArrayList<>();
+        // The rules follow the head, one per line, up to the first other line.
+        for (int index = head + 1; index < lines.size(); index++) {
+            Matcher rule = RULE_LINE.matcher(lines.get(index));
+            if (!rule.matches()) {
+                break;
+            }
+            Matcher floor = FLOOR.matcher(lines.get(index));
+            rules.add(new MinimumRule(rule.group(1), lines.get(index), floor.find() ? floor.group(1) : null,
+                    found == null ? null : found.contains(rule.group(1))));
+        }
+        return rules.isEmpty() ? null : new MinimumRules(List.copyOf(rules));
+    }
+
+    /**
+     * The reason codes of the engine's minimum action findings in a step's decision records (metadataJson, stored as
+     * text or as an object; AbstractTieredStrategy records only the rules it found met); null without a record.
+     */
+    static Set<String> findings(String records) throws IOException {
+        JsonNode array = records == null ? null : RECORDS.readTree(records);
+        if (array == null || !array.isArray() || array.isEmpty()) {
+            return null;
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        for (JsonNode record : array) {
+            JsonNode metadata = record.path("metadataJson");
+            if (metadata.isTextual()) {
+                metadata = metadata.asText().isBlank() ? RECORDS.createObjectNode() : RECORDS.readTree(metadata.asText());
+            }
+            metadata.path("minimumActionFindings").forEach(finding -> codes.add(finding.path("code").asText()));
+        }
+        return codes;
     }
 
     /** The company record labels the inspector read as adverse, in the core's order. */

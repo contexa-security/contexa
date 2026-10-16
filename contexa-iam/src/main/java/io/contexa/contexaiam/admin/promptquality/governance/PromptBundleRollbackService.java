@@ -111,8 +111,9 @@ public class PromptBundleRollbackService {
             record(executionKey, request, actor, REFUSED, conditions, refusals, now);
             return new Result(executionKey, REFUSED, conditions, List.copyOf(refusals));
         }
-        setStatus(scope, key, request.fromVersion(), PromptBundleState.DEPRECATED.releaseStatus().name(), now);
-        setStatus(scope, key, request.toVersion(), PromptBundleState.ACTIVE.releaseStatus().name(), now);
+        // N-RBK-1: new writes store the canonical state names (PromptBundleState), as the release gate does.
+        setStatus(scope, key, request.fromVersion(), PromptBundleState.DEPRECATED.name(), now);
+        setStatus(scope, key, request.toVersion(), PromptBundleState.ACTIVE.name(), now);
         invalidation.publish(scope, key, request.toVersion(),
                 "rollback from " + request.fromVersion() + (request.emergency() ? " (emergency stop)" : ""), actor);
         String status = request.emergency() ? AWAITING_APPROVAL : EXECUTED;

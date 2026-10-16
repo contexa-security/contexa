@@ -20,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * W6-1 (P6-CHANGE-2): the sealed prompt of a decision as the harness reads it, line by line through the OSS prompt
  * parser, with the dictionary source grade of each line, the bundle the seal names, the reason codes and the latest
- * inspection. The portal has no engine library, so control D gives these facts.
+ * inspection. The portal has no engine library, so control D gives these facts. N-DLV-2: the kinds of company record
+ * the host looked up and the request's action family, from the sealed context, so the harness tells a condition the
+ * operation does not look up.
  */
 class SealedPromptFactsTest {
 
@@ -82,6 +84,19 @@ class SealedPromptFactsTest {
                 .containsEntry("expected", "time 03 seen 1 of 22").containsEntry("actual", "time 03 seen 0 of 22");
     }
 
+    @Test
+    void theRecordKindsAndTheActionFamilyAreTheSealedContexts() {
+        Map<String, Object> view = SealedPromptFacts.view(sealed("{\"resource\": {\"actionFamily\": \"READ\"}, "
+                + "\"frictionProfile\": {\"checkedRecordKinds\": [\"ASSIGNMENT\", \"TICKET\", \"ACCESS_HISTORY\", "
+                + "\"TRAVEL\"]}}"), List.of(), new ObjectMapper());
+        Map<String, Object> unsaid = SealedPromptFacts.view(sealed(), List.of(), new ObjectMapper());
+
+        assertThat(view).containsEntry("actionFamily", "READ")
+                .containsEntry("checkedRecordKinds", List.of("ASSIGNMENT", "TICKET", "ACCESS_HISTORY", "TRAVEL"));
+        assertThat(unsaid).as("a sealed context that does not say").containsEntry("checkedRecordKinds", null)
+                .containsEntry("actionFamily", null);
+    }
+
     private static PromptInspectionRecord record(long id, PromptInspectionVerdict verdict,
                                                  List<PromptInspectionCheckResult> checks, String at) {
         return new PromptInspectionRecord(id, new PromptInspectionResult("pkg-1", "prompt-inspector/17", "dict-1",
@@ -89,6 +104,10 @@ class SealedPromptFactsTest {
     }
 
     private static SealedEvidencePackage sealed() {
+        return sealed(null);
+    }
+
+    private static SealedEvidencePackage sealed(String canonicalContextJson) {
         return SealedEvidencePackage.builder()
                 .packageId("pkg-1")
                 .correlationId("req-1")
@@ -99,6 +118,7 @@ class SealedPromptFactsTest {
                         + "\"promptBundleHash\":\"c6b5\",\"promptBundleSelectionSource\":\"CONFIGURATION\","
                         + "\"userPromptLayoutVersion\":\"v20-dictionary-blocks\"}}")
                 .decisionJson("{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"DEVIATION_TIME\",\"fact\":\"F1\"}]}")
+                .canonicalContextJson(canonicalContextJson)
                 .build();
     }
 

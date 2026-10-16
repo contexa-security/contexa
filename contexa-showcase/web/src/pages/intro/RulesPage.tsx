@@ -7,43 +7,25 @@ import { ActionChip } from '../../components/common/ActionChip';
 import { Modal } from '../../components/common/Modal';
 import { SourceMark } from '../../components/common/SourceMark';
 import { useUrlModal } from '../../components/common/useUrlModal';
-import { Icon, type IconName } from '../../components/Icon';
+import { Icon } from '../../components/Icon';
 import { routeFlow } from '../../components/journey/flow';
 import { JourneyBar } from '../../components/journey/JourneyParts';
 import { ActionBar, MoreRow, StepHeader } from '../../components/journey/StepParts';
 import { VerdictChip } from '../../components/VerdictChip';
 import { useJourneyPosition } from '../../journey/useJourneyPosition';
 import experience from '../try/Experience.module.css';
+import { G_RULES_CARDS, G_RULES_PLAIN } from './rulesLines';
 import styles from './RulesPage.module.css';
 
 const VERDICTS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'] as const;
-const LINES: readonly { readonly key: string; readonly icon: IconName }[] = [
-  { key: 'elevated', icon: 'lock' },
-  { key: 'lowRisk', icon: 'check' },
-  { key: 'least', icon: 'arrowRight' },
-];
-
-/**
- * Which rule lines of the original get a plain-words note, by how the line begins. Only lines are matched, never
- * counted or numbered here: the numbers are the original text's own lines.
- */
-const PLAIN_LINES: readonly { readonly starts: string; readonly key: string }[] = [
-  { starts: 'ALLOW =', key: 'ALLOW' },
-  { starts: 'CHALLENGE =', key: 'CHALLENGE' },
-  { starts: 'ESCALATE =', key: 'ESCALATE' },
-  { starts: 'BLOCK =', key: 'BLOCK' },
-  { starts: 'Required low-risk boundary', key: 'lowRisk' },
-  { starts: 'Required elevated-risk boundary', key: 'elevated' },
-  { starts: '6. Choose the least disruptive', key: 'least' },
-];
 
 const ORIGINAL_MODAL = 'rules-original';
 
 /**
  * G-rules (g-rules, 7.2): the AI judges by published rules. The screen is the four decisions with what each means and
  * the lines the rules always keep; the original rules, as the model received them in the designated prompt run, open
- * from a chip with their own line numbers and a plain-words note on the lines the cards come from. On the default route
- * the teaser band leads on; on the concept path a "next" button does (D-33).
+ * from a chip with their own line numbers and a plain-words note on its rule lines (cards and notes: rulesLines). On
+ * the default route the teaser band leads on; on the concept path a "next" button does (D-33).
  */
 export default function RulesPage() {
   const { t, i18n } = useTranslation();
@@ -82,7 +64,7 @@ export default function RulesPage() {
               {t('gRules.lines.title')}
             </h2>
             <ol className={styles.lineList}>
-              {LINES.map((line) => (
+              {G_RULES_CARDS.map((line) => (
                 <li key={line.key} className={styles.line}>
                   <Icon name={line.icon} className={styles.lineIcon} />
                   {t(`gRules.line.${line.key}`)}
@@ -114,14 +96,12 @@ export default function RulesPage() {
               <p className={experience.lead}>{t('gRules.source', { runId: promptRun ?? '-' })}</p>
               <ol className={styles.original}>
                 {exchanges.data.calls[0].systemPrompt.split('\n').map((text, index) => {
-                  const plain = PLAIN_LINES.find((candidate) => text.startsWith(candidate.starts));
+                  const plain = G_RULES_PLAIN.find((candidate) => text.startsWith(candidate.starts));
                   return (
                     // The original's own line order is the identity of a line.
                     <li key={index} className={styles.originalLine} data-plain={plain ? true : undefined}>
                       <code className={styles.originalText}>{text}</code>
-                      {plain ? (
-                        <span className={styles.originalPlain}>{t(`gRules.plain.${plain.key}`)}</span>
-                      ) : null}
+                      {plain ? <span className={styles.originalPlain}>{t(plain.key)}</span> : null}
                     </li>
                   );
                 })}

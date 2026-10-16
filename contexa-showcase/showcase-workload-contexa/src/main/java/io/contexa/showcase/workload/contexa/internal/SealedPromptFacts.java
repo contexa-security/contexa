@@ -25,6 +25,8 @@ import java.util.Map;
  * the OSS prompt parser; every entry line names the source grades its dictionary entry declares. The bundle is the one
  * the seal's governance descriptor names, the reason codes are the sealed decision's and the inspection is the latest
  * stored one. The portal has no engine library, so control D gives these facts (P7 screens read the same view).
+ * N-DLV-2: the kinds of company record the host looked up and the request's action family (the sealed context's
+ * friction profile and resource), so the harness tells a condition the operation does not look up.
  */
 final class SealedPromptFacts {
 
@@ -51,6 +53,11 @@ final class SealedPromptFacts {
         Object reasonCodes = read(sealed, "decisionJson", sealed.getDecisionJson(), objectMapper).get("reasonCodes");
         view.put("reasonCodes", reasonCodes instanceof List<?> codes ? codes : List.of());
         view.put("lines", lines(sealed.getUserPromptText()));
+        Map<String, Object> context = read(sealed, "canonicalContextJson", sealed.getCanonicalContextJson(),
+                objectMapper);
+        view.put("checkedRecordKinds", checkedRecordKinds(context));
+        view.put("actionFamily", context.get("resource") instanceof Map<?, ?> resource
+                && resource.get("actionFamily") instanceof String family ? family : null);
         view.put("inspection", latest(inspections));
         return view;
     }
@@ -121,6 +128,15 @@ final class SealedPromptFacts {
         }
         view.put("checks", checks);
         return view;
+    }
+
+    /** The record kinds of the sealed context's friction profile; null when the context does not say (N-DLV-2). */
+    private static List<String> checkedRecordKinds(Map<String, Object> context) {
+        if (context.get("frictionProfile") instanceof Map<?, ?> friction
+                && friction.get("checkedRecordKinds") instanceof List<?> kinds) {
+            return kinds.stream().map(String::valueOf).toList();
+        }
+        return null;
     }
 
     @SuppressWarnings("unchecked")

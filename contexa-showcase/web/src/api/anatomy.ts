@@ -333,6 +333,7 @@ export interface BeforeSendView {
   /**
    * The judgment rules' elevated-risk boundary in the engine's input (sensitivity HIGH or CRITICAL, an established
    * baseline, a departing label, ApprovalMissing=true), read by the portal; `applies` is null when one is unknown.
+   * Null when the system text states the minimum action rules instead (N-K5-1).
    */
   readonly boundary: {
     readonly sensitive: boolean;
@@ -340,7 +341,22 @@ export interface BeforeSendView {
     readonly departs: boolean;
     readonly approvalMissing: boolean;
     readonly applies: boolean | null;
-  };
+  } | null;
+  /**
+   * N-K5-1: the minimum action rules of a v20 system text, in place of the boundary it no longer states: each rule's
+   * line as sent, the floor it names and whether the engine found it met in the step's decision record (null without
+   * the record); `applies` is the engine's, null when unknown. The portal evaluates no rule. Null when the text states
+   * none.
+   */
+  readonly minimumRules: {
+    readonly rules: readonly {
+      readonly code: string;
+      readonly line: string;
+      readonly floor: string | null;
+      readonly met: boolean | null;
+    }[];
+    readonly applies: boolean | null;
+  } | null;
 }
 
 /** `comparison` is null when no run of the same definition and template exists yet. */

@@ -141,5 +141,50 @@
     "invariant": [
       "Subject"
     ]
+  },
+  "applies": {
+    "because": "a condition reaches the prompt only through an operation that looks up what it sets: a record condition needs its kind of company record among the base run's sealed checkedRecordKinds (the document read looks up no approval and no on-call record), and the claimed ticket is read only by the export family (BusinessFrictionProvider, the export branch); otherwise it is compared as the invariance condition (N-DLV-2)",
+    "conditions": {
+      "approval": {"recordKind": "APPROVAL"},
+      "onCall": {"recordKind": "ON_CALL"},
+      "ticket": {"recordKind": "TICKET"},
+      "claim": {"actionFamilies": ["EXPORT"], "lookup": "CLAIMED_TICKET"}
+    }
+  },
+  "laterSteps": {
+    "*": {
+      "because": "from the second step on, the session's requests line names each earlier request of the same run with its time, action, target, items and decision, so it follows every condition (N-DLV-5)",
+      "facts": ["RequestsInSession"]
+    },
+    "timeSlot": {
+      "because": "from the second step on, the organization baseline in the peer reference has learned the first step's allowed request at its hour (Q-47), so its hour shares follow the time slot (N-DLV-5)",
+      "facts": ["PeerReference"]
+    }
+  },
+  "derived": {
+    "employee": {
+      "because": "past records, the peer cohort and the work profile counts in the coverage note are the user's own; the lab's usual device is the employee's usual device; whether the company policy is satisfied follows the employee's own assignment and approvals; the lab composer keeps the designed relation (assigned or not) by moving to a project of the employee and picking its document again (LabComposer project and document), so the target and the request path follow the employee (N-DLV-2)",
+      "facts": ["PastRecord*", "PeerReference", "Coverage", "Device", "PolicySatisfied", "Target", "UntrustedText*"]
+    },
+    "timeSlot": {
+      "because": "the work profile reads the 7 days before the request time, past records state times relative to it, and the case approval's validity window is set around it",
+      "facts": ["Approval", "PastRecord*", "Usual*", "WorkProfile", "Coverage"]
+    },
+    "operation": {
+      "because": "the approval, the company policy row (its recent-work window), the protection, on-call, the role scope, the session's repeat, the past records of the same action and the request path follow the operation",
+      "facts": ["Approval", "Assignment", "AuthorizationEffect", "OnCall", "Unknown", "PastRecord*", "RepeatInSession", "RoleScope", "SameAsBaseline", "DeviationsFromBaseline", "UntrustedText*"]
+    },
+    "target": {
+      "because": "the case approval names the target, the resource class is the target's sensitivity, past records mark the same target, and the request path names it",
+      "facts": ["Approval", "PastRecord*", "ResourceClass", "SameAsBaseline", "UntrustedText*"]
+    },
+    "items": {
+      "because": "the target's business label states the item count",
+      "facts": ["Target"]
+    },
+    "claim": {
+      "because": "a ticket the requester names is an UNTRUSTED TEXT line (N-INJ-1)",
+      "facts": ["UntrustedText*"]
+    }
   }
 }

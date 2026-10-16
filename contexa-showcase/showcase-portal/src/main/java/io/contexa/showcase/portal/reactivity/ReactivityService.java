@@ -23,6 +23,18 @@ import java.util.Optional;
  */
 public class ReactivityService {
 
+    /** A step the variant run does not have. */
+    public static final String NO_VARIANT_STEP = "NO_VARIANT_STEP";
+    /** N-DLV-1: a step neither run sealed (an earlier decision held both), so there are no facts to compare. */
+    public static final String NOT_SEALED = "NOT_SEALED";
+    /** N-DLV-1: a step one run sealed and the other did not after the same earlier decisions: a difference. */
+    public static final String NOT_SEALED_ONE_SIDE = "NOT_SEALED_ONE_SIDE";
+    /**
+     * N-DLV-1: a step one run sealed and the other did not after an earlier step was decided differently; the later
+     * analysis follows that decision, which the reaction evaluator compares, so the step is left out.
+     */
+    public static final String NOT_SEALED_AFTER_DIFFERENT_DECISION = "NOT_SEALED_AFTER_DIFFERENT_DECISION";
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final WorkloadAdmin admin;
@@ -42,12 +54,20 @@ public class ReactivityService {
         this.runs = runs;
     }
 
-    /** One step compared: its request IDs and the delivery, or why it could not be compared. */
+    /**
+     * One step compared: its request IDs and the delivery, or why it could not be compared (NO_VARIANT_STEP,
+     * NOT_SEALED, NOT_SEALED_ONE_SIDE, NOT_SEALED_AFTER_DIFFERENT_DECISION).
+     */
     public record StepDelivery(int stepNo, String baseRequestId, String variantRequestId,
                                DeliveryEvaluator.Delivery delivery, String notCompared) {
     }
 
-    /** The two runs compared under a condition: every step, and whether every compared step was delivered. */
+    /**
+     * The two runs compared under a condition: every step, and whether they passed: at least one step was compared,
+     * every compared step was delivered and no step failed (the variant lacks it; one run sealed it after the same
+     * earlier decisions). N-DLV-1: a step neither run sealed, or one sealed after an earlier step was decided
+     * differently, is left out.
+     */
     public record RunDelivery(String baseRunId, String variantRunId, String condition, String value,
                               List<StepDelivery> steps, boolean passed) {
     }
@@ -63,7 +83,7 @@ public class ReactivityService {
     }
 
     /** One decision row of a run step: request, final action and the records the engine reported. */
-    private record Decision(int stepNo, String requestId, String finalAction, String records) {
+    record Decision(int stepNo, String requestId, String finalAction, String records) {
     }
 
     public RunDelivery delivery(String baseRunId, String variantRunId, String condition) throws IOException {
@@ -72,28 +92,38 @@ public class ReactivityService {
 
     public RunDelivery delivery(String baseRunId, String variantRunId, String condition, String value)
             throws IOException {
-        Map<Integer, String> base = requests(baseRunId);
-        Map<Integer, String> variant = requests(variantRunId);
+        return delivery(baseRunId, variantRunId, decisions(baseRunId), decisions(variantRunId), condition, value);
+    }
+
+    /** The two runs' decision rows compared step by step, by step number (N-DLV-1: tested without the database). */
+    RunDelivery delivery(String baseRunId, String variantRunId, List<Decision> baseDecisions,
+                         List<Decision> variantDecisions, String condition, String value) throws IOException {
+        Map<Integer, String> base = requests(baseDecisions);
+        Map<Integer, String> variant = requests(variantDecisions);
         List<StepDelivery> steps = new ArrayList<>();
         for (Map.Entry<Integer, String> step : base.entrySet()) {
             String variantRequest = variant.get(step.getKey());
             if (variantRequest == null) {
-                steps.add(new StepDelivery(step.getKey(), step.getValue(), null, null, "NO_VARIANT_STEP"));
+                steps.add(new StepDelivery(step.getKey(), step.getValue(), null, null, NO_VARIANT_STEP));
                 continue;
             }
             Optional<JsonNode> baseFacts = admin.promptFacts(step.getValue());
             Optional<JsonNode> variantFacts = admin.promptFacts(variantRequest);
             if (baseFacts.isEmpty() || variantFacts.isEmpty()) {
-                steps.add(new StepDelivery(step.getKey(), step.getValue(), variantRequest, null, "NOT_SEALED"));
+                steps.add(new StepDelivery(step.getKey(), step.getValue(), variantRequest, null,
+                        baseFacts.isEmpty() && variantFacts.isEmpty() ? NOT_SEALED
+                                : sealedOnOneSide(step.getKey(), baseDecisions, variantDecisions)));
                 continue;
             }
             steps.add(new StepDelivery(step.getKey(), step.getValue(), variantRequest,
                     evaluator.compare(PromptFacts.of(baseFacts.get()), PromptFacts.of(variantFacts.get()), condition,
-                            value),
+                            value, step.getKey()),
                     null));
         }
-        boolean passed = !steps.isEmpty() && steps.stream().allMatch(step -> step.delivery() != null
-                && step.delivery().passed());
+        // N-DLV-1: the steps left out do not count; any other step not compared fails the runs.
+        boolean compared = steps.stream().anyMatch(step -> step.delivery() != null);
+        boolean passed = compared && steps.stream().allMatch(step -> step.delivery() != null
+                ? step.delivery().passed() : leftOut(step.notCompared()));
         return new RunDelivery(baseRunId, variantRunId, condition, value, List.copyOf(steps), passed);
     }
 
@@ -277,9 +307,27 @@ public class ReactivityService {
         return List.copyOf(decisions.values());
     }
 
-    private Map<Integer, String> requests(String runId) {
+    private static Map<Integer, String> requests(List<Decision> decisions) {
         Map<Integer, String> requests = new LinkedHashMap<>();
-        decisions(runId).forEach(decision -> requests.put(decision.stepNo(), decision.requestId()));
+        decisions.forEach(decision -> requests.put(decision.stepNo(), decision.requestId()));
         return requests;
+    }
+
+    /** N-DLV-1: a step one run sealed is a difference only after the same final actions on every earlier step. */
+    private static String sealedOnOneSide(int stepNo, List<Decision> base, List<Decision> variant) {
+        return actionsBefore(stepNo, base).equals(actionsBefore(stepNo, variant)) ? NOT_SEALED_ONE_SIDE
+                : NOT_SEALED_AFTER_DIFFERENT_DECISION;
+    }
+
+    private static Map<Integer, String> actionsBefore(int stepNo, List<Decision> decisions) {
+        Map<Integer, String> actions = new HashMap<>();
+        decisions.stream().filter(decision -> decision.stepNo() < stepNo)
+                .forEach(decision -> actions.put(decision.stepNo(), decision.finalAction()));
+        return actions;
+    }
+
+    /** N-DLV-1: the steps not compared that are left out of the runs' verdict. */
+    private static boolean leftOut(String notCompared) {
+        return NOT_SEALED.equals(notCompared) || NOT_SEALED_AFTER_DIFFERENT_DECISION.equals(notCompared);
     }
 }

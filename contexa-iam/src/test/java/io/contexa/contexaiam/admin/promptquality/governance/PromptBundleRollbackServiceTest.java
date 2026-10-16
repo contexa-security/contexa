@@ -68,10 +68,24 @@ class PromptBundleRollbackServiceTest {
 
         assertThat(result.status()).isEqualTo(PromptBundleRollbackService.EXECUTED);
         assertThat(result.conditions().policySet()).isEqualTo(PromptBundleRollbackService.NOT_APPLICABLE);
-        assertThat(status(FROM)).isEqualTo("ROLLED_BACK");
-        assertThat(status(TO)).isEqualTo("PRODUCTION");
+        // N-RBK-1: a rollback writes the canonical names, as the release gate does; older names are only read.
+        assertThat(status(FROM)).isEqualTo("DEPRECATED");
+        assertThat(status(TO)).isEqualTo("ACTIVE");
         verify(invalidation).publish(eq(SCOPE), eq(KEY), eq(TO), contains(FROM), eq("operator-a"));
         assertThat(execution(result.executionKey())).isEqualTo(List.of("EXECUTED", "operator-a", FROM, TO));
+    }
+
+    @Test
+    void aCanarySourceTheGateWroteUnderItsCanonicalNameRollsBackToTheActiveTarget() {
+        registry(FROM, "CANARY");
+        registry(TO, "ACTIVE");
+
+        PromptBundleRollbackService.Result result = service.rollback(
+                new PromptBundleRollbackService.Request(SCOPE, KEY, FROM, TO, "canary answers", false), "operator-a");
+
+        assertThat(result.status()).isEqualTo(PromptBundleRollbackService.EXECUTED);
+        assertThat(status(FROM)).isEqualTo("DEPRECATED");
+        assertThat(status(TO)).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -108,7 +122,7 @@ class PromptBundleRollbackServiceTest {
                 new PromptBundleRollbackService.Request(SCOPE, KEY, FROM, TO, "leak", true), "operator-a");
 
         assertThat(stop.status()).isEqualTo(PromptBundleRollbackService.AWAITING_APPROVAL);
-        assertThat(status(TO)).isEqualTo("PRODUCTION");
+        assertThat(status(TO)).isEqualTo("ACTIVE");
         assertThat(service.approve(stop.executionKey(), "operator-a").refusals()).containsExactly("APPROVER_IS_ACTOR");
         assertThat(service.approve(stop.executionKey(), "operator-b").status())
                 .isEqualTo(PromptBundleRollbackService.APPROVED);

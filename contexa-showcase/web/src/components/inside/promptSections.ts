@@ -23,6 +23,37 @@ export interface PlainRule {
   readonly starts: string;
   readonly key: string;
 }
+
+/**
+ * N-K5-1: the minimum action rules section of a v20 system prompt (W4-4; bundles from 2026.10.15-v20.17 on): the head
+ * that says each rule names its floor, the rules P1 to P3 and the sentence on what is not unexplained. A rule is matched
+ * on its whole line (its values and its floor), so a rule the host set otherwise (another resource class, count or
+ * floor) gets no note and the words never state a value the line does not. The v19 prompts and the v20 prompts before
+ * W4-4 state the elevated-risk boundary instead; the portal still keeps the texts of their runs, so its note stays.
+ */
+export const MINIMUM_ACTION_PLAIN: readonly PlainRule[] = [
+  { starts: 'Minimum action rules (each names its floor,', key: 'gRules.plain.minimum' },
+  {
+    starts:
+      'P1 MIN_P1_IDENTITY_DEVIATION: ResourceClass is SENSITIVE or CRITICAL and DeviationsFromBaseline names at least 2 of time, day, network and device as unexplained. Floor: CHALLENGE.',
+    key: 'gRules.plain.minP1',
+  },
+  {
+    starts:
+      'P2 MIN_P2_NEW_DEVICE_OR_NETWORK_EXPORT: Action is EXPORT, ResourceClass is SENSITIVE or CRITICAL, and DeviationsFromBaseline names the device or the network as unexplained. Floor: CHALLENGE.',
+    key: 'gRules.plain.minP2',
+  },
+  {
+    starts:
+      'P3 MIN_P3_POLICY_NOT_SATISFIED: PolicySatisfied is no. Floor: ESCALATE (a verified user does not supply the missing record).',
+    key: 'gRules.plain.minP3',
+  },
+  {
+    starts:
+      'A difference explained by a record, against a baseline that is not established, or not compared is not unexplained.',
+    key: 'gRules.plain.unexplained',
+  },
+];
 export const PLAIN: Readonly<Record<Bundle, readonly PlainRule[]>> = {
   RULES: [
     { starts: 'ALLOW =', key: 'gRules.plain.ALLOW' },
@@ -30,6 +61,7 @@ export const PLAIN: Readonly<Record<Bundle, readonly PlainRule[]>> = {
     { starts: 'ESCALATE =', key: 'gRules.plain.ESCALATE' },
     { starts: 'BLOCK =', key: 'gRules.plain.BLOCK' },
     { starts: 'Required elevated-risk boundary', key: 'gRules.plain.elevated' },
+    ...MINIMUM_ACTION_PLAIN,
   ],
   REQUEST: [
     { starts: 'User is requesting', key: 'prompt.plain.requesting' },

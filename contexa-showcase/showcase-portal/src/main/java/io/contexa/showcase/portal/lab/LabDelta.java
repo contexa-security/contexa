@@ -47,13 +47,17 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
      *
      * @param expected    the changed labels the condition should change
      * @param unexpected  the changed labels the condition should not have changed
-     * @param notCompared why the step was not compared (ReactivityService.StepDelivery: NO_VARIANT_STEP, NOT_SEALED);
-     *                    null when compared
+     * @param notCompared why the step was not compared (ReactivityService.StepDelivery: NO_VARIANT_STEP, NOT_SEALED,
+     *                    NOT_SEALED_ONE_SIDE, NOT_SEALED_AFTER_DIFFERENT_DECISION); null when compared
      * @param unchangedLines the variant's compared lines that did not change, the volatile lines left out as the
      *                       delivery check leaves them out (DeliveryEvaluator); null when not compared
+     * @param notLookedUp    N-DLV-4: what the request's work does not look up for the changed condition (a record kind
+     *                       or CLAIMED_TICKET, DeliveryEvaluator, N-DLV-2), so its value cannot reach the prompt; null
+     *                       when it does or the step was not compared
      */
     public record Step(int stepNo, List<Change> changed, List<String> expected, List<String> unexpected,
-                       Boolean valueMatches, boolean passed, String notCompared, Integer unchangedLines) {
+                       Boolean valueMatches, boolean passed, String notCompared, Integer unchangedLines,
+                       String notLookedUp) {
     }
 
     /** Why a lab run cannot be compared before a base is looked for; null when it can. */
@@ -97,7 +101,7 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
             DeliveryEvaluator.Delivery compared = step.delivery();
             if (compared == null) {
                 steps.add(new Step(step.stepNo(), List.of(), List.of(), List.of(), null, false, step.notCompared(),
-                        null));
+                        null, null));
                 continue;
             }
             Map<String, List<String>> before = values(facts.get(step.baseRequestId()));
@@ -108,7 +112,8 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
                         List.copyOf(after.getOrDefault(label, List.of()))));
             }
             steps.add(new Step(step.stepNo(), List.copyOf(changed), compared.delivered(), compared.unexpected(),
-                    compared.valueMatches(), compared.passed(), null, compared.unchangedLines()));
+                    compared.valueMatches(), compared.passed(), null, compared.unchangedLines(),
+                    compared.notLookedUp()));
         }
         return new LabDelta(run.runId(), delivery.baseRunId(), delivery.condition(), delivery.value(), true, null,
                 List.copyOf(steps));

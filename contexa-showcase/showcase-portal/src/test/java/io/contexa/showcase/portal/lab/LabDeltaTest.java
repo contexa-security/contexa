@@ -18,7 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * W7-13 (docs/showcase/화면설계-프롬프트신뢰-보강안.md 3.4, 5): the lab result's delta. Only a composition with exactly one
  * changed condition has one; the harness's delivery check of the visitor's run against the designed run gives the
  * changed lines, those the condition should change and those it should not; the values before and after are the
- * sealed prompts' lines, HTTP session identifiers masked.
+ * sealed prompts' lines, HTTP session identifiers masked. N-DLV-4: a condition the request's work does not look up
+ * is named on its step.
  */
 class LabDeltaTest {
 
@@ -107,9 +108,23 @@ class LabDeltaTest {
         assertThat(names(delta)).containsExactlyInAnyOrder("runId", "baseRunId", "condition", "value", "available",
                 "reason", "steps");
         assertThat(names(delta.path("steps").path(0))).containsExactlyInAnyOrder("stepNo", "changed", "expected",
-                "unexpected", "valueMatches", "passed", "notCompared", "unchangedLines");
+                "unexpected", "valueMatches", "passed", "notCompared", "unchangedLines", "notLookedUp");
         assertThat(names(delta.path("steps").path(0).path("changed").path(0))).containsExactlyInAnyOrder("label",
                 "before", "after");
+    }
+
+    @Test
+    void aConditionTheRequestsWorkDoesNotLookUpIsNamedOnItsStep() {
+        ReactivityService.RunDelivery delivery = new ReactivityService.RunDelivery("run-base00000000",
+                "run-lab000000000", "approval", "true", List.of(new ReactivityService.StepDelivery(1, "a", "b",
+                new DeliveryEvaluator.Delivery(List.of(), List.of(), List.of(), null, true, 7, List.of(), "APPROVAL"),
+                null)), true);
+
+        LabDelta delta = LabDelta.of(composition(List.of("approval"), "COMPLETED"), delivery, new HashMap<>());
+
+        assertThat(delta.steps().get(0).notLookedUp()).isEqualTo("APPROVAL");
+        assertThat(delta.steps().get(0).passed()).isTrue();
+        assertThat(delta.steps().get(0).changed()).isEmpty();
     }
 
     private static LabStore.Composition composition(List<String> changed, String status) {

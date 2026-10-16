@@ -2043,7 +2043,7 @@
    "rules": [],
    "ruleSteps": [],
    "expectedMinimum": "NONE",
-   "expectedDirection": "ALLOW",
+   "expectedDirection": "MODEL_JUDGES",
    "conditions": {
     "target": "ASSIGNED"
    }

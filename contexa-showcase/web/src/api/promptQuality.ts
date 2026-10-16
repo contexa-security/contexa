@@ -138,10 +138,20 @@ export interface DeltaStep {
   readonly valueMatches: boolean | null;
   /** The delivery check of the step, as the server decided it. */
   readonly passed: boolean;
-  /** Why the step was not compared (the variant has no such step, or one of the two is not sealed); null if it was. */
-  readonly notCompared: 'NO_VARIANT_STEP' | 'NOT_SEALED' | null;
+  /**
+   * Why the step was not compared: the variant has no such step; neither run sealed it, or only one did
+   * after an earlier request was decided differently (both left out of the runs' check); or only one did
+   * after the same decisions (a difference). Null if it was compared.
+   */
+  readonly notCompared:
+    'NO_VARIANT_STEP' | 'NOT_SEALED' | 'NOT_SEALED_ONE_SIDE' | 'NOT_SEALED_AFTER_DIFFERENT_DECISION' | null;
   /** How many lines of the AI input the change left as they were; absent when the server does not say. */
   readonly unchangedLines?: number | null;
+  /**
+   * What the request's work does not look up for the changed condition (a kind of company record, or the
+   * ticket the requester named), so its value cannot reach the AI input; null or absent when it does.
+   */
+  readonly notLookedUp?: 'APPROVAL' | 'ON_CALL' | 'TICKET' | 'CLAIMED_TICKET' | null;
 }
 
 /** Why a lab run has no delta: run as designed, several conditions changed, not finished, no base, no control D. */

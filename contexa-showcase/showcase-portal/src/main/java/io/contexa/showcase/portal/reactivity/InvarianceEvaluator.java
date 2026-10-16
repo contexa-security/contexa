@@ -6,6 +6,7 @@ import io.contexa.showcase.portal.benchmark.DecisionQuality;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -16,6 +17,7 @@ import java.util.TreeMap;
  * are its variants (P0-CHANGE-18): their prompts may differ only in Subject, and their decisions not at all. The first
  * step is compared as the variant; later steps also depend on the earlier steps' decisions and are counted apart (the
  * prototype is prompt-audit/w06/invariance_cases.py). The decisions use the R1 definition of the decision quality.
+ * N-DLV-3: a step one repetition did not seal is judged as the delivery check judges it (N-DLV-1).
  */
 public final class InvarianceEvaluator {
 
@@ -33,19 +35,43 @@ public final class InvarianceEvaluator {
     public record Run(String runId, List<Step> steps) {
     }
 
-    /** One compared pair of a case's first repetition and another, at one step. */
+    /**
+     * One compared pair of a case's first repetition and another, at one step. N-DLV-3: why a pair counted as failed
+     * was not compared (NOT_SEALED_ONE_SIDE: one repetition sealed the step after the same earlier decisions, its
+     * delivery then null); null when compared.
+     */
     public record Pair(String caseKey, String baseRunId, String variantRunId, int stepNo,
-                       DeliveryEvaluator.Delivery delivery) {
+                       DeliveryEvaluator.Delivery delivery, String notCompared) {
+
+        /** A compared pair. */
+        public Pair(String caseKey, String baseRunId, String variantRunId, int stepNo,
+                    DeliveryEvaluator.Delivery delivery) {
+            this(caseKey, baseRunId, variantRunId, stepNo, delivery, null);
+        }
+
+        /** Whether the pair's facts changed only as expected; a pair one repetition did not seal failed (N-DLV-3). */
+        public boolean passed() {
+            return delivery != null && delivery.passed();
+        }
     }
 
     /**
      * The measurement: first-step pairs whose facts changed only as expected, later-step pairs the same way, the
      * facts that changed and how often, the steps decided more than once with one action, and the pairs not compared
-     * for want of a seal.
+     * for want of a seal. N-DLV-3: notSealed counts the pairs neither repetition sealed; a pair one repetition sealed
+     * after the same earlier decisions is a failed pair of its rate; one sealed after an earlier decision that differs
+     * follows that decision (R2's) and is counted in notSealedAfterDifferentDecision.
      */
     public record Invariance(BenchmarkView.Rate firstStepFacts, BenchmarkView.Rate laterStepFacts,
                              Map<String, Integer> changedFacts, BenchmarkView.Rate decisions, int notSealed,
-                             List<Pair> pairs) {
+                             int notSealedAfterDifferentDecision, List<Pair> pairs) {
+
+        /** A measurement without the count of pairs sealed after a different decision (the views' tests build it). */
+        public Invariance(BenchmarkView.Rate firstStepFacts, BenchmarkView.Rate laterStepFacts,
+                          Map<String, Integer> changedFacts, BenchmarkView.Rate decisions, int notSealed,
+                          List<Pair> pairs) {
+            this(firstStepFacts, laterStepFacts, changedFacts, decisions, notSealed, 0, pairs);
+        }
     }
 
     /** The repetitions of each case of one measurement, the first repetition first. */
@@ -54,6 +80,7 @@ public final class InvarianceEvaluator {
         List<DecisionQuality.Decision> decisions = new ArrayList<>();
         Map<String, Integer> changed = new TreeMap<>();
         int notSealed = 0;
+        int notSealedAfterDifferentDecision = 0;
         for (Map.Entry<String, List<Run>> entry : repetitions.entrySet()) {
             List<Run> runs = entry.getValue();
             for (Run run : runs) {
@@ -74,7 +101,16 @@ public final class InvarianceEvaluator {
                         continue;
                     }
                     if (step.facts() == null || variant.facts() == null) {
-                        notSealed++;
+                        // N-DLV-3: neither sealed is left out; one sealed after the same earlier decisions is a failed
+                        // pair; after an earlier decision that differs the step follows it (R2's) and is counted apart.
+                        if (step.facts() == null && variant.facts() == null) {
+                            notSealed++;
+                        } else if (sameDecisionsBefore(step.stepNo(), base, other)) {
+                            pairs.add(new Pair(entry.getKey(), base.runId(), other.runId(), step.stepNo(), null,
+                                    ReactivityService.NOT_SEALED_ONE_SIDE));
+                        } else {
+                            notSealedAfterDifferentDecision++;
+                        }
                         continue;
                     }
                     DeliveryEvaluator.Delivery result = delivery.compare(step.facts(), variant.facts(),
@@ -85,11 +121,23 @@ public final class InvarianceEvaluator {
             }
         }
         long first = pairs.stream().filter(pair -> pair.stepNo() == 1).count();
-        long firstPassed = pairs.stream().filter(pair -> pair.stepNo() == 1 && pair.delivery().passed()).count();
+        long firstPassed = pairs.stream().filter(pair -> pair.stepNo() == 1 && pair.passed()).count();
         long later = pairs.size() - first;
-        long laterPassed = pairs.stream().filter(pair -> pair.stepNo() != 1 && pair.delivery().passed()).count();
+        long laterPassed = pairs.stream().filter(pair -> pair.stepNo() != 1 && pair.passed()).count();
         return new Invariance(BenchmarkService.rate(firstPassed, first), BenchmarkService.rate(laterPassed, later),
                 Collections.unmodifiableMap(changed), DecisionQuality.of(decisions, Map.of()).consistency(), notSealed,
-                List.copyOf(pairs));
+                notSealedAfterDifferentDecision, List.copyOf(pairs));
+    }
+
+    /** N-DLV-3: whether both repetitions decided every step before the given one with the same final action. */
+    private static boolean sameDecisionsBefore(int stepNo, Run base, Run other) {
+        return actionsBefore(stepNo, base).equals(actionsBefore(stepNo, other));
+    }
+
+    private static Map<Integer, String> actionsBefore(int stepNo, Run run) {
+        Map<Integer, String> actions = new HashMap<>();
+        run.steps().stream().filter(step -> step.stepNo() < stepNo)
+                .forEach(step -> actions.put(step.stepNo(), step.finalAction()));
+        return actions;
     }
 }

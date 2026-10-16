@@ -12,7 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * W6-1 (P6-CHANGE-2, plan 8.6, metric R2): the repetitions of a case in one measurement are its invariance variants;
  * their first-step prompts may differ only in Subject and their decisions not at all
- * (prompt-audit/w06/invariance_cases.py).
+ * (prompt-audit/w06/invariance_cases.py). N-DLV-3: a step neither repetition sealed is left out; one sealed after the
+ * same earlier decisions is a failed pair; one sealed after a different earlier decision is counted apart.
  */
 class InvarianceEvaluatorTest {
 
@@ -53,7 +54,7 @@ class InvarianceEvaluatorTest {
     }
 
     @Test
-    void aStepWithoutASealIsNotCompared() throws Exception {
+    void aFirstStepOnlyOneRepetitionSealedIsAFailedPair() throws Exception {
         Map<String, List<InvarianceEvaluator.Run>> repetitions = new LinkedHashMap<>();
         repetitions.put("A3|t1", List.of(
                 run("run-1", "CHALLENGE", "v107dabe3a78d-adm-a", "not on call"),
@@ -62,8 +63,56 @@ class InvarianceEvaluatorTest {
 
         InvarianceEvaluator.Invariance invariance = evaluator.evaluate(repetitions);
 
-        assertThat(invariance.notSealed()).isEqualTo(1);
-        assertThat(invariance.firstStepFacts().total()).isZero();
+        assertThat(invariance.notSealed()).isZero();
+        assertThat(invariance.firstStepFacts().hits()).isZero();
+        assertThat(invariance.firstStepFacts().total()).isEqualTo(1);
+        assertThat(invariance.pairs()).extracting(InvarianceEvaluator.Pair::notCompared)
+                .containsExactly("NOT_SEALED_ONE_SIDE");
+    }
+
+    @Test
+    void aLaterStepOnlyOneRepetitionSealedAfterTheSameDecisionsIsAFailedPair() throws Exception {
+        Map<String, List<InvarianceEvaluator.Run>> repetitions = new LinkedHashMap<>();
+        repetitions.put("A1|t1", List.of(twoSteps("run-1", "ALLOW", true), twoSteps("run-2", "ALLOW", false)));
+
+        InvarianceEvaluator.Invariance invariance = evaluator.evaluate(repetitions);
+
+        assertThat(invariance.firstStepFacts().hits()).isEqualTo(1);
+        assertThat(invariance.laterStepFacts().hits()).isZero();
+        assertThat(invariance.laterStepFacts().total()).isEqualTo(1);
+        assertThat(invariance.notSealed()).isZero();
+        assertThat(invariance.pairs()).extracting(InvarianceEvaluator.Pair::notCompared)
+                .containsExactly(null, "NOT_SEALED_ONE_SIDE");
+    }
+
+    @Test
+    void aLaterStepOnlyOneRepetitionSealedAfterADifferentDecisionIsCountedApart() throws Exception {
+        Map<String, List<InvarianceEvaluator.Run>> repetitions = new LinkedHashMap<>();
+        repetitions.put("A1|t1", List.of(twoSteps("run-1", "ALLOW", true), twoSteps("run-2", "CHALLENGE", false)));
+
+        InvarianceEvaluator.Invariance invariance = evaluator.evaluate(repetitions);
+
+        assertThat(invariance.notSealedAfterDifferentDecision()).as("the decision change is R2's").isEqualTo(1);
+        assertThat(invariance.notSealed()).isZero();
+        assertThat(invariance.laterStepFacts().total()).isZero();
+    }
+
+    @Test
+    void aStepNeitherRepetitionSealedIsLeftOutAndTheRatesStay() throws Exception {
+        Map<String, List<InvarianceEvaluator.Run>> held = new LinkedHashMap<>();
+        held.put("A1|t1", List.of(twoSteps("run-1", "CHALLENGE", false), twoSteps("run-2", "CHALLENGE", false)));
+        Map<String, List<InvarianceEvaluator.Run>> firstOnly = new LinkedHashMap<>();
+        firstOnly.put("A1|t1", List.of(
+                run("run-1", "CHALLENGE", "v107dabe3a78d-adm-a", "not on call"),
+                run("run-2", "CHALLENGE", "v9f03c1e2a7b1-adm-a", "not on call")));
+
+        InvarianceEvaluator.Invariance withHeldStep = evaluator.evaluate(held);
+        InvarianceEvaluator.Invariance withoutIt = evaluator.evaluate(firstOnly);
+
+        assertThat(withHeldStep.notSealed()).as("an earlier decision held the second step in both").isEqualTo(1);
+        assertThat(withHeldStep.notSealedAfterDifferentDecision()).isZero();
+        assertThat(withHeldStep.firstStepFacts()).isEqualTo(withoutIt.firstStepFacts());
+        assertThat(withHeldStep.laterStepFacts()).isEqualTo(withoutIt.laterStepFacts());
     }
 
     private static InvarianceEvaluator.Run run(String runId, String action, String subject, String onCall)
@@ -73,5 +122,17 @@ class InvarianceEvaluatorTest {
                            {"label": "OnCall", "value": "%s"}]}""".formatted(subject, onCall)));
         return new InvarianceEvaluator.Run(runId, List.of(new InvarianceEvaluator.Step(1, "r-" + runId, action,
                 facts)));
+    }
+
+    /** A repetition of two steps: the first decided with the action, the second sealed and decided or neither. */
+    private static InvarianceEvaluator.Run twoSteps(String runId, String firstAction, boolean secondSealed)
+            throws Exception {
+        PromptFacts facts = PromptFacts.of(JSON.readTree("""
+                {"lines": [{"label": "Subject", "value": "v107dabe3a78d-adm-a (HUMAN_USER)"},
+                           {"label": "OnCall", "value": "not on call"}]}"""));
+        return new InvarianceEvaluator.Run(runId, List.of(
+                new InvarianceEvaluator.Step(1, "r-" + runId + "-1", firstAction, facts),
+                new InvarianceEvaluator.Step(2, "r-" + runId + "-2", secondSealed ? "ALLOW" : null,
+                        secondSealed ? facts : null)));
     }
 }

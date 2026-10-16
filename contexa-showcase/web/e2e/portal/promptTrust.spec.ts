@@ -499,6 +499,7 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
       passed: boolean;
       notCompared: string | null;
       unchangedLines?: number | null;
+      notLookedUp?: string | null;
     }[];
   }>(page, `/api/lab/runs/${runId}/delta`);
   expect(delta?.available, 'delta of the changed run').toBe(true);
@@ -514,9 +515,11 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
     for (const [index, step] of (delta?.steps ?? []).entries()) {
       const flow = flows.nth(index);
       const lines = flow.getByRole('list', { name: m['labDelta.lines'] ?? '' });
-      if (step.changed.length === 0) {
+      // N-DLV-4: a passed step whose condition the request's work does not look up says so in one line.
+      const notLookedUp = step.passed && step.notLookedUp ? step.notLookedUp : null;
+      if (step.changed.length === 0 && notLookedUp === null) {
         await expect(flow).toContainText(m['labDelta.none'] ?? '');
-      } else {
+      } else if (step.changed.length > 0) {
         await expect(lines.locator(':scope > li')).toHaveCount(step.changed.length);
       }
       for (const line of step.changed) {
@@ -532,6 +535,9 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
         // A step the server did not compare says so and is never shown as passed.
         await expect(flow).toContainText(m[`labDelta.notCompared.${step.notCompared}`] ?? '');
         await expect(flow).not.toContainText(m['labDelta.passed'] ?? '');
+      } else if (notLookedUp !== null) {
+        await expect(flow).toContainText(m[`labDelta.notLookedUp.${notLookedUp}`] ?? '');
+        await expect(flow).not.toContainText(m['labDelta.none'] ?? '');
       } else if (step.passed) {
         // The other lines are counted when the server says how many.
         await expect(flow).toContainText(

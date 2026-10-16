@@ -1,30 +1,20 @@
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import type { BeforeSendView } from '../../api/anatomy';
 import { useLabBefore, useLabOptions } from '../../api/lab';
 import { SourceMark } from '../../components/common/SourceMark';
 import { Icon } from '../../components/Icon';
 import { NextLink } from '../../components/journey/StepParts';
 import { StateScreen } from '../../components/StateScreen';
 import { LabScreen } from './LabScreen';
+import { LineCell } from './LineCell';
 import { CONDITION_KEYS, conditionText, labQuery, readChanges } from './labPlace';
 import styles from './LabPages.module.css';
-
-/** The four conditions of the judgment rules' elevated-risk boundary, in the rule's order. */
-const BOUNDARY = ['sensitive', 'established', 'departs', 'approvalMissing'] as const;
-
-function boundaryState(view: BeforeSendView | null): 'applies' | 'clear' | 'unknown' | 'none' {
-  if (!view) {
-    return 'none';
-  }
-  return view.boundary.applies === null ? 'unknown' : view.boundary.applies ? 'applies' : 'clear';
-}
 
 /**
  * L2-2, the comparison before sending (lab-compare, 7.6): what the engine received in the latest real run of the
  * designed case and of the changed one, side by side: the differences from the usual, the company records flagged and
- * whether the judgment rules' hard line applies (the portal reads its four conditions from the engine's input). A
- * changed case has no right answer set in advance; without a run of the same conditions there is no comparison yet.
+ * whether a line the judgment rules always keep applies (LineCell). A changed case has no right answer set in
+ * advance; without a run of the same conditions there is no comparison yet.
  */
 export default function LabBeforePage() {
   const { t, i18n } = useTranslation();
@@ -109,33 +99,7 @@ export default function LabBeforePage() {
             </p>
           </section>
         ))}
-        <section className={styles.compareCell} aria-labelledby="before-line">
-          <h2 id="before-line" className={styles.panelTitle}>
-            {t('labBefore.cell.line')}
-          </h2>
-          <p className={styles.compareValue}>
-            {changed ? (
-              <>
-                <span>{t(`labBefore.line.${boundaryState(designed)}`)}</span>
-                <Icon name="arrowRight" className={styles.compareArrow} />
-              </>
-            ) : null}
-            <span className={styles.compareNow}>{t(`labBefore.line.${boundaryState(now)}`)}</span>
-          </p>
-          {now ? (
-            <ul className={styles.lineConditions}>
-              {BOUNDARY.map((condition) => {
-                const value = now.boundary[condition];
-                return (
-                  <li key={condition} data-met={value === true || undefined}>
-                    <Icon name={value === true ? 'check' : value === false ? 'cross' : 'dash'} />
-                    {t(`labBefore.condition.${condition}`)}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </section>
+        <LineCell designed={designed} now={now} changed={changed} />
       </div>
       {changed && !composed.isPending && now === null ? (
         <p className={styles.note}>{t('labBefore.noRecord')}</p>

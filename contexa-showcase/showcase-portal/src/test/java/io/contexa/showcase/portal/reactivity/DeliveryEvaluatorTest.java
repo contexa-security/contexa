@@ -165,6 +165,275 @@ class DeliveryEvaluatorTest {
                 .isEqualTo(3);
     }
 
+    @Test
+    void aTimeChangeMayMoveTheFactsThatFollowTheRequestTime() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Time", "value": "03:17 Wed"},
+                           {"label": "UsualHours", "value": "10-11, 13-14"},
+                           {"label": "PastRecord1", "value": "09-29 Tue 13:52 (13 h before this request)"},
+                           {"label": "OnCall", "value": "not on call"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Time", "value": "14:20 Wed"},
+                           {"label": "UsualHours", "value": "09-11, 13-14"},
+                           {"label": "PastRecord1", "value": "09-29 Tue 13:52 (24 h before this request)"},
+                           {"label": "OnCall", "value": "not on call"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "timeSlot");
+
+        assertThat(delivery.delivered()).containsExactly("Time");
+        assertThat(delivery.derived()).containsExactly("PastRecord1", "UsualHours");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void aFactDerivedFromAnotherConditionIsStillUnexpected() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Network", "value": "10.40.12.0/24 zone CORPORATE"},
+                           {"label": "ResourceClass", "value": "CRITICAL"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Network", "value": "203.0.113.0/24 zone EXTERNAL"},
+                           {"label": "ResourceClass", "value": "NORMAL"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "place");
+
+        assertThat(delivery.derived()).isEmpty();
+        assertThat(delivery.unexpected()).containsExactly("ResourceClass");
+        assertThat(delivery.passed()).isFalse();
+    }
+
+    @Test
+    void aConditionThatChangedOnlyDerivedFactsIsNotDelivered() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Target", "value": "Export of 4831 documents"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Target", "value": "Export of 40 documents"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "items");
+
+        assertThat(delivery.derived()).containsExactly("Target");
+        assertThat(delivery.delivered()).isEmpty();
+        assertThat(delivery.passed()).as("the expected Size line did not change").isFalse();
+    }
+
+    @Test
+    void everyDerivedFactOfTheResourceHasItsReason() throws Exception {
+        JsonNode derived;
+        try (var stream = DeliveryEvaluator.class.getResourceAsStream("/reactivity/delivery-expected.json")) {
+            derived = JSON.readTree(stream).path("derived");
+        }
+        assertThat(derived.size()).isEqualTo(6);
+        derived.fields().forEachRemaining(condition -> {
+            assertThat(condition.getValue().path("because").asText()).as(condition.getKey()).isNotBlank();
+            assertThat(condition.getValue().path("facts").size()).as(condition.getKey()).isPositive();
+        });
+    }
+
+    @Test
+    void aRecordConditionTheOperationDoesNotLookUpIsComparedAsInvariant() throws Exception {
+        PromptFacts base = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "TICKET", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "Subject", "value": "lab-adm-a"},
+                           {"label": "PolicySatisfied", "value": "no - no ticket covers this read"}]}""");
+        PromptFacts variant = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "TICKET", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "Subject", "value": "lab-adm-b"},
+                           {"label": "PolicySatisfied", "value": "no - no ticket covers this read"}]}""");
+
+        DeliveryEvaluator.Delivery approval = evaluator.compare(base, variant, "approval", "true");
+        DeliveryEvaluator.Delivery onCall = evaluator.compare(base, variant, "onCall", "true");
+
+        assertThat(approval.notLookedUp()).isEqualTo("APPROVAL");
+        assertThat(approval.valueMatches()).as("the value cannot reach the prompt").isNull();
+        assertThat(approval.passed()).isTrue();
+        assertThat(onCall.notLookedUp()).isEqualTo("ON_CALL");
+        assertThat(onCall.passed()).isTrue();
+    }
+
+    @Test
+    void aChangedFactOfAConditionNotLookedUpFails() throws Exception {
+        PromptFacts base = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "TICKET", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "OnCall", "value": "not on call"}]}""");
+        PromptFacts variant = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "TICKET", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "OnCall", "value": "on call (ops)"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "onCall", "true");
+
+        assertThat(delivery.unexpected()).containsExactly("OnCall");
+        assertThat(delivery.passed()).isFalse();
+    }
+
+    @Test
+    void aRecordConditionTheOperationLooksUpIsComparedAsBefore() throws Exception {
+        PromptFacts base = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "APPROVAL", "TICKET", "ON_CALL", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "PolicySatisfied", "value": "no - no approval for GB-500"}]}""");
+        PromptFacts variant = facts("""
+                {"checkedRecordKinds": ["ASSIGNMENT", "APPROVAL", "TICKET", "ON_CALL", "ACCESS_HISTORY", "TRAVEL"],
+                 "lines": [{"label": "PolicySatisfied", "value": "yes - approval APR-1"},
+                           {"label": "Approval", "value": "APR-1 by pm-11 - covers this request"}]}""");
+
+        DeliveryEvaluator.Delivery delivered = evaluator.compare(base, variant, "approval", "true");
+        DeliveryEvaluator.Delivery missed = evaluator.compare(base, base, "approval", "true");
+
+        assertThat(delivered.notLookedUp()).isNull();
+        assertThat(delivered.delivered()).containsExactly("Approval", "PolicySatisfied");
+        assertThat(delivered.passed()).isTrue();
+        assertThat(missed.passed()).as("a looked-up approval that changed nothing is not delivered").isFalse();
+    }
+
+    @Test
+    void aClaimedTicketIsComparedAsInvariantWhereTheOperationDoesNotReadClaims() throws Exception {
+        PromptFacts read = facts("""
+                {"actionFamily": "READ", "lines": [{"label": "Ticket", "value": "no ticket found"}]}""");
+        PromptFacts export = facts("""
+                {"actionFamily": "EXPORT", "lines": [{"label": "Ticket", "value": "no ticket found"}]}""");
+
+        DeliveryEvaluator.Delivery onRead = evaluator.compare(read, read, "claim", "FAKE");
+        DeliveryEvaluator.Delivery onExport = evaluator.compare(export, export, "claim", "FAKE");
+
+        assertThat(onRead.notLookedUp()).isEqualTo("CLAIMED_TICKET");
+        assertThat(onRead.passed()).as("nothing changed where nothing reads the claim").isTrue();
+        assertThat(onExport.notLookedUp()).isNull();
+        assertThat(onExport.passed()).as("an export reads the claim; an unchanged Ticket is not delivered").isFalse();
+    }
+
+    @Test
+    void aSealThatDoesNotSayWhatWasLookedUpIsComparedAsBefore() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Subject", "value": "lab-adm-a"}]}""");
+
+        DeliveryEvaluator.Delivery approval = evaluator.compare(base, base, "approval", "true");
+        DeliveryEvaluator.Delivery claim = evaluator.compare(base, base, "claim", "FAKE");
+
+        assertThat(base.checkedRecordKinds()).isNull();
+        assertThat(base.actionFamily()).isNull();
+        assertThat(approval.notLookedUp()).isNull();
+        assertThat(approval.passed()).isFalse();
+        assertThat(claim.notLookedUp()).isNull();
+        assertThat(claim.passed()).isFalse();
+    }
+
+    @Test
+    void thePolicyTheTargetAndTheRequestPathFollowTheEmployee() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Subject", "value": "lab-adm-a"},
+                           {"label": "PolicySatisfied", "value": "no - not assigned to PRJ-ATLAS"},
+                           {"label": "Target", "value": "Document ATL-DWG-00002 of project PRJ-ATLAS"},
+                           {"label": "UntrustedText1", "value": "GET /api/documents/ATL-DWG-00002"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Subject", "value": "lab-eng-01"},
+                           {"label": "PolicySatisfied", "value": "yes - assigned to HX-310"},
+                           {"label": "Target", "value": "Document HX-310-DWG-00002 of project HX-310"},
+                           {"label": "UntrustedText1", "value": "GET /api/documents/HX-310-DWG-00002"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "employee", "eng-01");
+
+        assertThat(delivery.delivered()).containsExactly("Subject");
+        assertThat(delivery.derived()).containsExactly("PolicySatisfied", "Target", "UntrustedText1");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void everyConditionOfTheApplicabilityTableSaysWhatItNeeds() throws Exception {
+        JsonNode applies;
+        try (var stream = DeliveryEvaluator.class.getResourceAsStream("/reactivity/delivery-expected.json")) {
+            applies = JSON.readTree(stream).path("applies");
+        }
+        JsonNode conditions = applies.path("conditions");
+        assertThat(applies.path("because").asText()).isNotBlank();
+        assertThat(conditions.size()).isEqualTo(4);
+        assertThat(conditions.path("approval").path("recordKind").asText()).isEqualTo("APPROVAL");
+        assertThat(conditions.path("onCall").path("recordKind").asText()).isEqualTo("ON_CALL");
+        assertThat(conditions.path("ticket").path("recordKind").asText()).isEqualTo("TICKET");
+        assertThat(conditions.path("claim").path("actionFamilies").get(0).asText()).isEqualTo("EXPORT");
+        assertThat(conditions.path("claim").path("lookup").asText()).isEqualTo("CLAIMED_TICKET");
+    }
+
+    @Test
+    void aLaterStepMayChangeTheLinesThatFollowTheRunsEarlierSteps() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Time", "value": "14:21 Wed"},
+                           {"label": "RequestsInSession", "value": "1 so far: 14:20 EXPORT -> ALLOW"},
+                           {"label": "PeerReference", "value": "hour 14: 20% of the organization"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Time", "value": "03:18 Wed"},
+                           {"label": "RequestsInSession", "value": "1 so far: 03:17 EXPORT -> ALLOW"},
+                           {"label": "PeerReference", "value": "hour 14: 16% of the organization"}]}""");
+
+        DeliveryEvaluator.Delivery second = evaluator.compare(base, variant, "timeSlot", "DAWN", 2);
+
+        assertThat(second.delivered()).containsExactly("Time");
+        assertThat(second.derived()).containsExactly("PeerReference", "RequestsInSession");
+        assertThat(second.unexpected()).isEmpty();
+        assertThat(second.valueMatches()).as("only the first step says the requested time").isNull();
+        assertThat(second.passed()).isTrue();
+    }
+
+    @Test
+    void theSameChangesOnTheFirstStepFail() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Time", "value": "14:20 Wed"},
+                           {"label": "RequestsInSession", "value": "none so far"},
+                           {"label": "PeerReference", "value": "hour 14: 20% of the organization"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Time", "value": "03:17 Wed"},
+                           {"label": "RequestsInSession", "value": "1 so far: 03:16 READ -> ALLOW"},
+                           {"label": "PeerReference", "value": "hour 14: 16% of the organization"}]}""");
+
+        DeliveryEvaluator.Delivery first = evaluator.compare(base, variant, "timeSlot", "DAWN", 1);
+
+        assertThat(first.valueMatches()).isTrue();
+        assertThat(first.unexpected()).containsExactly("PeerReference", "RequestsInSession");
+        assertThat(first.passed()).isFalse();
+    }
+
+    @Test
+    void thePeerReferenceOfALaterStepFollowsOnlyTheTimeSlot() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Network", "value": "10.40.12.0/24 zone CORPORATE"},
+                           {"label": "RequestsInSession", "value": "1 so far: 14:20 EXPORT -> ALLOW"},
+                           {"label": "PeerReference", "value": "hour 14: 20% of the organization"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Network", "value": "203.0.113.0/24 zone EXTERNAL"},
+                           {"label": "RequestsInSession", "value": "1 so far: 14:20 EXPORT -> CHALLENGE"},
+                           {"label": "PeerReference", "value": "hour 14: 16% of the organization"}]}""");
+
+        DeliveryEvaluator.Delivery second = evaluator.compare(base, variant, "place", "EXTERNAL", 2);
+
+        assertThat(second.derived()).containsExactly("RequestsInSession");
+        assertThat(second.unexpected()).containsExactly("PeerReference");
+        assertThat(second.passed()).isFalse();
+    }
+
+    @Test
+    void onlyTheFirstStepMustDeliverAnExpectedFact() throws Exception {
+        PromptFacts step = facts("""
+                {"lines": [{"label": "Target", "value": "Document HX-310-DWG-00002 of project HX-310"}]}""");
+
+        DeliveryEvaluator.Delivery second = evaluator.compare(step, step, "items", "40", 2);
+        DeliveryEvaluator.Delivery first = evaluator.compare(step, step, "items", "40", 1);
+
+        assertThat(second.passed()).as("the item count is the first step's").isTrue();
+        assertThat(first.passed()).isFalse();
+    }
+
+    @Test
+    void everyLaterStepFactOfTheResourceHasItsReason() throws Exception {
+        JsonNode laterSteps;
+        try (var stream = DeliveryEvaluator.class.getResourceAsStream("/reactivity/delivery-expected.json")) {
+            laterSteps = JSON.readTree(stream).path("laterSteps");
+        }
+        assertThat(laterSteps.size()).isEqualTo(2);
+        assertThat(laterSteps.path("*").path("facts").path(0).asText()).isEqualTo("RequestsInSession");
+        assertThat(laterSteps.path("timeSlot").path("facts").path(0).asText()).isEqualTo("PeerReference");
+        laterSteps.fields().forEachRemaining(condition ->
+                assertThat(condition.getValue().path("because").asText()).as(condition.getKey()).isNotBlank());
+    }
+
     private static PromptFacts facts(String json) throws Exception {
         JsonNode node = JSON.readTree(json);
         return PromptFacts.of(node);

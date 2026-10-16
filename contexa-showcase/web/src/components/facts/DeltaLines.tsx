@@ -23,6 +23,15 @@ function StepCheck({ step }: { readonly step: DeltaStep }) {
       </p>
     );
   }
+  if (step.passed && step.notLookedUp) {
+    // N-DLV-4: the request's work does not look the condition up; one line says no line changing is right.
+    return (
+      <p className={styles.check} data-ok={step.passed}>
+        <Icon name="check" />
+        {t(`labDelta.notLookedUp.${step.notLookedUp}`)}
+      </p>
+    );
+  }
   return (
     <>
       <p className={styles.check} data-ok={step.passed}>
@@ -54,7 +63,9 @@ function StepCheck({ step }: { readonly step: DeltaStep }) {
  * The lab result's changed lines (U-5, lab-3): the condition changed, the lines of the AI input it changed (before and
  * after, as sent) and the decision, joined by arrows, then the server's delivery check: the changed value went into
  * that line only, or a cross with the lines that changed though they were not expected to (C-22). A step the server
- * did not compare says so and is never shown as passed; a run without a delta says why.
+ * did not compare says so and is never shown as passed; a run without a delta says why. A passed step
+ * whose condition the request's work does not look up says so in one line, the lines cell left with a dash
+ * (N-DLV-4).
  */
 export function DeltaLines({ delta, verdict }: DeltaLinesProps) {
   const { t } = useTranslation();
@@ -100,6 +111,8 @@ export function DeltaLines({ delta, verdict }: DeltaLinesProps) {
                       </li>
                     ))}
                   </ul>
+                ) : step.passed && step.notLookedUp ? (
+                  <span className={styles.empty}>-</span>
                 ) : (
                   <span className={styles.empty}>{t('labDelta.none')}</span>
                 )}

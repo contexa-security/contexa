@@ -456,6 +456,56 @@ describe('lab changed lines', () => {
     expect(screen.getByRole('list', { name: word('labDelta.lines') }).querySelectorAll('li[data-unexpected]')).toHaveLength(1);
   });
 
+  it('says in one line that the request does not look the condition up, not that no line changed', () => {
+    const notLookedUp: LabDelta = {
+      ...delta,
+      steps: [
+        {
+          stepNo: 1,
+          changed: [],
+          expected: ['Subject'],
+          unexpected: [],
+          valueMatches: null,
+          passed: true,
+          notCompared: null,
+          unchangedLines: 37,
+          notLookedUp: 'APPROVAL',
+        },
+      ],
+    };
+    render(<DeltaLines delta={notLookedUp} verdict="CHALLENGE" />);
+    expect(screen.getByText(word('labDelta.notLookedUp.APPROVAL'))).toBeInTheDocument();
+    expect(screen.queryByText(word('labDelta.none'))).not.toBeInTheDocument();
+    expect(screen.queryByText(fill('labDelta.passedCount', { n: 37 }))).not.toBeInTheDocument();
+    expect(screen.queryByText(word('labDelta.passed'))).not.toBeInTheDocument();
+  });
+
+  it('shows the cross and the lines when a condition the request does not look up changed lines', () => {
+    const changedAnyway: LabDelta = {
+      ...delta,
+      steps: [
+        {
+          stepNo: 1,
+          changed: [{ label: 'OnCall', before: ['not on call'], after: ['on call (ops)'] }],
+          expected: ['Subject'],
+          unexpected: ['OnCall'],
+          valueMatches: null,
+          passed: false,
+          notCompared: null,
+          notLookedUp: 'ON_CALL',
+        },
+      ],
+    };
+    const { container } = render(<DeltaLines delta={changedAnyway} verdict="CHALLENGE" />);
+    expect(screen.getByText(word('labDelta.failed'))).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: word('labDelta.unexpected') })).toHaveTextContent(
+      word('fact.label.OnCall'),
+    );
+    expect(container).not.toHaveTextContent(
+      KO['labDelta.notLookedUp.ON_CALL'] ?? 'labDelta.notLookedUp.ON_CALL',
+    );
+  });
+
   it('shows a step the server did not compare as not compared, never as passed', () => {
     const notCompared: LabDelta = {
       ...delta,
@@ -475,6 +525,30 @@ describe('lab changed lines', () => {
     expect(screen.getByText(word('labDelta.notCompared.NOT_SEALED'))).toBeInTheDocument();
     expect(screen.queryByText(word('labDelta.passed'))).not.toBeInTheDocument();
     expect(screen.queryByText(word('labDelta.failed'))).not.toBeInTheDocument();
+  });
+
+  it('says why only one of the two runs sealed a step, never as passed', () => {
+    for (const reason of ['NOT_SEALED_ONE_SIDE', 'NOT_SEALED_AFTER_DIFFERENT_DECISION'] as const) {
+      const oneSide: LabDelta = {
+        ...delta,
+        steps: [
+          {
+            stepNo: 2,
+            changed: [],
+            expected: ['PolicySatisfied'],
+            unexpected: [],
+            valueMatches: null,
+            passed: false,
+            notCompared: reason,
+          },
+        ],
+      };
+      const { container } = render(<DeltaLines delta={oneSide} verdict="CHALLENGE" />);
+      const flow = within(container);
+      expect(flow.getByText(word(`labDelta.notCompared.${reason}`))).toBeInTheDocument();
+      expect(flow.queryByText(word('labDelta.notCompared.NOT_SEALED'))).not.toBeInTheDocument();
+      expect(flow.queryByText(word('labDelta.passed'))).not.toBeInTheDocument();
+    }
   });
 
   it('says why a run has no changed lines', () => {
