@@ -2,8 +2,15 @@ package io.contexa.autoconfigure.iam.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.handler.handler.SealedEvidenceCaptureHandler;
+import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelection;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleSelector;
 import io.contexa.contexacore.verification.capture.SealedEvidenceLayer1CompletionAspect;
+import io.contexa.contexacore.verification.capture.SealedEvidenceLayer2CompletionAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptCaptureAspect;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import io.contexa.contexacore.verification.evidence.CanonicalSecurityContextSerializer;
@@ -12,7 +19,9 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembl
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRetentionScheduler;
+import io.contexa.contexacore.verification.evidence.SealedEvidenceShadowSealer;
 import io.contexa.contexacore.verification.evidence.VersionChangeCaptureSampling;
+import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptGovernanceDescriptorResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -26,6 +35,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.time.Clock;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -102,6 +112,13 @@ public class PqaSealedEvidenceAutoConfiguration {
             return new SealedEvidenceLayer1CompletionAspect(sealedEvidencePromptTraceStore);
         }
 
+        @Bean(name = "pqaOssSealedEvidenceLayer2CompletionAspect")
+        @ConditionalOnMissingBean(SealedEvidenceLayer2CompletionAspect.class)
+        public SealedEvidenceLayer2CompletionAspect pqaOssSealedEvidenceLayer2CompletionAspect(
+                SealedEvidencePromptTraceStore sealedEvidencePromptTraceStore) {
+            return new SealedEvidenceLayer2CompletionAspect(sealedEvidencePromptTraceStore);
+        }
+
         @Bean(name = "pqaOssSealedEvidencePackageAssembler")
         @ConditionalOnMissingBean(SealedEvidencePackageAssembler.class)
         public SealedEvidencePackageAssembler pqaOssSealedEvidencePackageAssembler(
@@ -116,6 +133,34 @@ public class PqaSealedEvidenceAutoConfiguration {
                     sealedEvidencePackageIntegrity,
                     sealedEvidencePromptTraceStore,
                     properties.getRetention().getPeriod());
+        }
+
+        /**
+         * W6-9 (P6-CHANGE-6): the shadow run of the registry's shadow release, on when a sample share is set. The
+         * shadow release is read from the registry whichever selector chooses the decision's bundle, so a host that
+         * runs its configured bundle can try a candidate in the shadow without handing the decision to the registry.
+         */
+        @Bean(name = "pqaOssPromptShadowRunner")
+        @ConditionalOnMissingBean(PromptShadowRunner.class)
+        @ConditionalOnProperty(prefix = "contexa.security.tiered.prompt-bundle.shadow", name = "sample-percent")
+        public PromptShadowRunner pqaOssPromptShadowRunner(ObjectProvider<PromptBundleSelector> selector,
+                                                           ObjectProvider<PromptGovernanceDescriptorResolver> resolver,
+                                                           SecurityDecisionStandardPromptTemplate template,
+                                                           SealedEvidencePackageAssembler assembler,
+                                                           SealedEvidencePackageRepository repository,
+                                                           TieredStrategyProperties properties) {
+            TieredStrategyProperties.PromptBundle.Shadow shadow = properties.getPromptBundle().getShadow();
+            PromptBundleSelector shadowSource = selector.getIfAvailable(() ->
+                    resolver.getIfAvailable() instanceof JdbcPromptGovernanceDescriptorResolver registry
+                            ? registry.registrySelector()
+                            : (context, subject) -> PromptBundleSelection.none());
+            return new PromptShadowRunner(shadowSource,
+                    template::resolutionContextOf, Executors.newSingleThreadExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "prompt-shadow-run");
+                        thread.setDaemon(true);
+                        return thread;
+                    }), new SealedEvidenceShadowSealer(assembler, repository), shadow.getSamplePercent(),
+                    shadow.getDailyCallCap(), Clock.systemUTC());
         }
 
         /** R4-S6, decision D-B: a stable share of the requests, and every decision of the window after a change. */

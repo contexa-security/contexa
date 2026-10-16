@@ -41,6 +41,10 @@ public class ExecutionContext {
 
     /** Set when the output schema went out with the provider options (W4-2). */
     public static final String OUTPUT_SCHEMA_APPLIED = "outputSchemaApplied";
+    /** W4-6: the determinism settings the call asked for that the provider's options do not carry. */
+    public static final String DETERMINISM_NOT_APPLIED = "determinismNotApplied";
+    /** W4-6: the reasoning effort the provider options carried on the call. */
+    public static final String PROVIDER_REASONING_EFFORT = "providerReasoningEffort";
 
     private Prompt prompt;
     private String requestId;

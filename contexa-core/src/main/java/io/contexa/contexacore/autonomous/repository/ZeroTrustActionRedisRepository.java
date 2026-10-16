@@ -107,6 +107,9 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     private final StringRedisTemplate stringRedisTemplate;
     private final Duration failCountTtl;
 
+    /** Set by a final write the calling thread made that a stricter action in effect kept out (W5-3). */
+    private final ThreadLocal<Boolean> finalWriteKeptStricter = new ThreadLocal<>();
+
     public ZeroTrustActionRedisRepository(RedisTemplate<String, Object> redisTemplate,
                                           StringRedisTemplate stringRedisTemplate) {
         this(redisTemplate, stringRedisTemplate, DEFAULT_FAIL_COUNT_TTL);
@@ -438,6 +441,7 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             return false;
         }
         if (written != null && written == 0L) {
+            finalWriteKeptStricter.set(Boolean.TRUE);
             return true;
         }
 
@@ -458,6 +462,20 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             log.error("[ZeroTrustActionRedisRepository] Failed to verify final action write: userId={}, action={}",
                     userId, action, exception);
             return false;
+        }
+    }
+
+    @Override
+    public FinalActionWrite writeFinalAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields) {
+        finalWriteKeptStricter.remove();
+        try {
+            if (!saveFinalAction(userId, action, additionalFields)) {
+                return FinalActionWrite.FAILED;
+            }
+            return Boolean.TRUE.equals(finalWriteKeptStricter.get())
+                    ? FinalActionWrite.KEPT_STRICTER : FinalActionWrite.APPLIED;
+        } finally {
+            finalWriteKeptStricter.remove();
         }
     }
 

@@ -16,9 +16,12 @@
 package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.Executor;
@@ -29,6 +32,11 @@ public class SecurityLearningService {
     private final BaselineLearningService baselineLearningService;
     private final SecurityDecisionPostProcessor postProcessor;
     private final Executor postProcessExecutor;
+
+    /** The name the decision document of an analysis layer is staged under until its decision is enforced (W5-3). */
+    public static final String DECISION_DOCUMENT = "SECURITY_DECISION_DOCUMENT";
+
+    private volatile ContextObservationRecorder contextObservationRecorder;
 
     public SecurityLearningService(BaselineLearningService baselineLearningService,
                                    SecurityDecisionPostProcessor postProcessor) {
@@ -59,7 +67,15 @@ public class SecurityLearningService {
             }
         }
 
-        postProcessDecision(event, decision);
+        if (postProcessor == null) {
+            return;
+        }
+        // The decision of these paths is already in effect (a verified user, an approved override), so its document
+        // is stored at once.
+        postProcessExecutor.execute(() -> {
+            postProcessor.updateSessionContext(event, decision);
+            postProcessor.storeInVectorDatabase(event, decision);
+        });
     }
 
     /**
@@ -78,16 +94,45 @@ public class SecurityLearningService {
     }
 
     /**
-     * Session context update + vector DB storage only.
-     * Use for analysis layer results (Layer1, Layer2) where baseline learning is not needed.
+     * Baseline learning and vector storage of a request learned after it waited for promotion (W5-1). The session
+     * context is not updated again: the request was recorded in its session when it was decided. The stored
+     * record replaces the held one of the same event.
      */
-    public void postProcessDecision(SecurityEvent event, SecurityDecision decision) {
+    public void learnPromoted(String userId, SecurityDecision decision, SecurityEvent event) {
+        learnBaselineOnly(userId, decision, event);
         if (postProcessor == null) {
             return;
         }
-        postProcessExecutor.execute(() -> {
-            postProcessor.updateSessionContext(event, decision);
-            postProcessor.storeInVectorDatabase(event, decision);
+        postProcessExecutor.execute(() -> postProcessor.storeInVectorDatabase(event, decision));
+    }
+
+    /** Ties the decision documents of the analysis layers to the outcome the enforcement applies (W5-3). */
+    public void setContextObservationRecorder(ContextObservationRecorder contextObservationRecorder) {
+        this.contextObservationRecorder = contextObservationRecorder;
+    }
+
+    /**
+     * The session context update of an analysis layer's result (Layer1, Layer2), and its decision document once the
+     * decision is enforced (W5-3): the document is staged with the request's observations and stored when the
+     * enforcement commits the same outcome as applied. A shadow decision, a result without processing ownership, an
+     * ALLOW kept out by a stricter action in effect, or an earlier layer's result replaced by a later one stores no
+     * document. Without the recorder no outcome is known, so no document is stored.
+     */
+    public void postProcessDecision(SecurityEvent event, SecurityDecision decision) {
+        // W6-9: a shadow run's copy leaves the session and the decision documents alone.
+        if (postProcessor == null || PromptShadowRun.isShadow(event)) {
+            return;
+        }
+        postProcessExecutor.execute(() -> postProcessor.updateSessionContext(event, decision));
+        ContextObservationRecorder recorder = contextObservationRecorder;
+        ZeroTrustAction decided = decision != null ? decision.resolveAutonomousAction() : null;
+        if (recorder == null || decided == null) {
+            return;
+        }
+        recorder.stage(event, DECISION_DOCUMENT, null, commit -> {
+            if (commit.enforced() && decided.name().equalsIgnoreCase(String.valueOf(commit.outcome()))) {
+                postProcessExecutor.execute(() -> postProcessor.storeInVectorDatabase(event, decision));
+            }
         });
     }
 }

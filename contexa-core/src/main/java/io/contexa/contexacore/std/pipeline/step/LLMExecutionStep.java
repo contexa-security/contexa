@@ -18,8 +18,13 @@ package io.contexa.contexacore.std.pipeline.step;
 import io.contexa.contexacore.util.SensitiveValueSanitizer;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
@@ -35,16 +40,23 @@ import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservati
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvisor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
+import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class LLMExecutionStep implements PipelineStep {
+
+    private static final String OUTPUT_TRUNCATED = "OUTPUT_TRUNCATED";
 
     private final SecurityDecisionRawOutputContractInspector rawOutputContractInspector =
             new SecurityDecisionRawOutputContractInspector();
@@ -80,6 +92,9 @@ public class LLMExecutionStep implements PipelineStep {
             "actualTokenUsageAvailable",
             "promptCacheHit",
             "cachedPromptTokens",
+            ExecutionContext.DETERMINISM_NOT_APPLIED,
+            ExecutionContext.PROVIDER_REASONING_EFFORT,
+            "providerFinishReason",
             "promptCacheKeyApplied",
             ExecutionContext.OUTPUT_SCHEMA_APPLIED,
             "chatModelClass",
@@ -355,32 +370,64 @@ public class LLMExecutionStep implements PipelineStep {
                 null,
                 StructuredOutputMode.LEGACY_RAW,
                 StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+        // W4-5 (plan 7): the minimum action rules are checked here only in enforce mode; observe mode records them.
+        SecurityDecisionRawOutputContractInspector.MinimumActionCheck ruleCheck = minimumActionCheck(request);
+        // W4-8: a v20 decision is checked on the facts its prompt was drawn from.
+        SecurityDecisionRawOutputContractInspector.V20Check v20Check = v20Check(request, context);
         return executeRaw(executionContext, context)
                 .flatMap(rawResponse -> {
                     Inspection initialCheck = rawOutputContractInspector.inspect(
                             rawResponse,
                             prompt,
                             request.getRequestId(),
-                            "initial");
+                            "initial",
+                            ruleCheck,
+                            v20Check);
                     if (!initialCheck.requiresRetry()) {
                         return Mono.just(rawResponse);
                     }
-                    recordInitialSecurityDecisionFailure(context, initialCheck);
+                    recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
+                    // W4-5: an answer cut at the output limit is asked again with twice the limit; any other violation is
+                    // retried once with the answer and what was wrong with it, after the same prompt.
+                    boolean truncated = truncatedAtTheOutputLimit(executionContext);
+                    String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
                     context.addMetadata("securityDecisionOutputRetryAttempted", true);
-                    context.addMetadata("securityDecisionOutputRetryReason", initialCheck.retryReason());
-                    return executeRaw(executionContext, context)
+                    context.addMetadata("securityDecisionOutputRetryReason", retryReason);
+                    ExecutionContext retryContext = buildExecutionContext(
+                            truncated ? prompt : correctivePrompt(prompt, rawResponse, retryReason),
+                            request,
+                            context,
+                            null,
+                            StructuredOutputMode.LEGACY_RAW,
+                            StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+                    if (truncated && executionContext.getMaxTokens() != null) {
+                        retryContext.setMaxTokens(executionContext.getMaxTokens() * 2);
+                    }
+                    return executeRaw(retryContext, context)
                             .map(retryResponse -> {
                                 Inspection retryCheck = rawOutputContractInspector.inspect(
                                         retryResponse,
                                         prompt,
                                         request.getRequestId(),
-                                        "retry");
+                                        "retry",
+                                        ruleCheck,
+                                        v20Check);
                                 boolean succeeded = !retryCheck.requiresRetry();
                                 context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
+                                // N-OUT-1 (G1-2): the retry answer as it came and the action read from it.
+                                context.addMetadata("securityDecisionRetryRawOutput", retryResponse);
+                                if (!retryCheck.parsingFallback() && retryCheck.response() != null) {
+                                    context.addMetadata("securityDecisionRetryAction", retryCheck.response().getAction());
+                                }
                                 if (!succeeded) {
                                     context.addMetadata(
                                             "securityDecisionOutputRetryFailureReason",
                                             retryCheck.retryReason());
+                                    // N-OUT-1 (G1-1): the parser takes this fallback for the empty answer.
+                                    context.addMetadata(
+                                            SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION,
+                                            SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                                                    retryCheck.retryReason()));
                                     throw new StructuredOutputExecutionException(
                                             StructuredOutputFailureCategory.VALIDATION_FAILED,
                                             "Security decision output violated the response contract after retry: "
@@ -392,10 +439,78 @@ public class LLMExecutionStep implements PipelineStep {
                 });
     }
 
+    /**
+     * The minimum action rule check of a security decision in enforce mode: the decision facts of the canonical context
+     * the prompt was drawn from (on the event), its resource, and the settings the strategy put on the request; null in
+     * observe mode or when the facts are not there.
+     */
+    private static SecurityDecisionRawOutputContractInspector.MinimumActionCheck minimumActionCheck(AIRequest<?> request) {
+        String mode = request != null ? request.getParameter("minimumActionMode", String.class) : null;
+        if (!"ENFORCE".equalsIgnoreCase(mode != null ? mode.trim() : "")
+                || !(request.getContext() instanceof SecurityDecisionContext decision)
+                || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
+                || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
+                        instanceof CanonicalSecurityContext canonical)
+                || canonical.getDecisionFacts() == null) {
+            return null;
+        }
+        MinimumActionRules.Settings settings = request.getParameter("minimumActionSettings", MinimumActionRules.Settings.class);
+        CanonicalSecurityContext.Resource resource = canonical.getResource();
+        return new SecurityDecisionRawOutputContractInspector.MinimumActionCheck(canonical.getDecisionFacts(),
+                resource != null ? resource.getResourceClass() : null, resource != null ? resource.getActionFamily() : null,
+                settings != null ? settings : MinimumActionRules.Settings.DEFAULTS);
+    }
+
+    /**
+     * W4-8: the inputs of the v20 checks: the canonical context the prompt was drawn from (on the event), the user
+     * prompt it drew and the rule settings on the request; null when the prompt is not the v20 dictionary blocks.
+     */
+    private static SecurityDecisionRawOutputContractInspector.V20Check v20Check(AIRequest<?> request,
+                                                                             PipelineExecutionContext context) {
+        PromptGenerationResult generated = context.getStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION, PromptGenerationResult.class);
+        PromptExecutionMetadata metadata = generated != null ? generated.getPromptExecutionMetadata() : null;
+        Object layout = metadata != null && metadata.supplementalMetadata() != null
+                ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
+        if (!SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20.equals(layout)
+                || !(request.getContext() instanceof SecurityDecisionContext decision)
+                || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
+                || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
+                        instanceof CanonicalSecurityContext canonical)) {
+            return null;
+        }
+        MinimumActionRules.Settings settings = request.getParameter("minimumActionSettings", MinimumActionRules.Settings.class);
+        return new SecurityDecisionRawOutputContractInspector.V20Check(canonical, generated.getUserPrompt(),
+                settings != null ? settings : MinimumActionRules.Settings.DEFAULTS);
+    }
+
+    /** Whether the provider ended the answer at the output limit (OpenAI {@code length}, Anthropic {@code max_tokens}). */
+    private static boolean truncatedAtTheOutputLimit(ExecutionContext executionContext) {
+        Object reason = executionContext.getMetadata().get("providerFinishReason");
+        String text = reason != null ? reason.toString().trim().toLowerCase(Locale.ROOT) : "";
+        return "length".equals(text) || "max_tokens".equals(text);
+    }
+
+    /**
+     * W4-5: the prompt again with the answer it got and what was wrong with it, so the one retry corrects that answer
+     * instead of drawing a new one blind.
+     */
+    static Prompt correctivePrompt(Prompt prompt, String previousAnswer, String violation) {
+        List<Message> messages = new ArrayList<>(prompt.getInstructions());
+        messages.add(new AssistantMessage(previousAnswer != null ? previousAnswer : ""));
+        messages.add(new UserMessage("The previous answer was rejected (" + violation + "). Answer again with one JSON"
+                + " object that follows the output contract and the rules, with the action and reasons the facts in the"
+                + " prompt support."));
+        return new Prompt(messages, prompt.getOptions());
+    }
+
     private void recordInitialSecurityDecisionFailure(
             PipelineExecutionContext context,
-            Inspection check) {
+            Inspection check,
+            String rawResponse) {
         context.addMetadata("securityDecisionInitialRawOutputHash", check.rawOutputHash());
+        // N-OUT-1 (G1-2): the first answer as it came.
+        context.addMetadata("securityDecisionInitialRawOutput", rawResponse);
         context.addMetadata("securityDecisionInitialRawOutputLength", check.rawOutputLength());
         context.addMetadata("securityDecisionInitialParseFailureCategory", check.parseFailureCategory());
         if (check.parsingFallback()) {
@@ -533,6 +648,28 @@ public class LLMExecutionStep implements PipelineStep {
         if (seed != null) {
             executionContext.setSeed(seed.value());
             recordMetadata(context, executionContext, "seed", seed.value());
+        }
+        if (securityDecisionTarget) {
+            // N-OUT-1 (G1-8): the tier of the analysing layer, set after the runtime selection check since it is not a
+            // request's override.
+            ResolvedValue<Integer> platformTier = resolveIntegerParameter(request, context, "platformAnalysisTier");
+            if (platformTier != null) {
+                executionContext.setTier(platformTier.value());
+                recordMetadata(context, executionContext, "analysisTier", platformTier.value());
+            }
+            // W4-6: the platform's determinism settings, set after the runtime selection check since they are not a
+            // request's override; the options factory records the ones the provider does not take.
+            ResolvedValue<Double> platformTemperature =
+                    resolveDoubleParameter(request, context, "platformDeterminismTemperature");
+            ResolvedValue<Integer> platformSeed = resolveIntegerParameter(request, context, "platformDeterminismSeed");
+            if (platformTemperature != null) {
+                executionContext.setTemperature(platformTemperature.value());
+                recordMetadata(context, executionContext, "platformDeterminismTemperature", platformTemperature.value());
+            }
+            if (platformSeed != null) {
+                executionContext.setSeed(platformSeed.value());
+                recordMetadata(context, executionContext, "platformDeterminismSeed", platformSeed.value());
+            }
         }
         if (maxTokens != null) {
             executionContext.setMaxTokens(maxTokens.value());

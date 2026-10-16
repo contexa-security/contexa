@@ -2,6 +2,7 @@ package io.contexa.demo.comparison.attestation.source.engine;
 
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.demo.comparison.attestation.dto.HistoryFingerprint;
 import io.contexa.demo.comparison.attestation.source.InitialHistoryQuery;
 import io.contexa.demo.shared.document.DocumentCodec;
@@ -30,7 +31,13 @@ public class NativeInitialHistoryQuery implements InitialHistoryQuery {
     @Override
     public HistoryFingerprint capture(String username, HttpServletRequest request) {
         try {
-            var baseline = baselines.getUserBaseline(username);
+            // The engine keeps the baseline under the request's tenant; one learned before the tenant key is read
+            // until it moves (W5-10 D9).
+            var baseline = baselines.getUserBaseline(
+                    BaselineDataStore.userKey(RequestInfoExtractor.extractTenantId(request), username));
+            if (baseline == null) {
+                baseline = baselines.getUserBaseline(username);
+            }
             var analysis = actions.getAnalysisData(username);
             boolean originalAnalysis = analysis != null && analysis.requestId() != null;
             return new HistoryFingerprint("API_RETURN_OBSERVED", "NATIVE_USER_BASELINE_AND_ANALYSIS_READ",

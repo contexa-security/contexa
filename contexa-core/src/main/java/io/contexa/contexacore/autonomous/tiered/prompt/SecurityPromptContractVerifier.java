@@ -78,6 +78,77 @@ public final class SecurityPromptContractVerifier {
                 extractLineValue(userPrompt, "DeviceOs"),
                 firstNonBlank(extractLineValue(userPrompt, "CurrentNetwork"), extractLineValue(userPrompt, "IpBand")));
 
+        Map<String, Object> renderedLearningSnapshot = learningSnapshot(learningEvidence);
+
+        Map<String, Object> renderedLabelMatrix = new LinkedHashMap<>();
+        for (String label : SYSTEM_COMPARISON_LABELS) {
+            renderedLabelMatrix.put(label, extractLineValue(userPrompt, label));
+        }
+        if (learningEvidence != null) {
+            for (String fact : learningEvidence.carryRequiredFacts()) {
+                renderedLabelMatrix.putIfAbsent(fact, extractLineValue(userPrompt, fact));
+            }
+        }
+
+        List<String> violations = new ArrayList<>();
+        validateSystemPromptIntegrity(systemPrompt, violations);
+        validateNarrativeTimeConsistency(userPrompt, violations);
+        validateResolvedAuthorizationEffectNotMissing(userPrompt, violations);
+        validateSemanticAuthenticationVocabulary(userPrompt, current, violations);
+        validateSemanticRequestAndObservedVocabulary(userPrompt, violations);
+        validateRequiredLabels(systemPrompt, userPrompt, learningEvidence, canonicalSecurityContext, violations);
+        validatePersonalSupportingHierarchy(userPrompt, learningEvidence, violations);
+        validateWorkProfileAnchorPresence(userPrompt, learningEvidence, violations);
+        validateRoleScopeUncertainty(userPrompt, violations);
+        validateComparableSummaryProvenance(userPrompt, learningEvidence, violations);
+        validateObservedPatternScope(userPrompt, learningEvidence, violations);
+        validateCombinationEvidenceScope(userPrompt, learningEvidence, violations);
+        validatePathComparisonResolution(userPrompt, learningEvidence, violations);
+
+        return new SecurityPromptContractAudit(
+                immutableNullableMap(renderedRequestSnapshot.toMap()),
+                immutableNullableMap(renderedLearningSnapshot),
+                immutableNullableMap(renderedLabelMatrix),
+                immutableNullableMap(countCompactedLinesBySection(userPrompt)),
+                List.copyOf(new LinkedHashSet<>(violations)));
+    }
+
+    /**
+     * W4-8 (S-28, plan 9): the audit of a v20 render. The label checks of {@link #audit} read v19 labels in the prompt
+     * text, the v19 contract; the prompt inspector holds a v20 render to its dictionary. A v20 render is audited for
+     * its system text, and its snapshots are the structured sources it was drawn from: the current request of the
+     * learning evidence and the learning state. The v19 comparison labels have no v20 lines (the decision facts
+     * compare), so it has no label matrix and no compacted v19 lines.
+     */
+    public static SecurityPromptContractAudit auditV20(String systemPrompt, SecurityPromptBuildContext buildContext) {
+        LearningContextEvidence learningEvidence = buildContext != null ? buildContext.getLearningContextEvidence() : null;
+        CurrentLearningContextSnapshot current = learningEvidence != null ? learningEvidence.current() : null;
+        CanonicalSecurityContext canonical = buildContext != null ? buildContext.getCanonicalSecurityContext() : null;
+        CanonicalSecurityContext.Resource resource = canonical != null ? canonical.getResource() : null;
+        CurrentRequestSnapshot request = new CurrentRequestSnapshot(
+                null,
+                current != null ? current.accessHour() : null,
+                current != null ? current.dayOfWeek() : null,
+                current != null ? current.authenticationType() : null,
+                resource != null ? resource.getRequestPath() : null,
+                current != null ? current.pathFamily() : null,
+                current != null ? current.actionFamily() : null,
+                current != null ? current.resourceFamily() : null,
+                current != null ? current.browser() : null,
+                current != null ? current.operatingSystem() : null,
+                current != null ? current.network() : null);
+        List<String> violations = new ArrayList<>();
+        validateSystemPromptIntegrity(systemPrompt, violations);
+        return new SecurityPromptContractAudit(
+                immutableNullableMap(request.toMap()),
+                immutableNullableMap(learningSnapshot(learningEvidence)),
+                Map.of(),
+                Map.of(),
+                List.copyOf(violations));
+    }
+
+    /** The learning state the render was drawn from (structured, shared by the v19 and the v20 audit). */
+    private static Map<String, Object> learningSnapshot(LearningContextEvidence learningEvidence) {
         Map<String, Object> renderedLearningSnapshot = new LinkedHashMap<>();
         renderedLearningSnapshot.put("personalBaselineEstablished",
                 learningEvidence != null && learningEvidence.personalBaseline() != null && learningEvidence.personalBaseline().established());
@@ -115,38 +186,7 @@ public final class SecurityPromptContractVerifier {
                 learningEvidence != null ? learningEvidence.currentRequestCombinationSummary() : null);
         renderedLearningSnapshot.put("observedComparableCombination1",
                 learningEvidence != null ? learningEvidence.representativeCombinationSummary() : null);
-
-        Map<String, Object> renderedLabelMatrix = new LinkedHashMap<>();
-        for (String label : SYSTEM_COMPARISON_LABELS) {
-            renderedLabelMatrix.put(label, extractLineValue(userPrompt, label));
-        }
-        if (learningEvidence != null) {
-            for (String fact : learningEvidence.carryRequiredFacts()) {
-                renderedLabelMatrix.putIfAbsent(fact, extractLineValue(userPrompt, fact));
-            }
-        }
-
-        List<String> violations = new ArrayList<>();
-        validateSystemPromptIntegrity(systemPrompt, violations);
-        validateNarrativeTimeConsistency(userPrompt, violations);
-        validateResolvedAuthorizationEffectNotMissing(userPrompt, violations);
-        validateSemanticAuthenticationVocabulary(userPrompt, current, violations);
-        validateSemanticRequestAndObservedVocabulary(userPrompt, violations);
-        validateRequiredLabels(systemPrompt, userPrompt, learningEvidence, canonicalSecurityContext, violations);
-        validatePersonalSupportingHierarchy(userPrompt, learningEvidence, violations);
-        validateWorkProfileAnchorPresence(userPrompt, learningEvidence, violations);
-        validateRoleScopeUncertainty(userPrompt, violations);
-        validateComparableSummaryProvenance(userPrompt, learningEvidence, violations);
-        validateObservedPatternScope(userPrompt, learningEvidence, violations);
-        validateCombinationEvidenceScope(userPrompt, learningEvidence, violations);
-        validatePathComparisonResolution(userPrompt, learningEvidence, violations);
-
-        return new SecurityPromptContractAudit(
-                immutableNullableMap(renderedRequestSnapshot.toMap()),
-                immutableNullableMap(renderedLearningSnapshot),
-                immutableNullableMap(renderedLabelMatrix),
-                immutableNullableMap(countCompactedLinesBySection(userPrompt)),
-                List.copyOf(new LinkedHashSet<>(violations)));
+        return renderedLearningSnapshot;
     }
 
     private static void validateNarrativeTimeConsistency(String userPrompt, List<String> violations) {

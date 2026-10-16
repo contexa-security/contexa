@@ -65,6 +65,54 @@ class SealedEvidencePackageAssemblerSealsWhatIsReadTest {
         assertThat(decision).containsEntry("reasonCodes", List.of(Map.of("code", "DEVIATION_TIME", "fact", "F1")));
     }
 
+    /** W6-6 (P6-CHANGE-4): the decision section keeps every model call stage the event recorded, in order. */
+    @Test
+    void theDecisionSectionKeepsEveryModelCallStage() throws Exception {
+        List<Map<String, Object>> stages = List.of(Map.of("layer", "Layer1", "userPromptHash", "sha256:first"),
+                Map.of("layer", "Layer2", "userPromptHash", "sha256:first"));
+        Map<String, Object> eventMetadata = new HashMap<>();
+        eventMetadata.put("modelCallStages", stages);
+
+        SealedEvidencePackage sealed = seal("req-w66", "user prompt", Map.of(), List.of(), eventMetadata);
+
+        Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), MAP);
+        assertThat(decision.get("modelCallStages")).isEqualTo(stages);
+    }
+
+    /**
+     * N-OUT-1 (G1-2, G2-8): the decision section keeps the model output: the first verdict, the re-call, the raw answers
+     * and the effective settings the call ran with.
+     */
+    @Test
+    void theDecisionSectionKeepsTheModelOutput() throws Exception {
+        Map<String, Object> eventMetadata = new HashMap<>();
+        eventMetadata.put("securityDecisionInitialProposedAction", "CHALLENGE");
+        eventMetadata.put("securityDecisionOutputRetryAttempted", true);
+        eventMetadata.put("securityDecisionOutputRetryReason", "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+        eventMetadata.put("securityDecisionInitialRawOutput", "{\"action\":\"CHALLENGE\"}");
+        eventMetadata.put("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}");
+        eventMetadata.put("maxTokens", 2048);
+        eventMetadata.put("providerReasoningEffort", "low");
+        eventMetadata.put("providerResponseModel", "gpt-6-luna-2026-09-30");
+        eventMetadata.put("providerFinishReason", "stop");
+
+        SealedEvidencePackage sealed = seal("req-n-out-1", "user prompt", Map.of(), List.of(), eventMetadata);
+
+        Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), MAP);
+        assertThat(decision.get("modelOutput")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelOutput = (Map<String, Object>) decision.get("modelOutput");
+        assertThat(modelOutput)
+                .containsEntry("securityDecisionInitialProposedAction", "CHALLENGE")
+                .containsEntry("securityDecisionOutputRetryAttempted", true)
+                .containsEntry("securityDecisionInitialRawOutput", "{\"action\":\"CHALLENGE\"}")
+                .containsEntry("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}")
+                .containsEntry("maxTokens", 2048)
+                .containsEntry("providerReasoningEffort", "low")
+                .containsEntry("providerResponseModel", "gpt-6-luna-2026-09-30")
+                .containsEntry("providerFinishReason", "stop");
+    }
+
     @Test
     void noEvidenceContractIsEvaluatedOrSealed() {
         SealedEvidencePackage sealed = seal("req-c2-1", "user prompt", Map.of(), List.of(), Map.of());

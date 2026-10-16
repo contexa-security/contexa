@@ -16,7 +16,10 @@
 package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public interface SecurityContextDataStore {
@@ -92,6 +95,35 @@ public interface SecurityContextDataStore {
     /** Takes, once, the facts kept for the user's request; null when none are kept. */
     default String takeVerificationLearning(String userId, String requestId) {
         return null;
+    }
+
+    /**
+     * Keeps, by the event of a request a restriction stopped, how its verification ended, so that the record of the
+     * decision stored after the verification ended still takes the outcome (W5-4). A store that keeps none leaves
+     * such a record without it.
+     */
+    default void recordVerificationOutcome(String eventId, String outcome) {
+    }
+
+    /** How the verification of the event's stopped request ended; null when none is kept. */
+    default String verificationOutcome(String eventId) {
+        return null;
+    }
+
+    /**
+     * Keeps an allowed request whose first-seen values wait for promotion before they are learned (W5-1). A store
+     * that keeps none cannot promote them.
+     */
+    default void holdPromotionLearning(String userId, String requestId, String record) {
+    }
+
+    /** The user's held requests by request id; empty when none are kept. */
+    default Map<String, String> promotionLearning(String userId) {
+        return Map.of();
+    }
+
+    /** Removes the user's held requests of these ids, once they are learned. */
+    default void removePromotionLearning(String userId, Collection<String> requestIds) {
     }
 
     void addSessionNarrativeActionFamily(String sessionId, String actionFamily);
@@ -275,4 +307,9 @@ public interface SecurityContextDataStore {
     void storeSoarExecution(String eventId, Object data);
 
     void trackUserSession(String userId, String sessionId);
+
+    /** The sessions the user holds, as tracked; null when the store keeps no session list (W5-10 D5). */
+    default Set<String> getUserSessions(String userId) {
+        return null;
+    }
 }

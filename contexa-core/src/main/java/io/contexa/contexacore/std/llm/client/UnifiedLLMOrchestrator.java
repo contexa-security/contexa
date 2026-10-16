@@ -405,7 +405,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
-        recordOpenAiCallTiming(context, selectedModel, providerCallMs);
         enforceProviderCallTimeout(context, selectedModel, providerCallMs);
 
         long responseMetadataStart = System.currentTimeMillis();
@@ -453,7 +452,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
         long providerCallMs = System.currentTimeMillis() - providerCallStart;
         recordProviderTiming(context, "providerCallMs", providerCallMs);
-        recordOpenAiCallTiming(context, selectedModel, providerCallMs);
         enforceProviderCallTimeout(context, selectedModel, providerCallMs);
 
         long responseMetadataStart = System.currentTimeMillis();
@@ -540,12 +538,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
     }
 
-    private void recordOpenAiCallTiming(ExecutionContext context, ChatModel selectedModel, long providerCallMs) {
-        if (context != null && isOpenAiModel(context, selectedModel)) {
-            context.addMetadata("openAiCallMs", providerCallMs);
-        }
-    }
-
     private void enforceProviderCallTimeout(ExecutionContext context, ChatModel selectedModel, long providerCallMs) {
         long timeoutMs = providerCallTimeoutMs(context);
         if (timeoutMs <= 0L) {
@@ -575,7 +567,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             long providerCallMs,
             RuntimeException error) {
         recordProviderTiming(context, "providerCallMs", providerCallMs);
-        recordOpenAiCallTiming(context, selectedModel, providerCallMs);
         if (context == null) {
             return;
         }
@@ -1016,23 +1007,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         Usage usage = metadata.getUsage();
-        Integer promptTokens = usage != null ? usage.getPromptTokens() : null;
+        // Every input token, as OpenAI counts them (Anthropic counts its prompt cache reads and writes apart).
+        Integer promptTokens = ProviderUsage.promptTokens(usage);
         Integer completionTokens = usage != null ? usage.getCompletionTokens() : null;
-        Integer totalTokens = usage != null ? usage.getTotalTokens() : null;
-        // Anthropic counts its prompt cache reads and writes apart from its input tokens; the prompt tokens are all of
-        // them, as OpenAI counts them.
-        Object nativeUsage = usage != null ? usage.getNativeUsage() : null;
-        Integer cacheReads = nativeInteger(nativeUsage, "cacheReadInputTokens");
-        Integer cacheWrites = nativeInteger(nativeUsage, "cacheCreationInputTokens");
-        if (promptTokens != null && (cacheReads != null || cacheWrites != null)) {
-            promptTokens += (cacheReads != null ? cacheReads : 0) + (cacheWrites != null ? cacheWrites : 0);
-            totalTokens = completionTokens != null ? promptTokens + completionTokens : promptTokens;
-        }
+        Integer totalTokens = ProviderUsage.totalTokens(usage);
+        Integer cacheWrites = ProviderUsage.cacheWriteTokens(usage);
         if (cacheWrites != null) {
             context.addMetadata("cacheWritePromptTokens", cacheWrites);
         }
-        // The reasoning tokens OpenAI counts inside its output tokens.
-        Integer reasoningTokens = nativeInteger(nativeValue(nativeUsage, "completionTokenDetails"), "reasoningTokens");
+        Integer reasoningTokens = ProviderUsage.reasoningTokens(usage);
         if (reasoningTokens != null) {
             context.addMetadata("reasoningTokens", reasoningTokens);
         }
@@ -1137,23 +1120,6 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             }
         }
         return null;
-    }
-
-    /** A count a provider's own usage object reports, read by its accessor; null when it has none. */
-    private static Integer nativeInteger(Object nativeUsage, String accessor) {
-        return nativeValue(nativeUsage, accessor) instanceof Number number ? number.intValue() : null;
-    }
-
-    /** A value a provider's own usage object reports, read by its accessor; null when it has none. */
-    private static Object nativeValue(Object nativeUsage, String accessor) {
-        if (nativeUsage == null) {
-            return null;
-        }
-        try {
-            return nativeUsage.getClass().getMethod(accessor).invoke(nativeUsage);
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            return null;
-        }
     }
 
     /** The finish reason of the answer generation (a thinking generation comes first), else of the first one. */

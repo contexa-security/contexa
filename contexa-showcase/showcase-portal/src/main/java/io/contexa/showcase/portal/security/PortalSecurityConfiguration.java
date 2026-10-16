@@ -61,7 +61,10 @@ public class PortalSecurityConfiguration {
                                 "/api/runs/*/steps/*/peer-assessments",
                                 "/api/runs/*/score", "/api/lab/options", "/api/lab/runs/recent", "/api/cases",
                                 "/api/hook", "/api/journey", "/api/journey/act-end", "/api/quiz", "/api/tally",
-                                "/api/settings")
+                                "/api/settings",
+                                // W7-13: sealed prompt facts, quality and other bundle; lab delta; prompt quality.
+                                "/api/runs/*/steps/*/facts", "/api/runs/*/steps/*/quality", "/api/lab/runs/*/delta",
+                                "/api/benchmark/prompt-quality", "/api/runs/*/steps/*/other-bundle")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares",
                                 "/api/runs/*/steps/*/assessment", "/api/rules/evaluate", "/api/journey",

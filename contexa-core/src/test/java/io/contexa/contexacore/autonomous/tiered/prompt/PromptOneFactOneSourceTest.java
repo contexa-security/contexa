@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
@@ -112,7 +114,10 @@ class PromptOneFactOneSourceTest {
      */
     @Test
     void aDeviceTheBaselineComparedIsStatedByTheDecisionFactsOnly() {
-        String user = render(event("event-w319-device"), analysis(established(List.of())), context(),
+        // W5-9: the device is compared with the work profile view's observations, the request's session left out.
+        CanonicalSecurityContext context = context();
+        context.setWorkProfile(CanonicalSecurityContext.WorkProfile.builder().baselineView(deviceView()).build());
+        String user = render(event("event-w319-device"), analysis(established(List.of())), context,
                 List.of(record("Safari/18")));
 
         Map<String, String> entries = entries(user);
@@ -209,6 +214,21 @@ class PromptOneFactOneSourceTest {
                 List.of("10"), List.of("5"), List.of("Chrome/120"), List.of("WINDOWS"), List.of("/api/reports/{id}"),
                 List.of("PASSWORD"), List.of("READ"), List.of("NORMAL"), "personal baseline established",
                 BaselineEvidenceStatus.AVAILABLE, "", devices);
+    }
+
+    /** Ten requests of the week before on Chrome/120, the view the device is compared with (W5-9). */
+    private static BaselineView deviceView() {
+        List<BaselineViewCalculator.Observation> observations = new ArrayList<>();
+        LocalDateTime start = LocalDateTime.of(2026, 4, 13, 10, 0);
+        for (int index = 0; index < 10; index++) {
+            observations.add(new BaselineViewCalculator.Observation(
+                    start.plusHours(index).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), "READ", "host",
+                    false, "NORMAL", null, "/api/reports/r-" + index, null, true, null, 1.0, "10.10.0.0/24",
+                    "Chrome/120 on WINDOWS", "PASSWORD"));
+        }
+        return BaselineViewCalculator.calculate(observations,
+                LocalDateTime.of(2026, 4, 17, 10, 4).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                ZoneId.systemDefault());
     }
 
     private static BaselineEvidenceSnapshot noData() {

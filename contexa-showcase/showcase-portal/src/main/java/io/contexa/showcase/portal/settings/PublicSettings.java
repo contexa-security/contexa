@@ -59,9 +59,20 @@ public final class PublicSettings {
     public record Retention(Integer behaviorDays, int promptOriginalDays) {
     }
 
-    /** @param ruleVersion the hash the plain workload publishes over these rules */
+    /**
+     * W7-13: how control D seals the decision inputs, as its engine description states it (the adoption screen's
+     * sealed inputs line): the share of decisions it seals and how many days a package whose latest inspection found
+     * nothing wrong is kept; a value D does not state is null.
+     */
+    public record SealedEvidence(Integer samplePercent, Integer cleanPeriodDays) {
+    }
+
+    /**
+     * @param ruleVersion    the hash the plain workload publishes over these rules
+     * @param sealedEvidence how control D seals the decision inputs; null when its engine description states nothing
+     */
     public record View(Waf waf, Permission permission, Threshold threshold, BusinessRecord businessRecord,
-                       Engine engine, Retention retention, String ruleVersion) {
+                       Engine engine, Retention retention, String ruleVersion, SealedEvidence sealedEvidence) {
     }
 
     private PublicSettings() {
@@ -89,7 +100,14 @@ public final class PublicSettings {
                         integer(c2, "historyWindowDays"), integer(c2, "exportHistoryWindowDays"),
                         List.copyOf(access)),
                 new Engine(text(engine, "chatModel"), text(engine, "effectiveMode"), CoreAdverseLabels.RULES.size()),
-                new Retention(integer(engine, "behaviorRetentionDays"), promptOriginalDays), text(rules, "sha256"));
+                new Retention(integer(engine, "behaviorRetentionDays"), promptOriginalDays), text(rules, "sha256"),
+                sealedEvidence(engine.path("sealedEvidence")));
+    }
+
+    /** The sealed evidence capture the engine states; null when it states none. */
+    private static SealedEvidence sealedEvidence(JsonNode stated) {
+        return stated.isObject() ? new SealedEvidence(integer(stated, "samplePercent"),
+                integer(stated, "cleanPeriodDays")) : null;
     }
 
     private static String text(JsonNode node, String field) {

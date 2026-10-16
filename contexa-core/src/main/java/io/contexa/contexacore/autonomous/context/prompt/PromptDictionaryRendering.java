@@ -25,9 +25,12 @@ import java.util.Map;
  * @param slots        one slot per drawn line, carrying its dictionary entry
  * @param blocks       the blocks that were drawn, in order
  * @param unknownNames the entries the prompt does not know this time, in name order
+ * @param unknownFacts the same facts as the UNKNOWN line names them, kind first: {@code not-integrated: ClientSignals},
+ *                     {@code unavailable-now: PastRecord (not retrieved, TIMEOUT)} (W4-7)
  * @param factIds      the fact ID of each line a reason code may cite (every block with an ID prefix), by the line's
  *                     label, in block order (W3-13, P3 extra 12)
  */
 public record PromptDictionaryRendering(String text, List<PromptSlot> slots, List<PromptBlock> blocks,
-                                        List<String> unknownNames, Map<String, String> factIds) {
+                                        List<String> unknownNames, List<String> unknownFacts,
+                                        Map<String, String> factIds) {
 }

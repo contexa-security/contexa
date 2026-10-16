@@ -1325,6 +1325,15 @@ class DefaultCanonicalSecurityContextProviderTest {
         second.addMetadata("temporaryElevation", true);
         second.addMetadata("temporaryElevationReason", "Emergency customer export review");
 
+        // W5-10 D8: the scope group's usual scope is its other members'; the user's own request keeps the permission
+        // state its change is read from.
+        SecurityEvent peer = SecurityEvent.builder()
+                .userId("bob")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 8, 30, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        first.getMetadata().forEach(peer::addMetadata);
+        provider.resolve(peer);
+        collector.recorder().commit(peer, "ALLOW", true);
         provider.resolve(first);
         collector.recorder().commit(first, "ALLOW", true);
         CanonicalSecurityContext context = provider.resolve(second).orElseThrow();

@@ -158,6 +158,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         // is persisted, so the session no longer has to be restricted to MFA progress requests.
         MfaPendingSessionMarker.clear(request);
 
+        // N-MFA-1: the success URL follows the settings of this flow; the state machine is released below, so the
+        // request keeps the context the handler was given for the flow lookup.
+        if (factorContext != null && request.getAttribute("io.contexa.mfa.FactorContext") == null) {
+            request.setAttribute("io.contexa.mfa.FactorContext", factorContext);
+        }
+
         String successStage = "releaseStateMachine";
         try {
             if (factorContext != null && factorContext.getMfaSessionId() != null) {
@@ -305,12 +311,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         } catch (Exception e) {
             safeLogError("Failed to persist session SecurityContext after MFA success for user: {}", e, finalAuthentication.getName());
         }
-    }
-
-    private boolean isIsLlmTriggeredMfa(String userId) {
-        ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
-        return currentAction == ZeroTrustAction.CHALLENGE
-                || currentAction == ZeroTrustAction.ESCALATE;
     }
 
     protected void onFinalAuthenticationSuccess(HttpServletRequest request,
@@ -757,8 +757,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
-            if (isLlmTriggeredMfa) {
+            ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
+            if (currentAction == ZeroTrustAction.ESCALATE) {
+                // Q-87 (N-P3-1): an ESCALATE waits for a review (an approved override, or BLOCK when it lapses); a
+                // verification of the user neither lifts it nor releases the user.
+                return;
+            }
+            if (currentAction == ZeroTrustAction.CHALLENGE) {
                 // The request the challenge stopped, read before the ALLOW replaces the decision that names it (W5-2).
                 String challengedRequestId = challengedRequestId(userId);
                 // Bind to the session the client uses next: MFA success has already rotated the session id.
@@ -893,6 +898,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .timestamp(observedTimeOrNow(request))
                     .description("LLM-challenged MFA success - learning")
                     .build();
+            // The baseline is kept under the request's tenant (W5-10 D9).
+            String tenantId = RequestInfoExtractor.extractTenantId(request);
+            if (tenantId != null) {
+                event.addMetadata("tenantId", tenantId);
+            }
 
             securityLearningService.learnAndStore(userId, decision, event);
 

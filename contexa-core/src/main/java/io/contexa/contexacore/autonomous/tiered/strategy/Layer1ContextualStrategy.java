@@ -37,6 +37,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -46,6 +47,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -322,6 +324,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 sessionCtx,
                                 behaviorCtx,
                                 relatedDocuments)
+                        // N-OUT-1 (G1-7): on a thread of its own, so the budget holds when the pipeline runs synchronously.
+                        .subscribeOn(Schedulers.boundedElastic())
                         .block(Duration.ofMillis(llmTimeoutMs));
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
@@ -415,6 +419,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         long startTime = System.currentTimeMillis();
         return Mono.fromCallable(() -> analyzeWithContext(event))
+                // N-OUT-1 (G1-7): on a thread of its own, so the total budget holds for a synchronous analysis.
+                .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMillis(totalTimeoutMs))
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",
@@ -433,7 +439,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
-        if (sessionId != null) {
+        // W6-9: a shadow run's copy reads no cached session and adds nothing to it.
+        boolean shadow = PromptShadowRun.isShadow(event);
+        if (sessionId != null && !shadow) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
                 // The cached session keeps its request summaries; what the session stored since (an MFA, a refusal)
@@ -480,7 +488,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
         }
         context.addEvent(event);
-        if (sessionId != null && context.getUserId() != null) {
+        if (sessionId != null && context.getUserId() != null && !shadow) {
             sessionContextCache.put(sessionId, context);
         }
         return context;

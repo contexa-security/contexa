@@ -69,7 +69,10 @@ class EventClockTimeZoneTest {
         TimeZone.setDefault(TimeZone.getTimeZone(jvm));
         DefaultSessionNarrativeCollector collector = new DefaultSessionNarrativeCollector(new InMemorySecurityContextDataStore());
 
-        collector.collect(read("session-7", OBSERVED));
+        SecurityEvent first = read("session-7", OBSERVED);
+        collector.collect(first);
+        // The session's request is recorded once its decision is final (W2-7).
+        collector.recorder().commit(first, "ALLOW", true);
         SessionNarrativeSnapshot snapshot = collector.collect(read("session-7", OBSERVED.plusSeconds(240))).orElseThrow();
 
         assertThat(snapshot.getSessionAgeMinutes()).isEqualTo(4);

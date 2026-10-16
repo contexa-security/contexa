@@ -72,7 +72,10 @@ class DecisionFactsResolverTest {
                 + "size 4,831 items, usual up to 29 items per export (median 17, 5 exports) (unexplained)");
         assertThat(facts.fact("DeviationsFromBaseline").orElseThrow().codes()).containsExactly(
                 "DEVIATION_TIME", "DEVIATION_TARGET", "DEVIATION_RESOURCE_CLASS", "DEVIATION_SIZE");
-        assertThat(value(facts, "SameAsBaseline")).isEqualTo("day, network, device, login method, action, rate");
+        assertThat(value(facts, "SameAsBaseline")).isEqualTo("day Wed seen 5 of 25; network 10.40.12.0/24 seen 25 of 25; "
+                + "device Chrome/140 on WINDOWS seen 25 of 25; login method PASSWORD seen 25 of 25; "
+                + "action EXPORT seen 5 of 25; rate 1 requests in the last 60 min of this session, "
+                + "usual median 1, 95th percentile 3 per active hour");
         assertThat(value(facts, "Policy")).isEqualTo("EXPORT_APPROVAL requires a covering approval "
                 + "(exceptions: assigned target up to 500 items; ticket while on call)");
         assertThat(value(facts, "PolicySatisfied")).isEqualTo("no — no approval for GB-500");
@@ -131,11 +134,12 @@ class DecisionFactsResolverTest {
         assertThat(facts.unexplained()).isEmpty();
         assertThat(facts.fact("DeviationsFromBaseline").orElseThrow().recordIds()).containsExactly("APR-1");
         assertThat(value(facts, "PolicySatisfied")).isEqualTo(
-                "yes — approval APR-1 PROJECT_TRANSFER up to 5,000, requested 4,831, decision time not recorded");
+                "yes — approval APR-1 PROJECT_TRANSFER up to 5,000, requested 4,831, valid at the request time, "
+                        + "decision time not recorded (a decision after the request is not ruled out)");
         assertThat(value(facts, "Approval")).isEqualTo("APR-1 by pm-11, APPROVED, PROJECT_TRANSFER, GB-500, "
                 + "up to 5,000 items, used 0 before this request, valid 09-29 03:17..10-01 03:17 "
                 + "(from 24 h before to 24 h after this request), "
-                + "decision time not recorded — covers this request");
+                + "decision time not recorded (a decision after this request is not ruled out) — covers this request");
         assertThat(facts.fact("Approval").orElseThrow().codes()).containsExactly("APPROVAL_COVERS");
         // W3-13: the prompt gives the fact its ID when it draws it.
         assertThat(facts.fact("Approval").orElseThrow().id()).isNull();
@@ -152,6 +156,19 @@ class DecisionFactsResolverTest {
         assertThat(value(unreported, "Approval")).contains("up to 5,000 items, used 0 in this session before this request,")
                 .doesNotContain("used 0 before this request");
         assertThat(value(unreported, "DeviationsFromBaseline")).contains("time 03 seen 0 of 25 (unexplained)");
+    }
+
+    /** N-WORD-1 (Q-87): without a validity window the policy line claims none; the decision time stays open. */
+    @Test
+    void anApprovalWithoutAWindowLeavesOnlyItsDecisionTimeOpen() {
+        ApprovalRecord approval = ApprovalRecord.builder().approvalId("APR-2").status("APPROVED").approver("pm-11")
+                .purpose("PROJECT_TRANSFER").target("GB-500").maxItems(5000).usedItems(0).hostCovers(true).build();
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(export(4831, friction(List.of(approval))),
+                evidence(current("CRITICAL", "Chrome/140", "10.40.12.0/24"), personal(), adminView()), UTC);
+
+        assertThat(value(facts, "PolicySatisfied")).isEqualTo("yes — approval APR-2 PROJECT_TRANSFER up to 5,000, "
+                + "requested 4,831, decision time not recorded (a decision after the request is not ruled out)");
     }
 
     @Test
@@ -357,6 +374,29 @@ class DecisionFactsResolverTest {
     }
 
     @Test
+    void eachDimensionStatesItsDaysAndItsFirstAndLastTimes() {
+        // W5-10 D1~D3: a dimension's statement says on how many days its value was seen, first and last, or that the
+        // window holds it not and when it was last seen, or that it was never seen; the dates are of the event clock
+        // with their distance from the request.
+        CanonicalSecurityContext context = export(4831, friction(List.of()));
+        BaselineView view = adminView().withRequestSeen(Map.of(
+                "TIME", new BaselineView.Seen("03", 0, 25, 0, 5, null, null, AT.minus(Duration.ofDays(17)).toEpochMilli()),
+                "TARGET", new BaselineView.Seen("projectKey=GB-500", 0, 25, 0, 5, null, null, null),
+                "DAY", new BaselineView.Seen("Wed", 5, 25, 5, 5, AT.minus(Duration.ofDays(28)).toEpochMilli(),
+                        AT.minus(Duration.ofDays(7)).toEpochMilli(), AT.minus(Duration.ofDays(7)).toEpochMilli())));
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(context, evidence(current("CRITICAL", "Chrome/140",
+                "10.40.12.0/24"), personal(), view), UTC);
+
+        assertThat(value(facts, "DeviationsFromBaseline"))
+                .contains("time 03 seen 0 of 25 on 0 of 5 days, not in the window, last 09-13 Sun "
+                        + "(17 days before this request) (unexplained)")
+                .contains("target projectKey seen 0 of 25 on 0 of 5 days, first time (unexplained)");
+        assertThat(value(facts, "SameAsBaseline")).contains("day Wed seen 5 of 25 on 5 of 5 days, "
+                + "first 09-02 Wed (28 days before this request), last 09-23 Wed (7 days before this request)");
+    }
+
+    @Test
     void repeatsOfTheSameActionAndTheRateOfTheLastHourAreCountedFromTheSession() {
         // Case S11 second step: one export of 480 items a minute before; the busiest hour before held 3 requests.
         List<SessionDecisionRecord> session = new ArrayList<>();
@@ -376,7 +416,28 @@ class DecisionFactsResolverTest {
                         + "before this request");
         assertThat(facts.fact("RepeatInSession").orElseThrow().codes()).containsExactly("REPEAT_IN_SESSION");
         assertThat(value(facts, "DeviationsFromBaseline"))
-                .contains("rate 5 requests in the last hour, usual at most 3 in one hour (unexplained)");
+                .contains("rate 5 requests in the last 60 min of this session, usual median 1, 95th percentile 3 "
+                        + "per active hour (unexplained)");
+    }
+
+    @Test
+    void theRateIsTheUsersRequestsOfTheLastHourAgainstTheNinetyFifthPercentileOfTheActiveHours() {
+        // W5-10 D5: the user's requests in the last 60 minutes across the sessions the user holds, against the requests
+        // of each active clock hour of the window (median 1, 95th percentile 3); different above the 95th percentile.
+        CanonicalSecurityContext busy = export(4831, friction(List.of()));
+        busy.getSessionNarrativeProfile().setUserRequestsLastHour(14);
+        CanonicalSecurityContext usual = export(4831, friction(List.of()));
+        usual.getSessionNarrativeProfile().setUserRequestsLastHour(3);
+
+        DecisionFacts busyFacts = DecisionFactsResolver.resolve(busy, evidence(current("CRITICAL", "Chrome/140",
+                "10.40.12.0/24"), personal(), adminView()), UTC);
+        DecisionFacts usualFacts = DecisionFactsResolver.resolve(usual, evidence(current("CRITICAL", "Chrome/140",
+                "10.40.12.0/24"), personal(), adminView()), UTC);
+
+        assertThat(value(busyFacts, "DeviationsFromBaseline")).contains("rate 14 requests in the last 60 min, "
+                + "usual median 1, 95th percentile 3 per active hour (unexplained)");
+        assertThat(value(usualFacts, "SameAsBaseline")).contains("rate 3 requests in the last 60 min, "
+                + "usual median 1, 95th percentile 3 per active hour");
     }
 
     @Test
@@ -395,7 +456,8 @@ class DecisionFactsResolverTest {
         // W2-13: the facts an impossible travel rests on, beside the host's yes or no.
         assertThat(value(facts, "Movement"))
                 .isEqualTo("Busan, KR -> Seoul, KR 325 km in 40 min; the host states an impossible travel");
-        assertThat(facts.fact("Movement").orElseThrow().codes()).containsExactly("IMPOSSIBLE_TRAVEL");
+        // W4-8 (5): the contract's code for a stated move (dictionary 5: valid when the move fact is there).
+        assertThat(facts.fact("Movement").orElseThrow().codes()).containsExactly("DEVIATION_MOVEMENT");
         DecisionFacts none = DecisionFactsResolver.resolve(still, null, UTC);
         assertThat(none.fact("Movement")).isEmpty();
         assertThat(none.unknown()).doesNotContain("Movement");
@@ -436,6 +498,23 @@ class DecisionFactsResolverTest {
         assertThat(value(facts, "RoleScope")).isEqualTo("category AUDIT_LOG outside the scope group's categories (REPORT); "
                 + "category in the scope group's denied categories");
         assertThat(facts.fact("RoleScope").orElseThrow().codes()).containsExactly("ROLE_SCOPE_OUTSIDE");
+    }
+
+    @Test
+    void theScopeGroupStatesHowManyOtherMembersItsListsComeFrom() {
+        // W5-10 D8: the scope group's lists are its other members'; the line states how many, and a user alone in the
+        // group has no lists from it.
+        CanonicalSecurityContext grouped = export(10, friction(List.of()));
+        grouped.setRoleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                .currentActionFamily("READ").expectedActionFamilies(new ArrayList<>(List.of("READ"))).peerCount(3).build());
+        CanonicalSecurityContext alone = export(10, friction(List.of()));
+        alone.setRoleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                .currentActionFamily("READ").peerCount(0).build());
+
+        assertThat(value(DecisionFactsResolver.resolve(grouped, null, UTC), "RoleScope"))
+                .isEqualTo("action READ within the scope group's actions (READ); scope group of 3 other users");
+        assertThat(DecisionFactsResolver.resolve(alone, null, UTC).unavailable())
+                .containsEntry("RoleScope", "no peers besides the user");
     }
 
     @Test
@@ -676,7 +755,74 @@ class DecisionFactsResolverTest {
                 new BaselineView.ExportSize(5, 17, 29), List.of("INTERNAL=25"), 1.19, null, 0, List.of(),
                 List.of("10.40.12.0/24"), List.of("Chrome/140 on WINDOWS"), List.of("Chrome/140"), List.of("WINDOWS"),
                 List.of("PASSWORD"), BaselineView.EvidenceGrade.STRONG, List.of(),
-                new BaselineView.Counts(hours, days, Map.of("projectKey=PLM-OPS", 25), 3));
+                // 25 requests in 21 active clock hours: median 1, 95th percentile 3 (W5-10 D5).
+                new BaselineView.Counts(hours, days, Map.of("projectKey=PLM-OPS", 25), 3, 25,
+                        Map.of("10.40.12.0/24", 25), Map.of("Chrome/140 on WINDOWS", 25), Map.of("PASSWORD", 25), 25, 0,
+                        Map.of(), new BaselineView.Rate(21, 1, 3)));
+    }
+
+    /**
+     * P5-변경-17 (W5-10 D6): a login that holds every method of a usual login is no departure; the same line states the
+     * usual login it holds and how often that was seen. A login missing a method of every usual login is one.
+     */
+    @Test
+    void aLoginThatHoldsTheUsualLoginAndMoreIsNoDeparture() {
+        CurrentLearningContextSnapshot stronger = new CurrentLearningContextSnapshot("3", "3", "10.40.12.0/24",
+                "Chrome/140", "WINDOWS", "/api/projects/{projectKey}/exports", "PASSWORD+ONE_TIME_CODE", "EXPORT",
+                "CRITICAL");
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(export(4831, friction(List.of())), evidence(stronger,
+                personal(), adminView()), UTC);
+
+        assertThat(value(facts, "SameAsBaseline"))
+                .contains("login method PASSWORD+ONE_TIME_CODE (holds the usual PASSWORD) seen 25 of 25");
+        assertThat(value(facts, "DeviationsFromBaseline")).doesNotContain("login method");
+        assertThat(facts.deviations()).filteredOn(deviation -> deviation.dimension() == DeviationDimension.LOGIN_METHOD)
+                .singleElement().extracting(Deviation::different).isEqualTo(false);
+    }
+
+    @Test
+    void aLoginMissingAMethodOfTheUsualLoginIsADeparture() {
+        BaselineView admin = adminView();
+        BaselineView twoFactors = new BaselineView(admin.state(), admin.learnedUpdates(), admin.observations(),
+                admin.daysCovered(), admin.windowDays(), admin.windowBasis(), admin.usualHours(), admin.seenHours(),
+                admin.usualDays(), admin.seenDays(), admin.usualTargets(), admin.actionCounts(),
+                admin.readWriteExportRatio(), admin.exportSize(), admin.resourceClasses(), admin.requestsPerActiveHour(),
+                admin.usualSessionMinutes(), admin.privilegedActions(), admin.knownRareTasks(), admin.usualNetworks(),
+                admin.usualDevices(), admin.usualBrowsers(), admin.usualOperatingSystems(),
+                List.of("PASSWORD+ONE_TIME_CODE"), admin.evidenceGrade(), admin.evidenceCauses(),
+                new BaselineView.Counts(admin.counts().hours(), admin.counts().days(), admin.counts().targets(),
+                        admin.counts().busiestActiveHourRequests(), admin.counts().dayObservations(),
+                        admin.counts().networks(), admin.counts().devices(), Map.of("PASSWORD+ONE_TIME_CODE", 25),
+                        admin.counts().identityObservations(), 0, Map.of(), admin.counts().rate()));
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(export(4831, friction(List.of())), evidence(current(
+                "CRITICAL", "Chrome/140", "10.40.12.0/24"), personal(), twoFactors), UTC);
+
+        assertThat(value(facts, "DeviationsFromBaseline")).contains("login method PASSWORD seen 0 of 25 (unexplained)");
+    }
+
+    @Test
+    void theRequestsOwnSessionIsNotPartOfTheUsualDevice() {
+        // W5-9 (deep investigation R2, S10): the long-term baseline learned the session's first request on Safari a
+        // minute ago; the view leaves the session's activity period out, so the second request's device stays new.
+        Map<String, Long> frequencies = new LinkedHashMap<>();
+        frequencies.put("ip:10.40.12.0/24", 26L);
+        frequencies.put("device:Chrome/140 on WINDOWS", 25L);
+        frequencies.put("device:Safari/17 on WINDOWS", 1L);
+        frequencies.put("auth:PASSWORD", 26L);
+        BaselineEvidenceSnapshot learnedTheSession = new BaselineEvidenceSnapshot(LearningEvidenceScope.PERSONAL, true,
+                true, 26L, null, List.of("10.40.12.0/24"), List.of(), List.of(), List.of("Chrome/140", "Safari/17"),
+                List.of("WINDOWS"), List.of(), List.of("PASSWORD"), List.of(), List.of(), "",
+                BaselineEvidenceStatus.AVAILABLE, "", List.of("Chrome/140 on WINDOWS", "Safari/17 on WINDOWS"),
+                frequencies);
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(read("10.40.12.20", null), evidence(current("INTERNAL",
+                "Safari/17", "10.40.12.0/24"), learnedTheSession, adminView()), UTC);
+
+        assertThat(value(facts, "DeviationsFromBaseline")).contains("device Safari/17 on WINDOWS seen 0 of 25");
+        assertThat(facts.deviations()).filteredOn(deviation -> deviation.dimension() == DeviationDimension.DEVICE)
+                .singleElement().extracting(Deviation::different).isEqualTo(true);
     }
 
     private static LearningContextEvidence evidence(CurrentLearningContextSnapshot current,

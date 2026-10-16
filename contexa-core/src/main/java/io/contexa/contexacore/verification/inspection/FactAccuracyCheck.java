@@ -113,6 +113,7 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             Map.entry("PAST_RECORDS.PastRecordsState", PastRecordNotationCheck.CODE),
             Map.entry("PAST_RECORDS.PastRecordCounts", PastRecordNotationCheck.CODE),
             Map.entry("PAST_RECORDS.PastRecord{i}", PastRecordNotationCheck.CODE),
+            Map.entry("PAST_RECORDS.PastDeniedDecision{i}", PastRecordNotationCheck.CODE),
             Map.entry("UNKNOWN.Unknown", UnknownDeclaredCheck.CODE));
 
     /**
@@ -126,8 +127,6 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                     "the delegation line is the v19 delegation section's text; the inspector does not render again")),
             Map.entry("DECISION_FACTS.ThreatMatch", new NotComparable("behaviorAnalysis",
                     "the threat match reads the behaviour analysis, which is not sealed")),
-            Map.entry("PAST_RECORDS.PastDeniedDecision{i}", new NotComparable("none",
-                    "the render draws no value for this entry, so a drawn line has no source")),
             Map.entry("PAST_RECORDS.SupportingCases", new NotComparable("learningContextEvidence",
                     "the supporting cases read the learning evidence, which is not sealed")),
             Map.entry("PAST_RECORDS.ValidatedCases", new NotComparable("canonicalContext",
@@ -591,7 +590,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                     CONTEXT + "session.failedLoginAttempts", "failed login count");
             expected(tally, lines.get("MfaFailures"), SessionLineValues.mfaFailures(session),
                     CONTEXT + "session.recentMfaFailureCount", "MFA failure count");
-            expected(tally, lines.get("RecentRequests"), SessionLineValues.recentRequests(session),
+            expected(tally, lines.get("RecentRequests"),
+                    SessionLineValues.recentRequests(session, context.getSessionNarrativeProfile()),
                     CONTEXT + "session.recentRequestCount", "recent request count");
             expected(tally, lines.get("ConcurrentSessions"), SessionLineValues.concurrentSessions(session),
                     CONTEXT + "session.concurrentSessions", "concurrent session count");

@@ -103,7 +103,7 @@ public final class DecisionFactsResolver {
         List<Deviation> deviations = deviations(context, evidence, request, records, clock);
 
         Facts facts = new Facts();
-        deviationFacts(facts, deviations, evidence);
+        deviationFacts(facts, deviations, evidence, request.at(), clock);
         policyFacts(facts, friction, records);
         recordFacts(facts, context, friction, request, records, clock);
         String repeat = repeat(context, request);
@@ -135,47 +135,64 @@ public final class DecisionFactsResolver {
 
         List<Deviation> deviations = new ArrayList<>();
         Integer hour = at != null ? Integer.valueOf(at.getHour()) : integer(current != null ? current.accessHour() : null);
+        String hourText = hour != null ? String.format(Locale.ROOT, "%02d", hour) : null;
         deviations.add(windowObserved && hour != null
-                ? compare(DeviationDimension.TIME, String.format(Locale.ROOT, "%02d", hour),
+                ? compare(DeviationDimension.TIME, hourText,
                 !view.seenHours().contains(hour), count(view.counts().hours(), hour), view.observations(),
-                explainers)
-                : Deviation.notCompared(DeviationDimension.TIME, hour != null ? String.format(Locale.ROOT, "%02d", hour) : null));
+                explainers, seenOf(view, "TIME", hourText))
+                : Deviation.notCompared(DeviationDimension.TIME, hourText, notComparedReason(windowObserved, hour, true)));
 
         Integer day = at != null ? Integer.valueOf(at.getDayOfWeek().getValue()) : integer(current != null ? current.dayOfWeek() : null);
         String dayName = day != null && day >= 1 && day <= 7
                 ? DayOfWeek.of(day).getDisplayName(TextStyle.SHORT, Locale.ROOT) : null;
         deviations.add(windowObserved && day != null
                 ? compare(DeviationDimension.DAY, dayName, !view.seenDays().contains(day),
-                count(view.counts().days(), day), view.counts().dayObservations(), explainers)
-                : Deviation.notCompared(DeviationDimension.DAY, dayName));
+                count(view.counts().days(), day), view.counts().dayObservations(), explainers,
+                seenOf(view, "DAY", dayName))
+                : Deviation.notCompared(DeviationDimension.DAY, dayName, notComparedReason(windowObserved, day, true)));
 
+        // W5-9 (deep investigation R2): the network, device and login are compared with the view, as the time and the
+        // target are, so the activity period being judged is left out of all of them by one rule; they are read
+        // against the window's observations that hold them.
+        BaselineView.Counts counts = view != null ? view.counts() : BaselineView.Counts.NONE;
+        int identityObservations = counts.identityObservations();
         String network = current != null ? current.network() : null;
-        deviations.add(personalLearned && network != null && !personal.networks().isEmpty()
-                ? compare(DeviationDimension.NETWORK, network,
-                personal.networks().stream().noneMatch(value -> network.equals(SecuritySemanticNormalizer.normalizeNetwork(null, value))),
-                frequency(personal, "ip:", network, value -> SecuritySemanticNormalizer.normalizeNetwork(null, value)),
-                learned, explainers)
-                : Deviation.notCompared(DeviationDimension.NETWORK, network));
+        deviations.add(windowObserved && network != null && !counts.networks().isEmpty()
+                ? compare(DeviationDimension.NETWORK, network, !counts.networks().containsKey(network),
+                count(counts.networks(), network), identityObservations, explainers, seenOf(view, "NETWORK", network))
+                : Deviation.notCompared(DeviationDimension.NETWORK, network,
+                notComparedReason(windowObserved, network, !counts.networks().isEmpty())));
 
         String device = current != null ? current.device() : null;
-        Boolean deviceHeld = personalLearned && current != null
-                ? ObservedPatternSnapshot.holdsDevice(personal.devices(), personal.browsers(),
-                personal.operatingSystems(), current.browser(), current.operatingSystem())
+        Boolean deviceHeld = windowObserved && current != null && !counts.devices().isEmpty()
+                ? ObservedPatternSnapshot.holdsDevice(view.usualDevices(), view.usualBrowsers(),
+                view.usualOperatingSystems(), current.browser(), current.operatingSystem())
                 : null;
         deviations.add(deviceHeld != null
-                ? compare(DeviationDimension.DEVICE, device, !deviceHeld,
-                personal.devices().isEmpty() ? null : frequency(personal, "device:", device, UnaryOperator.identity()),
-                personal.devices().isEmpty() ? null : learned, explainers)
-                : Deviation.notCompared(DeviationDimension.DEVICE, device));
+                ? compare(DeviationDimension.DEVICE, device, !deviceHeld, count(counts.devices(), device),
+                identityObservations, explainers, seenOf(view, "DEVICE", device))
+                : Deviation.notCompared(DeviationDimension.DEVICE, device,
+                notComparedReason(windowObserved, device, !counts.devices().isEmpty())));
 
         String login = current != null ? current.authenticationType() : null;
-        deviations.add(personalLearned && login != null && !personal.authenticationTypes().isEmpty()
-                ? compare(DeviationDimension.LOGIN_METHOD, login,
-                personal.authenticationTypes().stream().noneMatch(value -> login.equalsIgnoreCase(
-                        String.valueOf(SecuritySemanticNormalizer.normalizeAuthenticationType(value)))),
-                frequency(personal, "auth:", login, SecuritySemanticNormalizer::normalizeAuthenticationType),
-                learned, explainers)
-                : Deviation.notCompared(DeviationDimension.LOGIN_METHOD, login));
+        // W5-10 D6 (P5-변경-17): a login that holds every method of a usual login, as PASSWORD with a one-time code
+        // against the usual PASSWORD, is no departure; it is stated with the usual login it holds and that login's
+        // count. A login missing a method of every usual login stays a difference.
+        String usualHeld = login != null ? usualLoginHeld(login, counts.logins()) : null;
+        boolean stronger = usualHeld != null && !usualHeld.equals(login);
+        Deviation loginDeviation = windowObserved && login != null && !counts.logins().isEmpty()
+                ? compare(DeviationDimension.LOGIN_METHOD, login, usualHeld == null,
+                count(counts.logins(), stronger ? usualHeld : login), identityObservations, explainers,
+                stronger ? null : seenOf(view, "LOGIN_METHOD", login))
+                : Deviation.notCompared(DeviationDimension.LOGIN_METHOD, login,
+                notComparedReason(windowObserved, login, !counts.logins().isEmpty()));
+        if (stronger && loginDeviation.compared()) {
+            // The usual login it holds is its usual value; the count is that login's.
+            loginDeviation = new Deviation(loginDeviation.dimension(), loginDeviation.current(), true, false,
+                    loginDeviation.seen(), loginDeviation.of(), usualHeld, loginDeviation.explanation(),
+                    loginDeviation.explainedBy(), loginDeviation.observed(), loginDeviation.notComparedReason());
+        }
+        deviations.add(loginDeviation);
 
         String target = request.target();
         // The prompt names the target's variables; their values are the requester's text (N-INJ-1).
@@ -186,22 +203,27 @@ public final class DecisionFactsResolver {
         deviations.add(windowObserved && target != null && hasUsualTargetOfKind(view, target)
                 ? compare(DeviationDimension.TARGET, targetNames,
                 !view.counts().targets().containsKey(target), count(view.counts().targets(), target),
-                view.observations(), explainers)
-                : Deviation.notCompared(DeviationDimension.TARGET, targetNames));
+                view.observations(), explainers, seenOf(view, "TARGET", target))
+                : Deviation.notCompared(DeviationDimension.TARGET, targetNames,
+                windowObserved && target != null ? "no usual target of this kind"
+                        : notComparedReason(windowObserved, target, true)));
 
         String action = action(context, current);
         deviations.add(windowObserved && action != null && !view.actionCounts().isEmpty()
                 ? compare(DeviationDimension.ACTION, action, !view.actionCounts().containsKey(action),
-                count(view.actionCounts(), action), view.observations(), explainers)
-                : Deviation.notCompared(DeviationDimension.ACTION, action));
+                count(view.actionCounts(), action), view.observations(), explainers, seenOf(view, "ACTION", action))
+                : Deviation.notCompared(DeviationDimension.ACTION, action,
+                notComparedReason(windowObserved, action, view != null && !view.actionCounts().isEmpty())));
 
         String resourceClass = current != null
                 ? SecuritySemanticNormalizer.normalizeResourceClass(current.resourceFamily()) : null;
         Map<String, Integer> classCounts = classCounts(view);
         deviations.add(windowObserved && resourceClass != null && !classCounts.isEmpty()
                 ? compare(DeviationDimension.RESOURCE_CLASS, resourceClass, !classCounts.containsKey(resourceClass),
-                count(classCounts, resourceClass), view.observations(), explainers)
-                : Deviation.notCompared(DeviationDimension.RESOURCE_CLASS, resourceClass));
+                count(classCounts, resourceClass), view.observations(), explainers,
+                seenOf(view, "RESOURCE_CLASS", resourceClass))
+                : Deviation.notCompared(DeviationDimension.RESOURCE_CLASS, resourceClass,
+                notComparedReason(windowObserved, resourceClass, !classCounts.isEmpty())));
 
         Integer items = request.items();
         BaselineView.ExportSize exportSize = view != null ? view.exportSize() : null;
@@ -216,33 +238,68 @@ public final class DecisionFactsResolver {
                     different ? explainers.by(DeviationDimension.SIZE) : null));
         }
         else {
-            deviations.add(Deviation.notCompared(DeviationDimension.SIZE, size));
+            deviations.add(Deviation.notCompared(DeviationDimension.SIZE, size,
+                    windowObserved && items != null ? "no export in the window"
+                            : notComparedReason(windowObserved, items, true)));
         }
 
-        if (windowObserved && request.at() != null && view.counts().busiestActiveHourRequests() > 0) {
-            int lastHour = 1 + (int) request.sessionDecisions().stream()
+        BaselineView.Rate rate = view != null && view.counts() != null ? view.counts().rate() : null;
+        if (windowObserved && request.at() != null && rate != null) {
+            // W5-10 D5: one definition of the rate: the user's requests in the last 60 minutes of the event clock,
+            // this one included, against the requests of each active clock hour of the window; different above the
+            // 95th percentile. Without the user's session list the count is the session's and says so.
+            Integer userLastHour = context.getSessionNarrativeProfile() != null
+                    ? context.getSessionNarrativeProfile().getUserRequestsLastHour() : null;
+            int sessionLastHour = 1 + (int) request.sessionDecisions().stream()
                     .filter(decision -> decision != null && decision.at() != null
                             && decision.at().isBefore(request.at())
                             && request.at().toEpochMilli() - decision.at().toEpochMilli() < HOUR_MS)
                     .count();
-            int busiest = view.counts().busiestActiveHourRequests();
-            boolean different = lastHour > busiest;
-            deviations.add(new Deviation(DeviationDimension.RATE, lastHour + " requests in the last hour", true,
-                    different, null, null, "at most " + busiest + " in one hour",
+            int lastHour = userLastHour != null ? userLastHour : sessionLastHour;
+            boolean different = lastHour > rate.p95();
+            deviations.add(new Deviation(DeviationDimension.RATE, lastHour + " requests in the last 60 min"
+                    + (userLastHour != null ? "" : " of this session"), true, different, null, null,
+                    "median " + rate.median() + ", 95th percentile " + rate.p95() + " per active hour",
                     different ? explain(DeviationDimension.RATE, explainers) : null,
                     different ? explainers.by(DeviationDimension.RATE) : null));
         }
         else {
-            deviations.add(Deviation.notCompared(DeviationDimension.RATE, null));
+            deviations.add(Deviation.notCompared(DeviationDimension.RATE, null,
+                    !windowObserved ? "no observations in the window"
+                            : request.at() == null ? "the request time is not known" : "no active hour in the window"));
         }
         return deviations;
     }
 
     private static Deviation compare(DeviationDimension dimension, String current, boolean different, Integer seen,
                                      Integer of, Explainers explainers) {
-        return new Deviation(dimension, current, true, different, seen, seen != null ? of : null, null,
+        return compare(dimension, current, different, seen, of, explainers, null);
+    }
+
+    /**
+     * The comparison with how the request's value was seen (W5-10 D1~D3): when the view counted it, its count is read
+     * against the observations that hold the dimension (D2).
+     */
+    private static Deviation compare(DeviationDimension dimension, String current, boolean different, Integer seen,
+                                     Integer of, Explainers explainers, BaselineView.Seen observed) {
+        Integer held = observed != null ? Integer.valueOf(observed.seen()) : seen;
+        Integer among = observed != null ? Integer.valueOf(observed.of()) : of;
+        return new Deviation(dimension, current, true, different, held, held != null ? among : null, null,
                 different ? explain(dimension, explainers) : null,
-                different ? explainers.by(dimension) : null);
+                different ? explainers.by(dimension) : null, observed, null);
+    }
+
+    /** How the request's value was seen, when the view counted that same value (W5-10 D1~D3). */
+    private static BaselineView.Seen seenOf(BaselineView view, String dimension, String value) {
+        BaselineView.Seen seen = view != null && view.counts() != null ? view.counts().request().get(dimension) : null;
+        return seen != null && value != null && value.equals(seen.value()) ? seen : null;
+    }
+
+    /** Why a dimension was not compared (W5-10 D1). */
+    private static String notComparedReason(boolean windowObserved, Object value, boolean usualHeld) {
+        return !windowObserved ? "no observations in the window"
+                : value == null ? "the request does not state it"
+                : usualHeld ? null : "no observation holds it";
     }
 
     private static Deviation.Explanation explain(DeviationDimension dimension, Explainers explainers) {
@@ -358,7 +415,8 @@ public final class DecisionFactsResolver {
         return value;
     }
 
-    private static void deviationFacts(Facts facts, List<Deviation> deviations, LearningContextEvidence evidence) {
+    private static void deviationFacts(Facts facts, List<Deviation> deviations, LearningContextEvidence evidence,
+                                       Instant requestAt, ZoneId zone) {
         List<Deviation> compared = deviations.stream().filter(Deviation::compared).toList();
         if (compared.isEmpty()) {
             // The baseline learning exists but has nothing to compare with yet (dictionary 1.4 unavailable-now).
@@ -372,7 +430,16 @@ public final class DecisionFactsResolver {
         StringBuilder value = new StringBuilder()
                 .append(different.size()).append(" of ").append(compared.size()).append(" compared");
         if (!different.isEmpty()) {
-            value.append(" -> ").append(different.stream().map(Deviation::describe).collect(Collectors.joining("; ")));
+            value.append(" -> ").append(different.stream().map(deviation -> deviation.describe(requestAt, zone))
+                    .collect(Collectors.joining("; ")));
+        }
+        // W5-10 D1: a dimension not compared says why.
+        List<Deviation> notCompared = deviations.stream()
+                .filter(deviation -> !deviation.compared() && deviation.notComparedReason() != null).toList();
+        if (!notCompared.isEmpty()) {
+            value.append("; not compared: ").append(notCompared.stream()
+                    .map(deviation -> deviation.dimension().label() + " (" + deviation.notComparedReason() + ")")
+                    .collect(Collectors.joining(", ")));
         }
         // The past records are read within the request's action family (W3-18), its target's first, and the counts
         // state how many are on its target; the closest one read is compared on the hour, the login method and the
@@ -389,7 +456,8 @@ public final class DecisionFactsResolver {
                 DecisionFact.COMPUTED);
         List<Deviation> same = compared.stream().filter(deviation -> !deviation.different()).toList();
         facts.add(SAME_AS_BASELINE, same.isEmpty() ? "none"
-                        : same.stream().map(deviation -> deviation.dimension().label()).collect(Collectors.joining(", ")),
+                        : same.stream().map(deviation -> deviation.describe(requestAt, zone))
+                        .collect(Collectors.joining("; ")),
                 same.isEmpty() ? List.of() : List.of("BASELINE_MATCH"), List.of(), DecisionFact.COMPUTED);
     }
 
@@ -542,7 +610,7 @@ public final class DecisionFactsResolver {
             }
             appendPart(text, record.getDecidedAt() != null
                     ? "decided " + CompanyRecordsEvaluator.wallClock(record.getDecidedAt(), at, zone)
-                    : "decision time not recorded");
+                    : "decision time not recorded (a decision after this request is not ruled out)");
             if (record.getPendingApprovers() != null && !record.getPendingApprovers().isEmpty()) {
                 appendPart(text, "pending " + String.join(", ", record.getPendingApprovers()));
             }
@@ -653,7 +721,9 @@ public final class DecisionFactsResolver {
         }
         if (scope.getExpectedActionFamilies().isEmpty() && scope.getExpectedResourceFamilies().isEmpty()
                 && scope.getActionFamilyDrift() == null && scope.getResourceFamilyDrift() == null) {
-            facts.unavailable(ROLE_SCOPE, "no scope group lists yet");
+            // W5-10 D8: the lists are the other members'; without any the group has none to give.
+            facts.unavailable(ROLE_SCOPE, Integer.valueOf(0).equals(scope.getPeerCount())
+                    ? "no peers besides the user" : "no scope group lists yet");
             return;
         }
         List<String> parts = new ArrayList<>();
@@ -693,6 +763,11 @@ public final class DecisionFactsResolver {
         if (parts.isEmpty()) {
             facts.unavailable(ROLE_SCOPE, "nothing to compare in this request");
             return;
+        }
+        // W5-10 D8: how many other members the group's lists come from.
+        if (scope.getPeerCount() != null && scope.getPeerCount() > 0) {
+            parts.add("scope group of " + scope.getPeerCount()
+                    + (scope.getPeerCount() == 1 ? " other user" : " other users"));
         }
         // The evidence state the dictionary entry names (LU-1): lists of thin or inferred evidence are provisional.
         if (CanonicalContextFieldPolicy.hasProvisionalRoleScopeProfile(context)) {
@@ -790,8 +865,8 @@ public final class DecisionFactsResolver {
         if (impossible != null) {
             value.append(impossible ? "; the host states an impossible travel" : "; the host states no impossible travel");
         }
-        facts.add(MOVEMENT, value.toString(), Boolean.TRUE.equals(impossible) ? List.of("IMPOSSIBLE_TRAVEL") : List.of(),
-                List.of(), DecisionFact.HOST);
+        // W4-8 (5): the contract's code for a stated move (dictionary 5: valid when the move fact is there).
+        facts.add(MOVEMENT, value.toString(), List.of("DEVIATION_MOVEMENT"), List.of(), DecisionFact.HOST);
     }
 
     /**
@@ -878,6 +953,32 @@ public final class DecisionFactsResolver {
             }
         }
         return counts;
+    }
+
+    /**
+     * The usual login whose every method the request's login holds: the same login when it was seen, else the most
+     * seen such usual login, the first by name among equals (W5-10 D6, P5-변경-17); null when there is none.
+     */
+    private static String usualLoginHeld(String login, Map<String, Integer> usualLogins) {
+        if (usualLogins == null || usualLogins.isEmpty()) {
+            return null;
+        }
+        if (usualLogins.containsKey(login)) {
+            return login;
+        }
+        List<String> methods = SecuritySemanticNormalizer.loginMethods(login);
+        String held = null;
+        int heldCount = -1;
+        for (Map.Entry<String, Integer> usual : usualLogins.entrySet()) {
+            List<String> usualMethods = SecuritySemanticNormalizer.loginMethods(usual.getKey());
+            int seen = usual.getValue() != null ? usual.getValue() : 0;
+            if (!usualMethods.isEmpty() && methods.containsAll(usualMethods)
+                    && (seen > heldCount || seen == heldCount && usual.getKey().compareTo(held) < 0)) {
+                held = usual.getKey();
+                heldCount = seen;
+            }
+        }
+        return held;
     }
 
     private static <K> Integer count(Map<K, Integer> counts, K key) {

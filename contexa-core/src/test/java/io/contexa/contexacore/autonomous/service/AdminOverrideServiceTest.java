@@ -131,8 +131,8 @@ class AdminOverrideServiceTest {
                 "ALLOW", "Safe user",
                 event);
 
-        // then
-        verify(lockService).executeWithLock(eq("baseline:update:user1"), any(Duration.class), any());
+        // then - W5-8: the baseline learning takes the user's update lock itself; the approval adds none around it
+        verify(lockService, never()).executeWithLock(anyString(), any(Duration.class), any());
         verify(securityLearningService).learnAndStore(eq("user1"), any(), any());
     }
 

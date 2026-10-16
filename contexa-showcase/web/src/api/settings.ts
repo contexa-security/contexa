@@ -34,6 +34,12 @@ export interface PublicSettingsView {
     readonly inspectorConditions: number;
   };
   readonly retention: { readonly behaviorDays: number | null; readonly promptOriginalDays: number };
+  /** How long control D keeps a sealed package found clean and the share of decisions it inspects; absent until
+   * the portal states them. */
+  readonly sealedEvidence?: {
+    readonly samplePercent: number | null;
+    readonly cleanPeriodDays: number | null;
+  } | null;
   readonly ruleVersion: string | null;
 }
 

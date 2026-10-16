@@ -1,5 +1,6 @@
 package io.contexa.showcase.workload.contexa.internal;
 
+import io.contexa.autoconfigure.iam.admin.PqaOssSealedEvidenceCaptureProperties;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -42,7 +43,8 @@ class EngineInfoPromptBundleTest {
         ContexaInternalController controller = new ContexaInternalController(null, null, null, null, null, null,
                 null, null, null, null, beans.getBeanProvider(TieredStrategyProperties.class),
                 new SecurityZeroTrustProperties(), "openai", "gpt-6-luna", "", "text-embedding-3-small", 1024,
-                beans.getBeanProvider(BuildProperties.class), false, null);
+                beans.getBeanProvider(BuildProperties.class), false, null,
+                beans.getBeanProvider(PqaOssSealedEvidenceCaptureProperties.class));
         return controller.engine();
     }
 }

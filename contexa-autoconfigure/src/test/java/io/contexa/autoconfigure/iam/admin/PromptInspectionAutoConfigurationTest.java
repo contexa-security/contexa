@@ -40,7 +40,8 @@ import static org.mockito.Mockito.mock;
 class PromptInspectionAutoConfigurationTest {
 
     private static final List<String> CHECKS = List.of("SEAL_INTEGRITY", "BUNDLE_TRACE", "DICTIONARY_CONTRACT",
-            "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED", "PAST_RECORD_NOTATION", "SAME_FACT");
+            "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED", "PAST_RECORD_NOTATION", "SOURCE_TRUTH",
+            "SAME_FACT", "REASON_MATCH");
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptInspectionAutoConfiguration.class))

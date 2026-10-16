@@ -21,8 +21,10 @@ import io.contexa.contexacore.SecurityEventContext;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -34,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -48,9 +51,11 @@ import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -80,6 +85,8 @@ class SecurityDecisionEnforcementHandlerTest {
         when(aiSecurityDecisionObservationWriter.recordDecision(any(), any(), any())).thenReturn("observation-1");
         when(aiSecurityDecisionObservationWriter.isStoreConfigured()).thenReturn(true);
         when(actionRepository.saveFinalAction(anyString(), any(ZeroTrustAction.class), anyMap())).thenReturn(true);
+        when(actionRepository.writeFinalAction(anyString(), any(ZeroTrustAction.class), anyMap()))
+                .thenReturn(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
         handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
@@ -117,9 +124,89 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).writeFinalAction(eq("user-1"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-1");
         verify(blockingSignalBroadcaster).registerBlockAndAwait("user-1");
+    }
+
+    @Test
+    @DisplayName("an allowed request the learning promotion holds is held, not learned; another is learned (W5-1)")
+    void allowedRequest_heldForPromotionIsNotLearned() {
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        handler.setLearningPromotionService(promotion);
+        SecurityEvent held = sessionEvent("request-held");
+        SecurityEvent learned = sessionEvent("request-learned");
+        when(promotion.holds(held)).thenReturn(true);
+        when(promotion.holds(learned)).thenReturn(false);
+
+        handler.handle(contextWith(held, allowed()));
+        handler.handle(contextWith(learned, allowed()));
+
+        verify(promotion).hold(held);
+        verify(promotion, never()).hold(learned);
+        verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), eq(held));
+        verify(securityLearningService).learnBaselineOnly(eq("user-recorded"), any(), eq(learned));
+    }
+
+    @Test
+    @DisplayName("the promotion is asked before the observations are committed, so the work profile can leave a "
+            + "held request out (W5-1)")
+    void promotionIsAskedBeforeTheObservationsAreCommitted() {
+        ContextObservationRecorder recorder = mock(ContextObservationRecorder.class);
+        SecurityDecisionEnforcementHandler recording = recordingHandler(recorder,
+                new InMemorySecurityContextDataStore(), new SecurityZeroTrustProperties());
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        recording.setLearningPromotionService(promotion);
+        SecurityEvent event = sessionEvent("request-ordered");
+
+        recording.handle(contextWith(event, allowed()));
+
+        InOrder order = inOrder(promotion, recorder);
+        order.verify(promotion).holds(event);
+        order.verify(recorder).commit(eq(event), any(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("an ALLOW kept out by a stricter action in effect is committed as not learnable and not learned (W5-3)")
+    void anAllowKeptOutByAStricterActionLearnsNothing() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        List<String> recorded = new ArrayList<>();
+        SecurityEvent event = sessionEvent("request-kept");
+        recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+        when(actionRepository.writeFinalAction(eq("user-recorded"), eq(ZeroTrustAction.ALLOW), anyMap()))
+                .thenReturn(ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER);
+
+        recordingHandler(recorder, store, null).handle(contextWith(event, allowed()));
+
+        assertThat(recorded).containsExactly("ALLOW learnable=false");
+        verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("a result whose processing ownership lapses before its write is neither written nor learned (W5-3)")
+    void aResultThatLostItsOwnershipBeforeTheWriteLearnsNothing() {
+        SecurityContextDataStore store = mock(SecurityContextDataStore.class);
+        // Asked when the result arrives, when its enforcement starts and right before its write.
+        when(store.isEventProcessingOwner(anyString(), anyString())).thenReturn(true, true, false);
+        SecurityDecisionEnforcementHandler owned = new SecurityDecisionEnforcementHandler(
+                actionRepository, securityLearningService, blockedUserRecorder, blockingSignalBroadcaster, null,
+                Runnable::run, () -> aiSecurityDecisionObservationWriter, store, null);
+        SecurityEvent event = sessionEvent("request-lapsed");
+        event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY, "identity-lapsed");
+        event.addMetadata(SecurityPlaneAgent.EVENT_PROCESSING_OWNER_TOKEN, "token-lapsed");
+
+        owned.handle(contextWith(event, allowed()));
+
+        verify(actionRepository, never()).writeFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).saveFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(securityLearningService, never()).learnBaselineOnly(anyString(), any(), any());
+    }
+
+    private static ProcessingResult allowed() {
+        return ProcessingResult.builder().success(true).action(ZeroTrustAction.ALLOW.name()).riskScore(0.1)
+                .confidence(0.9).reasoning("usual work").build();
     }
 
     @Test
@@ -192,7 +279,7 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveFinalAction(eq("user-2"), eq(ZeroTrustAction.ALLOW), anyMap());
+        verify(actionRepository).writeFinalAction(eq("user-2"), eq(ZeroTrustAction.ALLOW), anyMap());
         verify(actionRepository, never()).setBlockedFlag(anyString());
     }
 
@@ -491,7 +578,7 @@ class SecurityDecisionEnforcementHandlerTest {
 
         // then
         assertThat(result).isTrue();
-        verify(actionRepository).saveFinalAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(actionRepository).writeFinalAction(eq("user-enforce-block"), eq(ZeroTrustAction.BLOCK), anyMap());
         verify(actionRepository).setBlockedFlag("user-enforce-block");
         verify(blockingSignalBroadcaster).registerBlockAndAwait("user-enforce-block");
     }
@@ -618,7 +705,7 @@ class SecurityDecisionEnforcementHandlerTest {
         boolean result = handler.handle(context);
 
         assertThat(result).isTrue();
-        verify(actionRepository).saveFinalAction(eq("user-recovered"), eq(ZeroTrustAction.CHALLENGE), anyMap());
+        verify(actionRepository).writeFinalAction(eq("user-recovered"), eq(ZeroTrustAction.CHALLENGE), anyMap());
         verify(actionRepository).clearDecisionAuditPending("user-recovered", contextBindingHash);
         assertThat(event.getMetadata()).doesNotContainKey(SecurityDecisionEnforcementHandler.AUDIT_PENDING_PROCESSING_RESULT);
     }

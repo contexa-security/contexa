@@ -44,6 +44,23 @@ class PublicSettingsTest {
         assertThat(view.ruleVersion()).isEqualTo("abc");
     }
 
+    /** W7-13: the adoption screen's sealed inputs line is the engine's own capture share and clean period. */
+    @Test
+    void theSealedEvidenceIsTheEnginesOwn() throws Exception {
+        PublicSettings.Waf waf = new PublicSettings.Waf(null, null);
+        PublicSettings.View stated = PublicSettings.of(JSON.readTree("{}"), JSON.readTree("""
+                {"sealedEvidence":{"samplePercent":100,"cleanPeriodDays":90}}"""), waf, 90);
+        PublicSettings.View partly = PublicSettings.of(JSON.readTree("{}"), JSON.readTree("""
+                {"sealedEvidence":{"samplePercent":100,"cleanPeriodDays":null}}"""), waf, 90);
+        PublicSettings.View unstated = PublicSettings.of(JSON.readTree("{}"), JSON.readTree("""
+                {"sealedEvidence":null}"""), waf, 90);
+
+        assertThat(stated.sealedEvidence()).isEqualTo(new PublicSettings.SealedEvidence(100, 90));
+        assertThat(partly.sealedEvidence()).isEqualTo(new PublicSettings.SealedEvidence(100, null));
+        assertThat(unstated.sealedEvidence()).as("the engine states no capture").isNull();
+        assertThat(PublicSettings.of(JSON.readTree("{}"), JSON.readTree("{}"), waf, 90).sealedEvidence()).isNull();
+    }
+
     @Test
     void aValueTheSourceDoesNotStateStaysNull() throws Exception {
         PublicSettings.View view = PublicSettings.of(JSON.readTree("{}"), JSON.readTree("{}"),

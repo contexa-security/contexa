@@ -15,6 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
+import java.util.List;
+import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
+import io.contexa.contexacore.autonomous.context.decision.Deviation;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
@@ -26,7 +31,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
+import org.springframework.ai.document.Document;
+
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,8 +99,9 @@ class VerificationLearningServiceTest {
                 .doesNotContainKey("notJson");
         assertThat(decision.getValue().resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(decision.getValue().getReasoning()).contains("step-up");
+        // W5-7: a v6 line keeps the weight in its v5 place, before the vocabulary and the request identity.
         assertThat(store.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).singleElement()
-                .satisfies(line -> assertThat(line).startsWith("v5|").endsWith("|0.5"));
+                .satisfies(line -> assertThat(weightOf(line)).isEqualTo("0.5"));
 
         // The facts are learned once.
         assertThat(service.learnStepUp("alice", "request-1")).isFalse();
@@ -117,6 +130,34 @@ class VerificationLearningServiceTest {
                 .containsEntry("networkZone", "CORPORATE")
                 .containsEntry("requestItems", 4900)
                 .doesNotContainKey("sealedEvidence.canonicalContext");
+    }
+
+    /**
+     * W5-1: the step-up vouches for the identity values of the request it answered (compared or not), so held
+     * requests with them are promoted; a request kept without its decision's context vouches for nothing.
+     */
+    @Test
+    void aStepUpPromotesTheHeldRequestsWithTheVerifiedRequestsIdentityValues() {
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        service.setLearningPromotionService(promotion);
+        SecurityEvent challenged = event("request-verified");
+        challenged.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
+                .decisionFacts(new DecisionFacts(List.of(), List.of(
+                        new Deviation(DeviationDimension.DEVICE, "Safari/18 on MAC", true, true, 0, 25, null,
+                                Deviation.Explanation.UNEXPLAINED, null),
+                        new Deviation(DeviationDimension.TIME, "03", true, false, 4, 25, null, null, null),
+                        new Deviation(DeviationDimension.TARGET, "GB-500", true, true, 0, 25, null,
+                                Deviation.Explanation.UNEXPLAINED, null)),
+                        PolicySatisfaction.UNKNOWN, List.of()))
+                .build());
+        service.hold(challenged, ZeroTrustAction.CHALLENGE);
+        service.hold(event("request-plain"), ZeroTrustAction.CHALLENGE);
+
+        assertThat(service.learnStepUp("alice", "request-verified")).isTrue();
+        assertThat(service.learnStepUp("alice", "request-plain")).isTrue();
+
+        verify(promotion).promoteVerified("alice", List.of("DEVICE=Safari/18 on MAC", "TIME=03"));
+        verifyNoMoreInteractions(promotion);
     }
 
     @Test
@@ -150,7 +191,7 @@ class VerificationLearningServiceTest {
 
         service.learnWorkProfile(taken.get());
         assertThat(store.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).singleElement()
-                .satisfies(line -> assertThat(line).startsWith("v5|").endsWith("|0.5"));
+                .satisfies(line -> assertThat(weightOf(line)).isEqualTo("0.5"));
     }
 
     @Test
@@ -164,7 +205,71 @@ class VerificationLearningServiceTest {
         assertThat(weighted.learnStepUp("alice", "request-1")).isTrue();
 
         assertThat(store.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).singleElement()
-                .satisfies(line -> assertThat(line).endsWith("|0.25"));
+                .satisfies(line -> assertThat(weightOf(line)).isEqualTo("0.25"));
+    }
+
+    /** The weight of a stored work profile observation: the field after the item count, in a v5 or v6 line. */
+    private static String weightOf(String line) {
+        String[] fields = line.split("\\|", -1);
+        assertThat(fields[0]).isIn("v5", "v6");
+        return fields[22];
+    }
+
+    /**
+     * W5-4: the outcome is kept by the event of the stopped request before its record is written, so a record stored
+     * after the verification ended still takes it; no record lookup is needed for that.
+     */
+    @Test
+    void theOutcomeIsKeptByTheEventForARecordStoredAfterTheVerification() {
+        service.hold(event("request-early"), ZeroTrustAction.CHALLENGE);
+
+        service.take("alice", "request-early", VerificationLearningService.Verification.STEP_UP);
+
+        assertThat(store.verificationOutcome("event-request-early")).isEqualTo(PastDeniedDecisions.VERIFIED_BY_STEP_UP);
+    }
+
+    @Test
+    void aVerificationOrAReleaseWritesHowTheDecisionEndedOnItsRecord() {
+        List<String[]> written = new ArrayList<>();
+        service.setPastRecordQuery(new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of();
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                return List.of();
+            }
+
+            @Override
+            public boolean recordOutcome(String documentId, String outcome) {
+                written.add(new String[]{documentId, outcome});
+                return true;
+            }
+        });
+        service.hold(event("request-verified"), ZeroTrustAction.CHALLENGE);
+        service.hold(event("request-released"), ZeroTrustAction.BLOCK);
+
+        service.take("alice", "request-verified", VerificationLearningService.Verification.STEP_UP);
+        service.take("alice", "request-released", VerificationLearningService.Verification.ADMIN_RELEASE);
+
+        // W5-4: the record of the decision the request had, under its own event, says how it ended.
+        assertThat(written).extracting(row -> row[0]).containsExactlyElementsOf(new ArrayList<>() {
+            {
+                addAll(PastDeniedDecisions.documentIds("event-request-verified"));
+                addAll(PastDeniedDecisions.documentIds("event-request-released"));
+            }
+        });
+        assertThat(written).hasSize(6);
+        assertThat(written.subList(0, 3)).extracting(row -> row[1]).containsOnly(PastDeniedDecisions.VERIFIED_BY_STEP_UP);
+        assertThat(written.subList(3, 6)).extracting(row -> row[1])
+                .containsOnly(PastDeniedDecisions.RELEASED_BY_ADMINISTRATOR);
     }
 
     private static SecurityEvent event(String requestId) {

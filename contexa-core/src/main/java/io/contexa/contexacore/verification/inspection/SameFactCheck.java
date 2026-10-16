@@ -156,8 +156,10 @@ public final class SameFactCheck implements PromptInspectionCheck {
         if (listed == null) {
             return;
         }
+        // A login that holds a usual login and more is usual by the usual login it names (P5-변경-17).
+        String login = deviation.usual() != null ? deviation.usual() : deviation.current();
         boolean holds = deviation.dimension() == DeviationDimension.LOGIN_METHOD
-                ? listed.stream().anyMatch(value -> deviation.current().equalsIgnoreCase(
+                ? listed.stream().anyMatch(value -> login.equalsIgnoreCase(
                 String.valueOf(SecuritySemanticNormalizer.normalizeAuthenticationType(value))))
                 : listed.contains(deviation.current());
         if (holds != deviation.different()) {

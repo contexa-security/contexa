@@ -14,11 +14,13 @@ import org.springframework.ai.document.Document;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 /**
  * Reads a template principal's learned state through the engine's public stores and writes it under a run
@@ -50,10 +52,15 @@ public class TemplateSnapshots {
     private final JdbcTemplate vectorDatabase;
     private final ObjectMapper json;
     private final Clock clock;
+    private final PostProcessSettle postProcess;
 
+    /**
+     * @param postProcessExecutor the engine's learning post process executor (securityLearningPostProcessExecutor), the
+     *                            snapshot waits for until it is idle; null waits for nothing
+     */
     public TemplateSnapshots(BaselineDataStore baselines, SecurityContextDataStore contexts,
                              RoleScopeCollector roleScopes, UnifiedVectorService vectors, JdbcTemplate vectorDatabase,
-                             ObjectMapper json, Clock clock) {
+                             ObjectMapper json, Clock clock, Executor postProcessExecutor) {
         this.baselines = baselines;
         this.contexts = contexts;
         this.roleScopes = roleScopes;
@@ -61,10 +68,17 @@ public class TemplateSnapshots {
         this.vectorDatabase = vectorDatabase;
         this.json = json;
         this.clock = clock;
+        this.postProcess = new PostProcessSettle(postProcessExecutor, Duration.ofSeconds(30), Duration.ofMillis(500));
     }
 
     public TemplateSnapshot export(String templateUser, String employeeKey, String organizationId, String tenantId) {
-        BaselineVector user = baselines.getUserBaseline(templateUser);
+        // The decision documents of the user's last requests are stored once their decisions are enforced (N-RUNLEARN-1).
+        postProcess.await();
+        // The template user's baseline within the tenant, or the one learned before the tenant key (W5-10 D9).
+        BaselineVector user = baselines.getUserBaseline(BaselineDataStore.userKey(tenantId, templateUser));
+        if (user == null) {
+            user = baselines.getUserBaseline(templateUser);
+        }
         BaselineVector organization = baselines.getOrganizationBaseline(organizationId);
         StoredRoleScopeHistory roleScope = roleScopes.inspectStoredHistory(tenantId, templateUser);
         List<MemoryDocument> documents = vectorDatabase.query("""
@@ -87,7 +101,7 @@ public class TemplateSnapshots {
         if (snapshot.userBaseline() != null) {
             BaselineVector user = read(snapshot.userBaseline());
             user.setUserId(runUser);
-            baselines.saveUserBaseline(runUser, user);
+            baselines.saveUserBaseline(BaselineDataStore.userKey(tenantId, runUser), user);
         }
         if (snapshot.organizationBaseline() != null) {
             BaselineVector organization = read(snapshot.organizationBaseline());

@@ -24,7 +24,7 @@ class PromptReleaseApiControllerTest {
                         "PLATFORM_GLOBAL", "cortex.security-decision", "SecurityDecisionStandard", "2026.07.30-v19",
                         "CORTEX_PROMPT_CONTRACT_V2", "PRODUCTION", "ACTIVE", "hash", "APPROVED", "PRODUCTION",
                         "2026.07.26-v5", "2026.07.26-v5", "TARGET_DECLARED", "READY", "PQA-ROLLBACK:1", "READY",
-                        "READY", null, LocalDateTime.of(2026, 10, 10, 9, 0)))));
+                        "READY", null, LocalDateTime.of(2026, 10, 10, 9, 0), null, null, null))));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PromptReleaseApiController(service)).build();
 
         mockMvc.perform(get("/contexa/admin/api/prompt-quality/releases").param("registryScope", "PLATFORM_GLOBAL"))

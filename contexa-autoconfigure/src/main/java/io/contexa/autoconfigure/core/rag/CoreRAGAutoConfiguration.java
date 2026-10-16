@@ -35,6 +35,7 @@ import io.contexa.contexacore.std.rag.service.BehaviorDocumentRetentionScheduler
 import io.contexa.contexacore.std.rag.service.PgVectorMetadataIndex;
 import io.contexa.contexacore.std.rag.service.PgVectorSearchSettings;
 import io.contexa.contexacore.std.rag.service.PgVectorPastRecordQuery;
+import io.contexa.contexacore.std.rag.service.PgVectorVocabularyReindexer;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -144,6 +147,33 @@ public class CoreRAGAutoConfiguration {
         return () -> PgVectorMetadataIndex.ensureFor(vectorStore,
                 environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
                 environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store"));
+    }
+
+    /**
+     * Moves the past-record documents stored under another classification vocabulary into today's once the context
+     * is ready (W5-7 D5), on a background thread so that the start does not wait for it. A store that is not
+     * pgvector has none to move.
+     */
+    @Bean
+    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnProperty(prefix = "contexa.rag", name = "vocabulary-reindex-on-start", havingValue = "true",
+            matchIfMissing = true)
+    public ApplicationListener<ApplicationReadyEvent> pgVectorVocabularyReindexOnStart(VectorStore vectorStore,
+                                                                                       Environment environment) {
+        PgVectorVocabularyReindexer reindexer = new PgVectorVocabularyReindexer(vectorStore,
+                environment.getProperty("spring.ai.vectorstore.pgvector.schema-name", "public"),
+                environment.getProperty("spring.ai.vectorstore.pgvector.table-name", "vector_store"));
+        return event -> {
+            Thread reindex = new Thread(() -> {
+                try {
+                    reindexer.reindex(500);
+                } catch (RuntimeException e) {
+                    log.error("Past-record vocabulary reindex failed", e);
+                }
+            }, "Vocabulary-Reindex");
+            reindex.setDaemon(true);
+            reindex.start();
+        };
     }
 
     /** Vector searches and stores; all configured threads run before work queues (W2-15). */

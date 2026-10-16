@@ -39,6 +39,20 @@ public record PromptGovernanceDescriptorResolution(
         }
     }
 
+    /**
+     * W4-7 (inventory 6, bundle 10): the open source static descriptor, the normal path when no registry resolves it.
+     */
+    public static PromptGovernanceDescriptorResolution staticDescriptor(
+            PromptGovernanceDescriptor descriptor,
+            PromptGovernanceResolutionContext context) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("registryScope", registryScope(context));
+        metadata.put("governanceResolutionSource", "STATIC_PROMPT_DESCRIPTOR");
+        metadata.put("promptGovernanceCacheState", "STATIC");
+        return new PromptGovernanceDescriptorResolution(descriptor, metadata);
+    }
+
+    /** The static descriptor taken because a registry lookup failed. */
     public static PromptGovernanceDescriptorResolution fallback(
             PromptGovernanceDescriptor descriptor,
             PromptGovernanceResolutionContext context) {

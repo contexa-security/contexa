@@ -31,4 +31,12 @@ public interface PromptBundleSelector {
      * @return the chosen bundle, or {@link PromptBundleSelection#none()} to leave it to the build default
      */
     PromptBundleSelection select(PromptGovernanceResolutionContext context, String subjectKey);
+
+    /**
+     * W6-9 (P6-CHANGE-6): the bundle a shadow run of the request draws, apart from the decision; none when the scope
+     * has no shadow release.
+     */
+    default PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
+        return PromptBundleSelection.none();
+    }
 }

@@ -110,8 +110,12 @@ class PromptInspectionSessionFactsTest {
                 "MfaFailures: 2 recent MFA failures (window not stated)",
                 "MfaFailures: 0 recent MFA failures (window not stated)",
                 "canonicalContext.session.recentMfaFailureCount");
+        // W5-10 D5: a request whose seal holds the engine's own count of the last 60 minutes states it before the host's
+        // count; this assertion changes the host's count only.
+        String engine = engineCountOf(InspectionGolden.render(text -> text.contains("=== SESSION")).userPrompt());
         assertLine(context -> session(context).setRecentRequestCount(17), null,
-                "RecentRequests: 17 recent requests", "RecentRequests: 1 recent requests",
+                "RecentRequests: " + engine + "host count 17, window not stated",
+                "RecentRequests: " + engine + "host count 1, window not stated",
                 "canonicalContext.session.recentRequestCount");
         assertLine(context -> session(context).setConcurrentSessions(2), null,
                 "ConcurrentSessions: 2 concurrent sessions", "ConcurrentSessions: 1 concurrent sessions",
@@ -215,6 +219,19 @@ class PromptInspectionSessionFactsTest {
         assertThat(found).as(broken).hasSize(1);
         assertThat(found.get(0).entry()).isEqualTo(label);
         assertThat(found.get(0).sourceRef()).isEqualTo(sourceRef);
+    }
+
+    /**
+     * The engine's part of the golden render's RecentRequests line as the line puts it before a host count: the text
+     * before the host count, or the engine's own count with its separator; none without an engine count.
+     */
+    private static String engineCountOf(String userPrompt) {
+        return Arrays.stream(userPrompt.split("\n")).map(InspectionGolden::bare)
+                .filter(line -> line.startsWith("RecentRequests: ")).findFirst()
+                .map(line -> line.substring("RecentRequests: ".length()))
+                .map(value -> value.contains("host count") ? value.substring(0, value.indexOf("host count"))
+                        : value.contains(" requests in last ") ? value + "; " : "")
+                .orElse("");
     }
 
     private static String withLine(String userPrompt, String label, String line) {

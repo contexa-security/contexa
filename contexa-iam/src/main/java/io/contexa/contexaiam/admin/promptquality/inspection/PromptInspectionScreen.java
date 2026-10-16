@@ -6,6 +6,7 @@ import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
 import io.contexa.contexacore.verification.inspection.PastRecordNotationCheck;
 import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
+import io.contexa.contexacore.verification.inspection.ReasonMatchCheck;
 import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
 import io.contexa.contexacore.verification.inspection.UnknownDeclaredCheck;
 
@@ -30,7 +31,7 @@ public final class PromptInspectionScreen {
     /** The codes of the checks the inspector runs, in the order the screens offer them. */
     public static final List<String> CHECKS = List.of(SealIntegrityCheck.CODE, BundleTraceCheck.CODE,
             DictionaryContractCheck.CODE, DecisionFactMatchCheck.CODE, FactAccuracyCheck.CODE,
-            UnknownDeclaredCheck.CODE, PastRecordNotationCheck.CODE, SameFactCheck.CODE);
+            UnknownDeclaredCheck.CODE, PastRecordNotationCheck.CODE, SameFactCheck.CODE, ReasonMatchCheck.CODE);
 
     /** The tone of each verdict's chip; a finding's outcome chip takes the tone of the same name. */
     public static final Map<String, String> TONES = tones();

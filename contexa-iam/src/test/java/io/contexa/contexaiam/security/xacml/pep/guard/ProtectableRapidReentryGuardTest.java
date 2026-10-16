@@ -18,10 +18,12 @@ package io.contexa.contexaiam.security.xacml.pep.guard;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
+import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
@@ -128,62 +131,60 @@ class ProtectableRapidReentryGuardTest {
     }
 
     @Nested
-    @DisplayName("Context binding hash + userId + actor-session scope")
+    @DisplayName("Context binding hash + userId + request scope")
     class ContextBindingTests {
 
+        /**
+         * The scope is the request's own protected call (2026-09-15): tenant, request id, HTTP method, URI, the protected
+         * method and the decision boundary mode, each with its placeholder when the request does not state it.
+         */
         @Test
-        @DisplayName("Should use actor-session scope instead of method or URI")
-        void shouldUseActorSessionScopeKey() {
+        @DisplayName("Should scope the re-entry to the request's tenant, id, method, URI, protected method and boundary")
+        void shouldUseTheRequestScopeKey() {
+            when(request.getAttribute(RequestInfoExtractor.REQUEST_ID_ATTRIBUTE)).thenReturn("request-1");
+            String scope = "TENANT_UNSPECIFIED|request-1|POST|/api/resource|"
+                    + TestController.class.getName() + ".doAction|UNSPECIFIED";
             try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
                 fingerprint.when(() -> SessionFingerprintUtil.generateContextBindingHash(request))
                         .thenReturn("ctxHash");
-                when(repository.tryAcquire(
-                        eq("user1"),
-                        eq("ctxHash"),
-                        eq("PROTECTABLE_ACTOR_SESSION"),
-                        eq(Duration.ofSeconds(5))
-                )).thenReturn(true);
+                when(repository.tryAcquire(eq("user1"), eq("ctxHash"), eq(scope), eq(Duration.ofSeconds(5))))
+                        .thenReturn(true);
 
                 assertThatCode(() -> guard.check(authentication, methodInvocation))
                         .doesNotThrowAnyException();
 
-                verify(repository).tryAcquire(
-                        eq("user1"),
-                        eq("ctxHash"),
-                        eq("PROTECTABLE_ACTOR_SESSION"),
-                        eq(Duration.ofSeconds(5)));
+                verify(repository).tryAcquire(eq("user1"), eq("ctxHash"), eq(scope), eq(Duration.ofSeconds(5)));
             }
         }
     }
 
     @Nested
-    @DisplayName("Different resources in the same actor session should be coalesced")
+    @DisplayName("Different resources of the same session keep their own scope")
     class DifferentResourceTests {
 
+        /** Another URI of the same session is another request scope (2026-09-15), so it is not suppressed. */
         @Test
-        @DisplayName("Should suppress different URIs within the same actor-session window")
-        void shouldSuppressDifferentResourcesInSameActorSession() throws Exception {
+        @DisplayName("Should keep a different URI of the same session in its own scope")
+        void shouldKeepDifferentResourcesInTheirOwnScope() {
+            when(request.getAttribute(RequestInfoExtractor.REQUEST_ID_ATTRIBUTE)).thenReturn("request-1");
             try (MockedStatic<SessionFingerprintUtil> fingerprint = mockStatic(SessionFingerprintUtil.class)) {
                 fingerprint.when(() -> SessionFingerprintUtil.generateContextBindingHash(request))
                         .thenReturn("hash1");
-
-                when(repository.tryAcquire(eq("user1"), eq("hash1"),
-                        eq("PROTECTABLE_ACTOR_SESSION"), eq(Duration.ofSeconds(5))))
-                        .thenReturn(true)
-                        .thenReturn(false);
+                when(repository.tryAcquire(eq("user1"), eq("hash1"), anyString(), eq(Duration.ofSeconds(5))))
+                        .thenReturn(true);
 
                 when(request.getRequestURI()).thenReturn("/api/resource-a");
                 assertThatCode(() -> guard.check(authentication, methodInvocation))
                         .doesNotThrowAnyException();
 
                 when(request.getRequestURI()).thenReturn("/api/resource-b");
-                Assertions.assertThat(guard.tryAcquire(authentication, methodInvocation)).isFalse();
+                Assertions.assertThat(guard.tryAcquire(authentication, methodInvocation)).isTrue();
 
-                verify(repository, times(2)).tryAcquire(
-                        eq("user1"),
-                        eq("hash1"),
-                        eq("PROTECTABLE_ACTOR_SESSION"),
+                ArgumentCaptor<String> scopes = ArgumentCaptor.forClass(String.class);
+                verify(repository, times(2)).tryAcquire(eq("user1"), eq("hash1"), scopes.capture(),
                         eq(Duration.ofSeconds(5)));
+                Assertions.assertThat(scopes.getAllValues().get(0)).contains("|/api/resource-a|");
+                Assertions.assertThat(scopes.getAllValues().get(1)).contains("|/api/resource-b|");
             }
         }
     }

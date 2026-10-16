@@ -19,7 +19,13 @@ import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.ThreatAssessment;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.decision.Deviation;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
+import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
@@ -113,6 +119,69 @@ class Layer2ExpertStrategyTest {
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
     }
 
+    /** N-OUT-1 (G1-8): the second layer runs on tier 2 and records the model that answered. */
+    @Test
+    void theSecondLayerRunsOnTierTwoAndRecordsTheModelThatAnswered() {
+        SecurityEvent event = buildTestEvent();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Legitimate access confirmed");
+        response.withMetadata("providerResponseModel", "gpt-6-luna-2026-09-30");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+
+        ArgumentCaptor<SecurityDecisionRequest> requestCaptor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(requestCaptor.capture(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+        assertThat(requestCaptor.getValue().getParameter("platformAnalysisTier", Integer.class)).isEqualTo(2);
+        assertThat(decision.getLlmModel()).isEqualTo("gpt-6-luna-2026-09-30");
+    }
+
+    /** Q-87 (N-P3-1): an ESCALATE the policy rule asks for stays the final action; it waits for a review. */
+    @Test
+    void anEscalateThePolicyRuleAsksForStaysFinal() {
+        SecurityEvent event = buildTestEvent();
+        event.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("CRITICAL").actionFamily("EXPORT").build())
+                .decisionFacts(new DecisionFacts(List.of(), List.of(),
+                        new PolicySatisfaction(false, null, List.of(), "no approval", List.of()), List.of()))
+                .build());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ESCALATE");
+        response.setReasoning("No approval covers the export.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+    }
+
+    /** Q-87 (N-P3-1): under a rule whose floor is a challenge (P1) the ESCALATE is terminalized as before. */
+    @Test
+    void anEscalateUnderAChallengeFloorIsStillTerminalized() {
+        SecurityEvent event = buildTestEvent();
+        event.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("CRITICAL").actionFamily("READ").build())
+                .decisionFacts(new DecisionFacts(List.of(), List.of(
+                        new Deviation(DeviationDimension.TIME, "x", true, true, 0, 10, "y",
+                                Deviation.Explanation.UNEXPLAINED, null),
+                        new Deviation(DeviationDimension.NETWORK, "x", true, true, 0, 10, "y",
+                                Deviation.Explanation.UNEXPLAINED, null)),
+                        PolicySatisfaction.UNKNOWN, List.of()))
+                .build());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ESCALATE");
+        response.setReasoning("Two identity signals differ from the baseline.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
     @Test
     @DisplayName("performDeepAnalysis should return technical ESCALATE when the LLM pipeline fails")
     void performDeepAnalysis_pipelineFailure_returnsTechnicalEscalate() {
@@ -199,6 +268,50 @@ class Layer2ExpertStrategyTest {
         assertThat(decision.getTechnicalFallbackApplied()).isTrue();
         assertThat(decision.getResponseActionFallbackApplied()).isNull();
         assertThat(decision.getProcessingLayer()).isEqualTo(2);
+        assertThat(decision.getFieldProvenance().values())
+                .containsOnly("PLATFORM_FALLBACK");
+    }
+
+    @Test
+    @DisplayName("N-OUT-1 (G1-7): the Layer2 budget holds when the pipeline runs synchronously")
+    void theLayerTwoBudgetHoldsWhenThePipelineRunsSynchronously() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer2().setTimeoutMs(200);
+        strategy = new Layer2ExpertStrategy(
+                approvalService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                properties,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator
+        );
+        SecurityEvent event = buildTestEvent();
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.fromCallable(() -> {
+                    Thread.sleep(2000);
+                    return new SecurityDecisionResponse();
+                }));
+
+        long started = System.currentTimeMillis();
+        SecurityDecision decision = strategy.performDeepAnalysis(event);
+        long elapsedMs = System.currentTimeMillis() - started;
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getResponseActionFallbackApplied()).isNull();
+        assertThat(decision.getProcessingLayer()).isEqualTo(2);
+        assertThat(elapsedMs).isLessThan(1500L);
         assertThat(decision.getFieldProvenance().values())
                 .containsOnly("PLATFORM_FALLBACK");
     }
@@ -605,7 +718,7 @@ class Layer2ExpertStrategyTest {
         metadata.put("httpMethod", "POST");
         metadata.put("requestPath", "/api/admin/config");
         metadata.put("layer1Assessment", Map.copyOf(firstPass));
-        metadata.put("userPrompt", FIRST_PROMPT);
+        metadata.put(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT, FIRST_PROMPT);
         if (layout != null) {
             metadata.put("userPromptLayoutVersion", layout);
         }

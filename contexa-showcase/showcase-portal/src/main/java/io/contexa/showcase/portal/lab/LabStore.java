@@ -57,6 +57,15 @@ public class LabStore {
                         int delayHours) {
     }
 
+    /**
+     * W7-13: a lab run's composition as stored, with what its delta's base is chosen by: the run's state, measurement
+     * setting, template and visitor.
+     */
+    public record Composition(String runId, String caseKey, boolean designed, List<String> changed,
+                              Map<String, Object> conditions, Instant composedAt, String status, String settingHash,
+                              String templateId, String visitor) {
+    }
+
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {
     };
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
@@ -171,6 +180,47 @@ public class LabStore {
                     assessors.add(rs.getString(3));
                 });
         return Optional.of(new Peers(total[0], assessors.size(), verdicts, reasons, delayHours));
+    }
+
+    /** W7-13: the composition of a lab run; empty for a run that was not a lab run. */
+    public Optional<Composition> composition(String runId) {
+        return jdbc.query("""
+                        select c.run_id, c.case_key, c.designed, c.changed::text, c.conditions::text, c.composed_at,
+                               r.status, r.setting_hash, r.template_id, r.live_visitor_hash
+                          from lab_composition c join run r on r.run_id = c.run_id
+                         where c.run_id = :run""",
+                new MapSqlParameterSource("run", runId),
+                (rs, n) -> new Composition(rs.getString(1), rs.getString(2), rs.getBoolean(3),
+                        read(rs.getString(4), STRINGS), read(rs.getString(5), MAP), rs.getTimestamp(6).toInstant(),
+                        rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10)))
+                .stream().findFirst();
+    }
+
+    /**
+     * W7-13: the designed run a lab run with one changed condition is compared with, as the harness compares a lab run
+     * with its batch's designed run of the same case (the delivery check, plan 8.4): a lab run of the same case composed
+     * with nothing changed, completed and unforced, under the same measurement setting and, unless the employee is the
+     * changed condition, from the same template, so that only the condition differs. The run's own visitor's designed
+     * run comes first (the run the lab's previous-run comparison shows), then the one composed closest in time; empty
+     * when there is none.
+     */
+    public Optional<String> designedBase(Composition run) {
+        if (run.settingHash() == null) {
+            return Optional.empty();
+        }
+        return jdbc.queryForList("""
+                        select c.run_id from lab_composition c join run r on r.run_id = c.run_id
+                         where c.case_key = :case and c.designed and c.run_id <> :run
+                           and r.status = 'COMPLETED' and r.forced_action is null and r.setting_hash = :setting
+                           and (:anyTemplate or r.template_id is not distinct from cast(:template as varchar))
+                         order by (r.live_visitor_hash is not distinct from cast(:visitor as varchar)) desc,
+                                  abs(extract(epoch from (c.composed_at - cast(:at as timestamptz)))), c.run_id
+                         limit 1""",
+                new MapSqlParameterSource("case", run.caseKey()).addValue("run", run.runId())
+                        .addValue("setting", run.settingHash())
+                        .addValue("anyTemplate", run.changed().contains("employee"))
+                        .addValue("template", run.templateId()).addValue("visitor", run.visitor())
+                        .addValue("at", Timestamp.from(run.composedAt())), String.class).stream().findFirst();
     }
 
     private <T> T read(String text, TypeReference<T> type) {

@@ -155,6 +155,103 @@ class Layer1ContextualStrategyPipelineTest {
     }
 
     @Test
+    @DisplayName("N-OUT-1 (G1-7): the Layer1 budget holds when the pipeline runs synchronously")
+    void theLayerOneBudgetHoldsWhenThePipelineRunsSynchronously() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getTimeout().setLlmMs(200);
+
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.fromCallable(() -> {
+                    Thread.sleep(2000);
+                    return new SecurityDecisionResponse();
+                }));
+
+        Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
+                null,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-layer1-timeout-001")
+                .timestamp(LocalDateTime.of(2026, 4, 22, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-timeout")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/customer/export")
+                .build();
+
+        long started = System.currentTimeMillis();
+        SecurityDecision decision = strategy.analyzeWithContext(event);
+        long elapsedMs = System.currentTimeMillis() - started;
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getProcessingLayer()).isEqualTo(1);
+        assertThat(elapsedMs).isLessThan(1500L);
+    }
+
+    @Test
+    @DisplayName("N-OUT-1 (G1-7): the Layer1 total budget holds for the asynchronous analysis")
+    void theLayerOneTotalBudgetHoldsForTheAsynchronousAnalysis() {
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getLayer1().getTimeout().setLlmMs(5000);
+        properties.getLayer1().getTimeout().setTotalMs(200);
+
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.fromCallable(() -> {
+                    Thread.sleep(2000);
+                    return new SecurityDecisionResponse();
+                }));
+
+        Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
+                null,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-layer1-timeout-001")
+                .timestamp(LocalDateTime.of(2026, 4, 22, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-timeout")
+                .sourceIp("203.0.113.10")
+                .description("POST /api/customer/export")
+                .build();
+
+        long started = System.currentTimeMillis();
+        SecurityDecision decision = strategy.analyzeWithContextAsync(event).block();
+        long elapsedMs = System.currentTimeMillis() - started;
+
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.getTechnicalFallbackApplied()).isTrue();
+        assertThat(decision.getProcessingLayer()).isEqualTo(1);
+        assertThat(elapsedMs).isLessThan(1500L);
+    }
+
+    @Test
     @DisplayName("Layer1 response-action fallback audit fields must survive ThreatAssessment conversion")
     void evaluate_responseActionFallback_shouldPreserveAuditFields() {
         SecurityDecisionResponse response = new SecurityDecisionResponse();
@@ -320,7 +417,7 @@ class Layer1ContextualStrategyPipelineTest {
 
     private static BaselineLearningService baselineTaking(long millis, AtomicLong started) {
         BaselineLearningService baselineLearningService = mock(BaselineLearningService.class);
-        when(baselineLearningService.getPersonalBaseline("alice")).thenAnswer(invocation -> {
+        when(baselineLearningService.getPersonalBaseline(eq("alice"), any())).thenAnswer(invocation -> {
             if (started != null) {
                 started.compareAndSet(0L, System.nanoTime());
             }

@@ -554,7 +554,7 @@ public class BenchmarkService {
                 predictions[2], total[0], perVisitor.size(), weighted, verdicts, reasons, ASSESSMENT_DELAY_HOURS);
     }
 
-    static BenchmarkView.Rate rate(long hits, long total) {
+    public static BenchmarkView.Rate rate(long hits, long total) {
         if (total == 0) {
             return new BenchmarkView.Rate(hits, total, null, null, null);
         }

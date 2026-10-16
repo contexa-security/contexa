@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LabCase } from '../../../api/lab';
+import { useRunFacts, useRunQuality } from '../../../api/promptQuality';
 import { ActionChip } from '../../../components/common/ActionChip';
 import { useDetail } from '../../../components/detail/useDetail';
+import { ReasonChain } from '../../../components/facts/ReasonChain';
 import { SourceMark } from '../../../components/common/SourceMark';
 import { Icon } from '../../../components/Icon';
 import { JustSaw } from '../../../components/journey/JourneyParts';
@@ -31,7 +33,8 @@ interface ReasonStepProps {
  * Try 1-6, the reasons (e1-reason): which recorded facts led to the decision, as one figure, and the reason the engine
  * wrote (the fixed Korean of a contract sentence, the original behind its fold). The evidence it cited and the core
  * inspector's adverse conditions are folded under "details" (D-41). Every value is control D's decision block of the
- * visitor's run.
+ * visitor's run. With the sealed decision's reason codes (U-3) the figure is the chain from the facts the AI
+ * received through the reason codes to the decision, each code on the row of the fact it cites.
  */
 export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) {
   const { t } = useTranslation();
@@ -40,6 +43,9 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
   const view = run.view;
   const analysis = useTryAnalysis(view, run.stored);
   const decision = analysis.decision;
+  // U-3: the sealed decision's reason codes and the facts they cite, read once the engine has decided.
+  const quality = useRunQuality(decision ? (view?.runId ?? null) : null, 1).data ?? null;
+  const runFacts = useRunFacts(decision ? (view?.runId ?? null) : null, 1).data ?? null;
 
   useEffect(() => {
     if (decision) {
@@ -87,6 +93,10 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
     (label) => label.label === 'approvalrequired' && label.met,
   );
   const detail = decisionDetail(t, decision);
+  // The chain needs the quality view's reason codes; without them the figure of the recorded facts stays.
+  const chain = quality?.available && quality.reasonCodes.length > 0 ? quality.reasonCodes : null;
+  const reasonCheck = quality?.inspection?.checks.find((check) => check.code === 'REASON_MATCH') ?? null;
+  const verdict = (ACTIONS.has(action) ? action : 'NONE') as Verdict;
   const facts = [
     t('e1.reason.differs', { n: decision.reason?.baselineDeltaCount ?? '-' }),
     ...(decision.reason?.resourceSensitivity
@@ -115,21 +125,25 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
           />
         }
       />
-      <div className={styles.reasonFigure} aria-label={t('e1.reason.figure')}>
-        <ul className={styles.reasonFacts}>
-          {facts.map((fact) => (
-            <li key={fact} className={styles.reasonFact}>
-              {fact}
-            </li>
-          ))}
-        </ul>
-        <Icon name="arrowRight" className={styles.reasonArrow} />
-        <VerdictChip verdict={(ACTIONS.has(action) ? action : 'NONE') as Verdict} size="lg" />
-      </div>
+      {chain ? (
+        <ReasonChain reasonCodes={chain} facts={runFacts} verdict={verdict} check={reasonCheck} />
+      ) : (
+        <div className={styles.reasonFigure} aria-label={t('e1.reason.figure')}>
+          <ul className={styles.reasonFacts}>
+            {facts.map((fact) => (
+              <li key={fact} className={styles.reasonFact}>
+                {fact}
+              </li>
+            ))}
+          </ul>
+          <Icon name="arrowRight" className={styles.reasonArrow} />
+          <VerdictChip verdict={verdict} size="lg" />
+        </div>
+      )}
       <figure className={styles.quote}>
         <figcaption className={styles.quoteLabel}>{t('e1.reason.wrote')}</figcaption>
         {/* W4-3: the codes the engine cited, each with its fixed meaning and the prompt line it cites. */}
-        {reasonCodes.length > 0 ? (
+        {!chain && reasonCodes.length > 0 ? (
           <ul className={styles.reasonFacts} aria-label={t('e1.reason.codes')}>
             {reasonCodes.map((code) => (
               <li key={`${code.code}-${code.fact ?? ''}`} className={styles.reasonFact}>

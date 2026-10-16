@@ -19,6 +19,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSections;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 
@@ -57,7 +58,7 @@ final class Layer2SecondPass {
                         && Boolean.TRUE.equals(assessment.get("llmDecisionPresent"))
                         && !Boolean.TRUE.equals(assessment.get("technicalFallbackApplied"));
             }
-            String userPrompt = metadata.get("userPrompt") instanceof String prompt && StringUtils.hasText(prompt)
+            String userPrompt = metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT) instanceof String prompt && StringUtils.hasText(prompt)
                     ? prompt : null;
             return new FirstPass(verdict, modelVerdict, reason, userPrompt, text(metadata.get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION)),
                     text(metadata.get("ragRetrievalState")));

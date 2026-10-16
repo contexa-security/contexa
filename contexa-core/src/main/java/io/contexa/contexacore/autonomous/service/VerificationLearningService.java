@@ -15,12 +15,11 @@
  */
 package io.contexa.contexacore.autonomous.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -28,15 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Learns, once the user is verified, the request a restriction stopped (W5-2). When the engine enforces CHALLENGE,
@@ -48,9 +43,6 @@ import java.util.UUID;
 @Slf4j
 public class VerificationLearningService {
 
-    /** The canonical context the decision used, put on the event when the prompt is built. */
-    private static final String DECIDED_CONTEXT = "sealedEvidence.canonicalContext";
-
     /** The metadata of a learned request that names how its user was verified. */
     public static final String VERIFIED_BY = "verifiedBy";
     /** The metadata of a learned request that gives the weight it is learned at. */
@@ -60,14 +52,13 @@ public class VerificationLearningService {
     private static final double DEFAULT_WEIGHT = 0.5;
     private static final Set<ZeroTrustAction> HELD = EnumSet.of(
             ZeroTrustAction.CHALLENGE, ZeroTrustAction.ESCALATE, ZeroTrustAction.BLOCK);
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<Map<String, Object>> RECORD = new TypeReference<>() {
-    };
 
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final ProtectableWorkProfileCollector workProfileCollector;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private LearningPromotionService learningPromotionService;
+    private volatile PastRecordQuery pastRecordQuery;
 
     public VerificationLearningService(SecurityContextDataStore dataStore,
                                        @Nullable SecurityLearningService securityLearningService,
@@ -77,6 +68,16 @@ public class VerificationLearningService {
         this.securityLearningService = securityLearningService;
         this.workProfileCollector = workProfileCollector;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
+    }
+
+    /** Promotes the held requests whose values a step-up on a request with them vouches for (W5-1). */
+    public void setLearningPromotionService(LearningPromotionService learningPromotionService) {
+        this.learningPromotionService = learningPromotionService;
+    }
+
+    /** Where the outcome of a verification is written on the record of the decision it lifted (W5-4). */
+    public void setPastRecordQuery(PastRecordQuery pastRecordQuery) {
+        this.pastRecordQuery = pastRecordQuery;
     }
 
     /** Keeps the facts of an analysed request the enforced action stops; any other action keeps nothing. */
@@ -90,7 +91,7 @@ public class VerificationLearningService {
             return;
         }
         try {
-            dataStore.holdVerificationLearning(event.getUserId().trim(), requestId, encode(event));
+            dataStore.holdVerificationLearning(event.getUserId().trim(), requestId, HeldRequestRecords.encode(event));
         } catch (Exception e) {
             log.error("Failed to hold a stopped request for learning after verification: userId={}",
                     event.getUserId(), e);
@@ -112,10 +113,43 @@ public class VerificationLearningService {
     public Optional<SecurityEvent> take(String userId, String requestId, Verification verification) {
         Optional<SecurityEvent> held = takeHeld(userId, requestId);
         held.ifPresent(event -> {
+            recordOutcome(event, verification);
             event.addMetadata(VERIFIED_BY, verification != null ? verification.name() : null);
             event.addMetadata(VERIFICATION_WEIGHT, weight());
         });
         return held;
+    }
+
+    /**
+     * Writes how the decision that stopped the request ended on its record (W5-4): verified by the step-up or released
+     * by an administrator. The record is the one of the request's own event, whatever kind it was stored as. The
+     * outcome is first kept by the event, so a record stored after this still takes it when it is stored.
+     */
+    private void recordOutcome(SecurityEvent event, Verification verification) {
+        Object heldEventId = event.getMetadata() != null ? event.getMetadata().get(HeldRequestRecords.HELD_EVENT_ID) : null;
+        if (verification == null || heldEventId == null) {
+            return;
+        }
+        String outcome = verification == Verification.STEP_UP
+                ? PastDeniedDecisions.VERIFIED_BY_STEP_UP : PastDeniedDecisions.RELEASED_BY_ADMINISTRATOR;
+        if (dataStore != null) {
+            try {
+                dataStore.recordVerificationOutcome(heldEventId.toString(), outcome);
+            } catch (RuntimeException e) {
+                log.error("Failed to keep the outcome of a stopped request: userId={}", event.getUserId(), e);
+            }
+        }
+        PastRecordQuery query = pastRecordQuery;
+        if (query == null) {
+            return;
+        }
+        try {
+            for (String documentId : PastDeniedDecisions.documentIds(heldEventId.toString())) {
+                query.recordOutcome(documentId, outcome);
+            }
+        } catch (RuntimeException e) {
+            log.error("Failed to write the outcome of a stopped request on its record: userId={}", event.getUserId(), e);
+        }
     }
 
     private Optional<SecurityEvent> takeHeld(String userId, String requestId) {
@@ -124,7 +158,7 @@ public class VerificationLearningService {
         }
         try {
             String record = dataStore.takeVerificationLearning(userId.trim(), requestId);
-            return record == null ? Optional.empty() : Optional.of(decode(record));
+            return record == null ? Optional.empty() : Optional.of(HeldRequestRecords.decode(record, false));
         } catch (Exception e) {
             log.error("Failed to take a request held for learning after verification: userId={}", userId, e);
             return Optional.empty();
@@ -152,7 +186,22 @@ public class VerificationLearningService {
             securityLearningService.learnAndStore(userId.trim(), decision, event);
         }
         learnWorkProfile(event);
+        promoteVouched(userId.trim(), event);
         return true;
+    }
+
+    /** The step-up vouches for the identity values of the request it answered (W5-1). */
+    private void promoteVouched(String userId, SecurityEvent event) {
+        if (learningPromotionService == null || event.getMetadata() == null
+                || !(event.getMetadata().get(HeldRequestRecords.IDENTITY_VALUES) instanceof Collection<?> values)
+                || values.isEmpty()) {
+            return;
+        }
+        try {
+            learningPromotionService.promoteVerified(userId, values.stream().map(String::valueOf).toList());
+        } catch (RuntimeException e) {
+            log.error("Failed to promote held requests after a step-up: userId={}", userId, e);
+        }
     }
 
     /** Adds the request to the user's work profile at the reduced weight. */
@@ -188,74 +237,5 @@ public class VerificationLearningService {
             }
         }
         return null;
-    }
-
-    private static String encode(SecurityEvent event) throws Exception {
-        Map<String, Object> record = new LinkedHashMap<>();
-        record.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toEpochMilli() : null);
-        record.put("userId", event.getUserId());
-        record.put("userName", event.getUserName());
-        record.put("sessionId", event.getSessionId());
-        record.put("sourceIp", event.getSourceIp());
-        record.put("userAgent", event.getUserAgent());
-        record.put("description", event.getDescription());
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        if (event.getMetadata() != null) {
-            event.getMetadata().forEach((key, value) -> {
-                if (plain(value)) {
-                    metadata.put(key, value);
-                }
-            });
-        }
-        // The canonical context is not kept, so the item count and network zone the decision used (W3-3) are kept as
-        // the plain values the learning after the check reads in its place.
-        if (event.getMetadata() != null
-                && event.getMetadata().get(DECIDED_CONTEXT) instanceof CanonicalSecurityContext decided) {
-            if (decided.getResource() != null && decided.getResource().getRequestedItems() != null) {
-                metadata.put("requestItems", decided.getResource().getRequestedItems());
-            }
-            if (decided.getLocation() != null && StringUtils.hasText(decided.getLocation().getNetworkZone())) {
-                metadata.put("networkZone", decided.getLocation().getNetworkZone());
-            }
-        }
-        record.put("metadata", metadata);
-        return JSON.writeValueAsString(record);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static SecurityEvent decode(String text) throws Exception {
-        Map<String, Object> record = JSON.readValue(text, RECORD);
-        Object timestamp = record.get("timestamp");
-        SecurityEvent event = SecurityEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .source(SecurityEvent.EventSource.IAM)
-                .timestamp(timestamp instanceof Number at ? Instant.ofEpochMilli(at.longValue()) : null)
-                .userId(text(record.get("userId")))
-                .userName(text(record.get("userName")))
-                .sessionId(text(record.get("sessionId")))
-                .sourceIp(text(record.get("sourceIp")))
-                .userAgent(text(record.get("userAgent")))
-                .description(text(record.get("description")))
-                .build();
-        if (record.get("metadata") instanceof Map<?, ?> metadata) {
-            ((Map<String, Object>) metadata).forEach(event::addMetadata);
-        }
-        return event;
-    }
-
-    /** A value the record keeps as it is: text, a number, a truth value, or a list of them. */
-    private static boolean plain(Object value) {
-        if (value instanceof String || value instanceof Number || value instanceof Boolean) {
-            return true;
-        }
-        if (value instanceof Collection<?> values) {
-            return values.stream().allMatch(item -> item instanceof String || item instanceof Number
-                    || item instanceof Boolean);
-        }
-        return false;
-    }
-
-    private static String text(Object value) {
-        return value != null ? value.toString() : null;
     }
 }

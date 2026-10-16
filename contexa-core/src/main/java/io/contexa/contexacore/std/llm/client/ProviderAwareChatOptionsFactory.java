@@ -15,9 +15,15 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +42,10 @@ public final class ProviderAwareChatOptionsFactory {
 
     private static final String OPENAI_CHAT_OPTIONS_CLASS = "org.springframework.ai.openai.OpenAiChatOptions";
     private static final String ANTHROPIC_CHAT_OPTIONS_CLASS = "org.springframework.ai.anthropic.AnthropicChatOptions";
+    private static final ObjectMapper SCHEMA_MAPPER = new ObjectMapper();
+    /** The JSON schema keywords Anthropic's structured outputs refuse (Claude API documentation, checked 2026-10-14). */
+    private static final List<String> ANTHROPIC_REFUSED_KEYWORDS = List.of("maxItems", "minimum", "maximum",
+            "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength");
     private static final boolean OPENAI_OPTIONS_PRESENT =
             ClassUtils.isPresent(OPENAI_CHAT_OPTIONS_CLASS, ProviderAwareChatOptionsFactory.class.getClassLoader());
     /** The package names of Spring AI's chat providers other than OpenAI (Azure OpenAI has its own options). */
@@ -302,6 +312,41 @@ public final class ProviderAwareChatOptionsFactory {
     }
 
     public static ChatOptions buildRuntimeOptions(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
+        ChatOptions options = runtimeOptions(context, selectedModel, tieredLLMProperties);
+        recordDeterminismNotApplied(context, options);
+        recordProviderReasoningEffort(context, options);
+        return options;
+    }
+
+    /** W4-6: the reasoning effort the options carry to the provider, recorded on the call. */
+    private static void recordProviderReasoningEffort(ExecutionContext context, ChatOptions options) {
+        String reasoningEffort = readString(options, "getReasoningEffort");
+        if (context != null && reasoningEffort != null) {
+            context.addMetadata(ExecutionContext.PROVIDER_REASONING_EFFORT, reasoningEffort);
+        }
+    }
+
+    /**
+     * W4-6: the determinism settings the call asked for (a security decision's platform values) that the options do not
+     * carry because the provider or the model does not take them, recorded on the call.
+     */
+    private static void recordDeterminismNotApplied(ExecutionContext context, ChatOptions options) {
+        if (context == null) {
+            return;
+        }
+        List<String> notApplied = new ArrayList<>();
+        if (context.getTemperature() != null && (options == null || options.getTemperature() == null)) {
+            notApplied.add("temperature");
+        }
+        if (context.getSeed() != null && readInteger(options, "getSeed") == null) {
+            notApplied.add("seed");
+        }
+        if (!notApplied.isEmpty()) {
+            context.addMetadata(ExecutionContext.DETERMINISM_NOT_APPLIED, List.copyOf(notApplied));
+        }
+    }
+
+    private static ChatOptions runtimeOptions(ExecutionContext context, ChatModel selectedModel, TieredLLMProperties tieredLLMProperties) {
         if (context == null) {
             return ChatOptions.builder().build();
         }
@@ -351,7 +396,7 @@ public final class ProviderAwareChatOptionsFactory {
             return options;
         }
         ChatOptions copy = options.copy();
-        ((StructuredOutputChatOptions) copy).setOutputSchema(schema);
+        ((StructuredOutputChatOptions) copy).setOutputSchema(isAnthropicOptions(copy) ? anthropicSchema(schema) : schema);
         context.addMetadata(ExecutionContext.OUTPUT_SCHEMA_APPLIED, true);
         return copy;
     }
@@ -396,6 +441,35 @@ public final class ProviderAwareChatOptionsFactory {
         }
         return anthropicUsesDefaultSamplingOnly(modelName) && hasSamplingValues(options)
                 ? withoutSamplingValues(options == requested ? options.copy() : options) : options;
+    }
+
+    /**
+     * The schema without the keywords Anthropic's structured outputs refuse (an HTTP 400 for the whole request):
+     * numeric and length bounds, a maximum of items, a minimum of more than one item. The response processor still
+     * checks what they said.
+     */
+    static String anthropicSchema(String schema) {
+        try {
+            JsonNode tree = SCHEMA_MAPPER.readTree(schema);
+            withoutAnthropicRefusedKeywords(tree);
+            return SCHEMA_MAPPER.writeValueAsString(tree);
+        } catch (JsonProcessingException e) {
+            return schema;
+        }
+    }
+
+    private static void withoutAnthropicRefusedKeywords(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            object.remove(ANTHROPIC_REFUSED_KEYWORDS);
+            JsonNode minItems = object.get("minItems");
+            if (minItems != null && minItems.isInt() && minItems.intValue() > 1) {
+                object.remove("minItems");
+            }
+            object.forEach(ProviderAwareChatOptionsFactory::withoutAnthropicRefusedKeywords);
+        }
+        else if (node instanceof ArrayNode array) {
+            array.forEach(ProviderAwareChatOptionsFactory::withoutAnthropicRefusedKeywords);
+        }
     }
 
     private static boolean hasSamplingValues(ChatOptions options) {
@@ -503,6 +577,10 @@ public final class ProviderAwareChatOptionsFactory {
         }
         if (!usesDefaultSamplingOnly && context.getTopP() != null) {
             invokeBuilder(builder, "topP", Double.class, context.getTopP());
+        }
+        if (context.getSeed() != null) {
+            // W4-6: the OpenAI reasoning models take a seed though only the default sampling (checked on gpt-6-luna).
+            invokeBuilder(builder, "seed", Integer.class, context.getSeed());
         }
         if (context.getMaxTokens() != null) {
             invokeBuilder(builder, "maxCompletionTokens", Integer.class, context.getMaxTokens());

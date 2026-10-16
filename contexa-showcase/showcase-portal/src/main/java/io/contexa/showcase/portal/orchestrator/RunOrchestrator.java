@@ -157,6 +157,7 @@ public class RunOrchestrator {
         String organization = "org-" + runHex;
         RunApprover approver = null;
         try {
+            checkRequestParts(scenario);
             JsonNode company = admin.company();
             LocalDate anchor = LocalDate.parse(company.path("anchorDate").asText());
             JsonNode employee = admin.employee(scenario.protagonist());
@@ -223,6 +224,8 @@ public class RunOrchestrator {
             approver = new RunApprover(admin, run, runHex, companyTime, () -> new ControlSession(Control.D,
                     new WorkloadClient(endpoints.of(Control.D), signer, run, endpoints.requestTimeout()), json));
 
+            // W7-4: the request id every control sent each step with, for a later step that sends it again.
+            Map<Control, Map<Integer, String>> sent = new EnumMap<>(Control.class);
             for (int index = 0; index < scenario.steps().size(); index++) {
                 Step step = scenario.steps().get(index);
                 int stepNo = index + 1;
@@ -231,8 +234,16 @@ public class RunOrchestrator {
                 }
                 String path = path(step, runHex);
                 Instant stepTime = companyTime.plusSeconds(step.offsetSeconds());
+                Map<Control, ControlSession.RequestParts> parts = new EnumMap<>(Control.class);
+                for (Control control : Control.values()) {
+                    parts.put(control, requestParts(json, step, sent.getOrDefault(control, Map.of())));
+                }
                 Map<Control, ControlResult> results = dispatch(new StepCall(runId, username, scenario, step, stepNo,
-                        path, stepTime, forcedAction, responder, listener, approver), sessions);
+                        path, stepTime, forcedAction, responder, listener, approver, parts), sessions);
+                for (Control control : Control.values()) {
+                    sent.computeIfAbsent(control, ignored -> new LinkedHashMap<>())
+                            .put(stepNo, results.get(control).outcome().requestId());
+                }
                 Map<String, String> outcomes = new LinkedHashMap<>();
                 for (Control control : Control.values()) {
                     outcomes.put(control.name(), results.get(control).outcome().outcome());
@@ -321,10 +332,14 @@ public class RunOrchestrator {
         return new RunSummary(runId, scenario.key(), username, organization, status, failure, summaries);
     }
 
-    /** One step of a run as every control receives it. */
+    /**
+     * One step of a run as every control receives it.
+     *
+     * @param parts W7-4: the request parts each control sends the step with
+     */
     private record StepCall(String runId, String username, ScenarioDefinition scenario, Step step, int stepNo,
                             String path, Instant stepTime, String forcedAction, ChallengeResponder responder,
-                            RunListener listener, Approver approver) {
+                            RunListener listener, Approver approver, Map<Control, ControlSession.RequestParts> parts) {
     }
 
     /** A control's answer to a step and, for control D, how its additional check or the release of a block ended. */
@@ -365,7 +380,7 @@ public class RunOrchestrator {
         }
         RunListener listener = call.listener();
         StepOutcome outcome = session.send(call.step().operation(), call.path(), call.stepTime(),
-                new ControlSession.SendListener() {
+                call.parts().get(control), new ControlSession.SendListener() {
                     @Override
                     public void sent(String requestId, Instant sentAt) {
                         listener.requestSent(call.stepNo(), control, call.step().operation(), requestId, sentAt);
@@ -386,13 +401,13 @@ public class RunOrchestrator {
                     call.scenario().oracle().classification(),
                     outcome.sentAt().plusMillis(outcome.elapsedMs()),
                     session.challengeActions(call.username(), email, call.step().operation(), call.path(),
-                            call.stepTime(), admin)));
+                            call.parts().get(control), call.stepTime(), admin)));
         } else if (control == Control.D && ControlSession.blocked(outcome)) {
             release = call.responder().release(new ChallengeResponder.Release(
                     call.scenario().oracle().classification(),
                     outcome.sentAt().plusMillis(outcome.elapsedMs()), call.username(),
                     session.releaseActions(call.username(), email, call.step().operation(), call.path(),
-                            call.stepTime(), admin),
+                            call.parts().get(control), call.stepTime(), admin),
                     call.approver()));
         }
         return new ControlResult(outcome, challenge, release);
@@ -579,10 +594,17 @@ public class RunOrchestrator {
     }
 
     private String path(Step step, String runHex) throws IOException {
+        boolean documentStep = step.operation() == BusinessOperation.DOCUMENT_READ
+                || step.operation() == BusinessOperation.DOCUMENT_DOWNLOAD;
+        return path(step, runHex, documentStep ? document(step, runHex) : null);
+    }
+
+    /** The path and query a step is sent to; {@code documentKey} names the document of a document step (W7-4). */
+    static String path(Step step, String runHex, String documentKey) {
         return switch (step.operation()) {
             case PROJECT_LIST -> "/api/projects";
-            case DOCUMENT_READ -> "/api/documents/" + document(step, runHex);
-            case DOCUMENT_DOWNLOAD -> "/api/documents/" + document(step, runHex) + "/download";
+            case DOCUMENT_READ -> "/api/documents/" + documentKey;
+            case DOCUMENT_DOWNLOAD -> "/api/documents/" + documentKey + "/download";
             case EXPORT -> "/api/projects/" + step.project() + "/exports?items=" + step.items() + claim(step, runHex);
             case EXPORT_STREAM -> "/api/projects/" + step.project() + "/exports/stream?items=" + step.items()
                     + claim(step, runHex);
@@ -605,6 +627,70 @@ public class RunOrchestrator {
         Matcher fact = FACT_REFERENCE.matcher(claimed);
         String key = fact.matches() ? factKey("TCK", runHex, Integer.parseInt(fact.group(1))) : claimed;
         return "&claimedTicket=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
+    }
+
+    /** W7-4: the header a step sends the request id of an earlier step in (plan 8.7). */
+    static final String CLIENT_REQUEST_ID = "X-Request-ID";
+
+    /**
+     * W7-4: refuses a definition whose request parts cannot be sent as written, before anything of its run is
+     * created: a body on a GET step, a header of the signed internal context or the run's device, or a request id taken
+     * from a step that is not an earlier one or beside an X-Request-ID the step names itself.
+     */
+    static void checkRequestParts(ScenarioDefinition scenario) {
+        for (int index = 0; index < scenario.steps().size(); index++) {
+            Step step = scenario.steps().get(index);
+            int stepNo = index + 1;
+            if (step.body() != null && !"POST".equals(ControlSession.method(step.operation()))) {
+                throw new IllegalArgumentException("Step " + stepNo + " of " + scenario.key()
+                        + " sends a body with a GET request");
+            }
+            Map<String, String> headers = step.headers() == null ? Map.of() : step.headers();
+            for (String name : headers.keySet()) {
+                if (WorkloadClient.isReservedHeader(name)) {
+                    throw new IllegalArgumentException("Step " + stepNo + " of " + scenario.key() + " adds header "
+                            + name + " of the run's signed context");
+                }
+            }
+            if (step.requestIdOf() != null) {
+                if (step.requestIdOf() < 1 || step.requestIdOf() >= stepNo) {
+                    throw new IllegalArgumentException("Step " + stepNo + " of " + scenario.key()
+                            + " takes the request id of step " + step.requestIdOf() + ", which is not an earlier one");
+                }
+                if (headers.keySet().stream().anyMatch(CLIENT_REQUEST_ID::equalsIgnoreCase)) {
+                    throw new IllegalArgumentException("Step " + stepNo + " of " + scenario.key()
+                            + " names its X-Request-ID twice");
+                }
+            }
+        }
+    }
+
+    /**
+     * W7-4: the request parts of a step at one control (plan 8.7): its body as JSON, the headers it names and, when it
+     * takes the request id of an earlier step, the id this control sent that step with as its X-Request-ID. The request
+     * still gets a fresh processing id of its own in the signed internal context (ControlSession.send): the engine
+     * takes its processing id only from that context and never from a client X-Request-ID, and run_decision.request_id
+     * and every decision lookup key on it, so a repeated X-Request-ID never makes two steps one record.
+     *
+     * @param sent the request ids this control sent the earlier steps of the run with, by step number
+     */
+    static ControlSession.RequestParts requestParts(ObjectMapper json, Step step, Map<Integer, String> sent)
+            throws IOException {
+        Map<String, String> headers = new LinkedHashMap<>();
+        if (step.headers() != null) {
+            headers.putAll(step.headers());
+        }
+        if (step.requestIdOf() != null) {
+            String earlier = sent.get(step.requestIdOf());
+            if (earlier == null) {
+                throw new IllegalStateException("Step " + step.requestIdOf() + " sent no request whose id could be"
+                        + " repeated");
+            }
+            headers.put(CLIENT_REQUEST_ID, earlier);
+        }
+        String body = step.body() == null ? null : json.writeValueAsString(step.body());
+        return body == null && headers.isEmpty() ? ControlSession.RequestParts.NONE
+                : new ControlSession.RequestParts(body, headers);
     }
 
     /** Documentation range (RFC 5737), outside every company and travel network. */

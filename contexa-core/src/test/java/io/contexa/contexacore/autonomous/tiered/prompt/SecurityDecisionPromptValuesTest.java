@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryEntry;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,27 @@ import static org.assertj.core.api.Assertions.assertThat;
  * W3-2: the value of the past record state says what the retrieval state says, each fact once.
  */
 class SecurityDecisionPromptValuesTest {
+
+    /** W5-10 D5: the engine's count of the user's requests in the last 60 minutes, beside the host's count. */
+    @Test
+    void recentRequestsStateTheEnginesCountOfTheLastHourAndTheHostsCountWithoutAWindow() {
+        CanonicalSecurityContext.Session session = new CanonicalSecurityContext.Session();
+        session.setRecentRequestCount(17);
+        CanonicalSecurityContext.SessionNarrativeProfile narrative = new CanonicalSecurityContext.SessionNarrativeProfile();
+        narrative.setUserRequestsLastHour(14);
+
+        assertThat(SecurityDecisionPromptValues.recentRequests(session, narrative))
+                .isEqualTo("14 requests in last 60 min (0.23 per min); host count 17, window not stated");
+        assertThat(SecurityDecisionPromptValues.recentRequests(session, null)).isEqualTo("host count 17, window not stated");
+        assertThat(SecurityDecisionPromptValues.recentRequests(null, narrative))
+                .isEqualTo("14 requests in last 60 min (0.23 per min)");
+        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.ENTRIES.stream()
+                .filter(candidate -> candidate.block() == PromptBlock.SESSION && "RecentRequests".equals(candidate.name()))
+                .findFirst().orElseThrow();
+        assertThat(entry.acceptsValue("14 requests in last 60 min (0.23 per min); host count 17, window not stated"))
+                .isTrue();
+        assertThat(entry.acceptsValue("host count 17, window not stated")).isTrue();
+    }
 
     @Test
     void aRetrievalThatTimedOutIsNotRetrievedAndSaysSoOnce() {

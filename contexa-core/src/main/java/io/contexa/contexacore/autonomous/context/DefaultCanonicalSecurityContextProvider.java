@@ -520,6 +520,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             if (snapshot.getSessionDecisions() != null && !snapshot.getSessionDecisions().isEmpty()) {
                 backfillMetadata(metadata, SessionDecisionRecord.METADATA_KEY, snapshot.getSessionDecisions());
             }
+            backfillMetadata(metadata, "userRequestsLastHour", snapshot.getUserRequestsLastHour());
         });
     }
 
@@ -579,6 +580,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             backfillMetadata(metadata, "temporaryElevationReason", snapshot.getTemporaryElevationReason());
             backfillMetadata(metadata, "elevatedPrivilegeWindowActive", snapshot.getElevatedPrivilegeWindowActive());
             backfillMetadata(metadata, "elevationWindowSummary", snapshot.getElevationWindowSummary());
+            backfillMetadata(metadata, "roleScopePeerCount", snapshot.getPeerCount());
             if (snapshot.getTrustProfile() != null) {
                 backfillMetadata(metadata, "roleScopeTrustProfile", snapshot.getTrustProfile());
                 backfillMetadata(metadata, "roleScopeProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());

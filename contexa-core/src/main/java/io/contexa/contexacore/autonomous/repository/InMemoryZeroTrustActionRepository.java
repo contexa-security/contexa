@@ -39,6 +39,9 @@ import lombok.extern.slf4j.Slf4j;
 public class InMemoryZeroTrustActionRepository implements ZeroTrustActionRepository, ExpiringStateStore {
 
     private final ConcurrentHashMap<String, AnalysisEntry> analysisStore = new ConcurrentHashMap<>();
+
+    /** Set by a final write the calling thread made that a stricter action in effect kept out (W5-3). */
+    private final ThreadLocal<Boolean> finalWriteKeptStricter = new ThreadLocal<>();
     private final ConcurrentHashMap<String, ActionEntry> lastVerifiedStore = new ConcurrentHashMap<>();
     private final Set<String> blockedUsers = ConcurrentHashMap.newKeySet();
     private static final Duration MFA_PENDING_TTL = Duration.ofMinutes(10);
@@ -358,10 +361,26 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
                     && ZeroTrustActionPrecedence.keepsActiveRestriction(ZeroTrustAction.fromString(active.action), action);
             if (!keepsActiveRestriction) {
                 saveAction(userId, action, additionalFields);
+            } else {
+                finalWriteKeptStricter.set(Boolean.TRUE);
             }
             return true;
         } finally {
             lock.unlock();
+        }
+    }
+
+    @Override
+    public FinalActionWrite writeFinalAction(String userId, ZeroTrustAction action, Map<String, Object> additionalFields) {
+        finalWriteKeptStricter.remove();
+        try {
+            if (!saveFinalAction(userId, action, additionalFields)) {
+                return FinalActionWrite.FAILED;
+            }
+            return Boolean.TRUE.equals(finalWriteKeptStricter.get())
+                    ? FinalActionWrite.KEPT_STRICTER : FinalActionWrite.APPLIED;
+        } finally {
+            finalWriteKeptStricter.remove();
         }
     }
 

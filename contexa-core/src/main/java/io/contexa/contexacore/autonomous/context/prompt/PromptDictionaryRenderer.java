@@ -144,7 +144,7 @@ public final class PromptDictionaryRenderer {
             blocks.add(block);
         }
         return new PromptDictionaryRendering(text.toString(), List.copyOf(slots), List.copyOf(blocks),
-                List.copyOf(unknownNames), Collections.unmodifiableMap(factIds));
+                List.copyOf(unknownNames), unknownFacts(unknowns), Collections.unmodifiableMap(factIds));
     }
 
     private List<String[]> linesOf(PromptDictionaryEntry entry, PromptEntryValues values,
@@ -202,16 +202,36 @@ public final class PromptDictionaryRenderer {
                 .put(name, unknown != null ? unknown.reason() : null);
     }
 
-    /** {@code not-integrated: A, B; unavailable-now: C (reason)}: the kinds in their order, names by code point. */
+    /** W4-7: the unknown facts as the UNKNOWN line names them, kind by kind in the line's order. */
+    private static List<String> unknownFacts(Map<PromptUnknownKind, TreeMap<String, String>> unknowns) {
+        List<String> facts = new ArrayList<>();
+        for (PromptUnknownKind kind : PromptUnknownKind.values()) {
+            TreeMap<String, String> named = unknowns.get(kind);
+            if (named != null) {
+                named.forEach((name, reason) -> facts.add(kind.word() + ": " + name
+                        + (StringUtils.hasText(reason) ? " (" + reason + ")" : "")));
+            }
+        }
+        return List.copyOf(facts);
+    }
+
+    /**
+     * {@code not-integrated: [U1] A, [U2] B; unavailable-now: [U3] C (reason)}: the kinds in their order, names by code
+     * point, each after its own ID in the line's order (N-UID-1: the ID MATERIAL_MISSING_EVIDENCE cites).
+     */
     private static String unknownLine(Map<PromptUnknownKind, TreeMap<String, String>> unknowns) {
         List<String> parts = new ArrayList<>();
+        int id = 0;
         for (PromptUnknownKind kind : PromptUnknownKind.values()) {
             TreeMap<String, String> named = unknowns.get(kind);
             if (named == null || named.isEmpty()) {
                 continue;
             }
             List<String> names = new ArrayList<>();
-            named.forEach((name, reason) -> names.add(name + (StringUtils.hasText(reason) ? " (" + reason + ")" : "")));
+            for (Map.Entry<String, String> fact : named.entrySet()) {
+                names.add(factIdText(PromptUnknownKind.FACT_PREFIX + (++id)) + fact.getKey()
+                        + (StringUtils.hasText(fact.getValue()) ? " (" + fact.getValue() + ")" : ""));
+            }
             parts.add(kind.word() + ": " + String.join(", ", names));
         }
         return String.join("; ", parts);

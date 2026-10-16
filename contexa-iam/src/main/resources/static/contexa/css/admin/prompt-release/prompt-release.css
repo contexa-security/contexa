@@ -1,0 +1,83 @@
+/* W7-14: prompt version screens. They take the look of the inspection screens (prompt-inspection.css) and add only
+   the gate's next states, the reasons lists, the changed elements and the wide form fields. */
+
+.pr-hash {
+    word-break: break-all;
+}
+
+.pr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.pr-gate {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 0.75rem;
+}
+
+.pr-target {
+    border: 1px solid var(--pi-line);
+    border-radius: 0.75rem;
+    background: var(--pi-surface);
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pr-target-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.pr-reasons {
+    margin: 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+    font-size: 0.8125rem;
+    color: var(--pi-muted);
+}
+
+.pr-outcome {
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+}
+
+.pr-wide {
+    flex: 1 1 24rem;
+}
+
+.pr-wide textarea,
+.pr-wide input {
+    width: 100%;
+}
+
+.pr-wide textarea {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--pi-line);
+    background: rgba(30, 41, 59, 0.6);
+    color: var(--pi-text);
+    font-size: 0.875rem;
+}
+
+.pr-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pr-check input {
+    min-width: 0;
+}
+
+.pi-table tr.pr-changed td,
+.pi-table tr.pr-changed th {
+    color: var(--pi-unverifiable);
+}

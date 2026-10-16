@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useBenchmark } from '../../api/benchmark';
+import { usePromptQuality } from '../../api/promptQuality';
 import { usePublicSettings } from '../../api/settings';
 import { useTeasers, type TeaserKey, type TeasersView } from '../../api/teasers';
 import { ActionChip } from '../../components/common/ActionChip';
@@ -31,6 +32,8 @@ export default function ValuePage() {
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const benchmark = useBenchmark(null);
   const settings = usePublicSettings();
+  // U-7: the reasons that matched the facts they cite, from the published prompt-quality batch.
+  const quality = usePromptQuality(null).data ?? null;
   const teasers = useTeasers().data;
   const number = (raw: unknown) => (typeof raw === 'number' ? count(raw, language) : '-');
   const reissueMs = value(teasers, 'G_RULES_RESUME', 'reissueMs');
@@ -46,7 +49,12 @@ export default function ValuePage() {
       numberRule: number(value(teasers, 'LEARN_AFTER_FALSE_BLOCKS', 'numberRule')),
       normal: number(value(teasers, 'LEARN_AFTER_FALSE_BLOCKS', 'normalRuns')),
     }),
-    4: t('value.measure.4', { n: number(settings.data?.engine.inspectorConditions ?? null) }),
+    4: quality
+      ? t('value.measure.4.quality', {
+          hits: number(quality.reasonMatch.hits),
+          total: number(quality.reasonMatch.total),
+        })
+      : t('value.measure.4', { n: number(settings.data?.engine.inspectorConditions ?? null) }),
     5:
       holds(teasers, 'G_RULES_RESUME') === true && typeof reissueMs === 'number'
         ? t('value.measure.5', { seconds: seconds(reissueMs), resumed })

@@ -221,7 +221,9 @@ class LearningContextEvidenceAssemblerTest {
         assertThat(evidence.observedPatterns().browsers()).containsExactly("Chrome/140", "Firefox/130");
         assertThat(evidence.baselineView().state()).isEqualTo(BaselineView.State.ESTABLISHED);
         assertThat(evidence.baselineView().learnedUpdates()).isEqualTo(25L);
-        assertThat(evidence.baselineView().usualNetworks()).containsExactly("10.20.1.0/24", "10.40.12.0/24");
+        // W5-9: the view's networks are its observations' own, not the long-term baseline's; these observations were
+        // stored before W5-9 and hold none.
+        assertThat(evidence.baselineView().usualNetworks()).isEmpty();
     }
 
     private LearningContextEvidence deviceEvidence(

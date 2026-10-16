@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-release/fragments :: head(#{promptRelease.title.bundles})}"></th:block>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto pi-page" data-pr-page="bundles"
+          th:attr="data-api-root=@{/contexa/admin/api/prompt-quality/releases},data-page-root=@{/contexa/admin/prompt-quality/releases}">
+        <div class="modern-card p-6 sm:p-8 rounded-xl pi-card">
+            <section th:replace="~{contexa/admin/prompt-release/fragments :: pageTop(#{promptRelease.title.bundles}, #{promptRelease.subtitle.bundles})}"></section>
+
+            <form class="pi-filters" data-pr-filters>
+                <label class="pi-field">
+                    <span th:text="#{promptRelease.filter.scope}">Scope</span>
+                    <input type="text" name="registryScope" placeholder="PLATFORM_GLOBAL">
+                </label>
+                <div class="pi-actions">
+                    <button type="submit" class="pi-button pi-button-primary" th:text="#{promptRelease.action.search}">Search</button>
+                    <button type="button" class="pi-button" data-pr-reset th:text="#{promptRelease.action.reset}">Reset</button>
+                </div>
+            </form>
+            <p class="pi-status" data-pr-status role="status" aria-live="polite"></p>
+
+            <section class="pi-section">
+                <p class="pi-note" th:text="#{promptRelease.note.ready}">Ready is the release gate's answer.</p>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-bundles>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.scope}">Scope</th>
+                            <th scope="col" th:text="#{promptRelease.column.promptKey}">Prompt</th>
+                            <th scope="col" th:text="#{promptRelease.column.bundle}">Bundle</th>
+                            <th scope="col" th:text="#{promptRelease.column.hash}">Hash</th>
+                            <th scope="col" th:text="#{promptRelease.column.state}">State</th>
+                            <th scope="col" th:text="#{promptRelease.column.build}">In this build</th>
+                            <th scope="col" th:text="#{promptRelease.column.gate}">Gate</th>
+                            <th scope="col" th:text="#{promptRelease.column.updatedAt}">Updated at</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script th:replace="~{contexa/admin/prompt-release/fragments :: scriptMessages}"></script>
+<script type="module" th:src="@{/contexa/js/admin/prompt-release/bundles-page.js}"></script>
+</body>
+</html>

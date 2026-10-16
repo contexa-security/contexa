@@ -37,6 +37,9 @@ public final class MinimumActionRules {
     /** The normalised resource classes from the least to the most sensitive (SecuritySemanticNormalizer). */
     private static final List<String> CLASS_ORDER = List.of("PUBLIC", "NORMAL", "SENSITIVE", "CRITICAL");
     private static final String CHALLENGE = "CHALLENGE";
+    private static final String ESCALATE = "ESCALATE";
+    /** The actions from the least to the most strict (ZeroTrustActionPrecedence). */
+    private static final List<String> ACTION_ORDER = List.of("ALLOW", CHALLENGE, ESCALATE, "BLOCK");
 
     public enum Rule {
         P1_IDENTITY_DEVIATION("MIN_P1_IDENTITY_DEVIATION"),
@@ -65,9 +68,26 @@ public final class MinimumActionRules {
 
     /** The rule switches and limits (contexa.security.zerotrust.minimum-action.*). */
     public record Settings(boolean identityEnabled, int identityMinDeviations, String identityMinResourceClass,
-                           boolean newDeviceExportEnabled, boolean policySatisfactionEnabled) {
+                           boolean newDeviceExportEnabled, boolean policySatisfactionEnabled,
+                           String policySatisfactionAction) {
 
-        public static final Settings DEFAULTS = new Settings(true, 2, "SENSITIVE", true, true);
+        public static final Settings DEFAULTS = new Settings(true, 2, "SENSITIVE", true, true, "ESCALATE");
+
+        /**
+         * N-CONF-1: the P3 floor is CHALLENGE or ESCALATE. A floor of BLOCK could never be met, as a BLOCK needs
+         * decisive block evidence the policy facts are not, so every decision P3 hits would end in the technical
+         * fallback; it, and any other value, is refused here, when the host's settings are read at start-up.
+         */
+        public Settings {
+            String action = policySatisfactionAction != null
+                    ? policySatisfactionAction.trim().toUpperCase(Locale.ROOT) : "";
+            if (!CHALLENGE.equals(action) && !ESCALATE.equals(action)) {
+                throw new IllegalArgumentException("contexa.security.zerotrust.minimum-action.policy-satisfaction.action"
+                        + " must be CHALLENGE or ESCALATE, was '" + policySatisfactionAction + "': a BLOCK needs decisive"
+                        + " block evidence the policy facts are not, so a floor of BLOCK could never be met");
+            }
+            policySatisfactionAction = action;
+        }
     }
 
     private MinimumActionRules() {
@@ -92,16 +112,20 @@ public final class MinimumActionRules {
                 && !deviceOrNetwork.isEmpty()) {
             hits.add(new Hit(Rule.P2_NEW_DEVICE_OR_NETWORK_EXPORT, CHALLENGE, deviceOrNetwork));
         }
+        // Q-87 (N-P3-1): a review by default; a verification of the user does not supply a missing record.
         if (rules.policySatisfactionEnabled() && Boolean.FALSE.equals(facts.policy().satisfied())) {
-            hits.add(new Hit(Rule.P3_POLICY_NOT_SATISFIED, CHALLENGE, List.of()));
+            hits.add(new Hit(Rule.P3_POLICY_NOT_SATISFIED, rules.policySatisfactionAction(), List.of()));
         }
         return List.copyOf(hits);
     }
 
-    /** Whether the action is weaker than a rule asks for: only ALLOW is below a challenge. */
+    /** Whether the action ranks below the floor of a rule that applies (ALLOW < CHALLENGE < ESCALATE < BLOCK). */
     public static boolean violatedBy(String action, List<Hit> hits) {
-        return hits != null && !hits.isEmpty() && action != null
-                && "ALLOW".equals(action.trim().toUpperCase(Locale.ROOT));
+        if (hits == null || hits.isEmpty() || action == null) {
+            return false;
+        }
+        int decided = ACTION_ORDER.indexOf(action.trim().toUpperCase(Locale.ROOT));
+        return decided >= 0 && hits.stream().anyMatch(hit -> decided < ACTION_ORDER.indexOf(hit.requiredAction()));
     }
 
     private static boolean atLeast(String resourceClass, String minimum) {

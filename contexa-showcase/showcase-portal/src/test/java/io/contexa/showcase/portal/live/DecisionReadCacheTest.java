@@ -63,6 +63,22 @@ class DecisionReadCacheTest {
         assertThat(reads).as("no decision record yet, so the analysis is not taken as ended").hasValue(2);
     }
 
+    /** W7-13: a cache of another record of control D keeps what its own rule calls final. */
+    @Test
+    void aCacheOfAnotherRecordKeepsWhatItsOwnRuleCallsFinal() throws IOException {
+        AtomicInteger reads = new AtomicInteger();
+        MovingClock clock = new MovingClock(Instant.parse("2026-10-06T12:00:00Z"));
+        DecisionReadCache cache = new DecisionReadCache(id -> {
+            reads.incrementAndGet();
+            return JSON.readTree("{\"packageId\":\"pkg-1\",\"inspection\":{\"verdict\":\"PASS\"}}");
+        }, node -> node.path("inspection").isObject(), clock);
+
+        cache.get("r-3");
+        clock.advance(Duration.ofMinutes(5));
+        cache.get("r-3");
+        assertThat(reads).as("an inspected seal does not change").hasValue(1);
+    }
+
     @Test
     void anAnalysisErrorEndsTheAnalysisWithoutARecord() throws IOException {
         assertThat(DecisionReadCache.ended(JSON.readTree("{\"events\":[{\"type\":\"ANALYSIS_ERROR\"}]}")))

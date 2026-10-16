@@ -27,6 +27,7 @@
     "fontCoverage.test.ts",
     "sourceExcerpts.test.ts",
     "screenIntegrity.test.ts",
+    "factWordsSource.test.ts",
     "e2e"
   ]
 }

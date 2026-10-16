@@ -32,10 +32,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
 
 import io.contexa.contexacore.autonomous.context.policy.PromptRelevantRequestPathPolicy;
@@ -45,6 +47,8 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
     private static final int MAX_SEQUENCE_SIZE = 10;
     private static final int BURST_PROTECTABLE_THRESHOLD = 3;
     private static final int MAX_SESSION_DECISIONS = 100;
+    /** The span the user's request rate is counted over (W5-10 D5). */
+    private static final long HOUR_MS = 60L * 60L * 1_000L;
     private static final long BURST_INTERVAL_THRESHOLD_MS = 2_000L;
 
     private final SecurityContextDataStore dataStore;
@@ -153,6 +157,7 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
                         .toList())
                 // Every stored decision, so that what the session already did under an approval is counted whole.
                 .sessionDecisions(decisions == null ? List.of() : decisions)
+                .userRequestsLastHour(userRequestsLastHour(event, sessionId, decisions, currentTimestamp))
                 .sessionDeviceChange(SessionClient.deviceChange(firstClient, currentClient))
                 .sessionNetworkChange(SessionClient.networkChange(firstClient, currentClient))
                 .summary(buildSummary(sessionAgeMinutes, previousPath, previousActionFamily, lastRequestIntervalMs, actionSequence, burstPattern))
@@ -180,6 +185,36 @@ public class DefaultSessionNarrativeCollector implements SessionNarrativeCollect
             }
         });
         return Optional.of(snapshot);
+    }
+
+    /**
+     * The user's decisions in the last 60 minutes of the event clock across the sessions the user holds, this request
+     * included (W5-10 D5); null when the store keeps no session list. A refused or held request counts as much as an
+     * allowed one: a burst is a burst whatever was decided.
+     */
+    private Integer userRequestsLastHour(SecurityEvent event, String sessionId, List<SessionDecisionRecord> decisions,
+                                         long now) {
+        Set<String> tracked = StringUtils.hasText(event.getUserId())
+                ? dataStore.getUserSessions(event.getUserId().trim()) : null;
+        if (tracked == null) {
+            return null;
+        }
+        Set<String> sessions = new LinkedHashSet<>(tracked);
+        sessions.add(sessionId);
+        int count = 1;
+        for (String session : sessions) {
+            List<SessionDecisionRecord> records = session.equals(sessionId) ? decisions : sessionDecisions(session);
+            if (records == null) {
+                continue;
+            }
+            for (SessionDecisionRecord record : records) {
+                if (record != null && record.at() != null && record.at().toEpochMilli() <= now
+                        && now - record.at().toEpochMilli() < HOUR_MS) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static void startSession(SecurityContextDataStore store, String sessionId, long timestamp) {

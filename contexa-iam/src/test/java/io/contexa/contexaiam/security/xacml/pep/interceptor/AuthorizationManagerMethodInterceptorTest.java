@@ -106,20 +106,20 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should proceed and return result when authorization passes")
         void shouldProceedWhenAuthorized() throws Throwable {
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("success");
 
             Object result = interceptor.invoke(methodInvocation);
 
             assertThat(result).isEqualTo("success");
-            verify(rapidReentryGuard).tryAcquire(authentication, methodInvocation);
+            verify(rapidReentryGuard).tryAcquire(eq(authentication), eq(methodInvocation), anyString());
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
         }
 
         @Test
         @DisplayName("Should publish authorization event on successful invocation")
         void shouldPublishEventOnSuccess() throws Throwable {
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("ok");
 
             interceptor.invoke(methodInvocation);
@@ -148,7 +148,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should allow async protectable access and skip event publication on rapid re-entry")
         void shouldAllowAsyncProtectableAndSkipAnalysisOnRapidReentry() throws Throwable {
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
             when(methodInvocation.proceed()).thenReturn("success");
 
             Object result = interceptor.invoke(methodInvocation);
@@ -165,7 +165,7 @@ class AuthorizationManagerMethodInterceptorTest {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
                     .isInstanceOf(ZeroTrustAccessDeniedException.class);
@@ -184,7 +184,7 @@ class AuthorizationManagerMethodInterceptorTest {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(false);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
             when(methodInvocation.proceed()).thenReturn("success");
 
             Object result = interceptor.invoke(methodInvocation);
@@ -203,7 +203,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should handle policy denial without triggering LLM event publication")
         void shouldHandleAuthorizationDenied() throws Throwable {
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             AuthorizationDeniedException denied = new AuthorizationDeniedException("denied");
             doThrow(denied).when(authorizationManager).protectable(any(), eq(methodInvocation));
 
@@ -236,7 +236,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @Test
         @DisplayName("Should record metrics when event is published")
         void shouldRecordMetrics() throws Throwable {
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("ok");
 
             interceptor.invoke(methodInvocation);
@@ -423,7 +423,7 @@ class AuthorizationManagerMethodInterceptorTest {
 
             assertThat(result).isEqualTo("protected");
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
-            verify(rapidReentryGuard, never()).tryAcquire(any(), any());
+            verify(rapidReentryGuard, never()).tryAcquire(any(), any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
             verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
@@ -445,7 +445,7 @@ class AuthorizationManagerMethodInterceptorTest {
 
             assertThat(result).isEqualTo("protected");
             verify(authorizationManager).protectable(any(), eq(methodInvocation));
-            verify(rapidReentryGuard, never()).tryAcquire(any(), any());
+            verify(rapidReentryGuard, never()).tryAcquire(any(), any(), any());
             verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
             verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
         }
@@ -456,7 +456,7 @@ class AuthorizationManagerMethodInterceptorTest {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
@@ -481,7 +481,7 @@ class AuthorizationManagerMethodInterceptorTest {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("protected");
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 
@@ -507,7 +507,7 @@ class AuthorizationManagerMethodInterceptorTest {
             Method method = SyncProtectableService.class.getMethod("protectedMethod");
             when(methodInvocation.getMethod()).thenReturn(method);
             when(methodInvocation.getThis()).thenReturn(new SyncProtectableService());
-            when(rapidReentryGuard.tryAcquire(authentication, methodInvocation)).thenReturn(true);
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
             when(methodInvocation.proceed()).thenReturn("protected");
             interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
 

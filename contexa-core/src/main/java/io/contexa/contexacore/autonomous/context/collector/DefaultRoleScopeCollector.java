@@ -19,6 +19,7 @@ import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
@@ -68,6 +69,9 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
     private static final String NULL_TOKEN = "~";
     private static final String FIELD_SEPARATOR = Character.toString(0x1F);
     private static final String OBSERVATION_VERSION_V1 = "v1";
+    private static final String OBSERVATION_VERSION_V2 = "v2";
+    /** v3 keeps the member of the scope group the observation is of (W5-10 D8). */
+    private static final String OBSERVATION_VERSION_V3 = "v3";
     private static final String PERMISSION_CHANGE_VERSION_V1 = "p1";
     private static final String AUTHORIZATION_STATE_VERSION_V1 = "a1";
     private static final String PROFILE_KEY = "ROLE_SCOPE_PROFILE";
@@ -187,9 +191,15 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
             AuthorizationScopeState authorizationScopeState,
             CurrentRoleScopeHints currentHints,
             long currentTimestampMs) {
+        // W5-10 D8: the group's usual scope is its other members'; the user's own allowed requests, and those of a
+        // member not known (stored before the member was kept), are left out. A refusal of the user's own stays in the
+        // denied scope.
+        String self = currentObservation.userId();
         List<RoleScopeObservation> allowedObservations = history.stream()
                 .filter(observation -> "ALLOWED".equals(observation.decisionState()))
+                .filter(observation -> observation.userId() != null && !observation.userId().equals(self))
                 .toList();
+        int peerCount = (int) allowedObservations.stream().map(RoleScopeObservation::userId).distinct().count();
         List<RoleScopeObservation> deniedObservations = history.stream()
                 .filter(observation -> "DENIED".equals(observation.decisionState()))
                 .toList();
@@ -293,6 +303,7 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 .elevatedPrivilegeWindowActive(elevatedPrivilegeWindowActive)
                 .elevationWindowSummary(elevationWindowSummary)
                 .trustProfile(trustProfile)
+                .peerCount(peerCount)
                 .build());
     }
 
@@ -820,7 +831,8 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 actionFamily.fallback(),
                 resolveDecisionState(event),
                 approvalPattern,
-                escalationPattern);
+                escalationPattern,
+                StringUtils.hasText(event.getUserId()) ? event.getUserId().trim() : null);
     }
 
     private CurrentRoleScopeHints resolveCurrentHints(SecurityEvent event) {
@@ -1340,8 +1352,9 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         return authorizationEffect;
     }
 
+    /** The v2 form: the v1 fields, then the vocabulary the families are in (W5-7). */
     private String serializeObservation(RoleScopeObservation observation) {
-        return OBSERVATION_VERSION_V1
+        return OBSERVATION_VERSION_V3
                 + "|" + encodeNullable(observation.observationId())
                 + "|" + observation.timestampMs()
                 + "|" + encodeNullable(observation.scopeKey())
@@ -1354,7 +1367,9 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                 + "|" + encodeBoolean(observation.actionFamilyFallback())
                 + "|" + encodeNullable(observation.decisionState())
                 + "|" + encodeNullable(observation.approvalPattern())
-                + "|" + encodeNullable(observation.escalationPattern());
+                + "|" + encodeNullable(observation.escalationPattern())
+                + "|" + encodeNullable(VocabularyVersion.CURRENT)
+                + "|" + encodeNullable(observation.userId());
     }
 
     private RoleScopeObservation deserializeObservation(String raw) {
@@ -1363,7 +1378,11 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
         }
         String[] parts = raw.split("\\|", -1);
         try {
-            if (OBSERVATION_VERSION_V1.equals(parts[0]) && parts.length == 14) {
+            // A v1 line (before the vocabulary was stamped) has the same fields without the version; the families
+            // are read in today's vocabulary either way.
+            boolean v3 = OBSERVATION_VERSION_V3.equals(parts[0]) && parts.length == 16;
+            if (v3 || OBSERVATION_VERSION_V2.equals(parts[0]) && parts.length == 15
+                    || OBSERVATION_VERSION_V1.equals(parts[0]) && parts.length == 14) {
                 return new RoleScopeObservation(
                         decodeNullable(parts[1]),
                         Long.parseLong(parts[2]),
@@ -1377,7 +1396,8 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
                         decodeBoolean(parts[10]),
                         decodeNullable(parts[11]),
                         decodeNullable(parts[12]),
-                        decodeNullable(parts[13]));
+                        decodeNullable(parts[13]),
+                        v3 ? decodeNullable(parts[15]) : null);
             }
         } catch (RuntimeException ignored) {
             return null;
@@ -1891,7 +1911,8 @@ public class DefaultRoleScopeCollector implements RoleScopeCollector {
             boolean actionFamilyFallback,
             String decisionState,
             String approvalPattern,
-            String escalationPattern) {
+            String escalationPattern,
+            String userId) {
     }
 
     private record PermissionChangeObservation(

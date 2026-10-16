@@ -158,6 +158,12 @@ class SecurityPlaneAgentOrderingTest {
 
         when(securityPlaneProperties.getAgent()).thenReturn(properties.getAgent());
         when(securityPlaneProperties.getLlmExecutor()).thenReturn(properties.getLlmExecutor());
+        // The event processing lease and the owner checks it uses are default methods of the store; the mock answers
+        // them as the interface does for a store that keeps only the claim.
+        when(dataStore.claimEventProcessingLease(anyString())).thenCallRealMethod();
+        when(dataStore.isEventProcessingOwner(anyString(), any())).thenCallRealMethod();
+        when(dataStore.markEventProcessed(anyString(), any())).thenCallRealMethod();
+        when(dataStore.releaseEventProcessing(anyString(), any())).thenCallRealMethod();
         clearInvocations(securityMonitor);
 
         llmExecutor = Executors.newFixedThreadPool(llmConcurrency);

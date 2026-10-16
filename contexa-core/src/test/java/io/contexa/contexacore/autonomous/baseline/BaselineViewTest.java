@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.baseline;
 
 import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator.Observation;
+import io.contexa.contexacore.autonomous.tiered.prompt.BaselineLineValues;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -324,6 +325,147 @@ class BaselineViewTest {
                 List.of("Chrome/140 on WINDOWS"), List.of("Chrome/140"), List.of("WINDOWS"), List.of("PASSWORD"));
         assertThat(personal.state()).isEqualTo(BaselineView.State.ESTABLISHED);
         assertThat(personal.usualDevices()).containsExactly("Chrome/140 on WINDOWS");
+    }
+
+    @Test
+    void theNetworksDevicesAndLoginsAreCountedFromTheObservationsLikeTheOtherDimensions() {
+        List<Observation> history = new ArrayList<>();
+        LocalDateTime tuesday = NOW.minusDays(1).withHour(10).withMinute(0);
+        for (int index = 0; index < 3; index++) {
+            history.add(identified(tuesday.plusMinutes(index * 10L), "10.40.12.0/24", "Chrome/140 on WINDOWS",
+                    "PASSWORD"));
+        }
+        history.add(identified(NOW.minusDays(2).withHour(14), "203.0.113.0/24", "Safari/18 on MAC", "SSO"));
+        // An observation stored before W5-9 holds no identity and is not counted for these dimensions.
+        history.add(read(NOW.minusDays(2).withHour(15)));
+
+        BaselineView view = calculate(history);
+
+        assertThat(view.counts().networks()).containsExactly(entry("10.40.12.0/24", 3), entry("203.0.113.0/24", 1));
+        assertThat(view.counts().devices()).containsExactly(entry("Chrome/140 on WINDOWS", 3), entry("Safari/18 on MAC", 1));
+        assertThat(view.counts().logins()).containsExactly(entry("PASSWORD", 3), entry("SSO", 1));
+        assertThat(view.counts().identityObservations()).isEqualTo(4);
+        assertThat(view.usualNetworks()).containsExactly("10.40.12.0/24", "203.0.113.0/24");
+        assertThat(view.usualDevices()).containsExactly("Chrome/140 on WINDOWS", "Safari/18 on MAC");
+        assertThat(view.usualBrowsers()).containsExactly("Chrome/140", "Safari/18");
+        assertThat(view.usualOperatingSystems()).containsExactly("MAC", "WINDOWS");
+        assertThat(view.usualLoginMethods()).containsExactly("PASSWORD", "SSO");
+        // W5-9: the long-term baseline adds its state; the three dimensions stay the view's own.
+        BaselineView personal = view.withPersonalBaselineState(BaselineView.State.ESTABLISHED, 25L);
+        assertThat(personal.state()).isEqualTo(BaselineView.State.ESTABLISHED);
+        assertThat(personal.usualNetworks()).isEqualTo(view.usualNetworks());
+        assertThat(personal.counts()).isEqualTo(view.counts());
+    }
+
+    @Test
+    void anObservationHoldingAValueTheVocabularyTableNoLongerReadsIsLeftOutAndCounted() {
+        // W5-7 D4: observations of another vocabulary are read through the table (a network learned as a prefix is
+        // today's band); one holding a login method today's table reads as nothing is left out of the three dimensions
+        // and counted, the others in today's vocabulary as they are.
+        List<Observation> history = new ArrayList<>();
+        LocalDateTime tuesday = NOW.minusDays(1).withHour(10).withMinute(0);
+        history.add(identified(tuesday, "10.40.12.0/24", "Chrome/140 on WINDOWS", "PASSWORD"));
+        history.add(new Observation(at(tuesday.plusMinutes(10)), "READ", "host", false, "INTERNAL", null,
+                "/api/reports/R-1", null, true, null, 1.0, "10.40.12", "Chrome/140 on Windows 11", "PASSWORD",
+                "vocab-2026.01.01"));
+        history.add(new Observation(at(tuesday.plusMinutes(20)), "READ", "host", false, "INTERNAL", null,
+                "/api/reports/R-2", null, true, null, 1.0, "10.40.12.0/24", "Chrome/140 on WINDOWS", "FACE_SCAN",
+                "vocab-2026.01.01"));
+
+        BaselineView view = calculate(history);
+
+        assertThat(view.counts().networks()).containsExactly(entry("10.40.12.0/24", 2));
+        assertThat(view.counts().devices()).containsExactly(entry("Chrome/140 on WINDOWS", 2));
+        assertThat(view.counts().logins()).containsExactly(entry("PASSWORD", 2));
+        assertThat(view.counts().identityObservations()).isEqualTo(2);
+        assertThat(view.counts().vocabularyNotComparable()).isEqualTo(1);
+        // The other dimensions read the observation as before.
+        assertThat(view.observations()).isEqualTo(3);
+    }
+
+    @Test
+    void aPasswordStoredBeforeTheLoginKeptEveryMethodIsNotComparable() {
+        // W5-10 D6 with W5-7 D4: an observation of the first vocabulary holding PASSWORD may have been a login with a
+        // second factor; it is left out of the three dimensions and counted.
+        List<Observation> history = new ArrayList<>();
+        LocalDateTime tuesday = NOW.minusDays(1).withHour(10).withMinute(0);
+        history.add(identified(tuesday, "10.40.12.0/24", "Chrome/140 on WINDOWS", "PASSWORD+ONE_TIME_CODE"));
+        history.add(new Observation(at(tuesday.plusMinutes(10)), "READ", "host", false, "INTERNAL", null,
+                "/api/reports/R-1", null, true, null, 1.0, "10.40.12.0/24", "Chrome/140 on WINDOWS", "PASSWORD",
+                "vocab-2026.10.15"));
+
+        BaselineView view = calculate(history);
+
+        assertThat(view.counts().logins()).containsExactly(entry("PASSWORD+ONE_TIME_CODE", 1));
+        assertThat(view.counts().vocabularyNotComparable()).isEqualTo(1);
+    }
+
+    @Test
+    void theRequestsOwnValuesAreCountedWithTheirDaysAndTheirFirstAndLastTimes() {
+        // W5-10 D1~D3: for the request's own value of each dimension, how many of the window's observations holding
+        // the dimension held it, on how many of their dates, first and last; a value the window does not hold reads its
+        // last time in the retention, or none when it was never seen.
+        List<Observation> history = new ArrayList<>();
+        for (int day = 1; day <= 6; day++) {
+            LocalDateTime morning = LocalDateTime.of(2026, 10, day, 10, 0);
+            history.add(identified(morning, "10.40.12.0/24", "Chrome/140 on WINDOWS", "PASSWORD"));
+            history.add(identified(morning.plusMinutes(30), "10.40.12.0/24", "Chrome/140 on WINDOWS", "PASSWORD"));
+        }
+        LocalDateTime earlier = LocalDateTime.of(2026, 9, 20, 3, 0);
+        history.add(identified(earlier, "203.0.113.0/24", "Chrome/140 on WINDOWS", "PASSWORD"));
+        Observation request = new Observation(at(NOW), "READ", "host", false, "INTERNAL", null, "/api/reports/R-3",
+                null, true, null, 1.0, "203.0.113.0/24", "Chrome/140 on WINDOWS", "PASSWORD");
+
+        BaselineView view = BaselineViewCalculator.calculate(history, at(NOW), UTC, request);
+        Map<String, BaselineView.Seen> seen = view.counts().request();
+
+        // The window is the last 7 days (12 observations on 6 dates); 09-20 is in the retention only.
+        assertThat(seen.get("TIME")).isEqualTo(new BaselineView.Seen("03", 0, 12, 0, 6, null, null, at(earlier)));
+        assertThat(seen.get("NETWORK"))
+                .isEqualTo(new BaselineView.Seen("203.0.113.0/24", 0, 12, 0, 6, null, null, at(earlier)));
+        assertThat(seen.get("DEVICE")).isEqualTo(new BaselineView.Seen("Chrome/140 on WINDOWS", 12, 12, 6, 6,
+                at(LocalDateTime.of(2026, 10, 1, 10, 0)), at(LocalDateTime.of(2026, 10, 6, 10, 30)),
+                at(LocalDateTime.of(2026, 10, 6, 10, 30))));
+        // The day of the week reads several weeks (W2-5): 13 observations on 7 dates, never a Wednesday.
+        assertThat(seen.get("DAY")).isEqualTo(new BaselineView.Seen("Wed", 0, 13, 0, 7, null, null, null));
+        // The request itself is not part of the view.
+        assertThat(view.observations()).isEqualTo(12);
+    }
+
+    @Test
+    void theUsualRateIsTheMedianAndTheNinetyFifthPercentileOfTheActiveHours() {
+        // W5-10 D5: the requests of each active clock hour of the window are 1, 2, 2, 3 and 10.
+        List<Observation> history = new ArrayList<>();
+        int[] perHour = {1, 2, 2, 3, 10};
+        for (int slot = 0; slot < perHour.length; slot++) {
+            LocalDateTime hour = NOW.minusDays(1 + slot).withHour(10).withMinute(0);
+            for (int index = 0; index < perHour[slot]; index++) {
+                history.add(read(hour.plusMinutes(index)));
+            }
+        }
+
+        assertThat(calculate(history).counts().rate()).isEqualTo(new BaselineView.Rate(5, 2, 10));
+    }
+
+    @Test
+    void theUsualRateLineStatesTheMedianAndTheNinetyFifthPercentileOfTheActiveHours() {
+        // W5-10 D5: the line states the definition the decision facts compare the request's rate with.
+        List<Observation> history = new ArrayList<>();
+        int[] perHour = {1, 2, 2, 3, 10};
+        for (int slot = 0; slot < perHour.length; slot++) {
+            LocalDateTime hour = NOW.minusDays(1 + slot).withHour(10).withMinute(0);
+            for (int index = 0; index < perHour[slot]; index++) {
+                history.add(read(hour.plusMinutes(index)));
+            }
+        }
+
+        assertThat(BaselineLineValues.of(calculate(history)).get("UsualRequestRate"))
+                .isEqualTo("median 2, 95th percentile 10 requests per active hour (5 active hours)");
+    }
+
+    private static Observation identified(LocalDateTime time, String network, String device, String login) {
+        return new Observation(at(time), "READ", "host", false, "INTERNAL", null, "/api/reports/R-" + time.getHour(),
+                null, true, null, 1.0, network, device, login);
     }
 
     private static BaselineView calculate(List<Observation> history) {

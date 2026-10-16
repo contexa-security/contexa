@@ -2,7 +2,7 @@ package io.contexa.showcase.workload.contexa.observation;
 
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
-import org.springframework.ai.anthropic.api.AnthropicApi;
+import io.contexa.contexacore.std.llm.client.ProviderUsage;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
@@ -87,19 +87,10 @@ public class LlmUsageMeter extends BaseAdvisor {
                 failure == null ? null : failure.getClass().getSimpleName());
     }
 
-    /**
-     * The prompt tokens of a call as OpenAI counts them: Anthropic reports its prompt cache reads and writes apart from
-     * its input tokens, which are Spring AI's prompt tokens.
-     */
+    /** The prompt tokens of a call as the engine counts them for every provider (Contexa's ProviderUsage). */
     static Long promptTokens(Usage usage) {
-        if (usage.getPromptTokens() == null) {
-            return null;
-        }
-        long prompt = usage.getPromptTokens();
-        if (usage.getNativeUsage() instanceof AnthropicApi.Usage anthropic) {
-            prompt += value(anthropic.cacheReadInputTokens()) + value(anthropic.cacheCreationInputTokens());
-        }
-        return prompt;
+        Integer prompt = ProviderUsage.promptTokens(usage);
+        return prompt == null ? null : prompt.longValue();
     }
 
     private static String decisionId(ChatClientRequest request) {
@@ -153,8 +144,7 @@ public class LlmUsageMeter extends BaseAdvisor {
                 Long counted = promptTokens(usage);
                 prompt = counted == null ? 0 : counted;
                 completion = value(usage.getCompletionTokens());
-                total = usage.getNativeUsage() instanceof AnthropicApi.Usage ? prompt + completion
-                        : value(usage.getTotalTokens());
+                total = value(ProviderUsage.totalTokens(usage));
             }
         }
         String promptText = promptText(request);

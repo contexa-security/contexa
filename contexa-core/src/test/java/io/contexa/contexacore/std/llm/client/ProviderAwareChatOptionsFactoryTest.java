@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.std.llm.client;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import io.contexa.contexacore.std.llm.client.vertexai.VertexLikeChatModel;
 import org.springframework.ai.anthropic.AnthropicChatModel;
@@ -570,6 +571,89 @@ class ProviderAwareChatOptionsFactoryTest {
         assertThat(newerDefaults.getTopK()).isNull();
         assertThat(newerDefaults.getMaxTokens()).isEqualTo(500);
         assertThat(((AnthropicChatOptions) older.getDefaultOptions()).getTemperature()).isEqualTo(0.8d);
+    }
+
+    /**
+     * W4-2: Anthropic refuses an output schema with a keyword its structured outputs do not support (HTTP 400 "property
+     * 'maxItems' is not supported", checked on the API); an Anthropic request carries the schema without them, and
+     * keeps the keywords it supports (a minimum of 0 or 1 items, patterns, enumerations).
+     */
+    @Test
+    void anAnthropicRequestCarriesTheOutputSchemaWithoutTheKeywordsAnthropicRefuses() {
+        ExecutionContext context = ExecutionContext.from(new Prompt("security prompt"));
+        context.setMaxTokens(2048);
+        context.addMetadata(ExecutionContext.OUTPUT_SCHEMA, "{\"type\":\"object\",\"additionalProperties\":false,"
+                + "\"required\":[\"codes\",\"score\"],\"properties\":{\"codes\":{\"type\":\"array\",\"minItems\":1,"
+                + "\"maxItems\":5,\"items\":{\"type\":\"string\",\"pattern\":\"^F[0-9]$\",\"maxLength\":3}},"
+                + "\"score\":{\"type\":[\"number\",\"null\"],\"minimum\":0,\"maximum\":1}}}");
+
+        ChatOptions options = ProviderAwareChatOptionsFactory.buildRuntimeOptions(context,
+                new StubChatModel(AnthropicChatOptions.builder().model("claude-haiku-5-5").build()));
+
+        String schema = ((AnthropicChatOptions) options).getOutputSchema();
+        assertThat(schema).doesNotContain("maxItems").doesNotContain("minimum").doesNotContain("maximum")
+                .doesNotContain("maxLength")
+                .contains("\"minItems\":1").contains("\"pattern\":\"^F[0-9]$\"").contains("\"additionalProperties\":false");
+        assertThat(context.getMetadata()).containsEntry(ExecutionContext.OUTPUT_SCHEMA_APPLIED, true);
+    }
+
+    /**
+     * W4-6: the determinism settings a provider takes are set and the ones it does not take are recorded on the call
+     * (checked on the APIs 2026-10-14: gpt-6-luna takes a seed and not temperature 0; claude-haiku-5-5 takes neither).
+     */
+    @Test
+    void theDeterminismAProviderDoesNotTakeIsRecordedOnTheCall() {
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ExecutionContext openAi = ExecutionContext.from(new Prompt("security prompt"));
+            openAi.setTemperature(0.0d);
+            openAi.setSeed(1);
+            openAi.addMetadata("selectedModelProvider", "openai");
+
+            ChatOptions openAiOptions = ProviderAwareChatOptionsFactory.buildRuntimeOptions(openAi,
+                    new StubChatModel(OpenAiChatOptions.builder().model(CAPABILITY_MODEL).build()));
+
+            assertThat(((OpenAiChatOptions) openAiOptions).getSeed()).isEqualTo(1);
+            assertThat(openAiOptions.getTemperature()).isNull();
+            assertThat(openAi.getMetadata()).containsEntry(ExecutionContext.DETERMINISM_NOT_APPLIED, List.of("temperature"));
+        } finally {
+            clearOpenAiCapabilities();
+        }
+        ExecutionContext anthropic = ExecutionContext.from(new Prompt("security prompt"));
+        anthropic.setTemperature(0.0d);
+        anthropic.setSeed(1);
+
+        ProviderAwareChatOptionsFactory.buildRuntimeOptions(anthropic,
+                new StubChatModel(AnthropicChatOptions.builder().model("claude-haiku-5-5").build()));
+
+        assertThat(anthropic.getMetadata())
+                .containsEntry(ExecutionContext.DETERMINISM_NOT_APPLIED, List.of("temperature", "seed"));
+    }
+
+    /** W4-6: the reasoning effort the options carry is recorded on the call; a model that takes none records none. */
+    @Test
+    void theReasoningEffortSentIsRecordedOnTheCall() {
+        configureOpenAiCapabilities(CAPABILITY_MODEL);
+        try {
+            ExecutionContext reasoning = ExecutionContext.from(new Prompt("security prompt"));
+            reasoning.setMaxTokens(96);
+            reasoning.addMetadata("selectedModelProvider", "openai");
+            reasoning.addMetadata("openAiReasoningEffort", "low");
+            ExecutionContext legacy = ExecutionContext.from(new Prompt("security prompt"));
+            legacy.setMaxTokens(96);
+            legacy.addMetadata("selectedModelProvider", "openai");
+            legacy.addMetadata("openAiReasoningEffort", "low");
+
+            ProviderAwareChatOptionsFactory.buildRuntimeOptions(reasoning,
+                    new StubChatModel(OpenAiChatOptions.builder().model(CAPABILITY_MODEL).build()));
+            ProviderAwareChatOptionsFactory.buildRuntimeOptions(legacy,
+                    new StubChatModel(OpenAiChatOptions.builder().model(LEGACY_MODEL).build()));
+
+            assertThat(reasoning.getMetadata()).containsEntry(ExecutionContext.PROVIDER_REASONING_EFFORT, "low");
+            assertThat(legacy.getMetadata()).doesNotContainKey(ExecutionContext.PROVIDER_REASONING_EFFORT);
+        } finally {
+            clearOpenAiCapabilities();
+        }
     }
 
     private static AnthropicChatModel anthropicModel(String model) {

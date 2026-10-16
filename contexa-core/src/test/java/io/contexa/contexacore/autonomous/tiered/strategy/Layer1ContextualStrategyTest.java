@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
@@ -27,6 +28,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import java.time.ZoneId;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -616,6 +618,44 @@ class Layer1ContextualStrategyTest {
     }
 
     @Test
+    @DisplayName("a shadow run's copy adds nothing to the cached session the next decision reads (W6-9)")
+    void aShadowRunsCopyAddsNothingToTheCachedSession() {
+        assertThat(secondSessionFrequency(true)).isEqualTo(secondSessionFrequency(false));
+    }
+
+    private int secondSessionFrequency(boolean shadowBetween) {
+        InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
+        PipelineOrchestrator orchestrator = mock(PipelineOrchestrator.class);
+        Layer1ContextualStrategy sessionStrategy = new Layer1ContextualStrategy(null, dataStore,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                null, null, null, null, null, null, new PromptContextAuthorizationService(), null, orchestrator,
+                new TieredStrategyProperties());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Normal activity");
+        when(orchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+        SecurityEvent first = buildTestEvent();
+        first.setEventId("event-shadow-first");
+        sessionStrategy.evaluate(first);
+        if (shadowBetween) {
+            SecurityEvent copy = buildTestEvent();
+            copy.setEventId("event-shadow-first:shadow");
+            copy.getMetadata().put(PromptShadowRun.MARK, true);
+            sessionStrategy.evaluate(copy);
+        }
+        SecurityEvent second = buildTestEvent();
+        second.setEventId("event-shadow-second");
+        sessionStrategy.evaluate(second);
+        ArgumentCaptor<SecurityDecisionRequest> requests = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(orchestrator, times(shadowBetween ? 3 : 2)).execute(requests.capture(), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        List<SecurityDecisionRequest> all = requests.getAllValues();
+        return all.get(all.size() - 1).getContext().getSessionContext().getRequestCount();
+    }
+
+    @Test
     @DisplayName("a cached session reads what the session stored since and its current sign-in method (W1-11)")
     void evaluate_cachedSessionReadsWhatTheSessionStoredSince() {
         InMemorySecurityContextDataStore dataStore = new InMemorySecurityContextDataStore();
@@ -665,6 +705,67 @@ class Layer1ContextualStrategyTest {
         assertThat(secondSession.getRecentActions())
                 .filteredOn(action -> action.contains("AUTHORIZATION_DENIED"))
                 .hasSize(2);
+    }
+
+    /**
+     * W5-4: the recent decisions that did not allow, read by the past record search on its copy of the event, come back
+     * to the event the prompt is drawn from, as the past record counts do.
+     */
+    @Test
+    void theDeniedDecisionsTheSearchCopyReadsComeBackToTheEvent() {
+        UnifiedVectorService vectorService = mock(UnifiedVectorService.class);
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        when(vectorService.pastRecordQuery()).thenReturn(new PastRecordQuery() {
+            @Override
+            public boolean available() {
+                return true;
+            }
+
+            @Override
+            public List<PastRecordGroup> groups(PastRecordScope scope) {
+                return List.of(new PastRecordGroup("/api/data", "/api/data", "GET", 4, null));
+            }
+
+            @Override
+            public List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit) {
+                return List.of();
+            }
+
+            @Override
+            public List<Document> deniedDecisions(PastRecordScope scope, LocalDateTime since, int limit) {
+                return List.of(new Document("denied-1", "User accessed /api/data", new HashMap<>(Map.of(
+                        "timestamp", "2026-09-22T13:29", "actionFamily", "READ", "action", "CHALLENGE",
+                        "requestPath", "/api/data", "documentType", "suspicious"))));
+            }
+        });
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ALLOW");
+        response.setReasoning("Usual read");
+        when(pipelineOrchestrator.execute(any(), any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class)))
+                .thenReturn(Mono.just(response));
+        Layer1ContextualStrategy v20Strategy = new Layer1ContextualStrategy(
+                vectorService,
+                null,
+                new SecurityEventEnricher(),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), properties),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new PromptContextAuthorizationService(),
+                null,
+                pipelineOrchestrator,
+                properties
+        );
+        SecurityEvent event = buildTestEvent();
+
+        v20Strategy.evaluate(event);
+
+        assertThat(PastDeniedDecisions.fromMetadata(event.getMetadata().get(PastDeniedDecisions.EVENT_METADATA_KEY))
+                .entries()).extracting(PastDeniedDecisions.Entry::decidedAction).containsExactly("CHALLENGE");
     }
 
     /**

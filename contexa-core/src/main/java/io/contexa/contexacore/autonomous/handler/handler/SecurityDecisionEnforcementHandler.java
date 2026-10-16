@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
@@ -69,6 +70,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final SecurityContextDataStore securityContextDataStore;
     private final ContextObservationRecorder contextObservationRecorder;
     private VerificationLearningService verificationLearningService;
+    private LearningPromotionService learningPromotionService;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -159,6 +161,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         this.verificationLearningService = verificationLearningService;
     }
 
+    /** Holds an allowed request whose first-seen values wait for promotion instead of learning it (W5-1). */
+    public void setLearningPromotionService(LearningPromotionService learningPromotionService) {
+        this.learningPromotionService = learningPromotionService;
+    }
+
     private boolean isEnforcementDisabled() {
         return securityZeroTrustProperties != null && !securityZeroTrustProperties.isEnforcementEnabled();
     }
@@ -186,12 +193,19 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         boolean sideEffectsEnabled = !isEnforcementSuppressed(event);
+        // Asked before the observations are committed: a held request is marked so that the work profile leaves it
+        // out (W5-1).
+        boolean heldForPromotion = sideEffectsEnabled
+                && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW && holdsForPromotion(event);
 
+        Enforcement enforcement;
         try {
-            enforceDecision(userId, event, result, sideEffectsEnabled);
-            if (isCurrentProcessingOwner(event)) {
-                commitContextObservations(event, result.getAction(), sideEffectsEnabled);
-                if (sideEffectsEnabled) {
+            enforcement = enforceDecision(userId, event, result, sideEffectsEnabled);
+            if (enforcement != Enforcement.NOT_OWNER && isCurrentProcessingOwner(event)) {
+                // Only an applied decision is learnable: a shadow one, and an ALLOW kept out by a stricter action in
+                // effect, are committed as decided but not enforced (W5-3).
+                commitContextObservations(event, result.getAction(), enforcement == Enforcement.APPLIED);
+                if (enforcement != Enforcement.SHADOW) {
                     holdForVerification(event, result.getAction());
                 }
             }
@@ -205,8 +219,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             return false;
         }
 
-        if (sideEffectsEnabled && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
-            CompletableFuture.runAsync(() -> learnFromResult(userId, event, result), baselineLearningExecutor)
+        if (enforcement == Enforcement.APPLIED
+                && ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
+            Runnable learning = heldForPromotion ? () -> holdForPromotion(event)
+                    : () -> learnFromResult(userId, event, result);
+            CompletableFuture.runAsync(learning, baselineLearningExecutor)
                     .exceptionally(ex -> {
                         log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
                         return null;
@@ -216,10 +233,23 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         return true;
     }
 
-    private void enforceDecision(String userId, SecurityEvent event, ProcessingResult result, boolean sideEffectsEnabled) {
+    /** What the enforcement of a decision did, so that only an applied decision is learned (W5-3). */
+    private enum Enforcement {
+        /** The decision is the action in effect. */
+        APPLIED,
+        /** The processing ownership lapsed and the result was discarded. */
+        NOT_OWNER,
+        /** The decision was observed in a shadow boundary without runtime effect. */
+        SHADOW,
+        /** A stricter user-level action stays in effect, so the less strict decision was not written. */
+        KEPT_STRICTER
+    }
+
+    private Enforcement enforceDecision(String userId, SecurityEvent event, ProcessingResult result,
+                                        boolean sideEffectsEnabled) {
         if (!isCurrentProcessingOwner(event)) {
             markStaleResultDiscarded(event);
-            return;
+            return Enforcement.NOT_OWNER;
         }
         String action = result.getAction();
         ZeroTrustAction ztAction;
@@ -275,7 +305,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             additionalFields.put("shadowReason", resolveSuppressionReason(event));
             log.info("[SecurityDecisionEnforcementHandler][SHADOW] Observation-only: decision not persisted and no runtime side-effects applied. userId={}, ztAction={}, proposedAction={}",
                     userId, ztAction, result.getProposedAction());
-            return;
+            return Enforcement.SHADOW;
         }
 
         // The persisted observation is both the audit record of the decision and the idempotency
@@ -291,16 +321,22 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         if (!isCurrentProcessingOwner(event)) {
             markStaleResultDiscarded(event);
-            return;
+            return Enforcement.NOT_OWNER;
         }
-        if (!actionRedisRepository.saveFinalAction(userId, ztAction, additionalFields)) {
+        ZeroTrustActionRepository.FinalActionWrite written =
+                actionRedisRepository.writeFinalAction(userId, ztAction, additionalFields);
+        if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
             throw new IllegalStateException("Runtime action did not converge with persisted final observation");
         }
         releaseDecisionAuditPending(userId, contextBindingHash, event);
+        if (written == ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER) {
+            return Enforcement.KEPT_STRICTER;
+        }
 
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
         }
+        return Enforcement.APPLIED;
     }
 
     public void restoreFinalDecision(
@@ -326,7 +362,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         putIfPresent(fields, "contextBindingHash", persisted.contextBindingHash());
         putIfPresent(fields, "reasoning", persisted.reasoning());
         requireCurrentProcessingOwner(event);
-        if (!actionRedisRepository.saveFinalAction(userId, action, fields)) {
+        ZeroTrustActionRepository.FinalActionWrite written = actionRedisRepository.writeFinalAction(userId, action, fields);
+        if (written == null || written == ZeroTrustActionRepository.FinalActionWrite.FAILED) {
             throw new IllegalStateException("Persisted final decision did not converge to runtime action");
         }
         releaseDecisionAuditPending(userId,
@@ -337,8 +374,31 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                     .success(true).action(action.name()).reasoning(persisted.reasoning()).build();
             handleBlockDecision(userId, event, result);
         }
-        commitContextObservations(event, action.name(), true);
+        commitContextObservations(event, action.name(), written == ZeroTrustActionRepository.FinalActionWrite.APPLIED);
         holdForVerification(event, action.name());
+    }
+
+    /** Whether the allowed request waits for promotion before it is learned (W5-1); false without the service. */
+    private boolean holdsForPromotion(SecurityEvent event) {
+        if (learningPromotionService == null) {
+            return false;
+        }
+        try {
+            return learningPromotionService.holds(event);
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to ask the learning promotion: eventId={}",
+                    event.getEventId(), e);
+            return false;
+        }
+    }
+
+    private void holdForPromotion(SecurityEvent event) {
+        try {
+            learningPromotionService.hold(event);
+        } catch (RuntimeException e) {
+            log.error("[SecurityDecisionEnforcementHandler] Failed to hold a request for promotion: eventId={}",
+                    event.getEventId(), e);
+        }
     }
 
     /**

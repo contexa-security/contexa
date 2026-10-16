@@ -1,0 +1,145 @@
+{
+  "source": "plan 8.4 and prompt-audit/w06/delivery.py EXPECTED (v20 column), W6-1",
+  "volatile": [
+    "RagDocument\\d+",
+    "ComparableExample\\d+",
+    "PastRecord",
+    "RecentSessionActionSample",
+    "SessionId",
+    "RequestId",
+    "EventId",
+    "Timestamp",
+    ".*Hash",
+    ".*Sha256",
+    "AnalysisId",
+    "CorrelationId",
+    "PackageId",
+    "ObservedAt",
+    "CapturedAt",
+    "ContextBindingHash",
+    "Evidence",
+    "PromptQuality.*",
+    "Generated.*",
+    "SessionNarrativeSummary",
+    "HistoricalComparable.*",
+    "Rag.*Count",
+    "RagRelevance",
+    "RagProjectionState",
+    "SimilarityScore.*"
+  ],
+  "values": {
+    "employee": {"*": {"line": "Subject", "pattern": "-{value}\\b"}},
+    "timeSlot": {
+      "DAWN": {"line": "Time", "pattern": "\\b03:17\\b"},
+      "MORNING": {"line": "Time", "pattern": "\\b09:40\\b"},
+      "AFTERNOON": {"line": "Time", "pattern": "\\b14:20\\b"},
+      "EVENING": {"line": "Time", "pattern": "\\b20:30\\b"}
+    },
+    "place": {
+      "OFFICE": {"line": "Network", "pattern": "zone CORPORATE"},
+      "EXTERNAL": {"line": "Network", "pattern": "^203\\.0\\.113\\."},
+      "TRAVEL": {"line": "Travel", "pattern": "^no registered trip", "negate": true}
+    },
+    "device": {
+      "NEW": {"line": "Device", "pattern": "Safari"},
+      "USUAL": {"line": "Device", "pattern": "Safari", "negate": true}
+    },
+    "operation": {
+      "EXPORT": {"line": "Action", "pattern": "^EXPORT\\b"},
+      "DOCUMENT_READ": {"line": "Action", "pattern": "^READ\\b"}
+    },
+    "target": {
+      "ASSIGNED": {"line": "Assignment", "pattern": "^assigned to"},
+      "UNASSIGNED": {"line": "Assignment", "pattern": "^not assigned to"}
+    },
+    "items": {"*": {"line": "Size", "pattern": "^{number} items"}},
+    "approval": {
+      "true": {"line": "Approval", "pattern": "covers this request"},
+      "false": {"line": "Approval", "pattern": "covers this request", "negate": true}
+    },
+    "ticket": {
+      "NONE": {"line": "Ticket", "pattern": "^no ticket found"},
+      "COVERS": {"line": "Ticket", "pattern": "covers this request"},
+      "OTHER_PROJECT": {"line": "Ticket", "pattern": "does not cover"}
+    },
+    "claim": {
+      "FAKE": {"line": "Ticket", "pattern": "named by the requester does not exist"},
+      "REAL": {"line": "Ticket", "pattern": "named by the requester does not exist", "negate": true},
+      "NONE": {"line": "Ticket", "pattern": "named by the requester", "negate": true}
+    },
+    "onCall": {
+      "true": {"line": "OnCall", "pattern": "^on call"},
+      "false": {"line": "OnCall", "pattern": "^not on call"}
+    }
+  },
+  "expected": {
+    "employee": [
+      "BaselineStatus",
+      "Usual*",
+      "WorkProfile",
+      "Subject",
+      "Roles",
+      "Assignment",
+      "DeviationsFromBaseline",
+      "SameAsBaseline"
+    ],
+    "timeSlot": [
+      "Time",
+      "DeviationsFromBaseline",
+      "SameAsBaseline"
+    ],
+    "place": [
+      "Network",
+      "Travel",
+      "DeviationsFromBaseline",
+      "SameAsBaseline"
+    ],
+    "device": [
+      "Device",
+      "DeviationsFromBaseline",
+      "SameAsBaseline"
+    ],
+    "operation": [
+      "Action",
+      "Target",
+      "ResourceClass",
+      "Size",
+      "Policy",
+      "PolicySatisfied"
+    ],
+    "target": [
+      "Assignment",
+      "Policy",
+      "PolicySatisfied",
+      "Target",
+      "DeviationsFromBaseline"
+    ],
+    "items": [
+      "Size",
+      "Policy",
+      "PolicySatisfied",
+      "Approval",
+      "DeviationsFromBaseline"
+    ],
+    "approval": [
+      "PolicySatisfied",
+      "Approval",
+      "DeviationsFromBaseline"
+    ],
+    "ticket": [
+      "Ticket",
+      "PolicySatisfied",
+      "DeviationsFromBaseline"
+    ],
+    "claim": [
+      "Ticket"
+    ],
+    "onCall": [
+      "OnCall",
+      "PolicySatisfied"
+    ],
+    "invariant": [
+      "Subject"
+    ]
+  }
+}

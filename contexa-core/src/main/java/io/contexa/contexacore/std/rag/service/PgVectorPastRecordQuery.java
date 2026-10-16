@@ -18,6 +18,7 @@ package io.contexa.contexacore.std.rag.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
@@ -99,6 +100,64 @@ public class PgVectorPastRecordQuery implements PastRecordQuery {
                 containment(scope), json(scope.excludedSessionIds()), VectorDocumentMetadata.LEARNING_STATE_HELD,
                 json(firstPaths != null ? firstPaths : List.of()), limit);
     }
+
+    @Override
+    public List<String> filters() {
+        return FILTERS;
+    }
+
+    @Override
+    public List<String> order() {
+        return ORDER;
+    }
+
+    @Override
+    public List<Document> deniedDecisions(PastRecordScope scope, LocalDateTime since, int limit) {
+        if (jdbcTemplate == null || scope == null || limit <= 0) {
+            return List.of();
+        }
+        Map<String, Object> containment = new LinkedHashMap<>();
+        containment.put(VectorDocumentMetadata.USER_ID, scope.userId());
+        if (StringUtils.hasText(scope.retrievalPurpose())) {
+            containment.put(VectorDocumentMetadata.RETRIEVAL_PURPOSE, scope.retrievalPurpose());
+        }
+        containment.put("actionFamily", scope.actionFamily());
+        String sql = "select id::text as id, content, metadata::text as metadata from " + table
+                + " where metadata::jsonb @> cast(? as jsonb)"
+                + " and metadata::jsonb ->> 'documentType' in (select jsonb_array_elements_text(cast(? as jsonb)))"
+                + " and coalesce(metadata::jsonb ->> 'sessionId', '')"
+                + " not in (select jsonb_array_elements_text(cast(? as jsonb)))"
+                + " and coalesce(metadata::jsonb ->> 'timestamp', '') >= ?"
+                + " order by metadata::jsonb ->> 'timestamp' desc nulls last, id::text limit ?";
+        return jdbcTemplate.query(sql,
+                (rs, rowNum) -> new Document(rs.getString("id"), rs.getString("content"), metadata(rs.getString("metadata"))),
+                json(containment), json(PastDeniedDecisions.DOCUMENT_TYPES), json(scope.excludedSessionIds()),
+                since != null ? since.toString() : "", limit);
+    }
+
+    @Override
+    public boolean recordOutcome(String documentId, String outcome) {
+        if (jdbcTemplate == null || !StringUtils.hasText(documentId) || !StringUtils.hasText(outcome)) {
+            return false;
+        }
+        String sql = "update " + table + " set metadata = (metadata::jsonb || jsonb_build_object('"
+                + PastDeniedDecisions.OUTCOME_KEY + "', cast(? as text)))::json where id::text = ?";
+        return jdbcTemplate.update(sql, outcome, documentId) > 0;
+    }
+
+    /** W6-12: the conditions of SCOPE_CONDITION and containment(), in words for the seal; they change with that SQL. */
+    private static final List<String> FILTERS = List.of(
+            "documentType == behavior",
+            "userId == scope.userId",
+            "retrievalPurpose == scope.retrievalPurpose (when set)",
+            "actionFamily == scope.actionFamily",
+            "sessionId not in scope.excludedSessionIds",
+            "learningState != " + VectorDocumentMetadata.LEARNING_STATE_HELD);
+    /** W6-12: the order keys of records(), in words for the seal; they change with that SQL. */
+    private static final List<String> ORDER = List.of(
+            "requestPath in firstPaths first",
+            "timestamp desc nulls last",
+            "id");
 
     /** The scope: the user's behaviour records of the purpose and action family, outside the session, not held back. */
     private static final String SCOPE_CONDITION = """

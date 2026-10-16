@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-release/fragments :: head(#{promptRelease.title.compare})}"></th:block>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto pi-page" data-pr-page="compare"
+          th:attr="data-api-root=@{/contexa/admin/api/prompt-quality/releases},data-page-root=@{/contexa/admin/prompt-quality/releases},data-inspection-root=@{/contexa/admin/prompt-inspection}">
+        <div class="modern-card p-6 sm:p-8 rounded-xl pi-card">
+            <section th:replace="~{contexa/admin/prompt-release/fragments :: pageTop(#{promptRelease.title.compare}, #{promptRelease.subtitle.compare})}"></section>
+
+            <form class="pi-filters" data-pr-compare-form>
+                <label class="pi-field">
+                    <span th:text="#{promptRelease.compare.base}">Compared with</span>
+                    <select name="base"></select>
+                </label>
+                <label class="pi-field">
+                    <span th:text="#{promptRelease.compare.candidate}">Bundle</span>
+                    <select name="candidate"></select>
+                </label>
+                <label class="pi-field">
+                    <span th:text="#{promptRelease.period.from}">From</span>
+                    <input type="date" name="from">
+                </label>
+                <label class="pi-field">
+                    <span th:text="#{promptRelease.period.to}">To</span>
+                    <input type="date" name="to">
+                </label>
+                <div class="pi-actions">
+                    <button type="submit" class="pi-button pi-button-primary" th:text="#{promptRelease.action.search}">Compare</button>
+                </div>
+            </form>
+            <p class="pi-status" data-pr-status role="status" aria-live="polite"></p>
+
+            <section class="pi-section">
+                <h2 class="pi-section-title" th:text="#{promptRelease.compare.elements}">Element differences</h2>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-elements>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.element}">Element</th>
+                            <th scope="col" th:text="#{promptRelease.compare.base}">Compared with</th>
+                            <th scope="col" th:text="#{promptRelease.compare.candidate}">Bundle</th>
+                            <th scope="col" th:text="#{promptRelease.column.change}">Change</th>
+                            <th scope="col" th:text="#{promptRelease.column.covers}">What the hash covers</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-manifests>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.manifest}">Manifest</th>
+                            <th scope="col" th:text="#{promptRelease.compare.base}">Compared with</th>
+                            <th scope="col" th:text="#{promptRelease.compare.candidate}">Bundle</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr><th scope="row" th:text="#{promptRelease.column.hash}">Hash</th><td class="pi-code pr-hash" data-pr-manifest="bundleHash" data-pr-side="base"></td><td class="pi-code pr-hash" data-pr-manifest="bundleHash" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.fact.vocabulary}">Vocabulary</th><td class="pi-code" data-pr-manifest="vocabularyVersion" data-pr-side="base"></td><td class="pi-code" data-pr-manifest="vocabularyVersion" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.fact.rollbackTargets}">Declared rollback targets</th><td class="pi-code" data-pr-manifest="rollbackTargets" data-pr-side="base"></td><td class="pi-code" data-pr-manifest="rollbackTargets" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.fact.modelProfiles}">Declared model profiles</th><td class="pi-code" data-pr-manifest="declaredModelProfiles" data-pr-side="base"></td><td class="pi-code" data-pr-manifest="declaredModelProfiles" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.fact.problemIds}">Problems it answers</th><td class="pi-code" data-pr-manifest="problemIds" data-pr-side="base"></td><td class="pi-code" data-pr-manifest="problemIds" data-pr-side="candidate"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="pi-section">
+                <h2 class="pi-section-title" th:text="#{promptRelease.compare.behaviour}">Behaviour differences</h2>
+                <p class="pi-note" data-pr-cases></p>
+                <h3 class="pi-subtitle" th:text="#{promptRelease.compare.actionChanges}">Decision and shadow by action</h3>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-action-changes>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.decisionAction}">Decision</th>
+                            <th scope="col" th:text="#{promptRelease.column.shadowAction}">Shadow</th>
+                            <th scope="col" class="pi-number" th:text="#{promptRelease.column.requests}">Requests</th>
+                            <th scope="col" th:text="#{promptRelease.column.change}">Change</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <h3 class="pi-subtitle" th:text="#{promptRelease.compare.byRequest}">Behaviour by request</h3>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-pairs>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.request}">Request</th>
+                            <th scope="col" th:text="#{promptRelease.column.sealedAt}">Shadow sealed at</th>
+                            <th scope="col" th:text="#{promptRelease.column.decisionBundle}">Decision bundle</th>
+                            <th scope="col" th:text="#{promptRelease.column.decisionAction}">Decision</th>
+                            <th scope="col" th:text="#{promptRelease.column.shadowBundle}">Shadow bundle</th>
+                            <th scope="col" th:text="#{promptRelease.column.shadowAction}">Shadow</th>
+                            <th scope="col" th:text="#{promptRelease.column.change}">Change</th>
+                            <th scope="col" th:text="#{promptRelease.column.seals}">Seals</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-outcomes>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.bundle}">Bundle</th>
+                            <th scope="col" th:text="#{promptRelease.column.stage}">Stage</th>
+                            <th scope="col" th:text="#{promptRelease.column.action}">Decision</th>
+                            <th scope="col" class="pi-number" th:text="#{promptRelease.column.packages}">Sealed decisions</th>
+                            <th scope="col" class="pi-number" th:text="#{promptRelease.column.failed}">Inspection mismatch</th>
+                            <th scope="col" class="pi-number" th:text="#{promptRelease.column.passed}">Inspection pass</th>
+                            <th scope="col" class="pi-number" th:text="#{promptRelease.column.notInspected}">Not inspected</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-evaluations>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.detail.evidence}">Gate evidence</th>
+                            <th scope="col" th:text="#{promptRelease.compare.base}">Compared with</th>
+                            <th scope="col" th:text="#{promptRelease.compare.candidate}">Bundle</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.evaluationReference}">Evaluation</th><td class="pi-code" data-pr-eval="evaluationReference" data-pr-side="base"></td><td class="pi-code" data-pr-eval="evaluationReference" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.evaluationState}">Evaluation result</th><td class="pi-code" data-pr-eval="evaluationState" data-pr-side="base"></td><td class="pi-code" data-pr-eval="evaluationState" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.evaluationForThisBundle}">Evaluated with this bundle hash</th><td data-pr-eval="evaluationForThisBundle" data-pr-side="base"></td><td data-pr-eval="evaluationForThisBundle" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.evaluationRunReference}">Evaluated runs</th><td class="pi-code" data-pr-eval="evaluationRunReference" data-pr-side="base"></td><td class="pi-code" data-pr-eval="evaluationRunReference" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.tevvGateState}">TEVV gate</th><td class="pi-code" data-pr-eval="tevvGateState" data-pr-side="base"></td><td class="pi-code" data-pr-eval="tevvGateState" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.qualityGateState}">Quality gate</th><td class="pi-code" data-pr-eval="qualityGateState" data-pr-side="base"></td><td class="pi-code" data-pr-eval="qualityGateState" data-pr-side="candidate"></td></tr>
+                        <tr><th scope="row" th:text="#{promptRelease.evidence.scenarios}">Scenarios covered</th><td data-pr-eval="scenarios" data-pr-side="base"></td><td data-pr-eval="scenarios" data-pr-side="candidate"></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script th:replace="~{contexa/admin/prompt-release/fragments :: scriptMessages}"></script>
+<script type="module" th:src="@{/contexa/js/admin/prompt-release/compare-page.js}"></script>
+</body>
+</html>

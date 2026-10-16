@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Keeps control D's decision record of a request for a short while (docs/showcase/데모-재설계.md 10.2 R-29): every
@@ -35,11 +36,21 @@ public class DecisionReadCache {
     }
 
     private final Reader reader;
+    private final Predicate<JsonNode> finished;
     private final Clock clock;
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
 
     public DecisionReadCache(Reader reader, Clock clock) {
+        this(reader, DecisionReadCache::ended, clock);
+    }
+
+    /**
+     * W7-13: the same cache for another record control D keeps of a request, with what makes that record final (the
+     * sealed prompt of a decision once it has its inspection).
+     */
+    public DecisionReadCache(Reader reader, Predicate<JsonNode> finished, Clock clock) {
         this.reader = reader;
+        this.finished = finished;
         this.clock = clock;
     }
 
@@ -57,7 +68,7 @@ public class DecisionReadCache {
                 entries.clear();
             }
         }
-        entries.put(requestId, new Entry(record, now, ended(record)));
+        entries.put(requestId, new Entry(record, now, finished.test(record)));
         return record;
     }
 

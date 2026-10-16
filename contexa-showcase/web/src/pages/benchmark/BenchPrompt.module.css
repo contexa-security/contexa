@@ -1,0 +1,139 @@
+/* B1-3, prompt quality (U-6): four big numbers, the other quality numbers in a list, the method window. */
+.measured {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.cardsScroll {
+  min-inline-size: 0;
+}
+
+.cardsScroll:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.cardName {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.card dd {
+  margin: 0;
+}
+
+.cardValue {
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+}
+
+.cardWhat {
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.cardNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.more li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--color-border-strong);
+}
+
+.moreName {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.moreNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.window {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.plainList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-text-body);
+}
+
+.codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-body);
+}
+
+.codes code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Tablets: two cards a row. */
+@media (width <= 64rem) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phones (mobile slide): the four cards slide sideways inside their region; the rest reads top to bottom. */
+@media (width <= 40rem) {
+  .cardsScroll {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .cards {
+    grid-auto-columns: 80%;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+  }
+
+  .card {
+    scroll-snap-align: start;
+  }
+}

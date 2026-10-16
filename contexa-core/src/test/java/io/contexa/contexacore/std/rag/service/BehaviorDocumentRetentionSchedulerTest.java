@@ -35,7 +35,7 @@ class BehaviorDocumentRetentionSchedulerTest {
 
         FilterExpressionBuilder filter = new FilterExpressionBuilder();
         Filter.Expression expected = filter.and(
-                filter.in("documentType", "behavior", "behavior_analysis"),
+                filter.in("documentType", "behavior", "behavior_analysis", "suspicious", "threat", "ambiguous"),
                 filter.lt("timestamp", "2026-07-07")).build();
         verify(vectorStore).delete(expected);
         // W2-15: a deletion across users clears every cached search.

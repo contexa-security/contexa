@@ -4,6 +4,8 @@ import io.contexa.contexacore.verification.inspection.DecisionFactMatchCheck;
 import io.contexa.contexacore.verification.inspection.DictionaryContractCheck;
 import io.contexa.contexacore.verification.inspection.FactAccuracyCheck;
 import io.contexa.contexacore.verification.inspection.PastRecordNotationCheck;
+import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
+import io.contexa.contexacore.verification.inspection.PromptInspector;
 import io.contexa.contexacore.verification.inspection.SameFactCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionVerdict;
 import io.contexa.contexacore.verification.inspection.SealIntegrityCheck;
@@ -47,9 +49,18 @@ class PromptInspectionScreenTest {
                 .containsEntry("NOT_APPLICABLE", "neutral").containsEntry(JdbcPromptInspectionQueries.NOT_INSPECTED, "neutral");
     }
 
+    /**
+     * The screens offer the codes of the checks the inspector runs, in its order: the core checks with the bundle trace
+     * second (PromptInspectionAutoConfiguration). A check added to the inspector shows on the screens with its name
+     * (W4-8 added REASON_MATCH to the inspector, and the screens drew its message key).
+     */
     @Test
     void theScreensOfferTheCodesTheChecksDeclare() {
-        assertThat(PromptInspectionScreen.CHECKS).containsExactly(SealIntegrityCheck.CODE, BundleTraceCheck.CODE,
+        List<String> run = new ArrayList<>(PromptInspector.coreChecks().stream()
+                .map(PromptInspectionCheck::code).toList());
+        run.add(1, BundleTraceCheck.CODE);
+        assertThat(PromptInspectionScreen.CHECKS).containsExactlyElementsOf(run);
+        assertThat(PromptInspectionScreen.CHECKS).startsWith(SealIntegrityCheck.CODE, BundleTraceCheck.CODE,
                 DictionaryContractCheck.CODE, DecisionFactMatchCheck.CODE, FactAccuracyCheck.CODE,
                 UnknownDeclaredCheck.CODE, PastRecordNotationCheck.CODE, SameFactCheck.CODE);
     }

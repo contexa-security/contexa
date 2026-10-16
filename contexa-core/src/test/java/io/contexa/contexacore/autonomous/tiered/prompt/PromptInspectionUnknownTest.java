@@ -14,6 +14,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -113,8 +115,9 @@ class PromptInspectionUnknownTest {
     void aFactNamedUnknownButDrawnWithAValueIsPointedAtOnTheDrawnLine() {
         InspectionGolden.Render render = withSealedUnknown(false);
         String name = sealedUnknown(render, false);
-        String broken = render.userPrompt().replace("=== DECISION FACTS ===\n",
-                "=== DECISION FACTS ===\n" + name + ": made up\n");
+        // The header names the time zone when a fact of the block is on the event clock (W3-13).
+        String header = lineStarting(render.userPrompt(), "=== DECISION FACTS");
+        String broken = render.userPrompt().replace(header + "\n", header + "\n" + name + ": made up\n");
         assertThat(broken).isNotEqualTo(render.userPrompt());
 
         PromptInspectionFinding finding = single(check(broken, render));
@@ -178,8 +181,11 @@ class PromptInspectionUnknownTest {
                 .findFirst().orElse(null);
     }
 
-    /** The UNKNOWN line without one name (with its reason, when given), keeping the separators right. */
-    private static String withoutName(String line, String named) {
+    /** The UNKNOWN line without one name (with its ID and reason, when given), keeping the separators right. */
+    private static String withoutName(String line, String name) {
+        // N-UID-1: a name stands after the ID the line gives it; the ID goes with the name.
+        Matcher withId = Pattern.compile("\\[U[0-9]+] " + Pattern.quote(name)).matcher(line);
+        String named = withId.find() ? withId.group() : name;
         String result = line.replace(", " + named + ",", ",")
                 .replace(": " + named + ", ", ": ")
                 .replace(", " + named + ";", ";")

@@ -3,6 +3,8 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
+import io.contexa.contexacore.autonomous.context.model.ContextTrustProfile;
+import io.contexa.contexacore.autonomous.context.policy.ContextEvidenceGuidance;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningEvidenceScope;
@@ -60,12 +62,25 @@ class PromptFactLinesWithoutGuidanceTest {
 
     @Test
     void theEvidenceLineKeepsTheFactsBeforeTheInstructions() {
-        InspectionGolden.Render render = InspectionGolden.render(prompt -> prompt.contains("collector ROLE_SCOPE_PROFILE")
-                && prompt.contains("Action family baseline includes fallback-derived signals"));
+        // The collectors' warnings as they write them: a fact, then the instruction the v20 system text states.
+        ContextTrustProfile roleScope = ContextTrustProfile.builder()
+                .profileKey("ROLE_SCOPE_PROFILE")
+                .provenanceSummary("role scope collector over 30 days")
+                .scopeLimitations(new ArrayList<>(List.of(ContextEvidenceGuidance.ROLE_SCOPE_NOTE)))
+                .qualityWarnings(new ArrayList<>(List.of(
+                        "Action family baseline includes fallback-derived signals; "
+                                + ContextEvidenceGuidance.NOT_AN_INTENT_INDICATOR + ".",
+                        "Role scope field AuthorizedScope has thin or fallback-heavy evidence; "
+                                + ContextEvidenceGuidance.NOT_A_REASONING_ANCHOR + ".")))
+                .build();
+        InspectionGolden.Render render = InspectionGolden.renderWith(InspectionGolden.renders().get(0),
+                context -> context.setContextTrustProfiles(new ArrayList<>(List.of(roleScope))));
         String evidence = value(render.userPrompt(), "Evidence");
         assertThat(evidence).contains("collector ROLE_SCOPE_PROFILE", "provenance ",
                 "Action family baseline includes fallback-derived signals", "has thin or fallback-heavy evidence")
-                .doesNotContain(", limits ");
+                .doesNotContain(", limits ")
+                .doesNotContain(ContextEvidenceGuidance.NOT_AN_INTENT_INDICATOR)
+                .doesNotContain(ContextEvidenceGuidance.NOT_A_REASONING_ANCHOR);
     }
 
     @Test
@@ -94,8 +109,17 @@ class PromptFactLinesWithoutGuidanceTest {
     @Test
     void aCoverageThatRepeatsTheTrustProfilesNotesDrawsNeitherTheNotesNorTheirLabel() {
         InspectionGolden.Render base = InspectionGolden.renders().get(0);
-        InspectionGolden.Render render = InspectionGolden.renderWith(base,
-                context -> context.setContextTrustProfiles(new ArrayList<>()));
+        // A work profile warning the coverage repeats, as the collector writes it (a fact, then an instruction).
+        String workProfileWarning = "Action family baseline includes fallback-derived signals; "
+                + ContextEvidenceGuidance.NOT_AN_INTENT_INDICATOR + ".";
+        InspectionGolden.Render render = InspectionGolden.renderWith(base, context -> {
+            context.setContextTrustProfiles(new ArrayList<>());
+            ContextCoverageReport report = context.getCoverage();
+            List<String> warnings = new ArrayList<>(report.confidenceWarnings());
+            warnings.add(workProfileWarning);
+            context.setCoverage(new ContextCoverageReport(report.level(), report.availableFacts(),
+                    report.missingCriticalFacts(), report.remediationHints(), warnings, report.summary()));
+        });
         String coverage = value(render.userPrompt(), "Coverage");
         assertThat(base.used().getCoverage().confidenceWarnings()).anyMatch(warning -> warning.startsWith("Scope limitation: "));
         assertThat(coverage).contains("Action family baseline includes fallback-derived signals.")

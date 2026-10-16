@@ -65,6 +65,7 @@ public class RoleScopeProfileResolver extends AbstractProfileResolver<RoleScopeP
                 .temporaryElevationReason(text(metadata.get("temporaryElevationReason"), metadata.get("elevationReason"), metadata.get("temporary_elevation_reason")))
                 .elevatedPrivilegeWindowActive(toBool(metadata.get("elevatedPrivilegeWindowActive"), metadata.get("elevated_privilege_window_active")))
                 .elevationWindowSummary(text(metadata.get("elevationWindowSummary"), metadata.get("elevatedPrivilegeWindowSummary"), metadata.get("elevation_window_summary")))
+                .peerCount(toInt(metadata.get("roleScopePeerCount")))
                 .build();
 
         if (!StringUtils.hasText(profile.getSummary())) {

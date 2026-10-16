@@ -51,6 +51,29 @@ public class PromptGovernanceEmpiricalEvalService {
             String costGateState,
             String actor,
             String summary) {
+        return recordEvaluation(registryScope, promptKey, promptVersion, evaluationReference, evaluationMode,
+                coveredScenarioFamilies, promptInjectionState, latencyGateState, costGateState, actor, summary, null,
+                null);
+    }
+
+    /**
+     * W6-8 (PV-5, PV-6): an evaluation that names the bundle hash it ran and the runs it counted; the release gate
+     * takes it as the evidence of that bundle only.
+     */
+    public EvalRegistrationReceipt recordEvaluation(
+            String registryScope,
+            String promptKey,
+            String promptVersion,
+            String evaluationReference,
+            String evaluationMode,
+            List<String> coveredScenarioFamilies,
+            String promptInjectionState,
+            String latencyGateState,
+            String costGateState,
+            String actor,
+            String summary,
+            String bundleHash,
+            String runReference) {
         String safeScope = normalizeRegistryScope(registryScope);
         PromptGovernanceRegistryRecord registryRecord = registryRepository
                 .findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(
@@ -101,6 +124,8 @@ public class PromptGovernanceEmpiricalEvalService {
         record.setEvaluationSummary(normalizeSummary(summary, tevvGateState, scenarioCoverageState));
         record.setEvaluatedBy(requireText(actor, "actor"));
         record.setRegistrationSource("PROMPT_EMPIRICAL_EVAL_WORKFLOW");
+        record.setBundleHash(bundleHash);
+        record.setRunReference(runReference);
         PromptGovernanceEvaluationRecord saved = evaluationRepository.save(record);
         return new EvalRegistrationReceipt(
                 safeScope,

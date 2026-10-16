@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -85,6 +86,12 @@ class SecurityPlaneAgentTest {
         agentSettings.setAutoStart(false);
         when(securityPlaneProperties.getAgent()).thenReturn(agentSettings);
         when(securityPlaneProperties.getLlmExecutor()).thenReturn(llmExecutorSettings);
+        // The event processing lease and the owner checks it uses are default methods of the store; the mock answers
+        // them as the interface does for a store that keeps only the claim.
+        when(dataStore.claimEventProcessingLease(anyString())).thenCallRealMethod();
+        when(dataStore.isEventProcessingOwner(anyString(), any())).thenCallRealMethod();
+        when(dataStore.markEventProcessed(anyString(), any())).thenCallRealMethod();
+        when(dataStore.releaseEventProcessing(anyString(), any())).thenCallRealMethod();
 
         agent = new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
@@ -209,8 +216,10 @@ class SecurityPlaneAgentTest {
                 .userId("user-timeout")
                 .sessionId("session-timeout")
                 .build();
+        // The observation is recorded with the attempt's copy of the event, so it is matched by the event id.
         when(aiSecurityDecisionObservationWriter.recordDecision(
-                eq(event), any(ProcessingResult.class), eq(ZeroTrustAction.PENDING_ANALYSIS)))
+                argThat(attempt -> attempt != null && "evt-timeout".equals(attempt.getEventId())),
+                any(ProcessingResult.class), eq(ZeroTrustAction.PENDING_ANALYSIS)))
                 .thenReturn("timeout-observation-1");
 
         when(securityEventProcessor.process(any(SecurityEvent.class))).thenAnswer(invocation -> {
@@ -224,13 +233,17 @@ class SecurityPlaneAgentTest {
         processorCaptor.getValue().processBatch(List.of(event));
 
         verify(securityMonitor, timeout(4000)).deferEvent(eq(event), anyString());
-        verify(dataStore, timeout(4000)).releaseEventProcessing(eq("evt-timeout"));
-        verify(dataStore, never()).markEventProcessed(eq("evt-timeout"));
+        // The agent claims, releases and marks the event under its processing identity, not its id. The timeout
+        // releases the event; the late result, discarded on its own attempt copy of the event, releases it again.
+        String identity = String.valueOf(event.getMetadata().get(SecurityPlaneAgent.EVENT_PROCESSING_IDENTITY));
+        verify(dataStore, timeout(4000).times(2)).releaseEventProcessing(eq(identity));
+        verify(dataStore, never()).markEventProcessed(eq(identity));
         assertThat(event.getMetadata()).containsEntry("processingTimedOut", true);
-        assertThat(event.getMetadata()).containsEntry("lateProcessingResultDiscarded", true);
+        assertThat(event.getMetadata()).doesNotContainKey("lateProcessingResultDiscarded");
         ArgumentCaptor<ProcessingResult> timeoutResultCaptor = ArgumentCaptor.forClass(ProcessingResult.class);
         verify(aiSecurityDecisionObservationWriter, timeout(4000)).recordDecision(
-                eq(event), timeoutResultCaptor.capture(), eq(ZeroTrustAction.PENDING_ANALYSIS));
+                argThat(attempt -> attempt != null && "evt-timeout".equals(attempt.getEventId())),
+                timeoutResultCaptor.capture(), eq(ZeroTrustAction.PENDING_ANALYSIS));
         assertThat(timeoutResultCaptor.getValue().getStatus()).isEqualTo(ProcessingResult.ProcessingStatus.TIMEOUT);
         assertThat(timeoutResultCaptor.getValue().getErrorMessage()).contains("timeout");
         assertThat(event.getMetadata()).containsEntry("timeoutObservationRecorded", true);

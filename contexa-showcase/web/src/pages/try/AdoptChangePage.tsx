@@ -65,6 +65,16 @@ export default function AdoptChangePage() {
     start: t('adoptChange.value.start'),
   };
   const mode = settings?.engine.effectiveMode ?? null;
+  // U-7: the sealed inputs' retention and the inspected share as the running settings state them; without them the line
+  // says what the library does, with no number.
+  const sealed = settings?.sealedEvidence ?? null;
+  const sealLine =
+    sealed && sealed.samplePercent !== null && sealed.cleanPeriodDays !== null
+      ? t('adoptChange.value.sealKept', {
+          days: count(sealed.cleanPeriodDays, language),
+          percent: count(sealed.samplePercent, language),
+        })
+      : t('adoptChange.value.seal');
   const intro = place.route === 'INTRO';
   return (
     <RouteScreen
@@ -90,6 +100,7 @@ export default function AdoptChangePage() {
             <dt className={styles.name}>{t(`adoptChange.name.${cell}`)}</dt>
             <dd className={styles.value}>
               <span>{values[cell]}</span>
+              {cell === 'data' ? <span className={styles.mode}>{sealLine}</span> : null}
               {cell === 'start' && mode ? (
                 <span className={styles.mode}>
                   {t('adoptChange.mode', { mode: t(`adoptChange.modeName.${mode}`, { defaultValue: mode }) })}

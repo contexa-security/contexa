@@ -68,8 +68,8 @@ public class BusinessConfiguration {
     }
 
     @Bean
-    public BusinessContextLookup businessContextLookup(WorkDatabase database) {
-        return new JdbcBusinessContextLookup(database);
+    public BusinessContextLookup businessContextLookup(WorkDatabase database, Environment environment) {
+        return new JdbcBusinessContextLookup(database, environment.getRequiredProperty("showcase.control"));
     }
 
     @Bean

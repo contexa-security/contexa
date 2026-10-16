@@ -219,6 +219,23 @@ class PromptDictionaryContractTest {
         }
     }
 
+    /**
+     * W5-10 D6: the usual login methods take every recorded method name and a login of two methods joined by '+', as
+     * the normalizer records them.
+     */
+    @Test
+    void theUsualLoginMethodsTakeTheRecordedNamesAndALoginOfTwoMethods() {
+        PromptDictionaryEntry entry = SecurityDecisionPromptDictionary.ENTRIES.stream()
+                .filter(candidate -> candidate.block() == PromptBlock.USER_BASELINE
+                        && "UsualLoginMethods".equals(candidate.name()))
+                .findFirst().orElseThrow();
+
+        assertThat(entry.acceptsValue("PASSWORD+ONE_TIME_CODE")).isTrue();
+        assertThat(entry.acceptsValue("PASSWORD, PASSWORD+ONE_TIME_CODE")).isTrue();
+        assertThat(entry.acceptsValue("MFA_ONLY")).isTrue();
+        assertThat(entry.acceptsValue("PASSWORD; source host")).isFalse();
+    }
+
     /** Examples with angle-bracket placeholders or an ellipsis stand for values the measured run did not have. */
     @Test
     void everyMeasuredExampleHasTheEntryForm() {
@@ -381,8 +398,12 @@ class PromptDictionaryContractTest {
     @Test
     void theUnknownFormTakesOnlyTheWordsTheRendererWrites() {
         Pattern form = Pattern.compile(entries.get("UNKNOWN.Unknown").formatPattern());
+        assertThat(form.matcher("not-integrated: [U1] ClientSignals, [U2] PeerCohort; unavailable-now: [U3] PastRecord "
+                + "(not retrieved, TIMEOUT)").matches()).isTrue();
+        // N-UID-1: a name without its ID is not the form.
         assertThat(form.matcher("not-integrated: ClientSignals, PeerCohort; unavailable-now: PastRecord (not retrieved, "
-                + "TIMEOUT)").matches()).isTrue();
+                + "TIMEOUT)").matches()).isFalse();
+        assertThat(form.matcher("not-integrated: [U1] ClientSignals, PeerCohort").matches()).isFalse();
         assertThat(form.matcher("not-applicable: Delegation").matches()).isFalse();
     }
 

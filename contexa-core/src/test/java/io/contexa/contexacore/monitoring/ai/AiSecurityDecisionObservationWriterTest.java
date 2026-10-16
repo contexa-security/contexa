@@ -215,6 +215,73 @@ class AiSecurityDecisionObservationWriterTest {
         assertThat(args.get("fallback_reason")).asString().contains("response action was repaired");
         assertThat(args.get("success")).isEqualTo(false);
     }
+    /**
+     * N-OUT-1 (G1-14): when the model's answer never came (an outage, a contract violation left after the retry) and the
+     * parser filled the action, the observation is a technical fallback, not a parser failure.
+     */
+    @Test
+    void anAnswerThatNeverCameIsATechnicalFallbackNotAParserFailure() {
+        for (String category : List.of("MODEL_UNAVAILABLE", "VALIDATION_FAILED")) {
+            JdbcOperations jdbcOperations = jdbcOperations();
+            AiSecurityDecisionObservationWriter writer =
+                    new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+            SecurityEvent event = SecurityEvent.builder()
+                    .eventId("event-no-answer-" + category)
+                    .userId("user-no-answer")
+                    .metadata(Map.of("requestId", "request-no-answer-" + category,
+                            "rawExecutionSucceeded", false,
+                            "securityDecisionParsingFallbackApplied", true,
+                            "structuredOutputFailureCategory", category))
+                    .build();
+            ProcessingResult result = ProcessingResult.builder()
+                    .success(true)
+                    .action(ZeroTrustAction.CHALLENGE.name())
+                    .llmDecisionPresent(false)
+                    .technicalFallbackApplied(true)
+                    .technicalFallbackCategory(category)
+                    .processingTimeMs(21L)
+                    .build();
+
+            writer.recordDecision(event, result, ZeroTrustAction.CHALLENGE);
+
+            Map<String, Object> args = firstInsertArgs(jdbcOperations);
+            assertThat(args.get("technical_fallback")).as(category).isEqualTo(true);
+            assertThat(args.get("parser_failure")).as(category).isEqualTo(false);
+            assertThat(args.get("fallback_category")).as(category).isEqualTo(category);
+            assertThat(args.get("failure_type")).as(category).isNotEqualTo("PARSER_FAILURE");
+        }
+    }
+
+    /**
+     * W4-7 (inventory 6 bundle 30): the call time column reads providerCallMs, and the time is not copied again as a
+     * latency key into the stored metadata.
+     */
+    @Test
+    void theCallTimeColumnReadsTheProviderCallTimeAndIsNotCopiedAgain() {
+        JdbcOperations jdbcOperations = jdbcOperations();
+        AiSecurityDecisionObservationWriter writer =
+                new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-provider-call")
+                .userId("user-provider-call")
+                .metadata(Map.of("requestId", "request-provider-call", "providerCallMs", 321L))
+                .build();
+        ProcessingResult result = ProcessingResult.builder()
+                .success(true)
+                .action(ZeroTrustAction.ALLOW.name())
+                .llmDecisionPresent(true)
+                .processingTimeMs(400L)
+                .build();
+
+        writer.recordDecision(event, result, ZeroTrustAction.ALLOW);
+
+        Map<String, Object> args = firstInsertArgs(jdbcOperations);
+        assertThat(args.get("openai_call_ms")).isEqualTo(321L);
+        assertThat(String.valueOf(args.get("metadata_json")))
+                .doesNotContain("latencyOpenAiCallMs")
+                .doesNotContain("latencyProviderCallMs");
+    }
+
     @Test
     @DisplayName("Missing JDBC should leave the application flow unchanged")
     void recordDecision_withoutJdbc_shouldReturnNull() {

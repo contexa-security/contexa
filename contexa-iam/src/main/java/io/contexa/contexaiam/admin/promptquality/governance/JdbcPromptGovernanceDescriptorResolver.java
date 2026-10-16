@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.governance;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -44,7 +45,8 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
     private static final Logger log = LoggerFactory.getLogger(JdbcPromptGovernanceDescriptorResolver.class);
 
     /** Executing release states of every vocabulary (decision 1). */
-    private static final String EXECUTING_STATES = PromptBundleState.sqlList(PromptBundleState.CANARY, PromptBundleState.ACTIVE);
+    private static final String EXECUTING_STATES = PromptBundleState.sqlList(PromptBundleState.SHADOW,
+            PromptBundleState.CANARY, PromptBundleState.ACTIVE);
 
     private static final String DEFAULT_SCOPE = "PLATFORM_GLOBAL";
     private static final int WHOLE_SCOPE_PERCENT = 100;
@@ -102,7 +104,30 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
      * scope), the others run the latest active release; without either the build default runs.
      */
     public PromptBundleSelector registrySelector() {
-        return this::select;
+        return new PromptBundleSelector() {
+            @Override
+            public PromptBundleSelection select(PromptGovernanceResolutionContext context, String subjectKey) {
+                return JdbcPromptGovernanceDescriptorResolver.this.select(context, subjectKey);
+            }
+
+            @Override
+            public PromptBundleSelection shadow(PromptGovernanceResolutionContext context, String subjectKey) {
+                return JdbcPromptGovernanceDescriptorResolver.this.shadow(context);
+            }
+        };
+    }
+
+    /** W6-9 (P6-CHANGE-6): the scope's shadow release, the candidate a shadow run draws; none without one. */
+    private PromptBundleSelection shadow(PromptGovernanceResolutionContext context) {
+        if (context == null || !StringUtils.hasText(context.promptKey())) {
+            return PromptBundleSelection.none();
+        }
+        return releases(new CacheKey(normalizeScope(context.registryScope()), normalizeIdentifier(context.promptKey()),
+                normalizeIdentifier(context.templateKey()))).selectionScope().stream()
+                .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.SHADOW))
+                .findFirst()
+                .map(release -> new PromptBundleSelection(release.promptVersion(), PromptBundleSelectionSource.SHADOW))
+                .orElseGet(PromptBundleSelection::none);
     }
 
     private PromptBundleSelection select(PromptGovernanceResolutionContext context, String subjectKey) {
@@ -117,7 +142,8 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
         Optional<RegistryRelease> canary = scope.stream()
                 .filter(release -> PromptBundleState.is(release.releaseStatus(), PromptBundleState.CANARY))
                 .findFirst();
-        if (canary.isPresent() && insideShare(canary.get().canaryPercent(), subjectKey)) {
+        if (canary.isPresent() && insideTargets(canary.get(), context)
+                && insideShare(canary.get().canaryPercent(), subjectKey)) {
             return new PromptBundleSelection(canary.get().promptVersion(), PromptBundleSelectionSource.CANARY);
         }
         return scope.stream()
@@ -125,6 +151,25 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                 .findFirst()
                 .map(release -> new PromptBundleSelection(release.promptVersion(), PromptBundleSelectionSource.REGISTRY))
                 .orElseGet(PromptBundleSelection::none);
+    }
+
+    /**
+     * W6-9 (P6-CHANGE-6): a canary with target tenants or resource families runs only for a request of one of them; a
+     * resource family is the start of the request's resource address or its resource id.
+     */
+    private static boolean insideTargets(RegistryRelease canary, PromptGovernanceResolutionContext context) {
+        boolean tenant = canary.canaryTenants().isEmpty() || canary.canaryTenants().contains(context.tenantId());
+        boolean resource = canary.canaryResourceFamilies().isEmpty() || canary.canaryResourceFamilies().stream()
+                .anyMatch(family -> (context.resourceUrl() != null && context.resourceUrl().startsWith(family))
+                        || family.equals(context.resourceId()));
+        return tenant && resource;
+    }
+
+    private static List<String> targets(String value) {
+        if (!StringUtils.hasText(value)) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(",")).map(String::trim).filter(StringUtils::hasText).toList();
     }
 
     private static boolean insideShare(Integer canaryPercent, String subjectKey) {
@@ -152,7 +197,8 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                                    contract_version, prompt_artifact_hash_sha256, release_status,
                                    owner_name, release_approval_reference, evaluation_baseline_reference,
                                    rollback_prompt_version, change_summary, template_class_name,
-                                   supported_model_profiles_json, canary_percent, updated_at
+                                   supported_model_profiles_json, canary_percent, canary_tenants,
+                                   canary_resource_families, updated_at
                               from prompt_governance_registry
                              where registry_scope in (?, ?)
                                and prompt_key = ?
@@ -282,6 +328,8 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
                 rs.getString("template_class_name"),
                 rs.getString("supported_model_profiles_json"),
                 rs.getObject("canary_percent", Integer.class),
+                targets(rs.getString("canary_tenants")),
+                targets(rs.getString("canary_resource_families")),
                 rs.getTimestamp("updated_at"));
     }
 
@@ -380,6 +428,8 @@ public class JdbcPromptGovernanceDescriptorResolver implements PromptGovernanceD
             String templateClassName,
             String supportedModelProfilesJson,
             Integer canaryPercent,
+            List<String> canaryTenants,
+            List<String> canaryResourceFamilies,
             Timestamp updatedAt) {
 
         private boolean is(String version, String contract) {

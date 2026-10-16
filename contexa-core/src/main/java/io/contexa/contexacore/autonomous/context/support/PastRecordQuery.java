@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.context.support;
 
 import org.springframework.ai.document.Document;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -36,6 +37,35 @@ public interface PastRecordQuery {
      * limit.
      */
     List<Document> records(PastRecordScope scope, List<String> firstPaths, int limit);
+
+    /**
+     * W6-12: the conditions the store chooses the scope's records by, in words, for the seal; none when it cannot say.
+     */
+    default List<String> filters() {
+        return List.of();
+    }
+
+    /** W6-12: the order the store shows the records in, in words, for the seal; none when it cannot say. */
+    default List<String> order() {
+        return List.of();
+    }
+
+    /**
+     * The user's recent decisions that did not allow (W5-4): the suspicious, threat and ambiguous records of the scope's
+     * user, purpose and action family made since the time, outside the excluded sessions, the latest first, at most the
+     * limit. A store without exact lookups has none.
+     */
+    default List<Document> deniedDecisions(PastRecordScope scope, LocalDateTime since, int limit) {
+        return List.of();
+    }
+
+    /**
+     * Writes how a decision that did not allow ended (verified by step-up, released by an administrator) on its record
+     * (W5-4); false when the store cannot or the record is not there.
+     */
+    default boolean recordOutcome(String documentId, String outcome) {
+        return false;
+    }
 
     /** A query for a store that cannot answer exact lookups. */
     static PastRecordQuery unavailable() {

@@ -95,6 +95,14 @@ public class PromptGovernanceEvaluationRecord {
     @Column(name = "registration_source", nullable = false, length = 128)
     private String registrationSource;
 
+    /** W6-8 (PV-5, PV-6): the content hash of the bundle the evaluation ran; the gate takes only that bundle's. */
+    @Column(name = "bundle_hash", length = 64)
+    private String bundleHash;
+
+    /** W6-8: the runs the evaluation counted (a measurement protocol and its tag). */
+    @Column(name = "run_reference", length = 256)
+    private String runReference;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

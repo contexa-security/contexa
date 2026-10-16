@@ -77,7 +77,8 @@ public final class PromptInspector {
      */
     public static List<PromptInspectionCheck> coreChecks() {
         return List.of(new SealIntegrityCheck(), new DictionaryContractCheck(), new DecisionFactMatchCheck(),
-                new FactAccuracyCheck(), new UnknownDeclaredCheck(), new PastRecordNotationCheck(), new SameFactCheck());
+                new FactAccuracyCheck(), new UnknownDeclaredCheck(), new PastRecordNotationCheck(), new SameFactCheck(),
+                new ReasonMatchCheck());
     }
 
     public List<PromptInspectionCheck> checks() {

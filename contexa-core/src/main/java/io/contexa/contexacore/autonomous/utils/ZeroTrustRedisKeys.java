@@ -19,6 +19,18 @@ public class ZeroTrustRedisKeys {
 
     private static final String NAMESPACE = "security";
 
+    /** A value written into a SCAN or KEYS pattern as itself: the glob characters escaped. */
+    public static String globLiteral(String value) {
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (char c : value.toCharArray()) {
+            if (c == '\\' || c == '*' || c == '?' || c == '[' || c == ']') {
+                escaped.append('\\');
+            }
+            escaped.append(c);
+        }
+        return escaped.toString();
+    }
+
     public static String threatScore(String userId) {
         validateUserId(userId);
         return String.format("threat_score:%s", userId);
@@ -193,6 +205,20 @@ public class ZeroTrustRedisKeys {
     public static String verificationLearning(String userId) {
         validateUserId(userId);
         return String.format("%s:context:user:verification-learning:%s", NAMESPACE, userId);
+    }
+
+    /** How the verification of an event's stopped request ended, for its record stored after it (W5-4). */
+    public static String verificationOutcome(String eventId) {
+        if (eventId == null || eventId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Event ID cannot be null or empty");
+        }
+        return String.format("%s:context:event:verification-outcome:%s", NAMESPACE, eventId);
+    }
+
+    /** The user's allowed requests whose first-seen values wait for promotion (W5-1). */
+    public static String promotionLearning(String userId) {
+        validateUserId(userId);
+        return String.format("%s:context:user:promotion-learning:%s", NAMESPACE, userId);
     }
 
     public static String userLastRequestTime(String userId) {

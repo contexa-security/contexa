@@ -15,6 +15,9 @@
  */
 package io.contexa.contexacore.verification.inspection;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
@@ -33,6 +36,8 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
     public static final String CODE = "SEAL_INTEGRITY";
 
     private static final String PACKAGE = "sealedPackage.";
+    private static final String STAGES = PACKAGE + "decisionJson.modelCallStages";
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final SealedEvidencePackageIntegrity integrity;
 
@@ -72,6 +77,36 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
         hash(tally, "rawUserPromptHash", sealed.getRawUserPromptHash(), sha256(text(sealed.getRawUserPrompt())));
         parity(tally, sealed, metadata);
         trace(tally, sealed.getCorrelationId());
+        lastModelCall(tally, sealed.getDecisionJson(), user);
+    }
+
+    /**
+     * W6-6 (P6-CHANGE-4): the sealed prompt is the one the decision rests on, the prompt the last model call sent (a
+     * second pass that called the model again is the last call; one that did not leaves the first pass last). A
+     * decision that recorded no model call stages is not compared; its decision JSON that does not read is the package
+     * hash's to point at.
+     */
+    private static void lastModelCall(PromptInspectionTally tally, String decisionJson, String user) {
+        JsonNode stages;
+        try {
+            stages = decisionJson == null || decisionJson.isBlank()
+                    ? null : JSON.readTree(decisionJson).path("modelCallStages");
+        }
+        catch (JsonProcessingException exception) {
+            return;
+        }
+        if (stages == null || !stages.isArray() || stages.isEmpty()) {
+            return;
+        }
+        String declared = stages.get(stages.size() - 1).path("userPromptHash").asText("");
+        String recomputed = sha256(text(user));
+        if (!hasText(declared)) {
+            tally.unverifiable(tally.unverifiableFinding().entry("modelCallStages").sourceRef(STAGES)
+                    .actual(recomputed).reason("the last model call stage carries no prompt hash").build());
+            return;
+        }
+        record(tally, declared.equals(recomputed), "modelCallStages", declared, recomputed, STAGES,
+                "the sealed prompt is not the one the last model call sent");
     }
 
     private void packageHash(PromptInspectionTally tally, SealedEvidencePackage sealed) {

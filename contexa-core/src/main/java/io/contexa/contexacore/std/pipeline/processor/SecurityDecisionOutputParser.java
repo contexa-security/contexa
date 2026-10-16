@@ -59,6 +59,8 @@ public class SecurityDecisionOutputParser {
 
         addMetadata(context, "securityDecisionParsingMode", "RAW_GUARDED");
         addMetadata(context, "securityDecisionRawOutputHash", sha256(raw));
+        // N-OUT-1 (G1-2): the answer the decision is read from, as it came.
+        addMetadata(context, "securityDecisionRawOutput", raw);
         addMetadata(context, "securityDecisionRawOutputLength", raw.length());
 
         if (raw.isBlank()) {
@@ -67,8 +69,15 @@ public class SecurityDecisionOutputParser {
             }
             fallbackActionApplied = true;
             repairedFields.add("action");
+            // N-OUT-1 (G1-1): a contract violation left after the retry falls back as its rule asks; any other empty
+            // answer (an outage, a timeout) keeps the challenge.
+            String fallbackAction = firstNonBlank(
+                    context != null
+                            ? context.getMetadata(SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION, String.class)
+                            : null,
+                    FALLBACK_ACTION);
             SecurityDecisionResponseLite fallback = buildResponse(
-                    FALLBACK_ACTION,
+                    fallbackAction,
                     null,
                     null,
                     null,
@@ -82,7 +91,7 @@ public class SecurityDecisionOutputParser {
                     repairedFields,
                     syntheticDefaultFields,
                     parseFailureCategory,
-                    FALLBACK_ACTION);
+                    fallbackAction);
             return fallback;
         }
 

@@ -17,14 +17,22 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
+import io.contexa.contexacore.autonomous.context.decision.PolicyReason;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +44,49 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityDecisionOutputContractTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * W4-8 (5): a code the resolver puts on a decision fact is a reason code of the contract: the deviation and policy
+     * reason codes by their enums, the others where the resolver writes them (a list, an added code, a chosen code).
+     */
+    @Test
+    void everyCodeTheResolverPutsOnAFactIsAReasonCode() throws IOException {
+        Set<String> contract = Set.copyOf(SecurityDecisionOutputContract.codes());
+        for (DeviationDimension dimension : DeviationDimension.values()) {
+            assertThat(contract).as(dimension.name()).contains(dimension.code());
+        }
+        for (PolicyReason reason : PolicyReason.values()) {
+            assertThat(contract).as(reason.name()).contains(reason.code());
+        }
+        String resolver = Files.readString(Path.of(
+                "src/main/java/io/contexa/contexacore/autonomous/context/decision/DecisionFactsResolver.java"));
+        Matcher written = Pattern.compile("(?:List\\.of\\(|codes\\.add\\(|\\? |: )\"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\"")
+                .matcher(resolver);
+        Set<String> codes = new TreeSet<>();
+        while (written.find()) {
+            codes.add(written.group(1));
+        }
+        assertThat(codes).contains("APPROVAL_COVERS", "TENANT_CONFLICT", "DATA_CONFLICT", "DEVIATION_MOVEMENT");
+        assertThat(codes).allSatisfy(code -> assertThat(contract).as(code).contains(code));
+    }
+
+    /** N-FRIC-1 (Q-87): a repeat in the session is a fact; alone it asks for no stronger action. */
+    @Test
+    void aRepeatAloneIsNoReasonForAStrongerAction() {
+        assertThat(SecurityDecisionOutputContract.REASON_CODES)
+                .filteredOn(code -> "REPEAT_IN_SESSION".equals(code.code()))
+                .singleElement()
+                .extracting(SecurityDecisionOutputContract.ReasonCode::meaning)
+                .isEqualTo("the same action repeats in the session (a repeat alone is no reason for a stronger action)");
+    }
+
+    /** N-UID-1 (Q-87): the missing-evidence code cites the ID the UNKNOWN line gives the missing fact. */
+    @Test
+    void theMissingEvidenceCodeCitesTheIdOfTheMissingFact() {
+        assertThat(SecurityDecisionOutputContract.systemOutputBlock())
+                .contains("MATERIAL_MISSING_EVIDENCE cites the ID the UNKNOWN line gives the missing fact (U1).")
+                .doesNotContain("the first ID of the block");
+    }
 
     @Test
     @DisplayName("the reason codes are the dictionary's 53, by group, each once")
@@ -108,7 +159,7 @@ class SecurityDecisionOutputContractTest {
         assertThat(texts(item.path("required"))).containsExactly("code", "fact");
         assertThat(texts(item.path("properties").path("code").path("enum")))
                 .containsExactlyElementsOf(SecurityDecisionOutputContract.codes());
-        assertThat(item.path("properties").path("fact").path("pattern").asText()).isEqualTo("^[BSRFP][0-9]{1,2}$");
+        assertThat(item.path("properties").path("fact").path("pattern").asText()).isEqualTo("^[BSRFPU][0-9]{1,2}$");
         assertThat(properties.path("reason").path("type").asText()).isEqualTo("string");
         for (String audit : List.of("riskScore", "confidence")) {
             assertThat(texts(properties.path(audit).path("type"))).containsExactly("number", "null");
@@ -126,6 +177,55 @@ class SecurityDecisionOutputContractTest {
         // OpenAI strict structured output lists no string length keyword; the response processor keeps the length.
         assertThat(schema).doesNotContain("maxLength", "minLength", "$schema", "allOf", "\"not\"", "\"if\"");
         assertThat(SecurityDecisionOutputContract.MAX_REASON_CHARACTERS).isEqualTo(200);
+    }
+
+    /**
+     * W4-2 (dictionary 5): with structured output the code enum carries the meaning of every code, the same words as
+     * the output block; the schema text a provider without structured output gets in the system prompt does not repeat
+     * them (dictionary 4: the same schema, and the output block already states the meanings).
+     */
+    @Test
+    void theCodeEnumCarriesTheMeaningsAndTheSchemaTextDoesNotRepeatThem() throws Exception {
+        JsonNode code = MAPPER.readTree(SecurityDecisionOutputContract.providerSchema())
+                .path("properties").path("reasonCodes").path("items").path("properties").path("code");
+        String description = code.path("description").asText();
+        for (SecurityDecisionOutputContract.ReasonCode reason : SecurityDecisionOutputContract.REASON_CODES) {
+            assertThat(description).as(reason.code()).contains(reason.code() + ": " + reason.meaning());
+        }
+        assertThat(SecurityDecisionOutputContract.textSchema()).doesNotContain("\"description\"");
+        assertThat(SecurityDecisionContractSectionBuilder.formatInstructions(true))
+                .contains(SecurityDecisionOutputContract.textSchema()).doesNotContain("\"description\"");
+        JsonNode text = MAPPER.readTree(SecurityDecisionOutputContract.textSchema());
+        assertThat(texts(text.path("properties").path("reasonCodes").path("items").path("properties").path("code")
+                .path("enum"))).containsExactlyElementsOf(SecurityDecisionOutputContract.codes());
+    }
+
+    /**
+     * W4-2: the schema is written in one key order whatever the JVM (type before enum), so the provider schema and the
+     * system text of a provider without structured output are the same text on every run.
+     */
+    @Test
+    void theSchemaIsWrittenInOneKeyOrder() {
+        String action = "\"action\":{\"type\":\"string\",\"enum\":[\"ALLOW\",\"CHALLENGE\",\"ESCALATE\",\"BLOCK\"]}";
+        assertThat(SecurityDecisionOutputContract.providerSchema()).contains(action);
+        assertThat(SecurityDecisionOutputContract.textSchema()).contains(action);
+    }
+
+    /** W4-2: the output block names every code once, in the dictionary's group order, with the line it cites. */
+    @Test
+    void theOutputBlockNamesEveryCodeOnce() {
+        String block = SecurityDecisionOutputContract.systemOutputBlock();
+
+        assertThat(block).startsWith("=== OUTPUT ===");
+        int last = -1;
+        for (SecurityDecisionOutputContract.ReasonCode code : SecurityDecisionOutputContract.REASON_CODES) {
+            String line = "- " + code.code() + ": " + code.meaning() + "; ";
+            assertThat(block.indexOf(line)).as(code.code()).isGreaterThan(last);
+            assertThat(block.indexOf(line)).isEqualTo(block.lastIndexOf(line));
+            last = block.indexOf(line);
+        }
+        assertThat(block).contains("- MIN_P3_POLICY_NOT_SATISFIED: no valid record covers what the company policy requires;"
+                + " PolicySatisfied");
     }
 
     private static List<String> texts(JsonNode array) {

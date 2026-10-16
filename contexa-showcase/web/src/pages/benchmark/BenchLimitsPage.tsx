@@ -49,7 +49,7 @@ export default function BenchLimitsPage() {
           </SourceMark>
         ) : null
       }
-      back={{ to: `/benchmark/judgment${search}`, label: t('benchmark.toJudgment') }}
+      back={{ to: `/benchmark/prompt${search}`, label: t('benchmark.toPrompt') }}
       main={<NextLink to="/lab" label={t('benchmark.limits.toLab')} />}
     >
       {state}

@@ -48,7 +48,7 @@ export default function BenchJudgmentPage() {
         ) : null
       }
       back={{ to: `/benchmark/cases${search}`, label: t('benchmark.toCases') }}
-      main={<NextLink to={`/benchmark/limits${search}`} label={t('benchmark.toLimits')} />}
+      main={<NextLink to={`/benchmark/prompt${search}`} label={t('benchmark.toPrompt')} />}
     >
       {state}
       {empty ? <p className={experience.lead}>{t('bench.empty')}</p> : null}

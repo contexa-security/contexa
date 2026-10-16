@@ -18,6 +18,7 @@ package io.contexa.contexacore.autonomous.processor;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.ThreatAssessment;
+import io.contexa.contexacore.autonomous.event.CompositeLlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.store.ExpiringStateStore;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
@@ -25,6 +26,7 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -45,6 +47,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @RequiredArgsConstructor
 public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStore {
+
+    /** W6-9 (P6-CHANGE-6): the shadow run of a candidate bundle after the decision; none when not configured. */
+    private PromptShadowRunner shadowRunner;
+
+    /** The shadow run's analysis: the same layers, publishing nothing and keeping its own escalation windows. */
+    private ColdPathEventProcessor shadowAnalysis;
+
 
     private final Layer1ContextualStrategy contextualStrategy;
     private final Layer2ExpertStrategy expertStrategy;
@@ -69,6 +78,8 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 );
             }
 
+            // W6-9: the shadow run's copy is the event as it came, before the decision writes into it.
+            SecurityEvent shadowCopy = shadowRunner != null ? shadowRunner.prepare(event) : null;
             String requestPath = extractRequestPath(event);
             Map<String, Object> listenerMetadata = buildListenerMetadata(event, requestPath);
             publishContextCollected(userId, requestPath, listenerMetadata);
@@ -79,6 +90,10 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .success(true)
                     .build();
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore, listenerMetadata);
+            // N-L2-1: the first prompt was kept only for the second pass.
+            if (event.getMetadata() != null) {
+                event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT);
+            }
             result.setAction(analysisResult.getAction());
             result.setProposedAction(analysisResult.getProposedAction());
             result.setConfidence(analysisResult.getConfidence());
@@ -136,6 +151,10 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             result.setProcessingTimeMs(processingTime);
             result.setProcessedAt(LocalDateTime.now());
             result.setStatus(ProcessingResult.ProcessingStatus.SUCCESS);
+            if (shadowCopy != null) {
+                ColdPathEventProcessor analysis = shadowAnalysis;
+                shadowRunner.run(shadowCopy, copy -> analysis.processEvent(copy, riskScore));
+            }
 
             return result;
 
@@ -400,6 +419,19 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
     @Override
     public void removeExpiredEntries() {
         removeInactiveEscalationWindows(System.currentTimeMillis());
+        if (shadowAnalysis != null) {
+            shadowAnalysis.removeExpiredEntries();
+        }
+    }
+
+    /**
+     * W6-9: sets the shadow run. Its copy is analysed by the same layers on a processor of its own, so the user's live
+     * analysis shows only the decision and the decision's escalation windows count only decisions.
+     */
+    public void setShadowRunner(PromptShadowRunner shadowRunner) {
+        this.shadowRunner = shadowRunner;
+        this.shadowAnalysis = shadowRunner == null ? null : new ColdPathEventProcessor(contextualStrategy,
+                expertStrategy, new CompositeLlmAnalysisEventListener(List.of()));
     }
 
     void removeInactiveEscalationWindows(long nowMs) {

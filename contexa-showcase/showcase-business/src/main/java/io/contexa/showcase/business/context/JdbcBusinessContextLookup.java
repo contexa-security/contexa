@@ -38,9 +38,15 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
     static final Set<String> GRANT_PURPOSES = Set.of("ACCESS_GRANT");
 
     private final WorkDatabase database;
+    /**
+     * The control this lookup answers for (showcase.control). The controls share the work database and receive the same
+     * request at once, so an approval's use counts this control's exports only (N-LU2-1).
+     */
+    private final String control;
 
-    public JdbcBusinessContextLookup(WorkDatabase database) {
+    public JdbcBusinessContextLookup(WorkDatabase database, String control) {
         this.database = database;
+        this.control = control;
     }
 
     @Override
@@ -193,13 +199,15 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
                         select a.approval_key, a.requester, a.approver, a.project_key, a.purpose, a.max_items,
                                a.valid_from, a.valid_until, a.status, a.approved_at,
                                (select coalesce(sum(j.delivered_items), 0) from export_job j
-                                 where j.username = :username and j.project_key = a.project_key
+                                 where j.username = :username and j.control = :control
+                                   and j.project_key = a.project_key
                                    and j.company_at >= a.valid_from and j.company_at < least(a.valid_until, :at))
                           from approval a
                          where a.requester = :employee and (a.run_id is null or a.run_id = :run)
                          order by a.approval_key""",
                 params().addValue("employee", principal.get().employeeKey()).addValue("run", principal.get().runId())
-                        .addValue("username", principal.get().username()).addValue("at", Timestamp.from(at)),
+                        .addValue("username", principal.get().username()).addValue("control", control)
+                        .addValue("at", Timestamp.from(at)),
                 (rs, n) -> {
                     List<String> mismatches = new ArrayList<>();
                     String approver = rs.getString(3);

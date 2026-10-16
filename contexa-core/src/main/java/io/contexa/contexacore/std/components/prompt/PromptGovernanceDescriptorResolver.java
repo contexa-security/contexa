@@ -22,6 +22,6 @@ public interface PromptGovernanceDescriptorResolver {
             PromptGovernanceResolutionContext context);
 
     static PromptGovernanceDescriptorResolver identity() {
-        return PromptGovernanceDescriptorResolution::fallback;
+        return PromptGovernanceDescriptorResolution::staticDescriptor;
     }
 }

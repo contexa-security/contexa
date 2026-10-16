@@ -8,6 +8,7 @@ import {
   type ExchangesView,
 } from '../../api/anatomy';
 import { useStepResult } from '../../api/lab';
+import { useRunQuality } from '../../api/promptQuality';
 import { useRunScore } from '../../api/queries';
 import { downloadRunRecord } from '../../api/runRecord';
 import type { StepResult } from '../../api/types';
@@ -19,6 +20,8 @@ import shared from '../../pages/try/Experience.module.css';
 import { ActionChip } from '../common/ActionChip';
 import { Modal } from '../common/Modal';
 import { Icon } from '../Icon';
+import { QualityRibbon } from '../facts/QualityRibbon';
+import { VerifyParts } from '../facts/VerifyParts';
 import { Comparison } from '../inside/Comparison';
 import { PromptBundles } from '../inside/PromptBundles';
 import { countedCall } from '../inside/promptSections';
@@ -196,6 +199,9 @@ function Summary({ view, runId, step }: TabProps) {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const result: StepResult | null = useStepResult(runId, step).data ?? null;
+  const qualityView = useRunQuality(runId, step);
+  const quality = qualityView.data ?? null;
+  const details = useDetail();
   const contexa = result?.layers.find((layer) => layer.control === 'D') ?? null;
   const recorded = view.interpretation.recorded;
   const verdict = view.truth.verdict;
@@ -240,6 +246,12 @@ function Summary({ view, runId, step }: TabProps) {
   const original = recorded.reasoning;
   return (
     <div className={styles.block}>
+      {/* U-4: the AI input check first; a failing item leads to the checks of "original and checks". */}
+      {quality?.available && quality.ribbon ? (
+        <QualityRibbon ribbon={quality.ribbon} onShow={() => details.setTab('original')} />
+      ) : qualityView.isPending ? null : (
+        <p className={styles.note}>{t('quality.unavailable')}</p>
+      )}
       <div className={shared.reasonFigure} aria-label={t('e1.reason.figure')}>
         <ul className={shared.reasonFacts}>
           {facts.map((fact) => (
@@ -627,7 +639,8 @@ function Answer({ view }: TabProps) {
 }
 
 /**
- * The record as it is (anat-2): how many lines the rules and the situation had, the model's answer, the texts sent and
+ * The original and its checks (anat-2, U-4): the bundle, the seal, the seal check and the inspection by check;
+ * then the record as it is: how many lines the rules and the situation had, the model's answer, the texts sent and
  * the provider's body, each folded, and the whole record as one file with its SHA-256. Past the retention period the
  * texts are gone and the summary stays.
  */
@@ -636,12 +649,14 @@ function Original({ view, runId, step }: TabProps) {
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const exchanges = useExchanges(runId, step, true);
   const data: ExchangesView | null = exchanges.data ?? null;
+  const quality = useRunQuality(runId, step).data ?? null;
   const [download, setDownload] = useState<{ readonly hash: string | null; readonly failed: boolean } | null>(
     null,
   );
   const lines = view.promptLines;
   return (
     <div className={styles.block}>
+      <VerifyParts quality={quality} />
       {lines ? (
         <p className={shared.lead}>
           {t('detail.original.lines', {

@@ -79,8 +79,8 @@ class PromptGovernanceLifecycleLedgerServiceTest {
         // (W1-18, PV-3).
         ArgumentCaptor<PromptGovernanceRollbackRecord> rollback = ArgumentCaptor.forClass(PromptGovernanceRollbackRecord.class);
         verify(rollbackRepository).save(rollback.capture());
-        assertThat(rollback.getValue().getPromptVersion()).isEqualTo("2026.10.14-v20.14");
-        assertThat(rollback.getValue().getRollbackTargetPromptVersion()).isEqualTo("2026.10.14-v19.12");
+        assertThat(rollback.getValue().getPromptVersion()).isEqualTo("2026.10.16-v20.23");
+        assertThat(rollback.getValue().getRollbackTargetPromptVersion()).isEqualTo("2026.10.16-v19.19");
         assertThat(rollback.getValue().getRollbackState()).isEqualTo("TARGET_DECLARED");
         assertThat(rollback.getValue().getRollbackReadinessState()).isEqualTo("WORKFLOW_MISSING");
     }

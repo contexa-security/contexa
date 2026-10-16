@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.baseline;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,13 +26,24 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.baseline.store.BaselineDataStore;
+import io.contexa.contexacore.autonomous.baseline.store.InMemoryBaselineDataStore;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +84,9 @@ class BaselineLearningServiceTest {
         zeroTrustProperties.setBaseline(baselineSettings);
 
         service = new BaselineLearningService(baselineDataStore, zeroTrustProperties);
+        // The mocked store answers the read results from its stubbed baselines, as the store's default does (W5-8).
+        when(baselineDataStore.readUserBaseline(anyString())).thenCallRealMethod();
+        when(baselineDataStore.readOrganizationBaseline(anyString())).thenCallRealMethod();
     }
 
     @Test
@@ -282,9 +297,10 @@ class BaselineLearningServiceTest {
     }
 
     @Test
-    @DisplayName("Organization baseline should be used as fallback when user baseline is null")
-    void shouldFallbackToOrganizationBaseline() {
-        // given
+    @DisplayName("Without a personal baseline the organization baseline is not copied into one (W5-5)")
+    void shouldNotCopyTheOrganizationBaselineIntoAPersonalOne() {
+        // The organization baseline is a peer reference only (dictionary 2.1); an organization named by the user name
+        // is no organization at all.
         BaselineVector orgBaseline = BaselineVector.builder()
                 .userId("org:org1")
                 .avgTrustScore(0.75)
@@ -292,18 +308,499 @@ class BaselineLearningServiceTest {
                 .updateCount(50L)
                 .normalIpRanges(new String[]{"10.0.0"})
                 .build();
-
         when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
         when(baselineDataStore.getOrganizationBaseline("org1")).thenReturn(orgBaseline);
 
-        // when
-        BaselineVector result = service.getBaseline("org1_user1");
+        assertThat(service.getBaseline("org1_user1")).isNull();
+    }
 
-        // then
-        assertThat(result).isNotNull();
-        assertThat(result.getUserId()).isEqualTo("org1_user1");
-        assertThat(result.getAvgTrustScore()).isEqualTo(0.75);
-        assertThat(result.getUpdateCount()).isEqualTo(0L);
+    @Test
+    @DisplayName("The organization's usual values are the ones of at least 5% of its learned requests (W5-10 D7)")
+    void theOrganizationsUsualValuesAreItsFrequentOnes() {
+        BaselineVector orgBaseline = BaselineVector.builder()
+                .userId("org:org1")
+                .updateCount(40L)
+                .normalAccessHours(new Integer[]{3, 9, 10})
+                .normalAccessDays(new Integer[]{1, 2})
+                .normalIpRanges(new String[]{"10.40.12.0/24", "203.0.113.0/24"})
+                .elementFrequencies(new HashMap<>(Map.of("hour:9", 19L, "hour:10", 20L, "hour:3", 1L,
+                        "day:1", 20L, "day:2", 20L, "ip:10.40.12.0/24", 38L, "ip:203.0.113.0/24", 2L)))
+                .build();
+        when(baselineDataStore.getOrganizationBaseline("org1")).thenReturn(orgBaseline);
+
+        BaselineEvidenceSnapshot supporting = service.buildSupportingBaselineEvidenceSnapshot("org1_user1", "org1");
+
+        // The hour of 1 in 40 learned requests (2.5%) was seen, not usual; a network of 2 in 40 (5%) is usual.
+        assertThat(supporting.accessHours()).containsExactly("9", "10");
+        assertThat(supporting.accessDays()).containsExactly("1", "2");
+        assertThat(supporting.networks()).containsExactly("10.40.12.0/24", "203.0.113.0/24");
+        assertThat(supporting.sharePercent("hour:", "9")).isEqualTo(48);
+        assertThat(supporting.sharePercent("hour:", "3")).isEqualTo(3);
+        assertThat(supporting.sharePercent("auth:", "PASSWORD")).isNull();
+    }
+
+    @Test
+    @DisplayName("A first learning starts from the request itself, not from the baseline of another organization (W5-5)")
+    void aFirstLearningStartsFromTheRequestItself() {
+        BaselineVector orgBaseline = BaselineVector.builder()
+                .userId("org:org1")
+                .avgTrustScore(0.9)
+                .avgRequestCount(100L)
+                .updateCount(50L)
+                .normalAccessHours(new Integer[]{9, 10, 11})
+                .elementFrequencies(new HashMap<>(Map.of("hour:9", 40L)))
+                .build();
+        when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
+        when(baselineDataStore.getOrganizationBaseline("org1")).thenReturn(orgBaseline);
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 3, 30, 3, 10).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+
+        service.learnIfNormal("org1_user1", allowDecision(), event);
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("org1_user1"), captor.capture());
+        assertThat(captor.getValue().getUpdateCount()).isEqualTo(1L);
+        assertThat(captor.getValue().getNormalAccessHours()).containsExactly(3);
+        assertThat(captor.getValue().getElementFrequencies()).doesNotContainKey("hour:9");
+    }
+
+    @Test
+    @DisplayName("The organization baseline adds what each learning adds, not the member's whole history again (W5-5)")
+    void organizationFrequenciesAddOnlyWhatEachLearningAdds() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int minute = 0; minute < 3; minute++) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .sourceIp("10.0.0.1")
+                    .userAgent(CHROME_UA)
+                    .timestamp(LocalDateTime.of(2026, 3, 30, 10, minute).atZone(ZoneId.systemDefault()).toInstant())
+                    .build();
+            event.addMetadata("organizationId", "org-a");
+            learning.learnIfNormal("user-a", allowDecision(), event);
+        }
+
+        assertThat(store.getUserBaseline("user-a").getElementFrequencies()).containsEntry("hour:10", 3L);
+        assertThat(store.getOrganizationBaseline("org-a").getElementFrequencies()).containsEntry("hour:10", 3L);
+        assertThat(store.getOrganizationBaseline("org-a").getUpdateCount()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("The organization baseline is read into today's vocabulary and stamped with it, as a member's is (W5-7)")
+    void theOrganizationBaselineIsReadIntoTodaysVocabularyAndStamped() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        // Stored before the vocabulary was stamped: a login of the first vocabulary may have had a second method.
+        store.saveOrganizationBaseline("org-old", BaselineVector.builder()
+                .userId("org:org-old")
+                .updateCount(5L)
+                .avgTrustScore(0.9)
+                .avgRequestCount(5L)
+                .normalAuthenticationTypes(new String[]{"PASSWORD"})
+                .elementFrequencies(new HashMap<>(Map.of("auth:PASSWORD", 5L, "hour:9", 5L)))
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (String organization : List.of("org-old", "org-new")) {
+            SecurityEvent event = learnedAt(LocalDateTime.of(2026, 3, 30, 10, 0));
+            event.addMetadata("organizationId", organization);
+            learning.learnIfNormal("user-" + organization, allowDecision(), event);
+        }
+
+        BaselineVector updated = store.getOrganizationBaseline("org-old");
+        assertThat(updated.getVocabularyVersion()).isEqualTo(VocabularyVersion.CURRENT);
+        assertThat(updated.getNormalAuthenticationTypes()).doesNotContain("PASSWORD");
+        assertThat(updated.getElementFrequencies()).doesNotContainKey("auth:PASSWORD").containsEntry("hour:9", 5L);
+        assertThat(store.getOrganizationBaseline("org-new").getVocabularyVersion()).isEqualTo(VocabularyVersion.CURRENT);
+    }
+
+    @Test
+    @DisplayName("A client without a browser still teaches its time, network and path; only the device stays empty (W5-6)")
+    void aClientWithoutABrowserTeachesAllButTheDevice() {
+        when(baselineDataStore.getUserBaseline("api-client")).thenReturn(null);
+        for (String userAgent : new String[]{"curl/8.4.0", null}) {
+            SecurityEvent event = SecurityEvent.builder()
+                    .sourceIp("10.0.0.1")
+                    .userAgent(userAgent)
+                    .timestamp(LocalDateTime.of(2026, 3, 30, 3, 10).atZone(ZoneId.systemDefault()).toInstant())
+                    .build();
+
+            assertThat(service.learnIfNormal("api-client", allowDecision(), event)).isTrue();
+        }
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore, times(2)).saveUserBaseline(eq("api-client"), captor.capture());
+        for (BaselineVector saved : captor.getAllValues()) {
+            assertThat(saved.getUpdateCount()).isEqualTo(1L);
+            assertThat(saved.getNormalAccessHours()).containsExactly(3);
+            assertThat(saved.getNormalIpRanges()).isNotEmpty();
+            assertThat(saved.getNormalBrowsers()).isNullOrEmpty();
+            assertThat(saved.getNormalDevices()).isNullOrEmpty();
+            assertThat(saved.getNormalUserAgents()).isNullOrEmpty();
+            assertThat(saved.getElementFrequencies().keySet())
+                    .noneMatch(key -> key.startsWith("ua:") || key.startsWith("browser:") || key.startsWith("device:"));
+        }
+    }
+
+    @Test
+    @DisplayName("A request without a browser counts on an established baseline and leaves its devices as they were (W5-6)")
+    void aRequestWithoutABrowserKeepsTheLearnedDevices() {
+        BaselineVector current = BaselineVector.builder()
+                .userId("mixed-client")
+                .avgTrustScore(0.8)
+                .avgRequestCount(5L)
+                .updateCount(5L)
+                .normalBrowsers(new String[]{"Chrome/120"})
+                .normalDevices(new String[]{"Chrome/120 on WINDOWS"})
+                .normalUserAgents(new String[]{"Chrome/120"})
+                .elementFrequencies(new HashMap<>(Map.of(
+                        "browser:Chrome/120", 5L, "device:Chrome/120 on WINDOWS", 5L, "ua:Chrome/120", 5L)))
+                .build();
+        when(baselineDataStore.getUserBaseline("mixed-client")).thenReturn(current);
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent("okhttp/4.12.0")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+
+        assertThat(service.learnIfNormal("mixed-client", allowDecision(), event)).isTrue();
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("mixed-client"), captor.capture());
+        BaselineVector saved = captor.getValue();
+        assertThat(saved.getUpdateCount()).isEqualTo(6L);
+        assertThat(saved.getNormalDevices()).containsExactly("Chrome/120 on WINDOWS");
+        assertThat(saved.getNormalUserAgents()).containsExactly("Chrome/120");
+        assertThat(saved.getElementFrequencies()).containsEntry("device:Chrome/120 on WINDOWS", 5L)
+                .doesNotContainKey("ua:okhttp/4.12.0");
+    }
+
+    @Test
+    @DisplayName("A personal baseline not established says which conditions it misses (W5-10 D4)")
+    void aPersonalBaselineNotEstablishedSaysWhichConditionsItMisses() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 25; index++) {
+            learning.learnIfNormal("user-one-day", allowDecision(), learnedAt(LocalDateTime.of(2026, 10, 1, 10, index)));
+            // The last ten learnings come at four hours never seen before: 4 of 10 new.
+            int hour = index < 15 ? 10 : 11 + (index - 15) % 4;
+            learning.learnIfNormal("user-moving", allowDecision(),
+                    learnedAt(LocalDateTime.of(2026, 10, 1 + index / 5, hour, index % 5)));
+            learning.learnIfNormal("user-settled", allowDecision(),
+                    learnedAt(LocalDateTime.of(2026, 10, 1 + index / 5, 10, index % 5)));
+        }
+        for (int index = 0; index < 6; index++) {
+            learning.learnIfNormal("user-few", allowDecision(), learnedAt(LocalDateTime.of(2026, 10, 1 + index, 10, 0)));
+        }
+        store.saveUserBaseline("user-old", BaselineVector.builder()
+                .userId("user-old")
+                .updateCount(30L)
+                .avgTrustScore(0.9)
+                .normalAccessHours(new Integer[]{10})
+                .build());
+
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-one-day", null).diagnostic())
+                .isEqualTo("learned on 1 of 5 dates");
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-moving", null).diagnostic())
+                .isEqualTo("4 of the last 10 learnings brought new values (at most 2)");
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-few", null).diagnostic())
+                .isEqualTo("6 of 20 learned requests; only 6 learnings to check that new values stopped (10 needed)");
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-old", null).diagnostic())
+                .isEqualTo("learned dates and new values not recorded (stored before they were kept)");
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-settled", null).established()).isTrue();
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-settled", null).diagnostic()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Twenty-five learnings on one day do not establish a baseline (W5-10 D4)")
+    void learningsOfOneDayDoNotEstablishABaseline() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 25; index++) {
+            learning.learnIfNormal("user-one-day", allowDecision(), learnedAt(LocalDateTime.of(2026, 10, 1, 10, index)));
+        }
+
+        assertThat(store.getUserBaseline("user-one-day").getUpdateCount()).isEqualTo(25L);
+        assertThat(learning.describeBaselineMaturity("user-one-day").personalBaselineEstablished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Learnings on five days that stopped bringing new values establish a baseline (W5-10 D4)")
+    void learningsOnFiveDaysThatConvergedEstablishABaseline() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 25; index++) {
+            learning.learnIfNormal("user-settled", allowDecision(),
+                    learnedAt(LocalDateTime.of(2026, 10, 1 + index / 5, 10, index % 5)));
+        }
+
+        assertThat(learning.describeBaselineMaturity("user-settled").personalBaselineEstablished()).isTrue();
+    }
+
+    @Test
+    @DisplayName("A baseline whose recent learnings still bring new values is not established (W5-10 D4)")
+    void aBaselineStillBringingNewValuesIsNotEstablished() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+        for (int index = 0; index < 25; index++) {
+            // The last ten learnings come at four hours never seen before: 4 of 10 new (40%), above 20%.
+            int hour = index < 15 ? 10 : 11 + (index - 15) % 4;
+            learning.learnIfNormal("user-moving", allowDecision(),
+                    learnedAt(LocalDateTime.of(2026, 10, 1 + index / 5, hour, index % 5)));
+        }
+
+        assertThat(learning.describeBaselineMaturity("user-moving").personalBaselineEstablished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("A baseline stored before its days were kept is not known to be established (W5-10 D4)")
+    void aBaselineStoredWithoutItsDaysIsNotKnownToBeEstablished() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        store.saveUserBaseline("user-old", BaselineVector.builder()
+                .userId("user-old")
+                .updateCount(30L)
+                .avgTrustScore(0.9)
+                .normalAccessHours(new Integer[]{10})
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        assertThat(learning.describeBaselineMaturity("user-old").personalBaselineEstablished()).isFalse();
+    }
+
+    @Test
+    @DisplayName("A user's baseline is kept under the tenant of the request (W5-10 D9)")
+    void aUsersBaselineIsKeptUnderTheTenantOfTheRequest() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        learning.learnIfNormal("user-t", allowDecision(), tenantEvent("tenant-a", 10));
+        learning.learnIfNormal("user-t", allowDecision(), tenantEvent("tenant-b", 11));
+        learning.learnIfNormal("user-t", allowDecision(), tenantEvent(null, 12));
+
+        // The same user id of two tenants is two users; without a tenant the key is the user, as before.
+        assertThat(store.getUserBaseline("tenant-a::user-t")).isNotNull()
+                .extracting(BaselineVector::getUpdateCount).isEqualTo(1L);
+        assertThat(store.getUserBaseline("tenant-b::user-t")).isNotNull()
+                .extracting(BaselineVector::getUpdateCount).isEqualTo(1L);
+        assertThat(store.getUserBaseline("user-t")).isNotNull()
+                .extracting(BaselineVector::getUpdateCount).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("A baseline learned before the tenant key is read and moved under it (W5-10 D9)")
+    void aBaselineLearnedBeforeTheTenantKeyIsReadAndMovedUnderIt() {
+        InMemoryBaselineDataStore store = new InMemoryBaselineDataStore(Duration.ofDays(30));
+        store.saveUserBaseline("user-m", BaselineVector.builder()
+                .userId("user-m")
+                .updateCount(5L)
+                .avgTrustScore(0.9)
+                .normalAccessHours(new Integer[]{9})
+                .elementFrequencies(new HashMap<>(Map.of("hour:9", 5L)))
+                .build());
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        assertThat(learning.buildBaselineEvidenceSnapshot("user-m", tenantEvent("tenant-a", 10)).updateCount())
+                .isEqualTo(5L);
+        learning.learnIfNormal("user-m", allowDecision(), tenantEvent("tenant-a", 10));
+
+        assertThat(store.getUserBaseline("tenant-a::user-m")).isNotNull();
+        assertThat(store.getUserBaseline("tenant-a::user-m").getUpdateCount()).isEqualTo(6L);
+        assertThat(store.getUserBaseline("tenant-a::user-m").getElementFrequencies())
+                .containsEntry("hour:9", 5L)
+                .containsEntry("hour:10", 1L);
+        // The earlier key is removed when the baseline moves, so it is not counted twice nor left by a purge.
+        assertThat(store.getUserBaseline("user-m")).isNull();
+        assertThat(store.countUserBaselines()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("Learnings of one user at the same time all count (W5-8)")
+    void concurrentLearningsOfOneUserAllCount() throws Exception {
+        SlowBaselineStore store = new SlowBaselineStore();
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        learnConcurrently(learning, "user-c", "user-c", "org-c");
+
+        assertThat(store.getUserBaseline("user-c").getUpdateCount()).isEqualTo(50L);
+        assertThat(store.getOrganizationBaseline("org-c").getUpdateCount()).isEqualTo(50L);
+    }
+
+    @Test
+    @DisplayName("Learnings of two members of one organization at the same time all count in it (W5-8)")
+    void concurrentLearningsOfOneOrganizationAllCount() throws Exception {
+        SlowBaselineStore store = new SlowBaselineStore();
+        BaselineLearningService learning = new BaselineLearningService(store, zeroTrustProperties);
+
+        learnConcurrently(learning, "user-x", "user-y", "org-xy");
+
+        assertThat(store.getUserBaseline("user-x").getUpdateCount()).isEqualTo(25L);
+        assertThat(store.getUserBaseline("user-y").getUpdateCount()).isEqualTo(25L);
+        assertThat(store.getOrganizationBaseline("org-xy").getUpdateCount()).isEqualTo(50L);
+    }
+
+    @Test
+    @DisplayName("A failed read is not taken for no baseline: nothing is written over it (W5-8)")
+    void aFailedReadWritesNothing() {
+        doReturn(BaselineDataStore.BaselineRead.failed()).when(baselineDataStore).readUserBaseline("user-f");
+
+        assertThat(service.learnIfNormal("user-f", allowDecision(), orgEvent("org-f", 0))).isFalse();
+
+        verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+        verify(baselineDataStore, never()).saveOrganizationBaseline(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("A failed read of the organization baseline writes nothing over it (W5-8)")
+    void aFailedOrganizationReadWritesNothingOverIt() {
+        when(baselineDataStore.getUserBaseline("user-g")).thenReturn(null);
+        doReturn(BaselineDataStore.BaselineRead.failed()).when(baselineDataStore).readOrganizationBaseline("org-g");
+
+        service.learnIfNormal("user-g", allowDecision(), orgEvent("org-g", 0));
+
+        verify(baselineDataStore).saveUserBaseline(eq("user-g"), any());
+        verify(baselineDataStore, never()).saveOrganizationBaseline(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("Without the update lock nothing is learned (W5-8)")
+    void aLockNotTakenLearnsNothing() {
+        DistributedLockService locks = mock(DistributedLockService.class);
+        when(locks.tryLockWithWait(anyString(), anyString(), any(), any())).thenReturn(false);
+        service.setLockService(locks);
+
+        assertThat(service.learnIfNormal("user-l", allowDecision(), orgEvent("org-l", 0))).isFalse();
+
+        verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+    }
+
+    private static void learnConcurrently(BaselineLearningService learning, String first, String second,
+                                          String organization) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<?>> runs = new ArrayList<>();
+            for (String user : List.of(first, second)) {
+                runs.add(executor.submit(() -> {
+                    for (int i = 0; i < 25; i++) {
+                        learning.learnIfNormal(user, allowDecision(), orgEvent(organization, i));
+                    }
+                }));
+            }
+            for (Future<?> run : runs) {
+                run.get();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static SecurityEvent orgEvent(String organization, int minute) {
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 3, 30, 10, minute % 60).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("organizationId", organization);
+        return event;
+    }
+
+    /** A store whose reads take a moment, so that updates without a lock interleave and lose counts. */
+    private static final class SlowBaselineStore extends InMemoryBaselineDataStore {
+
+        SlowBaselineStore() {
+            super(Duration.ofDays(30));
+        }
+
+        @Override
+        public BaselineVector getUserBaseline(String userId) {
+            pause();
+            return super.getUserBaseline(userId);
+        }
+
+        @Override
+        public BaselineVector getOrganizationBaseline(String organizationId) {
+            pause();
+            return super.getOrganizationBaseline(organizationId);
+        }
+
+        private static void pause() {
+            try {
+                Thread.sleep(2);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("A learning moves a baseline of another vocabulary into today's and stamps it (W5-7)")
+    void aLearningMovesAnUnstampedBaselineIntoTodaysVocabulary() {
+        BaselineVector unstamped = BaselineVector.builder()
+                .userId("user-v")
+                .avgTrustScore(0.8)
+                .avgRequestCount(3L)
+                .updateCount(3L)
+                .frequentActionFamilies(new String[]{"CREATE"})
+                .normalAuthenticationTypes(new String[]{"UsernamePasswordAuthenticationToken"})
+                .frequentResourceFamilies(new String[]{"CONFIDENTIAL"})
+                .frequentPaths(new String[]{"/api/projects/123/exports"})
+                .elementFrequencies(new HashMap<>(Map.of(
+                        "action:CREATE", 3L,
+                        "auth:UsernamePasswordAuthenticationToken", 3L,
+                        "resource:CONFIDENTIAL", 3L,
+                        "path:/api/projects/123/exports", 3L)))
+                .build();
+        when(baselineDataStore.getUserBaseline("user-v")).thenReturn(unstamped);
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 3, 30, 10, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+
+        service.learnIfNormal("user-v", allowDecision(), event);
+
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("user-v"), captor.capture());
+        BaselineVector saved = captor.getValue();
+        assertThat(saved.getVocabularyVersion()).isEqualTo(VocabularyVersion.CURRENT);
+        assertThat(saved.getFrequentActionFamilies()).containsExactly("WRITE");
+        assertThat(saved.getNormalAuthenticationTypes()).containsExactly("PASSWORD");
+        assertThat(saved.getFrequentResourceFamilies()).containsExactly("SENSITIVE");
+        assertThat(saved.getFrequentPaths()).containsExactly("/api/projects/{id}/exports/*");
+        assertThat(saved.getElementFrequencies())
+                .containsEntry("action:WRITE", 3L)
+                .containsEntry("auth:PASSWORD", 3L)
+                .containsEntry("resource:SENSITIVE", 3L)
+                .containsEntry("path:/api/projects/{id}/exports/*", 3L)
+                .doesNotContainKeys("action:CREATE", "auth:UsernamePasswordAuthenticationToken",
+                        "resource:CONFIDENTIAL", "path:/api/projects/123/exports");
+    }
+
+    private static SecurityEvent learnedAt(LocalDateTime time) {
+        return SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(time.atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+    }
+
+    private static SecurityEvent tenantEvent(String tenantId, int hour) {
+        SecurityEvent event = SecurityEvent.builder()
+                .sourceIp("10.0.0.1")
+                .userAgent(CHROME_UA)
+                .timestamp(LocalDateTime.of(2026, 3, 30, hour, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        if (tenantId != null) {
+            event.addMetadata("tenantId", tenantId);
+        }
+        return event;
+    }
+
+    private static SecurityDecision allowDecision() {
+        return SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .riskScore(0.1)
+                .confidence(1.0)
+                .build();
     }
 
     @Test
@@ -340,7 +837,7 @@ class BaselineLearningServiceTest {
     }
 
     @Test
-    @DisplayName("Unparseable user agent should skip first baseline learning without storing null")
+    @DisplayName("An unparseable user agent is learned without a device and without storing null or the raw text (W5-6)")
     void shouldSkipFirstLearningWhenUserAgentCannotBeParsed() {
         when(baselineDataStore.getUserBaseline("org1_user1")).thenReturn(null);
 
@@ -357,8 +854,12 @@ class BaselineLearningServiceTest {
 
         boolean result = service.learnIfNormal("org1_user1", decision, event);
 
-        assertThat(result).isFalse();
-        verify(baselineDataStore, never()).saveUserBaseline(anyString(), any());
+        assertThat(result).isTrue();
+        ArgumentCaptor<BaselineVector> captor = ArgumentCaptor.forClass(BaselineVector.class);
+        verify(baselineDataStore).saveUserBaseline(eq("org1_user1"), captor.capture());
+        assertThat(captor.getValue().getNormalUserAgents()).isNullOrEmpty();
+        assertThat(captor.getValue().getNormalDevices()).isNullOrEmpty();
+        assertThat(captor.getValue().getElementFrequencies()).doesNotContainKeys("ua:unparseable-client", "ua:null");
     }
 
     @Test

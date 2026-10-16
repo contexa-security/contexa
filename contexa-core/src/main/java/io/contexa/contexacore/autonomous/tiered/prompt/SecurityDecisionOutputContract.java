@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The output contract v3 of the security decision (dictionary 4 and 5, W4-2): the response fields, the reason codes
@@ -35,7 +36,7 @@ public final class SecurityDecisionOutputContract {
     /** The longest reason; the response processor keeps it, since strict structured output has no length keyword. */
     public static final int MAX_REASON_CHARACTERS = 200;
     /** A fact ID the prompt draws: a block letter (USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS). */
-    public static final String FACT_ID_PATTERN = "^[BSRFP][0-9]{1,2}$";
+    public static final String FACT_ID_PATTERN = "^[BSRFPU][0-9]{1,2}$";
 
     /** The groups of dictionary 5. */
     public enum Group {
@@ -175,7 +176,7 @@ public final class SecurityDecisionOutputContract {
                     "the delegated run leaves the allowed objective, operations or resources",
                     List.of("DECISION_FACTS.Delegation")),
             code(Group.SESSION, "REPEAT_IN_SESSION",
-                    "the same action repeats in the session",
+                    "the same action repeats in the session (a repeat alone is no reason for a stronger action)",
                     List.of("DECISION_FACTS.RepeatInSession", "SESSION.RequestsInSession")),
             code(Group.SESSION, "PRIOR_CHALLENGE_IN_SESSION",
                     "an earlier challenge or non-allow decision in this session",
@@ -221,7 +222,9 @@ public final class SecurityDecisionOutputContract {
                     List.of("UNKNOWN.Unknown")));
 
     private static final List<String> CODES = REASON_CODES.stream().map(ReasonCode::code).toList();
-    private static final String PROVIDER_SCHEMA = writeProviderSchema();
+    private static final String PROVIDER_SCHEMA = writeProviderSchema(true);
+    private static final String TEXT_SCHEMA = writeProviderSchema(false);
+    private static final String OUTPUT_BLOCK = writeOutputBlock();
 
     private SecurityDecisionOutputContract() {
     }
@@ -238,17 +241,60 @@ public final class SecurityDecisionOutputContract {
         return PROVIDER_SCHEMA;
     }
 
+    /**
+     * The output block of the v20 system text (dictionary 1.1 block 2, W4-2): the fields, how a code cites a fact and
+     * the meaning of every code. The same text whether or not the provider enforces the schema.
+     */
+    /**
+     * The output contract v3 schema as text for a provider without structured output (dictionary 4): the provider
+     * schema without the code meanings, which the output block of the system prompt states.
+     */
+    public static String textSchema() {
+        return TEXT_SCHEMA;
+    }
+
+    public static String systemOutputBlock() {
+        return OUTPUT_BLOCK;
+    }
+
+    private static String writeOutputBlock() {
+        StringBuilder block = new StringBuilder();
+        block.append("=== OUTPUT ===\n\n");
+        block.append("Return one JSON object with exactly these keys: action, reasonCodes, reason, riskScore, confidence, mitre.\n");
+        block.append("action: ALLOW, CHALLENGE, ESCALATE or BLOCK.\n");
+        block.append("reasonCodes: ").append(MIN_REASON_CODES).append(" to ").append(MAX_REASON_CODES)
+                .append(" objects {\"code\": ..., \"fact\": ...}, the facts that decide the action first. code is one of"
+                        + " the codes below; fact is the ID at the start of the line the code cites (F1, B2, S3, R1, P1)."
+                        + " MATERIAL_MISSING_EVIDENCE cites the ID the UNKNOWN line gives the missing fact (U1).\n");
+        block.append("reason: one sentence of at most 30 words that states, in your own words, the facts behind the codes.\n");
+        block.append("riskScore and confidence: numbers from 0 to 1, or null. mitre: a list of MITRE ATT&CK technique IDs,"
+                + " or null. These three are kept for audit and decide nothing.\n");
+        block.append("Reason codes (code: meaning; the line it cites):\n");
+        for (ReasonCode code : REASON_CODES) {
+            block.append("- ").append(code.code()).append(": ").append(code.meaning()).append("; ")
+                    .append(String.join(", ", code.citedFacts().stream()
+                            .map(fact -> fact.substring(fact.indexOf('.') + 1).replace("{i}", "")).toList()))
+                    .append('\n');
+        }
+        return block.toString();
+    }
+
     private static ReasonCode code(Group group, String code, String meaning, List<String> citedFacts) {
         return new ReasonCode(code, group, meaning, citedFacts);
     }
 
-    private static String writeProviderSchema() {
+    /** The output contract v3 schema; with structured output the code enum carries every code's meaning (dictionary 5). */
+    private static String writeProviderSchema(boolean withCodeMeanings) {
         Map<String, Object> fact = new LinkedHashMap<>();
         fact.put("type", "string");
         fact.put("pattern", FACT_ID_PATTERN);
         Map<String, Object> code = new LinkedHashMap<>();
         code.put("type", "string");
         code.put("enum", CODES);
+        if (withCodeMeanings) {
+            code.put("description", REASON_CODES.stream().map(reason -> reason.code() + ": " + reason.meaning())
+                    .collect(Collectors.joining("\n")));
+        }
         Map<String, Object> itemProperties = new LinkedHashMap<>();
         itemProperties.put("code", code);
         itemProperties.put("fact", fact);
@@ -263,7 +309,11 @@ public final class SecurityDecisionOutputContract {
         reasonCodes.put("maxItems", MAX_REASON_CODES);
         reasonCodes.put("items", item);
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("action", Map.of("type", "string", "enum", ACTIONS));
+        // An ordered map: the schema text is the same on every run (a Map.of iterates in a per-JVM order).
+        Map<String, Object> action = new LinkedHashMap<>();
+        action.put("type", "string");
+        action.put("enum", ACTIONS);
+        properties.put("action", action);
         properties.put("reasonCodes", reasonCodes);
         properties.put("reason", Map.of("type", "string"));
         properties.put("riskScore", score());

@@ -37,6 +37,7 @@ import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.pip.context.EnvironmentDetails;
 import io.contexa.contexaiam.security.xacml.pip.context.ResourceDetails;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +63,7 @@ import java.util.Set;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -205,6 +207,56 @@ class CustomDynamicAuthorizationManagerDenySemanticsTest {
             assertThat(granted(manager, user, REQUEST_PATH)).isTrue();
 
             verify(recorder, never()).recordRequest(any(), any());
+        }
+
+        /**
+         * N-ASYNC-1: the ASYNC dispatch at the end of a streaming response, and an ERROR dispatch, of a request
+         * already granted is that request; a decision taken meanwhile that holds the user (its authorities now
+         * blocked) does not decide it again, deny it or record a refusal.
+         */
+        @Test
+        @DisplayName("a granted request keeps its decision on its ASYNC and ERROR dispatches (N-ASYNC-1)")
+        void aGrantedRequestKeepsItsDecisionOnItsLaterDispatches() {
+            AuthorizationDenialRecorder recorder = mock(AuthorizationDenialRecorder.class);
+            CustomDynamicAuthorizationManager manager = recordingManager(recorder);
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", REQUEST_PATH);
+
+            assertThat(manager.check(() -> user, new RequestAuthorizationContext(request)).isGranted()).isTrue();
+            request.setDispatcherType(DispatcherType.ASYNC);
+            assertThat(manager.check(() -> blockedUser, new RequestAuthorizationContext(request)).isGranted()).isTrue();
+            request.setDispatcherType(DispatcherType.ERROR);
+            assertThat(manager.check(() -> blockedUser, new RequestAuthorizationContext(request)).isGranted()).isTrue();
+
+            verify(recorder, never()).recordRequest(any(), any());
+        }
+
+        /**
+         * N-ASYNC-1: the ERROR dispatch that reports a refused request is decided as before, but its refusal is not
+         * a second refusal of the user's request: the request's own refusal was recorded once.
+         */
+        @Test
+        @DisplayName("the ERROR dispatch of a refused request records no second refusal (N-ASYNC-1)")
+        void theErrorDispatchOfARefusedRequestRecordsNoSecondRefusal() {
+            AuthorizationDenialRecorder recorder = mock(AuthorizationDenialRecorder.class);
+            CustomDynamicAuthorizationManager manager = recordingManager(recorder);
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", REQUEST_PATH);
+
+            assertThat(manager.check(() -> blockedUser, new RequestAuthorizationContext(request)).isGranted()).isFalse();
+            request.setDispatcherType(DispatcherType.ERROR);
+            assertThat(manager.check(() -> blockedUser, new RequestAuthorizationContext(request)).isGranted()).isFalse();
+
+            verify(recorder, times(1)).recordRequest(eq(blockedUser), anyString());
+        }
+
+        @Test
+        @DisplayName("a request first decided on a later dispatch is decided as any other (N-ASYNC-1)")
+        void aRequestFirstDecidedOnALaterDispatchIsDecided() {
+            AuthorizationDenialRecorder recorder = mock(AuthorizationDenialRecorder.class);
+            CustomDynamicAuthorizationManager manager = recordingManager(recorder);
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", REQUEST_PATH);
+            request.setDispatcherType(DispatcherType.ASYNC);
+
+            assertThat(manager.check(() -> blockedUser, new RequestAuthorizationContext(request)).isGranted()).isFalse();
         }
     }
 

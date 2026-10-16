@@ -29,6 +29,9 @@ public class JdbcPromptReleaseQueryService {
                    r.prompt_artifact_hash_sha256,
                    r.rollback_prompt_version,
                    r.updated_at,
+                   r.canary_percent,
+                   r.canary_tenants,
+                   r.canary_resource_families,
                    l.approval_state,
                    l.release_status as ledger_release_status,
                    coalesce(rb.rollback_target_prompt_version, r.rollback_prompt_version) as rollback_target_prompt_version,
@@ -105,7 +108,10 @@ public class JdbcPromptReleaseQueryService {
                 rs.getString("workflow_state"),
                 rs.getString("gate_state"),
                 rs.getString("blockers_json"),
-                updatedAt == null ? null : updatedAt.toLocalDateTime());
+                updatedAt == null ? null : updatedAt.toLocalDateTime(),
+                rs.getObject("canary_percent", Integer.class),
+                rs.getString("canary_tenants"),
+                rs.getString("canary_resource_families"));
     }
 
     public record PromptReleaseSnapshot(List<PromptReleaseRow> releases) {
@@ -130,6 +136,9 @@ public class JdbcPromptReleaseQueryService {
             String releaseWorkflowState,
             String releaseWorkflowGateState,
             String releaseWorkflowBlockers,
-            LocalDateTime updatedAt) {
+            LocalDateTime updatedAt,
+            Integer canaryPercent,
+            String canaryTenants,
+            String canaryResourceFamilies) {
     }
 }

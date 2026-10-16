@@ -11,9 +11,11 @@ import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManage
 import io.contexa.showcase.business.context.BusinessContextLookup;
 import io.contexa.showcase.business.run.RunRegistry;
 import io.contexa.showcase.business.work.BusinessService;
+import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.showcase.business.work.WorkDatabase;
 import io.contexa.showcase.workload.contexa.business.ContexaBusinessOperations;
 import io.contexa.showcase.workload.contexa.context.BusinessFrictionProvider;
+import io.contexa.showcase.workload.contexa.context.ShowcaseFactSourceVerifier;
 import io.contexa.showcase.workload.contexa.observation.AnalysisEventRecorder;
 import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.EmbeddingUsageMeter;
@@ -31,6 +33,7 @@ import io.contexa.showcase.workload.contexa.principal.SharedAccountGuard;
 import io.contexa.showcase.workload.contexa.principal.RunPrincipalService;
 import io.contexa.showcase.workload.contexa.template.TemplateSnapshots;
 import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -48,6 +51,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.env.Environment;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Wiring of control D on top of the engine's public extension points: the protected business operations, the
@@ -118,13 +122,22 @@ public class ContexaWorkloadConfiguration {
     @Bean
     public TemplateSnapshots templateSnapshots(BaselineDataStore baselines, SecurityContextDataStore contexts,
                                                RoleScopeCollector roleScopes, UnifiedVectorService vectors,
-                                               JdbcTemplate vectorDatabase, ObjectMapper objectMapper) {
-        return new TemplateSnapshots(baselines, contexts, roleScopes, vectors, vectorDatabase, objectMapper, clock);
+                                               JdbcTemplate vectorDatabase, ObjectMapper objectMapper,
+                                               @Qualifier("securityLearningPostProcessExecutor")
+                                               ObjectProvider<ExecutorService> postProcessExecutor) {
+        return new TemplateSnapshots(baselines, contexts, roleScopes, vectors, vectorDatabase, objectMapper, clock,
+                postProcessExecutor.getIfAvailable());
     }
 
     @Bean
     public BusinessFrictionProvider businessFrictionProvider(BusinessContextLookup lookup, WorkDatabase database) {
         return new BusinessFrictionProvider(lookup, database);
+    }
+
+    /** W6-7: the showcase's own records of the company facts, for the prompt inspector's source truth check. */
+    @Bean
+    public PromptFactSourceVerifier showcaseFactSourceVerifier(WorkDatabase database, Environment environment) {
+        return new ShowcaseFactSourceVerifier(database, environment.getRequiredProperty("showcase.control"));
     }
 
     @Bean

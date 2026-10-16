@@ -20,6 +20,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.context.prompt.PromptRuntimeGovernanceRuleProvider;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptorResolver;
@@ -171,7 +172,7 @@ class CoreAutonomousAutoConfigurationTest {
         void shouldDrawThePromptWithTheBundleTheSelectorBeanChooses() {
             DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
             beans.registerSingleton("promptBundleSelector", (PromptBundleSelector) (context, subject) ->
-                    new PromptBundleSelection("2026.10.14-v20.14", PromptBundleSelectionSource.REGISTRY));
+                    new PromptBundleSelection("2026.10.16-v20.23", PromptBundleSelectionSource.REGISTRY));
 
             SecurityDecisionStandardPromptTemplate template = new CoreAutonomousAutoConfiguration()
                     .securityDecisionStandardPromptTemplate(
@@ -181,7 +182,8 @@ class CoreAutonomousAutoConfigurationTest {
                             new PromptContextComposer(),
                             beans.getBeanProvider(PromptGovernanceDescriptorResolver.class),
                             beans.getBeanProvider(PromptRuntimeGovernanceRuleProvider.class),
-                            beans.getBeanProvider(PromptBundleSelector.class));
+                            beans.getBeanProvider(PromptBundleSelector.class),
+                            new SecurityZeroTrustProperties());
             Map<String, Object> metadata = template.buildStructuredPrompt(
                             SecurityEvent.builder().eventId("event-w316").userId("alice").build(), null, null, List.of(),
                             PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT)
@@ -190,7 +192,7 @@ class CoreAutonomousAutoConfigurationTest {
             @SuppressWarnings("unchecked")
             Map<String, Object> descriptor = (Map<String, Object>) metadata.get("governanceDescriptor");
             assertThat(descriptor)
-                    .containsEntry("promptVersion", "2026.10.14-v20.14")
+                    .containsEntry("promptVersion", "2026.10.16-v20.23")
                     .containsEntry("promptBundleSelectionSource", "REGISTRY");
         }
 
@@ -292,7 +294,8 @@ class CoreAutonomousAutoConfigurationTest {
         @DisplayName("Should require UnifiedVectorService for securityDecisionPostProcessor")
         void shouldRequireUnifiedVectorServiceForSecurityDecisionPostProcessor() throws Exception {
             Method method = CoreAutonomousAutoConfiguration.class
-                    .getDeclaredMethod("securityDecisionPostProcessor", SecurityContextDataStore.class, UnifiedVectorService.class);
+                    .getDeclaredMethod("securityDecisionPostProcessor", SecurityContextDataStore.class, UnifiedVectorService.class,
+                            ObjectProvider.class);
 
             assertThat(method.getReturnType()).isEqualTo(SecurityDecisionPostProcessor.class);
             ConditionalOnBean annotation = method.getAnnotation(ConditionalOnBean.class);

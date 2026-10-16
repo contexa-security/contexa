@@ -19,6 +19,7 @@ import io.contexa.contexacore.repository.prompt.PromptGovernanceRollbackRecordRe
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -183,6 +184,61 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 savedWorkflow.getCreatedAt());
     }
 
+    /**
+     * W7-14 (PV-8): the gate's answer for every state the bundle may take next, read without writing: the blockers a
+     * transition to that state meets now and the evidence the gate reads for them. A state is ready exactly when a
+     * transition to it would be applied, so a screen's 'ready' is this answer and follows no rule of its own.
+     */
+    @Transactional(transactionManager = "contexaTransactionManager", readOnly = true)
+    public ReleaseGateAssessment assessPromptRelease(String registryScope, String promptKey, String promptVersion) {
+        String safeScope = normalizeRegistryScope(registryScope);
+        validatePromptKey(promptKey);
+        validatePromptVersion(promptVersion);
+        PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
+        List<ReleaseGateTarget> targets = new ArrayList<>();
+        for (String next : allowedNextReleaseStatuses(context.currentReleaseStatus())) {
+            PromptBundleState target = PromptBundleState.valueOf(next);
+            List<String> blockers = determineBlockers(context, target);
+            targets.add(new ReleaseGateTarget(target.name(), blockers.isEmpty(),
+                    determineTransitionGateState(context.currentReleaseStatus(), target, blockers),
+                    List.copyOf(blockers)));
+        }
+        PromptGovernanceEvaluationRecord evaluation = evaluationRepository
+                .findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(safeScope, promptKey.trim(),
+                        promptVersion.trim())
+                .orElse(null);
+        PromptGovernanceReleaseApprovalRecord approval = context.releaseApprovalRecord();
+        ReleaseGateEvidence evidence = new ReleaseGateEvidence(
+                context.changeRecorded(),
+                evaluation != null ? evaluation.getEvaluationReference() : null,
+                evaluation != null ? evaluation.getEvaluationState() : null,
+                evaluation != null ? evaluation.getEmpiricalEvidenceState() : null,
+                context.tevvGateState(),
+                context.promptInjectionState(),
+                context.latencyGateState(),
+                context.costGateState(),
+                evaluation != null ? evaluation.getQualityGateState() : null,
+                evaluation != null ? evaluation.getScenarioCoverageState() : null,
+                evaluation != null ? evaluation.getCoveredScenarioCount() : 0,
+                evaluation != null ? evaluation.getRequiredScenarioCount() : 0,
+                evaluation != null ? evaluation.getBundleHash() : null,
+                evaluation != null ? evaluation.getRunReference() : null,
+                evaluation != null && !context.evaluationOfAnotherBundle(),
+                evaluation != null ? evaluation.getUpdatedAt() : null,
+                approval != null ? approval.getApprovalState() : null,
+                approval != null ? approval.getApprovedBy() : null,
+                resolveRollbackTarget(context),
+                context.rollbackRecord() != null ? context.rollbackRecord().getRollbackReadinessState() : null,
+                context.supportedModelProfiles(),
+                context.providerCompatibilityDeclared(),
+                context.budgetProfileKeys(),
+                context.tokenCountingPolicyDeclared(),
+                context.cachePolicyGoverned(),
+                context.compactionPolicyGoverned());
+        return new ReleaseGateAssessment(safeScope, promptKey.trim(), promptVersion.trim(),
+                PromptBundleState.canonicalName(context.currentReleaseStatus()), List.copyOf(targets), evidence);
+    }
+
     private PromptGovernanceView.PromptGovernanceReleaseGateItem toGateItem(
             String registryScope,
             PromptGovernanceView.PromptGovernanceLifecycleLedgerItem lifecycleItem,
@@ -326,9 +382,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 registryRecord.getReleaseStatus(),
                 changeRecorded,
                 evaluationRecord != null
+                        && evaluationOfThisBundle(evaluationRecord, promptKey, promptVersion)
                         && "PASSED".equals(evaluationRecord.getEvaluationState())
                         && "SATISFIED".equals(evaluationRecord.getEmpiricalEvidenceState())
                         && "READY_FOR_PRODUCTION".equals(evaluationRecord.getTevvGateState()),
+                evaluationRecord != null && !evaluationOfThisBundle(evaluationRecord, promptKey, promptVersion),
                 releaseApprovalRecord != null && "APPROVED".equals(releaseApprovalRecord.getApprovalState()),
                 rollbackRecord != null && "READY".equals(rollbackRecord.getRollbackReadinessState()),
                 rollbackTargetDeclared(registryRecord, rollbackRecord),
@@ -365,6 +423,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                     context.currentReleaseStatus(),
                     targetReleaseStatus.name()));
             return blockers;
+        }
+        // W6-8 (PV-5, PV-6): the evidence of a bundle of this build is the evaluation made with its own hash.
+        if (context.evaluationOfAnotherBundle()
+                && (targetReleaseStatus == PromptBundleState.CANARY || targetReleaseStatus == PromptBundleState.ACTIVE)) {
+            blockers.add("EVALUATION_NOT_FOR_BUNDLE_HASH the evaluation was not made with this bundle's hash.");
         }
         if (targetReleaseStatus == PromptBundleState.SHADOW && !context.changeRecorded()) {
             blockers.add("CHANGE_LEDGER_MISSING enterprise change evidence must exist before opening eval-only release.");
@@ -652,6 +715,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             String actor,
             String rationale,
             PromptGovernanceReleaseWorkflowRecord workflowRecord) {
+        // N-GOV-1: the ledger keeps the rollback of a declared target; a retirement, or a release without a target,
+        // has no rollback state to write, and its row would break the ledger's NOT NULL columns.
+        if (targetReleaseStatus == PromptBundleState.RETIRED || !StringUtils.hasText(resolveRollbackTarget(context))) {
+            return;
+        }
         PromptGovernanceRollbackRecord rollbackRecord = Optional.ofNullable(context.rollbackRecord())
                 .orElseGet(PromptGovernanceRollbackRecord::new);
         rollbackRecord.setRegistryScope(context.registryRecord().getRegistryScope());
@@ -787,6 +855,46 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         return new ArrayList<>(latest.values());
     }
 
+    /** W7-14: one state the bundle may take next, whether the gate would apply it now and what blocks it. */
+    public record ReleaseGateTarget(String targetState, boolean ready, String gateState, List<String> blockers) {
+    }
+
+    /** W7-14: the gate evidence of a bundle as the gate reads it for its blockers. */
+    public record ReleaseGateEvidence(
+            boolean changeRecorded,
+            String evaluationReference,
+            String evaluationState,
+            String empiricalEvidenceState,
+            String tevvGateState,
+            String promptInjectionState,
+            String latencyGateState,
+            String costGateState,
+            String qualityGateState,
+            String scenarioCoverageState,
+            int coveredScenarioCount,
+            int requiredScenarioCount,
+            String evaluationBundleHash,
+            String evaluationRunReference,
+            boolean evaluationForThisBundle,
+            LocalDateTime evaluatedAt,
+            String approvalState,
+            String approvedBy,
+            String rollbackTargetPromptVersion,
+            String rollbackReadinessState,
+            List<String> supportedModelProfiles,
+            boolean providerCompatibilityDeclared,
+            List<String> budgetProfileKeys,
+            boolean tokenCountingPolicyDeclared,
+            boolean cachePolicyGoverned,
+            boolean compactionPolicyGoverned) {
+    }
+
+    /** W7-14: the gate's answer for a bundle: its canonical state, every next state the gate allows, the evidence. */
+    public record ReleaseGateAssessment(String registryScope, String promptKey, String promptVersion,
+                                        String currentState, List<ReleaseGateTarget> targets,
+                                        ReleaseGateEvidence evidence) {
+    }
+
     public record ReleaseTransitionReceipt(
             String registryScope,
             String promptKey,
@@ -799,11 +907,23 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             LocalDateTime recordedAt) {
     }
 
+    /**
+     * W6-8: an evaluation of a bundle of this build counts only when it names that bundle's hash; a version the build
+     * does not hold as a bundle keeps the evaluation it has.
+     */
+    private static boolean evaluationOfThisBundle(PromptGovernanceEvaluationRecord evaluation, String promptKey,
+                                                  String promptVersion) {
+        return PromptBundleCatalog.shared().find(promptKey, promptVersion)
+                .map(manifest -> manifest.bundleHash().equals(evaluation.getBundleHash()))
+                .orElse(true);
+    }
+
     private record PromptLifecycleContext(
             PromptGovernanceRegistryRecord registryRecord,
             String currentReleaseStatus,
             boolean changeRecorded,
             boolean empiricalEvalSatisfied,
+            boolean evaluationOfAnotherBundle,
             boolean releaseWorkflowControlled,
             boolean rollbackPrepared,
             boolean rollbackTargetDeclared,

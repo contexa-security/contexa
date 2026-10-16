@@ -113,8 +113,12 @@ public class AiSecurityDecisionObservationWriter {
                 && Boolean.TRUE.equals(result.getResponseActionFallbackApplied()))
                 || Boolean.TRUE.equals(bool(metadata.get("responseActionFallbackApplied")))
                 || Boolean.TRUE.equals(bool(metadata.get("securityDecisionParsingFallbackApplied")));
-        boolean parserFailure = responseActionFallback || isParserFailure(result) || isParserFailure(metadata);
-        boolean technicalFallback = !responseActionFallback
+        // N-OUT-1 (G1-14): when the model's answer never came, the action the parser filled is a technical fallback,
+        // not a parser failure.
+        boolean answerNeverCame = Boolean.FALSE.equals(bool(metadata.get("rawExecutionSucceeded")));
+        boolean parserFailure = !answerNeverCame
+                && (responseActionFallback || isParserFailure(result) || isParserFailure(metadata));
+        boolean technicalFallback = answerNeverCame || !responseActionFallback
                 && ((result != null && Boolean.TRUE.equals(result.getTechnicalFallbackApplied()))
                 || Boolean.TRUE.equals(bool(metadata.get("technicalFallbackApplied")))
                 || Boolean.TRUE.equals(bool(metadata.get("securityDecisionFallbackApplied")))
@@ -271,7 +275,7 @@ public class AiSecurityDecisionObservationWriter {
                     longValue(latencyBreakdown.get("queueWaitMs")),
                     longValue(latencyBreakdown.get("promptBuildMs")),
                     longValue(latencyBreakdown.get("ragVectorMs")),
-                    longValue(latencyBreakdown.get("openAiCallMs")),
+                    longValue(latencyBreakdown.get("providerCallMs")),
                     longValue(latencyBreakdown.get("parseMs")),
                     longValue(latencyBreakdown.get("persistMs")),
                     longValue(latencyBreakdown.get("totalAnalysisMs")),
@@ -374,7 +378,12 @@ public class AiSecurityDecisionObservationWriter {
         }
         Map<String, Object> latencyBreakdown = latencyBreakdown(copy, result);
         copy.put("latencyBreakdown", latencyBreakdown);
-        latencyBreakdown.forEach((key, value) -> copy.put("latency" + Character.toUpperCase(key.charAt(0)) + key.substring(1), value));
+        // W4-7 (inventory 6 bundle 30): the provider call time keeps its own key; no latency copy of it.
+        latencyBreakdown.forEach((key, value) -> {
+            if (!"providerCallMs".equals(key)) {
+                copy.put("latency" + Character.toUpperCase(key.charAt(0)) + key.substring(1), value);
+            }
+        });
         return copy;
     }
 
@@ -419,9 +428,7 @@ public class AiSecurityDecisionObservationWriter {
                 "semanticEvidenceLookupMs",
                 "contextRetrievalMs",
                 "layer1RagSearchMs"));
-        breakdown.put("openAiCallMs", firstLong(metadata,
-                "openAiCallMs",
-                "providerCallMs"));
+        breakdown.put("providerCallMs", firstLong(metadata, "providerCallMs"));
         breakdown.put("providerCallTimeoutMs", firstLong(metadata,
                 "providerCallTimeoutMs",
                 "layer1ProviderCallTimeoutMs",

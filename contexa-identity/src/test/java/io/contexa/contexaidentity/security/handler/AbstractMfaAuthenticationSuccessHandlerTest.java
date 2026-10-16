@@ -470,6 +470,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
         private final SecurityContextDataStore dataStore = mock(SecurityContextDataStore.class);
         private final SecurityLearningService learningService = mock(SecurityLearningService.class);
         private final VerificationLearningService verificationLearning = mock(VerificationLearningService.class);
+        private final BlockingSignalBroadcaster broadcaster = mock(BlockingSignalBroadcaster.class);
 
         @Test
         @DisplayName("a login MFA does not release a CHALLENGE and is recorded as a login MFA")
@@ -497,9 +498,23 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                     new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), factorContext);
 
             verify(actionRepository).saveActionWithPrevious(eq("admin"), eq(ZeroTrustAction.ALLOW), any());
+            verify(broadcaster).registerUnblock("admin");
             ArgumentCaptor<String> record = ArgumentCaptor.forClass(String.class);
             verify(dataStore).addSessionAction(eq("session-1"), record.capture());
             assertThat(record.getValue()).contains("ZERO_TRUST_CHALLENGE_VERIFIED");
+        }
+
+        @Test
+        @DisplayName("Q-87 (N-P3-1): an ESCALATE waits for a review; even the MFA the challenge flow started keeps it")
+        void anEscalateIsNotLiftedByAnMfa() throws Exception {
+            when(actionRepository.getActionFromHash("admin")).thenReturn(ZeroTrustAction.ESCALATE);
+
+            handler().complete(requestWithSession(), new MockHttpServletResponse(),
+                    new TestingAuthenticationToken("admin", "pw", "ROLE_ADMIN"), completedFactorContext(true));
+
+            verify(actionRepository, never()).saveActionWithPrevious(anyString(), any(), any());
+            verify(learningService, never()).learnAndStore(anyString(), any(), any());
+            verify(broadcaster, never()).registerUnblock(anyString());
         }
 
         @Test
@@ -624,7 +639,7 @@ class AbstractMfaAuthenticationSuccessHandlerTest {
                     mock(IBlockedUserRecorder.class),
                     mock(BlockMfaStateStore.class),
                     mock(CentralAuditFacade.class),
-                    mock(BlockingSignalBroadcaster.class),
+                    broadcaster,
                     false
             );
         }

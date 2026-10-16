@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.promptquality.inspection;
 
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.util.StringUtils;
 
@@ -10,6 +11,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -199,6 +201,124 @@ public class JdbcPromptInspectionQueries {
                 rs.getLong("failed"), rs.getLong("incomplete"), rs.getLong("passed"), rs.getLong("not_applicable"),
                 rs.getLong("errors")), period);
         return new Overview(from, to, verdicts, checks, trend, entries, resources, versions);
+    }
+
+    /** W7-14: the stage of an applied decision's seal and of a shadow run's seal (decisionAppliedStage, W6-9). */
+    public static final String DECISION_STAGE = "DECISION";
+    public static final String SHADOW_STAGE = "SHADOW";
+
+    /**
+     * W7-14: the sealed decisions of a capture period per bundle version, stage and action, with the verdicts of their
+     * latest inspection result; the behaviour difference of the version comparison. The two stage words are
+     * {@link #DECISION_STAGE} and {@link #SHADOW_STAGE}.
+     */
+    private static final String BUNDLE_OUTCOMES = """
+            with latest as (
+                select distinct on (r.package_id) r.package_id, r.verdict
+                  from prompt_inspection_result r
+                  join sealed_evidence_package lp on lp.package_id = r.package_id
+                 where lp.captured_at between ? and ?
+                 order by r.package_id, r.inspected_at desc, r.id desc
+            ),
+            sealed as (
+                select p.package_id,
+                       contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%s,promptBundleVersion}'
+                           as bundle_version,
+                       case when p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW' then 'SHADOW'
+                            else 'DECISION' end as stage,
+                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                  from sealed_evidence_package p
+                 where p.captured_at between ? and ?
+            )
+            select s.bundle_version, s.stage, s.action, count(*) as packages,
+                   count(*) filter (where l.verdict = 'FAIL') as failed,
+                   count(*) filter (where l.verdict = 'PASS') as passed,
+                   count(*) filter (where l.verdict is null) as not_inspected
+              from sealed s
+              left join latest l on l.package_id = s.package_id
+             where s.bundle_version in (%s)
+             group by 1, 2, 3
+             order by 1, 2, 3
+            """;
+
+    /** W7-14: how the sealed decisions of one bundle came out at one stage with one action. */
+    public record BundleOutcome(String bundleVersion, String stage, String action, long packages, long failed,
+                                long passed, long notInspected) {
+    }
+
+    public List<BundleOutcome> bundleOutcomes(Instant from, Instant to, List<String> bundleVersions) {
+        List<String> versions = bundleVersions.stream().filter(StringUtils::hasText).distinct().toList();
+        if (versions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> arguments = new ArrayList<>(List.of(Timestamp.from(from), Timestamp.from(to),
+                Timestamp.from(from), Timestamp.from(to)));
+        arguments.addAll(versions);
+        String sql = BUNDLE_OUTCOMES.formatted(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR,
+                String.join(", ", Collections.nCopies(versions.size(), "?")));
+        return jdbc.query(sql, (rs, rowNum) -> new BundleOutcome(rs.getString("bundle_version"), rs.getString("stage"),
+                rs.getString("action"), rs.getLong("packages"), rs.getLong("failed"), rs.getLong("passed"),
+                rs.getLong("not_inspected")), arguments.toArray());
+    }
+
+    /**
+     * N-SHD-1: one shadow run with the sealed decision of the request it was copied from: the request (the decision's
+     * correlation id), when the shadow was sealed, the shadow seal, bundle and action, and the decision seal, bundle and
+     * action (none when the decision was not sealed, or the shadow seal names no request).
+     */
+    public record ShadowPair(String requestId, Instant capturedAt, String shadowPackageId, String shadowBundleVersion,
+                             String shadowAction, String decisionPackageId, String decisionBundleVersion,
+                             String decisionAction) {
+    }
+
+    /** N-SHD-1: the shadow seals of a period and bundles, each with the latest decision seal of its request. */
+    private static final String SHADOW_PAIRS = """
+            with shadow_seals as (
+                select p.package_id, p.captured_at,
+                       p.decision_jsonb ->> '%2$s' as original_request_id,
+                       contexa_safe_jsonb(p.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
+                           as bundle_version,
+                       coalesce(p.decision_jsonb ->> 'action', '') as action
+                  from sealed_evidence_package p
+                 where p.captured_at between ? and ?
+                   and p.decision_jsonb ->> 'decisionAppliedStage' = 'SHADOW'
+            ),
+            shadows as (
+                select * from shadow_seals where bundle_version in (%3$s)
+            ),
+            decisions as (
+                select distinct on (d.correlation_id) d.package_id, d.correlation_id,
+                       contexa_safe_jsonb(d.prompt_execution_metadata_json) #>> '{%1$s,promptBundleVersion}'
+                           as bundle_version,
+                       coalesce(d.decision_jsonb ->> 'action', '') as action
+                  from sealed_evidence_package d
+                 where d.correlation_id in (select original_request_id from shadows)
+                   and coalesce(d.decision_jsonb ->> 'decisionAppliedStage', '') <> 'SHADOW'
+                 order by d.correlation_id, d.captured_at desc, d.id desc
+            )
+            select s.original_request_id, s.captured_at, s.package_id as shadow_package_id,
+                   s.bundle_version as shadow_bundle_version, s.action as shadow_action,
+                   d.package_id as decision_package_id, d.bundle_version as decision_bundle_version,
+                   d.action as decision_action
+              from shadows s
+              left join decisions d on d.correlation_id = s.original_request_id
+             order by s.captured_at desc, s.package_id
+            """;
+
+    public List<ShadowPair> shadowPairs(Instant from, Instant to, List<String> bundleVersions) {
+        List<String> versions = bundleVersions.stream().filter(StringUtils::hasText).distinct().toList();
+        if (versions.isEmpty()) {
+            return List.of();
+        }
+        List<Object> arguments = new ArrayList<>(List.of(Timestamp.from(from), Timestamp.from(to)));
+        arguments.addAll(versions);
+        String sql = SHADOW_PAIRS.formatted(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR,
+                PromptShadowRun.ORIGINAL_REQUEST_ID, String.join(", ", Collections.nCopies(versions.size(), "?")));
+        return jdbc.query(sql, (rs, rowNum) -> new ShadowPair(rs.getString("original_request_id"),
+                rs.getTimestamp("captured_at").toInstant(), rs.getString("shadow_package_id"),
+                rs.getString("shadow_bundle_version"), rs.getString("shadow_action"),
+                rs.getString("decision_package_id"), rs.getString("decision_bundle_version"),
+                rs.getString("decision_action")), arguments.toArray());
     }
 
     /** The arguments of a query on the latest results: the period of the latest results, then the query's own. */

@@ -58,6 +58,7 @@ const DecisionDetailModal = lazy(() =>
 const BenchSummaryPage = lazy(() => import('./pages/benchmark/BenchSummaryPage'));
 const BenchCasesPage = lazy(() => import('./pages/benchmark/BenchCasesPage'));
 const BenchJudgmentPage = lazy(() => import('./pages/benchmark/BenchJudgmentPage'));
+const BenchPromptPage = lazy(() => import('./pages/benchmark/BenchPromptPage'));
 const BenchLimitsPage = lazy(() => import('./pages/benchmark/BenchLimitsPage'));
 
 // The design mock and its sample data exist only in development builds; Vite removes this branch
@@ -121,6 +122,7 @@ export default function App() {
           <Route path="/benchmark/cases" element={<BenchCasesPage />} />
           <Route path="/benchmark/cases/:caseKey" element={<CaseAddress />} />
           <Route path="/benchmark/judgment" element={<BenchJudgmentPage />} />
+          <Route path="/benchmark/prompt" element={<BenchPromptPage />} />
           <Route path="/benchmark/limits" element={<BenchLimitsPage />} />
           {DesignStatesPage ? <Route path="/design/states" element={<DesignStatesPage />} /> : null}
           {DesignPartsPage ? <Route path="/design/parts" element={<DesignPartsPage />} /> : null}

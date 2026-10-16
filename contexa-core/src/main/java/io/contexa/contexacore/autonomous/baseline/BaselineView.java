@@ -128,15 +128,64 @@ public record BaselineView(
      * @param targets                   observations per URL template binding ({@code projectKey=PLM-OPS})
      * @param busiestActiveHourRequests the most observations made within one clock hour
      * @param dayObservations           the observations the day counts were taken from
+     * @param networks                  observations per network band of the request (W5-9)
+     * @param devices                   observations per device of the request, a browser on a system (W5-9)
+     * @param logins                    observations per login method of the request (W5-9)
+     * @param identityObservations      the window's observations that hold the request's identity, the count the
+     *                                  three dimensions above are read against (observations stored before W5-9
+     *                                  hold none)
+     * @param vocabularyNotComparable   the window's observations left out of the three dimensions because they hold
+     *                                  a value of an earlier vocabulary the vocabulary table no longer reads (W5-7)
+     * @param request                   how the request's own value of each dimension was seen, by dimension name
+     *                                  ({@code TIME}, {@code DAY}, {@code NETWORK}, ...; W5-10 D1~D3)
      */
     public record Counts(
             Map<Integer, Integer> hours,
             Map<Integer, Integer> days,
             Map<String, Integer> targets,
             int busiestActiveHourRequests,
-            int dayObservations) {
+            int dayObservations,
+            Map<String, Integer> networks,
+            Map<String, Integer> devices,
+            Map<String, Integer> logins,
+            int identityObservations,
+            int vocabularyNotComparable,
+            Map<String, Seen> request,
+            Rate rate) {
 
         public static final Counts NONE = new Counts(Map.of(), Map.of(), Map.of(), 0, 0);
+
+        /** Counts without the rate of the active hours (before W5-10 D5). */
+        public Counts(Map<Integer, Integer> hours, Map<Integer, Integer> days, Map<String, Integer> targets,
+                      int busiestActiveHourRequests, int dayObservations, Map<String, Integer> networks,
+                      Map<String, Integer> devices, Map<String, Integer> logins, int identityObservations,
+                      int vocabularyNotComparable, Map<String, Seen> request) {
+            this(hours, days, targets, busiestActiveHourRequests, dayObservations, networks, devices, logins,
+                    identityObservations, vocabularyNotComparable, request, null);
+        }
+
+        /** Counts without the request's own values (before W5-10). */
+        public Counts(Map<Integer, Integer> hours, Map<Integer, Integer> days, Map<String, Integer> targets,
+                      int busiestActiveHourRequests, int dayObservations, Map<String, Integer> networks,
+                      Map<String, Integer> devices, Map<String, Integer> logins, int identityObservations,
+                      int vocabularyNotComparable) {
+            this(hours, days, targets, busiestActiveHourRequests, dayObservations, networks, devices, logins,
+                    identityObservations, vocabularyNotComparable, Map.of());
+        }
+
+        /** Counts of observations all in today's vocabulary. */
+        public Counts(Map<Integer, Integer> hours, Map<Integer, Integer> days, Map<String, Integer> targets,
+                      int busiestActiveHourRequests, int dayObservations, Map<String, Integer> networks,
+                      Map<String, Integer> devices, Map<String, Integer> logins, int identityObservations) {
+            this(hours, days, targets, busiestActiveHourRequests, dayObservations, networks, devices, logins,
+                    identityObservations, 0);
+        }
+
+        /** Counts without the request identity dimensions (before W5-9). */
+        public Counts(Map<Integer, Integer> hours, Map<Integer, Integer> days, Map<String, Integer> targets,
+                      int busiestActiveHourRequests, int dayObservations) {
+            this(hours, days, targets, busiestActiveHourRequests, dayObservations, Map.of(), Map.of(), Map.of(), 0);
+        }
 
         /** Counts whose days come from the window itself, as before the day of the week read several weeks. */
         public Counts(Map<Integer, Integer> hours, Map<Integer, Integer> days, Map<String, Integer> targets,
@@ -149,7 +198,34 @@ public record BaselineView(
             hours = hours == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(hours));
             days = days == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(days));
             targets = targets == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(targets));
+            networks = networks == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(networks));
+            devices = devices == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(devices));
+            logins = logins == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(logins));
+            request = request == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(request));
         }
+    }
+
+    /**
+     * How the request's own value of one dimension was seen (W5-10 D1~D3).
+     *
+     * @param value          the request's value as the line names it ({@code 03}, {@code Wed}, a network band)
+     * @param seen           the observations of the dimension's read that held it (k)
+     * @param of             the observations of that read that hold the dimension (N)
+     * @param days           the company dates of that read it was seen on (d)
+     * @param ofDays         the company dates of that read that hold the dimension (D)
+     * @param firstMs        its first observation in that read, null when not seen there
+     * @param lastMs         its last observation in that read, null when not seen there
+     * @param retainedLastMs its last observation in the retention, null when it was never seen there
+     */
+    public record Seen(String value, int seen, int of, int days, int ofDays, Long firstMs, Long lastMs,
+                       Long retainedLastMs) {
+    }
+
+    /**
+     * The requests of each active clock hour of the window (W5-10 D5): how many hours had a request, and the median and
+     * the 95th percentile of their requests.
+     */
+    public record Rate(int activeHours, int median, int p95) {
     }
 
     /** A view without counts, as before W2-5. */
@@ -205,6 +281,15 @@ public record BaselineView(
         counts = counts == null ? Counts.NONE : counts;
     }
 
+    /**
+     * The view with the long-term personal baseline's state; the network, device and login dimensions stay the view's
+     * own, read from the observations without the activity period being judged (W5-9).
+     */
+    public BaselineView withPersonalBaselineState(State baselineState, Long baselineUpdates) {
+        return withPersonalBaseline(baselineState, baselineUpdates, usualNetworks, usualDevices, usualBrowsers,
+                usualOperatingSystems, usualLoginMethods);
+    }
+
     /** The view with the long-term personal baseline's state and its network, device and login dimensions. */
     public BaselineView withPersonalBaseline(
             State baselineState,
@@ -218,6 +303,18 @@ public record BaselineView(
                 usualHours, seenHours, usualDays, seenDays, usualTargets, actionCounts, readWriteExportRatio, exportSize,
                 resourceClasses, requestsPerActiveHour, usualSessionMinutes, privilegedActions, knownRareTasks,
                 networks, devices, browsers, operatingSystems, loginMethods, evidenceGrade, evidenceCauses, counts);
+    }
+
+    /** The view with how the request's own values were seen (W5-10 D1~D3). */
+    public BaselineView withRequestSeen(Map<String, Seen> request) {
+        return new BaselineView(state, learnedUpdates, observations, daysCovered, windowDays, windowBasis,
+                usualHours, seenHours, usualDays, seenDays, usualTargets, actionCounts, readWriteExportRatio, exportSize,
+                resourceClasses, requestsPerActiveHour, usualSessionMinutes, privilegedActions, knownRareTasks,
+                usualNetworks, usualDevices, usualBrowsers, usualOperatingSystems, usualLoginMethods, evidenceGrade,
+                evidenceCauses, new Counts(counts.hours(), counts.days(), counts.targets(),
+                counts.busiestActiveHourRequests(), counts.dayObservations(), counts.networks(), counts.devices(),
+                counts.logins(), counts.identityObservations(), counts.vocabularyNotComparable(), request,
+                counts.rate()));
     }
 
     /** The view with more causes; a STRONG grade becomes LIMITED, since a cause is a reason for caution. */

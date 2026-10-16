@@ -24,6 +24,14 @@ export const GLOSSARY = [
   'identityCheck',
   'learnAdd',
   'workScope',
+  'factSource',
+  'fact',
+  'reasonCode',
+  'seal',
+  'delivery',
+  'reaction',
+  'invariance',
+  'injection',
 ] as const;
 export type GlossaryTerm = (typeof GLOSSARY)[number];
 

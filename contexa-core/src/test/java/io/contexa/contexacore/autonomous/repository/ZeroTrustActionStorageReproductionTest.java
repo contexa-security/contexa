@@ -291,6 +291,42 @@ class ZeroTrustActionStorageReproductionTest {
         assertLogoutKeepsRestriction(redis, ZeroTrustAction.valueOf(restriction));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    void inMemoryLessStrictFinalWriteTellsTheStricterActionWasKept(String restriction) {
+        assertLessStrictWriteTellsKept(new InMemoryZeroTrustActionRepository(), ZeroTrustAction.valueOf(restriction));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CHALLENGE", "ESCALATE"})
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisLessStrictFinalWriteTellsTheStricterActionWasKept(String restriction) {
+        assertLessStrictWriteTellsKept(redis, ZeroTrustAction.valueOf(restriction));
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = REDIS_PORT, matches = "[0-9]+")
+    void redisFinalWriteWithoutItsObservationFails() {
+        assertThat(redis.writeFinalAction(user(), ZeroTrustAction.ALLOW, Map.of("contextBindingHash", SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.FAILED);
+    }
+
+    /**
+     * A final write kept out by a stricter user-level action in effect is told apart from one that took effect, so
+     * that the refused ALLOW is not learned (W5-3). It still counts as written for a caller that only asks whether
+     * to retry.
+     */
+    private static void assertLessStrictWriteTellsKept(
+            ZeroTrustActionRepository repository, ZeroTrustAction restriction) {
+        String user = user();
+        assertThat(repository.writeFinalAction(user, restriction, fields(SESSION_A)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.APPLIED);
+        assertThat(repository.writeFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_B)))
+                .isEqualTo(ZeroTrustActionRepository.FinalActionWrite.KEPT_STRICTER);
+        assertThat(repository.saveFinalAction(user, ZeroTrustAction.ALLOW, fields(SESSION_B))).isTrue();
+        assertThat(repository.getCurrentAction(user)).isEqualTo(restriction);
+    }
+
     private static void assertAnotherSessionCannotLift(
             ZeroTrustActionRepository repository, ZeroTrustAction restriction) {
         String user = user();

@@ -35,10 +35,12 @@ import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforce
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
+import io.contexa.contexacore.autonomous.processor.PromptShadowRunner;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.monitoring.ai.AiSecurityDecisionObservationWriter;
@@ -182,8 +184,13 @@ public class CoreAutonomousEventAutoConfiguration {
     public ColdPathEventProcessor coldPathEventProcessor(
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
-            LlmAnalysisEventListener llmAnalysisEventListener) {
-        return new ColdPathEventProcessor(contextualStrategy, expertStrategy, llmAnalysisEventListener);
+            LlmAnalysisEventListener llmAnalysisEventListener,
+            ObjectProvider<PromptShadowRunner> promptShadowRunner) {
+        ColdPathEventProcessor processor = new ColdPathEventProcessor(contextualStrategy, expertStrategy,
+                llmAnalysisEventListener);
+        // W6-9: the shadow run after the decision, when one is configured.
+        processor.setShadowRunner(promptShadowRunner.getIfAvailable());
+        return processor;
     }
 
     @Bean
@@ -313,7 +320,8 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityContextDataStore securityContextDataStore,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
-            ObjectProvider<VerificationLearningService> verificationLearningService) {
+            ObjectProvider<VerificationLearningService> verificationLearningService,
+            ObjectProvider<LearningPromotionService> learningPromotionService) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
@@ -325,6 +333,7 @@ public class CoreAutonomousEventAutoConfiguration {
                 securityContextDataStore,
                 contextObservationRecorderProvider.getIfAvailable());
         handler.setVerificationLearningService(verificationLearningService.getIfAvailable());
+        handler.setLearningPromotionService(learningPromotionService.getIfAvailable());
         return handler;
     }
 

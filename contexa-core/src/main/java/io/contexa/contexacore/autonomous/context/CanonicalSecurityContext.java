@@ -383,6 +383,11 @@ public class CanonicalSecurityContext {
         @Builder.Default
         private List<SessionDecisionRecord> sessionDecisions = new ArrayList<>();
         /**
+         * The user's decisions in the last 60 minutes of the event clock across the sessions the user holds, this
+         * request included; null when not counted (W5-10 D5).
+         */
+        private Integer userRequestsLastHour;
+        /**
          * The device the session first came from and this request's when their operating system or browser differs,
          * "first -> current" (W2-14).
          */
@@ -455,6 +460,8 @@ public class CanonicalSecurityContext {
         private Boolean currentActionFamilyInDeniedScope;
         /** True when the collector compared denied scope by refused pairs; the two values above then decide it. */
         private Boolean deniedScopeComparedByPair;
+        /** How many other members of the scope group its usual scope comes from; null when not counted (W5-10 D8). */
+        private Integer peerCount;
         private Boolean temporaryElevation;
         private String temporaryElevationReason;
         private Boolean elevatedPrivilegeWindowActive;

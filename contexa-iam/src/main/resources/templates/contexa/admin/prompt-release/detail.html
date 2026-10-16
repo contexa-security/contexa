@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{contexa/admin/prompt-release/fragments :: head(#{promptRelease.title.detail})}"></th:block>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto pi-page" data-pr-page="detail"
+          th:attr="data-api-root=@{/contexa/admin/api/prompt-quality/releases},data-page-root=@{/contexa/admin/prompt-quality/releases}">
+        <div class="modern-card p-6 sm:p-8 rounded-xl pi-card">
+            <section th:replace="~{contexa/admin/prompt-release/fragments :: pageTop(#{promptRelease.title.detail}, #{promptRelease.subtitle.detail})}"></section>
+
+            <div class="pi-actions pi-detail-actions">
+                <a class="pi-button" th:href="@{/contexa/admin/prompt-quality/releases}" th:text="#{promptRelease.action.back}">Back to the list</a>
+                <a class="pi-button" data-pr-compare th:href="@{/contexa/admin/prompt-quality/releases/compare}" th:text="#{promptRelease.action.compare}">Compare</a>
+            </div>
+            <p class="pi-status" data-pr-status role="status" aria-live="polite"></p>
+
+            <section class="pi-section pi-summary">
+                <dl class="pi-facts">
+                    <div><dt th:text="#{promptRelease.column.bundle}">Bundle</dt><dd class="pi-code" data-pr-fact="bundle"></dd></div>
+                    <div><dt th:text="#{promptRelease.column.hash}">Hash</dt><dd class="pi-code pr-hash" data-pr-fact="hash"></dd></div>
+                    <div><dt th:text="#{promptRelease.column.state}">State</dt><dd data-pr-fact="state"></dd></div>
+                    <div><dt th:text="#{promptRelease.column.scope}">Scope</dt><dd class="pi-code" data-pr-fact="scope"></dd></div>
+                    <div><dt th:text="#{promptRelease.column.build}">In this build</dt><dd data-pr-fact="build"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.parent}">Previous bundle</dt><dd class="pi-code" data-pr-fact="parent"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.frozenOn}">Frozen on</dt><dd data-pr-fact="frozenOn"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.vocabulary}">Vocabulary</dt><dd class="pi-code" data-pr-fact="vocabulary"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.rollbackTargets}">Declared rollback targets</dt><dd class="pi-code" data-pr-fact="rollbackTargets"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.modelProfiles}">Declared model profiles</dt><dd class="pi-code" data-pr-fact="modelProfiles"></dd></div>
+                    <div><dt th:text="#{promptRelease.fact.problemIds}">Problems it answers</dt><dd class="pi-code" data-pr-fact="problemIds"></dd></div>
+                </dl>
+                <p class="pi-note" data-pr-fact="changeSummary"></p>
+            </section>
+
+            <section class="pi-section">
+                <h2 class="pi-section-title" th:text="#{promptRelease.detail.gate}">Release gate</h2>
+                <p class="pi-note" th:text="#{promptRelease.note.ready}">Ready is the answer of the release gate.</p>
+                <label class="pi-field pr-wide">
+                    <span th:text="#{promptRelease.action.rationale}">Why</span>
+                    <textarea rows="2" maxlength="2000" data-pr-rationale></textarea>
+                </label>
+                <div class="pr-gate" data-pr-gate></div>
+                <div class="pr-outcome" data-pr-outcome hidden>
+                    <h3 class="pi-subtitle" data-pr-outcome-title></h3>
+                    <ul class="pr-reasons" data-pr-outcome-reasons></ul>
+                </div>
+            </section>
+
+            <section class="pi-section">
+                <h2 class="pi-section-title" th:text="#{promptRelease.detail.evidence}">Gate evidence</h2>
+                <dl class="pi-facts" data-pr-evidence>
+                    <div><dt th:text="#{promptRelease.evidence.changeRecorded}">Change record</dt><dd data-pr-evidence="changeRecorded"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.evaluationReference}">Evaluation</dt><dd class="pi-code" data-pr-evidence="evaluationReference"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.evaluationState}">Evaluation result</dt><dd class="pi-code" data-pr-evidence="evaluationState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.evaluationForThisBundle}">Evaluated with this bundle hash</dt><dd data-pr-evidence="evaluationForThisBundle"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.evaluationRunReference}">Evaluated runs</dt><dd class="pi-code" data-pr-evidence="evaluationRunReference"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.tevvGateState}">TEVV gate</dt><dd class="pi-code" data-pr-evidence="tevvGateState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.qualityGateState}">Quality gate</dt><dd class="pi-code" data-pr-evidence="qualityGateState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.promptInjectionState}">Prompt injection</dt><dd class="pi-code" data-pr-evidence="promptInjectionState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.latencyGateState}">Latency</dt><dd class="pi-code" data-pr-evidence="latencyGateState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.costGateState}">Cost</dt><dd class="pi-code" data-pr-evidence="costGateState"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.scenarios}">Scenarios covered</dt><dd data-pr-evidence="scenarios"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.approval}">Approval</dt><dd class="pi-code" data-pr-evidence="approval"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.rollback}">Rollback target</dt><dd class="pi-code" data-pr-evidence="rollback"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.providerCompatibility}">Model compatibility</dt><dd data-pr-evidence="providerCompatibilityDeclared"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.budgetProfiles}">Budget profiles</dt><dd class="pi-code" data-pr-evidence="budgetProfileKeys"></dd></div>
+                    <div><dt th:text="#{promptRelease.evidence.policies}">Token, cache and compaction policies</dt><dd data-pr-evidence="policies"></dd></div>
+                </dl>
+            </section>
+
+            <section class="pi-section">
+                <h2 class="pi-section-title" th:text="#{promptRelease.detail.rollback}">Rollback</h2>
+                <p class="pi-note" th:text="#{promptRelease.note.rollback}">A rollback switches the active bundle to a target its manifest declares.</p>
+                <form class="pi-filters" data-pr-rollback>
+                    <label class="pi-field">
+                        <span th:text="#{promptRelease.rollback.target}">Roll back to</span>
+                        <select name="toVersion"></select>
+                    </label>
+                    <label class="pi-field pr-wide">
+                        <span th:text="#{promptRelease.rollback.reason}">Reason</span>
+                        <input type="text" name="reason" maxlength="2000">
+                    </label>
+                    <label class="pi-field pr-check">
+                        <input type="checkbox" name="emergency">
+                        <span th:text="#{promptRelease.rollback.emergency}">Emergency stop, approved afterwards by another operator</span>
+                    </label>
+                    <div class="pi-actions">
+                        <button type="submit" class="pi-button pi-button-primary" data-pr-rollback-run th:text="#{promptRelease.action.rollback}">Roll back</button>
+                    </div>
+                </form>
+                <p class="pi-note" data-pr-rollback-note></p>
+                <div class="pi-table-wrap">
+                    <table class="pi-table" data-pr-executions>
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{promptRelease.column.executedAt}">Executed at</th>
+                            <th scope="col" th:text="#{promptRelease.column.from}">From</th>
+                            <th scope="col" th:text="#{promptRelease.column.to}">To</th>
+                            <th scope="col" th:text="#{promptRelease.column.actor}">By</th>
+                            <th scope="col" th:text="#{promptRelease.column.reason}">Reason</th>
+                            <th scope="col" th:text="#{promptRelease.column.emergency}">Emergency</th>
+                            <th scope="col" th:text="#{promptRelease.column.status}">Status</th>
+                            <th scope="col" th:text="#{promptRelease.column.approvedBy}">Approved by</th>
+                            <th scope="col" th:text="#{promptRelease.column.approve}">Approval</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div th:replace="~{contexa/fragments/footer :: footer}"></div>
+<script th:replace="~{contexa/admin/prompt-release/fragments :: scriptMessages}"></script>
+<script type="module" th:src="@{/contexa/js/admin/prompt-release/detail-page.js}"></script>
+</body>
+</html>

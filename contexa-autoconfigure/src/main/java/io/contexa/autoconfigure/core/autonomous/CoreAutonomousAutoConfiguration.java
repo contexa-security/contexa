@@ -15,11 +15,13 @@
  */
 package io.contexa.autoconfigure.core.autonomous;
 
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.store.SessionRecordsIdChangeListener;
 import io.contexa.contexacore.autonomous.event.support.EventTimeZoneRegistrar;
 import io.contexa.contexacore.autonomous.service.AuthorizationDenialRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
@@ -189,8 +191,12 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public BaselineLearningService baselineLearningService(
             BaselineDataStore baselineDataStore,
-            SecurityZeroTrustProperties zeroTrustProperties) {
-        return new BaselineLearningService(baselineDataStore, zeroTrustProperties);
+            SecurityZeroTrustProperties zeroTrustProperties,
+            ObjectProvider<DistributedLockService> lockServiceProvider) {
+        BaselineLearningService service = new BaselineLearningService(baselineDataStore, zeroTrustProperties);
+        // The personal and organization baseline updates run under the configured lock service (W5-8).
+        service.setLockService(lockServiceProvider.getIfAvailable());
+        return service;
     }
 
     @Bean
@@ -314,9 +320,10 @@ public class CoreAutonomousAutoConfiguration {
             PromptContextComposer promptContextComposer,
             ObjectProvider<PromptGovernanceDescriptorResolver> promptGovernanceDescriptorResolver,
             ObjectProvider<PromptRuntimeGovernanceRuleProvider> promptRuntimeGovernanceRuleProvider,
-            ObjectProvider<PromptBundleSelector> promptBundleSelector) {
+            ObjectProvider<PromptBundleSelector> promptBundleSelector,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         // Without a selector bean the configured bundle runs (contexa.security.tiered.prompt-bundle.active, W3-16).
-        return new SecurityDecisionStandardPromptTemplate(
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
                 canonicalSecurityContextProvider,
@@ -324,6 +331,9 @@ public class CoreAutonomousAutoConfiguration {
                 promptGovernanceDescriptorResolver.getIfAvailable(PromptGovernanceDescriptorResolver::identity),
                 promptRuntimeGovernanceRuleProvider.getIfAvailable(PromptRuntimeGovernanceRuleProvider::none),
                 promptBundleSelector.getIfAvailable());
+        // W4-4: the system text states the minimum action rules the strategies check, with the host's settings.
+        template.setMinimumActionSettings(securityZeroTrustProperties.getMinimumAction().toRules());
+        return template;
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -344,11 +354,15 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityLearningService securityLearningService(
             ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
             ObjectProvider<SecurityDecisionPostProcessor> postProcessorProvider,
-            @Qualifier("securityLearningPostProcessExecutor") ExecutorService securityLearningPostProcessExecutor) {
-        return new SecurityLearningService(
+            @Qualifier("securityLearningPostProcessExecutor") ExecutorService securityLearningPostProcessExecutor,
+            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider) {
+        SecurityLearningService service = new SecurityLearningService(
                 baselineLearningServiceProvider.getIfAvailable(),
                 postProcessorProvider.getIfAvailable(),
                 securityLearningPostProcessExecutor);
+        // The analysis layers' decision documents are stored once the decision is enforced (W5-3).
+        service.setContextObservationRecorder(contextObservationRecorderProvider.getIfAvailable());
+        return service;
     }
 @Bean
     @ConditionalOnMissingBean
@@ -449,7 +463,8 @@ public class CoreAutonomousAutoConfiguration {
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
             @Qualifier("layer1RagRetrievalExecutor") ExecutorService layer1RagRetrievalExecutor,
             TieredStrategyProperties tieredStrategyProperties,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ModelSelectionStrategy> modelSelectionStrategy) {
         Layer1ContextualStrategy strategy = new Layer1ContextualStrategy(
                 unifiedVectorService,
                 dataStore,
@@ -469,6 +484,7 @@ public class CoreAutonomousAutoConfiguration {
                 structuredOutputCapabilityRegistry,
                 layer1RagRetrievalExecutor);
         applyMinimumActionSettings(strategy, securityZeroTrustProperties);
+        strategy.setModelSelectionStrategy(modelSelectionStrategy::getIfAvailable);
         return strategy;
     }
 
@@ -508,7 +524,8 @@ public class CoreAutonomousAutoConfiguration {
             PromptContextAuthorizationService promptContextAuthorizationService,
             ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             StructuredOutputCapabilityRegistry structuredOutputCapabilityRegistry,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<ModelSelectionStrategy> modelSelectionStrategy) {
         Layer2ExpertStrategy strategy = new Layer2ExpertStrategy(
                 approvalService,
                 dataStore,
@@ -528,6 +545,7 @@ public class CoreAutonomousAutoConfiguration {
                 pipelineOrchestrator.getIfAvailable(),
                 structuredOutputCapabilityRegistry);
         applyMinimumActionSettings(strategy, securityZeroTrustProperties);
+        strategy.setModelSelectionStrategy(modelSelectionStrategy::getIfAvailable);
         return strategy;
     }
 
@@ -536,8 +554,15 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
             SecurityContextDataStore dataStore,
-            UnifiedVectorService unifiedVectorService) {
-        return new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+            UnifiedVectorService unifiedVectorService,
+            ObjectProvider<SecurityZeroTrustProperties> securityZeroTrustProperties) {
+        SecurityDecisionPostProcessor postProcessor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityZeroTrustProperties properties = securityZeroTrustProperties.getIfAvailable();
+        if (properties != null && properties.getBaseline() != null && properties.getBaseline().getPromotion() != null) {
+            // The past record of an allowed request the learning promotion holds is stored held (W5-1).
+            postProcessor.setLearningPromotionSettings(properties.getBaseline().getPromotion().toPolicy());
+        }
+        return postProcessor;
     }
 
     @Bean
@@ -587,8 +612,31 @@ public class CoreAutonomousAutoConfiguration {
             SecurityContextDataStore securityContextDataStore,
             ObjectProvider<SecurityLearningService> securityLearningService,
             ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            ObjectProvider<LearningPromotionService> learningPromotionService,
+            ObjectProvider<UnifiedVectorService> unifiedVectorService) {
+        VerificationLearningService service = new VerificationLearningService(securityContextDataStore,
+                securityLearningService.getIfAvailable(), protectableWorkProfileCollector.getIfAvailable(),
+                securityZeroTrustProperties);
+        service.setLearningPromotionService(learningPromotionService.getIfAvailable());
+        // W5-4: a verification or a release writes how the decision ended on the decision's record.
+        UnifiedVectorService vectors = unifiedVectorService.getIfAvailable();
+        service.setPastRecordQuery(vectors != null ? vectors.pastRecordQuery() : null);
+        return service;
+    }
+
+    /**
+     * Holds back an allowed request whose first-seen values on a sensitive resource no record explains, and learns it
+     * once they are seen on other days or verified (W5-1, plan L1).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public LearningPromotionService learningPromotionService(
+            SecurityContextDataStore securityContextDataStore,
+            ObjectProvider<SecurityLearningService> securityLearningService,
+            ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new VerificationLearningService(securityContextDataStore, securityLearningService.getIfAvailable(),
+        return new LearningPromotionService(securityContextDataStore, securityLearningService.getIfAvailable(),
                 protectableWorkProfileCollector.getIfAvailable(), securityZeroTrustProperties);
     }
 

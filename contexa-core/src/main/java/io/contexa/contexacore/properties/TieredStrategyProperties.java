@@ -32,6 +32,7 @@ public class TieredStrategyProperties {
     private Truncation truncation = new Truncation();
     private Security security = new Security();
     private PromptRuntime promptRuntime = new PromptRuntime();
+    private Determinism determinism = new Determinism();
     private PromptBundle promptBundle = new PromptBundle();
 
     /**
@@ -52,6 +53,19 @@ public class TieredStrategyProperties {
 
         /** Which selector chooses the bundle: this configuration, or the prompt governance registry. */
         private Selector selector = Selector.CONFIGURATION;
+
+        /** W6-9: the shadow run of the registry's shadow release. */
+        private Shadow shadow = new Shadow();
+
+        @Data
+        public static class Shadow {
+
+            /** The share of requests a shadow release runs on, 0 to 100; 0 runs none. */
+            private int samplePercent = 0;
+
+            /** The shadow runs allowed per UTC day, one model call each. */
+            private int dailyCallCap = 100;
+        }
     }
 
     @Data
@@ -60,6 +74,16 @@ public class TieredStrategyProperties {
         private List<String> trustedProxies = Collections.emptyList();
 
         private boolean trustedProxyValidationEnabled = true;
+    }
+
+    /**
+     * W4-6: the determinism settings a security decision asks every provider for (contexa.security.tiered.determinism.*).
+     * The options factory sets the ones the provider and model take and records the others on the call.
+     */
+    @Data
+    public static class Determinism {
+        private Double temperature = 0.0d;
+        private Integer seed = 1;
     }
 
     @Data
@@ -136,8 +160,9 @@ public class TieredStrategyProperties {
         private Prompt prompt = new Prompt();
         private int vectorSearchLimit = 12;
         private String defaultBudgetProfile = "CORTEX_L1_INTERACTIVE_STRICT";
-        private int maxOutputTokens = 256;
-        private String openAiReasoningEffort = "minimal";
+        /** W4-6 (G-5): a reasoning model's reasoning tokens count against this limit. */
+        private int maxOutputTokens = 2048;
+        private String openAiReasoningEffort = "low";
         private String openAiVerbosity = "low";
 
         @Data
@@ -215,8 +240,9 @@ public class TieredStrategyProperties {
         private ZeroTrustAction escalateFallbackAction = ZeroTrustAction.CHALLENGE;
         private int ragTopK = 5;
         private String defaultBudgetProfile = "CORTEX_L2_EXPERT_STRICT";
-        private int maxOutputTokens = 320;
-        private String openAiReasoningEffort = "minimal";
+        /** W4-6 (G-5): a reasoning model's reasoning tokens count against this limit. */
+        private int maxOutputTokens = 2560;
+        private String openAiReasoningEffort = "low";
         private String openAiVerbosity = "low";
 
         @Data

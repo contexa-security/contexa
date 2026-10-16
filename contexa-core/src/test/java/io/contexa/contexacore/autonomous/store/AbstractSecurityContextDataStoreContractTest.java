@@ -22,6 +22,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -219,6 +221,15 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("how the verification of a stopped request ended is kept by its event, for a record stored after it (W5-4)")
+    void verificationOutcome_isKeptByTheEvent() {
+        store.recordVerificationOutcome("event-held", "verified by step-up");
+
+        assertThat(store.verificationOutcome("event-held")).isEqualTo("verified by step-up");
+        assertThat(store.verificationOutcome("event-other")).isNull();
+    }
+
+    @Test
     @DisplayName("the facts of a request a restriction stopped are kept until they are taken, once (W5-2)")
     void verificationLearning_isTakenOnce() {
         store.holdVerificationLearning("user-held", "request-1", "{\"requestPath\":\"/api/a\"}");
@@ -232,6 +243,23 @@ abstract class AbstractSecurityContextDataStoreContractTest {
         store.holdVerificationLearning("user-held", "request-3", "{}");
         store.deleteUserData("user-held");
         assertThat(store.takeVerificationLearning("user-held", "request-3")).isNull();
+    }
+
+    @Test
+    @DisplayName("a held request waits, listed with the user's other held requests, until it is removed (W5-1)")
+    void promotionLearning_isListedUntilRemoved() {
+        store.holdPromotionLearning("user-held", "request-1", "{\"day\":\"2026-09-29\"}");
+        store.holdPromotionLearning("user-held", "request-2", "{\"day\":\"2026-09-30\"}");
+        store.holdPromotionLearning("user-other", "request-3", "{}");
+
+        assertThat(store.promotionLearning("user-held")).isEqualTo(Map.of(
+                "request-1", "{\"day\":\"2026-09-29\"}", "request-2", "{\"day\":\"2026-09-30\"}"));
+        store.removePromotionLearning("user-held", List.of("request-1", "request-9"));
+        assertThat(store.promotionLearning("user-held")).containsOnlyKeys("request-2");
+        // The held requests are the user's data and go with it.
+        store.deleteUserData("user-held");
+        assertThat(store.promotionLearning("user-held")).isEmpty();
+        assertThat(store.promotionLearning("user-other")).containsOnlyKeys("request-3");
     }
 
     @Test

@@ -15,6 +15,17 @@
  */
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import static org.mockito.Mockito.times;
+import java.util.List;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
+import io.contexa.contexacore.autonomous.context.decision.DeviationDimension;
+import io.contexa.contexacore.autonomous.context.decision.Deviation;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import java.time.Instant;
 import java.time.ZoneId;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -26,6 +37,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
@@ -36,6 +48,9 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
@@ -225,6 +240,80 @@ class SecurityDecisionPostProcessorTest {
                 .containsEntry("verificationWeight", 0.5);
     }
 
+    /**
+     * W5-4: a step-up that ended before the record of the decision it lifted was stored still has its outcome on the
+     * record: the record is stored first, then the outcome kept by its event is written on it.
+     */
+    @Test
+    void theOutcomeOfAVerificationThatEndedFirstIsWrittenOnceTheRecordIsStored() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        PastRecordQuery query = mock(PastRecordQuery.class);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+        when(dataStore.verificationOutcome("event-challenged-001")).thenReturn(PastDeniedDecisions.VERIFIED_BY_STEP_UP);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-challenged-001")
+                .userId("alice")
+                .sourceIp("10.40.12.7")
+                .description("POST /api/projects/PLM-OPS/exports")
+                .timestamp(LocalDateTime.of(2026, 9, 22, 13, 29).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/api/projects/PLM-OPS/exports");
+        event.addMetadata("httpMethod", "POST");
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.CHALLENGE)
+                .riskScore(0.7)
+                .confidence(0.8)
+                .reasoning("An export at an unusual hour")
+                .build();
+
+        processor.storeInVectorDatabase(event, decision);
+
+        InOrder order = inOrder(unifiedVectorService, query);
+        order.verify(unifiedVectorService).storeDocument(any(Document.class));
+        for (String documentId : PastDeniedDecisions.documentIds("event-challenged-001")) {
+            order.verify(query).recordOutcome(documentId, PastDeniedDecisions.VERIFIED_BY_STEP_UP);
+        }
+    }
+
+    /** W5-1: an allowed request the learning promotion holds is stored held, so it is not retrieved yet. */
+    @Test
+    void anAllowedRequestHeldForPromotionIsAHeldPastRecord() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityDecision allowed = SecurityDecision.builder().action(ZeroTrustAction.ALLOW).riskScore(0.2)
+                .confidence(0.8).build();
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(decidedEvent("event-held-001", "CRITICAL"), allowed);
+        processor.storeInVectorDatabase(decidedEvent("event-usual-001", "NORMAL"), allowed);
+        processor.setLearningPromotionSettings(new LearningPromotionPolicy.Settings(false, "SENSITIVE", 2, 2, true));
+        processor.storeInVectorDatabase(decidedEvent("event-off-001", "CRITICAL"), allowed);
+
+        ArgumentCaptor<Document> documents = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService, times(3)).storeDocument(documents.capture());
+        List<Document> stored = documents.getAllValues();
+        assertThat(stored.get(0).getMetadata())
+                .containsEntry(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
+        assertThat(stored.get(1).getMetadata()).doesNotContainKey(VectorDocumentMetadata.LEARNING_STATE);
+        assertThat(stored.get(2).getMetadata()).doesNotContainKey(VectorDocumentMetadata.LEARNING_STATE);
+    }
+
+    private static SecurityEvent decidedEvent(String eventId, String resourceClass) {
+        CanonicalSecurityContext.Resource resource = new CanonicalSecurityContext.Resource();
+        resource.setResourceClass(resourceClass);
+        CanonicalSecurityContext context = new CanonicalSecurityContext();
+        context.setResource(resource);
+        context.setDecisionFacts(new DecisionFacts(List.of(), List.of(new Deviation(DeviationDimension.DEVICE,
+                "Safari/18 on MAC", true, true, 0, 25, null, Deviation.Explanation.UNEXPLAINED, null)),
+                PolicySatisfaction.UNKNOWN, List.of()));
+        SecurityEvent event = SecurityEvent.builder().eventId(eventId).userId("alice").sourceIp("203.0.113.9")
+                .userAgent("Mozilla/5.0 (Macintosh) Safari/18").description("POST /api/projects/GB-500/exports")
+                .timestamp(LocalDateTime.of(2026, 9, 30, 3, 17).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/api/projects/GB-500/exports");
+        event.addMetadata(LearningPromotionPolicy.DECIDED_CONTEXT, context);
+        return event;
+    }
+
     @Test
     void storeInVectorDatabaseShouldRecordTheRequestsActionFamilyNotTheDecision() {
         SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
@@ -354,5 +443,39 @@ class SecurityDecisionPostProcessorTest {
         assertThat(documentCaptor.getValue().getMetadata())
                 .containsEntry("requestItems", 4831)
                 .containsEntry("networkZone", "CORPORATE");
+    }
+
+    @Test
+    void aTenantIsNotTakenForTheOrganizationOfAPastRecord() {
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-tenant-only")
+                .sessionId("session-1")
+                .userId("alice")
+                .sourceIp("203.0.113.10")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .timestamp(LocalDateTime.of(2026, 3, 30, 11, 30).atZone(ZoneId.systemDefault()).toInstant())
+                .build();
+        event.addMetadata("requestPath", "/payments");
+        event.addMetadata("httpMethod", "GET");
+        event.addMetadata("tenantId", "demo");
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .autonomousAction(ZeroTrustAction.ALLOW)
+                .processingLayer(1)
+                .build();
+        doNothing().when(unifiedVectorService).storeDocument(any(Document.class));
+
+        processor.storeInVectorDatabase(event, decision);
+
+        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
+        verify(unifiedVectorService).storeDocument(documentCaptor.capture());
+        // W5-7: the record says which classification vocabulary its values are in.
+        assertThat(documentCaptor.getValue().getMetadata())
+                .containsEntry("vocabularyVersion", VocabularyVersion.CURRENT);
+        // W5-5: the tenant stays the tenant; only organizationId (or orgId) names the organization.
+        assertThat(documentCaptor.getValue().getMetadata())
+                .containsEntry("tenantId", "demo")
+                .doesNotContainKey(VectorDocumentMetadata.ORGANIZATION_ID);
     }
 }

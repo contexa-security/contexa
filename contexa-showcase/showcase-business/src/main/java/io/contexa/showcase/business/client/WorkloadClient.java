@@ -57,6 +57,9 @@ public final class WorkloadClient {
         }
     }
 
+    /** Prefix of every header of the signed internal context (InternalContextHeaders). */
+    private static final String SIGNED_HEADER_PREFIX = "X-Showcase-";
+
     private final URI base;
     private final InternalContextSigner signer;
     private final RunIdentity run;
@@ -106,7 +109,19 @@ public final class WorkloadClient {
     }
 
     public Response get(String pathAndQuery, String requestId, Instant observedAt) throws IOException {
-        return send(signed("GET", pathAndQuery, requestId, observedAt).GET().header("Accept", "application/json"));
+        return get(pathAndQuery, requestId, observedAt, Map.of());
+    }
+
+    /**
+     * A GET with headers the requester adds (W7-4, docs/showcase/프롬프트-최종-구현계획.md 8.7), such as an
+     * X-Contexa-Anomaly-Signal header or an X-Request-ID of the requester's choice. They go beside the signed internal
+     * context, which keeps the run's own request id, and replace a default header of the same name; a header of the
+     * signed context or the run's device cannot be added ({@link #isReservedHeader}).
+     */
+    public Response get(String pathAndQuery, String requestId, Instant observedAt, Map<String, String> headers)
+            throws IOException {
+        return send(added(signed("GET", pathAndQuery, requestId, observedAt).GET()
+                .header("Accept", "application/json"), headers));
     }
 
     public Response delete(String pathAndQuery, String requestId) throws IOException {
@@ -115,10 +130,16 @@ public final class WorkloadClient {
 
     public Response postJson(String pathAndQuery, String requestId, Instant observedAt, String json)
             throws IOException {
-        return send(signed("POST", pathAndQuery, requestId, observedAt)
+        return postJson(pathAndQuery, requestId, observedAt, json, Map.of());
+    }
+
+    /** A JSON POST with headers the requester adds, as {@link #get(String, String, Instant, Map)} (W7-4). */
+    public Response postJson(String pathAndQuery, String requestId, Instant observedAt, String json,
+                             Map<String, String> headers) throws IOException {
+        return send(added(signed("POST", pathAndQuery, requestId, observedAt)
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json == null ? "" : json)));
+                .POST(HttpRequest.BodyPublishers.ofString(json == null ? "" : json)), headers));
     }
 
     public Response postForm(String pathAndQuery, String requestId, Instant observedAt, Map<String, String> form)
@@ -135,9 +156,16 @@ public final class WorkloadClient {
     /** Opens a streaming response; the caller reads and closes the body. */
     public HttpResponse<InputStream> openStream(String pathAndQuery, String requestId, Instant observedAt)
             throws IOException {
+        return openStream(pathAndQuery, requestId, observedAt, Map.of());
+    }
+
+    /** A streaming GET with headers the requester adds, as {@link #get(String, String, Instant, Map)} (W7-4). */
+    public HttpResponse<InputStream> openStream(String pathAndQuery, String requestId, Instant observedAt,
+                                                Map<String, String> headers) throws IOException {
         try {
-            return http.send(signed("GET", pathAndQuery, requestId, observedAt).GET()
-                    .header("Accept", "application/x-ndjson").build(), HttpResponse.BodyHandlers.ofInputStream());
+            return http.send(added(signed("GET", pathAndQuery, requestId, observedAt).GET()
+                    .header("Accept", "application/x-ndjson"), headers).build(),
+                    HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while opening " + pathAndQuery, e);
@@ -191,6 +219,30 @@ public final class WorkloadClient {
         if (value != null && !value.isBlank()) {
             builder.header(name, value);
         }
+    }
+
+    /**
+     * True for a header no requester header may replace (W7-4): a header of the signed internal context, which the
+     * signature covers, and the User-Agent, which carries the run's device.
+     */
+    public static boolean isReservedHeader(String name) {
+        return name == null || name.regionMatches(true, 0, SIGNED_HEADER_PREFIX, 0, SIGNED_HEADER_PREFIX.length())
+                || "User-Agent".equalsIgnoreCase(name);
+    }
+
+    /** The requester's headers, sent as written after the client's own (W7-4). */
+    private static HttpRequest.Builder added(HttpRequest.Builder builder, Map<String, String> headers) {
+        if (headers == null) {
+            return builder;
+        }
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            if (isReservedHeader(header.getKey())) {
+                throw new IllegalArgumentException("Header " + header.getKey()
+                        + " belongs to the run's signed context and cannot be added");
+            }
+            builder.setHeader(header.getKey(), header.getValue());
+        }
+        return builder;
     }
 
     private static String encode(String value) {

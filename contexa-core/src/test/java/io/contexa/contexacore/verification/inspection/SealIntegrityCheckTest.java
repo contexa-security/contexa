@@ -145,6 +145,58 @@ class SealIntegrityCheckTest {
                 });
     }
 
+    /**
+     * W6-6 (P6-CHANGE-4): the sealed prompt is the one the decision rests on, the prompt the last model call sent; a
+     * second pass that called the model again is the last call.
+     */
+    @Test
+    void theSealedPromptIsTheOneTheLastModelCallSent() throws Exception {
+        SealedEvidencePackage sealed = withStages(seal("user prompt", "user prompt", Map.of()), List.of(
+                Map.of("layer", "Layer1", "userPromptHash", SealIntegrityCheck.sha256("first pass prompt")),
+                Map.of("layer", "Layer2", "userPromptHash", SealIntegrityCheck.sha256("user prompt"))));
+
+        PromptInspectionCheckResult check = check(sealed);
+
+        assertThat(check.findings()).isEmpty();
+        assertThat(check.matched()).isEqualTo(10);
+    }
+
+    @Test
+    void aSealedPromptOtherThanTheLastModelCallsIsPointedAt() throws Exception {
+        SealedEvidencePackage sealed = withStages(seal("user prompt", "user prompt", Map.of()), List.of(
+                Map.of("layer", "Layer1", "userPromptHash", SealIntegrityCheck.sha256("user prompt")),
+                Map.of("layer", "Layer2", "userPromptHash", SealIntegrityCheck.sha256("second pass prompt"))));
+
+        PromptInspectionFinding finding = single(check(sealed));
+
+        assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.MISMATCH);
+        assertThat(finding.entry()).isEqualTo("modelCallStages");
+        assertThat(finding.sourceRef()).isEqualTo("sealedPackage.decisionJson.modelCallStages");
+        assertThat(finding.expected()).isEqualTo(SealIntegrityCheck.sha256("second pass prompt"));
+        assertThat(finding.actual()).isEqualTo(SealIntegrityCheck.sha256("user prompt"));
+    }
+
+    @Test
+    void aLastModelCallWithoutItsPromptHashCannotBeComparedAndSaysSo() throws Exception {
+        SealedEvidencePackage sealed = withStages(seal("user prompt", "user prompt", Map.of()),
+                List.of(Map.of("layer", "Layer1")));
+
+        PromptInspectionFinding finding = single(check(sealed));
+
+        assertThat(finding.outcome()).isEqualTo(PromptInspectionOutcome.UNVERIFIABLE);
+        assertThat(finding.entry()).isEqualTo("modelCallStages");
+    }
+
+    private SealedEvidencePackage withStages(SealedEvidencePackage sealed, List<Map<String, Object>> stages)
+            throws Exception {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), Map.class);
+        decision.put("modelCallStages", stages);
+        sealed.setDecisionJson(JSON.writeValueAsString(decision));
+        sealed.setPackageHash(integrity.computeHash(sealed));
+        return sealed;
+    }
+
     @Test
     void theCheckRunsOnEveryLayout() {
         assertThat(new SealIntegrityCheck().dictionaryPromptOnly()).isFalse();

@@ -46,6 +46,11 @@ public class SessionNarrativeSnapshot implements ContextSnapshot {
     /** The same decisions as records, with their targets and item counts (W2-5). */
     List<SessionDecisionRecord> sessionDecisions;
     /**
+     * The user's decisions in the last 60 minutes of the event clock across the sessions the user holds, this request
+     * included; null when the store keeps no session list (W5-10 D5).
+     */
+    Integer userRequestsLastHour;
+    /**
      * The device the session first came from and this request's, when their operating system or browser differs
      * ({@code Chrome/140 on WINDOWS -> Safari/17 on MAC}, W2-14); null when they do not differ or either is unknown.
      */

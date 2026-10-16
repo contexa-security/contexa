@@ -581,7 +581,11 @@ public final class CompanyRecordsEvaluator {
             text.append(", decided before the request");
         }
         else {
-            text.append(", decision time not recorded");
+            // N-WORD-1 (Q-87): what was checked (a window that covers the request) and what was not (the decision time).
+            if (record != null && (record.getValidFrom() != null || record.getValidUntil() != null)) {
+                text.append(", valid at the request time");
+            }
+            text.append(", decision time not recorded (a decision after the request is not ruled out)");
         }
         return text.toString();
     }

@@ -53,6 +53,7 @@ public class SessionNarrativeProfileResolver extends AbstractProfileResolver<Ses
                         metadata.get("sessionActions")))
                 .sessionDecisionHistory(sequence(metadata.get("sessionDecisionHistory")))
                 .sessionDecisions(SessionDecisionRecord.listOf(metadata.get(SessionDecisionRecord.METADATA_KEY)))
+                .userRequestsLastHour(toInt(metadata.get("userRequestsLastHour")))
                 .sessionProtectableSequence(sequence(
                         metadata.get("sessionProtectableSequence"),
                         metadata.get("recentProtectableSequence"),

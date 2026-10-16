@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.TimeZone;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,8 +52,10 @@ import java.util.zip.GZIPInputStream;
  * Renders the security decision prompt from the golden inputs: real sealed evidence of the showcase measurement
  * cases, turned back into renderer inputs. The canonical context is deserialized as sealed; the request facts,
  * authentication state, baseline summary and retrieval counts go back into the event metadata under the keys the
- * sealed evidence assembler read them from; the retrieval summaries become documents. The full behaviour analysis is
- * not sealed, so it is absent here. The prompts come from the template the way the decision request sends them.
+ * sealed evidence assembler read them from; the retrieval summaries become documents. The behaviour analysis is not
+ * sealed; unless a caller gives one, it is built from the case's learning evidence (the baselines its source run held)
+ * the way the decision layers build it (N-GOLD-1). The prompts come from the template the way the decision request
+ * sends them.
  */
 final class SecurityDecisionGoldenRender {
 
@@ -177,10 +181,12 @@ final class SecurityDecisionGoldenRender {
                 null);
         SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(sections);
         SecurityEvent event = event(goldenCase);
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis = behaviorAnalysis != null ? behaviorAnalysis
+                : SecurityDecisionGoldenLearning.analysis(goldenCase, event, OBJECT_MAPPER);
         SecurityDecisionRequest request = new SecurityDecisionRequest(new SecurityDecisionContext(
                 event,
                 session(goldenCase),
-                behaviorAnalysis,
+                analysis,
                 documents(goldenCase)));
         request.withParameter("promptBudgetProfile", profile.profileKey());
         request.withParameter("structuredOutputMode", StructuredOutputMode.VALIDATED_CONVERTER.name());
@@ -247,10 +253,30 @@ final class SecurityDecisionGoldenRender {
                             OBJECT_MAPPER.convertValue(entry.getValue(), Object.class));
                 }
             });
+            putClock(metadata);
             String preview = summary.path("textPreview").asText("");
             documents.add(new Document(summary.path("id").asText(), preview.isBlank() ? " " : preview, metadata));
         }
         return documents;
+    }
+
+    /**
+     * The hour and day of week of a past record, which its sealed summary does not keep: the engine wrote them with the
+     * record's timestamp from the same local time of the event (SecurityDecisionPostProcessor), so the timestamp
+     * gives them back. The closest past record of the baseline comparison is read on the hour (N-GOLD-1).
+     */
+    private static void putClock(Map<String, Object> metadata) {
+        if (metadata.containsKey("hour") || !(metadata.get("timestamp") instanceof String timestamp)) {
+            return;
+        }
+        try {
+            LocalDateTime at = LocalDateTime.parse(timestamp);
+            metadata.put("hour", at.getHour());
+            metadata.put("dayOfWeek", at.getDayOfWeek().getValue());
+        }
+        catch (DateTimeParseException exception) {
+            throw new IllegalStateException("Past record timestamp is no local date and time: " + timestamp, exception);
+        }
     }
 
     private static void putAll(SecurityEvent event, JsonNode node) {

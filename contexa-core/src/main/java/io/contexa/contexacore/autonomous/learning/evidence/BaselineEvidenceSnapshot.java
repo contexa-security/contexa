@@ -182,6 +182,27 @@ public record BaselineEvidenceSnapshot(
         };
     }
 
+    /**
+     * The share, in whole percent, of the learned values of one dimension that held this value (its frequency over the
+     * frequencies of the dimension's prefix), null when the snapshot carries no counts of the dimension (W5-10 D7).
+     */
+    public Integer sharePercent(String prefix, String value) {
+        if (prefix == null || value == null || elementFrequencies == null) {
+            return null;
+        }
+        long total = 0L;
+        for (Map.Entry<String, Long> frequency : elementFrequencies.entrySet()) {
+            if (frequency.getKey().startsWith(prefix) && frequency.getValue() != null) {
+                total += frequency.getValue();
+            }
+        }
+        if (total <= 0L) {
+            return null;
+        }
+        Long held = elementFrequencies.get(prefix + value);
+        return (int) Math.round((held != null ? held : 0L) * 100.0 / total);
+    }
+
     private static Map<String, Long> frequencies(Map<String, Long> values) {
         Map<String, Long> sorted = new TreeMap<>();
         if (values != null) {

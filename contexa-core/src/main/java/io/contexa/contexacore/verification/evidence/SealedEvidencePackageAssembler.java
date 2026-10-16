@@ -3,6 +3,7 @@ package io.contexa.contexacore.verification.evidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
@@ -10,7 +11,9 @@ import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptSnapshot;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +22,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -123,7 +129,7 @@ public class SealedEvidencePackageAssembler {
         String baselineSnapshotJson = buildBaselineSnapshot(event);
         String ragResultsJson = buildRagResults(event, promptSnapshot);
         String promptExecutionMetadataJson = serializePromptExecutionMetadata(promptSnapshot, event.getMetadata());
-        String decisionJson = buildDecisionSnapshot(result);
+        String decisionJson = buildDecisionSnapshot(result, event.getMetadata());
         String sealFailureReason = null;
         if (!captureWarnings.isEmpty()) {
             sealFailureReason = "Prompt raw capture incomplete: " + String.join(" ", captureWarnings);
@@ -330,6 +336,7 @@ public class SealedEvidencePackageAssembler {
         putFromMetadata(rag, event, "ragPermissionFiltered");
         putFromMetadata(rag, event, "ragProjectedToFinalPrompt");
         putFromMetadata(rag, event, "ragProjectionState");
+        putFromMetadata(rag, event, "ragSearchScope");
 
         List<Map<String, Object>> documents = List.of();
         List<PastRecordRelevance.Subject> records = List.of();
@@ -359,7 +366,51 @@ public class SealedEvidencePackageAssembler {
         }
         rag.put("ragRelevance", PastRecordRelevance.relevance(request, records));
         rag.put("relatedDocumentCount", documents.size());
+        putProjection(rag, promptSnapshot);
         return toJson(rag);
+    }
+
+    /**
+     * W6-12: whether the past records reached the prompt, read from the IDs the render drew against the records the
+     * lookup returned and not from how many it returned; a drawn ID the lookup did not return is named apart. A render
+     * that names no drawn IDs leaves the state the event gave.
+     */
+    private static void putProjection(Map<String, Object> rag, SealedEvidencePromptSnapshot promptSnapshot) {
+        List<String> drawn = drawnPastRecordIds(promptSnapshot);
+        if (drawn == null) {
+            return;
+        }
+        Set<String> returned = new LinkedHashSet<>();
+        if (promptSnapshot.relatedDocuments() != null) {
+            promptSnapshot.relatedDocuments().stream()
+                    .filter(Objects::nonNull)
+                    .map(PastRecordRanking::storedId)
+                    .forEach(returned::add);
+        }
+        List<String> projected = drawn.stream().filter(returned::contains).toList();
+        List<String> unmatched = drawn.stream().filter(id -> !returned.contains(id)).toList();
+        rag.put("projectedDocumentIds", projected);
+        rag.put("ragProjectedToFinalPrompt", !projected.isEmpty());
+        if (!unmatched.isEmpty()) {
+            rag.put("unmatchedDrawnIds", unmatched);
+        }
+    }
+
+    private static List<String> drawnPastRecordIds(SealedEvidencePromptSnapshot promptSnapshot) {
+        if (promptSnapshot == null) {
+            return null;
+        }
+        Object ids = null;
+        if (promptSnapshot.metadata() != null) {
+            ids = promptSnapshot.metadata().get(PromptExecutionMetadata.PROMPT_PAST_RECORD_IDS);
+        }
+        if (ids == null && promptSnapshot.promptExecutionMetadata() != null) {
+            ids = promptSnapshot.promptExecutionMetadata().toMetadataMap().get(PromptExecutionMetadata.PROMPT_PAST_RECORD_IDS);
+        }
+        if (!(ids instanceof List<?> list)) {
+            return null;
+        }
+        return list.stream().filter(Objects::nonNull).map(String::valueOf).toList();
     }
 
     /**
@@ -432,6 +483,8 @@ public class SealedEvidencePackageAssembler {
         copyPromptMetadataField(compact, source, PromptExecutionMetadata.EVENT_TIME_ZONE);
         copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_RAG_STATE);
         copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_PAST_RECORD_COUNTS);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_PAST_RECORD_IDS);
+        copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS);
         copyPromptMetadataField(compact, source, PromptExecutionMetadata.PROMPT_BASELINE_STATUS);
         copyPromptMetadataField(compact, source, PromptExecutionMetadata.OMITTED_SECTIONS);
         compact.put("storagePolicy", "OFFICIAL_VERIFICATION_MINIMAL_METADATA_V1");
@@ -543,7 +596,7 @@ public class SealedEvidencePackageAssembler {
      * Section 7: Decision result.
      * Source: ProcessingResult (set by ProcessingExecutionHandler -> SecurityEventContext.metadata)
      */
-    private String buildDecisionSnapshot(ProcessingResult result) {
+    private String buildDecisionSnapshot(ProcessingResult result, Map<String, Object> eventMetadata) {
         if (result == null) {
             return null;
         }
@@ -591,6 +644,31 @@ public class SealedEvidencePackageAssembler {
             if (decisionStage != null) {
                 decision.put("decisionAppliedStage", decisionStage);
             }
+        }
+        // N-OUT-1 (G1-2, G2-8): the model output the decision came from: the first verdict, the re-call, the raw
+        // answers and the effective settings, as the decision recorded them.
+        Map<String, Object> modelOutput = new LinkedHashMap<>();
+        if (eventMetadata != null) {
+            for (String key : PromptRuntimeTelemetrySupport.modelOutputRecordKeys()) {
+                Object value = eventMetadata.get(key);
+                if (value != null) {
+                    modelOutput.put(key, value);
+                }
+            }
+        }
+        if (!modelOutput.isEmpty()) {
+            decision.put("modelOutput", modelOutput);
+        }
+        // N-SHD-1: a shadow run's seal names the request its copy was made from, the id the decision is sealed under.
+        if (eventMetadata != null && eventMetadata.get(PromptShadowRun.ORIGINAL_REQUEST_ID) instanceof String original
+                && !original.isBlank()) {
+            decision.put(PromptShadowRun.ORIGINAL_REQUEST_ID, original);
+        }
+        // W6-6: every model call of the decision, layer by layer, as the event recorded them.
+        if (eventMetadata != null
+                && eventMetadata.get(PromptRuntimeTelemetrySupport.MODEL_CALL_STAGES) instanceof List<?> stages
+                && !stages.isEmpty()) {
+            decision.put("modelCallStages", stages);
         }
 
         return toJson(decision);

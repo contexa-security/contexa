@@ -1,0 +1,707 @@
+/*
+ * The prompt trust parts (U-1 to U-5): the source chip, the fact card, the quality ribbon, the five parts of the
+ * prompt, the facts-to-decision chain, the lab's changed lines and the decision details' checks. The same part looks
+ * the same on every screen; a source is told apart by its words, never by a colour.
+ */
+
+/* The source chip: one look for all five sources, the words say which. */
+.sourceChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  white-space: nowrap;
+}
+
+.sourceChip[data-source='NONE'] {
+  border-style: dashed;
+}
+
+/* The fact card: its ID, the plain words, the source chip and the "original" chip on one line. */
+.factCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+}
+
+.factCard[data-highlight] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.factHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.factId {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.factName {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.originalChip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.75rem;
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.originalChip:hover,
+.originalChip[aria-expanded='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+  color: var(--color-text);
+}
+
+.originalChip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.factNote {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+/* The original line and its dictionary meaning, opened in place. */
+.factOriginal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+
+.factLine {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.factMeta {
+  color: var(--color-text-muted);
+}
+
+.factMeaning {
+  color: var(--color-text-body);
+}
+
+.factGrades {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+/* The quality ribbon: one line, a failing item drawn as strongly as a passing one. */
+.ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.ribbonTitle {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.ribbonItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ribbonItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.ribbonItem[data-ok='true'] .ribbonMark {
+  color: var(--color-safe);
+}
+
+.ribbonItem[data-ok='false'] .ribbonMark {
+  color: var(--color-halt);
+}
+
+.ribbonButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-halt);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ribbonButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* The five parts of the prompt, in the order the AI reads them, and the folds under them. */
+.chunks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chunkList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chunk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chunkButton {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) minmax(0, 2fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  inline-size: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.chunkButton:hover,
+.chunkButton[aria-expanded='true'] {
+  border-color: var(--color-accent);
+}
+
+.chunkButton[aria-expanded='true'] {
+  background-color: var(--color-surface-accent);
+}
+
+.chunkButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.chunkNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-none);
+}
+
+.chunkName {
+  font-weight: var(--weight-bold);
+}
+
+.chunkWhat {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.chunkSources {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chunkChevron {
+  color: var(--color-text-muted);
+}
+
+.chunkFacts,
+.foldFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.folds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fold {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.fold summary {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) 0;
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.fold summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.foldFacts {
+  padding-block-end: var(--space-2);
+}
+
+/* The facts-to-decision chain: each row joins a fact to its reason by a line; the rows join the decision. */
+.chain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.chainHead {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) var(--space-8) minmax(0, 2fr);
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.chainRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4) 0 0;
+  border-right: 2px solid var(--color-border-strong);
+  list-style: none;
+}
+
+.chainRow {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) var(--space-8) minmax(0, 2fr);
+  align-items: center;
+}
+
+.chainLine {
+  block-size: 2px;
+  background-color: var(--color-border-strong);
+}
+
+.noLink {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-halt);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.factOnly {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.codeButton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.codeButton[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.codeButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.codeName {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.chainDecision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.chainLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.check {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+}
+
+.check[data-ok='true'] svg {
+  color: var(--color-safe);
+}
+
+.check[data-ok='false'] svg {
+  color: var(--color-halt);
+}
+
+/* The lab's changed lines: the condition, the lines it changed and the decision, joined by arrows. */
+.delta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.deltaTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.deltaFlow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr) auto auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.deltaStep {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.deltaCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.deltaLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deltaLines li[data-unexpected] {
+  color: var(--color-halt);
+  font-weight: var(--weight-semibold);
+}
+
+.deltaValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  color: var(--color-text-muted);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+/* The decision details' checks (U-4): bundle, seal, seal check and inspection, the failed checks on top. */
+.verify {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.verifyPart {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.verifyName {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.verifyBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.verifyLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-body);
+}
+
+.verifyLine code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.checks {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.checks th,
+.checks td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+  vertical-align: top;
+}
+
+/* The count columns stay on one line (a phone broke '확인 못 함' before its last letter, C-4); the check names wrap. */
+.checks thead th:not(:first-child),
+.checks td {
+  white-space: nowrap;
+}
+
+.checks tr[data-failed] th,
+.checks tr[data-failed] td {
+  color: var(--color-halt);
+  font-weight: var(--weight-semibold);
+}
+
+.mismatch {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* The same case under the other bundle: the two sides, each under its source. */
+.compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.compareSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.compareSource {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.compareSource dt {
+  color: var(--color-text-muted);
+}
+
+.compareSource dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.compareText {
+  max-block-size: 24rem;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.compareText:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Phones (mobile slide): one column; the chain and the flows read top to bottom. */
+@media (width <= 48rem) {
+  /* Named areas, so a part with several source chips keeps its name and words on their own rows (P7 C-24 check). */
+  .chunkButton {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'number name chevron'
+      '. what what'
+      '. sources sources';
+  }
+
+  .chunkNumber {
+    grid-area: number;
+  }
+
+  .chunkName {
+    grid-area: name;
+  }
+
+  .chunkWhat {
+    grid-area: what;
+  }
+
+  .chunkSources {
+    grid-area: sources;
+  }
+
+  .chunkChevron {
+    grid-area: chevron;
+  }
+
+  /* A pressable target of at least 44 px on a phone (mobile slide; the button opens the original, it is not one). */
+  .originalChip {
+    min-block-size: 2.75rem;
+  }
+
+  .chain,
+  .deltaFlow,
+  .compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chainRows {
+    padding: 0;
+    border-right: 0;
+  }
+
+  .chainHead {
+    display: none;
+  }
+
+  .chainRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .chainLine {
+    justify-self: center;
+    inline-size: 2px;
+    block-size: var(--space-4);
+  }
+
+  .arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .verifyPart {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

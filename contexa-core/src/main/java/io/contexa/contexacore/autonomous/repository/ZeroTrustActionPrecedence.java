@@ -22,8 +22,9 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
  *
  * <p>Decisions are stored per user while analysis runs per user session. Only ALLOW is bound to
  * the analysed context. BLOCK, ESCALATE and CHALLENGE restrict the user in every session: the
- * analysis of another session cannot lift an active ESCALATE or CHALLENGE. They are lifted by MFA
- * success, an approved override or a stricter decision. A CHALLENGE also lapses with its TTL; an
+ * analysis of another session cannot lift an active ESCALATE or CHALLENGE. A CHALLENGE is lifted by the
+ * MFA its challenge started, an ESCALATE only by an approved override (a review, Q-87); both by a stricter
+ * decision. A CHALLENGE also lapses with its TTL; an
  * ESCALATE whose TTL ends without resolution is promoted to BLOCK by the access filter.</p>
  */
 final class ZeroTrustActionPrecedence {

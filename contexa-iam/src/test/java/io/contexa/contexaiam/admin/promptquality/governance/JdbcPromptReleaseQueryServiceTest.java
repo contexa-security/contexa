@@ -89,6 +89,21 @@ class JdbcPromptReleaseQueryServiceTest {
         assertThat(tenant.get(0).releaseWorkflowState()).isNull();
     }
 
+    @Test
+    void theCanaryScopeOfARowIsRead() {
+        // W7-14: the version list shows a bundle's scope with the canary share and targets of its registry row.
+        registry("PLATFORM_GLOBAL", "2026.07.30-v19", "2026.07.26-v5", T0);
+        database.jdbcTemplate().update("update prompt_governance_registry set canary_percent = 10, "
+                + "canary_tenants = 'tenant-a', canary_resource_families = 'EXPORT' where prompt_version = ?",
+                "2026.07.30-v19");
+
+        JdbcPromptReleaseQueryService.PromptReleaseRow row = service.releases(null).releases().get(0);
+
+        assertThat(row.canaryPercent()).isEqualTo(10);
+        assertThat(row.canaryTenants()).isEqualTo("tenant-a");
+        assertThat(row.canaryResourceFamilies()).isEqualTo("EXPORT");
+    }
+
     private void registry(String scope, String version, String rollbackVersion, LocalDateTime timestamp) {
         writer.upsertCandidateRegistry(scope, "cortex.security-decision", "SecurityDecisionStandard", version,
                 "CORTEX_PROMPT_CONTRACT_V2", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

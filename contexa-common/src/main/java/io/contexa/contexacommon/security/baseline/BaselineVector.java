@@ -54,6 +54,18 @@ public class BaselineVector implements Serializable {
     private String[] frequentActionFamilies;
     private String[] frequentResourceFamilies;
 
+    /** The classification vocabulary the stored values are in; null for a baseline stored before it was stamped. */
+    private String vocabularyVersion;
+
+    /** The company dates of the most recent learnings, newest last; null for a baseline stored before (W5-10 D4). */
+    private String[] learnedDates;
+
+    /**
+     * Whether each of the most recent learnings brought a value the baseline had not seen, oldest first, {@code 1} or
+     * {@code 0}; null for a baseline stored before (W5-10 D4).
+     */
+    private String recentNovelty;
+
     
     @Builder.Default
     private Long updateCount = 0L;

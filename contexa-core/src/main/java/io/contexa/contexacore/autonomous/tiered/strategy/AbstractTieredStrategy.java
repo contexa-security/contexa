@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBun
 import io.contexa.contexacore.autonomous.context.support.PastRecordScope;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
+import io.contexa.contexacommon.domain.EventTimeZone;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRanking;
@@ -60,6 +62,11 @@ import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
+import io.contexa.contexacore.std.llm.client.ChatModelProviders;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.StructuredOutputChatOptions;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
@@ -82,6 +89,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -137,6 +145,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
+    private Supplier<ModelSelectionStrategy> modelSelectionStrategy;
     private MinimumActionRules.Settings minimumActionSettings = MinimumActionRules.Settings.DEFAULTS;
     private String minimumActionMode = "OBSERVE";
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
@@ -456,7 +465,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             analysis.setBaselineEstablished(false);
         } else {
             try {
-                analysis.setBaselineEstablished(baselineLearningService.getPersonalBaseline(userId) != null);
+                analysis.setBaselineEstablished(baselineLearningService.getPersonalBaseline(userId, event) != null);
 
             } catch (Exception e) {
                 log.error("[{}] Baseline service error for user {}: {}", getLayerName(), userId, e.getMessage());
@@ -856,7 +865,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             // 4. Search supporting organization documents when the personal baseline is not established.
             boolean personalBaselineEstablished = false;
             if (baselineLearningService != null) {
-                var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event));
+                var maturity = baselineLearningService.describeBaselineMaturity(userId, resolveOrganizationId(event),
+                        event);
                 if (maturity != null) {
                     personalBaselineEstablished = maturity.personalBaselineEstablished();
                 }
@@ -950,6 +960,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     /** The minimum-action rule settings the host configured and how a weaker decision is handled (W4-4). */
+    /**
+     * W4-2: the model selection the analysis runs through. A security decision names no model, so its structured
+     * output capability is that of the chat model the selection picks; taken when needed, not at creation.
+     */
+    public void setModelSelectionStrategy(Supplier<ModelSelectionStrategy> modelSelectionStrategy) {
+        this.modelSelectionStrategy = modelSelectionStrategy;
+    }
+
     public void setMinimumActionSettings(MinimumActionRules.Settings settings, String mode) {
         this.minimumActionSettings = settings != null ? settings : MinimumActionRules.Settings.DEFAULTS;
         this.minimumActionMode = mode != null ? mode : "OBSERVE";
@@ -961,16 +979,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      * (W4-5). The rules read the facts the prompt stated, from the canonical context the prompt was built on.
      */
     protected void applyMinimumActionRules(SecurityDecision decision, SecurityEvent event) {
-        if (decision == null || event == null || event.getMetadata() == null
-                || !(event.getMetadata().get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext canonical)
-                || canonical.getDecisionFacts() == null) {
+        if (decision == null) {
             return;
         }
-        CanonicalSecurityContext.Resource resource = canonical.getResource();
-        List<MinimumActionRules.Hit> hits = MinimumActionRules.evaluate(canonical.getDecisionFacts(),
-                resource != null ? resource.getResourceClass() : null,
-                resource != null ? resource.getActionFamily() : null,
-                minimumActionSettings);
+        List<MinimumActionRules.Hit> hits = minimumActionHits(event);
         if (hits.isEmpty()) {
             return;
         }
@@ -989,6 +1001,20 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         Map<String, Object> metadata = ensureMutableEventMetadata(event);
         metadata.put("minimumActionMode", minimumActionMode);
         metadata.put("minimumActionFindings", List.copyOf(findings));
+    }
+
+    /** The minimum action rules the decision facts the prompt stated meet; empty without those facts. */
+    protected List<MinimumActionRules.Hit> minimumActionHits(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null
+                || !(event.getMetadata().get("sealedEvidence.canonicalContext") instanceof CanonicalSecurityContext canonical)
+                || canonical.getDecisionFacts() == null) {
+            return List.of();
+        }
+        CanonicalSecurityContext.Resource resource = canonical.getResource();
+        return MinimumActionRules.evaluate(canonical.getDecisionFacts(),
+                resource != null ? resource.getResourceClass() : null,
+                resource != null ? resource.getActionFamily() : null,
+                minimumActionSettings);
     }
 
     /** Whether the event runs a v20 bundle (dictionary blocks, output contract v3). */
@@ -1051,6 +1077,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             capturePromptContextAudit(event, retrievalPurpose, limitedAuthorizedPromptContext);
             annotateRagSearchResult(event, searchId, requestedTopK, documents, limitedAuthorizedPromptContext);
             annotatePastRecordCounts(event, searchId, PastRecordCounts.of(request, groups));
+            annotatePastRecordScope(event, searchId, scope, sameTargetPaths, requestedTopK, query);
+            annotatePastDeniedDecisions(event, searchId,
+                    query.deniedDecisions(scope, deniedSince(event), PastDeniedDecisions.LIMIT));
             return limitedAuthorizedPromptContext.documents();
         }
         catch (RuntimeException exception) {
@@ -1060,6 +1089,26 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     "EXACT_PAST_RECORD_LOOKUP_FAILED", exception);
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * The user's recent decisions that did not allow, left on the event for the past records block (W5-4): facts only,
+     * written by the event's latest search as its counts are.
+     */
+    private void annotatePastDeniedDecisions(SecurityEvent event, String searchId, List<Document> denied) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null || Boolean.TRUE.equals(metadata.get("ragTimedOut"))
+                || !Objects.equals(searchId, metadata.get("ragSearchId"))) {
+            return;
+        }
+        metadata.put(PastDeniedDecisions.EVENT_METADATA_KEY, PastDeniedDecisions.of(denied).toMetadata());
+    }
+
+    /** Where the window of the recent decisions that did not allow starts, on the event clock (W5-4). */
+    private static LocalDateTime deniedSince(SecurityEvent event) {
+        LocalDateTime at = event.getTimestamp() != null ? event.getLocalTimestamp()
+                : LocalDateTime.now(EventTimeZone.get());
+        return at.minusDays(PastDeniedDecisions.WINDOW_DAYS);
     }
 
     private static Map<String, Object> groupMetadata(PastRecordGroup group) {
@@ -1084,6 +1133,29 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         metadata.put(PastRecordCounts.EVENT_METADATA_KEY, counts.toMetadata());
         metadata.put("ragCandidateDocumentCount", (int) Math.min(Integer.MAX_VALUE, counts.total()));
+    }
+
+    /**
+     * W6-12: how the past records were chosen, left on the event for the seal: the scope, the paths shown first, the
+     * limit, and the store's conditions and order; written by the event's latest search as its counts are.
+     */
+    private void annotatePastRecordScope(SecurityEvent event, String searchId, PastRecordScope scope,
+                                         List<String> firstPaths, int limit, PastRecordQuery query) {
+        Map<String, Object> metadata = writableMetadata(event);
+        if (metadata == null || Boolean.TRUE.equals(metadata.get("ragTimedOut"))
+                || !Objects.equals(searchId, metadata.get("ragSearchId"))) {
+            return;
+        }
+        Map<String, Object> searchScope = new LinkedHashMap<>();
+        searchScope.put("userId", scope.userId());
+        searchScope.put("retrievalPurpose", scope.retrievalPurpose());
+        searchScope.put("actionFamily", scope.actionFamily());
+        searchScope.put("excludedSessionIds", scope.excludedSessionIds());
+        searchScope.put("firstPaths", firstPaths != null ? List.copyOf(firstPaths) : List.of());
+        searchScope.put("limit", limit);
+        searchScope.put("filters", query.filters());
+        searchScope.put("order", query.order());
+        metadata.put("ragSearchScope", searchScope);
     }
 
     private boolean isLayer1SingleUserRagSearchEnabled() {
@@ -1560,7 +1632,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         String metadataOrganizationId = firstNonBlankTextValue(
                 textValue(document.getMetadata().get(VectorDocumentMetadata.ORGANIZATION_ID)),
                 textValue(document.getMetadata().get("organizationId")),
-                textValue(document.getMetadata().get("tenantId")),
                 textValue(document.getMetadata().get("orgId")));
         return metadataOrganizationId;
     }
@@ -1580,7 +1651,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             String metadataOrganizationId = firstNonBlankTextValue(
                     textValue(event.getMetadata().get(VectorDocumentMetadata.ORGANIZATION_ID)),
                     textValue(event.getMetadata().get("organizationId")),
-                    textValue(event.getMetadata().get("tenantId")),
                     textValue(event.getMetadata().get("orgId")));
             if (StringUtils.hasText(metadataOrganizationId)) {
                 return metadataOrganizationId;
@@ -1842,8 +1912,32 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         request.withParameter("responseType", SecurityDecisionResponse.class);
         request.withParameter("promptBudgetProfile", promptBudgetProfile.profileKey());
         applyOpenAiRuntimeOptions(request, event);
+        // W4-7 (inventory 6 bundle 1): the prompt estimate is calibrated for the model the analysis runs on.
+        ChatModel analysisModel = analysisChatModel();
+        String analysisModelName = analysisModel != null && analysisModel.getDefaultOptions() != null
+                ? analysisModel.getDefaultOptions().getModel()
+                : null;
+        if (StringUtils.hasText(analysisModelName)) {
+            request.withParameter("promptEstimationModelHint", analysisModelName.trim());
+        }
         StructuredOutputCapability structuredOutputCapability = resolveStructuredOutputCapability(event);
+        boolean nativeOutputAllowed = tieredStrategyProperties.getPromptRuntime()
+                .isNativeStructuredOutputEnabledForProfile(promptBudgetProfile.profileKey());
+        // W4-2: a v20 request that names no model is judged by the chat model the analysis will run on, when the prompt
+        // profile allows native structured output; the v19 bundle keeps its own format whatever the model.
+        if (runsV20Bundle(event) && nativeOutputAllowed
+                && "default".equals(structuredOutputCapability.resolutionSource())) {
+            StructuredOutputCapability selected = capabilityOf(analysisModel);
+            if (selected != null) {
+                structuredOutputCapability = selected;
+            }
+        }
         StructuredOutputMode structuredOutputMode = resolveStructuredOutputMode(event, structuredOutputCapability);
+        if (!nativeOutputAllowed && structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED
+                && !explicitStructuredOutputMode(event)) {
+            // A prompt profile with native structured output turned off keeps the schema in the system text.
+            structuredOutputMode = StructuredOutputMode.VALIDATED_CONVERTER;
+        }
         request.withParameter("structuredOutputMode", structuredOutputMode.name());
         // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
         // v19 bundle keeps its own format, and without native output the system text states the schema.
@@ -1854,6 +1948,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         request.withParameter("structuredOutputValidationMaxAttempts", 1);
         request.withParameter("strictResponsePostprocessing", true);
         request.withParameter("pipelineFailurePolicy", PipelineFailurePolicy.PROPAGATE_ERROR.name());
+        // W4-6: the platform's determinism settings; the request's own temperature and seed never reach the call.
+        // N-OUT-1 (G1-8): the layer's tier, so a configured layer model applies.
+        request.withParameter("platformAnalysisTier", analysisTier());
+        TieredStrategyProperties.Determinism determinism = tieredStrategyProperties.getDeterminism();
+        if (determinism != null && determinism.getTemperature() != null) {
+            request.withParameter("platformDeterminismTemperature", determinism.getTemperature());
+        }
+        if (determinism != null && determinism.getSeed() != null) {
+            request.withParameter("platformDeterminismSeed", determinism.getSeed());
+        }
+        // W4-5: the response check enforces the minimum action rules in enforce mode, with the host's settings.
+        request.withParameter("minimumActionMode", minimumActionMode);
+        request.withParameter("minimumActionSettings", minimumActionSettings);
         request.withParameter(
                 "nativeStructuredOutputEnabled",
                 tieredStrategyProperties.getPromptRuntime().isNativeStructuredOutputEnabledForProfile(promptBudgetProfile.profileKey()));
@@ -1879,6 +1986,51 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             }
         }
         return capability.resolvePreferredMode();
+    }
+
+    /**
+     * The structured output capability of the chat model the model selection picks for a request that names no model
+     * (the same context the security decision call builds: no tier, no model): native when its provider enforces
+     * schemas and its options can carry one; null when it cannot be told.
+     */
+    /** The chat model the analysis will run on, selected on this layer's tier; null when it cannot be selected. */
+    private ChatModel analysisChatModel() {
+        ModelSelectionStrategy selection = modelSelectionStrategy != null ? modelSelectionStrategy.get() : null;
+        if (selection == null) {
+            return null;
+        }
+        try {
+            ExecutionContext selectionContext = ExecutionContext.from(new Prompt(""));
+            selectionContext.setTier(analysisTier());
+            return selection.selectModel(selectionContext);
+        } catch (RuntimeException e) {
+            log.error("[{}] The chat model of the analysis could not be selected", getLayerName(), e);
+            return null;
+        }
+    }
+
+    private StructuredOutputCapability capabilityOf(ChatModel model) {
+        if (model == null) {
+            return null;
+        }
+        String provider = ChatModelProviders.providerOf(model);
+        if (provider == null) {
+            return null;
+        }
+        StructuredOutputCapability known = structuredOutputCapabilityRegistry.resolve(null, provider, true);
+        boolean carriesSchema = model.getDefaultOptions() instanceof StructuredOutputChatOptions;
+        return new StructuredOutputCapability(known.providerFamily(), known.nativeStructuredSupported() && carriesSchema,
+                true, "selectedChatModel");
+    }
+
+    /** N-OUT-1 (G1-8): the model tier of this layer's analysis: 2 for the second layer, 1 otherwise. */
+    protected int analysisTier() {
+        return "Layer2".equalsIgnoreCase(getLayerName()) ? 2 : 1;
+    }
+
+    private static boolean explicitStructuredOutputMode(SecurityEvent event) {
+        return event != null && event.getMetadata() != null
+                && StructuredOutputMode.fromValue(event.getMetadata().get("structuredOutputMode"), null) != null;
     }
 
     protected StructuredOutputCapability resolveStructuredOutputCapability(SecurityEvent event) {
@@ -1939,7 +2091,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     decision.getAction() != null ? decision.getAction().name() : null));
             return;
         }
-        if (Boolean.FALSE.equals(llmDecisionPresent) || rawExecutionFailed || fallbackApplied || failureCategory != null) {
+        // N-OUT-1 (G1-3): a response whose JSON broke but whose action was read is the model's decision; the format
+        // defect stays in the telemetry's parse failure category.
+        boolean formatOnlyDefect = !fallbackApplied && !rawExecutionFailed && !Boolean.FALSE.equals(llmDecisionPresent)
+                && ("MALFORMED_JSON".equals(failureCategory) || "TRUNCATED_JSON".equals(failureCategory));
+        if (!formatOnlyDefect && (Boolean.FALSE.equals(llmDecisionPresent) || rawExecutionFailed || fallbackApplied
+                || failureCategory != null)) {
             decision.setLlmDecisionPresent(false);
             decision.setTechnicalFallbackApplied(true);
             decision.setTechnicalFallbackCategory(firstNonBlank(
@@ -1979,6 +2136,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return;
         }
 
+        // W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason and reason codes; only v19 fixes sentences.
+        if (runsV20Bundle(event)) {
+            return;
+        }
         Map<String, Object> metadata = event.getMetadata();
         ZeroTrustAction finalAction = decision.resolveAutonomousAction();
         if (finalAction == ZeroTrustAction.ALLOW) {
@@ -2214,6 +2375,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         metadata.remove("userPrompt");
         metadata.remove("rawSystemPrompt");
         metadata.remove("rawUserPrompt");
+        PromptRuntimeTelemetrySupport.modelOutputTextKeys().forEach(metadata::remove);
         metadata.remove("promptSourceContextLedger");
         metadata.remove("promptSourceContextSummary");
         metadata.remove("promptRawUserFieldLedger");
@@ -2250,6 +2412,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         copyPromptTextIfPresent(responseMetadata, metadata, "userPrompt");
         copyPromptTextIfPresent(responseMetadata, metadata, "rawSystemPrompt");
         copyPromptTextIfPresent(responseMetadata, metadata, "rawUserPrompt");
+        // N-OUT-1 (G1-2): the model's raw answers travel like the prompt texts.
+        for (String key : PromptRuntimeTelemetrySupport.modelOutputTextKeys()) {
+            copyPromptTextIfPresent(responseMetadata, metadata, key);
+        }
+        // W6-6: this layer's model call stays in the record when the next layer clears the telemetry above.
+        PromptRuntimeTelemetrySupport.appendModelCallStage(metadata, getLayerName());
         if (promptContextAuditRecorder != null && hasPromptLineage(metadata)) {
             promptContextAuditRecorder.enrich(event);
         }
@@ -2267,9 +2435,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (!StringUtils.hasText(prefix)) {
             return;
         }
-        copyLayerScopedTiming(target, telemetry, prefix, "providerCallMs", "OpenAiCallMs");
+        // W4-7 (inventory 6 bundle 30): one name for the call time; the layer copy keeps the first layer's time.
+        copyLayerScopedTiming(target, telemetry, prefix, "providerCallMs", "ProviderCallMs");
         copyLayerScopedTiming(target, telemetry, prefix, "providerCallTimeoutMs", "ProviderCallTimeoutMs");
-        copyLayerScopedTiming(target, telemetry, prefix, "openAiCallMs", "OpenAiCallMs");
         copyLayerScopedTiming(target, telemetry, prefix, "providerModelSelectionMs", "ProviderModelSelectionMs");
         copyLayerScopedTiming(target, telemetry, prefix, "providerChatClientBuildMs", "ProviderChatClientBuildMs");
         copyLayerScopedTiming(target, telemetry, prefix, "providerPromptSpecPrepareMs", "ProviderPromptSpecPrepareMs");

@@ -19,8 +19,11 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.RelativeTime;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.context.prompt.PromptDictionaryRenderer;
+import io.contexa.contexacore.autonomous.context.prompt.PromptListItem;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.PastRecordRelevance;
+import io.contexa.contexacore.autonomous.tiered.prompt.PastDeniedLines;
 import io.contexa.contexacore.autonomous.tiered.prompt.PastRecordLineValues;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 
@@ -56,6 +59,9 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
     private static final String RETRIEVAL_STATE = "executionMetadata." + PromptExecutionMetadata.PROMPT_RAG_STATE;
     private static final String SEALED_COUNTS = PromptExecutionMetadata.PROMPT_PAST_RECORD_COUNTS;
     private static final String COUNTS_SOURCE = "executionMetadata." + SEALED_COUNTS;
+    private static final Pattern DENIED_LABEL = Pattern.compile("PastDeniedDecision\\d+");
+    private static final String SEALED_DENIED = PromptExecutionMetadata.PROMPT_PAST_DENIED_DECISIONS;
+    private static final String DENIED_SOURCE = "executionMetadata." + SEALED_DENIED;
 
     @Override
     public String code() {
@@ -113,6 +119,61 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
         order(tally, drawn);
         sources(tally, state);
         counts(tally, counts);
+        denied(tally);
+    }
+
+    /**
+     * The PastDeniedDecision lines are the decisions that did not allow sealed with the render, drawn the way the render
+     * draws them, in order, times measured from the sealed request time (W5-4). Decisions sealed without their lines
+     * are lines the prompt left out; a drawn line of a package that seals none cannot be compared.
+     */
+    private static void denied(PromptInspectionTally tally) {
+        List<InspectedPrompt.Line> lines = new ArrayList<>();
+        for (InspectedPrompt.Line line : tally.subject().prompt().lines()) {
+            if (line.kind() == InspectedPrompt.Kind.ENTRY && line.block() == PromptBlock.PAST_RECORDS
+                    && DENIED_LABEL.matcher(line.entryLine().label()).matches()) {
+                lines.add(line);
+            }
+        }
+        Object sealedValue = tally.subject().executionMetadata().get(SEALED_DENIED);
+        PastDeniedDecisions sealed = PastDeniedDecisions.fromMetadata(sealedValue);
+        if (lines.isEmpty() && sealed.entries().isEmpty()) {
+            return;
+        }
+        if (sealedValue == null) {
+            for (InspectedPrompt.Line line : lines) {
+                tally.unverifiable(tally.unverifiableFinding().block(PromptBlock.PAST_RECORDS.title())
+                        .entry(line.entryLine().label()).lineNumber(line.number()).sourceRef(DENIED_SOURCE)
+                        .reason("the package seals no decisions that did not allow").build());
+            }
+            return;
+        }
+        CanonicalSecurityContext context = tally.subject().canonicalContext();
+        ZoneId zone = tally.subject().eventZone();
+        if (context == null || context.getRequestObservedAt() == null || zone == null) {
+            tally.unverifiable(tally.unverifiableFinding().block(PromptBlock.PAST_RECORDS.title())
+                    .entry("PastDeniedDecision").sourceRef(CONTEXT_REQUEST_TIME)
+                    .reason("the times of the decisions that did not allow cannot be compared: the request time is "
+                            + "not sealed").build());
+            return;
+        }
+        List<PromptListItem> wanted = PastDeniedLines.items(sealed,
+                LocalDateTime.ofInstant(context.getRequestObservedAt(), zone));
+        for (int index = 0; index < Math.max(wanted.size(), lines.size()); index++) {
+            String expected = index < wanted.size() ? wanted.get(index).text() : null;
+            InspectedPrompt.Line line = index < lines.size() ? lines.get(index) : null;
+            if (line == null) {
+                tally.mismatch(tally.mismatchFinding().block(PromptBlock.PAST_RECORDS.title())
+                        .entry("PastDeniedDecision" + (index + 1)).expected(expected).sourceRef(DENIED_SOURCE)
+                        .reason("a decision that did not allow is sealed but not drawn").build());
+            } else if (expected != null && expected.equals(line.entryLine().value())) {
+                tally.matched(line);
+            } else {
+                tally.mismatch(finding(tally, line).expected(expected).actual(line.entryLine().value())
+                        .sourceRef(DENIED_SOURCE)
+                        .reason("the line is not the decision that did not allow sealed with the render").build());
+            }
+        }
     }
 
     /**

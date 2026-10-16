@@ -26,8 +26,13 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -48,6 +53,9 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     private static final Duration SESSION_NARRATIVE_TTL = ACTIVITY_TTL;
     /** A block can wait days for an administrator, so the facts of a stopped request are kept for a month (W5-2). */
     private static final Duration VERIFICATION_LEARNING_TTL = Duration.ofDays(30);
+    /** The record of a stopped request is stored moments after its decision; a day covers a delayed store (W5-4). */
+    private static final Duration VERIFICATION_OUTCOME_TTL = Duration.ofDays(1);
+    private static final Duration PROMOTION_LEARNING_TTL = Duration.ofDays(30);
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
@@ -831,12 +839,83 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void recordVerificationOutcome(String eventId, String outcome) {
+        if (eventId == null || eventId.isBlank() || outcome == null) {
+            return;
+        }
+        try {
+            redisTemplate.opsForValue().set(ZeroTrustRedisKeys.verificationOutcome(eventId), outcome,
+                    VERIFICATION_OUTCOME_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to keep the outcome of a verification: eventId={}", eventId, e);
+        }
+    }
+
+    @Override
+    public String verificationOutcome(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            return null;
+        }
+        try {
+            Object outcome = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.verificationOutcome(eventId));
+            return outcome != null ? outcome.toString() : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read the outcome of a verification: eventId={}", eventId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void holdPromotionLearning(String userId, String requestId, String record) {
+        if (userId == null || userId.isBlank() || requestId == null || record == null) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.promotionLearning(userId);
+            redisTemplate.opsForHash().put(key, requestId, record);
+            redisTemplate.expire(key, PROMOTION_LEARNING_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to hold a request for promotion: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public Map<String, String> promotionLearning(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, String> held = new LinkedHashMap<>();
+            redisTemplate.opsForHash().entries(ZeroTrustRedisKeys.promotionLearning(userId))
+                    .forEach((requestId, record) -> held.put(requestId.toString(), record.toString()));
+            return held;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read the requests held for promotion: userId={}",
+                    userId, e);
+            return Map.of();
+        }
+    }
+
+    @Override
+    public void removePromotionLearning(String userId, Collection<String> requestIds) {
+        if (userId == null || userId.isBlank() || requestIds == null || requestIds.isEmpty()) {
+            return;
+        }
+        try {
+            redisTemplate.opsForHash().delete(ZeroTrustRedisKeys.promotionLearning(userId), requestIds.toArray());
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to remove promoted requests: userId={}", userId, e);
+        }
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
         }
         List<String> keys = new ArrayList<>(List.of(
                 ZeroTrustRedisKeys.verificationLearning(userId),
+                ZeroTrustRedisKeys.promotionLearning(userId),
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
                 ZeroTrustRedisKeys.authenticationMfaVerified(userId),
@@ -845,7 +924,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                 ZeroTrustRedisKeys.userWorkProfileObservations(userId),
                 ZeroTrustRedisKeys.userPermissionChangeObservations(userId),
                 ZeroTrustRedisKeys.userAuthorizationScopeState(userId)));
-        String anyTenantScope = "*::" + escapeGlob(userId);
+        String anyTenantScope = "*::" + ZeroTrustRedisKeys.globLiteral(userId);
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userWorkProfileObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userPermissionChangeObservations(anyTenantScope)));
         keys.addAll(scanKeys(ZeroTrustRedisKeys.userAuthorizationScopeState(anyTenantScope)));
@@ -860,17 +939,6 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         return keys;
     }
 
-    private static String escapeGlob(String value) {
-        StringBuilder escaped = new StringBuilder(value.length());
-        for (char c : value.toCharArray()) {
-            if (c == '\\' || c == '*' || c == '?' || c == '[' || c == ']') {
-                escaped.append('\\');
-            }
-            escaped.append(c);
-        }
-        return escaped.toString();
-    }
-
     @Override
     public void trackUserSession(String userId, String sessionId) {
         try {
@@ -879,6 +947,25 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             redisTemplate.expire(key, USER_SESSIONS_TTL);
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to track user session: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public Set<String> getUserSessions(String userId) {
+        try {
+            Set<Object> members = redisTemplate.opsForSet().members(ZeroTrustRedisKeys.userSessions(userId));
+            Set<String> sessions = new TreeSet<>();
+            if (members != null) {
+                for (Object member : members) {
+                    if (member != null) {
+                        sessions.add(member.toString());
+                    }
+                }
+            }
+            return sessions;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read user sessions: userId={}", userId, e);
+            return null;
         }
     }
 

@@ -15,6 +15,13 @@
  */
 package io.contexa.contexacore.std.pipeline.processor;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFact;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.context.decision.PolicyReason;
+import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.prompt.Prompt;
 
@@ -279,11 +286,120 @@ class SecurityDecisionRawOutputContractInspectorTest {
         assertThat(result.semanticViolation()).isEqualTo(expectedViolation);
     }
 
+    /**
+     * W4-5 (plan 7, dictionary 6): given the rule check, an answer weaker than a minimum action rule is a violation that
+     * names the rule and the action it asks for; without the check (observe mode) it is not.
+     */
+    @Test
+    void anAnswerWeakerThanAMinimumActionRuleIsAViolationWhenTheRulesAreChecked() {
+        SecurityDecisionRawOutputContractInspector.MinimumActionCheck check =
+                new SecurityDecisionRawOutputContractInspector.MinimumActionCheck(new DecisionFacts(List.of(), List.of(), new PolicySatisfaction(false, PolicyReason.NO_RECORD,
+                        List.of(), "no approval for GB-500", List.of("EXPORT_APPROVAL")), List.of()),
+                        "CRITICAL", "EXPORT", MinimumActionRules.Settings.DEFAULTS);
+        String allow = "{\"action\":\"ALLOW\",\"reasoning\":\"The export looks routine.\"}";
+        String challenge = "{\"action\":\"CHALLENGE\",\"reasoning\":\"No approval covers the export.\"}";
+        String escalate = "{\"action\":\"ESCALATE\",\"reasoning\":\"No approval covers the export.\"}";
+
+        SecurityDecisionRawOutputContractInspector.Inspection weaker =
+                inspector.inspect(allow, new Prompt("facts"), "w45-rule", "initial", check);
+        assertThat(weaker.requiresRetry()).isTrue();
+        assertThat(weaker.retryReason()).contains("MIN_P3_POLICY_NOT_SATISFIED").contains("requires ESCALATE");
+        // Q-87 (N-P3-1): P3 asks for a review, so a challenge is weaker than it.
+        assertThat(inspector.inspect(challenge, new Prompt("facts"), "w45-rule", "initial", check).requiresRetry())
+                .isTrue();
+        assertThat(inspector.inspect(escalate, new Prompt("facts"), "w45-rule", "initial", check).requiresRetry())
+                .isFalse();
+        assertThat(inspector.inspect(allow, new Prompt("facts"), "w45-rule", "initial", null).requiresRetry()).isFalse();
+    }
+
+    /**
+     * W4-8 (S-28): a v20 answer is checked on the facts its prompt was drawn from: the low-risk boundary, which the v19
+     * label check never saw in a v20 prompt, and a reason code citing an ID the prompt does not give.
+     */
+    @Test
+    void aV20AnswerIsCheckedOnTheFactsItsPromptWasDrawnFrom() {
+        String userPrompt = """
+            === SESSION (host) ===
+            LoginMethod: PASSWORD, MFA not verified
+
+            === REQUEST (host) ===
+            ResourceClass: NORMAL
+
+            === DECISION FACTS (computed) ===
+            [F1] AuthorizationEffect: ALLOW
+            [F2] SameAsBaseline: time, network as usual
+            """;
+        SecurityDecisionRawOutputContractInspector.V20Check v20 = new SecurityDecisionRawOutputContractInspector.V20Check(
+                v20Context(), userPrompt, MinimumActionRules.Settings.DEFAULTS);
+        String challenge = "{\"action\":\"CHALLENGE\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\",\"fact\":\"F2\"}],"
+                + "\"reason\":\"MFA is not verified.\"}";
+        String allowCitingNoFact = "{\"action\":\"ALLOW\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\",\"fact\":\"F7\"}],"
+                + "\"reason\":\"The read is as usual.\"}";
+        String allow = "{\"action\":\"ALLOW\",\"reasonCodes\":[{\"code\":\"BASELINE_MATCH\",\"fact\":\"F2\"}],"
+                + "\"reason\":\"The read is as usual.\"}";
+
+        assertThat(inspector.inspect(challenge, new Prompt("system\n" + userPrompt), "w48", "initial", null, v20).retryReason())
+                .isEqualTo("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+        assertThat(inspector.inspect(allowCitingNoFact, new Prompt("system\n" + userPrompt), "w48", "initial", null, v20)
+                .retryReason()).startsWith("REASON_CODE_MISMATCH: BASELINE_MATCH F7");
+        assertThat(inspector.inspect(allow, new Prompt("system\n" + userPrompt), "w48", "initial", null, v20).requiresRetry())
+                .isFalse();
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                "REQUIRED_COVERED_WORK_BOUNDARY_ACTION_MISMATCH")).isEqualTo("ALLOW");
+    }
+
+    private static CanonicalSecurityContext v20Context() {
+        return CanonicalSecurityContext.builder()
+                .session(CanonicalSecurityContext.Session.builder().mfaVerified(false).build())
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("NORMAL").actionFamily("READ").build())
+                .authorization(CanonicalSecurityContext.Authorization.builder().authorizationEffect("ALLOW").build())
+                .decisionFacts(new DecisionFacts(List.of(new DecisionFact(null, "SameAsBaseline", "time, network as usual",
+                        List.of("BASELINE_MATCH"), List.of(), DecisionFact.COMPUTED)), List.of(), PolicySatisfaction.UNKNOWN,
+                        List.of()))
+                .build();
+    }
+
     private SecurityDecisionRawOutputContractInspector.Inspection inspect(
             String promptFacts,
             String action,
             String reasoning) {
         String response = "{\"action\":\"" + action + "\",\"reasoning\":\"" + reasoning + "\"}";
         return inspector.inspect(response, new Prompt(promptFacts), "contract-test", "initial");
+    }
+
+    /**
+     * N-OUT-1 (G1-1, decision A): a contract violation left after the retry falls back to ESCALATE (the code does not
+     * choose the response), unless the broken rule asks for one action ESCALATE does not give.
+     */
+    @Test
+    void theFallbackOfAViolationLeftAfterTheRetryFollowsTheRuleItBroke() {
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH"))
+                .isEqualTo("BLOCK");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH")).isEqualTo("ALLOW");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor("BLOCK_WITHOUT_DECISIVE_EVIDENCE"))
+                .isEqualTo("ESCALATE");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor(
+                "MINIMUM_ACTION_VIOLATION: MIN_P1_IDENTITY_DEVIATION requires CHALLENGE or a stronger action"))
+                .isEqualTo("ESCALATE");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor("FALSE_AUTHORIZED_RAG_CLAIM"))
+                .isEqualTo("ESCALATE");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor("PARSER_MALFORMED_JSON"))
+                .isEqualTo("ESCALATE");
+        assertThat(SecurityDecisionRawOutputContractInspector.fallbackActionFor(null)).isEqualTo("ESCALATE");
+    }
+
+    /** N-OUT-1 (G1-4): an answer without a reason still gets the action boundary check. */
+    @Test
+    void anAnswerWithoutAReasonStillGetsTheActionBoundaryCheck() {
+        String facts = "VerificationRequired: false\nMfaVerified: true\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW";
+
+        SecurityDecisionRawOutputContractInspector.Inspection block = inspector.inspect("{\"action\":\"BLOCK\"}",
+                new Prompt(facts), "contract-no-reason-block", "initial");
+        SecurityDecisionRawOutputContractInspector.Inspection allow = inspector.inspect("{\"action\":\"ALLOW\"}",
+                new Prompt(facts), "contract-no-reason-allow", "initial");
+
+        assertThat(block.retryReason()).isEqualTo("BLOCK_WITHOUT_DECISIVE_EVIDENCE");
+        assertThat(allow.retryReason()).isNull();
     }
 }

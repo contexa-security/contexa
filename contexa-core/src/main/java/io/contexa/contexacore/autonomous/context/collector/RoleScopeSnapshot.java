@@ -78,4 +78,6 @@ public class RoleScopeSnapshot implements ContextSnapshot {
     private String elevationWindowSummary;
 
     private ContextTrustProfile trustProfile;
+    /** How many other members of the scope group its usual scope comes from; null when not counted (W5-10 D8). */
+    private Integer peerCount;
 }

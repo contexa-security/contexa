@@ -75,4 +75,25 @@ class PostprocessingStepTest {
         assertThat(response.getMetadata("promptBudgetEnforcementMode", String.class)).isEqualTo("OBSERVE_ONLY");
         assertThat(response.getMetadata("promptCompressionApplied", Boolean.class)).isFalse();
     }
+
+    /** N-OUT-1 (G1-2): the raw answers reach the response with the record keys. */
+    @Test
+    void theRawAnswersReachTheResponse() {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        context.addMetadata("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}");
+        context.addMetadata("securityDecisionOutputRetryReason", "PARSER_MALFORMED_JSON");
+
+        Object result = step.execute(request, context).block();
+
+        SecurityDecisionResponse response = (SecurityDecisionResponse) result;
+        assertThat(response.getMetadata("securityDecisionRawOutput", String.class)).isEqualTo("{\"action\":\"ALLOW\"}");
+        assertThat(response.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("PARSER_MALFORMED_JSON");
+    }
 }

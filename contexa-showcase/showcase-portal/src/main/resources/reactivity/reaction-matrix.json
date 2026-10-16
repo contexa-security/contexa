@@ -1,0 +1,2329 @@
+{
+ "source": "plan 8.5, docs/showcase/프롬프트-반응행렬.md (machine copy prompt-audit/w06/out/reaction_full_plan.json), W6-1",
+ "variants": [
+  {
+   "label": "A3:employee=adm-c",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "A3:timeSlot=AFTERNOON",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "AFTERNOON",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "AFTERNOON"
+   }
+  },
+  {
+   "label": "A3:place=EXTERNAL",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P1",
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "A3:device=NEW",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P1",
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "A3:operation=DOCUMENT_READ",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "A3:target=ASSIGNED",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "target",
+   "value": "ASSIGNED",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "target": "ASSIGNED"
+   }
+  },
+  {
+   "label": "A3:items=40",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "items",
+   "value": 40,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "items": 40
+   }
+  },
+  {
+   "label": "A3:claim=FAKE",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "A3:approval=True",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "A3:ticket=COVERS",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "A3:onCall=True",
+   "base": "A3",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "A3T:employee=adm-c",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "A3T:timeSlot=AFTERNOON",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "AFTERNOON",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "timeSlot": "AFTERNOON"
+   }
+  },
+  {
+   "label": "A3T:place=EXTERNAL",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "A3T:device=NEW",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "A3T:operation=DOCUMENT_READ",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "A3T:target=ASSIGNED",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "target",
+   "value": "ASSIGNED",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "target": "ASSIGNED"
+   }
+  },
+  {
+   "label": "A3T:items=40",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "items",
+   "value": 40,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "items": 40
+   }
+  },
+  {
+   "label": "A3T:claim=FAKE",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "A3T:approval=False",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": false,
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": false
+   }
+  },
+  {
+   "label": "A3T:ticket=COVERS",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "A3T:onCall=True",
+   "base": "A3T",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "A1:employee=eng-01",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "A1:timeSlot=DAWN",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "A1:place=OFFICE",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "OFFICE",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "place": "OFFICE"
+   }
+  },
+  {
+   "label": "A1:device=USUAL",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "USUAL",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "device": "USUAL"
+   }
+  },
+  {
+   "label": "A1:approval=True",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "A1:ticket=COVERS",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "A1:onCall=True",
+   "base": "A1",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "A1T:employee=eng-01",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "A1T:timeSlot=DAWN",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "A1T:place=EXTERNAL",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "A1T:device=NEW",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "A1T:approval=True",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "A1T:ticket=COVERS",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "A1T:onCall=True",
+   "base": "A1T",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "K2:employee=eng-01",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "K2:timeSlot=DAWN",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "K2:place=EXTERNAL",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "K2:device=USUAL",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "USUAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "device": "USUAL"
+   }
+  },
+  {
+   "label": "K2:operation=EXPORT",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "operation",
+   "value": "EXPORT",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "EXPORT",
+    "items": 480
+   }
+  },
+  {
+   "label": "K2:target=UNASSIGNED",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "target",
+   "value": "UNASSIGNED",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "target": "UNASSIGNED"
+   }
+  },
+  {
+   "label": "K2:claim=FAKE",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "K2:approval=True",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "K2:ticket=COVERS",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "K2:onCall=True",
+   "base": "K2",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S10:employee=eng-01",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "S10:timeSlot=AFTERNOON",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "AFTERNOON",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "timeSlot": "AFTERNOON"
+   }
+  },
+  {
+   "label": "S10:place=EXTERNAL",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S10:device=USUAL",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "USUAL",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "device": "USUAL"
+   }
+  },
+  {
+   "label": "S10:approval=True",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "S10:ticket=COVERS",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "S10:onCall=True",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [
+    "P1"
+   ],
+   "ruleSteps": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S11:employee=adm-c",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "S11:timeSlot=DAWN",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    2,
+    3,
+    4,
+    5
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "S11:place=EXTERNAL",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S11:device=NEW",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "S11:approval=False",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": false,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": false
+   }
+  },
+  {
+   "label": "S11:ticket=COVERS",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    2,
+    3,
+    4,
+    5
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "S11:onCall=True",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    2,
+    3,
+    4,
+    5
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S12:employee=adm-c",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "S12:timeSlot=DAWN",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "S12:place=EXTERNAL",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S12:device=NEW",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "S12:operation=DOCUMENT_READ",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "S12:target=ASSIGNED",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "target",
+   "value": "ASSIGNED",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "target": "ASSIGNED"
+   }
+  },
+  {
+   "label": "S12:items=4831",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "items",
+   "value": 4831,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "items": 4831
+   }
+  },
+  {
+   "label": "S12:claim=FAKE",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "S12:approval=False",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": false,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": false
+   }
+  },
+  {
+   "label": "S12:ticket=COVERS",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "S12:onCall=True",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S13:employee=eng-01",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "S13:timeSlot=DAWN",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P1",
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "S13:place=EXTERNAL",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P1",
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S13:device=USUAL",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "device",
+   "value": "USUAL",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "device": "USUAL"
+   }
+  },
+  {
+   "label": "S13:operation=DOCUMENT_READ",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "S13:target=UNASSIGNED",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "target",
+   "value": "UNASSIGNED",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "target": "UNASSIGNED"
+   }
+  },
+  {
+   "label": "S13:items=4831",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "items",
+   "value": 4831,
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2",
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "items": 4831
+   }
+  },
+  {
+   "label": "S13:claim=FAKE",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "S13:approval=True",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "S13:ticket=COVERS",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "S13:onCall=True",
+   "base": "S13",
+   "classification": "THREAT",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [
+    "P2"
+   ],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S13T:employee=eng-01",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "S13T:timeSlot=DAWN",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "S13T:place=EXTERNAL",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S13T:device=NEW",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "S13T:operation=DOCUMENT_READ",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "S13T:target=UNASSIGNED",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "target",
+   "value": "UNASSIGNED",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "target": "UNASSIGNED"
+   }
+  },
+  {
+   "label": "S13T:items=4831",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "items",
+   "value": 4831,
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "items": 4831
+   }
+  },
+  {
+   "label": "S13T:claim=FAKE",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "S13T:approval=True",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "S13T:ticket=COVERS",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "S13T:onCall=True",
+   "base": "S13T",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "A6T:employee=adm-c",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "A6T:timeSlot=DAWN",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "A6T:place=EXTERNAL",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "A6T:device=NEW",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "A6T:approval=True",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "A6T:ticket=COVERS",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "COVERS",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "ticket": "COVERS"
+   }
+  },
+  {
+   "label": "A6T:onCall=True",
+   "base": "A6T",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "A8T:employee=adm-c",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "adm-c",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "adm-c"
+   }
+  },
+  {
+   "label": "A8T:timeSlot=DAWN",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "DAWN",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "timeSlot": "DAWN"
+   }
+  },
+  {
+   "label": "A8T:place=EXTERNAL",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "A8T:device=NEW",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "A8T:operation=DOCUMENT_READ",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "operation",
+   "value": "DOCUMENT_READ",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "operation": "DOCUMENT_READ"
+   }
+  },
+  {
+   "label": "A8T:target=ASSIGNED",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "target",
+   "value": "ASSIGNED",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "target": "ASSIGNED"
+   }
+  },
+  {
+   "label": "A8T:items=4831",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "items",
+   "value": 4831,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "items": 4831
+   }
+  },
+  {
+   "label": "A8T:claim=FAKE",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "claim",
+   "value": "FAKE",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "conditions": {
+    "claim": "FAKE"
+   }
+  },
+  {
+   "label": "A8T:approval=True",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "A8T:ticket=OTHER_PROJECT",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "OTHER_PROJECT",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "OTHER_PROJECT"
+   }
+  },
+  {
+   "label": "A8T:onCall=False",
+   "base": "A8T",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": false,
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "onCall": false
+   }
+  },
+  {
+   "label": "S03:employee=eng-01",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "employee",
+   "value": "eng-01",
+   "baseRules": [],
+   "planned": false,
+   "rules": null,
+   "ruleSteps": null,
+   "expectedMinimum": null,
+   "expectedDirection": null,
+   "conditions": {
+    "employee": "eng-01"
+   }
+  },
+  {
+   "label": "S03:timeSlot=AFTERNOON",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "timeSlot",
+   "value": "AFTERNOON",
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "timeSlot": "AFTERNOON"
+   }
+  },
+  {
+   "label": "S03:place=EXTERNAL",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "place",
+   "value": "EXTERNAL",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "place": "EXTERNAL"
+   }
+  },
+  {
+   "label": "S03:device=NEW",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "device",
+   "value": "NEW",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P2"
+   ],
+   "ruleSteps": [
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "device": "NEW"
+   }
+  },
+  {
+   "label": "S03:approval=True",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "approval",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "approval": true
+   }
+  },
+  {
+   "label": "S03:ticket=OTHER_PROJECT",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "ticket",
+   "value": "OTHER_PROJECT",
+   "baseRules": [],
+   "planned": true,
+   "rules": [
+    "P3"
+   ],
+   "ruleSteps": [
+    1,
+    2
+   ],
+   "expectedMinimum": "CHALLENGE",
+   "expectedDirection": "AT_LEAST_CHALLENGE",
+   "conditions": {
+    "ticket": "OTHER_PROJECT"
+   }
+  },
+  {
+   "label": "S03:onCall=True",
+   "base": "S03",
+   "classification": "NORMAL",
+   "condition": "onCall",
+   "value": true,
+   "baseRules": [],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "conditions": {
+    "onCall": true
+   }
+  },
+  {
+   "label": "S12:special=승인 결정 → 요청 전에 기록",
+   "base": "S12",
+   "classification": "THREAT",
+   "condition": "special",
+   "value": "승인 결정 → 요청 전에 기록",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "variantKey": "S12-V1"
+  },
+  {
+   "label": "S11:special=반복 → 누적이 승인 한도 안(2회, 회당 240건)",
+   "base": "S11",
+   "classification": "THREAT",
+   "condition": "special",
+   "value": "반복 → 누적이 승인 한도 안(2회, 회당 240건)",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "variantKey": "S11-V1"
+  },
+  {
+   "label": "S10:special=간격 30초 → 10분, 기기 → 평소 기기",
+   "base": "S10",
+   "classification": "THREAT",
+   "condition": "special",
+   "value": "간격 30초 → 10분, 기기 → 평소 기기",
+   "baseRules": [
+    "P1"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "MODEL_JUDGES",
+   "variantKey": "S10-V1"
+  },
+  {
+   "label": "S07:special=티켓 → 기간 안",
+   "base": "S07",
+   "classification": "UNCERTAIN",
+   "condition": "special",
+   "value": "티켓 → 기간 안",
+   "baseRules": [
+    "P3"
+   ],
+   "planned": true,
+   "rules": [],
+   "ruleSteps": [],
+   "expectedMinimum": "NONE",
+   "expectedDirection": "ALLOW",
+   "variantKey": "S07-V1"
+  }
+ ]
+}

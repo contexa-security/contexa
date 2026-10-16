@@ -132,6 +132,72 @@ public class WorkloadAdmin {
         return read(engine("ops").get("/internal/decisions/" + requestId + "/exchanges", null, null));
     }
 
+    /**
+     * W6-1 (P6-CHANGE-2): the sealed prompt of a decision as control D read it with the OSS prompt parser: its lines,
+     * the bundle, the reason codes and the latest inspection; empty when the decision was not sealed.
+     */
+    public Optional<JsonNode> promptFacts(String requestId) throws IOException {
+        Response response = engine("ops").get("/internal/decisions/" + requestId + "/prompt-facts", null, null);
+        if (response.status() == 404) {
+            return Optional.empty();
+        }
+        return Optional.of(read(response));
+    }
+
+    /** A release transition's answer from control D: the HTTP status and the gate's receipt. */
+    public record ReleaseTransition(int status, JsonNode receipt) {
+    }
+
+    /**
+     * W6-9 (P6): a release transition of the security decision prompt on control D through its OSS release gate; the
+     * receipt also when the gate refuses it (422).
+     */
+    public ReleaseTransition promptReleaseTransition(String promptVersion, String targetReleaseStatus,
+                                                     String rationale) throws IOException {
+        Response response = engine("ops").postJson("/internal/prompt-releases/transition", null, null,
+                json.writeValueAsString(Map.of("promptVersion", promptVersion, "targetReleaseStatus",
+                        targetReleaseStatus, "rationale", rationale)));
+        if (response.status() == 422) {
+            return new ReleaseTransition(422, json.readTree(response.body()));
+        }
+        return new ReleaseTransition(response.status(), read(response));
+    }
+
+    /**
+     * W8-3 (P8 rollback rehearsal): a rollback of the security decision prompt's active bundle on control D through
+     * its OSS rollback service; the service's result also when it refuses (422).
+     */
+    public ReleaseTransition promptRollback(String fromVersion, String toVersion, String reason, boolean emergency)
+            throws IOException {
+        Map<String, Object> request = Map.of("registryScope", "PLATFORM_GLOBAL", "promptKey",
+                "cortex.security-decision", "fromVersion", fromVersion, "toVersion", toVersion, "reason", reason,
+                "emergency", emergency);
+        return answer(engine("ops").postJson("/internal/prompt-releases/rollback", null, null,
+                json.writeValueAsString(request)));
+    }
+
+    /**
+     * W8-3 (W6-8 design): the harness's evaluation of a bundle on control D through the OSS empirical evaluation
+     * service, with the bundle hash and the runs it counted.
+     */
+    public ReleaseTransition promptEvaluation(JsonNode evaluation) throws IOException {
+        return answer(engine("ops").postJson("/internal/prompt-releases/evaluation", null, null,
+                json.writeValueAsString(evaluation)));
+    }
+
+    /** W8-3: the approval of a rollback that waits for one, by the harness's second actor on control D. */
+    public ReleaseTransition promptRollbackApproval(String executionKey) throws IOException {
+        return answer(engine("ops").postJson("/internal/prompt-releases/rollback/"
+                + URLEncoder.encode(executionKey, StandardCharsets.UTF_8) + "/approve", null, null, "{}"));
+    }
+
+    private ReleaseTransition answer(Response response) throws IOException {
+        if (response.status() == 422) {
+            return new ReleaseTransition(422, json.readTree(response.body()));
+        }
+        return new ReleaseTransition(response.status(), read(response));
+    }
+
     /** The normalised prompt control D saw for a decision, or empty when it no longer holds it. */
     public Optional<String> prompt(String requestId) throws IOException {
         Response response = engine("ops").get("/internal/decisions/" + requestId + "/prompt", null, null);

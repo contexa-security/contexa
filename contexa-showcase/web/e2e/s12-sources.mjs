@@ -69,6 +69,7 @@ const SCREENS = [
   ['bench-summary', '/benchmark'],
   ['bench-cases', '/benchmark/cases'],
   ['bench-judgment', '/benchmark/judgment'],
+  ['bench-prompt', '/benchmark/prompt'],
   ['bench-limits', '/benchmark/limits'],
   ['replay', '/replay/A3'],
   ['adopt', '/adopt'],

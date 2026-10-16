@@ -20,20 +20,23 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The input token budgets of the security decision prompts. TO-5 (2026-10-13) fitted them to the v20 prompts as the model
- * gets them: Layer1 first passes up to about 4,600 tokens, Layer2 second passes up to about 5,050 (golden cases, counted
- * for the showcase model). The budget is observed; trimming to it takes facts out and is off unless a deployment turns
+ * The input token budgets of the security decision prompts, fitted to the v20 prompts as the model gets them (TO-5,
+ * 2026-10-13: the golden maximum times 1.1 to the nearest 500). Fitted again the same way after P4 wrote the output
+ * contract block and the minimum action rules (2026-10-14): Layer1 first passes up to about 5,640 tokens, Layer2 second
+ * passes up to about 6,130 (golden cases, counted for the showcase model). Fitted again the same way after the golden
+ * inputs were taken from the P5 gate measurement (2026-10-16): Layer1 first passes up to about 6,180 tokens, Layer2 second
+ * passes up to about 6,650. The budget is observed; trimming to it takes facts out and is off unless a deployment turns
  * it on.
  */
 public enum PromptBudgetProfile {
     CORTEX_L1_INTERACTIVE_STRICT(
             "CORTEX_L1_INTERACTIVE_STRICT",
             "Security decision layer1 interactive strict profile",
-            5000),
+            7000),
     CORTEX_L2_EXPERT_STRICT(
             "CORTEX_L2_EXPERT_STRICT",
             "Security decision layer2 expert strict profile",
-            5500);
+            7500);
 
     private final String profileKey;
     private final String description;

@@ -48,6 +48,9 @@ class CompanyAndLookupTest {
 
     static final LocalDate ANCHOR = LocalDate.of(2026, 9, 30);
 
+    /** The control the test exports are recorded under, and the lookups answer for. */
+    private static final String CONTROL = "D";
+
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
@@ -125,7 +128,7 @@ class CompanyAndLookupTest {
     @Test
     void theProtagonistsAndTheFieldEngineersTripAreCompanyFacts() {
         RunRegistry runs = new RunRegistry(database);
-        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database);
+        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database, CONTROL);
         PlainInternalController internal = new PlainInternalController(runs, new CompanyRepository(database), database,
                 null, lookup);
         runs.registerPrincipal("vcccc00000003-eng-01", "run-c3", CompanyBlueprint.ENGINEER_FIELD, "org-c3", "tenant-c3");
@@ -173,7 +176,7 @@ class CompanyAndLookupTest {
                         CompanyBlueprint.A3_TARGET, 1, time, null, "10.40.12.9"));
         for (RequestFacts request : requests) {
             RecordingBusinessContextLookup recording = new RecordingBusinessContextLookup(
-                    new JdbcBusinessContextLookup(database));
+                    new JdbcBusinessContextLookup(database, CONTROL));
             new ContextLookupRules(recording).evaluate(request);
             assertThat(recording.called()).as(request.operation().name())
                     .isEqualTo(LookupPlan.forRequest(request.operation(), request.claimedTicket() != null));
@@ -189,18 +192,18 @@ class CompanyAndLookupTest {
         RequestFacts unknown = new RequestFacts(BusinessOperation.EXPORT, "vcccc00000004-adm-a",
                 CompanyBlueprint.A3_TARGET, CompanyBlueprint.A3_TARGET, null, time, null, "10.40.12.9");
         RecordingBusinessContextLookup recording = new RecordingBusinessContextLookup(
-                new JdbcBusinessContextLookup(database));
+                new JdbcBusinessContextLookup(database, CONTROL));
 
         assertThat(new ContextLookupRules(recording).evaluate(unknown).ruleId()).isEqualTo("C2-ITEMS-UNKNOWN");
         assertThat(recording.called()).isEmpty();
-        assertThat(new ThresholdRules(new JdbcBusinessContextLookup(database)).evaluate(unknown).ruleId())
+        assertThat(new ThresholdRules(new JdbcBusinessContextLookup(database, CONTROL)).evaluate(unknown).ruleId())
                 .isEqualTo("C1-ITEMS-UNKNOWN");
     }
 
     @Test
     void lookupsAnswerFromTheCompanyAndOnlyTheRunSeesItsOverlay() {
         RunRegistry runs = new RunRegistry(database);
-        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database);
+        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database, CONTROL);
         runs.registerPrincipal("vaaaa00000001-adm-a", "run-a1", CompanyBlueprint.ADMIN_A, "org-a1", "tenant-a1");
         runs.registerPrincipal("vbbbb00000002-adm-a", "run-b2", CompanyBlueprint.ADMIN_A, "org-b2", "tenant-b2");
         runs.registerPrincipal("vaaaa00000001-eng-k", "run-a1", CompanyBlueprint.ENGINEER_K, "org-a1", "tenant-a1");
@@ -247,7 +250,7 @@ class CompanyAndLookupTest {
     @Test
     void anApprovalsUseIsWhatTheRequesterReceivedFromItsProjectWithinItsValidityBeforeTheRequest() {
         RunRegistry runs = new RunRegistry(database);
-        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database);
+        BusinessContextLookup lookup = new JdbcBusinessContextLookup(database, CONTROL);
         runs.registerPrincipal("vcccc00000003-adm-a", "run-c3", CompanyBlueprint.ADMIN_A, "org-c3", "tenant-c3");
         runs.registerPrincipal("vdddd00000004-adm-a", "run-d4", CompanyBlueprint.ADMIN_A, "org-d4", "tenant-d4");
         Instant dawn = CompanyCalendar.at(ANCHOR, TimeSlot.DAWN);
@@ -263,6 +266,10 @@ class CompanyAndLookupTest {
         export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 60, dawn.plus(Duration.ofMinutes(1)));
         export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 50, dawn.minus(Duration.ofDays(2)));
         export("run-d4", "vdddd00000004-adm-a", CompanyBlueprint.A3_TARGET, 40, dawn.minus(Duration.ofMinutes(3)));
+        // N-LU2-1: the other controls received the same request at once and exported it under the same run principal;
+        // their exports are not this control's use of the approval.
+        export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn.minus(Duration.ofMinutes(1)), "B");
+        export("run-c3", "vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn.minus(Duration.ofMinutes(1)), "C2");
 
         // LU-2: the host reports the approval's use, so the engine knows the cumulative count beyond the session.
         assertThat(lookup.approvalExists("vcccc00000003-adm-a", CompanyBlueprint.A3_TARGET, 480, dawn).usedItems())
@@ -279,14 +286,21 @@ class CompanyAndLookupTest {
      * of its request apart. Company times are days before the wall clock, as on the showcase.
      */
     private static void export(String run, String username, String project, int delivered, Instant companyAt) {
+        export(run, username, project, delivered, companyAt, CONTROL);
+    }
+
+    private static void export(String run, String username, String project, int delivered, Instant companyAt,
+                               String control) {
         Instant wallClock = Instant.now();
         database.jdbc().update("""
                         insert into export_job (job_id, run_id, request_id, control, username, project_key, mode,
                                                 requested_items, delivered_items, status, started_at, finished_at,
                                                 company_at)
-                        values (gen_random_uuid(), :run, :request, 'D', :user, :project, 'SYNC', :items, :items,
+                        values (gen_random_uuid(), :run, :request, :control, :user, :project, 'SYNC', :items, :items,
                                 'COMPLETED', :started, :started, :company)""",
-                new MapSqlParameterSource("run", run).addValue("request", run + "-" + companyAt.toEpochMilli())
+                new MapSqlParameterSource("run", run)
+                        .addValue("request", run + "-" + control + "-" + companyAt.toEpochMilli())
+                        .addValue("control", control)
                         .addValue("user", username).addValue("project", project).addValue("items", delivered)
                         .addValue("started", Timestamp.from(wallClock))
                         .addValue("company", Timestamp.from(companyAt)));

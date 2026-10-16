@@ -89,8 +89,11 @@ public class BehaviorDocumentRetentionScheduler {
         String cutoffDay = LocalDate.now(clock).minusDays(retentionDays).toString();
         FilterExpressionBuilder filter = new FilterExpressionBuilder();
         return filter.and(
+                // W5-4: the records of the decisions that did not allow expire with the behaviour records.
                 filter.in("documentType",
-                        VectorDocumentType.BEHAVIOR.getValue(), VectorDocumentType.BEHAVIOR_ANALYSIS.getValue()),
+                        VectorDocumentType.BEHAVIOR.getValue(), VectorDocumentType.BEHAVIOR_ANALYSIS.getValue(),
+                        VectorDocumentType.SUSPICIOUS.getValue(), VectorDocumentType.THREAT.getValue(),
+                        VectorDocumentType.AMBIGUOUS.getValue()),
                 filter.lt("timestamp", cutoffDay)).build();
     }
 }

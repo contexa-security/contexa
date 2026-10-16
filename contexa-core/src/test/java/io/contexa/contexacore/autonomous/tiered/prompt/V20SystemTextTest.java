@@ -13,6 +13,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,7 +32,9 @@ class V20SystemTextTest {
 
     @Test
     void theV20SystemTextNamesOnlyFactsOfTheDictionary() {
-        Set<String> names = SecurityDecisionPromptDictionary.ENTRIES.stream().map(PromptDictionaryEntry::name)
+        // A list entry (PastRecord{i}) is named by its stem where a rule speaks of its lines (W4-2 output block).
+        Set<String> names = SecurityDecisionPromptDictionary.ENTRIES.stream()
+                .flatMap(entry -> Stream.of(entry.name(), entry.name().replace("{i}", "")))
                 .collect(Collectors.toSet());
         Set<String> absent = new TreeSet<>();
         Matcher matcher = FACT_NAME.matcher(v20());
@@ -47,10 +50,11 @@ class V20SystemTextTest {
     void eachBoundaryIsStatedOnce() {
         String text = v20();
         for (String boundary : List.of("Required BLOCK boundary", "Required low-risk boundary",
-                "Required elevated-risk boundary")) {
+                "Required covered-work boundary", "Minimum action rules")) {
             assertThat(count(text, boundary)).as(boundary).isEqualTo(1);
         }
-        assertThat(text).doesNotContain("Highest-priority action boundary");
+        // W4-4: the minimum action rules replace the elevated-risk boundary (inventory 3, line 78).
+        assertThat(text).doesNotContain("Highest-priority action boundary").doesNotContain("elevated-risk boundary");
     }
 
     @Test
@@ -90,17 +94,105 @@ class V20SystemTextTest {
         assertThat(count(text, "Required covered-work boundary")).isEqualTo(1);
         assertThat(line(text, "Required covered-work boundary")).contains("AuthorizationEffect is ALLOW")
                 .contains("PolicySatisfied is yes").contains("DeviationsFromBaseline names no unexplained difference")
-                .contains("ResourceClass HIGH or CRITICAL alone does not prevent it");
+                .contains("ResourceClass SENSITIVE or CRITICAL alone does not prevent it");
         assertThat(text.indexOf("Required covered-work boundary"))
                 .isGreaterThan(text.indexOf("Required low-risk boundary"))
-                .isLessThan(text.indexOf("Required elevated-risk boundary"));
+                .isLessThan(text.indexOf("Otherwise prefer CHALLENGE"));
+    }
+
+    /** W4-2: the reason is one sentence of at most 30 words that states the facts behind the codes. */
+    /**
+     * N-WORD-2: the approval line says its decision time is not recorded and a later decision is not ruled out
+     * (N-WORD-1); the covered-work boundary says that does not prevent it, so the first answer is the one the response
+     * checker requires (the real server's A3T, controlled resend `p4_nword2_resend`).
+     */
+    @Test
+    void anUnrecordedDecisionTimeDoesNotPreventCoveredWork() {
+        assertThat(line(v20(), "Required covered-work boundary")).endsWith("ResourceClass SENSITIVE or CRITICAL alone"
+                + " does not prevent it, and neither does an approval or ticket whose decision time is not recorded.");
     }
 
     @Test
-    void theReasoningLimitHoldsWhenAWordingRuleAsksForAnExplanation() {
-        // LU-4: an explanation a wording rule asks for names at most two facts and keeps within 180 characters.
-        assertThat(line(v20(), "reasoning must use at most 25 words and 180 characters"))
-                .contains("When a wording rule asks for an explanation, name at most two facts");
+    void theReasonIsOneSentenceOfAtMostThirtyWords() {
+        assertThat(line(v20(), "reason:")).contains("one sentence of at most 30 words", "the facts behind the codes");
+    }
+
+    /** W4-2: the output block of the v20 text is the output contract v3 with the meaning of every reason code. */
+    @Test
+    void theOutputBlockIsTheOutputContract() {
+        assertThat(v20()).contains(SecurityDecisionOutputContract.systemOutputBlock());
+        for (String code : SecurityDecisionOutputContract.codes()) {
+            assertThat(v20()).as(code).contains("- " + code + ": ");
+        }
+        assertThat(v20()).doesNotContain("evidenceRefs").doesNotContain("Return only one minified JSON object");
+    }
+
+    /** W4-3: the two judgement rules of the old output block stay, as evidence rules. */
+    /** N-FRIC-1 (Q-87): a repeat, a new target or a large volume is a risk only with the mismatch a fact states. */
+    @Test
+    void anObservedDifferenceIsNoRiskByItself() {
+        assertThat(v20()).contains("* A repeat count, a new target or a large volume is no evidence of risk by itself; cite it as a risk only with the mismatch it makes, which a fact states, with the work's purpose, the approval's scope or the actual behaviour.");
+    }
+
+    /** N-FRIC-1 (Q-87): the code the model cites for a repeat carries the same condition as the principle line. */
+    @Test
+    void theRepeatCodeSaysARepeatAloneIsNoReasonForAStrongerAction() {
+        assertThat(v20()).contains("- REPEAT_IN_SESSION: the same action repeats in the session (a repeat alone is no reason for a stronger action);");
+    }
+
+    /** N-WORD-1 (Q-87): the BLOCK boundary names what is observed, not the conclusion. */
+    @Test
+    void theBlockBoundaryNamesWhatIsObserved() {
+        assertThat(v20()).contains("a device that does not match (Device)", "automation or transport anomalies (ClientSignals)")
+                .doesNotContain("device compromise", "intent or transport tampering");
+    }
+
+    @Test
+    void theJudgementRulesOfTheOldOutputBlockStayAsEvidenceRules() {
+        assertThat(v20()).contains("* Do not claim a missing authorization effect when AuthorizationEffect is present.");
+    }
+
+    /**
+     * N-RULE-1 (G2-1 and the value words): the boundaries and evidence rules name only facts the prompt states.
+     * ResourceClass is one of CRITICAL, SENSITIVE, NORMAL and PUBLIC, and no fact states a fresh-verification requirement.
+     */
+    @Test
+    void theBoundariesAndEvidenceRulesNameOnlyFactsThePromptStates() {
+        assertThat(v20()).doesNotContain("HIGH or CRITICAL").doesNotContain("fresh-verification")
+                .doesNotContain("requires fresh verification")
+                .contains("ResourceClass is not SENSITIVE or CRITICAL",
+                        "ResourceClass SENSITIVE or CRITICAL alone does not prevent it",
+                        "Unverified MFA alone is not a reason to challenge.",
+                        // G2-4 (dictionary 1.4): an unknown fact is neither a match nor a mismatch.
+                        "A condition that no fact states something is read on the stated lines: a fact that UNKNOWN names"
+                                + " states nothing.");
+    }
+
+    /** W4-4 (plan 6.3 order 4): the minimum action rules stand once, between the actions and the boundaries. */
+    @Test
+    void theMinimumActionRulesStandOnceBetweenTheActionsAndTheBoundaries() {
+        String text = v20();
+        int rules = text.indexOf("Minimum action rules");
+        assertThat(rules).isGreaterThan(text.indexOf("Actions:")).isLessThan(text.indexOf("Boundaries"))
+                .isEqualTo(text.lastIndexOf("Minimum action rules"));
+        assertThat(text).contains("P1 MIN_P1_IDENTITY_DEVIATION: ResourceClass is SENSITIVE or CRITICAL and DeviationsFromBaseline names at least 2 of time, day, network and device as unexplained.",
+                "P2 MIN_P2_NEW_DEVICE_OR_NETWORK_EXPORT: Action is EXPORT, ResourceClass is SENSITIVE or CRITICAL, and DeviationsFromBaseline names the device or the network as unexplained.",
+                "P3 MIN_P3_POLICY_NOT_SATISFIED: PolicySatisfied is no.")
+                .doesNotContain("Required elevated-risk boundary");
+    }
+
+    /**
+     * W4-4 (inventory 3, lines 5-7, 31 and 109): the opening keeps no rule against rules, step 6 chooses above the
+     * floor, and the evidence rule says the check is no reason to move the action.
+     */
+    @Test
+    void theOpeningTheProcessAndTheEvidenceRulesAgreeWithTheRules() {
+        assertThat(v20()).doesNotContain("do not match simple rules")
+                .doesNotContain("Do not pre-compensate for downstream enforcement systems.")
+                .contains("Apart from the minimum action rules, make one holistic judgment",
+                        "* A later check enforces the minimum action rules: do not choose a stronger or a weaker action because of it.");
+        assertThat(line(v20(), "6. Choose the least disruptive"))
+                .contains("never weaker than a minimum action rule that applies");
     }
 
     @Test
@@ -115,14 +207,15 @@ class V20SystemTextTest {
         assertThat(v19()).contains(TRUSTED_SIGNAL_SENTENCE);
     }
 
+    /** W4-3 (Q-57 decision 2): the v20 text fixes no reason sentence; v19 keeps its own. */
     @Test
-    void theFixedReasoningSentencesAndTheLinesTheShowcaseExplainsStay() {
-        List<String> v19Sentences = new ArrayList<>(fixedReasoning(v19()));
-        v19Sentences.remove(TRUSTED_SIGNAL_SENTENCE);
-        assertThat(fixedReasoning(v20())).isEqualTo(v19Sentences);
+    void theV20TextFixesNoReasonSentenceAndTheLinesTheShowcaseExplainsStay() {
+        assertThat(fixedReasoning(v20())).isEmpty();
+        assertThat(fixedReasoning(v19())).isNotEmpty();
         List<String> lines = Arrays.stream(v20().split("\n")).map(String::trim).toList();
         for (String start : List.of("ALLOW =", "CHALLENGE =", "ESCALATE =", "BLOCK =", "Required low-risk boundary",
-                "Required elevated-risk boundary", "6. Choose the least disruptive")) {
+                "Minimum action rules", "P1 MIN_P1_IDENTITY_DEVIATION", "P2 MIN_P2_NEW_DEVICE_OR_NETWORK_EXPORT",
+                "P3 MIN_P3_POLICY_NOT_SATISFIED", "6. Choose the least disruptive")) {
             assertThat(lines).as(start).anyMatch(line -> line.startsWith(start));
         }
         assertThat(lines).noneMatch(line -> line.endsWith("..."));

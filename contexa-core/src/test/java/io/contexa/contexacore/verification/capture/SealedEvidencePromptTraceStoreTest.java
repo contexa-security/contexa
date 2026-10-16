@@ -46,6 +46,30 @@ class SealedEvidencePromptTraceStoreTest {
         assertThat(snapshot.metadata()).containsEntry("promptVersion", "v1");
     }
 
+    /** W6-6 (P6-CHANGE-4): a Layer2 that drew its own prompt replaces the Layer1 snapshot once it completed. */
+    @Test
+    void theSecondAnalysisPromptIsHandedOutOnceLayer2Completed() {
+        SecurityEvent event = buildEvent("req-l2", "evt-l2");
+        store.capture(decisionContext(event), mockPromptResult());
+        store.complete(event);
+        store.capture(decisionContext(event), new PromptGenerationResult(null, "system prompt",
+                "user prompt\n\n=== SECOND PASS ===\nNewlyKnown: 1 found", Map.of(), null));
+        store.complete(event);
+
+        assertThat(store.consume("req-l2").userPrompt()).endsWith("NewlyKnown: 1 found");
+    }
+
+    /** W6-6: a Layer2 that asked no model leaves the Layer1 snapshot in place. */
+    @Test
+    void aSecondAnalysisWithoutAPromptKeepsTheFirst() {
+        SecurityEvent event = buildEvent("req-l2-skip", "evt-l2-skip");
+        store.capture(decisionContext(event), mockPromptResult());
+        store.complete(event);
+        store.complete(event);
+
+        assertThat(store.consume("req-l2-skip").userPrompt()).isEqualTo("user prompt");
+    }
+
     @Test
     void consumeReturnNullForUnknownRequestId() {
         assertThat(store.consume("nonexistent")).isNull();

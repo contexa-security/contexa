@@ -274,6 +274,29 @@ class DefaultSessionNarrativeCollectorTest {
     }
 
     @Test
+    @DisplayName("the user's requests of the last hour are counted across the sessions the user holds (W5-10 D5)")
+    void collect_countsTheUsersRequestsOfTheLastHourAcrossTheirSessions() {
+        Instant at = LocalDateTime.of(2026, 9, 30, 12, 20).atZone(ZoneId.systemDefault()).toInstant();
+        dataStore.trackUserSession("alice", "session-a");
+        dataStore.trackUserSession("alice", "session-b");
+        dataStore.addSessionDecision("session-a", new SessionDecisionRecord(at.minusSeconds(600), "GET",
+                "/api/projects", null, "READ", "ALLOW").encode());
+        // A refused request counts as much as an allowed one; one an hour and more before does not count.
+        dataStore.addSessionDecision("session-b", new SessionDecisionRecord(at.minusSeconds(300), "POST",
+                "/api/projects/GB-500/exports", null, "EXPORT", "CHALLENGE").encode());
+        dataStore.addSessionDecision("session-b", new SessionDecisionRecord(at.minusSeconds(3_700), "GET",
+                "/api/projects", null, "READ", "ALLOW").encode());
+        SecurityEvent request = event("session-a", LocalDateTime.of(2026, 9, 30, 12, 20),
+                "/api/projects/GB-500/exports", "POST", true, "EXPORT");
+        request.setUserId("alice");
+
+        SessionNarrativeSnapshot snapshot = collect(request).orElseThrow();
+
+        // Two earlier decisions within the hour, in two sessions, and this request.
+        assertThat(snapshot.getUserRequestsLastHour()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("the session's decisions are passed as records with their targets and item counts (W2-5)")
     void collect_passesTheSessionsDecisionsAsRecords() {
         Instant at = Instant.parse("2026-09-30T14:20:00Z");

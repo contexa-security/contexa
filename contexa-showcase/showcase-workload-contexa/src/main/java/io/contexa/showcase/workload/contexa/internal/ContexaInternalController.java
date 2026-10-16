@@ -1,5 +1,6 @@
 package io.contexa.showcase.workload.contexa.internal;
 
+import io.contexa.autoconfigure.iam.admin.PqaOssSealedEvidenceCaptureProperties;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurgeResult;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +81,8 @@ public class ContexaInternalController {
     private final ObjectProvider<BuildProperties> build;
     private final boolean forcedActions;
     private final Integer behaviorRetentionDays;
+    /** W7-13: how D seals the decision inputs, as bound; absent without the OSS sealed evidence capture. */
+    private final ObjectProvider<PqaOssSealedEvidenceCaptureProperties> sealedEvidence;
 
     public ContexaInternalController(RunPrincipalService principals, SharedAccountGuard sharedAccounts,
                                      OrphanPrincipalSweeper orphans,
@@ -96,7 +100,8 @@ public class ContexaInternalController {
                                      ObjectProvider<BuildProperties> build,
                                      @Value("${showcase.dev.forced-actions:false}") boolean forcedActions,
                                      @Value("${contexa.rag.etl.behavior.retention-days:#{null}}")
-                                     Integer behaviorRetentionDays) {
+                                     Integer behaviorRetentionDays,
+                                     ObjectProvider<PqaOssSealedEvidenceCaptureProperties> sealedEvidence) {
         this.principals = principals;
         this.sharedAccounts = sharedAccounts;
         this.orphans = orphans;
@@ -117,6 +122,7 @@ public class ContexaInternalController {
         this.build = build;
         this.forcedActions = forcedActions;
         this.behaviorRetentionDays = behaviorRetentionDays;
+        this.sealedEvidence = sealedEvidence;
     }
 
     @PostMapping("/internal/runs/{runId}/principals")
@@ -234,6 +240,9 @@ public class ContexaInternalController {
                         .orElse(SecurityDecisionPromptBundles.DEFAULT).version());
             }
         }
+        // W7-13: the share of decisions D seals and how long a package whose latest inspection found nothing wrong is
+        // kept, as bound here (the adoption screen's sealed inputs line); null without the sealed evidence capture.
+        engine.put("sealedEvidence", sealedEvidenceOf(sealedEvidence.getIfAvailable()));
         // True only on a development stack that accepts forced decisions; the portal refuses to record replays then.
         engine.put("forcedActions", forcedActions);
         // How long the engine keeps behaviour documents, as configured here; null when this app leaves the core's own
@@ -241,6 +250,17 @@ public class ContexaInternalController {
         engine.put("behaviorRetentionDays", behaviorRetentionDays);
         engine.put("actions", actions());
         return engine;
+    }
+
+    private static Map<String, Object> sealedEvidenceOf(PqaOssSealedEvidenceCaptureProperties capture) {
+        if (capture == null) {
+            return null;
+        }
+        Map<String, Object> sealed = new LinkedHashMap<>();
+        sealed.put("samplePercent", capture.getSamplePercent());
+        Duration clean = capture.getRetention().getCleanPeriod();
+        sealed.put("cleanPeriodDays", clean == null ? null : Math.toIntExact(clean.toDays()));
+        return sealed;
     }
 
     /**

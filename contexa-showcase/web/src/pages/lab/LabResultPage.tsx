@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useLabOptions, useRecentLabRuns, useStepResult, useVersus, type VersusSide } from '../../api/lab';
+import { useLabDelta } from '../../api/promptQuality';
 import type { StepResult } from '../../api/types';
 import { AssessPanel } from '../../components/assessment/AssessPanel';
 import { ActionChip } from '../../components/common/ActionChip';
@@ -8,9 +9,10 @@ import { Modal } from '../../components/common/Modal';
 import { SourceMark } from '../../components/common/SourceMark';
 import { useUrlModal } from '../../components/common/useUrlModal';
 import { useDetail } from '../../components/detail/useDetail';
+import { DeltaLines } from '../../components/facts/DeltaLines';
 import { NextLink } from '../../components/journey/StepParts';
 import { StateScreen } from '../../components/StateScreen';
-import { CONTROL_ORDER, OUTCOME_KEYS, type BusinessOutcome } from '../../domain/verdict';
+import { CONTROL_ORDER, OUTCOME_KEYS, VERDICTS, type BusinessOutcome, type Verdict } from '../../domain/verdict';
 import { count } from '../../journey/format';
 import { verdictKey } from '../try/steps/liveRun';
 import { LabScreen } from './LabScreen';
@@ -67,6 +69,11 @@ function changedHeadline(
   return t('labResult.changedMany', { ...verdicts, n: conditions.length });
 }
 
+/** Contexa's decision as the verdict chip shows it; no decision when the run has none. */
+function verdictOf(action: string | null): Verdict {
+  return action && action in VERDICTS ? (action as Verdict) : 'NONE';
+}
+
 export default function LabResultPage() {
   const { t, i18n } = useTranslation();
   const detail = useDetail();
@@ -82,6 +89,8 @@ export default function LabResultPage() {
   const mine = recent.find((entry) => entry.runId === runId) ?? null;
   const nowResult = useStepResult(runId, 1).data ?? null;
   const beforeResult = useStepResult(against, 1).data ?? null;
+  // U-5: what the changed condition changed in the AI input, compared with its base run by the server.
+  const delta = useLabDelta(runId).data ?? null;
   const assess = useUrlModal('assess');
   const caseKey = mine?.caseKey ?? compared?.now.scenarioKey ?? null;
   const labCase = options?.cases.find((candidate) => candidate.key === caseKey) ?? null;
@@ -177,7 +186,9 @@ export default function LabResultPage() {
       <p className={styles.note}>
         {t('labResult.exposed', { items: count(nowSide.exposedItems, language) })}
       </p>
-      {versus && versus.inputs.length > 0 ? (
+      {delta ? (
+        <DeltaLines delta={delta} verdict={verdictOf(nowSide.engineAction)} />
+      ) : versus && versus.inputs.length > 0 ? (
         <section className={styles.panel} aria-labelledby="lab-inputs">
           <h2 id="lab-inputs" className={styles.panelTitle}>
             {t('labResult.inputs')}

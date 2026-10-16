@@ -299,7 +299,8 @@ describe('terms and glossary', () => {
   });
 
   it('holds every screen word of both plain-words tables, and the tooltip word of the problem screen', () => {
-    // words (12 rows) and words2 (9 rows) of the screen design, then g2-concept's tooltip word.
+    // words (12 rows) and words2 (9 rows) of the screen design, then g2-concept's tooltip word, then the prompt
+    // trust terms (screen design reinforcement U-8).
     const words = [
       '결과',
       '계정을 훔친 사람',
@@ -323,6 +324,14 @@ describe('terms and glossary', () => {
       '평소 모습에 더함',
       '업무 범위',
       '권한',
+      '출처',
+      '사실',
+      '근거 코드',
+      '봉인',
+      '전달',
+      '반응',
+      '불변',
+      '주입',
     ];
     at('/?modal=glossary', <GlossaryModal />);
     const terms = screen.getAllByRole('term').map((term) => term.textContent);

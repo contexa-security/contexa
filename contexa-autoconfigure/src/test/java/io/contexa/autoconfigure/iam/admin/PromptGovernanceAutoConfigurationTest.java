@@ -19,6 +19,9 @@ import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceR
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.governance.JdbcPromptReleaseQueryService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
+import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsole;
+import io.contexa.contexaiam.admin.promptquality.governance.PromptReleaseConsoleApiController;
+import io.contexa.contexaiam.admin.promptquality.governance.PromptReleasePageController;
 import io.contexa.contexaiam.admin.promptquality.official.application.PromptRuntimeGovernanceDescriptorVerifier;
 import io.contexa.contexaiam.admin.promptquality.official.common.PromptQualityMessageResolver;
 import org.junit.jupiter.api.Test;
@@ -48,7 +51,11 @@ class PromptGovernanceAutoConfigurationTest {
             PromptGovernanceLifecycleLedgerService.class,
             PromptGovernanceReleaseGateService.class,
             PromptGovernanceEmpiricalEvalService.class,
-            PromptRuntimeGovernanceDescriptorVerifier.class);
+            PromptRuntimeGovernanceDescriptorVerifier.class,
+            // W7-14: the version screens with their read API.
+            PromptReleaseConsole.class,
+            PromptReleaseConsoleApiController.class,
+            PromptReleasePageController.class);
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PromptGovernanceAutoConfiguration.class))

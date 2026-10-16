@@ -114,7 +114,8 @@ class SecurityDecisionStructuredOutputPipelineIntegrationTest {
                 .block();
 
         assertThat(response).isNotNull();
-        assertThat(response.getAction()).isEqualTo("CHALLENGE");
+        // N-OUT-1 (decision A): a parse failure left after the retry falls back to ESCALATE.
+        assertThat(response.getAction()).isEqualTo("ESCALATE");
         assertThat(response.getMetadata("securityDecisionParsingFallbackApplied", Boolean.class)).isTrue();
         assertThat(response.getMetadata("syntheticSecurityDecisionApplied", Boolean.class)).isTrue();
         assertThat(llmClient.entityExecutions).isZero();

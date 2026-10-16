@@ -20,6 +20,7 @@ import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProc
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 
 import java.lang.reflect.Method;
@@ -32,7 +33,8 @@ class CoreAutonomousPostProcessorGuardTest {
     @DisplayName("securityDecisionPostProcessor requires UnifiedVectorService")
     void securityDecisionPostProcessorRequiresUnifiedVectorService() throws Exception {
         Method method = CoreAutonomousAutoConfiguration.class
-                .getDeclaredMethod("securityDecisionPostProcessor", SecurityContextDataStore.class, UnifiedVectorService.class);
+                .getDeclaredMethod("securityDecisionPostProcessor", SecurityContextDataStore.class, UnifiedVectorService.class,
+                        ObjectProvider.class);
 
         assertThat(method.getReturnType()).isEqualTo(SecurityDecisionPostProcessor.class);
         ConditionalOnBean annotation = method.getAnnotation(ConditionalOnBean.class);

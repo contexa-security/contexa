@@ -70,6 +70,28 @@ public interface ZeroTrustActionRepository {
         return true;
     }
 
+    /** How the write of a final decision ended (W5-3). */
+    enum FinalActionWrite {
+        /** The decision is the action in effect. */
+        APPLIED,
+        /** A stricter user-level action stays in effect, so the less strict decision was not written. */
+        KEPT_STRICTER,
+        /** The decision could not be written and verified. */
+        FAILED
+    }
+
+    /**
+     * Stores the final decision of an analysis as {@link #saveFinalAction} does and tells whether it took effect: a
+     * less strict decision kept out by a stricter action in effect is KEPT_STRICTER, so that it is not learned as an
+     * allowed request (W5-3).
+     */
+    default FinalActionWrite writeFinalAction(
+            String userId,
+            ZeroTrustAction action,
+            Map<String, Object> additionalFields) {
+        return saveFinalAction(userId, action, additionalFields) ? FinalActionWrite.APPLIED : FinalActionWrite.FAILED;
+    }
+
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction);
 
     void saveActionWithPrevious(String userId, ZeroTrustAction newAction, String contextBindingHash);

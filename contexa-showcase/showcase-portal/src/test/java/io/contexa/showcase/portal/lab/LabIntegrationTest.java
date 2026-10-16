@@ -151,6 +151,54 @@ class LabIntegrationTest {
                 .getResponse().getStatus()).as("an unknown run").isEqualTo(404);
     }
 
+    /**
+     * W7-13: the lab delta compares a run with one changed condition against a designed lab run of the same case,
+     * completed and unforced, under the same setting and from the same template: the run's own visitor's first, then
+     * the one composed closest in time.
+     */
+    @Test
+    void theDeltaComparesWithTheDesignedRunOfTheSameCaseAndSetting() throws Exception {
+        String setting = "7".repeat(64);
+        String visitor = "8".repeat(64);
+        String other = "9".repeat(64);
+        Instant at = Instant.parse("2026-10-16T03:00:00Z");
+        String lab = labRun("A3", visitor, setting, "COMPLETED", null, List.of("approval"), at);
+        String near = labRun("A3", other, setting, "COMPLETED", null, List.of(), at.minusSeconds(60));
+        labRun("A3", other, setting, "COMPLETED", null, List.of(), at.minusSeconds(3600));
+        labRun("A3T", visitor, setting, "COMPLETED", null, List.of(), at.minusSeconds(5));
+        labRun("A3", visitor, "6".repeat(64), "COMPLETED", null, List.of(), at.minusSeconds(5));
+        labRun("A3", visitor, setting, "FAILED", null, List.of(), at.minusSeconds(5));
+        labRun("A3", visitor, setting, "COMPLETED", "BLOCK", List.of(), at.minusSeconds(5));
+        labRun("A3", visitor, setting, "COMPLETED", null, List.of("items"), at.minusSeconds(5));
+
+        LabStore.Composition run = store.composition(lab).orElseThrow();
+        assertThat(run.changed()).containsExactly("approval");
+        assertThat(run.settingHash()).isEqualTo(setting);
+        assertThat(run.visitor()).isEqualTo(visitor);
+        assertThat(store.designedBase(run)).as("another case, setting, a failed, forced or changed run never")
+                .contains(near);
+
+        String own = labRun("A3", visitor, setting, "COMPLETED", null, List.of(), at.minusSeconds(86400));
+        assertThat(store.designedBase(run)).as("the visitor's own designed run first").contains(own);
+        assertThat(store.composition("run-000000000000")).as("not a lab run").isEmpty();
+    }
+
+    private String labRun(String caseKey, String visitor, String setting, String status, String forced,
+                          List<String> changed, Instant composedAt) throws Exception {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status, live_visitor_hash, live_run, setting_hash,
+                    forced_action)
+                values (?, ?, 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', now(), ?, ?, true, ?, ?)""",
+                runId, caseKey, "v" + runId, status, visitor, setting, forced);
+        jdbc.update("""
+                insert into lab_composition (run_id, case_key, designed, changed, conditions, composed_at)
+                values (?, ?, ?, cast(? as jsonb), '{"approval": true, "items": 4831}'::jsonb, ?)""",
+                runId, caseKey, changed.isEmpty(), json.writeValueAsString(changed), Timestamp.from(composedAt));
+        return runId;
+    }
+
     private String peerRun(String visitor, String sha, String setting, String forced) {
         String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         jdbc.update("""

@@ -52,7 +52,9 @@ public final class UnknownDeclaredCheck implements PromptInspectionCheck {
     private static final Pattern KIND = Pattern.compile("(" + PromptUnknownKind.wordsPattern() + "): ");
     /** A word in the place of a kind: at the line's start or after {@code "; "} (the reasons are short phrases). */
     private static final Pattern KIND_WORD = Pattern.compile("(?:^|; )([a-z]+(?:-[a-z]+)*): ");
-    private static final Pattern NAME = Pattern.compile("([A-Za-z][A-Za-z0-9]*)(?: \\(([^()]*)\\))?");
+    /** A name with its reason, after the ID the line gives it (N-UID-1; a prompt sealed before has none). */
+    private static final Pattern NAME = Pattern.compile("(?:\\[" + PromptUnknownKind.FACT_PREFIX
+            + "[0-9]+] )?([A-Za-z][A-Za-z0-9]*)(?: \\(([^()]*)\\))?");
     private static final Set<PromptMissingNotation> DRAWN_OR_NAMED = EnumSet.of(
             PromptMissingNotation.ALWAYS_PRESENT, PromptMissingNotation.UNKNOWN_BLOCK, PromptMissingNotation.RENDERED_VALUE);
 
@@ -203,6 +205,11 @@ public final class UnknownDeclaredCheck implements PromptInspectionCheck {
     }
 
     /** The names of an UNKNOWN line value with their kind and reason ({@code kind: A, B (reason); kind: C}). */
+    /** The fact names an UNKNOWN line's value declares, of every kind (N-SRC-1). */
+    static Set<String> declaredNames(String value) {
+        return parse(value).keySet();
+    }
+
     static Map<String, Declared> parse(String value) {
         Map<String, Declared> names = new LinkedHashMap<>();
         if (value == null) {

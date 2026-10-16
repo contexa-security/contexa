@@ -1,5 +1,6 @@
 package io.contexa.showcase.workload.contexa.internal;
 
+import io.contexa.autoconfigure.iam.admin.PqaOssSealedEvidenceCaptureProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,8 @@ class EngineInfoChatProviderTest {
         Map<String, Object> engine = engine("openai", "gpt-6-luna", "claude-haiku-5-5");
 
         assertThat(engine).containsEntry("chatProvider", "openai").containsEntry("chatModel", "gpt-6-luna");
-        assertThat(engine.get("layer1Model")).isEqualTo(settings("minimal", "low", 256));
+        // The defaults since W4-6 (G-5): a reasoning model's reasoning tokens count against the output limit.
+        assertThat(engine.get("layer1Model")).isEqualTo(settings("low", "low", 2048));
     }
 
     @Test
@@ -31,8 +33,8 @@ class EngineInfoChatProviderTest {
         Map<String, Object> engine = engine("anthropic", "", "claude-haiku-5-5");
 
         assertThat(engine).containsEntry("chatProvider", "anthropic").containsEntry("chatModel", "claude-haiku-5-5");
-        assertThat(engine.get("layer1Model")).isEqualTo(settings(null, null, 256));
-        assertThat(engine.get("layer2Model")).isEqualTo(settings(null, null, 320));
+        assertThat(engine.get("layer1Model")).isEqualTo(settings(null, null, 2048));
+        assertThat(engine.get("layer2Model")).isEqualTo(settings(null, null, 2560));
     }
 
     private static Map<String, Object> settings(String effort, String verbosity, int maxOutputTokens) {
@@ -49,7 +51,8 @@ class EngineInfoChatProviderTest {
         ContexaInternalController controller = new ContexaInternalController(null, null, null, null, null, null,
                 null, null, null, null, beans.getBeanProvider(TieredStrategyProperties.class),
                 new SecurityZeroTrustProperties(), provider, openAiModel, anthropicModel, "text-embedding-3-small", 1024,
-                beans.getBeanProvider(BuildProperties.class), false, null);
+                beans.getBeanProvider(BuildProperties.class), false, null,
+                beans.getBeanProvider(PqaOssSealedEvidenceCaptureProperties.class));
         return controller.engine();
     }
 }

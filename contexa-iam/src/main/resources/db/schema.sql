@@ -3745,6 +3745,9 @@ create table if not exists prompt_governance_registry (
 
 -- W3-16: the share of a scope's requests a CANARY release runs for; null is the whole scope.
 alter table prompt_governance_registry add column if not exists canary_percent integer check (canary_percent between 0 and 100);
+-- W6-9 (P6-CHANGE-6): a canary release's target tenants and resource families (comma separated, none is every one).
+alter table prompt_governance_registry add column if not exists canary_tenants varchar(2000);
+alter table prompt_governance_registry add column if not exists canary_resource_families varchar(2000);
 
 create unique index if not exists idx_prompt_governance_registry_identity
     on prompt_governance_registry (registry_scope, prompt_key, prompt_version);
@@ -3921,6 +3924,10 @@ create unique index if not exists idx_prompt_governance_eval_identity
 create index if not exists idx_prompt_governance_eval_current
     on prompt_governance_eval_ledger (registry_scope, prompt_key, updated_at);
 
+-- W6-8 (PV-5, PV-6): an evaluation names the bundle hash it ran and the runs it counted.
+alter table prompt_governance_eval_ledger add column if not exists bundle_hash varchar(64);
+alter table prompt_governance_eval_ledger add column if not exists run_reference varchar(256);
+
 -- ------------------------------------------------------------
 -- Source migration: V20260504_03__prompt_governance_jpa_schema.sql
 -- ------------------------------------------------------------
@@ -3943,6 +3950,27 @@ create table if not exists prompt_governance_rollback_ledger (
 
 create unique index if not exists idx_prompt_governance_rollback_identity
     on prompt_governance_rollback_ledger (registry_scope, prompt_key, prompt_version);
+
+-- W6-10 (P6-CHANGE-7): every rollback execution, refused ones included, with the conditions it was checked against.
+-- The rollback ledger keeps one row per bundle, and an execution is a new row here.
+create table if not exists prompt_governance_rollback_execution (
+    execution_key varchar(64) primary key,
+    registry_scope varchar(128) not null,
+    prompt_key varchar(128) not null,
+    from_version varchar(128) not null,
+    to_version varchar(128) not null,
+    actor varchar(128),
+    reason varchar(2000),
+    emergency boolean not null default false,
+    status varchar(32) not null,
+    conditions_json varchar(4000),
+    executed_at timestamp(6) not null,
+    approved_by varchar(128),
+    approved_at timestamp(6)
+);
+
+create index if not exists idx_prompt_governance_rollback_execution_bundle
+    on prompt_governance_rollback_execution (registry_scope, prompt_key, executed_at);
 
 create index if not exists idx_prompt_governance_rollback_current
     on prompt_governance_rollback_ledger (registry_scope, prompt_key, updated_at);

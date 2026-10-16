@@ -27,5 +27,10 @@ public enum PromptBundleSelectionSource {
     /** The registry's active release of the request's scope. */
     REGISTRY,
     /** The registry's canary release, for a request inside the canary share of its scope. */
-    CANARY
+    CANARY,
+    /**
+     * W6-9 (P6-CHANGE-6): the registry's shadow release, run on sampled requests apart from the decision, sealed and
+     * never enforced or learned.
+     */
+    SHADOW
 }

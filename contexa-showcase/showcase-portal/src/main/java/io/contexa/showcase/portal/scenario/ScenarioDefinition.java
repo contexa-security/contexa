@@ -46,6 +46,14 @@ public record ScenarioDefinition(
      */
     public static final String RULE_BLIND = "RULE_BLIND";
 
+    /**
+     * W7-5: normal work in combinations the rules were not written for and the other cases do not show: a laptop used
+     * for the first time on a registered trip at the company's dawn (S14), usual work on a resource of internal grade
+     * while every other case's resource is confidential or above (S15, deep analysis A-16), and exports that add up
+     * within an approval (S11T, the counterpart of S11). Their results are published as they come out.
+     */
+    public static final String NORMAL_COMBINATION = "NORMAL_COMBINATION";
+
     public ScenarioDefinition(String key, int version, Map<String, String> title, String protagonist, boolean template,
                               TimeSlot timeSlot, Device device, Pace pace, List<Fact> facts, List<Step> steps,
                               Oracle oracle, Network network) {
@@ -138,10 +146,28 @@ public record ScenarioDefinition(
      * @param responsibility role given by a ROLE_GRANT step
      * @param visitorSends   the visitor sends this step: a live run waits for the visitor's press before it (the
      *                       attacker trying again in docs/showcase/화면설계서.md scene 2); a recording sends it at once
+     * @param body           W7-4 (docs/showcase/프롬프트-최종-구현계획.md 8.7, the request body): the JSON object a POST
+     *                       step sends as its body; null sends an empty body, as before
+     * @param headers        W7-4 (8.7, an X-Contexa-Anomaly-Signal header the requester has no authority to send):
+     *                       headers the requester adds, sent as written to every control; null for none
+     * @param requestIdOf    W7-4 (8.7, an X-Request-ID equal to the previous request's): the number (1-based) of an
+     *                       earlier step whose request id this step sends as its X-Request-ID; each control sends the
+     *                       id it sent that step with, while the request keeps a processing id of its own
      */
     public record Step(BusinessOperation operation, DocumentSelector document, String project, String customer,
                        Integer items, long offsetSeconds, Map<String, String> expected, String claimedTicket,
-                       String grantee, String responsibility, Boolean visitorSends) {
+                       String grantee, String responsibility, Boolean visitorSends,
+                       @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Object> body,
+                       @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> headers,
+                       @JsonInclude(JsonInclude.Include.NON_NULL) Integer requestIdOf) {
+
+        /** A step that names no request part beyond its path; its definition hash is the one it had before W7-4. */
+        public Step(BusinessOperation operation, DocumentSelector document, String project, String customer,
+                    Integer items, long offsetSeconds, Map<String, String> expected, String claimedTicket,
+                    String grantee, String responsibility, Boolean visitorSends) {
+            this(operation, document, project, customer, items, offsetSeconds, expected, claimedTicket, grantee,
+                    responsibility, visitorSends, null, null, null);
+        }
 
         public boolean sentByVisitor() {
             return Boolean.TRUE.equals(visitorSends);

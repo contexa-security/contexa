@@ -2,17 +2,24 @@ package io.contexa.showcase.portal.orchestrator;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.business.company.TimeSlot;
 import io.contexa.showcase.business.run.RunFacts;
+import io.contexa.showcase.business.work.BusinessOperation;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 /** Orchestrator pieces that need no running control: scenarios, decision reading, facts, expectations. */
 class OrchestratorUnitTest {
@@ -25,7 +32,8 @@ class OrchestratorUnitTest {
 
         assertThat(catalog.all()).extracting(ScenarioDefinition::key)
                 .containsExactly("A1", "A1T", "A3", "A3A", "A3S", "A3ST", "A3T", "A3TA", "A5", "A5T", "A6", "A6T", "A8", "A8T", "K2", "R1", "S01", "S02",
-                        "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S09C", "S10", "S11", "S12", "S13", "S13T");
+                        "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S09C", "S10", "S11", "S11T", "S12", "S13",
+                        "S13T", "S14", "S15");
         for (ScenarioDefinition scenario : catalog.all()) {
             assertThat(scenario.title()).as(scenario.key()).containsKeys("ko", "en");
             assertThat(scenario.frozenOn()).as(scenario.key() + " is frozen (W2-5)").isNotNull();
@@ -216,5 +224,156 @@ class OrchestratorUnitTest {
         assertThat(ControlSession.ruleOf(json.readTree("{\"rule\":\"C2-APPROVAL-MISSING\",\"error\":\"Forbidden\"}")))
                 .as("a plain control's rule wins over the generic error").isEqualTo("C2-APPROVAL-MISSING");
         assertThat(ControlSession.ruleOf(json.readTree("{\"message\":\"nothing else\"}"))).isNull();
+    }
+
+    /** W7-4 (plan 8.7): a step's request parts are its body as JSON, its headers and the earlier id it names. */
+    @Test
+    void aStepsRequestPartsAreItsBodyItsHeadersAndTheIdOfTheEarlierRequestItNames() throws Exception {
+        ScenarioDefinition.Step plain = new ScenarioDefinition.Step(BusinessOperation.EXPORT, null, "GB-500", null,
+                4831, 0, Map.of(), null, null, null, null);
+        ScenarioDefinition.Step named = new ScenarioDefinition.Step(BusinessOperation.EXPORT, null, "GB-500", null,
+                4831, 0, Map.of(), null, null, null, null, Map.of("note", "text"),
+                Map.of("X-Contexa-Anomaly-Signal", "benign; text"), 1);
+
+        ControlSession.RequestParts parts = RunOrchestrator.requestParts(json, named, Map.of(1, "id-of-step-1"));
+
+        assertThat(parts.body()).isEqualTo("{\"note\":\"text\"}");
+        assertThat(parts.headers()).containsExactly(entry("X-Contexa-Anomaly-Signal", "benign; text"),
+                entry("X-Request-ID", "id-of-step-1"));
+        assertThat(RunOrchestrator.requestParts(json, plain, Map.of())).isEqualTo(ControlSession.RequestParts.NONE);
+        assertThatThrownBy(() -> RunOrchestrator.requestParts(json, named, Map.of()))
+                .as("the earlier step sent nothing").isInstanceOf(IllegalStateException.class);
+        assertThat(RunOrchestrator.path(named, "aabbccddeeff", null))
+                .isEqualTo("/api/projects/GB-500/exports?items=4831");
+        assertThat(RunOrchestrator.path(new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_READ,
+                new ScenarioDefinition.DocumentSelector("HX-310", "DRAWING", 1), null, null, null, 0, Map.of(), null,
+                null, null, null), "aabbccddeeff", "HX-310-DWG-00001")).isEqualTo("/api/documents/HX-310-DWG-00001");
+    }
+
+    /** W7-4: a definition whose request parts cannot be sent as written is refused before its run creates anything. */
+    @Test
+    void aDefinitionWhoseRequestPartsCannotBeSentAsWrittenIsRefused() throws Exception {
+        ScenarioDefinition.Step listing = new ScenarioDefinition.Step(BusinessOperation.PROJECT_LIST, null, null, null,
+                null, -60, Map.of(), null, null, null, null);
+        ScenarioDefinition.Step readWithBody = new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_READ,
+                new ScenarioDefinition.DocumentSelector("HX-310", "DRAWING", 1), null, null, null, 0, Map.of(), null,
+                null, null, null, Map.of("note", "text"), null, null);
+        ScenarioDefinition.Step signedHeader = exportWith(Map.of("X-Showcase-Request-Id", "chosen"), null);
+        ScenarioDefinition.Step ownId = exportWith(null, 1);
+        ScenarioDefinition.Step twice = exportWith(Map.of("x-request-id", "chosen"), 1);
+
+        assertThatThrownBy(() -> RunOrchestrator.checkRequestParts(definition(List.of(readWithBody))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RunOrchestrator.checkRequestParts(definition(List.of(signedHeader))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RunOrchestrator.checkRequestParts(definition(List.of(ownId))))
+                .as("step 1 has no earlier step").isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RunOrchestrator.checkRequestParts(definition(List.of(listing, twice))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatCode(() -> RunOrchestrator.checkRequestParts(definition(List.of(listing, exportWith(null, 1)))))
+                .doesNotThrowAnyException();
+        for (ScenarioDefinition scenario : new ScenarioCatalog(json).all()) {
+            assertThatCode(() -> RunOrchestrator.checkRequestParts(scenario)).as(scenario.key())
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    /**
+     * W7-4: a step that names no request part is written as before, so every packaged case keeps the definition hash
+     * its runs were stored under (run.scenario_sha256, the way ExecutionSpecHasherTest keeps an older specification's
+     * hash); a step that names one writes it.
+     */
+    @Test
+    void theRequestPartsLeaveTheDefinitionHashOfEveryPackagedCaseAsItWas() throws Exception {
+        List<String> before = List.of("operation", "document", "project", "customer", "items", "offsetSeconds",
+                "expected", "claimedTicket", "grantee", "responsibility", "visitorSends");
+        for (ScenarioDefinition scenario : new ScenarioCatalog(json).all()) {
+            for (JsonNode step : json.valueToTree(scenario).path("steps")) {
+                List<String> names = new ArrayList<>();
+                step.fieldNames().forEachRemaining(names::add);
+                assertThat(names).as(scenario.key()).containsExactlyInAnyOrderElementsOf(before);
+            }
+            List<ScenarioDefinition.Step> rebuilt = scenario.steps().stream().map(step -> new ScenarioDefinition.Step(
+                    step.operation(), step.document(), step.project(), step.customer(), step.items(),
+                    step.offsetSeconds(), step.expected(), step.claimedTicket(), step.grantee(), step.responsibility(),
+                    step.visitorSends())).toList();
+            assertThat(RunOrchestrator.definitionSha256(json, withSteps(scenario, rebuilt))).as(scenario.key())
+                    .isEqualTo(RunOrchestrator.definitionSha256(json, scenario));
+        }
+        String repeated = RunOrchestrator.canonicalJson(json.valueToTree(exportWith(null, 1)));
+        assertThat(repeated).contains("\"requestIdOf\":1").doesNotContain("\"body\"").doesNotContain("\"headers\"");
+    }
+
+    /** W7-4: the request parts of a definition survive writing it and reading it back. */
+    @Test
+    void aStepsRequestPartsSurviveTheRoundTripOfItsDefinition() throws Exception {
+        ScenarioDefinition.Step listing = new ScenarioDefinition.Step(BusinessOperation.PROJECT_LIST, null, null, null,
+                null, -60, Map.of("A", "ALLOW"), null, null, null, null);
+        ScenarioDefinition.Step export = new ScenarioDefinition.Step(BusinessOperation.EXPORT, null, "GB-500", null,
+                4831, 0, Map.of("A", "ALLOW"), null, null, null, null, Map.of("note", "text"),
+                Map.of("X-Contexa-Anomaly-Signal", "benign; text"), 1);
+        ScenarioDefinition definition = definition(List.of(listing, export));
+
+        ScenarioDefinition read = json.readValue(json.writeValueAsString(definition), ScenarioDefinition.class);
+
+        assertThat(read).isEqualTo(definition);
+        assertThat(read.steps().get(1).body()).isEqualTo(Map.of("note", "text"));
+        assertThat(read.steps().get(1).headers()).isEqualTo(Map.of("X-Contexa-Anomaly-Signal", "benign; text"));
+        assertThat(read.steps().get(1).requestIdOf()).isEqualTo(1);
+        assertThat(RunOrchestrator.definitionSha256(json, read)).isEqualTo(RunOrchestrator.definitionSha256(json,
+                definition));
+    }
+
+    /**
+     * W7-5: the new bundle is normal work in combinations the rules were not written for, counted apart under its own
+     * suite: a new laptop on a registered trip at the company's dawn, usual work on a resource of internal grade, and
+     * the requests of S11 under an approval they stay within.
+     */
+    @Test
+    void theNewBundleIsNormalWorkInCombinationsTheBenchmarkCountsApart() throws Exception {
+        ScenarioCatalog catalog = new ScenarioCatalog(json);
+
+        assertThat(catalog.all()).filteredOn(scenario -> ScenarioDefinition.NORMAL_COMBINATION.equals(scenario.suite()))
+                .extracting(ScenarioDefinition::key).containsExactly("S11T", "S14", "S15");
+        for (String key : List.of("S11T", "S14", "S15")) {
+            ScenarioDefinition scenario = catalog.find(key).orElseThrow();
+            assertThat(scenario.version()).isEqualTo(1);
+            assertThat(scenario.frozenOn()).isEqualTo(LocalDate.parse("2026-10-16"));
+            assertThat(scenario.oracle().classification()).as(key).isEqualTo("NORMAL");
+            assertThat(scenario.oracle().allowedEngineActions()).as(key).containsExactly("ALLOW", "CHALLENGE");
+            assertThat(scenario.template()).as(key).isTrue();
+        }
+        ScenarioDefinition trip = catalog.find("S14").orElseThrow();
+        assertThat(trip.protagonist()).isEqualTo("eng-k");
+        assertThat(trip.timeSlot()).isEqualTo(TimeSlot.DAWN);
+        assertThat(trip.device()).isEqualTo(ScenarioDefinition.Device.NEW);
+        assertThat(trip.networkOrDefault()).isEqualTo(ScenarioDefinition.Network.TRAVEL);
+        assertThat(RunOrchestrator.network(trip, "10.40.21.0/24")).isEqualTo("198.51.100.0/24");
+        ScenarioDefinition internal = catalog.find("S15").orElseThrow();
+        assertThat(internal.steps()).allSatisfy(step -> assertThat(step.project() != null ? step.project()
+                : step.document().project()).isEqualTo("PLM-OPS"));
+        ScenarioDefinition within = catalog.find("S11T").orElseThrow();
+        ScenarioDefinition beyond = catalog.find("S11").orElseThrow();
+        assertThat(within.steps()).as("the same requests as S11").isEqualTo(beyond.steps());
+        int sum = within.steps().stream().mapToInt(ScenarioDefinition.Step::items).sum();
+        assertThat(sum).isEqualTo(2400).isLessThanOrEqualTo(within.facts().get(0).maxItems())
+                .isGreaterThan(beyond.facts().get(0).maxItems());
+    }
+
+    private static ScenarioDefinition.Step exportWith(Map<String, String> headers, Integer requestIdOf) {
+        return new ScenarioDefinition.Step(BusinessOperation.EXPORT, null, "GB-500", null, 4831, 0, Map.of(), null,
+                null, null, null, null, headers, requestIdOf);
+    }
+
+    private static ScenarioDefinition definition(List<ScenarioDefinition.Step> steps) {
+        return new ScenarioDefinition("T", 1, Map.of("ko", "시험", "en", "test"), "adm-a", true, TimeSlot.DAWN,
+                ScenarioDefinition.Device.USUAL, ScenarioDefinition.Pace.PACED, List.of(), steps,
+                new ScenarioDefinition.Oracle("THREAT", List.of("BLOCK")), null);
+    }
+
+    private static ScenarioDefinition withSteps(ScenarioDefinition scenario, List<ScenarioDefinition.Step> steps) {
+        return new ScenarioDefinition(scenario.key(), scenario.version(), scenario.title(), scenario.protagonist(),
+                scenario.template(), scenario.timeSlot(), scenario.device(), scenario.pace(), scenario.facts(), steps,
+                scenario.oracle(), scenario.network(), scenario.frozenOn(), scenario.suite());
     }
 }

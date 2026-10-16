@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.baseline.store;
 
 import io.contexa.contexacommon.security.baseline.BaselineVector;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,7 +29,11 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.SessionCallback;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -56,9 +61,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public void saveUserBaseline(String userId, BaselineVector baseline) {
         try {
             String key = BASELINE_KEY_PREFIX + userId;
-            Map<String, Object> data = buildBaselineHash(userId, baseline);
-            redisTemplate.opsForHash().putAll(key, data);
-            redisTemplate.expire(key, BASELINE_TTL);
+            replaceHash(key, buildBaselineHash(userId, baseline));
             redisTemplate.opsForSet().add(USER_BASELINE_INDEX_KEY, userId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
@@ -81,13 +84,51 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     public void saveOrganizationBaseline(String organizationId, BaselineVector baseline) {
         try {
             String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            Map<String, Object> data = buildBaselineHash("org:" + organizationId, baseline);
-            redisTemplate.opsForHash().putAll(key, data);
-            redisTemplate.expire(key, BASELINE_TTL);
+            replaceHash(key, buildBaselineHash("org:" + organizationId, baseline));
             redisTemplate.opsForSet().add(ORG_BASELINE_INDEX_KEY, organizationId);
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline save failed: organizationId={}", organizationId, e);
         }
+    }
+
+    @Override
+    public BaselineRead readUserBaseline(String userId) {
+        try {
+            return BaselineRead.of(loadBaselineFromHash(BASELINE_KEY_PREFIX + userId, userId));
+        } catch (Exception e) {
+            log.error("[BaselineDataStore] User baseline read failed: userId={}", userId, e);
+            return BaselineRead.failed();
+        }
+    }
+
+    @Override
+    public BaselineRead readOrganizationBaseline(String organizationId) {
+        try {
+            return BaselineRead.of(loadBaselineFromHash(BASELINE_KEY_PREFIX + "org:" + organizationId,
+                    "org:" + organizationId));
+        } catch (Exception e) {
+            log.error("[BaselineDataStore] Organization baseline read failed: organizationId={}", organizationId, e);
+            return BaselineRead.failed();
+        }
+    }
+
+    /**
+     * Replaces the stored hash whole in one transaction, so that no field of an earlier baseline is left beside the
+     * new one (W5-8): the key is removed and written again with its time to live.
+     */
+    private void replaceHash(String key, Map<String, Object> data) {
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <K, V> List<Object> execute(RedisOperations<K, V> operations) {
+                RedisOperations<String, Object> transaction = (RedisOperations<String, Object>) operations;
+                transaction.multi();
+                transaction.delete(key);
+                transaction.opsForHash().putAll(key, data);
+                transaction.expire(key, BASELINE_TTL);
+                return transaction.exec();
+            }
+        });
     }
 
     @Override
@@ -122,8 +163,26 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         if (userId == null || userId.isBlank()) {
             return;
         }
-        redisTemplate.delete(BASELINE_KEY_PREFIX + userId);
-        redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, userId);
+        deleteUserBaselineKey(userId);
+        // The user's baselines under every tenant (W5-10 D9).
+        List<String> tenantKeys = new ArrayList<>();
+        try (Cursor<String> cursor = redisTemplate.scan(ScanOptions.scanOptions()
+                .match(BASELINE_KEY_PREFIX + "*" + TENANT_SEPARATOR + ZeroTrustRedisKeys.globLiteral(userId))
+                .count(500).build())) {
+            cursor.forEachRemaining(tenantKeys::add);
+        }
+        for (String key : tenantKeys) {
+            deleteUserBaselineKey(key.substring(BASELINE_KEY_PREFIX.length()));
+        }
+    }
+
+    @Override
+    public void deleteUserBaselineKey(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        redisTemplate.delete(BASELINE_KEY_PREFIX + key);
+        redisTemplate.opsForSet().remove(USER_BASELINE_INDEX_KEY, key);
     }
 
     @Override
@@ -157,6 +216,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
         putIfNonEmpty(data, "normalAuthenticationTypes", baseline.getNormalAuthenticationTypes());
         putIfNonEmpty(data, "frequentActionFamilies", baseline.getFrequentActionFamilies());
         putIfNonEmpty(data, "frequentResourceFamilies", baseline.getFrequentResourceFamilies());
+        putIfNotNull(data, "vocabularyVersion", baseline.getVocabularyVersion());
+        putIfNonEmpty(data, "learnedDates", baseline.getLearnedDates());
+        putIfNotNull(data, "recentNovelty", baseline.getRecentNovelty());
         if (baseline.getElementFrequencies() != null && !baseline.getElementFrequencies().isEmpty()) {
             data.put("elementFrequencies", baseline.getElementFrequencies());
         }
@@ -193,6 +255,9 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                 .frequentActionFamilies(toStringArray(data.get("frequentActionFamilies")))
                 .frequentResourceFamilies(toStringArray(data.get("frequentResourceFamilies")))
                 .elementFrequencies(toFrequencyMap(data.get("elementFrequencies")))
+                .vocabularyVersion(data.get("vocabularyVersion") != null ? data.get("vocabularyVersion").toString() : null)
+                .learnedDates(toStringArray(data.get("learnedDates")))
+                .recentNovelty(data.get("recentNovelty") != null ? data.get("recentNovelty").toString() : null)
                 .build();
     }
 

@@ -125,6 +125,54 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(resolutions).hasValue(2);
     }
 
+    /**
+     * W4-7 (inventory 6 bundle 10): with the required context complete, a v20 prompt is partial when its UNKNOWN block
+     * names a fact (the dictionary's missing rule), and that fact is the reason.
+     */
+    @Test
+    void aCompleteV20ContextIsPartialWhenItsUnknownBlockNamesAFact() {
+        CanonicalSecurityContext completeRequiredContext = CanonicalSecurityContext.builder()
+                .actor(CanonicalSecurityContext.Actor.builder().userId("alice").build())
+                .session(CanonicalSecurityContext.Session.builder()
+                        .sessionId("session-complete-v20")
+                        .mfaVerified(true)
+                        .build())
+                .resource(CanonicalSecurityContext.Resource.builder()
+                        .resourceId("resource-complete-v20")
+                        .requestPath("/resource-complete-v20")
+                        .httpMethod("GET")
+                        .sensitivity("NORMAL")
+                        .build())
+                .authorization(CanonicalSecurityContext.Authorization.builder()
+                        .effectiveRoles(List.of("USER"))
+                        .scopeTags(List.of("READ"))
+                        .authorizationEffect("ALLOW")
+                        .build())
+                .build();
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        SecurityDecisionPromptSections sections = new SecurityDecisionPromptSections(
+                new SecurityEventEnricher(),
+                properties,
+                event -> Optional.of(completeRequiredContext),
+                new PromptContextComposer());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-complete-v20")
+                .userId("alice")
+                .sessionId("session-complete-v20")
+                .build();
+        SecurityDecisionStandardPromptTemplate.SessionContext session =
+                new SecurityDecisionStandardPromptTemplate.SessionContext();
+        session.setUserId("alice");
+        session.setSessionId("session-complete-v20");
+
+        var prompt = sections.buildStructuredPrompt(event, session, null, List.of());
+
+        List<?> reasons = (List<?>) prompt.executionMetadata().supplementalMetadata().get("promptEvidenceCompletenessReasons");
+        assertThat(reasons).isNotEmpty();
+        assertThat(prompt.executionMetadata().promptEvidenceCompleteness()).isEqualTo(PromptEvidenceCompleteness.PARTIAL);
+    }
+
     @Test
     void omittedOptionalSectionsDoNotMakeAnOtherwiseUsablePromptIncomplete() {
         CanonicalSecurityContext completeRequiredContext = CanonicalSecurityContext.builder()
@@ -360,10 +408,10 @@ class SecurityDecisionStandardPromptTemplateTest {
                 .asString()
                 .startsWith("sha256:");
         // P2 renders computed facts in the v19 format, a new bundle whose evaluation baseline is the P1 gate measurement.
-        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.14-v19.12");
+        assertThat(descriptor.promptVersion()).isEqualTo("2026.10.16-v19.19");
         assertThat(descriptor.contractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
         assertThat(descriptor.releaseStatus().name()).isEqualTo("PRODUCTION");
-        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P3-GATE-GOLDEN-INPUTS-2026-10-14");
+        assertThat(descriptor.releaseApprovalReference()).isEqualTo("P5-GOLD-2026-10-16");
         assertThat(descriptor.evaluationBaselineReference()).isEqualTo("protocol-938648df");
         // The former rollback target 2026.07.26-v5 has no prompt text in the build, so v19 declares none (W1-18, PV-3).
         assertThat(descriptor.rollbackPromptVersion()).isNull();
@@ -491,6 +539,75 @@ class SecurityDecisionStandardPromptTemplateTest {
         assertThat(((Number) secondMetadata.get("promptRuntimeRenderTimeMs")).longValue()).isGreaterThanOrEqualTo(0L);
         assertThat(firstPrompt.userText()).contains("alice").contains("/api/customer/export");
         assertThat(secondPrompt.userText()).contains("bob").contains("/admin/api/security-test/normal/resource-001");
+    }
+
+    /**
+     * W4-7 (inventory 6 bundle 1): a security decision names no model, so its prompt is estimated with the model the
+     * analysis runs on (the strategy's estimation hint) and the measured calibration of that model applies.
+     */
+    @Test
+    void thePromptEstimateIsCalibratedForTheModelTheAnalysisRunsOn() {
+        ObservedPromptTokenUsageRegistry.clear();
+        try {
+            ObservedPromptTokenUsageRegistry.recordObservation("w47-calibrated-model", 1000, 1000);
+            SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                    new SecurityEventEnricher(),
+                    new TieredStrategyProperties());
+
+            PromptTokenEstimate plain = estimateOf(template, null);
+            PromptTokenEstimate calibrated = estimateOf(template, "w47-calibrated-model");
+
+            assertThat(calibrated.estimatedTotalTokens()).isGreaterThan(plain.estimatedTotalTokens() * 2);
+        } finally {
+            ObservedPromptTokenUsageRegistry.clear();
+        }
+    }
+
+    private static PromptTokenEstimate estimateOf(SecurityDecisionStandardPromptTemplate template, String hint) {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-w47-estimate")
+                .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-w47")
+                .description("POST /api/customer/export")
+                .build();
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                        new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                        List.of()));
+        if (hint != null) {
+            request.withParameter("promptEstimationModelHint", hint);
+        }
+        String systemPrompt = template.generateSystemPrompt(request, null);
+        String userPrompt = template.generateUserPrompt(request, null);
+        return template.buildPromptExecutionMetadata(request, systemPrompt, userPrompt).promptTokenEstimate();
+    }
+
+    /** W4-7 (inventory 6 bundle 30): the prompt timings are recorded in microseconds, under names that say so. */
+    @Test
+    void thePromptTimingsAreRecordedInMicroseconds() {
+        SecurityDecisionStandardPromptTemplate template = new SecurityDecisionStandardPromptTemplate(
+                new SecurityEventEnricher(),
+                new TieredStrategyProperties());
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-w47-timing")
+                .timestamp(LocalDateTime.of(2026, 4, 17, 11, 0).atZone(ZoneId.systemDefault()).toInstant())
+                .userId("alice")
+                .sessionId("session-w47-timing")
+                .description("POST /api/customer/export")
+                .build();
+
+        Map<String, Object> metadata = template.buildStructuredPrompt(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(),
+                List.of()).executionMetadata().supplementalMetadata();
+
+        assertThat(metadata).containsKey("promptTiming.renderTotalMicros")
+                .containsKey("promptTiming.totalStructuredPromptBuildMicros");
+        assertThat(metadata.keySet().stream().filter(key -> key.startsWith("promptTiming.")))
+                .allMatch(key -> key.endsWith("Micros") || key.endsWith(".micros"));
     }
 
     @Test
@@ -752,7 +869,8 @@ class SecurityDecisionStandardPromptTemplateTest {
         BaselineView sealedView = sealed.getWorkProfile().getBaselineView();
         assertThat(sealedView.state()).isEqualTo(BaselineView.State.ESTABLISHED);
         assertThat(sealedView.learnedUpdates()).isEqualTo(25L);
-        assertThat(sealedView.usualNetworks()).containsExactly("10.40.12.0/24");
+        // W5-9: the view's networks are its observations' own, not the long-term baseline's.
+        assertThat(sealedView.usualNetworks()).isEqualTo(workProfileView.usualNetworks());
         assertThat(sealedView.observations()).isEqualTo(workProfileView.observations());
         assertThat(sealedView.usualHours()).isEqualTo(workProfileView.usualHours());
     }
@@ -2241,6 +2359,39 @@ class SecurityDecisionStandardPromptTemplateTest {
         }
 
         /**
+         * W4-7 (inventory 6 bundle 10): the evidence completeness of a v20 prompt follows the dictionary's missing rules:
+         * the facts the UNKNOWN block names, with kind and reason, are the reasons; PARTIAL with reasons, SUFFICIENT
+         * without (INCOMPLETE keeps its own causes).
+         */
+        @Test
+        void theCompletenessFollowsTheUnknownFactsAndKeepsThemAsReasons() {
+            int withReasons = 0;
+            for (JsonNode goldenCase : golden.cases()) {
+                String where = goldenCase.path("caseKey").asText();
+                var prompt = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20());
+                Object reasons = prompt.executionMetadata().supplementalMetadata().get("promptEvidenceCompletenessReasons");
+                assertThat(reasons).as(where).isInstanceOf(List.class);
+                List<?> list = (List<?>) reasons;
+                String unknown = Arrays.stream(block(prompt.userText(), PromptBlock.UNKNOWN).split("\n"))
+                        .filter(line -> line.startsWith("Unknown: ")).findFirst().orElse("");
+                for (Object reason : list) {
+                    String name = reason.toString().replaceFirst("^[a-z-]+: ", "").replaceFirst(" \\(.*$", "");
+                    assertThat(unknown).as(where).contains(name);
+                }
+                PromptEvidenceCompleteness completeness = prompt.executionMetadata().promptEvidenceCompleteness();
+                if (!list.isEmpty()) {
+                    assertThat(completeness).as(where).isEqualTo(PromptEvidenceCompleteness.PARTIAL);
+                } else {
+                    assertThat(completeness).as(where).isNotEqualTo(PromptEvidenceCompleteness.PARTIAL);
+                }
+                if (!list.isEmpty()) {
+                    withReasons++;
+                }
+            }
+            assertThat(withReasons).isPositive();
+        }
+
+        /**
          * W3-12 (dictionary 1.4): when nothing could be compared because no baseline is learned yet, the comparison facts
          * are unavailable now and say why; facts nothing gives are not integrated.
          */
@@ -2288,6 +2439,58 @@ class SecurityDecisionStandardPromptTemplateTest {
                         + "organization baseline established").endsWith("; reference only");
             }
             assertThat(written).isPositive();
+        }
+
+        /**
+         * W5-10 D7: an organization baseline with counts writes each usual hour and day with the share of its learned
+         * requests that held it; one without counts is written as before (above).
+         */
+        @Test
+        void thePeerReferenceWritesTheShareOfEachUsualValue() {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis =
+                    new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+            analysis.setSupportingBaselineEvidence(new BaselineEvidenceSnapshot(LearningEvidenceScope.SUPPORTING, true,
+                    true, 40L, null, List.of(), List.of("9", "10"), List.of("1", "2"), List.of(), List.of(), List.of(),
+                    List.of(), List.of(), List.of(), "organization baseline available | organization baseline established",
+                    BaselineEvidenceStatus.AVAILABLE, "", List.of(),
+                    Map.of("hour:9", 19L, "hour:10", 20L, "hour:3", 1L, "day:1", 20L, "day:2", 20L)));
+            String peer = null;
+            for (JsonNode goldenCase : golden.cases()) {
+                String user = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), analysis)
+                        .userText();
+                peer = Arrays.stream(block(user, PromptBlock.USER_BASELINE).split("\n"))
+                        .filter(line -> line.startsWith("PeerReference: cohort organization")).findFirst().orElse(null);
+                if (peer != null) {
+                    break;
+                }
+            }
+
+            assertThat(peer).startsWith("PeerReference: cohort organization: hours 9:48%,10:50%, days Mon:50%,Tue:50%; "
+                    + "status AVAILABLE (40 updates); ");
+        }
+
+        /** W5-10 D4: a personal baseline learned but not established states which conditions it misses. */
+        @Test
+        void aProvisionalBaselineStatesWhichConditionsItMisses() {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis analysis =
+                    new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
+            analysis.setPersonalBaselineEvidence(new BaselineEvidenceSnapshot(LearningEvidenceScope.PERSONAL, true,
+                    false, 30L, null, List.of(), List.of("10"), List.of("3"), List.of(), List.of(), List.of(),
+                    List.of(), List.of(), List.of(), "personal baseline provisional | observations=30",
+                    BaselineEvidenceStatus.AVAILABLE, "learned on 1 of 5 dates", List.of()));
+            String status = "";
+            for (JsonNode goldenCase : golden.cases()) {
+                String user = golden.render(goldenCase, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), analysis)
+                        .userText();
+                status = line(block(user, PromptBlock.USER_BASELINE), "BaselineStatus: ");
+                if (status.startsWith("PROVISIONAL")) {
+                    break;
+                }
+            }
+
+            assertThat(status).startsWith("PROVISIONAL (30 learned requests")
+                    .contains("personal baseline AVAILABLE, not established: learned on 1 of 5 dates");
+            assertThat(dictionaryEntry(PromptBlock.USER_BASELINE, "BaselineStatus").acceptsValue(status)).isTrue();
         }
 
         /** W3-12 (dictionary 2.2): a count of failures states the window it was counted in, or that it was not stated. */
@@ -2376,6 +2579,31 @@ class SecurityDecisionStandardPromptTemplateTest {
                     PromptBlock.USER_BASELINE), "BaselineStatus: ");
             assertThat(observed).isEqualTo("SPARSE_PERSONAL_HISTORY (25 observations" + account
                     + ", personal baseline NO_DATA)");
+        }
+
+        /**
+         * W5-7 D4: the observations of the window left out of the comparison because the vocabulary table no longer
+         * reads a value they hold are counted on the status line, after its other reasons; a view without any draws
+         * the line as before.
+         */
+        @Test
+        void observationsTheVocabularyTableCannotReadAreCountedOnTheStatusLine() throws IOException {
+            JsonNode noRecords = golden.cases().stream()
+                    .filter(candidate -> candidate.path("ragResults").path("relatedDocuments").isEmpty())
+                    .findFirst().orElseThrow();
+            JsonNode migrating = withA3Baseline(noRecords);
+            ((ObjectNode) migrating.path("canonicalContext").path("workProfile").path("baselineView").path("counts"))
+                    .put("vocabularyNotComparable", 2);
+            String status = line(block(golden.render(migrating, PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
+                    v20(), organizationBaselineOnly()).userText(), PromptBlock.USER_BASELINE), "BaselineStatus: ");
+            String before = line(block(golden.render(withA3Baseline(noRecords),
+                    PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, v20(), organizationBaselineOnly()).userText(),
+                    PromptBlock.USER_BASELINE), "BaselineStatus: ");
+
+            assertThat(status).isEqualTo(before.substring(0, before.length() - 1)
+                    + ", vocabulary migration: 2 observations not comparable)");
+            assertThat(before).doesNotContain("vocabulary migration");
+            assertThat(dictionaryEntry(PromptBlock.USER_BASELINE, "BaselineStatus").acceptsValue(status)).isTrue();
         }
 
         /**

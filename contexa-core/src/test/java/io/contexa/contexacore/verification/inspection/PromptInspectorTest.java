@@ -30,7 +30,7 @@ class PromptInspectorTest {
     void theCoreChecksAreTheChecksOfTheSealedPackageAloneInReportOrder() {
         assertThat(PromptInspector.coreChecks()).extracting(PromptInspectionCheck::code).containsExactly(
                 "SEAL_INTEGRITY", "DICTIONARY_CONTRACT", "DECISION_FACT_MATCH", "FACT_ACCURACY", "UNKNOWN_DECLARED",
-                "PAST_RECORD_NOTATION", "SAME_FACT");
+                "PAST_RECORD_NOTATION", "SAME_FACT", "REASON_MATCH");
         assertThat(PromptInspector.coreChecks()).filteredOn(check -> !check.dictionaryPromptOnly())
                 .extracting(PromptInspectionCheck::code).containsExactly("SEAL_INTEGRITY");
     }
@@ -49,7 +49,8 @@ class PromptInspectorTest {
      */
     @Test
     void theVersionIsTheOneOfTheCurrentChecks() {
-        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/16");
+        // 19: a source fact the UNKNOWN line names is its missing notation (N-SRC-1).
+        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/19");
     }
 
     /**

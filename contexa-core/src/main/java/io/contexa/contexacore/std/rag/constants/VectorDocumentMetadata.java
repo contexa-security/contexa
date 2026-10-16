@@ -85,6 +85,8 @@ public final class VectorDocumentMetadata {
     public static final String IS_COLD_PATH = "isColdPath";
     public static final String IS_HOT_PATH = "isHotPath";
     public static final String BASELINE_VERSION = "baselineVersion";
+    /** The classification vocabulary the document's values are in (W5-7). */
+    public static final String VOCABULARY_VERSION = "vocabularyVersion";
     public static final String LAYER_NUMBER = "layerNumber";
     public static final String DECISION_TYPE = "decisionType";
     public static final String EVENT_ID = "eventId";

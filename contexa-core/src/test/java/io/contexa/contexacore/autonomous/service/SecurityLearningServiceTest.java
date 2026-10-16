@@ -17,9 +17,12 @@ package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptShadowRun;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
+import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,7 +93,8 @@ class SecurityLearningServiceTest {
     }
 
     @Test
-    @DisplayName("postProcessDecision should invoke only post-processing, not baseline learning")
+    @DisplayName("postProcessDecision updates the session and leaves the decision document to the enforced outcome "
+            + "(W5-3)")
     void shouldInvokePostProcessingOnly() {
         // when
         service.postProcessDecision(event, decision);
@@ -98,7 +102,73 @@ class SecurityLearningServiceTest {
         // then
         verify(baselineLearningService, never()).learnIfNormal(any(), any(), any());
         verify(postProcessor).updateSessionContext(event, decision);
-        verify(postProcessor).storeInVectorDatabase(event, decision);
+        verify(postProcessor, never()).storeInVectorDatabase(any(), any());
+    }
+
+    @Test
+    @DisplayName("a shadow run's copy leaves the session and the decision documents alone (W6-9)")
+    void aShadowRunsCopyLeavesTheSessionAndTheDocumentsAlone() {
+        ContextObservationRecorder recorder = new ContextObservationRecorder(new InMemorySecurityContextDataStore());
+        service.setContextObservationRecorder(recorder);
+        SecurityEvent shadow = requestEvent("request-shadow-run");
+        shadow.addMetadata(PromptShadowRun.MARK, true);
+
+        service.postProcessDecision(shadow, decision);
+        recorder.commit(shadow, ZeroTrustAction.ALLOW.name(), true);
+
+        verify(postProcessor, never()).updateSessionContext(any(), any());
+        verify(postProcessor, never()).storeInVectorDatabase(any(), any());
+    }
+
+    @Test
+    @DisplayName("an analysis layer's decision document is stored only once that decision is enforced (W5-3)")
+    void theDecisionDocumentWaitsForTheEnforcedOutcome() {
+        ContextObservationRecorder recorder = new ContextObservationRecorder(new InMemorySecurityContextDataStore());
+        service.setContextObservationRecorder(recorder);
+        SecurityEvent enforced = requestEvent("request-enforced");
+        SecurityEvent shadow = requestEvent("request-shadow");
+        SecurityEvent other = requestEvent("request-other-outcome");
+
+        service.postProcessDecision(enforced, decision);
+        service.postProcessDecision(shadow, decision);
+        service.postProcessDecision(other, decision);
+        verify(postProcessor, never()).storeInVectorDatabase(any(), any());
+
+        recorder.commit(enforced, ZeroTrustAction.ALLOW.name(), true);
+        recorder.commit(shadow, ZeroTrustAction.ALLOW.name(), false);
+        recorder.commit(other, ZeroTrustAction.CHALLENGE.name(), true);
+
+        verify(postProcessor).storeInVectorDatabase(enforced, decision);
+        verify(postProcessor, never()).storeInVectorDatabase(eq(shadow), any());
+        verify(postProcessor, never()).storeInVectorDatabase(eq(other), any());
+    }
+
+    @Test
+    @DisplayName("the document of the last analysis layer replaces the earlier one of the same request (W5-3)")
+    void theLastLayerDecisionIsTheDocumentStored() {
+        ContextObservationRecorder recorder = new ContextObservationRecorder(new InMemorySecurityContextDataStore());
+        service.setContextObservationRecorder(recorder);
+        SecurityEvent escalated = requestEvent("request-escalated");
+        SecurityDecision first = SecurityDecision.builder().action(ZeroTrustAction.ESCALATE).riskScore(0.5).build();
+        SecurityDecision second = SecurityDecision.builder().action(ZeroTrustAction.CHALLENGE).riskScore(0.7).build();
+
+        service.postProcessDecision(escalated, first);
+        service.postProcessDecision(escalated, second);
+        recorder.commit(escalated, ZeroTrustAction.CHALLENGE.name(), true);
+
+        verify(postProcessor).storeInVectorDatabase(escalated, second);
+        verify(postProcessor, never()).storeInVectorDatabase(escalated, first);
+    }
+
+    private static SecurityEvent requestEvent(String requestId) {
+        SecurityEvent request = SecurityEvent.builder()
+                .eventId("evt-" + requestId)
+                .userId("user1")
+                .sessionId("session-1")
+                .sourceIp("10.0.0.1")
+                .build();
+        request.addMetadata("requestId", requestId);
+        return request;
     }
 
     @Test

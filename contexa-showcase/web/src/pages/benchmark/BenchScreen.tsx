@@ -34,7 +34,7 @@ interface BenchScreenProps {
 }
 
 /**
- * Every benchmark view in the routes' one order and set of places (U-9): the benchmark's place band with its four
+ * Every benchmark view in the routes' one order and set of places (U-9): the benchmark's place band with its five
  * views, the head, the content, the "more" row and the action area. The windows a view opens (how it was measured, an
  * approach's card, a case) have their own addresses and are mounted here, so each view can open them.
  */

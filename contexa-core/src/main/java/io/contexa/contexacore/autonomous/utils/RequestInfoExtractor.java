@@ -75,9 +75,7 @@ public final class RequestInfoExtractor {
         String untrustedAnomalySignalClaim = extractHeader(request, "X-Contexa-Anomaly-Signal");
         Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
         String authenticationType = castToText(officialContextFields.get("authenticationType"));
-        String tenantId = firstNonBlankText(
-                castToText(officialContextFields.get("tenantId")),
-                authenticationStampAttribute(request, "tenantId", "tenant_id"));
+        String tenantId = extractTenantId(request);
         String organizationId = firstNonBlankText(
                 castToText(officialContextFields.get("organizationId")),
                 castToText(officialContextFields.get("orgId")),
@@ -270,6 +268,14 @@ public final class RequestInfoExtractor {
         } catch (IllegalStateException invalidated) {
             return null;
         }
+    }
+
+    /** The tenant the request belongs to: the official context's, else the authentication stamp's. */
+    public static String extractTenantId(HttpServletRequest request) {
+        Map<String, Object> officialContextFields = OfficialContextRequestAttributes.extractSnapshot(request);
+        return firstNonBlankText(
+                castToText(officialContextFields.get("tenantId")),
+                authenticationStampAttribute(request, "tenantId", "tenant_id"));
     }
 
     public static Instant extractObservedAt(HttpServletRequest request) {

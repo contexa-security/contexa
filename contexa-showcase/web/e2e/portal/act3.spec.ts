@@ -100,7 +100,8 @@ for (const language of ['ko', 'en'] as const) {
     await expect(page.getByText(m['how.cell.company'] ?? '')).toBeVisible();
     expect(await seriousViolations(page)).toEqual([]);
 
-    // The prompt: every bundle's line count is the server's.
+    // The prompt (U-2): the five parts in reading order when the step has a fact view, and every block's line count,
+    // the server's, inside the whole original.
     await page.goto(`/try/prompt?lng=${language}`);
     const journey = await api(page, '/api/journey');
     const own = [...journey.runs]
@@ -114,15 +115,24 @@ for (const language of ['ko', 'en'] as const) {
       own?.runId ??
       teasers.teasers.find((teaser: { key: string }) => teaser.key === 'G_HOW_LINES').source.ref;
     const anatomy = await api(page, `/api/runs/${promptRun}/steps/1/anatomy`);
-    for (const bundle of ['RULES', 'COMPANY']) {
+    const facts = await api(page, `/api/runs/${promptRun}/steps/1/facts`);
+    if (facts?.available) {
+      await expect(
+        page.getByRole('list', { name: m['prompt.chunks'] ?? '' }).locator(':scope > li > button'),
+      ).toHaveCount(5);
+    }
+    const v20 = anatomy.promptLines.layout === 'V20_BLOCKS';
+    await page.getByRole('button', { name: m['prompt.originalAll'] ?? '' }).click();
+    const counts = page.getByRole('dialog').getByRole('region', { name: m['prompt.counts'] ?? '' });
+    for (const bundle of v20 ? ['RULES', 'DECISION_FACTS'] : ['RULES', 'COMPANY']) {
       const lines = anatomy.promptLines.bundles.find(
         (entry: { bundle: string }) => entry.bundle === bundle,
       ).lines;
       await expect(
-        page.getByRole('button', { name: new RegExp(m[`prompt.bundle.${bundle}`] ?? '') }),
+        counts.locator('li').filter({ hasText: m[`prompt.${v20 ? 'block' : 'bundle'}.${bundle}`] ?? '' }),
       ).toContainText(format(m['prompt.lines'] ?? '', { n: items(lines, language) }));
     }
-    await expect(page.getByText(m['prompt.plain.approvalRequired'] ?? '')).toBeVisible();
+    await page.keyboard.press('Escape');
     expect(await seriousViolations(page)).toEqual([]);
 
     // T1: the measured middle run of each mode.

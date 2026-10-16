@@ -183,7 +183,10 @@ class PromptInspectionDecisionLineFactsTest {
         if (existing != null) {
             text = text.replace(existing + "\n", "");
         }
-        return text.replace("=== DECISION FACTS ===\n", "=== DECISION FACTS ===\n" + line + "\n");
+        // The header names the time zone when a fact of the block is on the event clock (W3-13).
+        String header = Arrays.stream(text.split("\n")).filter(drawn -> drawn.startsWith("=== DECISION FACTS"))
+                .findFirst().orElseThrow();
+        return text.replace(header + "\n", header + "\n" + line + "\n");
     }
 
     private static PromptInspectionCheckResult check(String userPrompt, InspectionGolden.Render render,

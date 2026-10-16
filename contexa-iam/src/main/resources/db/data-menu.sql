@@ -131,7 +131,8 @@ WITH seed(name, url, icon, parent_data_page, menu_order, enabled, menu_type, dat
     ('menu.pqa.resources',           '/contexa/admin/prompt-quality/resources', '',              'prompt-quality', 1, TRUE, 'CORE',       'prompt-quality-resources'),
     ('menu.pqa.runtimeEvidence',     '/contexa/admin/prompt-quality/runtime-evidence', '',       'prompt-quality', 2, TRUE, 'CORE',       'prompt-quality-runtime-evidence'),
     ('menu.pqa.inspection.overview', '/contexa/admin/prompt-inspection',               '',       'prompt-quality', 3, TRUE, 'CORE',       'prompt-inspection-overview'),
-    ('menu.pqa.inspection.packages', '/contexa/admin/prompt-inspection/packages',      '',       'prompt-quality', 4, TRUE, 'CORE',       'prompt-inspection-packages')
+    ('menu.pqa.inspection.packages', '/contexa/admin/prompt-inspection/packages',      '',       'prompt-quality', 4, TRUE, 'CORE',       'prompt-inspection-packages'),
+    ('menu.pqa.releases',            '/contexa/admin/prompt-quality/releases',         '',       'prompt-quality', 5, TRUE, 'CORE',       'prompt-quality-releases')
 ),
 resolved AS (
     SELECT s.name, s.url, s.icon, p.id AS parent_id, s.menu_order, s.enabled, s.menu_type, s.data_page

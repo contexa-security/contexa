@@ -227,8 +227,9 @@ class PromptInspectionBaselineFactsTest {
         assertThat(InspectionGolden.bare(status)).startsWith("BaselineStatus: " + sealedState);
         assertThat(check(render.sealed()).findings()).noneMatch(finding -> "BaselineStatus".equals(finding.entry()));
 
+        String other = "ESTABLISHED".equals(sealedState.toString()) ? "NONE" : "ESTABLISHED";
         String broken = render.userPrompt().replace(status, status.replace("BaselineStatus: " + sealedState,
-                "BaselineStatus: ESTABLISHED"));
+                "BaselineStatus: " + other));
         List<PromptInspectionFinding> found = mismatches(check(render.sealed(broken)), "BaselineStatus");
         assertThat(found).hasSize(1);
         assertThat(found.get(0).expected()).isEqualTo(sealedState.toString());

@@ -492,7 +492,9 @@
     gap: var(--space-1);
   }
 
+  /* The current tab's dot and label sit closer on a phone: act 4 in English overlapped the badge by 1.4 px (P7). */
   .tab {
+    gap: var(--space-1);
     padding: 0 var(--space-2);
   }
 

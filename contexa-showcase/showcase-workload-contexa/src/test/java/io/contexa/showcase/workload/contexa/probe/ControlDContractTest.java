@@ -301,7 +301,8 @@ class ControlDContractTest {
 
         Created run = create(CompanyBlueprint.ENGINEER_K, CompanyBlueprint.ROLE_ENGINEER, snapshot);
 
-        BaselineVector copied = baselines.getUserBaseline(run.username());
+        // The run user's baseline is kept within the run tenant (W5-10 D9).
+        BaselineVector copied = baselines.getUserBaseline(BaselineDataStore.userKey(run.tenant(), run.username()));
         assertThat(copied.getUserId()).isEqualTo(run.username());
         assertThat(copied.getUpdateCount()).isEqualTo(24L);
         assertThat(copied.getNormalAccessHours()).containsExactly(9, 10, 14);

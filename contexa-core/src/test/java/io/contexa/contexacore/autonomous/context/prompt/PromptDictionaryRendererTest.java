@@ -144,7 +144,12 @@ class PromptDictionaryRendererTest {
         List<String> sorted = new ArrayList<>(rendering.unknownNames());
         Collections.sort(sorted);
         assertThat(rendering.unknownNames()).isEqualTo(sorted);
-        assertThat(text).contains("Unknown: not-integrated: " + String.join(", ", rendering.unknownNames()) + "\n");
+        // N-UID-1: each name after its own ID, U1 onwards in the line's order.
+        List<String> numbered = new ArrayList<>();
+        for (String name : rendering.unknownNames()) {
+            numbered.add("[U" + (numbered.size() + 1) + "] " + name);
+        }
+        assertThat(text).contains("Unknown: not-integrated: " + String.join(", ", numbered) + "\n");
         assertThat(text).doesNotContain("=== UNTRUSTED TEXT");
     }
 
@@ -420,12 +425,45 @@ class PromptDictionaryRendererTest {
 
         String line = Arrays.stream(rendering.text().split("\n")).filter(text -> text.startsWith("Unknown: "))
                 .findFirst().orElseThrow();
-        assertThat(line).startsWith("Unknown: not-integrated: ")
+        // The kinds and reasons of W3-12; the IDs of N-UID-1 have their own test.
+        String plain = line.replaceAll("\\[U[0-9]+] ", "");
+        assertThat(plain).startsWith("Unknown: not-integrated: ")
                 .endsWith("; unavailable-now: PastRecord (not retrieved, TIMEOUT), RoleScope (no scope group lists yet)");
-        String notIntegrated = line.substring("Unknown: not-integrated: ".length(), line.indexOf("; unavailable-now: "));
+        String notIntegrated = plain.substring("Unknown: not-integrated: ".length(), plain.indexOf("; unavailable-now: "));
         assertThat(notIntegrated.split(", ")).contains("Target", "SessionAge").doesNotContain("PastRecord", "RoleScope");
         assertThat(rendering.unknownNames()).contains("Target", "PastRecord", "RoleScope");
         assertThat(entry(PromptBlock.UNKNOWN, "Unknown").acceptsValue(line.substring("Unknown: ".length()))).isTrue();
+    }
+
+    /**
+     * N-UID-1 (Q-87): every fact the UNKNOWN line names carries its own ID, U1 onwards in the line's order, which
+     * MATERIAL_MISSING_EVIDENCE cites; the UNKNOWN line itself carries no line ID.
+     */
+    @Test
+    void everyUnknownFactCarriesItsOwnIdInTheLineOrder() {
+        PromptDictionaryRendering rendering = renderer.render(renderer.values()
+                .value(PromptBlock.REQUEST, "Time", "Wed 03:17")
+                .unknown(PromptBlock.REQUEST, "Target")
+                .unknown(PromptBlock.PAST_RECORDS, "PastRecord{i}", PromptUnknownKind.UNAVAILABLE_NOW,
+                        "not retrieved, TIMEOUT")
+                .unknown(PromptBlock.DECISION_FACTS, "RoleScope", PromptUnknownKind.UNAVAILABLE_NOW,
+                        "no scope group lists yet")
+                .build());
+
+        String line = Arrays.stream(rendering.text().split("\n")).filter(text -> text.startsWith("Unknown: "))
+                .findFirst().orElseThrow();
+        int named = rendering.unknownNames().size();
+        assertThat(line).endsWith("; unavailable-now: [U" + (named - 1) + "] PastRecord (not retrieved, TIMEOUT), [U"
+                + named + "] RoleScope (no scope group lists yet)");
+        String[] notIntegrated = line.substring("Unknown: not-integrated: ".length(),
+                line.indexOf("; unavailable-now: ")).split(", ");
+        assertThat(notIntegrated).hasSize(named - 2);
+        for (int i = 0; i < notIntegrated.length; i++) {
+            assertThat(notIntegrated[i]).startsWith("[U" + (i + 1) + "] ");
+        }
+        assertThat(entry(PromptBlock.UNKNOWN, "Unknown").acceptsValue(line.substring("Unknown: ".length()))).isTrue();
+        assertThat(entry(PromptBlock.UNKNOWN, "Unknown").acceptsValue("not-integrated: Target")).isFalse();
+        assertThat(rendering.factIds()).doesNotContainValue("U1");
     }
 
     /**

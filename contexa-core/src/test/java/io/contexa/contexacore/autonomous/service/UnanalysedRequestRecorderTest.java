@@ -32,6 +32,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,23 @@ class UnanalysedRequestRecorderTest {
         recorder = new ContextObservationRecorder(store);
         collector = new DefaultSessionNarrativeCollector(store, recorder);
         unanalysed = new UnanalysedRequestRecorder(collector, recorder, null, null);
+    }
+
+    @Test
+    void observationsStagedAfterARequestWasRecordedUnanalysedAreNeverLearned() {
+        ZeroTrustSpringEvent event = event("request-late", "2026-09-30T03:17:00Z", 300);
+        unanalysed.record(event, ZeroTrustAction.ALLOW);
+        SecurityEvent request = ZeroTrustSecurityEventConverter.convert(event);
+        List<Boolean> learned = new ArrayList<>();
+
+        // A request answered by the decision in force is not analysed, so it stages nothing to learn; what is staged
+        // for it later is never committed (W5-3 D4).
+        recorder.stage(request, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> learned.add(commit.learnable()));
+        recorder.commit(request, ZeroTrustAction.ALLOW.name(), true);
+
+        assertThat(recorder.committed(request)).isTrue();
+        assertThat(learned).isEmpty();
     }
 
     @Test

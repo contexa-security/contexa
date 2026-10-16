@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageRepository;
+import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCleanPackageRetentionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionReinspection;
@@ -10,6 +11,8 @@ import io.contexa.contexacore.verification.inspection.PromptInspectionResultStor
 import io.contexa.contexacore.verification.inspection.PromptInspectionScheduler;
 import io.contexa.contexacore.verification.inspection.PromptInspectionService;
 import io.contexa.contexacore.verification.inspection.PromptInspector;
+import io.contexa.contexacore.verification.inspection.SameFactCheck;
+import io.contexa.contexacore.verification.inspection.SourceTruthCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.BundleTraceCheck;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionQueries;
 import io.contexa.contexaiam.admin.promptquality.inspection.JdbcPromptInspectionResultStore;
@@ -59,11 +62,15 @@ public class PromptInspectionAutoConfiguration {
     public PromptInspector promptInspector(
             ObjectMapper objectMapper,
             ObjectProvider<PromptGovernanceRegistryService> registryService,
+            ObjectProvider<PromptFactSourceVerifier> sourceVerifier,
             @Qualifier("contexaJdbcTemplate") ObjectProvider<JdbcOperations> jdbcOperations) {
         List<PromptInspectionCheck> checks = new ArrayList<>(PromptInspector.coreChecks());
         JdbcOperations jdbc = jdbcOperations.getIfAvailable();
         checks.add(1, new BundleTraceCheck(registryService.getIfAvailable() != null && jdbc != null
                 ? new JdbcPromptReleaseLookup(jdbc) : null));
+        // W6-7: the host's own records of the facts, compared before the same-fact check.
+        int sameFact = checks.stream().map(PromptInspectionCheck::code).toList().indexOf(SameFactCheck.CODE);
+        checks.add(sameFact < 0 ? checks.size() : sameFact, new SourceTruthCheck(sourceVerifier.getIfAvailable()));
         return new PromptInspector(checks, objectMapper);
     }
 

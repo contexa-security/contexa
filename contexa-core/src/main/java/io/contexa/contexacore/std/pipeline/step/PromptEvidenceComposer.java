@@ -21,6 +21,7 @@ import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -101,6 +102,11 @@ public class PromptEvidenceComposer {
         Map<String, Object> metadata = ensureMutableMetadata(securityEvent);
 
         copyPromptMetadata(promptResult, metadata, context);
+        // N-L2-1: the first prompt of the event stays for the Layer2 second pass; a later draw does not replace it.
+        String userPrompt = promptResult.getUserPrompt();
+        if (userPrompt != null && !userPrompt.isBlank()) {
+            metadata.putIfAbsent(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT, userPrompt);
+        }
         putPromptLength(metadata, context, "systemPromptLength", promptResult.getSystemPrompt());
         putPromptLength(metadata, context, "userPromptLength", promptResult.getUserPrompt());
         putPromptLength(metadata, context, "totalPromptLength", joinPrompts(promptResult.getSystemPrompt(), promptResult.getUserPrompt()));

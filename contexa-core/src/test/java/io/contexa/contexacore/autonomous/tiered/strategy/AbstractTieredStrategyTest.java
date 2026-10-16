@@ -40,6 +40,7 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptSec
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
 import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.PastRecordGroup;
 import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
@@ -55,6 +56,7 @@ import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
@@ -67,9 +69,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.extension.ExtendWith;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -78,7 +82,12 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.quality.Strictness;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
@@ -374,6 +383,41 @@ class AbstractTieredStrategyTest {
         assertThat(event.getMetadata()).isInstanceOf(LinkedHashMap.class);
     }
 
+    /** W4-7 (inventory 6 bundle 30): the provider call time is kept once, and the layer copy under the same name. */
+    @Test
+    void theProviderCallTimeIsKeptOnceAndItsLayerCopyUnderTheSameName() {
+        SecurityEvent event = SecurityEvent.builder().metadata(new LinkedHashMap<>()).build();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.withMetadata("providerCallMs", 1234L);
+        response.withMetadata("openAiCallMs", 1234L);
+
+        strategy.capturePromptRuntimeTelemetryForTest(event, response);
+
+        assertThat(event.getMetadata())
+                .containsEntry("providerCallMs", 1234L)
+                .containsEntry("testlayerProviderCallMs", 1234L)
+                .doesNotContainKeys("openAiCallMs", "testlayerOpenAiCallMs");
+    }
+
+    /** N-OUT-1 (G1-2): the raw answers reach the event, and a new run clears them first. */
+    @Test
+    void theRawAnswersReachTheEventAndANewRunClearsThem() {
+        SecurityEvent event = SecurityEvent.builder().metadata(new LinkedHashMap<>()).build();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.withMetadata("promptHash", "sha256:test-prompt");
+        response.withMetadata("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}");
+        response.withMetadata("securityDecisionInitialRawOutput", "{\"action\":\"CHALLENGE\"}");
+
+        strategy.capturePromptRuntimeTelemetryForTest(event, response);
+        Map<String, Object> captured = new LinkedHashMap<>(event.getMetadata());
+        strategy.clearPromptRuntimeTelemetryForTest(event);
+
+        assertThat(captured)
+                .containsEntry("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}")
+                .containsEntry("securityDecisionInitialRawOutput", "{\"action\":\"CHALLENGE\"}");
+        assertThat(event.getMetadata()).doesNotContainKeys("securityDecisionRawOutput", "securityDecisionInitialRawOutput");
+    }
+
     @Test
     @DisplayName("clearPromptRuntimeTelemetry should remove stale prompt runtime facts")
     void clearPromptRuntimeTelemetry_removesStaleFacts() {
@@ -608,6 +652,202 @@ class AbstractTieredStrategyTest {
                 .isEqualTo(SecurityDecisionOutputContract.providerSchema());
     }
 
+    /**
+     * W4-2 on the real server: a security decision names no model (the request's model hint is ignored), so a v20
+     * request is judged by the chat model the analysis will run on; an OpenAI model takes the output contract schema.
+     */
+    @Test
+    void aV20RequestThatNamesNoModelIsJudgedByTheChatModelTheAnalysisRunsOn() {
+        strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w42-selected").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("structuredOutputMode", String.class))
+                .isEqualTo(StructuredOutputMode.NATIVE_STRUCTURED.name());
+        assertThat(request.getParameter("structuredOutputProviderFamily", String.class)).isEqualTo("openai");
+        assertThat(request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class))
+                .isEqualTo(SecurityDecisionOutputContract.providerSchema());
+    }
+
+    /**
+     * W4-2: a chat model whose options cannot carry a schema, a prompt profile with native structured output turned off
+     * and the v19 bundle keep the schema in the system text (no provider schema).
+     */
+    @Test
+    void aModelWithoutSchemaOptionsAProfileWithoutNativeOutputAndV19KeepTheSystemTextSchema() {
+        SecurityEvent plain = SecurityEvent.builder().eventId("event-w42-plain").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(plain)).thenReturn(SecurityDecisionPromptBundles.V20);
+        strategy.setModelSelectionStrategy(() -> selecting(chatModel(ChatOptions.builder().model("plain").build())));
+        assertThat(nativeSchema(plain)).isNull();
+
+        strategy.setModelSelectionStrategy(() -> selecting(chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build())));
+        SecurityEvent v19 = SecurityEvent.builder().eventId("event-w42-v19-selected").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(v19)).thenReturn(SecurityDecisionPromptBundles.DEFAULT);
+        assertThat(nativeSchema(v19)).isNull();
+
+        tieredStrategyProperties.getPromptRuntime().setNativeStructuredOutputEnabled(false);
+        SecurityEvent off = SecurityEvent.builder().eventId("event-w42-off").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(off)).thenReturn(SecurityDecisionPromptBundles.V20);
+        assertThat(nativeSchema(off)).isNull();
+    }
+
+    private String nativeSchema(SecurityEvent event) {
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+        assertThat(request.getParameter("structuredOutputMode", String.class)).as(event.getEventId())
+                .isNotEqualTo(StructuredOutputMode.NATIVE_STRUCTURED.name());
+        return request.getParameter(ExecutionContext.OUTPUT_SCHEMA, String.class);
+    }
+
+    private static ChatModel chatModel(ChatOptions defaults) {
+        return new ChatModel() {
+            @Override
+            public ChatResponse call(Prompt prompt) {
+                throw new UnsupportedOperationException("not called");
+            }
+
+            @Override
+            public ChatOptions getDefaultOptions() {
+                return defaults;
+            }
+        };
+    }
+
+    private static ModelSelectionStrategy selecting(ChatModel model) {
+        return new ModelSelectionStrategy() {
+            @Override
+            public ChatModel selectModel(ExecutionContext context) {
+                return model;
+            }
+
+            @Override
+            public Set<String> getSupportedModels() {
+                return Set.of();
+            }
+
+            @Override
+            public boolean isModelAvailable(String modelName) {
+                return true;
+            }
+        };
+    }
+
+    /** N-OUT-1 (G1-8): a security decision runs on its layer's tier and its model is selected on that tier. */
+    @Test
+    void aSecurityDecisionRunsOnItsLayersTier() {
+        List<Integer> tiers = new ArrayList<>();
+        ChatModel luna = chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build());
+        strategy.setModelSelectionStrategy(() -> new ModelSelectionStrategy() {
+            @Override
+            public ChatModel selectModel(ExecutionContext context) {
+                tiers.add(context.getTier());
+                return luna;
+            }
+
+            @Override
+            public Set<String> getSupportedModels() {
+                return Set.of();
+            }
+
+            @Override
+            public boolean isModelAvailable(String modelName) {
+                return true;
+            }
+        });
+        SecurityEvent event = SecurityEvent.builder().eventId("event-n-out-1-tier").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("platformAnalysisTier", Integer.class)).isEqualTo(1);
+        assertThat(tiers).containsExactly(1);
+    }
+
+    /**
+     * W4-7 (inventory 6 bundle 1): the request names the model the analysis runs on as the prompt estimation hint,
+     * selected once for the request.
+     */
+    @Test
+    void theRequestNamesTheModelTheAnalysisRunsOnForThePromptEstimate() {
+        List<Integer> tiers = new ArrayList<>();
+        ChatModel luna = chatModel(OpenAiChatOptions.builder().model("gpt-6-luna").build());
+        strategy.setModelSelectionStrategy(() -> new ModelSelectionStrategy() {
+            @Override
+            public ChatModel selectModel(ExecutionContext context) {
+                tiers.add(context.getTier());
+                return luna;
+            }
+
+            @Override
+            public Set<String> getSupportedModels() {
+                return Set.of();
+            }
+
+            @Override
+            public boolean isModelAvailable(String modelName) {
+                return true;
+            }
+        });
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w47-hint").metadata(new LinkedHashMap<>()).build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("promptEstimationModelHint", String.class)).isEqualTo("gpt-6-luna");
+        assertThat(tiers).hasSize(1);
+    }
+
+    /** W4-6: the request carries the platform's determinism settings. */
+    @Test
+    void theRequestCarriesThePlatformDeterminismSettings() {
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w46-determinism").metadata(new LinkedHashMap<>()).build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("platformDeterminismTemperature", Double.class)).isEqualTo(0.0d);
+        assertThat(request.getParameter("platformDeterminismSeed", Integer.class)).isEqualTo(1);
+    }
+
+    /** W4-6: a determinism setting left empty is not carried, and the request is still built. */
+    @Test
+    void aDeterminismSettingLeftEmptyIsNotCarried() {
+        tieredStrategyProperties.getDeterminism().setSeed(null);
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w46-no-seed").metadata(new LinkedHashMap<>()).build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("platformDeterminismSeed", Integer.class)).isNull();
+        assertThat(request.getParameter("platformDeterminismTemperature", Double.class)).isEqualTo(0.0d);
+    }
+
+    /** W4-5: the request carries the minimum action mode and settings the response check enforces. */
+    @Test
+    void theRequestCarriesTheMinimumActionModeAndSettings() {
+        MinimumActionRules.Settings settings = new MinimumActionRules.Settings(true, 3, "CRITICAL", false, true, "CHALLENGE");
+        strategy.setMinimumActionSettings(settings, "ENFORCE");
+        SecurityEvent event = SecurityEvent.builder().eventId("event-w45-params").metadata(new LinkedHashMap<>()).build();
+
+        SecurityDecisionRequest request = strategy.buildSecurityDecisionRequestForTest(event,
+                new SecurityDecisionStandardPromptTemplate.SessionContext(),
+                new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis(), List.of());
+
+        assertThat(request.getParameter("minimumActionMode", String.class)).isEqualTo("ENFORCE");
+        assertThat(request.getParameter("minimumActionSettings", MinimumActionRules.Settings.class)).isEqualTo(settings);
+    }
+
     /** W4-2: the v19 bundle keeps its format, and without native structured output the system text states the schema. */
     @Test
     void aV19RequestOrOneWithoutNativeStructuredOutputCarriesNoSchema() {
@@ -688,6 +928,37 @@ class AbstractTieredStrategyTest {
     }
 
     @Test
+    @DisplayName("a tenant is not taken for the organization of the past-record search (W5-5)")
+    void searchRelatedContextBase_tenantOnly_hasNoOrganization() {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-tenant-only")
+                .userId("persona_tenant_only")
+                .sourceIp("10.0.0.5")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/148.0.0.0 Safari/537.36")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "tenantId", "demo",
+                        "resourceId", "resource-001",
+                        "httpMethod", "GET",
+                        "authenticationType", "PASSWORD")))
+                .build();
+        when(eventEnricher.getTargetResource(event)).thenReturn(Optional.of("/api/resources/resource-001"));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptContextAuthorizationService.authorize(
+                any(SecurityEvent.class),
+                any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> new AuthorizedPromptContext(
+                        List.of(), 0, 0, 0, "security_investigation", List.of()));
+
+        strategy.callSearchRelatedContextBase(event, 3, 0.7d);
+
+        verify(baselineLearningService).describeBaselineMaturity(ArgumentMatchers.eq("persona_tenant_only"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.same(event));
+        verify(baselineLearningService, never()).describeBaselineMaturity(ArgumentMatchers.anyString(),
+                ArgumentMatchers.eq("demo"), any());
+    }
+
+    @Test
     @DisplayName("searchRelatedContextBase should use same-user baseline fallback when strict RAG search returns zero")
     void searchRelatedContextBase_zeroStrictResults_usesSameUserBaselineFallback() {
         SecurityEvent event = SecurityEvent.builder()
@@ -705,7 +976,8 @@ class AbstractTieredStrategyTest {
                 .build();
         when(eventEnricher.getTargetResource(event))
                 .thenReturn(Optional.of("/admin/api/enterprise/verification/runtime/probe/normal/resource-001"));
-        when(baselineLearningService.describeBaselineMaturity("persona_fin_lead", "demo-org"))
+        when(baselineLearningService.describeBaselineMaturity(ArgumentMatchers.eq("persona_fin_lead"),
+                ArgumentMatchers.eq("demo-org"), any()))
                 .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
                         true,
                         true,
@@ -1043,11 +1315,11 @@ class AbstractTieredStrategyTest {
         assertThat(allow.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
         assertThat(allowEvent.getMetadata()).containsEntry("minimumActionMode", "OBSERVE")
                 .containsEntry("minimumActionFindings", List.of(Map.of("rule", "P3_POLICY_NOT_SATISFIED",
-                        "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "CHALLENGE", "dimensions", List.of(),
+                        "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "ESCALATE", "dimensions", List.of(),
                         "decidedAction", "ALLOW", "violated", true)));
         assertThat(challengeEvent.getMetadata()).containsEntry("minimumActionFindings", List.of(Map.of(
-                "rule", "P3_POLICY_NOT_SATISFIED", "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "CHALLENGE",
-                "dimensions", List.of(), "decidedAction", "CHALLENGE", "violated", false)));
+                "rule", "P3_POLICY_NOT_SATISFIED", "code", "MIN_P3_POLICY_NOT_SATISFIED", "requiredAction", "ESCALATE",
+                "dimensions", List.of(), "decidedAction", "CHALLENGE", "violated", true)));
     }
 
     @Test
@@ -1066,6 +1338,34 @@ class AbstractTieredStrategyTest {
         assertThat(decision.getLlmDecisionPresent()).isTrue();
         assertThat(decision.getTechnicalFallbackApplied()).isFalse();
         assertThat(decision.getLlmReasoning()).isEqualTo("Raw model explanation.");
+    }
+
+    /**
+     * N-OUT-1 (G1-3): a response whose JSON broke but whose action was read is the model's decision, not a technical
+     * fallback; the format defect stays in the telemetry.
+     */
+    @Test
+    void aFormatOnlyDefectKeepsTheModelsDecision() {
+        for (String category : List.of("MALFORMED_JSON", "TRUNCATED_JSON")) {
+            SecurityDecision decision = SecurityDecision.builder()
+                    .action(ZeroTrustAction.ALLOW)
+                    .reasoning("Approved transfer within the usual scope.")
+                    .build();
+            SecurityDecisionResponse response = new SecurityDecisionResponse();
+            response.withMetadata("llmDecisionPresent", true);
+            response.withMetadata("rawExecutionSucceeded", true);
+            response.withMetadata("securityDecisionParsingFallbackApplied", false);
+            response.withMetadata("securityDecisionFallbackApplied", false);
+            response.withMetadata("structuredOutputFailureCategory", category);
+            response.withMetadata("securityDecisionParseFailureCategory", category);
+
+            strategy.applySecurityDecisionRuntimeTelemetryForTest(decision, response);
+
+            assertThat(decision.getLlmDecisionPresent()).as(category).isTrue();
+            assertThat(decision.getTechnicalFallbackApplied()).as(category).isFalse();
+            assertThat(decision.getTechnicalFallbackCategory()).as(category).isNull();
+            assertThat(decision.getLlmReasoning()).as(category).isEqualTo("Approved transfer within the usual scope.");
+        }
     }
 
     @Test
@@ -1155,6 +1455,28 @@ class AbstractTieredStrategyTest {
         strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of());
 
         assertThat(decision.getReasoning()).contains("the personal baseline is established");
+        assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "MODEL");
+    }
+
+    /** W4-3 (Q-57 decision 2): a v20 decision keeps the model's reason; no fixed sentence replaces it. */
+    @Test
+    void applyCanonicalDecisionReasoning_keepsTheReasonOfAV20Decision() {
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .reasoning("Same project exports as usual, and the assignment covers this target.")
+                .llmDecisionPresent(true)
+                .fieldProvenance(Map.of("reasoning", "MODEL"))
+                .build();
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(exportMetadata("GB-500", Map.of(
+                        "ragProjectedToFinalPrompt", true,
+                        "personalBaselineEstablished", true)))
+                .build();
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+
+        strategy.applyCanonicalDecisionReasoningForTest(decision, event, List.of(exportRecord("GB-500")));
+
+        assertThat(decision.getReasoning()).isEqualTo("Same project exports as usual, and the assignment covers this target.");
         assertThat(decision.getFieldProvenance()).containsEntry("reasoning", "MODEL");
     }
 
@@ -1407,6 +1729,17 @@ class AbstractTieredStrategyTest {
         assertThat(PastRecordCounts.fromMetadata(event.getMetadata().get("ragPastRecordCounts"))).isEqualTo(
                 new PastRecordCounts("EXPORT", "POST " + EXPORTS, 2, LocalDateTime.of(2026, 10, 12, 11, 0), 1,
                         LocalDateTime.of(2026, 10, 11, 9, 0), 0, 3));
+        // W6-12: how the records were chosen goes with the event to the seal.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> searchScope = (Map<String, Object>) event.getMetadata().get("ragSearchScope");
+        assertThat(searchScope).containsEntry("userId", "alice")
+                .containsEntry("retrievalPurpose", "security_investigation")
+                .containsEntry("actionFamily", "EXPORT")
+                .containsEntry("excludedSessionIds", List.of("session-now"))
+                .containsEntry("firstPaths", List.of(GB500))
+                .containsEntry("limit", 5)
+                .containsEntry("filters", RecordingPastRecordQuery.FILTERS)
+                .containsEntry("order", RecordingPastRecordQuery.ORDER);
     }
 
     /**
@@ -1477,6 +1810,28 @@ class AbstractTieredStrategyTest {
         verify(unifiedVectorService, never()).pastRecordQuery();
     }
 
+    @Test
+    @DisplayName("the exact lookup leaves the user's recent decisions that did not allow on the event (W5-4)")
+    void theRecentDecisionsThatDidNotAllowAreLeftForThePastRecordsBlock() {
+        SecurityEvent event = exportEvent("event-w54-denied", true);
+        event.setTimestamp(Instant.parse("2026-10-14T03:17:00Z"));
+        when(promptTemplate.promptBundle(event)).thenReturn(SecurityDecisionPromptBundles.V20);
+        Document challenged = new Document("00000000-0000-0000-0000-000000000041", "record denied",
+                Map.of("eventId", "e41", "documentType", "suspicious", "requestPath", GB500, "pathFamily", EXPORTS,
+                        "actionFamily", "EXPORT", "action", "CHALLENGE", "timestamp", "2026-10-12T03:17:00"));
+        RecordingPastRecordQuery query = new RecordingPastRecordQuery(List.of(), List.of());
+        query.denied = List.of(challenged);
+        when(unifiedVectorService.pastRecordQuery()).thenReturn(query);
+        authorizeEveryDocument();
+
+        strategy.callSearchRelatedContextBase(event, 5, 0.5d);
+
+        assertThat(query.deniedLimit).isEqualTo(PastDeniedDecisions.LIMIT);
+        assertThat(query.deniedSince).isEqualTo(event.getLocalTimestamp().minusDays(PastDeniedDecisions.WINDOW_DAYS));
+        assertThat(PastDeniedDecisions.fromMetadata(event.getMetadata().get(PastDeniedDecisions.EVENT_METADATA_KEY)))
+                .isEqualTo(PastDeniedDecisions.of(List.of(challenged)));
+    }
+
     private static SecurityEvent exportEvent(String eventId, boolean withAction) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("requestPath", withAction ? GB500 : "/x/y");
@@ -1509,11 +1864,17 @@ class AbstractTieredStrategyTest {
     /** A past record query that keeps what it was asked. */
     private static final class RecordingPastRecordQuery implements PastRecordQuery {
 
+        private static final List<String> FILTERS = List.of("userId == scope.userId");
+        private static final List<String> ORDER = List.of("timestamp desc");
+
         private final List<PastRecordGroup> groups;
         private final List<Document> records;
         private PastRecordScope scope;
         private List<String> firstPaths;
         private int limit;
+        private List<Document> denied = List.of();
+        private LocalDateTime deniedSince;
+        private int deniedLimit;
 
         private RecordingPastRecordQuery(List<PastRecordGroup> groups, List<Document> records) {
             this.groups = groups;
@@ -1536,6 +1897,23 @@ class AbstractTieredStrategyTest {
             this.firstPaths = firstPaths;
             this.limit = limit;
             return records;
+        }
+
+        @Override
+        public List<Document> deniedDecisions(PastRecordScope scope, LocalDateTime since, int limit) {
+            this.deniedSince = since;
+            this.deniedLimit = limit;
+            return denied;
+        }
+
+        @Override
+        public List<String> filters() {
+            return FILTERS;
+        }
+
+        @Override
+        public List<String> order() {
+            return ORDER;
         }
     }
 
@@ -1683,7 +2061,7 @@ class AbstractTieredStrategyTest {
         AtomicBoolean firstRun = new AtomicBoolean(true);
         when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
                 .thenAnswer(invocation -> firstRun.get() ? stored : reversed);
-        when(baselineLearningService.describeBaselineMaturity(any(), any()))
+        when(baselineLearningService.describeBaselineMaturity(any(), any(), any()))
                 .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
                         true, true, true, true, true, List.of("ACCESS_HOURS")));
         when(promptContextAuthorizationService.authorize(
@@ -1719,7 +2097,7 @@ class AbstractTieredStrategyTest {
                                 "eventId", "event-shared", "timestamp", "2026-09-24T09:00"))
                         .score(0.80)
                         .build()));
-        when(baselineLearningService.describeBaselineMaturity(any(), any()))
+        when(baselineLearningService.describeBaselineMaturity(any(), any(), any()))
                 .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(
                         true, true, true, true, true, List.of("ACCESS_HOURS")));
         when(promptContextAuthorizationService.authorize(

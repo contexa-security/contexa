@@ -57,7 +57,15 @@ public final class PromptInspectorVersions {
                     + "(R1b-7, P3 extra 35)"),
             new Version(15, "the same-fact check: a fact two lines state has one value (R1b-8, plan C2)"),
             new Version(16, "the seal trace compares the request facts' request id with the package, and a layout "
-                    + "ledger nobody writes is no reason for a different prompt (R1b-9)"));
+                    + "ledger nobody writes is no reason for a different prompt (R1b-9)"),
+            new Version(17, "the reason codes of the decision checked against the facts they cite (W4-8 REASON_MATCH), "
+                    + "and the UNKNOWN line's names read after the IDs it gives them (N-UID-1)"),
+            new Version(18, "the facts compared with the host's own records of them (W6-7 SOURCE_TRUTH), the past "
+                    + "records the prompt drew named by their stored IDs (W6-12) and every model call of the decision "
+                    + "kept with the applied stage's prompt, the sealed prompt compared with the one the last model "
+                    + "call sent (W6-6)"),
+            new Version(19, "a source fact the UNKNOWN line names counted as its missing notation, not as a line the "
+                    + "prompt left out (N-SRC-1)"));
 
     private PromptInspectorVersions() {
     }

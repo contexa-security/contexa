@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -30,11 +31,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class InMemorySecurityContextDataStore implements SecurityContextDataStore, ExpiringStateStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_HELD_VERIFICATION_REQUESTS = 50;
+    private static final int MAX_VERIFICATION_OUTCOMES = 10_000;
+    private static final int MAX_HELD_PROMOTION_REQUESTS = 200;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
     private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
@@ -90,6 +94,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, String> sessionFirstClients = new ConcurrentHashMap<>();
     /** The facts of each user's requests a restriction stopped, by request id (W5-2). */
     private final ConcurrentHashMap<String, Map<String, String>> verificationLearning = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Map<String, String>> promotionLearning = new ConcurrentHashMap<>();
     /** The ids a session had before its id was replaced, newest first (P2 correction 5). */
     private final ConcurrentHashMap<String, List<String>> sessionPreviousIds = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
@@ -115,6 +120,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, SoarEntry> eldest) {
                     return size() > MAX_SOAR_EXECUTIONS;
+                }
+            });
+    private final Map<String, String> verificationOutcomes = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > MAX_VERIFICATION_OUTCOMES;
                 }
             });
     private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
@@ -491,11 +503,65 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void recordVerificationOutcome(String eventId, String outcome) {
+        if (eventId == null || outcome == null) {
+            return;
+        }
+        verificationOutcomes.put(eventId, outcome);
+    }
+
+    @Override
+    public String verificationOutcome(String eventId) {
+        return eventId == null ? null : verificationOutcomes.get(eventId);
+    }
+
+    @Override
+    public void holdPromotionLearning(String userId, String requestId, String record) {
+        if (userId == null || requestId == null || record == null) {
+            return;
+        }
+        promotionLearning.compute(userId, (key, held) -> {
+            Map<String, String> records = held != null ? held : new LinkedHashMap<>();
+            records.remove(requestId);
+            records.put(requestId, record);
+            while (records.size() > MAX_HELD_PROMOTION_REQUESTS) {
+                records.remove(records.keySet().iterator().next());
+            }
+            return records;
+        });
+    }
+
+    @Override
+    public Map<String, String> promotionLearning(String userId) {
+        if (userId == null) {
+            return Map.of();
+        }
+        AtomicReference<Map<String, String>> copy = new AtomicReference<>(Map.of());
+        promotionLearning.computeIfPresent(userId, (key, held) -> {
+            copy.set(new LinkedHashMap<>(held));
+            return held;
+        });
+        return copy.get();
+    }
+
+    @Override
+    public void removePromotionLearning(String userId, Collection<String> requestIds) {
+        if (userId == null || requestIds == null || requestIds.isEmpty()) {
+            return;
+        }
+        promotionLearning.computeIfPresent(userId, (key, held) -> {
+            requestIds.forEach(held::remove);
+            return held.isEmpty() ? null : held;
+        });
+    }
+
+    @Override
     public void deleteUserData(String userId) {
         if (userId == null) {
             return;
         }
         verificationLearning.remove(userId);
+        promotionLearning.remove(userId);
         String tenantScopedSuffix = "::" + userId;
         for (Map<String, ?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
@@ -607,6 +673,21 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
         userSessionsExpiry.put(userId, clock.instant().plus(userSessionsTtl));
         evictIfOversized();
+    }
+
+    @Override
+    public Set<String> getUserSessions(String userId) {
+        if (userId == null) {
+            return Set.of();
+        }
+        Instant expiry = userSessionsExpiry.get(userId);
+        if (expiry != null && clock.instant().isAfter(expiry)) {
+            userSessions.remove(userId);
+            userSessionsExpiry.remove(userId);
+            return Set.of();
+        }
+        Set<String> sessions = userSessions.get(userId);
+        return sessions == null ? Set.of() : Set.copyOf(sessions);
     }
 
     Object peekSoarExecution(String eventId) {

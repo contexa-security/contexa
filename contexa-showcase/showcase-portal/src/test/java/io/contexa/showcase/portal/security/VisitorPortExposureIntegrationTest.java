@@ -1,5 +1,7 @@
 package io.contexa.showcase.portal.security;
 
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -7,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -17,13 +20,18 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "server.address=127.0.0.1",
         "showcase.portal.controls.a=http://127.0.0.1:9/", "showcase.portal.controls.b=http://127.0.0.1:9/",
         "showcase.portal.controls.c1=http://127.0.0.1:9/", "showcase.portal.controls.c2=http://127.0.0.1:9/",
-        "showcase.portal.controls.d=http://127.0.0.1:9/", "showcase.live.enabled=true"})
+        "showcase.live.enabled=true"})
 class VisitorPortExposureIntegrationTest {
 
     @Container
@@ -47,6 +55,23 @@ class VisitorPortExposureIntegrationTest {
 
     private static final String SIGNING_KEY = randomKey();
     private static final int OPS_PORT = freePort();
+
+    private static final String SESSION_ID = "0123456789ABCDEF0123456789ABCDEF";
+    /** W7-13: control D's prompt facts of a seal whose session line and inspection name an HTTP session ID. */
+    private static final String PROMPT_FACTS = """
+            {"packageId": "pkg-1", "requestId": "req-1", "capturedAt": "2026-10-16T03:17:20Z",
+             "packageHash": "sha256:abc", "promptBundleVersion": "2026.10.16-v20.22", "promptBundleHash": "c6b5",
+             "promptBundleSelectionSource": "CONFIGURATION", "userPromptLayoutVersion": "v20-dictionary-blocks",
+             "reasonCodes": [{"code": "DEVIATION_TIME", "fact": "F1"}],
+             "lines": [{"number": 8, "block": "SESSION", "factId": "S1", "label": "LoginMethod",
+                        "value": "PASSWORD (session %1$s)", "grades": ["HOST"]}],
+             "inspection": {"verdict": "FAIL", "inspectorVersion": "prompt-inspector/17",
+                            "inspectedAt": "2026-10-16T03:18:00Z",
+                            "checks": [{"code": "FACT_ACCURACY", "matched": 0, "mismatched": 1, "unverifiable": 0,
+                                        "mismatches": [{"line": 8, "actual": "PASSWORD (session %1$s)"}]}]}}"""
+            .formatted(SESSION_ID);
+    /** W7-13: control D as far as the sealed prompt views read it; started with the context, stopped after. */
+    private static HttpServer controlD;
 
     /** What each visitor path may do; a new endpoint fails this test until it is placed here. */
     /** COMPUTE: computes an answer from stored records only; it writes nothing and starts no engine work. */
@@ -92,6 +117,16 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("GET /api/runs/{runId}/versus", Reach.READ),
             // The stored result of a step of any run, every approach side by side (5A.1 comparison, 5A.2 run list).
             Map.entry("GET /api/runs/{runId}/steps/{stepNo}/result", Reach.READ),
+            // W7-13: a step's sealed prompt, the facts by block with their sources and the quality ribbon with the
+            // bundle, seal and inspection, read from control D's record of the seal; HTTP session identifiers masked.
+            Map.entry("GET /api/runs/{runId}/steps/{stepNo}/facts", Reach.READ),
+            Map.entry("GET /api/runs/{runId}/steps/{stepNo}/quality", Reach.READ),
+            // W7-13: the same step of the same case under the other prompt bundle, from recorded runs and their seals.
+            Map.entry("GET /api/runs/{runId}/steps/{stepNo}/other-bundle", Reach.READ),
+            // W7-13: what the one changed lab condition changed in the model's input, compared on the server.
+            Map.entry("GET /api/lab/runs/{runId}/delta", Reach.COMPUTE),
+            // W7-13: the prompt quality an operator published for a measurement setting: stored values only.
+            Map.entry("GET /api/benchmark/prompt-quality", Reach.READ),
             // The benchmark of a measurement setting, counted from stored protocol runs (5A.2, W5).
             Map.entry("GET /api/benchmark", Reach.READ),
             // The counted protocol runs of a setting with their scores: the benchmark's raw data (S10).
@@ -145,6 +180,8 @@ class VisitorPortExposureIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("showcase.internal.signing-key", () -> SIGNING_KEY);
         registry.add("showcase.portal.ops.port", () -> OPS_PORT);
+        controlD = controlD();
+        registry.add("showcase.portal.controls.d", () -> "http://127.0.0.1:" + controlD.getAddress().getPort() + "/");
     }
 
     @Autowired
@@ -153,6 +190,9 @@ class VisitorPortExposureIntegrationTest {
     @Autowired
     @Qualifier("requestMappingHandlerMapping")
     RequestMappingHandlerMapping mappings;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void everyVisitorPathIsOnTheAllowlistAndOnlyTheGatedStartsReachTheEngine() {
@@ -207,6 +247,112 @@ class VisitorPortExposureIntegrationTest {
                     .isIn(HttpStatus.NOT_FOUND, HttpStatus.FORBIDDEN, HttpStatus.UNAUTHORIZED);
         }
         assertThat(http.getForEntity("/actuator/health", String.class).getBody()).isEqualTo("{\"status\":\"UP\"}");
+    }
+
+    /**
+     * W7-13 (C-14): the sealed prompt views answer on the visitor port from control D's record of the seal, and no
+     * HTTP session identifier leaves the portal; the lab delta of a run that is not a lab run and the prompt quality
+     * before any publication are not found.
+     */
+    @Test
+    void theSealedPromptViewsAnswerWithoutAnHttpSessionIdentifier() {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status)
+                values (?, 'A3', 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', now(), 'COMPLETED')""",
+                runId, "v" + runId);
+        jdbc.update("""
+                insert into run_decision (request_id, run_id, step_no, final_action, unresolved, applied, records,
+                    events)
+                values (?, ?, 1, 'CHALLENGE', false, 'BEFORE_RESPONSE', '[]'::jsonb, '[]'::jsonb)""",
+                UUID.randomUUID(), runId);
+
+        for (String view : new String[]{"facts", "quality"}) {
+            ResponseEntity<String> answer = http.getForEntity("/api/runs/" + runId + "/steps/1/" + view, String.class);
+            assertThat(answer.getStatusCode()).as(view).isEqualTo(HttpStatus.OK);
+            assertThat(answer.getBody()).as(view).contains("\"available\":true", "<SESSION>")
+                    .doesNotContain(SESSION_ID);
+        }
+        assertThat(http.getForEntity("/api/lab/runs/" + runId + "/delta", String.class).getStatusCode())
+                .as("not a lab run").isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(http.getForEntity("/api/benchmark/prompt-quality", String.class).getStatusCode())
+                .as("nothing published").isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * W7-13 (C-14): the prompt modal's comparison answers on the visitor port with the same definition's step under
+     * the other bundle, the texts as the portal stored them, and no HTTP session identifier leaves the portal.
+     */
+    @Test
+    void theOtherBundleViewAnswersWithoutAnHttpSessionIdentifier() {
+        String sha = "d".repeat(64);
+        String now = storedRun(sha, spec("2026.10.16-v20.22"), Instant.parse("2026-10-16T03:00:00Z"));
+        String before = storedRun(sha, spec("2026.10.11-v19.8"), Instant.parse("2026-10-11T03:00:00Z"));
+
+        ResponseEntity<String> answer = http.getForEntity("/api/runs/" + now + "/steps/1/other-bundle", String.class);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(answer.getBody()).contains("\"available\":true", "\"runId\":\"" + before + "\"", "<SESSION>")
+                .doesNotContain(SESSION_ID);
+    }
+
+    /** An execution specification naming the bundle; its hash. */
+    private String spec(String bundle) {
+        String specHash = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+        jdbc.update("""
+                insert into execution_spec (spec_id, spec_hash, code_commit, engine_version, effective_mode,
+                    endpoint_protection, chat_model, embedding_model, embedding_dimensions, prompt_hash, rule_version,
+                    time_zone, prompt_bundle)
+                values (?, ?, 'c', 'e', 'ENFORCE', '{}'::jsonb, 'm', 'em', 1024, ?, ?, 'UTC', ?)""",
+                UUID.randomUUID(), specHash, "b".repeat(64), "c".repeat(64), bundle);
+        return specHash;
+    }
+
+    /** A completed run of case A3 with one decision and its stored model call, whose user prompt names a session. */
+    private String storedRun(String sha, String specHash, Instant startedAt) {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        UUID requestId = UUID.randomUUID();
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status, spec_hash, scenario_sha256, started_at)
+                values (?, 'A3', 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', now(), 'COMPLETED', ?, ?,
+                    ?)""", runId, "v" + runId, specHash, sha, Timestamp.from(startedAt));
+        jdbc.update("""
+                insert into run_decision (request_id, run_id, step_no, final_action, unresolved, applied, records,
+                    events)
+                values (?, ?, 1, 'CHALLENGE', false, 'BEFORE_RESPONSE', '[]'::jsonb, '[]'::jsonb)""",
+                requestId, runId);
+        jdbc.update("""
+                insert into run_model_exchange (request_id, call_no, run_id, step_no, user_prompt, success)
+                values (?, 1, ?, 1, ?, true)""", requestId, runId, "=== SESSION ===\nSessionId: " + SESSION_ID + "\n");
+        return runId;
+    }
+
+    @AfterAll
+    static void stopControlD() {
+        if (controlD != null) {
+            controlD.stop(0);
+        }
+    }
+
+    /** Control D's internal API as far as the sealed prompt views read it; every other path is not found. */
+    private static HttpServer controlD() {
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/internal/decisions/", exchange -> {
+                boolean facts = exchange.getRequestURI().getPath().endsWith("/prompt-facts");
+                byte[] body = (facts ? PROMPT_FACTS : "{}").getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(facts ? 200 : 404, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.start();
+            return server;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static int freePort() {

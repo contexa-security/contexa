@@ -15,6 +15,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +36,22 @@ public class ControlSession {
     public record StepOutcome(String requestId, String method, String path, Instant companyTime, Integer httpStatus,
                               String outcome, int deliveredItems, String ruleId, String reason, String excerpt,
                               long elapsedMs, Instant sentAt, Progress stream) {
+    }
+
+    /**
+     * W7-4: the parts of a step's request beyond its method and path that a case definition names
+     * (docs/showcase/프롬프트-최종-구현계획.md 8.7), sent as written to every control.
+     *
+     * @param body    the JSON text of a POST request's body; null sends an empty body, as before
+     * @param headers the headers the requester adds, in the order they are sent; never null
+     */
+    public record RequestParts(String body, Map<String, String> headers) {
+
+        public static final RequestParts NONE = new RequestParts(null, Map.of());
+
+        public RequestParts {
+            headers = headers == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(headers));
+        }
     }
 
     private final Control control;
@@ -155,6 +173,12 @@ public class ControlSession {
      */
     public ReleaseActions releaseActions(String username, String email, BusinessOperation operation, String path,
                                          Instant companyTime, WorkloadAdmin admin) {
+        return releaseActions(username, email, operation, path, RequestParts.NONE, companyTime, admin);
+    }
+
+    /** W7-4: the same, the original request sent again with the request parts it was first sent with. */
+    public ReleaseActions releaseActions(String username, String email, BusinessOperation operation, String path,
+                                         RequestParts parts, Instant companyTime, WorkloadAdmin admin) {
         return new ReleaseActions() {
             @Override
             public int startCheck() throws IOException {
@@ -190,7 +214,7 @@ public class ControlSession {
 
             @Override
             public StepOutcome reissue() throws IOException {
-                return send(operation, path, companyTime);
+                return send(operation, path, companyTime, parts, SendListener.NONE);
             }
         };
     }
@@ -245,6 +269,12 @@ public class ControlSession {
      */
     public ChallengeActions challengeActions(String username, String email, BusinessOperation operation, String path,
                                              Instant companyTime, WorkloadAdmin admin) {
+        return challengeActions(username, email, operation, path, RequestParts.NONE, companyTime, admin);
+    }
+
+    /** W7-4: the same, the original request sent again with the request parts it was first sent with. */
+    public ChallengeActions challengeActions(String username, String email, BusinessOperation operation, String path,
+                                             RequestParts parts, Instant companyTime, WorkloadAdmin admin) {
         return new ChallengeActions() {
             @Override
             public int requestCode() throws IOException {
@@ -265,7 +295,7 @@ public class ControlSession {
 
             @Override
             public StepOutcome reissue() throws IOException {
-                return send(operation, path, companyTime);
+                return send(operation, path, companyTime, parts, SendListener.NONE);
             }
         };
     }
@@ -297,15 +327,28 @@ public class ControlSession {
 
     public StepOutcome send(BusinessOperation operation, String path, Instant companyTime, SendListener listener)
             throws IOException {
+        return send(operation, path, companyTime, RequestParts.NONE, listener);
+    }
+
+    /**
+     * W7-4: sends a step with the request parts its definition names. The request gets a fresh id of its own, which
+     * the signed internal context carries and the engine records its decision under; an X-Request-ID among the parts
+     * goes beside it as the requester wrote it. A GET request carries no body.
+     */
+    public StepOutcome send(BusinessOperation operation, String path, Instant companyTime, RequestParts parts,
+                            SendListener listener) throws IOException {
+        String method = method(operation);
+        if (parts.body() != null && !"POST".equals(method)) {
+            throw new IllegalArgumentException(operation + " is sent as a GET request and carries no body");
+        }
         String requestId = UUID.randomUUID().toString();
         listener.sent(requestId, Instant.now());
         if (operation == BusinessOperation.EXPORT_STREAM) {
-            return stream(requestId, path, companyTime, listener);
+            return stream(requestId, path, companyTime, parts.headers(), listener);
         }
-        String method = method(operation);
         Response response = "POST".equals(method)
-                ? client.postJson(path, requestId, companyTime, null)
-                : client.get(path, requestId, companyTime);
+                ? client.postJson(path, requestId, companyTime, parts.body(), parts.headers())
+                : client.get(path, requestId, companyTime, parts.headers());
         return outcome(requestId, method, path, companyTime, response, operation);
     }
 
@@ -364,11 +407,11 @@ public class ControlSession {
      * Reads a streamed export to the end or to the engine's cut. The outcome is CUT only when the engine wrote its
      * marker; a stream that breaks or ends short without it is an ERROR (deck p.11, P3-BE-02).
      */
-    private StepOutcome stream(String requestId, String path, Instant companyTime, SendListener listener)
-            throws IOException {
+    private StepOutcome stream(String requestId, String path, Instant companyTime, Map<String, String> headers,
+                               SendListener listener) throws IOException {
         Instant sentAt = Instant.now();
         long started = System.nanoTime();
-        HttpResponse<InputStream> response = client.openStream(path, requestId, companyTime);
+        HttpResponse<InputStream> response = client.openStream(path, requestId, companyTime, headers);
         int status = response.statusCode();
         if (status != 200) {
             String text;

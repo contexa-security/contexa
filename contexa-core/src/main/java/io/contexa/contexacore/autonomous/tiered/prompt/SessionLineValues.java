@@ -74,8 +74,9 @@ public final class SessionLineValues {
     }
 
     /** {@code 17 recent requests}, or null. */
-    public static String recentRequests(CanonicalSecurityContext.Session session) {
-        return SecurityDecisionPromptValues.recentRequests(session);
+    public static String recentRequests(CanonicalSecurityContext.Session session,
+                                        CanonicalSecurityContext.SessionNarrativeProfile narrative) {
+        return SecurityDecisionPromptValues.recentRequests(session, narrative);
     }
 
     /** {@code 2 concurrent sessions}, or null. */

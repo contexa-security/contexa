@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
@@ -88,7 +89,7 @@ class Layer2SecondPassTest {
         if (assessment != null) {
             metadata.put("layer1Assessment", assessment);
         }
-        metadata.put("userPrompt", userPrompt);
+        metadata.put(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT, userPrompt);
         if (layout != null) {
             metadata.put("userPromptLayoutVersion", layout);
         }

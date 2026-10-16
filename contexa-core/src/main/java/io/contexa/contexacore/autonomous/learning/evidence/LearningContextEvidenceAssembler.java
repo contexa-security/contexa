@@ -99,14 +99,9 @@ public class LearningContextEvidenceAssembler {
         BaselineView.State state = personalBaseline.established()
                 ? BaselineView.State.ESTABLISHED
                 : personalBaseline.available() ? BaselineView.State.PROVISIONAL : BaselineView.State.NONE;
-        return observed.withPersonalBaseline(state, personalBaseline.updateCount(),
-                sorted(personalBaseline.networks().stream()
-                        .map(value -> SecuritySemanticNormalizer.normalizeNetwork(null, value)).toList()),
-                sorted(personalBaseline.devices()),
-                sorted(personalBaseline.browsers()),
-                sorted(personalBaseline.operatingSystems().stream()
-                        .map(SecuritySemanticNormalizer::normalizeOperatingSystem).toList()),
-                sorted(personalBaseline.authenticationTypes()));
+        // W5-9: the network, device and login dimensions are the view's own, read from the observations without the
+        // activity period being judged; the long-term baseline, which learned that period too, adds its state only.
+        return observed.withPersonalBaselineState(state, personalBaseline.updateCount());
     }
 
     private static List<String> sorted(Collection<String> values) {

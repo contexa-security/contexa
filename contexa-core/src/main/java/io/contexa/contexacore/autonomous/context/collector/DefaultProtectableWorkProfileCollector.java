@@ -21,8 +21,11 @@ import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.ActionFamilyResolver;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacommon.domain.EventTimeZone;
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.springframework.util.StringUtils;
 
@@ -69,6 +72,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     private static final String SERIALIZATION_VERSION_V3 = "v3";
     private static final String SERIALIZATION_VERSION_V4 = "v4";
     private static final String SERIALIZATION_VERSION_V5 = "v5";
+    private static final String SERIALIZATION_VERSION_V6 = "v6";
     private static final String PROFILE_KEY = "PERSONAL_WORK_PROFILE";
     private static final String COLLECTOR_ID = "PROTECTABLE_WORK_PROFILE_COLLECTOR";
 
@@ -123,15 +127,18 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         // The snapshot and its usual-behaviour view describe the same window (W2-3, A-19).
         List<WorkProfileObservation> baseline = BaselineViewCalculator.windowed(
                 history, WorkProfileObservation::timestampMs, currentObservation.timestampMs());
+        // W5-10 D1~D3: the request's own values are counted against the view, not into it.
         BaselineView view = BaselineViewCalculator.calculate(
                 history.stream().map(this::viewObservation).toList(),
                 currentObservation.timestampMs(),
-                EventTimeZone.get());
+                EventTimeZone.get(),
+                viewObservation(currentObservation));
         Optional<ProtectableWorkProfileSnapshot> snapshot = buildSnapshot(tenantId, userId, baseline, view);
 
         String observation = shouldPersist(currentObservation) ? serialize(currentObservation) : null;
         recorder.stage(event, ContextObservationRecorder.WORK_PROFILE, snapshot.orElse(null), commit -> {
-            if (observation != null && commit.learnable()) {
+            // A request the enforcement holds for promotion is learned when it is promoted, not here (W5-1).
+            if (observation != null && commit.learnable() && !heldForPromotion(event)) {
                 commit.dataStore().addWorkProfileObservation(tenantId, userId, observation);
             }
         });
@@ -173,7 +180,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 observation.sessionKey(),
                 "ALLOWED".equals(observation.decisionState()),
                 observation.requestedItems(),
-                observation.weight());
+                observation.weight(),
+                observation.identity().network(),
+                observation.identity().device(),
+                observation.identity().loginMethod(),
+                observation.identity().vocabularyVersion());
     }
 
     /**
@@ -198,6 +209,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
      * else its family when that came from the type (observations stored before W2-11). A family hint the host declared
      * names a business category and never decides the class (W2-10).
      */
+    private static boolean heldForPromotion(SecurityEvent event) {
+        return event.getMetadata() != null && VectorDocumentMetadata.LEARNING_STATE_HELD.equals(
+                event.getMetadata().get(VectorDocumentMetadata.LEARNING_STATE));
+    }
+
     private String classValueOf(WorkProfileObservation observation) {
         if (StringUtils.hasText(observation.sensitivity())) {
             return observation.sensitivity();
@@ -753,7 +769,35 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 protectable.fallback(),
                 resolvePathTemplate(metadata),
                 resolveSessionKey(event),
-                resolveRequestedItems(metadata));
+                resolveRequestedItems(metadata))
+                .withIdentity(identityOf(event));
+    }
+
+    /**
+     * The vocabulary the observation's values are in and its request's network, device and login, read the way the
+     * baseline learns them (W5-7, W5-9).
+     */
+    private WorkProfileObservation.Identity identityOf(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        String userAgent = event.getUserAgent();
+        String explicitBrowser = firstText(
+                metadata != null ? metadata.get("deviceBrowser") : null,
+                metadata != null ? metadata.get("userAgentBrowser") : null);
+        String explicitVersion = firstText(metadata != null ? metadata.get("deviceBrowserVersion") : null);
+        String browser = StringUtils.hasText(explicitBrowser)
+                ? (StringUtils.hasText(explicitVersion) ? explicitBrowser + "/" + explicitVersion : explicitBrowser)
+                : SecurityEventEnricher.extractBrowserSignature(userAgent);
+        String operatingSystem = SecuritySemanticNormalizer.normalizeOperatingSystem(
+                firstText(metadata != null ? metadata.get("deviceOs") : null, metadata != null ? metadata.get("os") : null),
+                SecurityEventEnricher.extractOSFromUserAgent(userAgent));
+        return new WorkProfileObservation.Identity(
+                VocabularyVersion.CURRENT,
+                SecuritySemanticNormalizer.normalizeNetwork(event.getSourceIp(),
+                        firstText(metadata != null ? metadata.get("ipBand") : null)),
+                SecuritySemanticNormalizer.device(browser, operatingSystem),
+                SecuritySemanticNormalizer.normalizeAuthenticationType(
+                        metadata != null ? metadata.get("authMethod") : null,
+                        metadata != null ? metadata.get("authenticationType") : null));
     }
 
     /** How many items the request asks for, as the host counted them; null when it did not say (W2-6). */
@@ -995,10 +1039,13 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         };
     }
 
-    /** An observation counted whole keeps the v4 form; one learned after a verification adds its weight (v5). */
+    /**
+     * Every observation is stored in the v6 form: the v5 fields with its weight, then the vocabulary of its values and
+     * its request's network, device and login (W5-7, W5-9).
+     */
     private String serialize(WorkProfileObservation observation) {
-        boolean whole = observation.weight() == 1.0;
-        return (whole ? SERIALIZATION_VERSION_V4 : SERIALIZATION_VERSION_V5)
+        WorkProfileObservation.Identity identity = observation.identity();
+        return SERIALIZATION_VERSION_V6
                 + "|" + encodeNullable(observation.observationId())
                 + "|" + observation.timestampMs()
                 + "|" + encodeNullableBoolean(observation.protectable())
@@ -1021,7 +1068,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 + "|" + encodeNullable(observation.sessionKey())
                 + "|" + encodeNullable(observation.requestedItems() != null
                 ? observation.requestedItems().toString() : null)
-                + (whole ? "" : "|" + observation.weight());
+                + "|" + observation.weight()
+                + "|" + encodeNullable(identity.vocabularyVersion())
+                + "|" + encodeNullable(identity.network())
+                + "|" + encodeNullable(identity.device())
+                + "|" + encodeNullable(identity.loginMethod());
     }
 
     private WorkProfileObservation deserialize(String raw) {
@@ -1032,7 +1083,8 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
         try {
             // v3 adds the URL template and the session key, v4 the item count, v5 the weight of a request learned
             // after a verification (W5-2); older observations read without them, counted whole.
-            boolean v5 = SERIALIZATION_VERSION_V5.equals(parts[0]) && parts.length == 23;
+            boolean v6 = SERIALIZATION_VERSION_V6.equals(parts[0]) && parts.length == 27;
+            boolean v5 = v6 || SERIALIZATION_VERSION_V5.equals(parts[0]) && parts.length == 23;
             boolean v4 = v5 || SERIALIZATION_VERSION_V4.equals(parts[0]) && parts.length == 22;
             boolean v3 = v4 || SERIALIZATION_VERSION_V3.equals(parts[0]) && parts.length == 21;
             if (v3 || SERIALIZATION_VERSION_V2.equals(parts[0]) && parts.length == 19) {
@@ -1058,7 +1110,10 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                         v3 ? decodeNullable(parts[19]) : null,
                         v3 ? decodeNullable(parts[20]) : null,
                         v4 ? decodeItems(decodeNullable(parts[21])) : null,
-                        v5 ? Double.parseDouble(parts[22]) : 1.0);
+                        v5 ? Double.parseDouble(parts[22]) : 1.0,
+                        v6 ? new WorkProfileObservation.Identity(decodeNullable(parts[23]), decodeNullable(parts[24]),
+                                decodeNullable(parts[25]), decodeNullable(parts[26]))
+                                : WorkProfileObservation.Identity.NONE);
             }
             if (parts.length == 7) {
                 String fingerprint = String.join("|", parts);
@@ -1314,7 +1369,16 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             String pathTemplate,
             String sessionKey,
             Integer requestedItems,
-            double weight) {
+            double weight,
+            Identity identity) {
+
+        /**
+         * The vocabulary of the observation's values and its request's network, device and login (W5-7, W5-9); none
+         * for an observation stored before them.
+         */
+        private record Identity(String vocabularyVersion, String network, String device, String loginMethod) {
+            private static final Identity NONE = new Identity(null, null, null, null);
+        }
 
         /** An observation counted whole. */
         private WorkProfileObservation(String observationId, long timestampMs, String requestPath,
@@ -1329,7 +1393,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                     resourceFamilySourceKey, resourceFamilyFallback, actionFamily, actionFamilySourceKey,
                     actionFamilyFallback, sensitivity, sensitivitySourceKey, sensitivityFallback, decisionState,
                     protectable, protectableSourceKey, protectableFallback, pathTemplate, sessionKey, requestedItems,
-                    1.0);
+                    1.0, Identity.NONE);
         }
 
         private WorkProfileObservation withWeight(double weight) {
@@ -1337,7 +1401,15 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                     requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
                     actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
                     sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
-                    pathTemplate, sessionKey, requestedItems, weight);
+                    pathTemplate, sessionKey, requestedItems, weight, identity);
+        }
+
+        private WorkProfileObservation withIdentity(Identity stated) {
+            return new WorkProfileObservation(observationId, timestampMs, requestPath, requestPathSourceKey,
+                    requestPathFallback, resourceFamily, resourceFamilySourceKey, resourceFamilyFallback, actionFamily,
+                    actionFamilySourceKey, actionFamilyFallback, sensitivity, sensitivitySourceKey,
+                    sensitivityFallback, decisionState, protectable, protectableSourceKey, protectableFallback,
+                    pathTemplate, sessionKey, requestedItems, weight, stated != null ? stated : Identity.NONE);
         }
     }
 

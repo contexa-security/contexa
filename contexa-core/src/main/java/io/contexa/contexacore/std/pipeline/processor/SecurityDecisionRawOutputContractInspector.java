@@ -15,23 +15,127 @@
  */
 package io.contexa.contexacore.std.pipeline.processor;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.decision.DecisionFacts;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import java.util.stream.Collectors;
+import java.util.List;
 import org.springframework.ai.chat.prompt.Prompt;
+
+import static io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.claimsAuthorizationDenied;
+import static io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.claimsHighSensitivity;
+import static io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.claimsLowSensitivity;
+import static io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.claimsMfaUnverified;
+import static io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks.claimsMfaVerified;
 
 /**
  * Inspects a raw security-decision response without mutating the live pipeline context.
  */
 public final class SecurityDecisionRawOutputContractInspector {
 
+    /** N-OUT-1 (G1-1): the pipeline metadata key of the fallback of a contract violation left after the retry. */
+    public static final String CONTRACT_FALLBACK_ACTION = "securityDecisionContractFallbackAction";
+
+    /**
+     * N-OUT-1 (G1-1, decision A): the fallback of a contract violation left after the corrective retry. It is ESCALATE
+     * (decision A: the code does not choose the response) unless the broken rule asks for one action ESCALATE does not
+     * give: a boundary that requires BLOCK gives BLOCK, the low risk boundary that requires ALLOW gives ALLOW.
+     */
+    public static String fallbackActionFor(String violation) {
+        if ("REQUIRED_BLOCK_BOUNDARY_ACTION_MISMATCH".equals(violation)) {
+            return "BLOCK";
+        }
+        if ("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH".equals(violation)
+                || SecurityDecisionFactChecks.REQUIRED_COVERED_WORK.equals(violation)) {
+            return "ALLOW";
+        }
+        return "ESCALATE";
+    }
+
     private final SecurityDecisionOutputParser outputParser = new SecurityDecisionOutputParser();
 
+    /**
+     * W4-5 (plan 7, dictionary 6): the inspection with the minimum action rules when the check is given (enforce mode):
+     * an answer weaker than a rule that applies is a violation naming the rule and the action it asks for. A parse
+     * failure or another violation comes first.
+     */
+    public Inspection inspect(String rawResponse, Prompt prompt, String requestId, String attempt,
+                              MinimumActionCheck check) {
+        return withMinimumActionRules(inspect(rawResponse, prompt, requestId, attempt), check);
+    }
+
+    private Inspection withMinimumActionRules(Inspection inspection, MinimumActionCheck check) {
+        if (check == null || inspection.requiresRetry() || inspection.response() == null) {
+            return inspection;
+        }
+        List<MinimumActionRules.Hit> hits = MinimumActionRules.evaluate(check.facts(), check.resourceClass(),
+                check.actionFamily(), check.settings());
+        if (!MinimumActionRules.violatedBy(inspection.response().getAction(), hits)) {
+            return inspection;
+        }
+        String violation = "MINIMUM_ACTION_VIOLATION: " + hits.stream()
+                .map(hit -> hit.rule().code() + " requires " + hit.requiredAction() + " or a stronger action")
+                .collect(Collectors.joining("; "));
+        return new Inspection(inspection.response(), inspection.parsingFallback(), inspection.parseFailureCategory(),
+                inspection.rawOutputHash(), inspection.rawOutputLength(), violation, violation);
+    }
+
+    /** W4-8: the inputs of the v20 checks: the canonical context the prompt was drawn from, its user prompt, the rules. */
+    public record V20Check(CanonicalSecurityContext context, String userPrompt, MinimumActionRules.Settings settings) {
+    }
+
+    /**
+     * W4-8 (S-28): a v20 decision is inspected on the facts its prompt was drawn from (SecurityDecisionFactChecks): the
+     * reason claims, the boundaries of the v20 system text and the reason codes of dictionary 5, then the minimum action
+     * rules when given. The v19 label checks read the prompt text and run on a v19 prompt only (plan 9).
+     */
+    public Inspection inspect(String rawResponse, Prompt prompt, String requestId, String attempt,
+                              MinimumActionCheck check, V20Check v20) {
+        if (v20 == null || v20.context() == null) {
+            return inspect(rawResponse, prompt, requestId, attempt, check);
+        }
+        SecurityDecisionFactChecks.DrawnPrompt drawn = SecurityDecisionFactChecks.DrawnPrompt.of(v20.userPrompt());
+        return withMinimumActionRules(inspect(rawResponse, requestId, attempt, parsed -> v20Violation(v20, drawn, parsed)),
+                check);
+    }
+
+    private static String v20Violation(V20Check v20, SecurityDecisionFactChecks.DrawnPrompt drawn,
+                                       SecurityDecisionResponseLite response) {
+        if (response == null) {
+            return null;
+        }
+        String claim = SecurityDecisionFactChecks.claimViolation(v20.context(), drawn, response.getReasoning());
+        if (claim != null) {
+            return claim;
+        }
+        String boundary = SecurityDecisionFactChecks.boundaryViolation(v20.context(), drawn, response.getAction());
+        if (boundary != null) {
+            return boundary;
+        }
+        return SecurityDecisionFactChecks.reasonViolation(SecurityDecisionFactChecks.reasonFindings(v20.context(),
+                v20.settings(), drawn, response.getReasonCodes()));
+    }
+
+    /** The minimum action rule inputs: the decision facts the prompt stated, the resource and the host's settings. */
+    public record MinimumActionCheck(DecisionFacts facts, String resourceClass, String actionFamily,
+                                     MinimumActionRules.Settings settings) {
+    }
+
     public Inspection inspect(String rawResponse, Prompt prompt, String requestId, String attempt) {
+        return inspect(rawResponse, requestId, attempt, parsed -> findFactViolation(prompt, parsed));
+    }
+
+    private Inspection inspect(String rawResponse, String requestId, String attempt,
+                               Function<SecurityDecisionResponseLite, String> factViolation) {
         PipelineExecutionContext inspectionContext = new PipelineExecutionContext(
                 firstNonBlank(requestId, "security-decision") + "-raw-contract-" + attempt);
         SecurityDecisionResponseLite parsed = outputParser.parse(rawResponse, inspectionContext);
@@ -40,7 +144,7 @@ public final class SecurityDecisionRawOutputContractInspector {
         String parseFailureCategory = firstNonBlank(
                 inspectionContext.getMetadata("securityDecisionParseFailureCategory", String.class),
                 "NONE");
-        String semanticViolation = findFactViolation(prompt, parsed);
+        String semanticViolation = factViolation.apply(parsed);
         String retryReason = parsingFallback ? "PARSER_" + parseFailureCategory : semanticViolation;
         return new Inspection(
                 parsed,
@@ -53,13 +157,14 @@ public final class SecurityDecisionRawOutputContractInspector {
     }
 
     private String findFactViolation(Prompt prompt, SecurityDecisionResponseLite response) {
-        if (prompt == null || response == null || response.getReasoning() == null) {
+        if (prompt == null || response == null) {
             return null;
         }
         String promptText = prompt.getContents() != null
                 ? prompt.getContents().toLowerCase(Locale.ROOT)
                 : "";
-        String reasoning = response.getReasoning().toLowerCase(Locale.ROOT);
+        // N-OUT-1 (G1-4): without a reason no reason claim is checked, but the action boundaries still are.
+        String reasoning = response.getReasoning() != null ? response.getReasoning().toLowerCase(Locale.ROOT) : "";
 
         if (hasPromptFact(promptText, "mfaverified", "false")
                 && claimsMfaVerified(reasoning)
@@ -262,44 +367,6 @@ public final class SecurityDecisionRawOutputContractInspector {
         catch (NumberFormatException ignored) {
             return false;
         }
-    }
-
-    private boolean claimsMfaVerified(String reasoning) {
-        return reasoning.contains("mfa is verified")
-                || reasoning.contains("mfa verified")
-                || reasoning.contains("mfaverified=true")
-                || reasoning.contains("mfaverified = true");
-    }
-
-    private boolean claimsMfaUnverified(String reasoning) {
-        return reasoning.contains("mfa is not verified")
-                || reasoning.contains("mfa not verified")
-                || reasoning.contains("mfa unverified")
-                || reasoning.contains("mfaverified=false")
-                || reasoning.contains("mfaverified = false");
-    }
-
-    private boolean claimsLowSensitivity(String reasoning) {
-        return reasoning.contains("low sensitivity")
-                || reasoning.contains("low-resource sensitivity")
-                || reasoning.contains("non-high sensitivity");
-    }
-
-    private boolean claimsHighSensitivity(String reasoning) {
-        if (reasoning.contains("not high sensitivity")
-                || reasoning.contains("non-high sensitivity")) {
-            return false;
-        }
-        return reasoning.contains("high sensitivity")
-                || reasoning.contains("high-sensitivity")
-                || reasoning.contains("critical sensitivity");
-    }
-
-    private boolean claimsAuthorizationDenied(String reasoning) {
-        return reasoning.contains("authorization denied")
-                || reasoning.contains("authorization is denied")
-                || reasoning.contains("authorizationeffect=deny")
-                || reasoning.contains("authorizationeffect = deny");
     }
 
     private boolean claimsAuthorizedSameResourceRag(String reasoning) {

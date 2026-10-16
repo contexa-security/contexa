@@ -85,22 +85,15 @@ class PromptInspectionFaultDetectionTest {
 
     /**
      * What the golden renders leave uncheckable, each for a source that is not sealed: the learning evidence, which no
-     * package seals (the two baseline comparison facts; the baseline status is compared with the sealed state since
-     * R1b-1), and what the golden case files predate
-     * (the sealed authentication state and an observed baseline view in the sealed context).
+     * package seals (the two baseline comparison facts and the peer reference the organization baseline draws, as the
+     * sealed prompts do since the golden render builds the learning evidence, N-GOLD-1; the baseline status is
+     * compared with the sealed state since R1b-1, the usual-behaviour lines with the sealed view). The golden cases taken
+     * from the P5 gate measurement (2026-10-16) carry the sealed authentication state, so the login method is compared.
      */
     private static final List<String> UNCHECKABLE_ON_THE_GOLDEN_RENDERS = List.of(
             "DECISION_FACT_MATCH DECISION FACTS.DeviationsFromBaseline <- learningContextEvidence",
             "DECISION_FACT_MATCH DECISION FACTS.SameAsBaseline <- learningContextEvidence",
-            "FACT_ACCURACY SESSION.LoginMethod <- authStateJson.authMethod",
-            "FACT_ACCURACY USER BASELINE.UsualActions <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualDays <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualDevices <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualExportSize <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualHours <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualRequestRate <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualResourceClass <- canonicalContext.workProfile.baselineView",
-            "FACT_ACCURACY USER BASELINE.UsualTargets <- canonicalContext.workProfile.baselineView");
+            "FACT_ACCURACY USER BASELINE.PeerReference <- learningContextEvidence");
 
     /**
      * Applies the fault to every golden render, requires every fault line to be pointed at, writes which checks pointed

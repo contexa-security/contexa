@@ -27,7 +27,6 @@ import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
 import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,8 +45,6 @@ public class AdminOverrideService {
     private final ThreatOutcomeForwardingService threatOutcomeForwardingService;
     private final BlockingSignalBroadcaster blockingSignalBroadcaster;
 
-    private static final String BASELINE_LOCK_PREFIX = "baseline:update:";
-    private static final Duration BASELINE_LOCK_TIMEOUT = Duration.ofSeconds(10);
 
     public AdminOverrideService(SecurityLearningService securityLearningService,
                                 ZeroTrustActionRepository actionRedisRepository,
@@ -165,17 +162,9 @@ public class AdminOverrideService {
                     .analysisTime(System.currentTimeMillis())
                     .build();
 
-            if (lockService != null) {
-                lockService.executeWithLock(
-                        BASELINE_LOCK_PREFIX + userId,
-                        BASELINE_LOCK_TIMEOUT,
-                        () -> {
-                            securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
-                            return null;
-                        });
-            } else {
-                securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
-            }
+            // The baseline learning takes the user's update lock itself (W5-8). The lock is not re-entrant, so the
+            // approval does not hold it around the learning.
+            securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
 
         } catch (Exception e) {
             log.error("[AdminOverrideService] Baseline update failed: userId={}, overrideId={}",

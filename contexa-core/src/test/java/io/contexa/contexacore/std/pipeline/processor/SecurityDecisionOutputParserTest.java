@@ -295,4 +295,30 @@ class SecurityDecisionOutputParserTest {
         assertThat(result.getEvidenceRefs()).doesNotContain("baseline");
         assertThat(context.getMetadata("securityDecisionEvidenceRefsPresent", Boolean.class)).isTrue();
     }
+
+    /** N-OUT-1 (G1-1): the empty answer of a contract violation left after the retry takes the fallback the step chose. */
+    @Test
+    void anEmptyAnswerAfterAContractViolationTakesTheFallbackTheStepChose() {
+        PipelineExecutionContext violation = new PipelineExecutionContext("parse-contract-fallback");
+        violation.addMetadata(SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION, "ESCALATE");
+        PipelineExecutionContext outage = new PipelineExecutionContext("parse-outage");
+
+        SecurityDecisionResponseLite escalated = parser.parse("", violation);
+        SecurityDecisionResponseLite challenged = parser.parse("", outage);
+
+        assertThat(escalated.getAction()).isEqualTo("ESCALATE");
+        assertThat(violation.getMetadata("securityDecisionFallbackAction", String.class)).isEqualTo("ESCALATE");
+        assertThat(challenged.getAction()).isEqualTo("CHALLENGE");
+    }
+
+    /** N-OUT-1 (G1-2): the answer the decision was read from is kept as it came. */
+    @Test
+    void theAnswerTheDecisionWasReadFromIsKept() {
+        PipelineExecutionContext context = new PipelineExecutionContext("parse-raw-output");
+        String raw = "{\"action\":\"ALLOW\",\"reason\":\"Approved transfer within the usual scope.\"}";
+
+        parser.parse(raw, context);
+
+        assertThat(context.getMetadata("securityDecisionRawOutput", String.class)).isEqualTo(raw);
+    }
 }

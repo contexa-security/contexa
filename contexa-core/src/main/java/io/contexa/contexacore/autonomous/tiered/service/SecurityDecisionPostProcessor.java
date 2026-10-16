@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
@@ -26,6 +27,9 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
+import io.contexa.contexacore.autonomous.context.support.PastRecordQuery;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
@@ -42,11 +46,19 @@ public class SecurityDecisionPostProcessor {
     private final SecurityContextDataStore dataStore;
     private final UnifiedVectorService unifiedVectorService;
 
+    private LearningPromotionPolicy.Settings learningPromotionSettings = LearningPromotionPolicy.Settings.DEFAULTS;
+
     public SecurityDecisionPostProcessor(
             SecurityContextDataStore dataStore,
             UnifiedVectorService unifiedVectorService) {
         this.dataStore = dataStore;
         this.unifiedVectorService = unifiedVectorService;
+    }
+
+    /** The learning promotion that marks an allowed request's past record held (W5-1); the core default without it. */
+    public void setLearningPromotionSettings(LearningPromotionPolicy.Settings learningPromotionSettings) {
+        this.learningPromotionSettings = learningPromotionSettings != null
+                ? learningPromotionSettings : LearningPromotionPolicy.Settings.DEFAULTS;
     }
 
     public void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
@@ -83,6 +95,9 @@ public class SecurityDecisionPostProcessor {
                 case CHALLENGE -> storeSuspiciousDocument(event, decision);
                 case ESCALATE, PENDING_ANALYSIS -> storeAmbiguousDocument(event, decision);
             }
+            if (action != ZeroTrustAction.ALLOW) {
+                writeVerificationOutcome(event);
+            }
 
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store vector document: eventId={}",
@@ -90,10 +105,34 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
+    /**
+     * Writes on the stored record of a decision that did not allow how its verification ended, when the user was
+     * verified before the record was stored (W5-4). The verification keeps its outcome by the event before it writes
+     * the record, and the kept outcome is read here after the record is stored, so the outcome reaches the record
+     * whichever ends first.
+     */
+    private void writeVerificationOutcome(SecurityEvent event) {
+        if (dataStore == null || event.getEventId() == null) {
+            return;
+        }
+        String outcome = dataStore.verificationOutcome(event.getEventId());
+        PastRecordQuery query = outcome != null ? unifiedVectorService.pastRecordQuery() : null;
+        if (query == null) {
+            return;
+        }
+        for (String documentId : PastDeniedDecisions.documentIds(event.getEventId())) {
+            query.recordOutcome(documentId, outcome);
+        }
+    }
+
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildBehaviorContent(event, decision);
             Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
+            // A request held for promotion is not retrieved as a past record until it is promoted (W5-1).
+            if (!LearningPromotionPolicy.heldDifferences(event, learningPromotionSettings).isEmpty()) {
+                metadata.put(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
+            }
 
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
@@ -349,6 +388,7 @@ public class SecurityDecisionPostProcessor {
         metadata.put(VectorDocumentMetadata.ACCESS_SCOPE, event.getUserId() != null ? "USER" : "GLOBAL");
         metadata.put(VectorDocumentMetadata.ARTIFACT_ID, event.getEventId() != null ? event.getEventId() : UUID.randomUUID().toString());
         metadata.put(VectorDocumentMetadata.ARTIFACT_VERSION, "1.0");
+        metadata.put(VectorDocumentMetadata.VOCABULARY_VERSION, VocabularyVersion.CURRENT);
         metadata.put(VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation");
         metadata.put(VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event");
 
@@ -598,7 +638,6 @@ public class SecurityDecisionPostProcessor {
             String metadataOrganizationId = firstNonBlankText(
                     textValue(eventMeta.get(VectorDocumentMetadata.ORGANIZATION_ID)),
                     textValue(eventMeta.get("organizationId")),
-                    textValue(eventMeta.get("tenantId")),
                     textValue(eventMeta.get("orgId")));
             if (metadataOrganizationId != null) {
                 return metadataOrganizationId;

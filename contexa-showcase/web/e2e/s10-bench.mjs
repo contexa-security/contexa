@@ -50,6 +50,7 @@ for (const language of ['ko', 'en']) {
   await open('bench-cases-ops', '/benchmark/cases?tab=ops');
   await open('bench-case', `/benchmark/cases?modal=case&case=${wrongCase}`, 'dialog[open]');
   await open('bench-judgment', '/benchmark/judgment');
+  await open('bench-prompt', '/benchmark/prompt');
   await open('bench-limits', '/benchmark/limits');
   values.push({ language, screen: 'errors', errors });
   await context.close();

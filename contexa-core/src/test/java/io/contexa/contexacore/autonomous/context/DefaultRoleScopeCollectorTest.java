@@ -25,7 +25,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,8 +52,17 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("collect builds role scope from prior authorized history without contaminating it with the current request")
     void collect_buildsRoleScopeFromPriorAuthorizedHistory() {
-        collect(event(
+        collect(peerEvent(
                 LocalDateTime.of(2026, 3, 26, 9, 0),
+                List.of("ROLE_ANALYST"),
+                List.of("customer_data"),
+                List.of("report.read"),
+                "READ",
+                "REPORT",
+                true));
+        // The permission state is the user's own (W5-10 D8: the group's usual scope is the other members').
+        collect(event(
+                LocalDateTime.of(2026, 3, 26, 9, 5),
                 List.of("ROLE_ANALYST"),
                 List.of("customer_data"),
                 List.of("report.read"),
@@ -278,7 +292,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("a refused read of one resource family keeps a read of another resource family out of denied scope")
     void collect_comparesDeniedScopeByRefusedPair() {
-        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+        collect(peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "DOCUMENT", true));
         collect(event(LocalDateTime.of(2026, 3, 26, 9, 30),
                 List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", false));
@@ -298,7 +312,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("the refused pair itself is in denied scope in both dimensions")
     void collect_putsTheRefusedPairInDeniedScope() {
-        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+        collect(peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "DOCUMENT", true));
         collect(event(LocalDateTime.of(2026, 3, 26, 9, 30),
                 List.of("ROLE_ENGINEER"), List.of("engineering"), List.of("document.read"), "READ", "CUSTOMER", false));
@@ -332,7 +346,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("a family the host declares forbidden is in denied scope only in its own dimension")
     void collect_keepsADeclaredForbiddenFamilyInItsOwnDimension() {
-        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+        collect(peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true));
         SecurityEvent current = event(LocalDateTime.of(2026, 3, 26, 10, 0),
                 List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "DELETE", "REPORT", true);
@@ -349,7 +363,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("the current action family comes from the protected method, and earlier families and host hints read in one vocabulary (W2-1)")
     void collect_readsActionFamiliesInOneVocabulary() {
-        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0),
+        collect(peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0),
                 List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), "CREATE", "REPORT", true));
         SecurityEvent export = event(LocalDateTime.of(2026, 3, 26, 10, 0),
                 List.of("ROLE_ANALYST"), List.of("customer_data"), List.of("report.read"), null, "REPORT", true);
@@ -367,7 +381,7 @@ class DefaultRoleScopeCollectorTest {
     @Test
     @DisplayName("a family hint made only of class words is no scope category (W2-10)")
     void collect_passesOverAClassWordForTheScopeCategory() {
-        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+        collect(peerEvent(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
                 List.of("report.read"), "READ", "CRITICAL", true));
         SecurityEvent current = event(LocalDateTime.of(2026, 3, 26, 9, 30), List.of("ROLE_ANALYST"),
                 List.of("customer_data"), List.of("report.read"), "READ", "CRITICAL", true);
@@ -400,8 +414,32 @@ class DefaultRoleScopeCollectorTest {
             String actionFamily,
             String resourceFamily,
             boolean granted) {
+        return eventBy("alice", timestamp, effectiveRoles, scopeTags, permissions, actionFamily, resourceFamily, granted);
+    }
+
+    /** A request of another member of the same scope group (W5-10 D8). */
+    private SecurityEvent peerEvent(
+            LocalDateTime timestamp,
+            List<String> effectiveRoles,
+            List<String> scopeTags,
+            List<String> permissions,
+            String actionFamily,
+            String resourceFamily,
+            boolean granted) {
+        return eventBy("bob", timestamp, effectiveRoles, scopeTags, permissions, actionFamily, resourceFamily, granted);
+    }
+
+    private SecurityEvent eventBy(
+            String userId,
+            LocalDateTime timestamp,
+            List<String> effectiveRoles,
+            List<String> scopeTags,
+            List<String> permissions,
+            String actionFamily,
+            String resourceFamily,
+            boolean granted) {
         SecurityEvent event = SecurityEvent.builder()
-                .userId("alice")
+                .userId(userId)
                 .timestamp(timestamp.atZone(ZoneId.systemDefault()).toInstant())
                 .build();
         event.addMetadata("tenantId", "tenant-acme");
@@ -418,6 +456,86 @@ class DefaultRoleScopeCollectorTest {
     }
 
     /** One request seen through to an enforced ALLOW, the way the pipeline records it (W2-7). */
+    @Test
+    @DisplayName("a role scope observation says which vocabulary its families are in; a v1 line still reads (W5-7)")
+    void anObservationCarriesItsVocabularyAndAV1LineStillReads() {
+        List<String[]> stored = new ArrayList<>();
+        InMemorySecurityContextDataStore recording = new InMemorySecurityContextDataStore() {
+            @Override
+            public void addRoleScopeObservation(String tenantId, String scopeKey, String observation) {
+                stored.add(new String[]{tenantId, scopeKey, observation});
+                super.addRoleScopeObservation(tenantId, scopeKey, observation);
+            }
+        };
+        DefaultRoleScopeCollector recordingCollector = new DefaultRoleScopeCollector(recording);
+        SecurityEvent first = event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true);
+        recordingCollector.collect(first);
+        recordingCollector.recorder().commit(first, "ALLOW", true);
+
+        assertThat(stored).hasSize(1);
+        String[] fields = stored.get(0)[2].split("\\|", -1);
+        // W5-10 D8: a v3 line keeps the member it is of.
+        assertThat(fields[0]).isEqualTo("v3");
+        assertThat(fields).hasSize(16);
+        assertThat(new String(Base64.getUrlDecoder().decode(fields[14]), StandardCharsets.UTF_8))
+                .isEqualTo(VocabularyVersion.CURRENT);
+        assertThat(new String(Base64.getUrlDecoder().decode(fields[15]), StandardCharsets.UTF_8)).isEqualTo("alice");
+
+        InMemorySecurityContextDataStore older = new InMemorySecurityContextDataStore();
+        older.addRoleScopeObservation(stored.get(0)[0], stored.get(0)[1],
+                "v1|" + String.join("|", Arrays.copyOfRange(fields, 1, 14)));
+        RoleScopeSnapshot snapshot = new DefaultRoleScopeCollector(older).collect(event(
+                        LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+                        List.of("report.read"), "READ", "REPORT", true))
+                .orElseThrow();
+        // A line stored before the member was kept reads, but whose it is is not known: it is left out of the
+        // group's usual scope (W5-10 D8). The same observation of another member is part of it.
+        assertThat(snapshot.getExpectedResourceFamilies()).isEmpty();
+        InMemorySecurityContextDataStore peers = new InMemorySecurityContextDataStore();
+        peers.addRoleScopeObservation(stored.get(0)[0], stored.get(0)[1], String.join("|",
+                Arrays.copyOfRange(fields, 0, 15)) + "|"
+                + Base64.getUrlEncoder().withoutPadding().encodeToString("bob".getBytes(StandardCharsets.UTF_8)));
+        RoleScopeSnapshot ofPeers = new DefaultRoleScopeCollector(peers).collect(event(
+                        LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+                        List.of("report.read"), "READ", "REPORT", true))
+                .orElseThrow();
+        assertThat(ofPeers.getExpectedResourceFamilies()).containsExactly("REPORT");
+        assertThat(ofPeers.getPeerCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("the scope group's usual scope is its other members', and their number is kept (W5-10 D8)")
+    void theUsualScopeIsTheOtherMembersAndTheirNumberIsKept() {
+        collect(eventBy("alice", LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "EXPORT", "CUSTOMER", true));
+        collect(eventBy("bob", LocalDateTime.of(2026, 3, 26, 9, 10), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true));
+        collect(eventBy("carol", LocalDateTime.of(2026, 3, 26, 9, 20), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true));
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "READ", "REPORT", true)).orElseThrow();
+
+        // Alice's own export is not part of what her group usually does.
+        assertThat(snapshot.getExpectedActionFamilies()).containsExactly("READ");
+        assertThat(snapshot.getExpectedResourceFamilies()).containsExactly("REPORT");
+        assertThat(snapshot.getPeerCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("a user alone in the scope group has no usual scope from it (W5-10 D8)")
+    void aUserAloneInTheScopeGroupHasNoUsualScope() {
+        collect(event(LocalDateTime.of(2026, 3, 26, 9, 0), List.of("ROLE_ANALYST"), List.of("customer_data"),
+                List.of("report.read"), "READ", "REPORT", true));
+
+        RoleScopeSnapshot snapshot = collect(event(LocalDateTime.of(2026, 3, 26, 10, 0), List.of("ROLE_ANALYST"),
+                List.of("customer_data"), List.of("report.read"), "EXPORT", "REPORT", true)).orElseThrow();
+
+        assertThat(snapshot.getExpectedActionFamilies()).isEmpty();
+        assertThat(snapshot.getPeerCount()).isZero();
+    }
+
     private Optional<RoleScopeSnapshot> collect(SecurityEvent event) {
         Optional<RoleScopeSnapshot> snapshot = collector.collect(event);
         collector.recorder().commit(event, "ALLOW", true);

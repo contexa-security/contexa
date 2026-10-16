@@ -163,6 +163,13 @@ public class PostprocessingStep implements PipelineStep {
                     aiResponse.withMetadata(key, value);
                 }
             }
+            // N-OUT-1 (G1-2): the model's raw answers, apart from the record keys.
+            for (String key : PromptRuntimeTelemetrySupport.modelOutputTextKeys()) {
+                Object value = context.getMetadata(key, Object.class);
+                if (value != null) {
+                    aiResponse.withMetadata(key, value);
+                }
+            }
         }
     }
 

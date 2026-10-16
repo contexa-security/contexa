@@ -26,6 +26,12 @@ public enum PromptUnknownKind {
     /** Its source exists but could not give it for this request (timed out, failed, nothing learned yet). */
     UNAVAILABLE_NOW("unavailable-now");
 
+    /**
+     * The prefix of the ID the UNKNOWN line gives each fact it names, U1 onwards in the line's order (N-UID-1, Q-87):
+     * the ID MATERIAL_MISSING_EVIDENCE cites. The UNKNOWN line itself carries no line ID.
+     */
+    public static final String FACT_PREFIX = "U";
+
     private final String word;
 
     PromptUnknownKind(String word) {
@@ -48,6 +54,16 @@ public enum PromptUnknownKind {
     /** A reason as the UNKNOWN line writes it: without the spaces around it, or null when it says nothing. */
     public static String reasonText(String reason) {
         return reason == null || reason.isBlank() ? null : reason.trim();
+    }
+
+    /**
+     * N-UID-1 (Q-87): the UNKNOWN line as a regular expression: each kind once, each name after the ID the line gives
+     * it ({@code [U1] ClientSignals}), a reason in brackets after the name (dictionary 1.4, 2.6).
+     */
+    public static String linePattern() {
+        String name = "\\[" + FACT_PREFIX + "[0-9]+\\] [A-Za-z][A-Za-z0-9]*( \\([^()]*\\))?";
+        String kind = "(" + wordsPattern() + "): " + name + "(, " + name + ")*";
+        return kind + "(; " + kind + ")*";
     }
 
     /** The words the UNKNOWN line writes, as a regular expression alternation. */

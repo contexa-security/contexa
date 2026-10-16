@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,37 @@ class SecurityZeroTrustPropertiesTest {
 
         assertThat(bound.getMinimumAction().getMode()).isEqualTo(SecurityZeroTrustProperties.MinimumActionMode.ENFORCE);
         assertThat(bound.getMinimumAction().toRules())
-                .isEqualTo(new MinimumActionRules.Settings(true, 3, "SENSITIVE", true, false));
+                .isEqualTo(new MinimumActionRules.Settings(true, 3, "SENSITIVE", true, false, "ESCALATE"));
+    }
+
+    /** W5-1 (plan L1): the learning promotion is on by default with the plan's limits and binds its keys. */
+    @Test
+    void theLearningPromotionIsOnByDefaultAndBindsItsKeys() {
+        assertThat(new SecurityZeroTrustProperties().getBaseline().getPromotion().toPolicy())
+                .isEqualTo(LearningPromotionPolicy.Settings.DEFAULTS);
+
+        SecurityZeroTrustProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                "contexa.security.zerotrust.baseline.promotion.enabled", "false",
+                "contexa.security.zerotrust.baseline.promotion.min-resource-class", "CRITICAL",
+                "contexa.security.zerotrust.baseline.promotion.min-observations", "3",
+                "contexa.security.zerotrust.baseline.promotion.min-distinct-days", "4",
+                "contexa.security.zerotrust.baseline.promotion.verified-promotes", "false")))
+                .bind("contexa.security.zerotrust", SecurityZeroTrustProperties.class).get();
+
+        assertThat(bound.getBaseline().getPromotion().toPolicy())
+                .isEqualTo(new LearningPromotionPolicy.Settings(false, "CRITICAL", 3, 4, false));
+    }
+
+    /** Q-87 (N-P3-1): the P3 floor binds from its key; a review by default. */
+    @Test
+    void theP3FloorBindsFromItsKey() {
+        SecurityZeroTrustProperties bound = new Binder(new MapConfigurationPropertySource(Map.of(
+                "contexa.security.zerotrust.minimum-action.policy-satisfaction.action", "CHALLENGE")))
+                .bind("contexa.security.zerotrust", SecurityZeroTrustProperties.class).get();
+
+        assertThat(new SecurityZeroTrustProperties().getMinimumAction().toRules().policySatisfactionAction())
+                .isEqualTo("ESCALATE");
+        assertThat(bound.getMinimumAction().toRules().policySatisfactionAction()).isEqualTo("CHALLENGE");
     }
 
     @Test

@@ -35,6 +35,7 @@ import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyExpressionConve
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -71,6 +72,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
     private static final AuthorizationManager<RequestAuthorizationContext> REJECTED_POLICY_MANAGER =
             (authentication, context) -> new AuthorizationDecision(false);
+    /** The request attribute that keeps this manager's decision for the later dispatches of the same request. */
+    static final String DECISION_ATTRIBUTE = CustomDynamicAuthorizationManager.class.getName() + ".decision";
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ExpressionAuthorizationManagerResolver managerResolver;
@@ -141,6 +144,10 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                                        RequestAuthorizationContext context) {
         long startedAt = System.nanoTime();
         HttpServletRequest request = context.getRequest();
+        AuthorizationDecision granted = grantedEarlier(request);
+        if (granted != null) {
+            return granted;
+        }
         Authentication authentication = authenticationSupplier.get();
         CombiningAlgorithm currentAlgorithm = combiningAlgorithm;
         NoPolicyDecision currentNoPolicyDecision = noMatchingUrlPolicyDecision;
@@ -172,11 +179,30 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         this.authorizationDenialRecorder = authorizationDenialRecorder;
     }
 
+    /**
+     * N-ASYNC-1: an ASYNC dispatch (the end of a streaming or deferred response) or an ERROR dispatch of a request this
+     * manager granted is that request, not a new one. It keeps the granted decision instead of being decided again
+     * against the user's state of now: a decision taken while the response is sent may hold the user, and a refusal
+     * then would be a refusal of a request already answered. Null when there is no such decision.
+     */
+    private static AuthorizationDecision grantedEarlier(HttpServletRequest request) {
+        return laterDispatch(request) && request.getAttribute(DECISION_ATTRIBUTE) instanceof AuthorizationDecision decision
+                && decision.isGranted() ? decision : null;
+    }
+
+    private static boolean laterDispatch(HttpServletRequest request) {
+        DispatcherType type = request.getDispatcherType();
+        return type == DispatcherType.ASYNC || type == DispatcherType.ERROR;
+    }
+
     private AuthorizationDecision complete(Authentication authentication, HttpServletRequest request,
                                            AuthorizationDecision decision, long startedAt) {
+        request.setAttribute(DECISION_ATTRIBUTE, decision);
         logAuthorizationAttempt(authentication, createAuthorizationContext(authentication, request), decision, request);
-        if (!decision.isGranted() && authorizationDenialRecorder != null && authentication != null
-                && authentication.isAuthenticated() && !(authentication instanceof AnonymousAuthenticationToken)) {
+        // A refusal on a later dispatch is not a request the user made; the request's own refusal was recorded.
+        if (!decision.isGranted() && !laterDispatch(request) && authorizationDenialRecorder != null
+                && authentication != null && authentication.isAuthenticated()
+                && !(authentication instanceof AnonymousAuthenticationToken)) {
             authorizationDenialRecorder.recordRequest(authentication, "URL authorization policy denied the request");
         }
         if (metricsCollector != null) {

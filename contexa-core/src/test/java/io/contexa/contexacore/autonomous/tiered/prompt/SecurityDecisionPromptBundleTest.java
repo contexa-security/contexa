@@ -18,6 +18,8 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceChangeRecord;
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceRegistryRecord;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -59,6 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SecurityDecisionPromptBundleTest {
 
+    private static final String MINIMUM_ACTION_RULES_SOURCE =
+            "src/main/java/io/contexa/contexacore/autonomous/context/decision/MinimumActionRules.java";
     private static final String INSPECTOR_SOURCE =
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -161,6 +165,10 @@ class SecurityDecisionPromptBundleTest {
                         + " (computed manifest: " + written.toAbsolutePath() + ")")
                 .isEmpty();
         assertThat(shipped.bundleHash()).isEqualTo(computed.bundleHash());
+        // W5-7 D1: the manifest declares the vocabulary its build writes, and reads it.
+        assertThat(shipped.vocabularyVersion()).as(descriptor.promptVersion()).isEqualTo(VocabularyVersion.CURRENT);
+        assertThat(shipped.compatibleVocabularyVersions()).as(descriptor.promptVersion())
+                .contains(VocabularyVersion.CURRENT);
         assertThat(shipped.goldenInputs().sha256()).isEqualTo(golden.contentSha256());
         assertThat(descriptor.artifactHashSha256()).isEqualTo(shipped.bundleHash());
     }
@@ -261,8 +269,12 @@ class SecurityDecisionPromptBundleTest {
                 "golden render digest: " + golden.cases().size() + " cases x L1/L2"
                         + (v20 ? " and " + secondPasses + " second passes" : "") + ", inputs " + golden.contentSha256()));
         elements.add(PromptBundleHashes.present("B4", outputContract(), "format instructions and the response fields"));
-        elements.add(PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT,
-                v20 ? "no minimum response rules yet (W4-4)" : "no minimum response rules in v19 (W4-4)"));
+        // W4-4: the v20 system text states the minimum action rules (dictionary 6) with the default settings.
+        elements.add(v20
+                ? PromptBundleHashes.present("B5", Files.readString(Path.of(MINIMUM_ACTION_RULES_SOURCE),
+                        StandardCharsets.UTF_8) + MinimumActionRules.Settings.DEFAULTS,
+                        "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings")
+                : PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT, "no minimum response rules in v19 (W4-4)"));
         elements.add(PromptBundleHashes.present("B6", Files.readString(Path.of(INSPECTOR_SOURCE), StandardCharsets.UTF_8),
                 v20 ? "response inspector definition source (no declarative rule list yet, W4-4)"
                         : "response inspector definition source (no declarative rule list in v19)"));
@@ -270,9 +282,9 @@ class SecurityDecisionPromptBundleTest {
         elements.add(PromptBundleHashes.present("B8", budgetProfiles(), "all prompt budget profiles"));
         elements.add(PromptBundleHashes.marker("B9", PromptBundleElementState.ABSENT,
                 "no verifier contracts: the former quality assurance contracts are not part of the prompt (R4-B9, Q-78)"));
-        elements.add(PromptBundleHashes.marker("B10", PromptBundleElementState.UNVERSIONED,
-                v20 ? "no vocabulary version yet (W5-7)"
-                        : "no vocabulary version in v19; classification happens before the canonical context (W2-1, W2-2, W5-7)"));
+        // W5-7 D1: the vocabulary the build's data is written in; every bundle of a build declares the same one.
+        elements.add(PromptBundleHashes.present("B10", vocabulary(), "vocabulary " + VocabularyVersion.CURRENT
+                + ": the version and the classifier sources it was given for (W5-7)"));
         elements.add(PromptBundleHashes.marker("B11", PromptBundleElementState.INCLUDED,
                 v20 ? "the second analysis renders inside B3: the L2 budget profile and the second-pass layout (W3-9)"
                         : "the second analysis renders with the L2 budget profile inside B3"));
@@ -294,6 +306,16 @@ class SecurityDecisionPromptBundleTest {
                 List.of(),
                 List.of(),
                 descriptor.supportedModelProfiles());
+    }
+
+    /** The vocabulary version and the classifier sources, as its pin test reads them (W5-7 D1). */
+    private static String vocabulary() throws IOException {
+        StringBuilder text = new StringBuilder(VocabularyVersion.CURRENT).append('\n');
+        for (String source : VocabularyVersion.SOURCES) {
+            text.append(PromptBundleHashes.normalizeText(
+                    Files.readString(Path.of("src/main/java", source), StandardCharsets.UTF_8)));
+        }
+        return text.toString();
     }
 
     private static String systemTexts(List<SecurityDecisionGoldenRender.RenderedCase> rendered) {

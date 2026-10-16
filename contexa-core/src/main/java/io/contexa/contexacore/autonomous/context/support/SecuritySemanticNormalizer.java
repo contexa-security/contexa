@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.context.support;
 
+import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import org.springframework.util.StringUtils;
 
@@ -43,16 +44,56 @@ public final class SecuritySemanticNormalizer {
     private static final Set<String> CLASS_WORDS = Set.of("CRITICAL", "RESTRICTED", "SENSITIVE", "HIGH", "CONFIDENTIAL",
             "SECRET", "NORMAL", "MEDIUM", "INTERNAL", "STANDARD", "PUBLIC", "LOW", "UNKNOWN");
     private static final String DEVICE_SYSTEM_SEPARATOR = " on ";
+    /** The separator of the methods of one login in a recorded name ({@code PASSWORD+ONE_TIME_CODE}). */
+    private static final String LOGIN_METHOD_SEPARATOR = "+";
 
     private SecuritySemanticNormalizer() {
     }
 
+    /**
+     * The login method of the first value that names one. A login of several methods keeps them all, once each, in the
+     * one order of the recorded names ({@code PASSWORD+ONE_TIME_CODE}, W5-10 D6), so that its second factor is kept.
+     */
     public static String normalizeAuthenticationType(Object... rawValues) {
         for (Object rawValue : rawValues) {
             String candidate = normalizeToken(rawValue);
             if (!StringUtils.hasText(candidate)) {
                 continue;
             }
+            if (candidate.contains(LOGIN_METHOD_SEPARATOR)) {
+                List<String> methods = new ArrayList<>();
+                for (String part : candidate.split(Pattern.quote(LOGIN_METHOD_SEPARATOR))) {
+                    String method = authenticationMethod(part);
+                    if (method != null) {
+                        methods.add(method);
+                    }
+                }
+                String name = AuthenticationMethodReferences.methodName(methods);
+                if (name != null) {
+                    return name;
+                }
+                continue;
+            }
+            String method = authenticationMethod(candidate);
+            if (method != null) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    /** The methods of a normalized login, in its order: {@code PASSWORD+ONE_TIME_CODE} is PASSWORD and ONE_TIME_CODE. */
+    public static List<String> loginMethods(String login) {
+        if (!StringUtils.hasText(login)) {
+            return List.of();
+        }
+        return Arrays.stream(login.split(Pattern.quote(LOGIN_METHOD_SEPARATOR))).map(String::trim)
+                .filter(StringUtils::hasText).toList();
+    }
+
+    /** The one login method a token names, null when it names none. */
+    private static String authenticationMethod(String candidate) {
+        if (StringUtils.hasText(candidate)) {
             if (containsAny(candidate, "PASSKEY", "WEBAUTHN", "FIDO")) {
                 return "PASSKEY";
             }

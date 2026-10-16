@@ -26,6 +26,7 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -271,6 +273,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 }
                 pipelineResponse = pipelineOrchestrator.execute(request, SECURITY_DECISION_PIPELINE_CONFIGURATION,
                                 SecurityDecisionResponse.class)
+                        // N-OUT-1 (G1-7): on a thread of its own, so the budget holds when the pipeline runs synchronously.
+                        .subscribeOn(Schedulers.boundedElastic())
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .block();
                 pipelineBlockMs = System.currentTimeMillis() - pipelineStart;
@@ -300,7 +304,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
                 applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
             }
-            terminalizeLayer2EscalateDecision(expertDecision);
+            terminalizeLayer2EscalateDecision(expertDecision, event);
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
             applyMinimumActionRules(expertDecision, event);
 
@@ -441,10 +445,25 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return searchRelatedContext(event);
     }
 
+    /** N-OUT-1 (G1-8): the model that answered, as the call recorded it; null when it is not recorded. */
+    private static String answeredModel(SecurityEvent event) {
+        Map<String, Object> metadata = event != null ? event.getMetadata() : null;
+        if (metadata == null) {
+            return null;
+        }
+        for (String key : List.of("providerResponseModel", "selectedModelId", "runtimeModelId")) {
+            Object value = metadata.get(key);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
+    }
+
     private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
         SecurityDecision decision = convertToSecurityDecisionBase(response, event);
         decision.setProcessingLayer(2);
-        decision.setLlmModel("tier-2-auto-selected");
+        decision.setLlmModel(answeredModel(event));
         if (response != null && response.getMitre() != null && !response.getMitre().isEmpty()) {
             Map<String, String> mitreMapping = new HashMap<>();
             mitreMapping.put(response.getMitre(), response.getMitre());
@@ -495,7 +514,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         "Layer2 LLM response action was invalid; CHALLENGE was applied.");
     }
 
-    private void terminalizeLayer2EscalateDecision(SecurityDecision decision) {
+    private void terminalizeLayer2EscalateDecision(SecurityDecision decision, SecurityEvent event) {
         if (decision == null || tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
             return;
         }
@@ -509,6 +528,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 || fallback == ZeroTrustAction.ESCALATE
                 || fallback == ZeroTrustAction.PENDING_ANALYSIS) {
             fallback = ZeroTrustAction.CHALLENGE;
+        }
+        // Q-87 (N-P3-1): the ESCALATE stays when the fallback ranks below the floor of a minimum action rule that
+        // applies (P3 asks for a review; a verification of the user does not supply a missing record).
+        if (MinimumActionRules.violatedBy(fallback.name(), minimumActionHits(event))) {
+            return;
         }
         decision.setAutonomousAction(fallback);
         decision.setAutonomyConstraintApplied(true);

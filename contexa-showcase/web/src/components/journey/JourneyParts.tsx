@@ -156,17 +156,18 @@ export function LabBar({ step }: { readonly step: LabStep }) {
 }
 
 /** The benchmark's views (7.8): parallel ways into one measurement, not steps one after another. */
-export type BenchView = 'summary' | 'cases' | 'judgment' | 'limits';
+export type BenchView = 'summary' | 'cases' | 'judgment' | 'prompt' | 'limits';
 
 const BENCH_VIEWS: Readonly<Record<BenchView, string>> = {
   summary: '/benchmark',
   cases: '/benchmark/cases',
   judgment: '/benchmark/judgment',
+  prompt: '/benchmark/prompt',
   limits: '/benchmark/limits',
 };
 
 /**
- * The benchmark's place band in the same shape as the others: the tab 'Benchmark', and under it its four views as
+ * The benchmark's place band in the same shape as the others: the tab 'Benchmark', and under it its five views as
  * pressable links (each opens a view of the same measurement), the current one marked. `search` keeps the chosen
  * measurement setting across the views.
  */

@@ -86,6 +86,15 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
     public void deleteUserBaseline(String userId) {
         if (userId != null) {
             userBaselines.invalidate(userId);
+            // The user's baselines under every tenant (W5-10 D9).
+            userBaselines.asMap().keySet().removeIf(key -> key.endsWith(TENANT_SEPARATOR + userId));
+        }
+    }
+
+    @Override
+    public void deleteUserBaselineKey(String key) {
+        if (key != null) {
+            userBaselines.invalidate(key);
         }
     }
 

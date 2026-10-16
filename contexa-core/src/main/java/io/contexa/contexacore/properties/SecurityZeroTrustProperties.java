@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.properties;
 
+import io.contexa.contexacore.autonomous.context.decision.LearningPromotionPolicy;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -135,6 +136,9 @@ public class SecurityZeroTrustProperties {
         @NestedConfigurationProperty
         private StatisticalSettings statistical = new StatisticalSettings();
 
+        @NestedConfigurationProperty
+        private PromotionSettings promotion = new PromotionSettings();
+
         @Data
         public static class LearningSettings {
             private boolean enabled = true;
@@ -146,9 +150,37 @@ public class SecurityZeroTrustProperties {
             private double verifiedWeight = 0.5;
         }
 
+        /**
+         * When a personal baseline is established (W5-10 D4): enough learned requests, learned on enough company
+         * dates, and its recent learnings no longer bringing values it had not seen.
+         */
         @Data
         public static class StatisticalSettings {
             private int minSamples = 20;
+            private int minDays = 5;
+            private int convergenceWindow = 10;
+            private double maxNewValueRatio = 0.2;
+        }
+
+        /**
+         * The learning promotion (W5-1, plan L1): an allowed request on a resource of at least the minimum class
+         * whose time, day, network or device differs from the usual behaviour with nothing to explain it is held
+         * back, and learned once the same value is held on the given number of different days, or once the user
+         * passes a verification on a request with that value.
+         */
+        @Data
+        public static class PromotionSettings {
+            private boolean enabled = true;
+            private String minResourceClass = "SENSITIVE";
+            private int minObservations = 2;
+            private int minDistinctDays = 2;
+            private boolean verifiedPromotes = true;
+
+            /** The policy settings these keys give (contexa.security.zerotrust.baseline.promotion.*). */
+            public LearningPromotionPolicy.Settings toPolicy() {
+                return new LearningPromotionPolicy.Settings(enabled, minResourceClass, minObservations,
+                        minDistinctDays, verifiedPromotes);
+            }
         }
     }
 
@@ -192,12 +224,13 @@ public class SecurityZeroTrustProperties {
         private MinimumActionMode mode = MinimumActionMode.OBSERVE;
         private IdentityRule identity = new IdentityRule();
         private RuleSwitch newDeviceExport = new RuleSwitch();
-        private RuleSwitch policySatisfaction = new RuleSwitch();
+        private PolicySatisfactionRule policySatisfaction = new PolicySatisfactionRule();
 
         /** The rule settings these keys give (contexa.security.zerotrust.minimum-action.*). */
         public MinimumActionRules.Settings toRules() {
             return new MinimumActionRules.Settings(identity.isEnabled(), identity.getMinDeviations(),
-                    identity.getMinResourceClass(), newDeviceExport.isEnabled(), policySatisfaction.isEnabled());
+                    identity.getMinResourceClass(), newDeviceExport.isEnabled(), policySatisfaction.isEnabled(),
+                    policySatisfaction.getAction());
         }
     }
 
@@ -206,6 +239,16 @@ public class SecurityZeroTrustProperties {
         private boolean enabled = true;
         private int minDeviations = 2;
         private String minResourceClass = "SENSITIVE";
+    }
+
+    /**
+     * P3: the switch and the floor (Q-87: a review; a verification of the user does not supply a missing record). The
+     * floor is CHALLENGE or ESCALATE; any other value stops the start-up (N-CONF-1).
+     */
+    @Data
+    public static class PolicySatisfactionRule {
+        private boolean enabled = true;
+        private String action = "ESCALATE";
     }
 
     @Data

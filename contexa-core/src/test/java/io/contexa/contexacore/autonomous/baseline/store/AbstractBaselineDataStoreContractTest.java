@@ -186,4 +186,68 @@ abstract class AbstractBaselineDataStoreContractTest {
         assertThat(store.getUserBaseline("erin")).isNull();
         assertThat(store.getUserBaseline("frank")).isNotNull();
     }
+
+    @Test
+    @DisplayName("deleting a user baseline removes it under every tenant and no other user's (W5-10 D9)")
+    void deleteUserBaseline_removesTheUserUnderEveryTenant() {
+        store.saveUserBaseline("gina", userBaseline("gina"));
+        store.saveUserBaseline("tenant-a::gina", userBaseline("gina"));
+        store.saveUserBaseline("tenant-b::gina", userBaseline("gina"));
+        store.saveUserBaseline("tenant-a::xgina", userBaseline("xgina"));
+
+        store.deleteUserBaseline("gina");
+
+        assertThat(store.getUserBaseline("gina")).isNull();
+        assertThat(store.getUserBaseline("tenant-a::gina")).isNull();
+        assertThat(store.getUserBaseline("tenant-b::gina")).isNull();
+        assertThat(store.getUserBaseline("tenant-a::xgina")).isNotNull();
+        assertThat(store.countUserBaselines()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("a later save replaces the stored baseline whole, leaving no list of the earlier one (W5-8)")
+    void user_saveReplacesTheWholeBaseline() {
+        store.saveUserBaseline("grace", BaselineVector.builder()
+                .userId("grace")
+                .updateCount(5L)
+                .normalDevices(new String[]{"Chrome/120 on WINDOWS"})
+                .normalAccessHours(new Integer[]{9})
+                .build());
+        store.saveUserBaseline("grace", BaselineVector.builder()
+                .userId("grace")
+                .updateCount(1L)
+                .normalAccessHours(new Integer[]{3})
+                .build());
+
+        BaselineVector loaded = store.getUserBaseline("grace");
+        assertThat(loaded.getUpdateCount()).isEqualTo(1L);
+        assertThat(loaded.getNormalAccessHours()).containsExactly(3);
+        assertThat(loaded.getNormalDevices()).isNullOrEmpty();
+    }
+
+    @Test
+    @DisplayName("the vocabulary version of a baseline is stored with it (W5-7)")
+    void user_keepsItsVocabularyVersion() {
+        store.saveUserBaseline("ivy", BaselineVector.builder()
+                .userId("ivy")
+                .updateCount(2L)
+                .vocabularyVersion("vocab-2026.10.15")
+                .build());
+
+        assertThat(store.getUserBaseline("ivy").getVocabularyVersion()).isEqualTo("vocab-2026.10.15");
+    }
+
+    @Test
+    @DisplayName("a read tells an absent baseline from a found one (W5-8)")
+    void user_readTellsAbsentFromFound() {
+        assertThat(store.readUserBaseline("nobody").state()).isEqualTo(BaselineDataStore.BaselineRead.State.ABSENT);
+        store.saveUserBaseline("henry", userBaseline("henry"));
+
+        BaselineDataStore.BaselineRead read = store.readUserBaseline("henry");
+
+        assertThat(read.state()).isEqualTo(BaselineDataStore.BaselineRead.State.FOUND);
+        assertThat(read.baseline().getUpdateCount()).isEqualTo(5L);
+        assertThat(store.readOrganizationBaseline("no-org").state())
+                .isEqualTo(BaselineDataStore.BaselineRead.State.ABSENT);
+    }
 }

@@ -95,7 +95,6 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
             return MfaDecision.blocked("Zero Trust CHALLENGE cannot verify user repository");
         }
 
-        log.error("[ZeroTrustPolicyEvaluator] findByUsernameWithGroupsRolesAndPermissions username={}", context.getUsername());
         Optional<Users> userOptional = userRepository
                 .findByUsernameWithGroupsRolesAndPermissions(context.getUsername());
 

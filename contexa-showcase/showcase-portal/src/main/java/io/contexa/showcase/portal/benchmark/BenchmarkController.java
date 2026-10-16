@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
 @RestController
 public class BenchmarkController {
 
-    static final Pattern SETTING = Pattern.compile("[0-9a-f]{64}");
+    /** A measurement setting hash (W7-13: the prompt quality is published and read by the same). */
+    public static final Pattern SETTING = Pattern.compile("[0-9a-f]{64}");
 
     private final BenchmarkService benchmark;
 

@@ -61,6 +61,10 @@ public record PromptExecutionMetadata(
     public static final String EVENT_TIME_ZONE = "eventTimeZone";
     public static final String PROMPT_RAG_STATE = "promptRagState";
     public static final String PROMPT_PAST_RECORD_COUNTS = "promptPastRecordCounts";
+    /** W6-12: the stored IDs of the past records the prompt drew, one per drawn line, in drawn order. */
+    public static final String PROMPT_PAST_RECORD_IDS = "promptPastRecordIds";
+    /** The recent decisions that did not allow the past records block drew its lines from (W5-4). */
+    public static final String PROMPT_PAST_DENIED_DECISIONS = "promptPastDeniedDecisions";
     public static final String PROMPT_BASELINE_STATUS = "promptBaselineStatus";
 
     public PromptExecutionMetadata {

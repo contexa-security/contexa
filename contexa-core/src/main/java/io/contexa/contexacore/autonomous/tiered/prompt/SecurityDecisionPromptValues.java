@@ -39,6 +39,7 @@ import io.contexa.contexacore.autonomous.context.support.PastRecordCounts;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
 import io.contexa.contexacore.autonomous.execution.ExecutionSubject;
 import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceSnapshot;
+import io.contexa.contexacore.autonomous.learning.evidence.BaselineEvidenceStatus;
 import io.contexa.contexacore.autonomous.learning.evidence.CurrentLearningContextSnapshot;
 import io.contexa.contexacore.autonomous.learning.evidence.LearningContextEvidence;
 import io.contexa.contexacore.autonomous.store.SessionDecisionRecord;
@@ -165,7 +166,8 @@ final class SecurityDecisionPromptValues {
                     mfaElsewhere(parseInstant(session.getRecentMfaElsewhereAt()), at));
             values.value(SESSION, "FailedLogins", failedLogins(session));
             values.value(SESSION, "MfaFailures", mfaFailures(session));
-            values.value(SESSION, "RecentRequests", recentRequests(session));
+            values.value(SESSION, "RecentRequests", recentRequests(session,
+                    canonical != null ? canonical.getSessionNarrativeProfile() : null));
             values.value(SESSION, "ConcurrentSessions", concurrentSessions(session));
             values.value(SESSION, "PasswordAge", passwordAge(session));
         }
@@ -374,6 +376,13 @@ final class SecurityDecisionPromptValues {
         // Dictionary 1.4: the search exists but did not give the records this time (unavailable now).
         if (notRetrieved) {
             values.unknown(PAST, "PastRecord{i}", PromptUnknownKind.UNAVAILABLE_NOW, "not retrieved, " + state);
+        }
+        // W5-4 (Q-57 decision 4): the user's recent decisions that did not allow, facts only; without any the line
+        // is left out.
+        List<PromptListItem> denied = sections.pastDeniedItems(context);
+        values.lines(PAST, "PastDeniedDecision{i}", denied);
+        if (denied.stream().anyMatch(item -> !item.text().startsWith(PastRecordLines.TIME_NOT_RECORDED))) {
+            values.clocked(PAST, "PastDeniedDecision{i}");
         }
         if (evidence != null && StringUtils.hasText(evidence.historicalComparableScope())) {
             values.headerQualifier(PAST, "scope " + evidence.historicalComparableScope());
@@ -686,6 +695,17 @@ final class SecurityDecisionPromptValues {
         if (personal != null && personal.status() != null) {
             details.add("personal baseline " + personal.status().name());
         }
+        // W5-10 D4: a personal baseline learned but not established says which conditions it misses.
+        if (personal != null && personal.status() == BaselineEvidenceStatus.AVAILABLE && !personal.established()
+                && StringUtils.hasText(personal.diagnostic())) {
+            details.add("not established: " + personal.diagnostic());
+        }
+        // W5-7 D4: the window's observations a value of an earlier vocabulary keeps out of the comparison.
+        int notComparable = view != null && view.counts() != null ? view.counts().vocabularyNotComparable() : 0;
+        if (notComparable > 0) {
+            details.add("vocabulary migration: " + notComparable
+                    + (notComparable == 1 ? " observation" : " observations") + " not comparable");
+        }
         return name + (details.isEmpty() ? "" : " (" + String.join(", ", details) + ")");
     }
 
@@ -706,7 +726,14 @@ final class SecurityDecisionPromptValues {
                     + " items per export (median " + number(view.exportSize().medianItems()) + ", "
                     + view.exportSize().exports() + " exports)");
         }
-        if (view.requestsPerActiveHour() != null) {
+        BaselineView.Rate rate = view.counts() != null ? view.counts().rate() : null;
+        if (rate != null) {
+            // W5-10 D5: the definition the decision facts compare the request's rate with.
+            lines.put("UsualRequestRate", "median " + rate.median() + ", 95th percentile " + rate.p95() + " "
+                    + BaselineView.REQUEST_RATE_UNIT + " (" + rate.activeHours()
+                    + (rate.activeHours() == 1 ? " active hour)" : " active hours)"));
+        }
+        else if (view.requestsPerActiveHour() != null) {
             lines.put("UsualRequestRate",
                     String.format(Locale.ROOT, "%.2f", view.requestsPerActiveHour()) + " " + BaselineView.REQUEST_RATE_UNIT);
         }
@@ -818,11 +845,14 @@ final class SecurityDecisionPromptValues {
             // Dictionary 2.1 order: the cohort and its usual time, the status with its sample, then its own summary
             // (kept as written until the removal decision, Q-61). The days use the day names of UsualDays.
             List<String> usual = new ArrayList<>();
+            // W5-10 D7: with the organization's counts, each usual value with the share of its learned requests.
             if (supporting.accessHours() != null && !supporting.accessHours().isEmpty()) {
-                usual.add("hours " + String.join(",", supporting.accessHours()));
+                String shared = shares(supporting, "hour:", supporting.accessHours(), Function.identity());
+                usual.add("hours " + (shared != null ? shared : String.join(",", supporting.accessHours())));
             }
             if (supporting.accessDays() != null && !supporting.accessDays().isEmpty()) {
-                usual.add("days " + dayNames(supporting.accessDays()));
+                String shared = shares(supporting, "day:", supporting.accessDays(), day -> dayNames(List.of(day)));
+                usual.add("days " + (shared != null ? shared : dayNames(supporting.accessDays())));
             }
             String cohort = "cohort organization" + (usual.isEmpty() ? "" : ": " + String.join(", ", usual));
             String status = "status " + (supporting.status() != null ? supporting.status().name() : "AVAILABLE")
@@ -841,6 +871,20 @@ final class SecurityDecisionPromptValues {
             parts.add(seed);
         }
         return parts.isEmpty() ? null : String.join("; ", parts) + "; reference only";
+    }
+
+    /** {@code 9:48%,10:50%}: each value with its share, null when the baseline carries no counts of the dimension. */
+    private static String shares(BaselineEvidenceSnapshot baseline, String prefix, List<String> values,
+                                 Function<String, String> name) {
+        List<String> parts = new ArrayList<>();
+        for (String value : values) {
+            Integer share = baseline.sharePercent(prefix, value);
+            if (share == null) {
+                return null;
+            }
+            parts.add(name.apply(value) + ":" + share + "%");
+        }
+        return String.join(",", parts);
     }
 
     // SESSION
@@ -907,9 +951,22 @@ final class SecurityDecisionPromptValues {
                 ? session.getRecentMfaFailureCount() + " recent MFA failures (window not stated)" : null;
     }
 
-    static String recentRequests(CanonicalSecurityContext.Session session) {
-        return session != null && session.getRecentRequestCount() != null
-                ? session.getRecentRequestCount() + " recent requests" : null;
+    /**
+     * {@code 14 requests in last 60 min (0.23 per min); host count 17, window not stated} (W5-10 D5): the engine's count
+     * of the user's decisions in the last 60 minutes, and the host's count, which states no window.
+     */
+    static String recentRequests(CanonicalSecurityContext.Session session,
+                                 CanonicalSecurityContext.SessionNarrativeProfile narrative) {
+        List<String> parts = new ArrayList<>();
+        Integer counted = narrative != null ? narrative.getUserRequestsLastHour() : null;
+        if (counted != null) {
+            parts.add(counted + " requests in last 60 min ("
+                    + String.format(Locale.ROOT, "%.2f", counted / 60.0) + " per min)");
+        }
+        if (session != null && session.getRecentRequestCount() != null) {
+            parts.add("host count " + session.getRecentRequestCount() + ", window not stated");
+        }
+        return parts.isEmpty() ? null : String.join("; ", parts);
     }
 
     static String concurrentSessions(CanonicalSecurityContext.Session session) {

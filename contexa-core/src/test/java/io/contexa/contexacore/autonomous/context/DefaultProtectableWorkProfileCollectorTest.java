@@ -22,11 +22,16 @@ import io.contexa.contexacore.autonomous.context.collector.DefaultProtectableWor
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Base64;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
@@ -354,7 +359,7 @@ class DefaultProtectableWorkProfileCollectorTest {
         assertThat(snapshot.getBaselineView().usualTargets()).containsExactly("projectKey=PLM-OPS");
         assertThat(snapshot.getBaselineView().usualSessionMinutes()).isEqualTo(20);
         assertThat(String.join("\n", dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)))
-                .startsWith("v4|")
+                .startsWith("v6|")
                 .doesNotContain("session-a");
     }
 
@@ -371,12 +376,13 @@ class DefaultProtectableWorkProfileCollectorTest {
                 "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null)).orElseThrow();
 
         // W2-6 (P2-CHANGE-4): the observation keeps the export's item count, and the view states the usual export size.
-        assertThat(stored).startsWith("v4|");
+        assertThat(stored).startsWith("v6|");
         assertThat(snapshot.getBaselineView().exportSize()).isEqualTo(new BaselineView.ExportSize(1, 40, 40));
 
-        // An observation stored before (v3) reads without an item count.
+        // An observation stored before (v3: the fields up to the session key) reads without an item count.
         InMemorySecurityContextDataStore older = new InMemorySecurityContextDataStore();
-        older.addWorkProfileObservation("tenant-acme", "alice", "v3" + stored.substring(2, stored.lastIndexOf('|')));
+        older.addWorkProfileObservation("tenant-acme", "alice",
+                "v3|" + String.join("|", Arrays.copyOfRange(stored.split("\\|", -1), 1, 21)));
         ProtectableWorkProfileSnapshot fromV3 = new DefaultProtectableWorkProfileCollector(older).collect(event("alice",
                 "tenant-acme", start.plusHours(1), "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true,
                 null)).orElseThrow();
@@ -485,7 +491,8 @@ class DefaultProtectableWorkProfileCollectorTest {
 
         List<String> stored = dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10);
         assertThat(stored).singleElement().satisfies(line -> {
-            assertThat(line).startsWith("v5|").endsWith("|0.5");
+            assertThat(line).startsWith("v6|");
+            assertThat(line.split("\\|", -1)[22]).isEqualTo("0.5");
             assertThat(line.split("\\|", -1)[2])
                     .isEqualTo(String.valueOf(night.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
         });
@@ -493,11 +500,73 @@ class DefaultProtectableWorkProfileCollectorTest {
                 "/api/documents/D-1", "GET", "READ", "REPORT", "HIGH", true, true, null)).orElseThrow();
         assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
         assertThat(snapshot.getBaselineView().exportSize()).isEqualTo(new BaselineView.ExportSize(1, 4831, 4831));
-        // A whole weight keeps the ordinary form.
+        // A whole weight is stored as 1.0 in the same form.
         collector.recordVerified(event("bob", "tenant-acme", night, "/api/documents/D-2", "GET", "READ", "REPORT",
                 "HIGH", true, true, null), 1.0);
         assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "bob", 10)).singleElement()
-                .satisfies(line -> assertThat(line).startsWith("v4|"));
+                .satisfies(line -> assertThat(line.split("\\|", -1)[22]).isEqualTo("1.0"));
+    }
+
+    @Test
+    @DisplayName("an observation keeps its vocabulary and the network, device and login of its request (W5-7, W5-9)")
+    void collect_keepsTheVocabularyAndTheIdentityOfTheRequest() {
+        SecurityEvent export = event("alice", "tenant-acme", LocalDateTime.of(2026, 3, 24, 9, 0),
+                "/api/projects/PLM-OPS/exports", "POST", "EXPORT", "REPORT", "HIGH", true, true, null);
+        export.setSourceIp("10.40.12.160");
+        export.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                + "Chrome/120.0.0.0 Safari/537.36");
+        export.addMetadata("authMethod", "password");
+        collect(export);
+
+        String[] fields = dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10).get(0)
+                .split("\\|", -1);
+
+        assertThat(fields).hasSize(27);
+        assertThat(fields[0]).isEqualTo("v6");
+        assertThat(decoded(fields[23])).isEqualTo(VocabularyVersion.CURRENT);
+        assertThat(decoded(fields[24])).isEqualTo("10.40.12.0/24");
+        assertThat(decoded(fields[25])).isEqualTo("Chrome/120 on WINDOWS");
+        assertThat(decoded(fields[26])).isEqualTo("PASSWORD");
+    }
+
+    @Test
+    @DisplayName("an observation stored in the v5 form of an earlier build still reads at its weight (W5-7)")
+    void collect_stillReadsAV5Observation() {
+        LocalDateTime night = LocalDateTime.of(2026, 3, 24, 3, 17);
+        collector.recordVerified(event("alice", "tenant-acme", night, "/api/projects/PLM-OPS/exports", "POST",
+                "EXPORT", "REPORT", "HIGH", true, true, null), 0.5);
+        String[] fields = dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10).get(0)
+                .split("\\|", -1);
+        InMemorySecurityContextDataStore older = new InMemorySecurityContextDataStore();
+        older.addWorkProfileObservation("tenant-acme", "alice",
+                "v5|" + String.join("|", Arrays.copyOfRange(fields, 1, 23)));
+
+        ProtectableWorkProfileSnapshot snapshot = new DefaultProtectableWorkProfileCollector(older).collect(
+                event("alice", "tenant-acme", night.plusHours(6), "/api/documents/D-1", "GET", "READ", "REPORT",
+                        "HIGH", true, true, null)).orElseThrow();
+
+        assertThat(snapshot.getBaselineView().observations()).isEqualTo(1);
+    }
+
+    private static String decoded(String field) {
+        return new String(Base64.getUrlDecoder().decode(field), StandardCharsets.UTF_8);
+    }
+
+    @Test
+    @DisplayName("an allowed request held for promotion is no observation when it is committed (W5-1)")
+    void aRequestHeldForPromotionIsNoObservationWhenCommitted() {
+        LocalDateTime night = LocalDateTime.of(2026, 3, 24, 3, 17);
+        SecurityEvent held = event("alice", "tenant-acme", night, "/api/projects/PLM-OPS/exports", "POST",
+                "EXPORT", "REPORT", "HIGH", true, true, null);
+        collector.collect(held);
+        // The enforcement marks the request held after it was staged and before it is committed.
+        held.addMetadata(VectorDocumentMetadata.LEARNING_STATE, VectorDocumentMetadata.LEARNING_STATE_HELD);
+        collector.recorder().commit(held, "ALLOW", true);
+
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).isEmpty();
+        collect(event("alice", "tenant-acme", night.plusDays(1).withHour(10), "/api/documents/D-1", "GET",
+                "READ", "REPORT", "HIGH", true, true, null));
+        assertThat(dataStore.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).hasSize(1);
     }
 
     private SecurityEvent event(

@@ -1,5 +1,15 @@
 package io.contexa.showcase.portal.ops;
 
+import org.springframework.web.bind.annotation.RequestBody;
+import java.io.InputStream;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.reactivity.InjectionEvaluator;
+import io.contexa.showcase.portal.reactivity.ReactionEvaluator;
+import io.contexa.showcase.portal.reactivity.ReactivityRuns;
+import io.contexa.showcase.portal.reactivity.ReactivityService;
+import io.contexa.showcase.portal.lab.LabStore;
+import io.contexa.showcase.portal.lab.LabData;
+import io.contexa.showcase.portal.lab.LabComposer;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.contexa.showcase.portal.live.LiveAllotment;
 import io.contexa.showcase.portal.live.LiveGateWatch;
@@ -50,6 +60,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 
 /**
  * Operator API of the portal, on the operator port only ({@link OpsPortConfiguration}): learn templates, run
@@ -87,6 +98,18 @@ public class OpsController {
     private final TemplateCurrency templateCurrency;
     private final ObjectProvider<TemplateMaintainer> templateMaintainer;
     private final CleanupRetrier cleanupRetrier;
+    private final LabComposer labComposer;
+    private final LabStore labStore;
+    /** W6-1: present only with the control D the delivery check reads the sealed prompts of. */
+    private final ObjectProvider<ReactivityService> reactivity;
+    private final ReactivityRuns reactivityRuns;
+    private final ReactionEvaluator reactionVariants;
+    private final InjectionEvaluator injectionVariants;
+    private final ObjectMapper json;
+    /** A harness batch name: letters, digits, dot, dash and underscore. */
+    private static final Pattern BATCH = Pattern.compile("[A-Za-z0-9._-]{1,64}");
+    /** The visitor mark of the harness's lab runs (W6-1). */
+    private static final String HARNESS = "ops-harness";
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "showcase-ops-job");
         thread.setDaemon(true);
@@ -101,7 +124,10 @@ public class OpsController {
                          ReplayGuard replayGuard, ObjectProvider<LiveRuns> liveRuns,
                          ObjectProvider<LiveAllotment> liveAllotment, ObjectProvider<LiveGateWatch> liveGateWatch,
                          RetentionJob retention, ScoringContract contract, TemplateCurrency templateCurrency,
-                         ObjectProvider<TemplateMaintainer> templateMaintainer, CleanupRetrier cleanupRetrier) {
+                         ObjectProvider<TemplateMaintainer> templateMaintainer, CleanupRetrier cleanupRetrier,
+                         LabComposer labComposer, LabStore labStore, ObjectProvider<ReactivityService> reactivity,
+                         ReactivityRuns reactivityRuns, ReactionEvaluator reactionVariants,
+                         InjectionEvaluator injectionVariants, ObjectMapper json) {
         this.learner = learner;
         this.templates = templates;
         this.orchestrator = orchestrator;
@@ -124,6 +150,193 @@ public class OpsController {
         this.templateCurrency = templateCurrency;
         this.templateMaintainer = templateMaintainer;
         this.cleanupRetrier = cleanupRetrier;
+        this.labComposer = labComposer;
+        this.labStore = labStore;
+        this.reactivity = reactivity;
+        this.reactivityRuns = reactivityRuns;
+        this.reactionVariants = reactionVariants;
+        this.injectionVariants = injectionVariants;
+        this.json = json;
+    }
+
+    /**
+     * W6-1 (P6-CHANGE-2): runs of a case with lab conditions for the harness metrics (plan 8.4, 8.5), on the job queue
+     * like the measurement and outside the visitor quotas; the composition is kept like a visitor's lab run. With a
+     * batch, every run is recorded under it with its kind (BASE when nothing changed, LAB otherwise, or INJECTION for
+     * an injection case run as designed) and its variant label, for the batch metrics of GET /ops/reactivity.
+     */
+    @PostMapping("/ops/lab-runs")
+    public ResponseEntity<Job> labRuns(@RequestParam("caseKey") String caseKey,
+                                       @RequestParam(name = "repeat", defaultValue = "1") int repeat,
+                                       @RequestParam(name = "batch", required = false) String batch,
+                                       @RequestParam(name = "label", required = false) String label,
+                                       @RequestParam(name = "kind", required = false) ReactivityRuns.Kind kind,
+                                       @RequestBody LabComposer.Conditions conditions) throws IOException {
+        if (repeat < 1 || repeat > 10 || scenarios.find(caseKey).isEmpty()
+                || (batch != null && !BATCH.matcher(batch).matches()) || kind == ReactivityRuns.Kind.VARIANT
+                || (label != null && (label.isBlank() || label.length() > 160))) {
+            return ResponseEntity.badRequest().build();
+        }
+        LabComposer.Composed composed;
+        try {
+            composed = labComposer.compose(caseKey, conditions, LabData.of(admin.labOptions()));
+        } catch (LabComposer.Refused e) {
+            return ResponseEntity.badRequest().build();
+        }
+        ReactivityRuns.Kind recorded = kind != null ? kind
+                : composed.designed() ? ReactivityRuns.Kind.BASE : ReactivityRuns.Kind.LAB;
+        String runLabel = label != null ? label
+                : caseKey + (composed.designed() ? ":designed" : ":" + String.join(",", composed.changed()));
+        return ResponseEntity.ok(submit("LAB", caseKey + " " + composed.changed() + " x" + repeat, results -> {
+            for (int i = 0; i < repeat; i++) {
+                RunOrchestrator.RunSummary summary = orchestrator.run(composed.definition(), null);
+                if (summary.runId() != null) {
+                    labStore.ran(summary.runId(), composed, caseKey, Instant.now(), HARNESS, null);
+                    if (batch != null) {
+                        reactivityRuns.record(summary.runId(), batch, recorded, runLabel, caseKey, Instant.now());
+                    }
+                }
+                results.add(summary);
+            }
+        }));
+    }
+
+    /**
+     * W6-1: runs of a case-definition variant: of the reaction matrix (plan 8.5, section 4 of the matrix, keys -V) or
+     * of the injection places a case definition carries (plan 8.7, keys -I). With a batch, every run is recorded
+     * under it with the variant's label.
+     */
+    @PostMapping("/ops/variant-runs/{variantKey}")
+    public ResponseEntity<Job> variantRuns(@PathVariable("variantKey") String variantKey,
+                                           @RequestParam(name = "repeat", defaultValue = "1") int repeat,
+                                           @RequestParam(name = "batch", required = false) String batch)
+            throws IOException {
+        if (repeat < 1 || repeat > 10 || !variantKey.matches("[A-Z0-9]+-[VI]\\d+")
+                || (batch != null && !BATCH.matcher(batch).matches())) {
+            return ResponseEntity.badRequest().build();
+        }
+        boolean injection = variantKey.matches("[A-Z0-9]+-I\\d+");
+        ReactivityRuns.Kind recorded = injection ? ReactivityRuns.Kind.INJECTION : ReactivityRuns.Kind.VARIANT;
+        String runLabel = injection
+                ? injectionVariants.placeOfKey(variantKey).map(InjectionEvaluator.Place::label).orElse(variantKey)
+                : reactionVariants.variantOfKey(variantKey).map(ReactionEvaluator.Variant::label).orElse(variantKey);
+        ScenarioDefinition variant;
+        try (InputStream stream = OpsController.class.getResourceAsStream("/reactivity/variants/" + variantKey + ".json")) {
+            if (stream == null) {
+                return ResponseEntity.notFound().build();
+            }
+            variant = json.readValue(stream, ScenarioDefinition.class);
+        }
+        return ResponseEntity.ok(submit("VARIANT", variantKey + " x" + repeat, results -> {
+            for (int i = 0; i < repeat; i++) {
+                RunOrchestrator.RunSummary summary = orchestrator.run(variant, null);
+                if (batch != null && summary.runId() != null) {
+                    reactivityRuns.record(summary.runId(), batch, recorded, runLabel, variantKey, Instant.now());
+                }
+                results.add(summary);
+            }
+        }));
+    }
+
+    /** W6-1: the delivery check of a lab condition over the designed run and the run that changed it (plan 8.4). */
+    @GetMapping("/ops/reactivity/delivery")
+    public ResponseEntity<ReactivityService.RunDelivery> delivery(@RequestParam("base") String baseRunId,
+                                                                  @RequestParam("variant") String variantRunId,
+                                                                  @RequestParam("condition") String condition,
+                                                                  @RequestParam(name = "value", required = false)
+                                                                  String value)
+            throws IOException {
+        ReactivityService service = reactivity.getIfAvailable();
+        if (service == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(service.delivery(baseRunId, variantRunId, condition, value));
+    }
+
+    /**
+     * W6-1: the four harness metrics with their counts and Wilson 95% intervals: delivery, reaction and injection over
+     * the runs of a harness batch, invariance over the repetitions of a measurement (plan 8.4 to 8.7).
+     */
+    @GetMapping("/ops/reactivity")
+    public ResponseEntity<ReactivityService.Report> reactivityReport(
+            @RequestParam(name = "batch", required = false) String batch,
+            @RequestParam(name = "protocol", required = false) String protocol) throws IOException {
+        if ((batch == null && protocol == null) || (batch != null && !BATCH.matcher(batch).matches())) {
+            return ResponseEntity.badRequest().build();
+        }
+        ReactivityService service = reactivity.getIfAvailable();
+        if (service == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(service.report(batch, protocol));
+    }
+
+    /**
+     * W6-9 (P6): a release transition of the security decision prompt on control D through its OSS release gate, as
+     * the OSS operator API does it (the harness puts the candidate bundle in the shadow release); 422 with the gate's
+     * receipt when the gate refuses it.
+     */
+    @PostMapping("/ops/prompt-releases/transition")
+    public ResponseEntity<JsonNode> promptReleaseTransition(@RequestParam("version") String version,
+                                                            @RequestParam("target") String target,
+                                                            @RequestParam("rationale") String rationale)
+            throws IOException {
+        if (!version.matches("[0-9A-Za-z.-]{1,64}") || !target.matches("[A-Z_]{1,24}") || rationale.isBlank()
+                || rationale.length() > 400) {
+            return ResponseEntity.badRequest().build();
+        }
+        WorkloadAdmin.ReleaseTransition result = admin.promptReleaseTransition(version, target, rationale);
+        return ResponseEntity.status(result.status()).body(result.receipt());
+    }
+
+    /**
+     * W6-9 (P6): what control D keeps for a request, a shadow copy's too: its decisions, analysis events and model
+     * calls with their tokens.
+     */
+    @GetMapping("/ops/engine/decisions/{requestId}")
+    public ResponseEntity<JsonNode> engineDecision(@PathVariable("requestId") String requestId) throws IOException {
+        if (!requestId.matches("[0-9A-Za-z-]{1,80}")) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(admin.decision(requestId));
+    }
+
+    /**
+     * W8-3 (P8 rollback rehearsal): a rollback of the security decision prompt's active bundle on control D through
+     * its OSS rollback service, as the OSS operator API does it; 422 with the service's refusals.
+     */
+    @PostMapping("/ops/prompt-releases/rollback")
+    public ResponseEntity<JsonNode> promptRollback(@RequestParam("from") String from, @RequestParam("to") String to,
+                                                   @RequestParam("reason") String reason,
+                                                   @RequestParam(name = "emergency", defaultValue = "false")
+                                                   boolean emergency) throws IOException {
+        if (!from.matches("[0-9A-Za-z.-]{1,64}") || !to.matches("[0-9A-Za-z.-]{1,64}") || reason.isBlank()
+                || reason.length() > 400) {
+            return ResponseEntity.badRequest().build();
+        }
+        WorkloadAdmin.ReleaseTransition result = admin.promptRollback(from, to, reason, emergency);
+        return ResponseEntity.status(result.status()).body(result.receipt());
+    }
+
+    /**
+     * W8-3 (W6-8 design: the harness records the evaluation after a measurement): an evaluation of a bundle on
+     * control D with its bundle hash and run reference, the release gate's evidence of that bundle only.
+     */
+    @PostMapping("/ops/prompt-releases/evaluation")
+    public ResponseEntity<JsonNode> promptEvaluation(@RequestBody JsonNode evaluation) throws IOException {
+        WorkloadAdmin.ReleaseTransition result = admin.promptEvaluation(evaluation);
+        return ResponseEntity.status(result.status()).body(result.receipt());
+    }
+
+    /** W8-3: the approval of a rollback that waits for one (an emergency stop is approved afterwards). */
+    @PostMapping("/ops/prompt-releases/rollback/{executionKey}/approve")
+    public ResponseEntity<JsonNode> promptRollbackApproval(@PathVariable("executionKey") String executionKey)
+            throws IOException {
+        if (!executionKey.matches("[0-9A-Za-z_-]{1,80}")) {
+            return ResponseEntity.badRequest().build();
+        }
+        WorkloadAdmin.ReleaseTransition result = admin.promptRollbackApproval(executionKey);
+        return ResponseEntity.status(result.status()).body(result.receipt());
     }
 
     /**

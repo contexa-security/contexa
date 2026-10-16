@@ -17,14 +17,18 @@ package io.contexa.contexacore.autonomous.baseline;
 
 import io.contexa.contexacore.autonomous.context.support.ActionFamily;
 import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormalizer;
+import io.contexa.contexacore.autonomous.context.support.VocabularyMigration;
+import io.contexa.contexacore.autonomous.context.support.VocabularyVersion;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -32,10 +36,13 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.function.ToLongFunction;
 
 /**
@@ -69,6 +76,8 @@ public final class BaselineViewCalculator {
 
     private static final long HOUR_MS = 60L * 60L * 1_000L;
     private static final long DAY_MS = 24L * HOUR_MS;
+    /** The separator a device is written with, a browser on a system ({@code SecuritySemanticNormalizer.device}). */
+    private static final String DEVICE_SYSTEM = " on ";
 
     private BaselineViewCalculator() {
     }
@@ -82,6 +91,8 @@ public final class BaselineViewCalculator {
      * @param sessionKey      a key of the session the request belonged to, null when unknown
      * @param allowed         whether the request was allowed
      * @param items           how many items the request asked for, null when the host did not say (W2-6)
+     * @param vocabularyVersion the vocabulary the observation's values were stored in (W5-7); one stored under
+     *                          another is read through the vocabulary table
      */
     public record Observation(
             long timestampMs,
@@ -94,7 +105,48 @@ public final class BaselineViewCalculator {
             String sessionKey,
             boolean allowed,
             Integer items,
-            double weight) {
+            double weight,
+            String network,
+            String device,
+            String loginMethod,
+            String vocabularyVersion) {
+
+        /** An observation whose values are in today's vocabulary. */
+        public Observation(
+                long timestampMs,
+                String actionFamily,
+                String actionSourceKey,
+                boolean actionInferred,
+                String resourceClass,
+                String pathTemplate,
+                String requestPath,
+                String sessionKey,
+                boolean allowed,
+                Integer items,
+                double weight,
+                String network,
+                String device,
+                String loginMethod) {
+            this(timestampMs, actionFamily, actionSourceKey, actionInferred, resourceClass, pathTemplate, requestPath,
+                    sessionKey, allowed, items, weight, network, device, loginMethod, VocabularyVersion.CURRENT);
+        }
+
+        /** An observation without the identity of its request (stored before W5-9). */
+        public Observation(
+                long timestampMs,
+                String actionFamily,
+                String actionSourceKey,
+                boolean actionInferred,
+                String resourceClass,
+                String pathTemplate,
+                String requestPath,
+                String sessionKey,
+                boolean allowed,
+                Integer items,
+                double weight) {
+            this(timestampMs, actionFamily, actionSourceKey, actionInferred, resourceClass, pathTemplate, requestPath,
+                    sessionKey, allowed, items, weight, null, null, null);
+        }
 
         /** An observation counted whole. */
         public Observation(
@@ -227,6 +279,90 @@ public final class BaselineViewCalculator {
         return List.copyOf(primary.size() >= MINIMUM_SAMPLE ? primary : fallback);
     }
 
+    /**
+     * The view with how the request's own values were seen (W5-10 D1~D3); the request is not part of the view. Each
+     * dimension is read where its usual value is: the day of the week in its weeks, every other dimension in the
+     * window; a value the read does not hold reads its last time in the retention.
+     */
+    public static BaselineView calculate(List<Observation> history, long nowMs, ZoneId zone, Observation request) {
+        BaselineView view = calculate(history, nowMs, zone);
+        if (request == null) {
+            return view;
+        }
+        List<Observation> window = window(history, nowMs).observations();
+        List<Observation> retained = new ArrayList<>();
+        for (Observation observation : history == null ? List.<Observation>of() : history) {
+            if (observation != null && observation.timestampMs() <= nowMs
+                    && nowMs - observation.timestampMs() <= DAY_OF_WEEK_DAYS * DAY_MS) {
+                retained.add(observation);
+            }
+        }
+        Map<String, BaselineView.Seen> seen = new LinkedHashMap<>();
+        seen(seen, "TIME", request, window, retained, zone,
+                observation -> String.format(Locale.ROOT, "%02d", at(observation, zone).getHour()));
+        seen(seen, "DAY", request, retained, retained, zone,
+                observation -> at(observation, zone).getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ROOT));
+        seen(seen, "NETWORK", request, window, retained, zone,
+                observation -> identity(observation).comparable() ? identity(observation).network() : null);
+        seen(seen, "DEVICE", request, window, retained, zone,
+                observation -> identity(observation).comparable() ? identity(observation).device() : null);
+        seen(seen, "LOGIN_METHOD", request, window, retained, zone,
+                observation -> identity(observation).comparable() ? identity(observation).login() : null);
+        seen(seen, "TARGET", request, window, retained, zone,
+                observation -> target(observation.pathTemplate(), observation.requestPath()));
+        seen(seen, "ACTION", request, window, retained, zone, observation -> {
+            ActionFamily family = ActionFamily.of(observation.actionFamily());
+            return family != null ? family.name() : null;
+        });
+        seen(seen, "RESOURCE_CLASS", request, window, retained, zone,
+                observation -> present(SecuritySemanticNormalizer.normalizeResourceClass(observation.resourceClass())));
+        return view.withRequestSeen(seen);
+    }
+
+    /** How the request's value of one dimension was seen in the read, and last in the retention. */
+    private static void seen(Map<String, BaselineView.Seen> seen, String dimension, Observation request,
+                             List<Observation> read, List<Observation> retained, ZoneId zone,
+                             Function<Observation, String> value) {
+        String current = value.apply(request);
+        if (current == null) {
+            return;
+        }
+        int held = 0;
+        int of = 0;
+        Set<LocalDate> heldDates = new HashSet<>();
+        Set<LocalDate> dates = new HashSet<>();
+        Long firstMs = null;
+        Long lastMs = null;
+        for (Observation observation : read) {
+            String observed = value.apply(observation);
+            if (observed == null) {
+                continue;
+            }
+            of++;
+            LocalDate date = at(observation, zone).toLocalDate();
+            dates.add(date);
+            if (observed.equals(current)) {
+                held++;
+                heldDates.add(date);
+                firstMs = firstMs == null ? observation.timestampMs() : Math.min(firstMs, observation.timestampMs());
+                lastMs = lastMs == null ? observation.timestampMs() : Math.max(lastMs, observation.timestampMs());
+            }
+        }
+        Long retainedLastMs = null;
+        for (Observation observation : retained) {
+            if (current.equals(value.apply(observation))) {
+                retainedLastMs = retainedLastMs == null ? observation.timestampMs()
+                        : Math.max(retainedLastMs, observation.timestampMs());
+            }
+        }
+        seen.put(dimension, new BaselineView.Seen(current, held, of, heldDates.size(), dates.size(), firstMs, lastMs,
+                retainedLastMs));
+    }
+
+    private static LocalDateTime at(Observation observation, ZoneId zone) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(observation.timestampMs()), zone);
+    }
+
     public static BaselineView calculate(List<Observation> history, long nowMs, ZoneId zone) {
         Window window = window(history, nowMs);
         List<Observation> observations = window.observations();
@@ -268,6 +404,13 @@ public final class BaselineViewCalculator {
         Set<Long> activeHours = new HashSet<>();
         List<Integer> exportItems = new ArrayList<>();
         int privileged = 0;
+        // W5-9: the request's network, device and login are counted like the other dimensions, against the
+        // observations that hold them.
+        Map<String, Integer> networkCounts = new TreeMap<>();
+        Map<String, Integer> deviceCounts = new TreeMap<>();
+        Map<String, Integer> loginCounts = new TreeMap<>();
+        int identityObservations = 0;
+        int vocabularyNotComparable = 0;
 
         for (Observation observation : observations) {
             double weight = decayed(observation, nowMs);
@@ -307,6 +450,24 @@ public final class BaselineViewCalculator {
             if (StringUtils.hasText(observation.sessionKey())) {
                 sessionTimes.computeIfAbsent(observation.sessionKey(), key -> new ArrayList<>())
                         .add(observation.timestampMs());
+            }
+            // W5-7 D4: the request identity in today's vocabulary; an observation holding a value the vocabulary
+            // table no longer reads is left out of these dimensions and counted.
+            Identity identity = identity(observation);
+            if (!identity.comparable()) {
+                vocabularyNotComparable++;
+            }
+            else if (identity.held()) {
+                identityObservations++;
+                if (identity.network() != null) {
+                    networkCounts.merge(identity.network(), 1, Integer::sum);
+                }
+                if (identity.device() != null) {
+                    deviceCounts.merge(identity.device(), 1, Integer::sum);
+                }
+                if (identity.login() != null) {
+                    loginCounts.merge(identity.login(), 1, Integer::sum);
+                }
             }
         }
 
@@ -356,16 +517,89 @@ public final class BaselineViewCalculator {
                 usualSessionMinutes(sessionTimes),
                 privileged,
                 knownRareTasks(allowedTasks, count),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
+                List.copyOf(networkCounts.keySet()),
+                List.copyOf(deviceCounts.keySet()),
+                devicePart(deviceCounts.keySet(), true),
+                devicePart(deviceCounts.keySet(), false),
+                List.copyOf(loginCounts.keySet()),
                 grade,
                 causes,
                 new BaselineView.Counts(hourCounts, dayCounts, targetCounts,
                         activeHourCounts.values().stream().mapToInt(Integer::intValue).max().orElse(0),
-                        dayObservations));
+                        dayObservations, networkCounts, deviceCounts, loginCounts, identityObservations,
+                        vocabularyNotComparable, Map.of(), rate(activeHourCounts.values())));
+    }
+
+    /** The requests of each active clock hour as their median and 95th percentile (nearest rank, W5-10 D5). */
+    private static BaselineView.Rate rate(Collection<Integer> perActiveHour) {
+        if (perActiveHour.isEmpty()) {
+            return null;
+        }
+        List<Integer> sorted = perActiveHour.stream().sorted().toList();
+        int hours = sorted.size();
+        int median = hours % 2 == 1 ? sorted.get(hours / 2)
+                : (int) Math.round((sorted.get(hours / 2 - 1) + sorted.get(hours / 2)) / 2.0);
+        int p95 = sorted.get(Math.max(0, (int) Math.ceil(0.95 * hours) - 1));
+        return new BaselineView.Rate(hours, median, p95);
+    }
+
+    /** A stored value read through the vocabulary table; null when none is stored. */
+    private static String moved(String stored, UnaryOperator<String> table) {
+        return StringUtils.hasText(stored) ? table.apply(stored) : null;
+    }
+
+    /** Whether a stored value reads as something today (a value not stored has nothing to read). */
+    private static boolean readable(String stored, String moved) {
+        return !StringUtils.hasText(stored) || StringUtils.hasText(moved);
+    }
+
+    /**
+     * An observation's request network, device and login in today's vocabulary (W5-7 D4); not comparable when it holds
+     * a value of an earlier vocabulary the vocabulary table no longer reads.
+     */
+    private record Identity(String network, String device, String login, boolean comparable) {
+
+        private static final Identity NONE = new Identity(null, null, null, true);
+
+        boolean held() {
+            return network != null || device != null || login != null;
+        }
+    }
+
+    private static Identity identity(Observation observation) {
+        if (!StringUtils.hasText(observation.network()) && !StringUtils.hasText(observation.device())
+                && !StringUtils.hasText(observation.loginMethod())) {
+            return Identity.NONE;
+        }
+        boolean current = VocabularyVersion.isCurrent(observation.vocabularyVersion());
+        String network = current ? present(observation.network())
+                : moved(observation.network(), VocabularyMigration::network);
+        String device = current ? present(observation.device())
+                : moved(observation.device(), VocabularyMigration::device);
+        String login = current ? present(observation.loginMethod())
+                : moved(observation.loginMethod(),
+                stored -> VocabularyMigration.authenticationType(stored, observation.vocabularyVersion()));
+        boolean comparable = readable(observation.network(), network) && readable(observation.device(), device)
+                && readable(observation.loginMethod(), login);
+        return new Identity(network, device, login, comparable);
+    }
+
+    private static String present(String value) {
+        return StringUtils.hasText(value) ? value : null;
+    }
+
+    /** The browsers (or the systems) of the devices, in ascending order. */
+    private static List<String> devicePart(Collection<String> devices, boolean browser) {
+        Set<String> parts = new TreeSet<>();
+        for (String device : devices) {
+            int separator = device.lastIndexOf(DEVICE_SYSTEM);
+            String part = separator < 0 ? (browser ? device : null)
+                    : browser ? device.substring(0, separator) : device.substring(separator + DEVICE_SYSTEM.length());
+            if (StringUtils.hasText(part)) {
+                parts.add(part);
+            }
+        }
+        return List.copyOf(parts);
     }
 
     /**
