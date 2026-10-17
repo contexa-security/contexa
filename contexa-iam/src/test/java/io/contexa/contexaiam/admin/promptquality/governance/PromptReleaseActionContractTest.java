@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.admin.promptquality.governance;
 
-import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -8,8 +8,10 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,9 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * W7-14: what the version screen's buttons rely on. A transition button sends the release status of its canonical
- * state (the screen settings' table) and a gate refusal comes back as 422 with the receipt's blockers; a refused
- * rollback or approval comes back as 422 with its refusals. The calls run as the signed-in administrator.
+ * W7-14: what the version screen's buttons rely on. A transition button sends its canonical state, which the API
+ * reads through the one table of every vocabulary and asks the gate for (N-GOV-4), and a gate refusal comes back as
+ * 422 with the receipt's blockers; a refused rollback or approval comes back as 422 with its refusals. The calls run
+ * as the signed-in administrator.
  */
 class PromptReleaseActionContractTest {
 
@@ -43,20 +46,47 @@ class PromptReleaseActionContractTest {
             new PromptBundleRollbackApiController(rollbacks)).build();
     private final TestingAuthenticationToken operator = new TestingAuthenticationToken("operator-a", null);
 
+    /**
+     * N-GOV-4: the screen sent the release status of the descriptor vocabulary (its settings' releaseStatuses table),
+     * because the API read only that vocabulary; the API reads the canonical names, so the screen sends its state as it
+     * names it and the table is gone.
+     */
     @Test
-    void theScreenAsksForTheReleaseStatusOfTheCanonicalState() {
-        @SuppressWarnings("unchecked")
-        Map<String, String> statuses = (Map<String, String>) PromptReleaseScreen.scriptSettings()
-                .get("releaseStatuses");
+    void theScreenAsksForTheCanonicalState() throws IOException {
+        assertThat(PromptReleaseScreen.scriptSettings()).doesNotContainKey("releaseStatuses");
+        assertThat(script("static/contexa/js/admin/prompt-release/detail-page.js"))
+                .contains("targetReleaseStatus: targetState,").doesNotContain("releaseStatuses");
+    }
 
-        assertThat(statuses).containsEntry("SHADOW", "EVAL_ONLY")
-                .containsEntry("CANARY", "CANARY").containsEntry("ACTIVE", "PRODUCTION")
-                .containsEntry("DEPRECATED", "ROLLED_BACK").containsEntry("AVAILABLE", "DRAFT");
+    @Test
+    void aCanonicalStateIsTheStateTheGateIsAskedFor() throws Exception {
+        for (PromptBundleState state : List.of(PromptBundleState.SHADOW, PromptBundleState.ACTIVE,
+                PromptBundleState.DEPRECATED)) {
+            when(gate.transitionPromptRelease(eq("PLATFORM_GLOBAL"), eq(KEY), eq(VERSION), eq(state),
+                    eq("operator-a"), any(), eq("OSS_OPERATOR_API"))).thenReturn(
+                    new PromptGovernanceReleaseGateService.ReleaseTransitionReceipt("PLATFORM_GLOBAL", KEY, VERSION,
+                            "CANARY", state.name(), true, "READY", List.of(), null));
+
+            mvc.perform(post(ROOT + "/transition").principal(operator).contentType(MediaType.APPLICATION_JSON)
+                            .content(transitionBody(state.name())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.targetReleaseStatus").value(state.name()));
+        }
+    }
+
+    @Test
+    void aNameOfNoVocabularyIsABadRequestAndTheGateIsNotAsked() throws Exception {
+        mvc.perform(post(ROOT + "/transition").principal(operator).contentType(MediaType.APPLICATION_JSON)
+                        .content(transitionBody("LIVE")))
+                .andExpect(status().isBadRequest());
+        verify(gate, never()).transitionPromptRelease(anyString(), anyString(), anyString(),
+                any(PromptBundleState.class), anyString(), any(), anyString());
     }
 
     @Test
     void aGateRefusalIsA422WithTheReceiptsBlockers() throws Exception {
-        when(gate.transitionPromptRelease(eq("PLATFORM_GLOBAL"), eq(KEY), eq(VERSION), eq(PromptReleaseStatus.CANARY),
+        // N-GOV-4: the API asks the gate for the canonical state the requested name reads as.
+        when(gate.transitionPromptRelease(eq("PLATFORM_GLOBAL"), eq(KEY), eq(VERSION), eq(PromptBundleState.CANARY),
                 eq("operator-a"), any(), eq("OSS_OPERATOR_API"))).thenReturn(
                 new PromptGovernanceReleaseGateService.ReleaseTransitionReceipt("PLATFORM_GLOBAL", KEY, VERSION,
                         "SHADOW", "CANARY", false, "BLOCKED_BY_BUDGET_GOVERNANCE_GAP",
@@ -76,7 +106,8 @@ class PromptReleaseActionContractTest {
 
     @Test
     void anAppliedTransitionTellsTheRuntimeCaches() throws Exception {
-        when(gate.transitionPromptRelease(eq("PLATFORM_GLOBAL"), eq(KEY), eq(VERSION), eq(PromptReleaseStatus.EVAL_ONLY),
+        // N-GOV-4: an older name (EVAL_ONLY here) reads through the one table as its canonical state.
+        when(gate.transitionPromptRelease(eq("PLATFORM_GLOBAL"), eq(KEY), eq(VERSION), eq(PromptBundleState.SHADOW),
                 eq("operator-a"), any(), eq("OSS_OPERATOR_API"))).thenReturn(
                 new PromptGovernanceReleaseGateService.ReleaseTransitionReceipt("PLATFORM_GLOBAL", KEY, VERSION,
                         "AVAILABLE", "SHADOW", true, "READY_FOR_EVAL_ONLY", List.of(), null));
@@ -106,5 +137,17 @@ class PromptReleaseActionContractTest {
         mvc.perform(post(ROOT + "/rollback/RBX-2/approve").principal(operator))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.refusals[0]").value("APPROVER_IS_ACTOR"));
+    }
+
+    private static String transitionBody(String target) {
+        return "{\"registryScope\":\"PLATFORM_GLOBAL\",\"promptKey\":\"" + KEY + "\",\"promptVersion\":\"" + VERSION
+                + "\",\"targetReleaseStatus\":\"" + target + "\",\"rationale\":\"N-GOV-4 test\"}";
+    }
+
+    private static String script(String resource) throws IOException {
+        try (InputStream input = PromptReleaseActionContractTest.class.getClassLoader().getResourceAsStream(resource)) {
+            assertThat(input).as(resource).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }

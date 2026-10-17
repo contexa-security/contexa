@@ -163,28 +163,32 @@
   },
   "derived": {
     "employee": {
-      "because": "past records, the peer cohort and the work profile counts in the coverage note are the user's own; the lab's usual device is the employee's usual device; whether the company policy is satisfied follows the employee's own assignment and approvals; the lab composer keeps the designed relation (assigned or not) by moving to a project of the employee and picking its document again (LabComposer project and document), so the target and the request path follow the employee (N-DLV-2)",
-      "facts": ["PastRecord*", "PeerReference", "Coverage", "Device", "PolicySatisfied", "Target", "UntrustedText*"]
+      "because": "past records, the peer cohort and the work profile counts in the coverage note are the user's own; the lab's usual device is the employee's usual device; whether the company policy is satisfied follows the employee's own assignment and approvals; the lab composer keeps the designed relation (assigned or not) by moving to a project of the employee and picking its document again (LabComposer project and document), so the target and the request path follow the employee (N-DLV-2); the on-call roster is the employee's own (N-DLV-6)",
+      "facts": ["PastRecord*", "PeerReference", "Coverage", "Device", "PolicySatisfied", "Target", "UntrustedText*", "OnCall"]
     },
     "timeSlot": {
-      "because": "the work profile reads the 7 days before the request time, past records state times relative to it, and the case approval's validity window is set around it",
-      "facts": ["Approval", "PastRecord*", "Usual*", "WorkProfile", "Coverage"]
+      "because": "the work profile reads the 7 days before the request time, past records state times relative to it, and the case approval's validity window is set around it; the on-call duty's end and a ticket's validity are written relative to it too (N-DLV-6)",
+      "facts": ["Approval", "PastRecord*", "Usual*", "WorkProfile", "Coverage", "OnCall", "Ticket"]
     },
     "operation": {
-      "because": "the approval, the company policy row (its recent-work window), the protection, on-call, the role scope, the session's repeat, the past records of the same action and the request path follow the operation",
+      "because": "the approval, the company policy row (its recent-work window), the protection, on-call, the role scope, the session's repeat, the past records of the same action, the request path and, from v20.24, the target's business label (UNTRUSTED TEXT lines, N-INJ-3) follow the operation",
       "facts": ["Approval", "Assignment", "AuthorizationEffect", "OnCall", "Unknown", "PastRecord*", "RepeatInSession", "RoleScope", "SameAsBaseline", "DeviationsFromBaseline", "UntrustedText*"]
     },
     "target": {
-      "because": "the case approval names the target, the resource class is the target's sensitivity, past records mark the same target, and the request path names it",
-      "facts": ["Approval", "PastRecord*", "ResourceClass", "SameAsBaseline", "UntrustedText*"]
+      "because": "the case approval names the target, the resource class is the target's sensitivity, past records mark the same target, and the request path and, from v20.24, the target's business label (UNTRUSTED TEXT lines, N-INJ-3) name it; a ticket names its project as the case approval does, so the lab composer moves it with the target (N-DLV-6)",
+      "facts": ["Approval", "PastRecord*", "ResourceClass", "SameAsBaseline", "UntrustedText*", "Ticket"]
     },
     "items": {
-      "because": "the target's business label states the item count",
-      "facts": ["Target"]
+      "because": "the target's business label states the item count: on the Target line up to v20.23, as an UNTRUSTED TEXT line from v20.24 (N-INJ-3)",
+      "facts": ["Target", "UntrustedText*"]
     },
     "claim": {
       "because": "a ticket the requester names is an UNTRUSTED TEXT line (N-INJ-1)",
       "facts": ["UntrustedText*"]
+    },
+    "onCall": {
+      "because": "the policy's exception 'ticket while on call' holds only while on call, and the deviations are explained by the ticket only while the policy is satisfied, so they follow on-call (N-DLV-6)",
+      "facts": ["DeviationsFromBaseline"]
     }
   }
 }

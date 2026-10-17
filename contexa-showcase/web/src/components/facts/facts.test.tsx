@@ -1,11 +1,12 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LabDelta, OtherBundleView, RunFacts, RunQuality } from '../../api/promptQuality';
+import type { LabDelta, OtherBundleView, PromptFact, RunFacts, RunQuality } from '../../api/promptQuality';
 import '../../i18n';
 import i18n from '../../i18n';
 import ko from '../../i18n/ko.json';
 import { required } from '../../test/required';
+import { Icon } from '../Icon';
 import { DeltaLines } from './DeltaLines';
 import { FactCard } from './FactCard';
 import { compareOffered, ribbonLines } from './factWords';
@@ -250,6 +251,76 @@ describe('fact card', () => {
     expect(screen.queryByText(word('fact.label.other'))).not.toBeInTheDocument();
     expect(screen.queryByText(/UntrustedText1/)).not.toBeInTheDocument();
   });
+
+  // N-UI-1 (U1-5): the line in its v20.23 form, with the server's reading of it.
+  const evidence: PromptFact = {
+    line: 2,
+    factId: 'B1',
+    label: 'Evidence',
+    value:
+      'collector PERSONAL_WORK_PROFILE, window 7 days (09-23..09-29), observations 25 over 5 days, ' +
+      'fallback 100%, unknown 0%, evidence LIMITED, scope personal; causes action family inferred ' +
+      'from protectableMethod in 25 of 25 observations; ' +
+      'workProfile.protectableInvocationDensity needs caution: observations=25',
+    source: 'LEARNED',
+    grades: ['LEARNED'],
+    sufficiency: {
+      grade: 'LIMITED',
+      causes: [{ kind: 'ACTION_INFERRED', count: 25, of: 25, from: 'protectableMethod' }],
+      cautions: 1,
+    },
+  };
+
+  it('hangs a grey line under a card whose evidence the server reads as below strong', () => {
+    const { container } = render(<FactCard fact={evidence} block="USER_BASELINE" />);
+    const line = required(container.querySelector<HTMLElement>('[data-sufficiency]'), 'grey line');
+    expect(line).toHaveAttribute('data-sufficiency', 'LIMITED');
+    const inferred = fill('fact.sufficiency.ACTION_INFERRED_ALL', {
+      of: 25,
+      from: word('fact.sufficiency.from.protectableMethod'),
+    });
+    expect(line).toHaveTextContent(
+      `${word('fact.sufficiency.LIMITED')}: ${inferred} · ${fill('fact.sufficiency.cautions', { n: 1 })}`,
+    );
+    // Under the card: its last line.
+    expect(line.parentElement?.lastElementChild).toBe(line);
+  });
+
+  it('names part of the observations, too few, a wider window and an unnamed source alike', () => {
+    const weak: PromptFact = {
+      ...evidence,
+      sufficiency: {
+        grade: 'WEAK',
+        causes: [
+          { kind: 'ACTION_INFERRED', count: 4, of: 6, from: 'an unnamed source' },
+          { kind: 'FEW_OBSERVATIONS', count: 6, of: 10, from: null },
+          { kind: 'WIDER_WINDOW', count: 4, of: 30, from: null },
+        ],
+        cautions: 0,
+      },
+    };
+    const { container } = render(<FactCard fact={weak} block="USER_BASELINE" />);
+    const causes = [
+      fill('fact.sufficiency.ACTION_INFERRED', { n: 4, of: 6, from: word('fact.sufficiency.from.other') }),
+      fill('fact.sufficiency.FEW_OBSERVATIONS', { n: 6, of: 10 }),
+      fill('fact.sufficiency.WIDER_WINDOW', { of: 30 }),
+    ];
+    expect(required(container.querySelector('[data-sufficiency="WEAK"]'), 'grey line')).toHaveTextContent(
+      `${word('fact.sufficiency.WEAK')}: ${causes.join(' · ')}`,
+    );
+  });
+
+  it('hangs no grey line where the server reads no weak evidence', () => {
+    for (const { block, fact: shown } of [fact('USER_BASELINE', 3), fact('DECISION_FACTS', 40)]) {
+      const { container, unmount } = render(<FactCard fact={shown} block={block} />);
+      expect(container.querySelector('[data-sufficiency]')).toBeNull();
+      unmount();
+    }
+    const { container } = render(
+      <FactCard fact={{ ...evidence, sufficiency: null }} block="USER_BASELINE" />,
+    );
+    expect(container.querySelector('[data-sufficiency]')).toBeNull();
+  });
 });
 
 /** U-1: the quality ribbon, the server's counts with a cross for an item that does not hold. */
@@ -373,6 +444,36 @@ describe('reason chain', () => {
     render(<ReasonChain reasonCodes={quality.reasonCodes} facts={null} verdict="CHALLENGE" />);
     expect(screen.getAllByText(word('reasonChain.noCard'))).toHaveLength(3);
     expect(screen.getAllByText(word('reasonChain.noLink'))).toHaveLength(1);
+  });
+
+  it("states the response check's counts with a check, or a cross on a mismatch (U3-2)", () => {
+    const iconPath = (name: 'check' | 'cross') => {
+      const { container, unmount } = render(<Icon name={name} />);
+      const path = container.querySelector('path')?.getAttribute('d');
+      unmount();
+      return path;
+    };
+    const matched = { code: 'REASON_MATCH', matched: 3, mismatched: 0, unverifiable: 0, mismatches: [] };
+    const chain = (check: typeof matched | null) =>
+      render(
+        <ReasonChain reasonCodes={quality.reasonCodes} facts={facts} verdict="CHALLENGE" check={check} />,
+      );
+    const all = chain(matched);
+    const ok = required(all.container.querySelector<HTMLElement>('p[data-ok]'), 'check line');
+    expect(ok).toHaveAttribute('data-ok', 'true');
+    expect(ok).toHaveTextContent(fill('reasonChain.check', { matched: 3, mismatched: 0, unverifiable: 0 }));
+    expect(ok.querySelector('path')?.getAttribute('d')).toBe(iconPath('check'));
+    all.unmount();
+    const one = chain({ ...matched, matched: 2, mismatched: 1 });
+    const cross = required(one.container.querySelector<HTMLElement>('p[data-ok]'), 'check line');
+    expect(cross).toHaveAttribute('data-ok', 'false');
+    expect(cross).toHaveTextContent(
+      fill('reasonChain.check', { matched: 2, mismatched: 1, unverifiable: 0 }),
+    );
+    expect(cross.querySelector('path')?.getAttribute('d')).toBe(iconPath('cross'));
+    one.unmount();
+    // Without the inspector's reason check there is no line, never a check mark.
+    expect(chain(null).container.querySelector('p[data-ok]')).toBeNull();
   });
 });
 
@@ -504,6 +605,30 @@ describe('lab changed lines', () => {
     expect(container).not.toHaveTextContent(
       KO['labDelta.notLookedUp.ON_CALL'] ?? 'labDelta.notLookedUp.ON_CALL',
     );
+  });
+
+  it('says in one line that the base run already had the value, not that no line changed', () => {
+    const sameAsBase: LabDelta = {
+      ...delta,
+      steps: [
+        {
+          stepNo: 1,
+          changed: [],
+          expected: ['OnCall', 'PolicySatisfied'],
+          unexpected: [],
+          valueMatches: true,
+          passed: true,
+          notCompared: null,
+          unchangedLines: 41,
+          sameAsBase: true,
+        },
+      ],
+    };
+    render(<DeltaLines delta={sameAsBase} verdict="CHALLENGE" />);
+    expect(screen.getByText(word('labDelta.sameAsBase'))).toBeInTheDocument();
+    expect(screen.queryByText(word('labDelta.none'))).not.toBeInTheDocument();
+    expect(screen.queryByText(fill('labDelta.passedCount', { n: 41 }))).not.toBeInTheDocument();
+    expect(screen.queryByText(word('labDelta.passed'))).not.toBeInTheDocument();
   });
 
   it('shows a step the server did not compare as not compared, never as passed', () => {

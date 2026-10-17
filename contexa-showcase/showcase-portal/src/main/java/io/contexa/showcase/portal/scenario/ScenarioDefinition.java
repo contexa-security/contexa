@@ -153,24 +153,44 @@ public record ScenarioDefinition(
      * @param requestIdOf    W7-4 (8.7, an X-Request-ID equal to the previous request's): the number (1-based) of an
      *                       earlier step whose request id this step sends as its X-Request-ID; each control sends the
      *                       id it sent that step with, while the request keeps a processing id of its own
+     * @param newSession     N-INJ-5 (8.7, the label of a request that becomes a past record): every control signs the
+     *                       run principal in again two minutes before this step and sends it and the later steps in
+     *                       that new session. The engine leaves a request's own session out of its past records
+     *                       (W3-18), so the allowed requests of the earlier session become past records of the later
+     *                       steps. Null or false keeps the session; the first step cannot start one
      */
     public record Step(BusinessOperation operation, DocumentSelector document, String project, String customer,
                        Integer items, long offsetSeconds, Map<String, String> expected, String claimedTicket,
                        String grantee, String responsibility, Boolean visitorSends,
                        @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, Object> body,
                        @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> headers,
-                       @JsonInclude(JsonInclude.Include.NON_NULL) Integer requestIdOf) {
+                       @JsonInclude(JsonInclude.Include.NON_NULL) Integer requestIdOf,
+                       @JsonInclude(JsonInclude.Include.NON_NULL) Boolean newSession) {
 
         /** A step that names no request part beyond its path; its definition hash is the one it had before W7-4. */
         public Step(BusinessOperation operation, DocumentSelector document, String project, String customer,
                     Integer items, long offsetSeconds, Map<String, String> expected, String claimedTicket,
                     String grantee, String responsibility, Boolean visitorSends) {
             this(operation, document, project, customer, items, offsetSeconds, expected, claimedTicket, grantee,
-                    responsibility, visitorSends, null, null, null);
+                    responsibility, visitorSends, null, null, null, null);
+        }
+
+        /** A step in the session of the step before it (the W7-4 form); its hash is the one it had before N-INJ-5. */
+        public Step(BusinessOperation operation, DocumentSelector document, String project, String customer,
+                    Integer items, long offsetSeconds, Map<String, String> expected, String claimedTicket,
+                    String grantee, String responsibility, Boolean visitorSends, Map<String, Object> body,
+                    Map<String, String> headers, Integer requestIdOf) {
+            this(operation, document, project, customer, items, offsetSeconds, expected, claimedTicket, grantee,
+                    responsibility, visitorSends, body, headers, requestIdOf, null);
         }
 
         public boolean sentByVisitor() {
             return Boolean.TRUE.equals(visitorSends);
+        }
+
+        /** N-INJ-5: whether every control signs in again before this step and sends it in that new session. */
+        public boolean startsNewSession() {
+            return Boolean.TRUE.equals(newSession);
         }
     }
 

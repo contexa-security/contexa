@@ -1,7 +1,11 @@
 package io.contexa.showcase.portal.anatomy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,7 +31,8 @@ public final class CoreAdverseLabels {
     }
 
     /**
-     * @param values every value the prompt rendered for the label, in order; empty when the prompt has none
+     * @param values every value the prompt rendered for the label, in order; empty when the prompt has none; of a v20
+     *               decision what the engine sealed for the condition (N-DEP-2, {@link #sealed})
      * @param met    whether the values meet the inspector's condition
      */
     public record Reading(String label, String condition, List<String> values, boolean met) {
@@ -53,9 +58,67 @@ public final class CoreAdverseLabels {
             new Rule("rolescopedeltacount", "POSITIVE"),
             new Rule("observedanomalysignal", "TRUSTED_SIGNAL"));
 
+    /**
+     * N-DEP-2: the adverse conditions of the core's v20 inspection (SecurityDecisionFactChecks: the adverse facts of
+     * the boundaries' list and a stated policy whose requirement PolicySatisfied does not state as met) that the facts
+     * the engine sealed with a v20 decision state, in the core's order. Not copied: the client signals, an impossible
+     * travel, a role scope outside the group's facts (the core leaves a provisional scope out), the past denials,
+     * threat matches, failed logins and MFA failures of the session, and a required block's categories.
+     * CoreAdverseLabelsContractTest fails when the core's list changes.
+     */
+    public static final List<Rule> SEALED_RULES = List.of(
+            new Rule("authorizationeffect", "DENY_OR_BLOCK"),
+            new Rule("sessiondevicechange", "STATED"),
+            new Rule("sessionnetworkchange", "STATED"),
+            new Rule("dataconflicts", "STATED"),
+            new Rule("blockeduser", "STATED"),
+            new Rule("policysatisfied", "NOT_SATISFIED"));
+
     private static final Pattern LEADING_COUNT = Pattern.compile("^\\d+");
 
     private CoreAdverseLabels() {
+    }
+
+    /**
+     * N-DEP-2: the readings of {@link #SEALED_RULES} for a v20 decision, from its record's metadata (the sealed
+     * canonical context): the authorization effect, the session device and network changes and the data conflicts the
+     * decision facts state, the blocked user of the session's or the company's record, and a policy the decision facts
+     * state, met when PolicySatisfied does not state it as met. The values are what the engine sealed for the
+     * condition. Null for a record of another layout or without sealed decision facts (its prompt is read as the v19
+     * inspector reads it).
+     */
+    public static List<Reading> sealed(JsonNode metadata) {
+        if (metadata == null
+                || !SealedDeviations.V20_LAYOUT.equals(metadata.path("userPromptLayoutVersion").asText(null))) {
+            return null;
+        }
+        JsonNode context = metadata.path("sealedEvidence.canonicalContext");
+        JsonNode decisionFacts = context.path("decisionFacts");
+        if (!decisionFacts.path("facts").isArray()) {
+            return null;
+        }
+        Map<String, String> facts = new LinkedHashMap<>();
+        decisionFacts.path("facts").forEach(fact -> facts.put(fact.path("name").asText(), fact.path("value").asText()));
+        String effect = context.path("authorization").path("authorizationEffect").asText(null);
+        List<String> effects = effect == null ? List.of() : List.of(effect);
+        boolean blocked = context.path("session").path("blockedUser").asBoolean(false)
+                || context.path("frictionProfile").path("blockedUser").asBoolean(false);
+        JsonNode satisfied = decisionFacts.path("policy").path("satisfied");
+        boolean policy = facts.containsKey("Policy");
+        boolean unmet = !(facts.containsKey("PolicySatisfied") && satisfied.isBoolean() && satisfied.asBoolean());
+        List<Reading> readings = new ArrayList<>();
+        readings.add(new Reading("authorizationeffect", "DENY_OR_BLOCK", effects, met("DENY_OR_BLOCK", effects)));
+        readings.add(statedReading("sessiondevicechange", facts.get("SessionDeviceChange")));
+        readings.add(statedReading("sessionnetworkchange", facts.get("SessionNetworkChange")));
+        readings.add(statedReading("dataconflicts", facts.get("DataConflicts")));
+        readings.add(new Reading("blockeduser", "STATED", blocked ? List.of("true") : List.of(), blocked));
+        readings.add(new Reading("policysatisfied", "NOT_SATISFIED", policy && facts.containsKey("PolicySatisfied")
+                ? List.of(facts.get("PolicySatisfied")) : List.of(), policy && unmet));
+        return List.copyOf(readings);
+    }
+
+    private static Reading statedReading(String label, String value) {
+        return new Reading(label, "STATED", value == null ? List.of() : List.of(value), value != null);
     }
 
     public static List<Reading> read(String prompt) {

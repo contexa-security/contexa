@@ -656,6 +656,12 @@ public class SealedEvidencePackageAssembler {
                 }
             }
         }
+        // N-OUT-3: every output retry of the decision, layer by layer; the single fields hold the last layer's.
+        if (eventMetadata != null
+                && eventMetadata.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES) instanceof List<?> retries
+                && !retries.isEmpty()) {
+            modelOutput.put(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+        }
         if (!modelOutput.isEmpty()) {
             decision.put("modelOutput", modelOutput);
         }

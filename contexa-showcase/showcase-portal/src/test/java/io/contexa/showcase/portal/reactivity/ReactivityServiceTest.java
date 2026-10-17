@@ -164,6 +164,20 @@ class ReactivityServiceTest {
         assertThat(delivery.passed()).isTrue();
     }
 
+    @Test
+    void theRunsWhoseFirstStepIsTheBaseItselfAreCountedApart() throws Exception {
+        sealed.put("req-base-1", JSON.readTree("""
+                {"lines": [{"label": "OnCall", "value": "on call (HX on-call)"}]}"""));
+        sealed.put("req-lab-1", JSON.readTree("""
+                {"lines": [{"label": "OnCall", "value": "on call (HX on-call)"}]}"""));
+
+        ReactivityService.RunDelivery same = service.delivery("run-base", "run-lab",
+                decisions("req-base", "CHALLENGE"), decisions("req-lab", "CHALLENGE"), "onCall", "true");
+
+        assertThat(same.passed()).as("N-DLV-6: the base was on call already").isTrue();
+        assertThat(ReactivityService.sameAsBase(List.of(same))).isEqualTo(1);
+    }
+
     /** The same sealed prompt for each request: compared under the invariant condition, nothing changed. */
     private void seal(String... requestIds) throws Exception {
         for (String requestId : requestIds) {

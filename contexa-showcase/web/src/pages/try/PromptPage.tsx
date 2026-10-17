@@ -9,7 +9,7 @@ import { SourceMark } from '../../components/common/SourceMark';
 import { useUrlModal } from '../../components/common/useUrlModal';
 import { compareOffered } from '../../components/facts/factWords';
 import { PromptChunks } from '../../components/facts/PromptChunks';
-import { PromptCompare } from '../../components/facts/PromptCompare';
+import { PromptCompare, SameCaseLines } from '../../components/facts/PromptCompare';
 import { QualityRibbon } from '../../components/facts/QualityRibbon';
 import { RouteScreen } from '../../components/journey/RouteScreen';
 import { PromptBundles } from '../../components/inside/PromptBundles';
@@ -26,6 +26,7 @@ import styles from './PromptPage.module.css';
  * original"; the same case under the other bundle (a measured run, not the same request) is offered only when the
  * server found one. A step whose sealed prompt cannot be read as facts says why and keeps the blocks with their plain lines
  * (W3-10). The run is the visitor's own try 1 run, or else the measured run the teasers name, which the screen says.
+ * N-UI-1 (U2-6): beside the comparison, one line of both user prompts' lengths, the earlier bundle first.
  */
 export default function PromptPage() {
   const { t, i18n } = useTranslation();
@@ -92,6 +93,7 @@ export default function PromptPage() {
           <PromptBundles lines={lines} call={call} />
         </>
       ) : null}
+      <SameCaseLines view={other} />
       <Modal open={modal.open} onClose={modal.hide} title={t('prompt.originalAll')} wide>
         {lines ? (
           <section className={styles.counts} aria-labelledby="prompt-counts">

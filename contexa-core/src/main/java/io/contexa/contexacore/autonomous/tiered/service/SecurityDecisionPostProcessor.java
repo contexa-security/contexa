@@ -34,6 +34,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -101,6 +102,31 @@ public class SecurityDecisionPostProcessor {
 
         } catch (Exception e) {
             log.error("[SecurityDecisionPostProcessor] Failed to store vector document: eventId={}",
+                    event.getEventId(), e);
+        }
+    }
+
+    /**
+     * Removes the record {@link #storeInVectorDatabase} stored for the event's decision, by the id the event and the
+     * decision's document type give it (Q-15): a record stored while the purge of its deleted account ran may be one
+     * the purge did not see.
+     */
+    public void removeStoredRecord(SecurityEvent event, SecurityDecision decision) {
+        ZeroTrustAction action = decision != null ? decision.resolveAutonomousAction() : null;
+        if (unifiedVectorService == null || action == null || event == null || event.getEventId() == null) {
+            return;
+        }
+        VectorDocumentType type = switch (action) {
+            case ALLOW -> VectorDocumentType.BEHAVIOR;
+            case BLOCK -> VectorDocumentType.THREAT;
+            case CHALLENGE -> VectorDocumentType.SUSPICIOUS;
+            case ESCALATE, PENDING_ANALYSIS -> VectorDocumentType.AMBIGUOUS;
+        };
+        try {
+            unifiedVectorService.deleteDocuments(
+                    List.of(UnifiedVectorService.documentId(type.getValue(), event.getEventId())));
+        } catch (Exception e) {
+            log.error("[SecurityDecisionPostProcessor] Failed to remove the record of a deleted account: eventId={}",
                     event.getEventId(), e);
         }
     }

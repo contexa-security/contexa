@@ -4,6 +4,7 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.verification.inspection.InspectedPrompt;
 import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier.SourceFact;
+import io.contexa.contexacore.verification.inspection.PromptFactSourceVerifier.SourceReading;
 import io.contexa.contexacore.verification.inspection.PromptInspectionSubject;
 import io.contexa.contexacore.verification.inspection.PromptInspectionUnavailableException;
 import io.contexa.showcase.business.work.WorkDatabase;
@@ -72,6 +73,26 @@ class ShowcaseFactSourceVerifierTest {
 
         assertThatThrownBy(() -> new ShowcaseFactSourceVerifier(database, "D").sourceFacts(subject()))
                 .isInstanceOf(PromptInspectionUnavailableException.class);
+    }
+
+    /**
+     * N-SRC-2: a request user the work database no longer holds (the run rows go when the run ends) is a record not
+     * kept, where the verifier looked; not a source without facts, and not a database to read again later.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void aUserTheWorkDatabaseNoLongerHoldsIsARecordNotKept() {
+        when(database.jdbc()).thenReturn(jdbc);
+        when(jdbc.query(contains("from run_principal"), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of());
+        ShowcaseFactSourceVerifier verifier = new ShowcaseFactSourceVerifier(database, "D");
+
+        SourceReading reading = verifier.read(subject());
+
+        assertThat(reading.recordsKept()).isFalse();
+        assertThat(reading.notKeptRef()).isEqualTo("showcase work database run_principal");
+        assertThat(reading.facts()).isEmpty();
+        assertThat(verifier.sourceFacts(subject())).isEmpty();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

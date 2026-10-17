@@ -236,6 +236,18 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
         Map<String, Object> metadata = tally.subject().executionMetadata();
         CanonicalSecurityContext context = tally.subject().canonicalContext();
         ZoneId zone = tally.subject().eventZone();
+        // N-INS-4: the state line needs only the retrieval state the render kept, not the event clock.
+        if (state != null && metadata.get(PromptExecutionMetadata.PROMPT_RAG_STATE) instanceof Map<?, ?> kept) {
+            String wanted = PastRecordLineValues.state(kept);
+            if (wanted.equals(state.entryLine().value())) {
+                tally.matched(state);
+            }
+            else {
+                tally.mismatch(finding(tally, state).expected(wanted).actual(state.entryLine().value())
+                        .sourceRef(RETRIEVAL_STATE)
+                        .reason("the state line is not the retrieval state the render kept").build());
+            }
+        }
         if (!(metadata.get(PromptExecutionMetadata.PROMPT_RAG_STATE) instanceof Map<?, ?> ragState) || zone == null) {
             tally.unverifiable(tally.unverifiableFinding().block(PromptBlock.PAST_RECORDS.title()).sourceRef(SOURCE)
                     .reason("the package seals no retrieval state of the render or no event clock").build());
@@ -248,17 +260,6 @@ public final class PastRecordNotationCheck implements PromptInspectionCheck {
                     .sourceRef(CONTEXT_REQUEST_TIME)
                     .reason("the distances of the records from the request cannot be compared: the request time is "
                             + "not sealed").build());
-        }
-        if (state != null) {
-            String wanted = PastRecordLineValues.state(ragState);
-            if (wanted.equals(state.entryLine().value())) {
-                tally.matched(state);
-            }
-            else {
-                tally.mismatch(finding(tally, state).expected(wanted).actual(state.entryLine().value())
-                        .sourceRef(RETRIEVAL_STATE)
-                        .reason("the state line is not the retrieval state the render kept").build());
-            }
         }
         if (tally.subject().unreadSources().contains(PromptInspectionSources.PAST_RECORDS)) {
             for (InspectedPrompt.Line line : lines) {

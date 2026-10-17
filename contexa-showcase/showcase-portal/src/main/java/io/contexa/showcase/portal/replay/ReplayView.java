@@ -147,7 +147,8 @@ public final class ReplayView {
     /**
      * @param deltas             the dimensions the engine's combination comparison named as differing
      * @param baselineDeltaCount how many compared items the engine received as outside the baseline
-     *                           (CurrentVsObservedDeltaCount); null when the record does not hold it
+     *                           (CurrentVsObservedDeltaCount; of a v20 record the dimensions its seal states as
+     *                           different, N-DEP-1); null when the record holds neither
      */
     public record EngineReason(String canonical, String reasoning, List<String> evidenceRefs, List<String> deltas,
                                String resourceSensitivity, Integer baselineDeltaCount, List<ReasonCode> reasonCodes) {

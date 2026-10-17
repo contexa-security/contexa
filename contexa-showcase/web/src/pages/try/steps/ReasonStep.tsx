@@ -13,7 +13,7 @@ import { StateScreen } from '../../../components/StateScreen';
 import { VerdictChip } from '../../../components/VerdictChip';
 import type { Verdict } from '../../../domain/verdict';
 import type { Difference } from '../../../journey/journey';
-import { decisionDetail } from '../decision';
+import { approvalFact, decisionDetail } from '../decision';
 import { stepPath, type Mode, type Role, type StepFlow } from '../experience';
 import styles from '../Experience.module.css';
 import { useTryAnalysis, useTryRun } from './tryRun';
@@ -88,10 +88,7 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
       : canonical && TITLED_CODES.has(canonical)
         ? `e1.reason.title.${canonical}`
         : `e1.reason.title.${ACTIONS.has(action) ? action : 'other'}`;
-  const met = new Set(decision.adverseLabels.filter((label) => label.met).map((label) => label.label));
-  const approvalRead = decision.adverseLabels.some(
-    (label) => label.label === 'approvalrequired' && label.met,
-  );
+  const approval = approvalFact(t, decision.adverseLabels);
   const detail = decisionDetail(t, decision);
   // The chain needs the quality view's reason codes; without them the figure of the recorded facts stays.
   const chain = quality?.available && quality.reasonCodes.length > 0 ? quality.reasonCodes : null;
@@ -108,7 +105,7 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
           }),
         ]
       : []),
-    ...(approvalRead ? [t(met.has('approvalmissing') ? 'e1.reason.noApproval' : 'e1.reason.approval')] : []),
+    ...(approval ? [approval] : []),
   ];
 
   return (

@@ -65,6 +65,21 @@ class SecurityDecisionPostProcessorTest {
     private UnifiedVectorService unifiedVectorService;
 
     @Test
+    void removeStoredRecordRemovesTheRecordTheDecisionWasStoredAs() {
+        // Q-15: a record stored while the purge of its deleted account ran is removed by the id it was stored under.
+        SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-late").userId("deleted-user").build();
+
+        processor.removeStoredRecord(event, SecurityDecision.builder().action(ZeroTrustAction.CHALLENGE).build());
+        processor.removeStoredRecord(event, SecurityDecision.builder().action(ZeroTrustAction.ALLOW).build());
+
+        verify(unifiedVectorService)
+                .deleteDocuments(List.of(UnifiedVectorService.documentId("suspicious", "evt-late")));
+        verify(unifiedVectorService)
+                .deleteDocuments(List.of(UnifiedVectorService.documentId("behavior", "evt-late")));
+    }
+
+    @Test
     void updateSessionContextDoesNotPersistAuditRiskScore() {
         SecurityDecisionPostProcessor processor = new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
         SecurityEvent event = SecurityEvent.builder()

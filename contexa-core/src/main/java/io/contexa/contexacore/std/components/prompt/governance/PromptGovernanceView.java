@@ -117,6 +117,8 @@ public final class PromptGovernanceView {
             int coveredScenarioCount,
             int requiredScenarioCount,
             List<String> coveredScenarioFamilies,
+            List<String> requiredScenarioFamilies,
+            List<String> uncoveredScenarioFamilies,
             String tevvGateState,
             String qualityGateState,
             String latencyGateState,

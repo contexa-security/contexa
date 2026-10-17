@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.baseline.BaselineView;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.model.ContextCoverageReport;
 
+import java.util.List;
+
 /**
  * The UNKNOWN Coverage parts a v20 prompt draws from the sealed coverage report and bridge: the same functions the render
  * uses, for the prompt inspector to compare the drawn line with the sealed sources (R1b-2).
@@ -46,5 +48,13 @@ public final class UnknownLineValues {
     /** The whole coverage line with the usual-behaviour view the warnings read, or null without a report and a bridge. */
     public static String coverage(CanonicalSecurityContext context, BaselineView view) {
         return SecurityDecisionPromptValues.coverageLine(context, view);
+    }
+
+    /**
+     * The entries the render names unknown for want of a source, as {@code BLOCK.Entry} keys; without a context, every
+     * entry it may name so (N-INS-2).
+     */
+    public static List<String> withoutSource(CanonicalSecurityContext context) {
+        return SecurityDecisionPromptValues.withoutSource(context);
     }
 }

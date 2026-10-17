@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +42,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final int MAX_HELD_VERIFICATION_REQUESTS = 50;
     private static final int MAX_VERIFICATION_OUTCOMES = 10_000;
     private static final int MAX_HELD_PROMOTION_REQUESTS = 200;
+    private static final int MAX_STOPPED_REQUESTS = 20;
     private static final int MAX_PREVIOUS_SESSION_IDS = 20;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
     private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
@@ -52,6 +56,10 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private static final Duration DEFAULT_USER_SESSIONS_TTL = Duration.ofDays(7);
     private static final Duration MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final Duration LOGIN_FAILURE_MINIMUM_RETENTION = Duration.ofMinutes(5);
+    /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
+    private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
+    /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
+    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
 
     private final Duration eventProcessedTtl;
     private final Duration soarTtl;
@@ -95,6 +103,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     /** The facts of each user's requests a restriction stopped, by request id (W5-2). */
     private final ConcurrentHashMap<String, Map<String, String>> verificationLearning = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<String, String>> promotionLearning = new ConcurrentHashMap<>();
+    /** The requests a filter stopped under each user's challenge, by method and URI (N-LRN-3). */
+    private final ConcurrentHashMap<String, StoppedRequests> stoppedRequests = new ConcurrentHashMap<>();
     /** The ids a session had before its id was replaced, newest first (P2 correction 5). */
     private final ConcurrentHashMap<String, List<String>> sessionPreviousIds = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
@@ -131,8 +141,17 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             });
     private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> userSessionsExpiry = new ConcurrentHashMap<>();
+    /** The users whose account was deleted, until the deletion's retention passes (Q-15). */
+    private final ConcurrentHashMap<String, AccountDeletion> accountDeletions = new ConcurrentHashMap<>();
+
+    /** A user's stopped requests until they expire, verified once the user passed the step-up (N-LRN-3). */
+    private record StoppedRequests(Set<String> signatures, boolean verified, long expiresAtMs) {
+    }
 
     private record EventProcessingEntry(String ownerToken, Instant expiresAt) {
+    }
+
+    private record AccountDeletion(Instant deletedAt, Instant expiresAt) {
     }
 
     private static final class SoarEntry {
@@ -503,6 +522,68 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void holdStoppedRequest(String userId, String requestSignature) {
+        if (userId == null || requestSignature == null) {
+            return;
+        }
+        long now = clock.millis();
+        stoppedRequests.compute(userId, (key, held) -> {
+            // A stop after a verification belongs to a new challenge, so the stopped requests are kept anew.
+            if (held == null || held.verified() || now >= held.expiresAtMs()) {
+                return new StoppedRequests(Set.of(requestSignature), false, now + STOPPED_REQUEST_TTL.toMillis());
+            }
+            if (held.signatures().contains(requestSignature) || held.signatures().size() >= MAX_STOPPED_REQUESTS) {
+                return held;
+            }
+            Set<String> signatures = new LinkedHashSet<>(held.signatures());
+            signatures.add(requestSignature);
+            return new StoppedRequests(signatures, false, held.expiresAtMs());
+        });
+    }
+
+    @Override
+    public void verifyStoppedRequests(String userId, String learnedRequestSignature) {
+        if (userId == null) {
+            return;
+        }
+        long now = clock.millis();
+        stoppedRequests.computeIfPresent(userId, (key, held) -> {
+            if (now >= held.expiresAtMs()) {
+                return null;
+            }
+            if (held.verified()) {
+                return held;
+            }
+            Set<String> signatures = new LinkedHashSet<>(held.signatures());
+            if (learnedRequestSignature != null) {
+                signatures.remove(learnedRequestSignature);
+            }
+            return signatures.isEmpty() ? null
+                    : new StoppedRequests(signatures, true, now + VERIFIED_STOPPED_REQUEST_TTL.toMillis());
+        });
+    }
+
+    @Override
+    public boolean takeVerifiedStoppedRequest(String userId, String requestSignature) {
+        if (userId == null || requestSignature == null) {
+            return false;
+        }
+        long now = clock.millis();
+        boolean[] taken = new boolean[1];
+        stoppedRequests.computeIfPresent(userId, (key, held) -> {
+            if (now >= held.expiresAtMs()) {
+                return null;
+            }
+            if (!held.verified() || !held.signatures().contains(requestSignature)) {
+                return held;
+            }
+            taken[0] = true;
+            return null;
+        });
+        return taken[0];
+    }
+
+    @Override
     public void recordVerificationOutcome(String eventId, String outcome) {
         if (eventId == null || outcome == null) {
             return;
@@ -513,6 +594,27 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public String verificationOutcome(String eventId) {
         return eventId == null ? null : verificationOutcomes.get(eventId);
+    }
+
+    @Override
+    public void recordAccountDeletion(String userId, Instant deletedAt, Duration retention) {
+        if (userId == null || deletedAt == null || retention == null) {
+            return;
+        }
+        accountDeletions.put(userId, new AccountDeletion(deletedAt, clock.instant().plus(retention)));
+    }
+
+    @Override
+    public Instant accountDeletedAt(String userId) {
+        AccountDeletion deletion = userId != null ? accountDeletions.get(userId) : null;
+        if (deletion == null) {
+            return null;
+        }
+        if (!clock.instant().isBefore(deletion.expiresAt())) {
+            accountDeletions.remove(userId, deletion);
+            return null;
+        }
+        return deletion.deletedAt();
     }
 
     @Override
@@ -562,6 +664,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
         }
         verificationLearning.remove(userId);
         promotionLearning.remove(userId);
+        stoppedRequests.remove(userId);
         String tenantScopedSuffix = "::" + userId;
         for (Map<String, ?> perUser : List.of(
                 workProfileObservations, permissionChangeObservations, authorizationScopeStates)) {
@@ -727,8 +830,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     /**
-     * Releases MFA verifications, tracked user sessions and login failure records that no read can return any more,
-     * following the same expiry rules as the reads.
+     * Releases MFA verifications, tracked user sessions, login failure records, stopped requests (N-LRN-3) and account
+     * deletions (Q-15) that no read can return any more, following the same expiry rules as the reads.
      */
     @Override
     public void removeExpiredEntries() {
@@ -745,6 +848,16 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
             }
         });
         removeExpiredLoginFailures(nowMs);
+        stoppedRequests.forEach((userId, held) -> {
+            if (nowMs >= held.expiresAtMs()) {
+                stoppedRequests.remove(userId, held);
+            }
+        });
+        accountDeletions.forEach((userId, deletion) -> {
+            if (!now.isBefore(deletion.expiresAt())) {
+                accountDeletions.remove(userId, deletion);
+            }
+        });
     }
 
     private void appendToStringSequence(
@@ -907,6 +1020,7 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     boolean holdsUserRecordsFor(String userId) {
         return mfaVerifiedExpiry.containsKey(userId) || userSessionsExpiry.containsKey(userId)
-                || userSessions.containsKey(userId) || loginFailureCounters.containsKey("user:" + userId);
+                || userSessions.containsKey(userId) || loginFailureCounters.containsKey("user:" + userId)
+                || stoppedRequests.containsKey(userId);
     }
 }

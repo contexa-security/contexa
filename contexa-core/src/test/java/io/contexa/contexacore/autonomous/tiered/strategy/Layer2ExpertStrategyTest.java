@@ -673,6 +673,55 @@ class Layer2ExpertStrategyTest {
         assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
     }
 
+    /**
+     * N-RSN-1: a first pass with nothing new is not asked again, and the decision keeps the first pass's model values
+     * with its verdict: the reason codes with the fact IDs they cite, the risk score, the confidence and the provenance
+     * of these fields.
+     */
+    @Test
+    void aFirstPassWithNothingNewKeepsTheFirstPassModelValues() {
+        Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
+        SecurityEvent event = firstPassEscalatedWithModelValues("n-rsn-1-values");
+
+        ThreatAssessment assessment = secondPass.evaluate(event);
+
+        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class),
+                any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
+        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
+        assertThat(assessment.getAction()).isEqualTo(ZeroTrustAction.ESCALATE.name());
+        assertThat(assessment.getReasonCodes()).containsExactlyElementsOf(FIRST_PASS_REASON_CODES);
+        assertThat(assessment.resolveAuditRiskScore()).isEqualTo(0.78);
+        assertThat(assessment.resolveAuditConfidence()).isEqualTo(0.97);
+        assertThat(assessment.getFieldProvenance()).isEqualTo(FIRST_PASS_PROVENANCE);
+    }
+
+    private static final List<SecurityDecisionOutputContract.Citation> FIRST_PASS_REASON_CODES = List.of(
+            new SecurityDecisionOutputContract.Citation("MIN_P3_POLICY_NOT_SATISFIED", "F4"),
+            new SecurityDecisionOutputContract.Citation("DEVIATION_SIZE", "F1"));
+    private static final Map<String, String> FIRST_PASS_PROVENANCE = Map.of("reasoning", "MODEL",
+            "riskScore", "MODEL", "confidence", "MODEL", "reasonCodes", "MODEL");
+
+    /**
+     * N-RSN-1: the first pass as the cold path hands it over, with its model values in the assessment and its reason
+     * codes under their own key (the key written as text, so this test compiles before the impl).
+     */
+    private static SecurityEvent firstPassEscalatedWithModelValues(String eventId) {
+        SecurityEvent event = firstPassEscalated(eventId, "AVAILABLE", false, V20_LAYOUT);
+        Map<String, Object> firstPass = new HashMap<>();
+        firstPass.put("layer", "LAYER1");
+        firstPass.put("llmAction", "ESCALATE");
+        firstPass.put("autonomousAction", "ESCALATE");
+        firstPass.put("llmDecisionPresent", true);
+        firstPass.put("technicalFallbackApplied", false);
+        firstPass.put("reasoning", "Business intent remains uncertain.");
+        firstPass.put("riskScore", 0.78);
+        firstPass.put("llmAuditConfidence", 0.97);
+        firstPass.put("fieldProvenance", FIRST_PASS_PROVENANCE);
+        event.getMetadata().put("layer1Assessment", Map.copyOf(firstPass));
+        event.getMetadata().put("firstPassReasonCodes", FIRST_PASS_REASON_CODES);
+        return event;
+    }
+
     private static final String V20_LAYOUT = "v20-dictionary-blocks";
     private static final String FIRST_PROMPT = "=== USER BASELINE ===\nEvidence: state NONE\nBaselineStatus: NONE (new account)\n"
             + "\n=== REQUEST ===\nTime: Wed 03:17\n";

@@ -33,9 +33,11 @@ import org.springframework.security.core.Authentication;
  * step-up) is not analysed, yet it is part of what the session did: later decisions read the session's narrative and
  * its decision history, and count what the session already exported under an approval from its allowed decisions.
  * The request's narrative step and its line in the session's decision history are recorded under the action applied
- * to it, once per request. Nothing is learned from it: the usual behaviour and the role scope learn from analysed
- * requests only. A request a web filter stops under the decision in force reaches no protected method; it is
- * recorded as the request it is.
+ * to it, once per request. It is not learned: the usual behaviour and the role scope learn from analysed requests.
+ * The one exception is a request a web filter stopped under a CHALLENGE and sent again after the user passed the
+ * step-up: sent again, it is the verified user's request with its own facts, so the first one is learned as the
+ * challenged request is (N-LRN-3). A request a web filter stops under the decision in force reaches no protected
+ * method; it is recorded as the request it is.
  */
 @Slf4j
 public class UnanalysedRequestRecorder {
@@ -44,6 +46,7 @@ public class UnanalysedRequestRecorder {
     private final ContextObservationRecorder recorder;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private VerificationLearningService verificationLearningService;
 
     public UnanalysedRequestRecorder(SessionNarrativeCollector sessionNarrativeCollector,
                                      ContextObservationRecorder recorder,
@@ -56,6 +59,14 @@ public class UnanalysedRequestRecorder {
     }
 
     /**
+     * Learns the first request sent again, after a passed step-up, of the requests a web filter stopped under the
+     * challenge (N-LRN-3).
+     */
+    public void setVerificationLearningService(VerificationLearningService verificationLearningService) {
+        this.verificationLearningService = verificationLearningService;
+    }
+
+    /**
      * Records the current request of an authenticated user that a web filter stopped under the action in force (a
      * stored CHALLENGE, BLOCK or ESCALATE): it reached no protected method and no analysis, yet the session made it.
      */
@@ -65,7 +76,13 @@ public class UnanalysedRequestRecorder {
             return;
         }
         try {
-            record(zeroTrustEventPublisher.buildRequestAuthorizationEvent(authentication, false, action.name()), action);
+            ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildRequestAuthorizationEvent(authentication, false,
+                    action.name());
+            record(event, action);
+            if (event != null && action == ZeroTrustAction.CHALLENGE && verificationLearningService != null) {
+                // N-LRN-3: the step-up the challenge asks for verifies this request too.
+                verificationLearningService.holdStopped(ZeroTrustSecurityEventConverter.convert(event));
+            }
         } catch (RuntimeException e) {
             log.error("Failed to record a request a filter stopped: userId={}", authentication.getName(), e);
         }
@@ -85,7 +102,13 @@ public class UnanalysedRequestRecorder {
                 return;
             }
             sessionNarrativeCollector.collect(securityEvent);
-            recorder.commit(securityEvent, action.name(), enforced(event));
+            boolean enforced = enforced(event);
+            recorder.commit(securityEvent, action.name(), enforced);
+            if (action == ZeroTrustAction.ALLOW && enforced && verificationLearningService != null) {
+                // N-LRN-3: the first request sent again, after the passed step-up, of those a filter stopped under the
+                // challenge is learned; any other request answered by the ALLOW in force is not.
+                verificationLearningService.learnResent(securityEvent);
+            }
         } catch (RuntimeException e) {
             log.error("Failed to record a request that was not analysed: userId={}", event.getUserId(), e);
         }

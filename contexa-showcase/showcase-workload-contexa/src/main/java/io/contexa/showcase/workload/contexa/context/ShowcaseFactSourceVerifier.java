@@ -44,22 +44,32 @@ public class ShowcaseFactSourceVerifier implements PromptFactSourceVerifier {
 
     @Override
     public List<SourceFact> sourceFacts(PromptInspectionSubject subject) {
+        return read(subject).facts();
+    }
+
+    /**
+     * N-SRC-2: a request user the work database does not hold has no records here (the run rows go when the run ends,
+     * RunRegistry.deleteRun), which is said as records not kept, not given as a source without facts; a database that
+     * cannot be read now still inspects the package again later.
+     */
+    @Override
+    public SourceReading read(PromptInspectionSubject subject) {
         CanonicalSecurityContext context = subject.canonicalContext();
         if (context == null || context.getActor() == null || context.getRequestObservedAt() == null) {
-            return List.of();
+            return SourceReading.kept(List.of());
         }
         String username = context.getActor().getUserId();
         Instant at = context.getRequestObservedAt();
         try {
             Optional<Principal> principal = principal(username);
             if (principal.isEmpty()) {
-                return List.of();
+                return SourceReading.notKept(SOURCE + "run_principal");
             }
             List<SourceFact> facts = new ArrayList<>();
             facts.add(onCall(principal.get(), at));
             project(context).ifPresent(project -> facts.add(assignment(principal.get(), project, at)));
             approvalKey(subject.prompt()).ifPresent(key -> facts.addAll(approval(principal.get(), key, at)));
-            return facts;
+            return SourceReading.kept(facts);
         } catch (DataAccessException e) {
             throw new PromptInspectionUnavailableException("the showcase work database cannot be read now", e);
         }

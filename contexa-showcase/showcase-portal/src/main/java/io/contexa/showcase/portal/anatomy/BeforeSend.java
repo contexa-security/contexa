@@ -52,8 +52,12 @@ public class BeforeSend {
     public record Usual(String label, List<String> values) {
     }
 
-    /** The labels of the core's adverse list that the business database's company records fill. */
-    static final Set<String> COMPANY_LABELS = Set.of("approvalrequired", "approvalmissing", "blockeduser");
+    /**
+     * The labels of the core's adverse list that the business database's company records fill; of a v20 decision also
+     * the stated policy PolicySatisfied does not state as met (N-DEP-2, {@link CoreAdverseLabels#SEALED_RULES}).
+     */
+    static final Set<String> COMPANY_LABELS = Set.of("approvalrequired", "approvalmissing", "blockeduser",
+            "policysatisfied");
 
     /**
      * @param runId          the run whose engine input is shown, named on the screen as the source
@@ -232,8 +236,11 @@ public class BeforeSend {
         // A text that states the minimum action rules states no elevated-risk boundary.
         Boundary boundary = rules != null ? null : boundary(prompt, juxtaposition.sensitivity(),
                 juxtaposition.departures().size(), juxtaposition.coreAdverseLabels());
+        // N-DEP-1: a v20 comparison names its usual from the BaselineView the engine sealed; a v19 one from its prompt.
+        Map<String, Usual> baseline = SealedDeviations.sealed(context.usualVsNow()) ? sealedUsual(context.usual())
+                : prompt == null ? Map.of() : usual(prompt);
         return Optional.of(new View(runId, stepNo, instant(startedAt), instant(companyTime), context.usualVsNow(),
-                prompt == null ? Map.of() : usual(prompt), juxtaposition.departures(),
+                baseline, juxtaposition.departures(),
                 juxtaposition.departures().size(), companyAdverse(juxtaposition.coreAdverseLabels()),
                 context.company(), juxtaposition.companyFacts(),
                 replayViews.storedStep(runId, stepNo).map(ReplayView.StepResult::companyFacts).orElse(List.of()),
@@ -313,6 +320,51 @@ public class BeforeSend {
     static List<CoreAdverseLabels.Reading> companyAdverse(List<CoreAdverseLabels.Reading> readings) {
         return readings == null ? List.of() : readings.stream()
                 .filter(reading -> reading.met() && COMPANY_LABELS.contains(reading.label())).toList();
+    }
+
+    /**
+     * N-DEP-1 (C-5): what the baseline held for each dimension of a v20 decision, from the BaselineView the engine
+     * sealed with it (the canonical context's workProfile baselineView, the computation its USER BASELINE lines are
+     * drawn from), by the anatomy's dimension names ({@link SealedDeviations#DIMENSIONS}): one value per item as the
+     * view keeps it, so the screen names each in plain words; of the resource classes (CLASS=count) the class, of the
+     * export size the largest export, of the request rate the median per active hour. Empty without a sealed view.
+     */
+    static Map<String, Usual> sealedUsual(Map<String, Object> workProfile) {
+        Map<String, Usual> usual = new LinkedHashMap<>();
+        if (workProfile == null || !(workProfile.get("baselineView") instanceof Map<?, ?> view)) {
+            return usual;
+        }
+        put(usual, "accessHour", "UsualHours", view.get("usualHours"));
+        put(usual, "dayOfWeek", "UsualDays", view.get("usualDays"));
+        put(usual, "network", "UsualNetworks", view.get("usualNetworks"));
+        put(usual, "device", "UsualDevices", view.get("usualDevices"));
+        put(usual, "authenticationType", "UsualLoginMethods", view.get("usualLoginMethods"));
+        put(usual, "target", "UsualTargets", view.get("usualTargets"));
+        put(usual, "actionFamily", "UsualActions",
+                view.get("actionCounts") instanceof Map<?, ?> actions ? List.copyOf(actions.keySet()) : null);
+        put(usual, "resourceFamily", "UsualResourceClass", view.get("resourceClasses") instanceof List<?> classes
+                ? classes.stream().map(String::valueOf).map(BeforeSend::className).toList() : null);
+        put(usual, "size", "UsualExportSize",
+                view.get("exportSize") instanceof Map<?, ?> size ? single(size.get("largestItems")) : null);
+        put(usual, "rate", "UsualRequestRate", view.get("counts") instanceof Map<?, ?> counts
+                && counts.get("rate") instanceof Map<?, ?> rate ? single(rate.get("median")) : null);
+        return usual;
+    }
+
+    private static void put(Map<String, Usual> usual, String dimension, String label, Object values) {
+        if (values instanceof List<?> list && !list.isEmpty()) {
+            usual.put(dimension, new Usual(label, list.stream().map(String::valueOf).toList()));
+        }
+    }
+
+    private static List<Object> single(Object value) {
+        return value == null ? null : List.of(value);
+    }
+
+    /** The class of a resource class count as the view writes it (NORMAL=24). */
+    private static String className(String entry) {
+        int equals = entry.indexOf('=');
+        return equals < 0 ? entry : entry.substring(0, equals);
     }
 
     /** What the baseline held for each compared dimension, read from the prompt lines; a missing line is left out. */

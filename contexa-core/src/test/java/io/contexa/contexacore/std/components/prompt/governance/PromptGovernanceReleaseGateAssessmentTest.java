@@ -152,6 +152,29 @@ class PromptGovernanceReleaseGateAssessmentTest {
         assertThat(evidence.tokenCountingPolicyDeclared()).isTrue();
     }
 
+    /**
+     * N-GOV-3: next to the covered and required counts, the evidence names the families the bundle requires (its
+     * manifest's, else the default families: this version's manifest declares none), the families the evaluation
+     * covered and the required ones it left uncovered.
+     */
+    @Test
+    void theEvidenceNamesTheRequiredCoveredAndUncoveredScenarioFamilies() {
+        records("CANARY", "another-bundle-hash", true);
+        when(evaluationRepository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(SCOPE, KEY,
+                VERSION)).thenReturn(Optional.of(PromptGovernanceEvaluationRecord.builder()
+                .evaluationReference("P6-GATE-1").evaluationState("PARTIAL").coveredScenarioCount(1)
+                .requiredScenarioCount(3).coveredScenarioFamiliesJson("[\"PROMPT_INJECTION\"]")
+                .bundleHash("another-bundle-hash").build()));
+
+        PromptGovernanceReleaseGateService.ReleaseGateEvidence evidence = service.assessPromptRelease(SCOPE, KEY,
+                VERSION).evidence();
+
+        assertThat(evidence.requiredScenarioFamilies())
+                .containsExactly("PROMPT_INJECTION", "TOOL_MISUSE", "MEMORY_POISONING");
+        assertThat(evidence.coveredScenarioFamilies()).containsExactly("PROMPT_INJECTION");
+        assertThat(evidence.uncoveredScenarioFamilies()).containsExactly("TOOL_MISUSE", "MEMORY_POISONING");
+    }
+
     @Test
     void aRetiredBundleHasNoNextState() {
         records("RETIRED", PromptBundleCatalog.shared().find(KEY, VERSION).orElseThrow().bundleHash(), true);

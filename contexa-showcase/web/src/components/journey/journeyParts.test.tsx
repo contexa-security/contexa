@@ -232,7 +232,7 @@ describe('source tag', () => {
     const box = screen.getByRole('group', { name: '이 값의 출처' });
     expect(box).toHaveTextContent('엔진 판정 기록');
     expect(box).toHaveTextContent('실행 run-a81f8672e2c2 · 요청 1');
-    expect(box).toHaveTextContent('기록 시각 2026-10-07 06:02:43 (UTC)');
+    expect(box).toHaveTextContent('기록 시각 2026-10-07 06:02:43(세계 표준시)');
     expect(box).toHaveTextContent('"riskScore": 0.6');
   });
 

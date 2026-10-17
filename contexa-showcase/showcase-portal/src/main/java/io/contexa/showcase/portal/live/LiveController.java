@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.contexa.showcase.portal.anatomy.BeforeSend;
 import io.contexa.showcase.portal.anatomy.CoreAdverseLabels;
+import io.contexa.showcase.portal.anatomy.SealedDeviations;
 import io.contexa.showcase.portal.combination.Combination;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.orchestrator.EngineDecision;
@@ -254,7 +255,8 @@ public class LiveController {
      * @param applied       BEFORE_RESPONSE or NEXT_REQUEST, as control D applies decisions of the operation
      * @param reason        the engine's reason, with the code of the contract's fixed sentence when it is one
      * @param adverseLabels the labels the core's response inspector reads as adverse evidence, read from the prompt
-     *                      control D sent ({@link CoreAdverseLabels}); empty when D no longer holds the call
+     *                      control D sent ({@link CoreAdverseLabels}); empty when D no longer holds the call; of a v20
+     *                      decision the conditions the facts it sealed state (N-DEP-2)
      */
     public record LiveDecision(String finalAction, String proposedAction, boolean unresolved, Double riskScore,
                                Double confidence, String applied, ReplayView.EngineReason reason,
@@ -335,10 +337,13 @@ public class LiveController {
         if (engine == null || engine.finalAction() == null) {
             return null;
         }
+        // N-DEP-2: a v20 decision's adverse conditions are read from the facts it sealed, not from its prompt's labels.
+        List<CoreAdverseLabels.Reading> sealed = CoreAdverseLabels.sealed(
+                SealedDeviations.metadata(engine.raw(), json));
         return new LiveDecision(engine.finalAction(), engine.proposedAction(), engine.unresolved(),
                 engine.riskScore(), engine.confidence(), engine.applied(), views.engineReason(engine),
-                adverseReadings(sent.requestId()), engine.totalAnalysisMs(), engine.modelCalls(),
-                engine.promptTokens(), engine.completionTokens());
+                sealed != null ? sealed : adverseReadings(sent.requestId()), engine.totalAnalysisMs(),
+                engine.modelCalls(), engine.promptTokens(), engine.completionTokens());
     }
 
     /** The inspector's reading of the last model call's prompt, as the anatomy reads the stored copy. */

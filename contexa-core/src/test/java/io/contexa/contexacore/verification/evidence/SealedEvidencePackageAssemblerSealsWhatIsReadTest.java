@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.verification.capture.SealedEvidencePromptTraceStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -111,6 +112,39 @@ class SealedEvidencePackageAssemblerSealsWhatIsReadTest {
                 .containsEntry("providerReasoningEffort", "low")
                 .containsEntry("providerResponseModel", "gpt-6-luna-2026-09-30")
                 .containsEntry("providerFinishReason", "stop");
+    }
+
+    /**
+     * N-OUT-3: the model output keeps every output retry of the decision in its order across the layers, next to the
+     * single retry fields that hold the last layer's; the model call stages stay as the event recorded them.
+     */
+    @Test
+    void theModelOutputKeepsEveryOutputRetryInItsOrder() throws Exception {
+        List<Map<String, Object>> retries = List.of(
+                Map.of("layer", "Layer1", "reason", "OUTPUT_TRUNCATED", "succeeded", false,
+                        "failureReason", "REASON_CODE_MISMATCH"),
+                Map.of("layer", "Layer2", "reason", "REASON_CODE_MISMATCH", "succeeded", false,
+                        "failureReason", "REASON_CODE_MISMATCH"));
+        List<Map<String, Object>> stages = List.of(Map.of("layer", "Layer1", "userPromptHash", "sha256:first"),
+                Map.of("layer", "Layer2", "userPromptHash", "sha256:first"));
+        Map<String, Object> eventMetadata = new HashMap<>();
+        eventMetadata.put("securityDecisionOutputRetryAttempted", true);
+        eventMetadata.put("securityDecisionOutputRetryReason", "REASON_CODE_MISMATCH");
+        eventMetadata.put("securityDecisionOutputRetrySucceeded", false);
+        eventMetadata.put(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+        eventMetadata.put("modelCallStages", stages);
+
+        SealedEvidencePackage sealed = seal("req-n-out-3", "user prompt", Map.of(), List.of(), eventMetadata);
+
+        Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), MAP);
+        assertThat(decision.get("modelOutput")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> modelOutput = (Map<String, Object>) decision.get("modelOutput");
+        assertThat(modelOutput)
+                .containsEntry(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries)
+                .containsEntry("securityDecisionOutputRetryReason", "REASON_CODE_MISMATCH")
+                .containsEntry("securityDecisionOutputRetrySucceeded", false);
+        assertThat(decision.get("modelCallStages")).isEqualTo(stages);
     }
 
     @Test

@@ -179,8 +179,10 @@ class ControlDContractTest {
     @Test
     void noSharedAccountCanSignInAfterStart() {
         assertThat(sharedAccounts.usableSharedAccounts()).isEmpty();
-        assertThat(engineDatabase.queryForObject("select count(*) from users where username = 'admin' and not enabled "
-                + "and account_locked", Integer.class)).isEqualTo(1);
+        // Q-32: a new database holds no sample account (the account seed is off by default); an older one keeps the
+        // rows the guard disabled and locked.
+        assertThat(engineDatabase.queryForObject("select count(*) from users where username = 'admin' and (enabled "
+                + "or not account_locked)", Integer.class)).isZero();
     }
 
     /** Forced decisions exist only on a development stack that sets the flag; visitors never see one. */

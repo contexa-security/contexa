@@ -39,7 +39,8 @@ public class AiSecurityDecisionObservationWriter {
 
     /** Why the provider gave no decision, as the orchestrator names it; kept as the failure type. */
     private static final Set<String> PROVIDER_ANSWER_FAILURES =
-            Set.of("OUTPUT_TRUNCATED", "PROVIDER_REFUSAL", "PROVIDER_OVERLOADED", "PROVIDER_REQUEST_REJECTED");
+            Set.of("OUTPUT_TRUNCATED", "PROVIDER_REFUSAL", "PROVIDER_OVERLOADED", "PROVIDER_RATE_LIMITED",
+                    "PROVIDER_REQUEST_REJECTED");
     private static final String LEGACY_TRIGGER_SOURCE_NOT_APPLICABLE = "UNKNOWN";
     private static final String LEGACY_TRIGGER_RELATION_NOT_APPLICABLE = "NOT_APPLICABLE";
     private static final String LEGACY_OUTCOME_NOT_APPLICABLE = "NOT_APPLICABLE";

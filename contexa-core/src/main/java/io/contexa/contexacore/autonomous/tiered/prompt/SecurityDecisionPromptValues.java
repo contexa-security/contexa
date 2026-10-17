@@ -82,6 +82,8 @@ final class SecurityDecisionPromptValues {
     private static final PromptBlock PAST = PromptBlock.PAST_RECORDS;
     private static final PromptBlock UNKNOWN = PromptBlock.UNKNOWN;
     private static final PromptBlock UNTRUSTED = PromptBlock.UNTRUSTED_TEXT;
+    /** What the target line says of the business label: where its text is (N-INJ-3, shared with the dictionary). */
+    static final String TARGET_LABEL_NOTE = "business label in UNTRUSTED TEXT";
     /** A time of the event clock ({@code 03:17}) or a compared hour ({@code time 03 }) in a decision fact. */
     private static final Pattern ON_THE_CLOCK = Pattern.compile("\\b\\d{2}:\\d{2}\\b|\\btime \\d{2} ");
 
@@ -101,6 +103,11 @@ final class SecurityDecisionPromptValues {
         pastRecords(sections, context, evidence, values);
         unknown(canonical, evidence != null ? evidence.baselineView() : null, values);
         untrustedText(sections, context, canonical, values);
+        // N-INS-2 (R1b): the entries without a source are named unknown by the rule the inspector reads them with.
+        for (String key : withoutSource(canonical)) {
+            int dot = key.indexOf('.');
+            values.unknown(PromptBlock.valueOf(key.substring(0, dot)), key.substring(dot + 1));
+        }
         return values.build();
     }
 
@@ -154,10 +161,8 @@ final class SecurityDecisionPromptValues {
                     narrative.getSessionAgeBasis()));
         }
         values.value(SESSION, "LoginMethod", loginMethod(context, canonical, session, at));
-        if (session == null) {
-            values.unknown(SESSION, "ChallengeVerified");
-        }
-        else {
+        // Without a session the challenge is named unknown by withoutSource (N-INS-2).
+        if (session != null) {
             Instant verified = parseInstant(session.getChallengeVerifiedAt());
             if (verified != null) {
                 clockedValue(values, SESSION, "ChallengeVerified", challengeVerified(verified, at, zone));
@@ -171,10 +176,8 @@ final class SecurityDecisionPromptValues {
             values.value(SESSION, "ConcurrentSessions", concurrentSessions(session));
             values.value(SESSION, "PasswordAge", passwordAge(session));
         }
-        if (narrative == null || narrative.getSessionDecisions() == null) {
-            values.unknown(SESSION, "RequestsInSession");
-        }
-        else {
+        // Without the session's decision history its requests are named unknown by withoutSource (N-INS-2).
+        if (narrative != null && narrative.getSessionDecisions() != null) {
             values.value(SESSION, "RequestsInSession",
                     requestsInSession(narrative.getSessionDecisions(), currentTarget(canonical), at, zone));
             if (narrative.getSessionDecisions().stream().anyMatch(decision -> decision != null && decision.at() != null)) {
@@ -200,13 +203,8 @@ final class SecurityDecisionPromptValues {
             clockedValue(values, REQUEST, "Time", requestClock(at, zone));
         }
         values.value(REQUEST, "Action", action(context.getEvent(), resource, current));
-        String target = target(resource);
-        if (target != null) {
-            values.value(REQUEST, "Target", target);
-        }
-        else {
-            values.unknown(REQUEST, "Target");
-        }
+        // Without a target the line is named unknown by withoutSource (N-INS-2).
+        values.value(REQUEST, "Target", target(resource));
         values.value(REQUEST, "Size", requestedSize(resource != null ? resource.getRequestedItems() : null));
         values.value(REQUEST, "ResourceClass", resourceClass(resource));
         values.value(REQUEST, "Network", network(session, canonical != null ? canonical.getLocation() : null, current));
@@ -216,12 +214,8 @@ final class SecurityDecisionPromptValues {
     private static void decisionFacts(SecurityDecisionPromptSections sections, SecurityPromptBuildContext context,
                                       CanonicalSecurityContext canonical, PromptEntryValues.Builder values) {
         DecisionFacts facts = canonical != null ? canonical.getDecisionFacts() : null;
-        if (facts == null) {
-            // Without the computation, the missing notations ('0 of 8 compared', 'first') would claim facts.
-            values.unknown(FACTS, "DeviationsFromBaseline");
-            values.unknown(FACTS, "RepeatInSession");
-        }
-        else {
+        // Without the computation the repeat and the differences are named unknown by withoutSource (N-INS-2).
+        if (facts != null) {
             for (DecisionFact fact : facts.facts()) {
                 if (has(FACTS, fact.name())) {
                     values.value(FACTS, fact.name(), fact.value());
@@ -276,6 +270,10 @@ final class SecurityDecisionPromptValues {
         List<PromptListItem> items = new ArrayList<>();
         addUntrusted(items, UntrustedTextSources.DOCUMENT_DESCRIPTION,
                 canonical != null && canonical.getResource() != null ? canonical.getResource().getAuthorText() : null, limit);
+        // N-INJ-3: the target's business label is the host's free text (a document title, an export's description).
+        addUntrusted(items, UntrustedTextSources.BUSINESS_LABEL,
+                canonical != null && canonical.getResource() != null ? canonical.getResource().getBusinessLabel() : null,
+                limit);
         addUntrusted(items, UntrustedTextSources.REQUEST_BODY, sections.decodedPayload(context.getEvent()), limit);
         for (String text : sections.outsideThreatKnowledgeTexts(context.getBehaviorAnalysis())) {
             addUntrusted(items, UntrustedTextSources.THREAT_KNOWLEDGE, text, limit);
@@ -357,16 +355,15 @@ final class SecurityDecisionPromptValues {
                                     LearningContextEvidence evidence, PromptEntryValues.Builder values) {
         SecurityDecisionPromptSections.RagState rag = sections.ragState(context);
         values.value(PAST, "PastRecordsState", pastRecordsState(rag));
-        String state = firstText(rag.retrievalState(), "UNKNOWN");
-        boolean notRetrieved = !rag.searchExecuted() || PastRecordLineValues.NOT_RETRIEVED_STATES.contains(state.toUpperCase(Locale.ROOT));
+        String notRetrievedReason = notRetrievedReason(rag);
+        boolean notRetrieved = notRetrievedReason != null;
         // W3-18: the counted facts of the exact lookup; without a lookup that counted them, their name is unknown now.
         String counts = sections.pastRecordCountsLine(context);
         if (counts != null) {
             values.value(PAST, "PastRecordCounts", counts);
         }
         else {
-            values.unknown(PAST, "PastRecordCounts", PromptUnknownKind.UNAVAILABLE_NOW,
-                    notRetrieved ? "not retrieved, " + state : "not counted");
+            values.unknown(PAST, "PastRecordCounts", PromptUnknownKind.UNAVAILABLE_NOW, countsUnknownReason(rag));
         }
         List<PromptListItem> records = sections.pastRecordItems(context);
         values.lines(PAST, "PastRecord{i}", records);
@@ -375,7 +372,7 @@ final class SecurityDecisionPromptValues {
         }
         // Dictionary 1.4: the search exists but did not give the records this time (unavailable now).
         if (notRetrieved) {
-            values.unknown(PAST, "PastRecord{i}", PromptUnknownKind.UNAVAILABLE_NOW, "not retrieved, " + state);
+            values.unknown(PAST, "PastRecord{i}", PromptUnknownKind.UNAVAILABLE_NOW, notRetrievedReason);
         }
         // W5-4 (Q-57 decision 4): the user's recent decisions that did not allow, facts only; without any the line
         // is left out.
@@ -400,6 +397,35 @@ final class SecurityDecisionPromptValues {
         if (coverage != null) {
             values.value(UNKNOWN, "Coverage", coverage);
         }
+    }
+
+    /**
+     * The entries the render names unknown for want of a source, though the dictionary draws them with a missing text
+     * without a value, as {@code BLOCK.Entry} keys: their missing text would claim a fact the context cannot give (P3
+     * review 169). The challenge without a session, the session's requests without its decision history, the target
+     * without a resource whose request path or business label names one, and without the decision facts' computation
+     * the repeat with the differences (which have no missing text since N-DIC-1); without a context, all of them.
+     * N-INS-2 (R1b): the render marks them by this rule and the inspector reads their UNKNOWN names by it on the
+     * sealed context.
+     */
+    static List<String> withoutSource(CanonicalSecurityContext canonical) {
+        List<String> keys = new ArrayList<>();
+        CanonicalSecurityContext.SessionNarrativeProfile narrative =
+                canonical != null ? canonical.getSessionNarrativeProfile() : null;
+        if (canonical == null || canonical.getSession() == null) {
+            keys.add(SESSION.name() + ".ChallengeVerified");
+        }
+        if (narrative == null || narrative.getSessionDecisions() == null) {
+            keys.add(SESSION.name() + ".RequestsInSession");
+        }
+        if (target(canonical != null ? canonical.getResource() : null) == null) {
+            keys.add(REQUEST.name() + ".Target");
+        }
+        if (canonical == null || canonical.getDecisionFacts() == null) {
+            keys.add(FACTS.name() + ".DeviationsFromBaseline");
+            keys.add(FACTS.name() + ".RepeatInSession");
+        }
+        return List.copyOf(keys);
     }
 
     /**
@@ -728,14 +754,13 @@ final class SecurityDecisionPromptValues {
         }
         BaselineView.Rate rate = view.counts() != null ? view.counts().rate() : null;
         if (rate != null) {
-            // W5-10 D5: the definition the decision facts compare the request's rate with.
-            lines.put("UsualRequestRate", "median " + rate.median() + ", 95th percentile " + rate.p95() + " "
-                    + BaselineView.REQUEST_RATE_UNIT + " (" + rate.activeHours()
-                    + (rate.activeHours() == 1 ? " active hour)" : " active hours)"));
-        }
-        else if (view.requestsPerActiveHour() != null) {
-            lines.put("UsualRequestRate",
-                    String.format(Locale.ROOT, "%.2f", view.requestsPerActiveHour()) + " " + BaselineView.REQUEST_RATE_UNIT);
+            // W5-10 D5, N-RATE-1: the definition the decision facts compare the request's rate with: each request's
+            // count of the 60 minutes up to it, with how many requests were counted. A view without a usual rate of
+            // this definition draws no line, so the dictionary's missing notation stands; the mean of the active clock
+            // hours (requestsPerActiveHour) is another definition and is not drawn beside the request's rate.
+            lines.put("UsualRequestRate", "median " + rate.median() + ", 95th percentile " + rate.p95() + " requests "
+                    + BaselineView.Rate.WINDOW + " (" + rate.requests()
+                    + (rate.requests() == 1 ? " request)" : " requests)"));
         }
         if (view.usualSessionMinutes() != null) {
             lines.put("UsualSessionLength", view.usualSessionMinutes() + " min");
@@ -1267,7 +1292,7 @@ final class SecurityDecisionPromptValues {
             return null;
         }
         String binding = BaselineViewCalculator.target(resource.getPathFamily(), resource.getRequestPath());
-        String label = StringUtils.hasText(resource.getBusinessLabel()) ? resource.getBusinessLabel().trim() : null;
+        String label = targetLabel(resource);
         String category = StringUtils.hasText(resource.getResourceCategory()) ? resource.getResourceCategory().trim() : null;
         if (binding == null && label == null) {
             return null;
@@ -1280,6 +1305,15 @@ final class SecurityDecisionPromptValues {
             value.append(", category ").append(category);
         }
         return value.toString();
+    }
+
+    /**
+     * Where the target's business label is ({@code business label in UNTRUSTED TEXT}), or null without a label. The
+     * label is the host's free text (a document title, an export's description): it is drawn once, as an untrusted
+     * text (N-INJ-3). R1b-2: shared with the inspector.
+     */
+    static String targetLabel(CanonicalSecurityContext.Resource resource) {
+        return resource != null && StringUtils.hasText(resource.getBusinessLabel()) ? TARGET_LABEL_NOTE : null;
     }
 
     /**
@@ -1542,6 +1576,23 @@ final class SecurityDecisionPromptValues {
      * The state of the request's past record search; after an earlier search on the request timed out, it says that this
      * was the second search and how the first ended (N-MISS-1 D8).
      */
+    /**
+     * The reason the render names the past records unknown now with when the search did not finish or did not run
+     * ({@code not retrieved, TIMEOUT}), else null (dictionary 1.4). N-INS-4: shared with the inspector.
+     */
+    static String notRetrievedReason(SecurityDecisionPromptSections.RagState rag) {
+        String state = firstText(rag.retrievalState(), "UNKNOWN");
+        boolean notRetrieved = !rag.searchExecuted()
+                || PastRecordLineValues.NOT_RETRIEVED_STATES.contains(state.toUpperCase(Locale.ROOT));
+        return notRetrieved ? PastRecordLineValues.NOT_RETRIEVED + ", " + state : null;
+    }
+
+    /** The reason the render names the counted facts unknown with when it draws no counts line (N-INS-4: shared). */
+    static String countsUnknownReason(SecurityDecisionPromptSections.RagState rag) {
+        String notRetrieved = notRetrievedReason(rag);
+        return notRetrieved != null ? notRetrieved : "not counted";
+    }
+
     static String pastRecordsState(SecurityDecisionPromptSections.RagState rag) {
         String state = searchState(rag);
         return StringUtils.hasText(rag.earlierRetrievalState())

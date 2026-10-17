@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.inspection.PastRecordNotationCheck;
 import io.contexa.contexacore.verification.inspection.PromptInspectionCheckResult;
@@ -10,7 +11,9 @@ import io.contexa.contexacore.verification.inspection.PromptInspector;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -86,6 +89,31 @@ class PromptInspectionPastRecordSourceTest {
         assertThat(found.get(0).outcome()).isEqualTo(PromptInspectionOutcome.MISMATCH);
         assertThat(found.get(0).entry()).isEqualTo("PastRecordsState");
         assertThat(found.get(0).expected()).isEqualTo(InspectionGolden.bare(state).substring("PastRecordsState: ".length()));
+        assertThat(found.get(0).actual()).isEqualTo("none found (ZERO_RESULTS)");
+    }
+
+    /**
+     * N-INS-4: the state line needs only the retrieval state the render kept, so a package sealed before the event
+     * clock was kept still has its state line compared (its record lines cannot be timed).
+     */
+    @Test
+    void aStateLineIsComparedWithoutTheEventClock() {
+        InspectionGolden.Render render = withRecords();
+        Map<String, Object> withoutClock = new LinkedHashMap<>(render.executionMetadata());
+        assertThat(withoutClock.remove(PromptExecutionMetadata.EVENT_TIME_ZONE)).isNotNull();
+        InspectionGolden.Render unclocked = new InspectionGolden.Render(render.caseKey(), render.profile(),
+                render.systemPrompt(), render.userPrompt(), render.used(), withoutClock, render.ragResultsJson(),
+                render.requestFactsJson());
+        String state = Arrays.stream(unclocked.userPrompt().split("\n"))
+                .filter(line -> InspectionGolden.bare(line).startsWith("PastRecordsState: ")).findFirst().orElseThrow();
+        String broken = unclocked.userPrompt().replace(state + "\n",
+                InspectionGolden.factIdOf(state) + "PastRecordsState: none found (ZERO_RESULTS)\n");
+
+        List<PromptInspectionFinding> found = check(unclocked.sealed(broken)).findings().stream()
+                .filter(finding -> "executionMetadata.promptRagState".equals(finding.sourceRef())).toList();
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).outcome()).isEqualTo(PromptInspectionOutcome.MISMATCH);
+        assertThat(found.get(0).entry()).isEqualTo("PastRecordsState");
         assertThat(found.get(0).actual()).isEqualTo("none found (ZERO_RESULTS)");
     }
 

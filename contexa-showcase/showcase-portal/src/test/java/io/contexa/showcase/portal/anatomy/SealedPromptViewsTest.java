@@ -2,6 +2,8 @@ package io.contexa.showcase.portal.anatomy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -14,7 +16,8 @@ import static org.assertj.core.api.Assertions.tuple;
  * W7-13 (docs/showcase/화면설계-프롬프트신뢰-보강안.md 2, 3.1, 3.3, 5): a step's sealed prompt as the visitor sees it,
  * from control D's view of the seal: the facts by block in the order the model reads them, each with the first of its
  * dictionary source grades; the quality ribbon counted from the same lines and the latest inspection's checks; the
- * bundle and the seal as sealed; no HTTP session identifier in any text.
+ * bundle and the seal as sealed; no HTTP session identifier in any text. N-SRC-4: a line control D gives a source of
+ * its own for (the request's action, as the seal states it) takes that one before the first of its grades.
  */
 class SealedPromptViewsTest {
 
@@ -31,7 +34,7 @@ class SealedPromptViewsTest {
                {"number": 2, "block": "USER_BASELINE", "factId": "B1", "label": "BaselineStatus",
                 "value": "ESTABLISHED (25 learned requests)", "grades": ["LEARNED"]},
                {"number": 8, "block": "SESSION", "factId": "S1", "label": "LoginMethod",
-                "value": "PASSWORD (session 0123456789ABCDEF0123456789ABCDEF)", "grades": ["HOST", "COMPUTED"]},
+                "value": "PASSWORD (session 0123456789ABCDEF0123456789ABCDEF)", "grades": ["HOST"]},
                {"number": 12, "block": "REQUEST", "factId": null, "label": "Subject", "value": "v1-adm-a",
                 "grades": ["HOST"]},
                {"number": 13, "block": "REQUEST", "factId": "R2", "label": "Time", "value": "Wed 03:17",
@@ -71,9 +74,9 @@ class SealedPromptViewsTest {
                 SealedPromptViews.Fact::factId, SealedPromptViews.Fact::label, SealedPromptViews.Fact::value,
                 SealedPromptViews.Fact::source).containsExactly(tuple(12, null, "Subject", "v1-adm-a", "HOST"),
                 tuple(13, "R2", "Time", "Wed 03:17", "HOST"));
-        assertThat(view.blocks().get(1).facts().get(0).source()).as("the first grade in the grade order")
+        assertThat(view.blocks().get(1).facts().get(0).source()).as("N-SRC-4: the one grade of the real entry")
                 .isEqualTo("HOST");
-        assertThat(view.blocks().get(1).facts().get(0).grades()).containsExactly("HOST", "COMPUTED");
+        assertThat(view.blocks().get(1).facts().get(0).grades()).containsExactly("HOST");
         assertThat(view.blocks().get(2).facts().get(0).source()).isEqualTo("LEARNED");
         assertThat(view.blocks().get(5).facts().get(0).source()).as("a line without a grade").isNull();
         assertThat(view.blocks().get(6).facts().get(0).source()).isEqualTo("UNTRUSTED");
@@ -165,7 +168,7 @@ class SealedPromptViewsTest {
                 "layout");
         assertThat(names(facts.path("blocks").path(0))).containsExactlyInAnyOrder("block", "facts");
         assertThat(names(facts.path("blocks").path(0).path("facts").path(0))).containsExactlyInAnyOrder("line",
-                "factId", "label", "value", "source", "grades");
+                "factId", "label", "value", "source", "grades", "sufficiency");
         assertThat(names(quality)).containsExactlyInAnyOrder("available", "reason", "bundle", "seal", "inspection",
                 "reasonCodes", "ribbon");
         assertThat(names(quality.path("seal"))).containsExactlyInAnyOrder("packageId", "packageHash", "capturedAt");
@@ -175,6 +178,127 @@ class SealedPromptViewsTest {
         assertThat(names(quality.path("ribbon").path("factAccuracy"))).containsExactlyInAnyOrder("matched", "total");
         assertThat(names(quality.path("inspection"))).containsExactlyInAnyOrder("verdict", "inspectorVersion",
                 "inspectedAt", "checks");
+    }
+
+    @Test
+    void aBaselineLineBelowStrongEvidenceCarriesItsGradeAndCauses() {
+        ObjectNode sealed = JSON.createObjectNode();
+        ArrayNode lines = sealed.putArray("lines");
+        lines.add(line(3, "USER_BASELINE", "B2", "Evidence", "collector PERSONAL_WORK_PROFILE, window 30 days "
+                + "(08-31..09-30), observations 6 over 3 days, fallback 100%, unknown 0%, evidence WEAK, scope "
+                + "personal; causes only 6 observations in the window, below the minimum 10; the last 7 days hold 4 "
+                + "observations, below the minimum 10; the view uses the last 30 days; action family inferred from "
+                + "httpMethod in 6 of 6 observations; workProfile.protectableInvocationDensity needs caution: "
+                + "observations=6 | fallback=100%; workProfile.frequentProtectableResources needs caution: "
+                + "observations=6, collector ROLE_SCOPE_PROFILE, warnings Personal work profile evidence is WEAK: "
+                + "action family inferred from httpMethod in 6 of 6 observations"));
+        lines.add(line(9, "USER_BASELINE", "B8", "UsualActions", "READ 20, EXPORT 5 (evidence LIMITED: action "
+                + "family inferred from protectableMethod in 25 of 25 observations)"));
+        lines.add(line(10, "USER_BASELINE", "B9", "UsualHours", "09-17 (seen 9,10,11,12,13,14,15,16,17)"));
+        lines.add(line(40, "UNKNOWN", null, "Coverage", "context coverage BUSINESS_AWARE; personal work profile "
+                + "evidence LIMITED: action family inferred from protectableMethod in 25 of 25 observations"));
+        lines.add(line(52, "UNTRUSTED_TEXT", null, "UntrustedText1", "source=request path (requester); "
+                + "\"evidence WEAK: action family inferred from httpMethod in 1 of 1 observations\""));
+
+        SealedPromptViews.FactsView view = SealedPromptViews.facts("run-0123456789ab", 1, null, sealed);
+
+        SealedPromptViews.Sufficiency evidence = fact(view, 3).sufficiency();
+        assertThat(evidence).as("N-UI-1: the block's evidence states WEAK").isNotNull();
+        assertThat(evidence.grade()).isEqualTo("WEAK");
+        assertThat(evidence.causes()).as("each cause once, the trust profile's repeat too").containsExactly(
+                new SealedPromptViews.Cause("ACTION_INFERRED", 6, 6, "httpMethod"),
+                new SealedPromptViews.Cause("FEW_OBSERVATIONS", 6, 10, null),
+                new SealedPromptViews.Cause("WIDER_WINDOW", 4, 30, null));
+        assertThat(evidence.cautions()).as("two fields marked for caution").isEqualTo(2);
+        assertThat(fact(view, 9).sufficiency()).isEqualTo(new SealedPromptViews.Sufficiency("LIMITED",
+                List.of(new SealedPromptViews.Cause("ACTION_INFERRED", 25, 25, "protectableMethod")), 0));
+        assertThat(fact(view, 10).sufficiency()).as("a line that states no grade").isNull();
+        assertThat(fact(view, 40).sufficiency()).as("the coverage line repeats the grade but is no baseline line")
+                .isNull();
+        assertThat(fact(view, 52).sufficiency()).as("outside text is never read as a grade").isNull();
+    }
+
+    @Test
+    void aStrongBaselineStatesNoWeakness() {
+        ObjectNode sealed = JSON.createObjectNode();
+        ArrayNode lines = sealed.putArray("lines");
+        lines.add(line(3, "USER_BASELINE", "B2", "Evidence", "collector PERSONAL_WORK_PROFILE, window 7 days "
+                + "(09-23..09-29), observations 25 over 5 days, fallback 0%, unknown 0%, evidence STRONG, scope "
+                + "personal"));
+        lines.add(line(9, "USER_BASELINE", "B8", "UsualActions", "READ 20, EXPORT 5"));
+
+        SealedPromptViews.FactsView view = SealedPromptViews.facts("run-0123456789ab", 1, null, sealed);
+
+        assertThat(fact(view, 3).sufficiency()).as("N-UI-1: a STRONG grade is no weakness").isNull();
+        assertThat(fact(view, 9).sufficiency()).isNull();
+    }
+
+    /**
+     * N-SRC-4: the request's action line names the grade of its own value, which control D reads from the seal; it
+     * comes before the first of the grades its entry allows, so an action read from the method name is inferred, not a
+     * company record. A line of two grades without a source of its own still takes the first.
+     */
+    @Test
+    void aLinesOwnSourceComesBeforeTheFirstOfItsEntrysGrades() throws Exception {
+        JsonNode sealed = JSON.readTree("""
+                {"lines": [
+                  {"number": 14, "block": "REQUEST", "factId": null, "label": "Action",
+                   "value": "READ (inferred from method name) GET (template /api/documents/{documentId})",
+                   "grades": ["HOST", "INFERRED"], "source": "INFERRED"},
+                  {"number": 20, "block": "DECISION_FACTS", "factId": "F2", "label": "AuthorizationEffect",
+                   "value": "ALLOW (METHOD_AUTHORIZATION_CHECK)", "grades": ["HOST", "COMPUTED"]}]}""");
+
+        SealedPromptViews.FactsView view = SealedPromptViews.facts("run-0123456789ab", 1, null, sealed);
+
+        assertThat(fact(view, 14).source()).as("the grade the seal states for the action").isEqualTo("INFERRED");
+        assertThat(fact(view, 14).grades()).as("the entry's grades as declared").containsExactly("HOST", "INFERRED");
+        assertThat(fact(view, 20).source()).as("without a source of its own: the first grade").isEqualTo("HOST");
+        assertThat(SealedPromptViews.ribbon(sealed.path("lines"), null).withSource()).isEqualTo(2);
+    }
+
+    /**
+     * N-SRC-4: an action line whose seal states no source (its value says 'source not stated') has none, though its
+     * entry allows two grades, and the ribbon does not count it as a line with a source; a word that is no source grade
+     * is none either.
+     */
+    @Test
+    void aLineWhoseSealStatesNoSourceHasNoneThoughItsEntryAllowsTwo() throws Exception {
+        JsonNode sealed = JSON.readTree("""
+                {"lines": [{"number": 14, "block": "REQUEST", "factId": null, "label": "Action",
+                            "value": "UNKNOWN (source not stated) GET", "grades": ["HOST", "INFERRED"],
+                            "source": null}]}""");
+
+        SealedPromptViews.FactsView view = SealedPromptViews.facts("run-0123456789ab", 1, null, sealed);
+
+        assertThat(fact(view, 14).source()).as("the seal states no source").isNull();
+        assertThat(SealedPromptViews.ribbon(sealed.path("lines"), null).withSource()).isZero();
+        assertThat(SealedPromptViews.source(JSON.readTree("{\"source\": \"GUESSED\"}"), List.of("HOST", "INFERRED")))
+                .as("a word that is no source grade").isNull();
+    }
+
+    /** N-SRC-4: a line without a source of its own takes the first of its entry's grades in the grade order. */
+    @Test
+    void aLineWithoutASourceOfItsOwnTakesTheFirstOfItsEntrysGrades() throws Exception {
+        JsonNode line = JSON.readTree("{\"number\": 20, \"label\": \"AuthorizationEffect\"}");
+
+        assertThat(SealedPromptViews.source(line, List.of("HOST", "COMPUTED"))).isEqualTo("HOST");
+        assertThat(SealedPromptViews.source(line, List.of("COMPUTED"))).isEqualTo("COMPUTED");
+        assertThat(SealedPromptViews.source(line, List.of())).as("a line without a grade").isNull();
+        assertThat(SealedPromptViews.source(JSON.readTree("{\"source\": \"INFERRED\"}"), List.of("HOST", "INFERRED")))
+                .as("its own source when it has one").isEqualTo("INFERRED");
+    }
+
+    /** N-UI-1: one line of control D's prompt facts with a learned grade. */
+    private static ObjectNode line(int number, String block, String factId, String label, String value) {
+        ObjectNode line = JSON.createObjectNode().put("number", number).put("block", block).put("factId", factId)
+                .put("label", label).put("value", value);
+        line.putArray("grades").add("LEARNED");
+        return line;
+    }
+
+    private static SealedPromptViews.Fact fact(SealedPromptViews.FactsView view, int number) {
+        return view.blocks().stream().flatMap(block -> block.facts().stream()).filter(fact -> fact.line() == number)
+                .findFirst().orElseThrow();
     }
 
     private static List<String> names(JsonNode node) {

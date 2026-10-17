@@ -32,6 +32,15 @@ function StepCheck({ step }: { readonly step: DeltaStep }) {
       </p>
     );
   }
+  if (step.passed && step.sameAsBase) {
+    // N-DLV-7: the base run already had the changed value; one line says no line changing is right.
+    return (
+      <p className={styles.check} data-ok={step.passed}>
+        <Icon name="check" />
+        {t('labDelta.sameAsBase')}
+      </p>
+    );
+  }
   return (
     <>
       <p className={styles.check} data-ok={step.passed}>
@@ -65,7 +74,7 @@ function StepCheck({ step }: { readonly step: DeltaStep }) {
  * that line only, or a cross with the lines that changed though they were not expected to (C-22). A step the server
  * did not compare says so and is never shown as passed; a run without a delta says why. A passed step
  * whose condition the request's work does not look up says so in one line, the lines cell left with a dash
- * (N-DLV-4).
+ * (N-DLV-4); so does a passed step whose base run already had the value (N-DLV-7).
  */
 export function DeltaLines({ delta, verdict }: DeltaLinesProps) {
   const { t } = useTranslation();
@@ -111,7 +120,7 @@ export function DeltaLines({ delta, verdict }: DeltaLinesProps) {
                       </li>
                     ))}
                   </ul>
-                ) : step.passed && step.notLookedUp ? (
+                ) : step.passed && (step.notLookedUp || step.sameAsBase) ? (
                   <span className={styles.empty}>-</span>
                 ) : (
                   <span className={styles.empty}>{t('labDelta.none')}</span>

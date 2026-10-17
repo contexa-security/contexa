@@ -527,20 +527,42 @@ public final class BaselineViewCalculator {
                 new BaselineView.Counts(hourCounts, dayCounts, targetCounts,
                         activeHourCounts.values().stream().mapToInt(Integer::intValue).max().orElse(0),
                         dayObservations, networkCounts, deviceCounts, loginCounts, identityObservations,
-                        vocabularyNotComparable, Map.of(), rate(activeHourCounts.values())));
+                        vocabularyNotComparable, Map.of(), rate(requestsInTheHourUpTo(observations))));
     }
 
-    /** The requests of each active clock hour as their median and 95th percentile (nearest rank, W5-10 D5). */
-    private static BaselineView.Rate rate(Collection<Integer> perActiveHour) {
-        if (perActiveHour.isEmpty()) {
+    /**
+     * N-RATE-1: at each observation, the observations of the 60 minutes (event clock) up to it, that one included: the
+     * count the decision facts take of the request being judged (the user's requests less than 60 minutes before it,
+     * and itself), so the usual rate and the request's rate are one count.
+     */
+    private static List<Integer> requestsInTheHourUpTo(List<Observation> observations) {
+        long[] times = observations.stream().mapToLong(Observation::timestampMs).sorted().toArray();
+        List<Integer> counts = new ArrayList<>(times.length);
+        int first = 0;
+        int after = 0;
+        for (long time : times) {
+            while (time - times[first] >= HOUR_MS) {
+                first++;
+            }
+            while (after < times.length && times[after] <= time) {
+                after++;
+            }
+            counts.add(after - first);
+        }
+        return counts;
+    }
+
+    /** The counts as their median and 95th percentile (nearest rank, W5-10 D5), with how many there are. */
+    private static BaselineView.Rate rate(List<Integer> perRequest) {
+        if (perRequest.isEmpty()) {
             return null;
         }
-        List<Integer> sorted = perActiveHour.stream().sorted().toList();
-        int hours = sorted.size();
-        int median = hours % 2 == 1 ? sorted.get(hours / 2)
-                : (int) Math.round((sorted.get(hours / 2 - 1) + sorted.get(hours / 2)) / 2.0);
-        int p95 = sorted.get(Math.max(0, (int) Math.ceil(0.95 * hours) - 1));
-        return new BaselineView.Rate(hours, median, p95);
+        List<Integer> sorted = perRequest.stream().sorted().toList();
+        int requests = sorted.size();
+        int median = requests % 2 == 1 ? sorted.get(requests / 2)
+                : (int) Math.round((sorted.get(requests / 2 - 1) + sorted.get(requests / 2)) / 2.0);
+        int p95 = sorted.get(Math.max(0, (int) Math.ceil(0.95 * requests) - 1));
+        return new BaselineView.Rate(requests, median, p95);
     }
 
     /** A stored value read through the vocabulary table; null when none is stored. */

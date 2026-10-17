@@ -64,6 +64,11 @@ public class SecurityPlaneProperties {
         private long eventTimeoutMs = 180000L;
         private int maxDeferredRetries = 3;
         private int analysisStripes = 256;
+        /**
+         * How long past the analysis budget of a request (every attempt of {@code eventTimeoutMs}) the late writes of a
+         * deleted account are still told apart from those of a later account of the same name (Q-15).
+         */
+        private long deletedAccountFenceMarginMs = 60000L;
     }
 
     @Data

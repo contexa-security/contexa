@@ -12,9 +12,9 @@ import java.util.Map;
 
 /**
  * W7-14: the version screens' lists and defaults, kept in one place for the page controller, the API and the screen
- * scripts: the canonical states (decision 1, PV-14), the release status each state is requested as, the transitions
- * the screens offer as buttons, the gate blocker and rollback refusal codes they name, and the default period of the
- * behaviour comparison.
+ * scripts: the canonical states (decision 1, PV-14), which a transition is also requested by (N-GOV-4), the
+ * transitions the screens offer as buttons, the gate blocker and rollback refusal codes they name, and the default
+ * period of the behaviour comparison.
  */
 public final class PromptReleaseScreen {
 
@@ -29,7 +29,10 @@ public final class PromptReleaseScreen {
     public static final List<String> BLOCKERS = List.of("ILLEGAL_STATE_TRANSITION", "EVALUATION_NOT_FOR_BUNDLE_HASH",
             "CHANGE_LEDGER_MISSING", "MODEL_COMPATIBILITY_MISSING", "BUDGET_PROFILE_MISSING", "ROLLBACK_TARGET_MISSING",
             "PROMPT_INJECTION_GATE_FAILED", "NON_FUNCTIONAL_GATE_FAILED", "EMPIRICAL_EVAL_MISSING",
-            "TEVV_GATE_NOT_READY", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING", "COMPACTION_POLICY_MISSING");
+            "TEVV_GATE_NOT_READY", "TOKEN_COUNTING_POLICY_MISSING", "CACHE_POLICY_MISSING",
+            "COMPACTION_POLICY_MISSING",
+            // N-GOV-5: a deprecation needs another active release in the bundle's place.
+            "NO_OTHER_ACTIVE_RELEASE");
 
     /** The reasons a rollback or its approval is refused (PromptBundleRollbackService). */
     public static final List<String> REFUSALS = List.of("SOURCE_NOT_EXECUTING", "TARGET_NOT_IN_BUILD",
@@ -58,19 +61,14 @@ public final class PromptReleaseScreen {
     }
 
     /**
-     * What the screen scripts take from here, as one object. A transition is requested with the release status of
-     * its canonical state, read from the one table of {@link PromptBundleState}.
+     * What the screen scripts take from here, as one object. A transition is requested by its canonical state, which
+     * the transition API reads (N-GOV-4).
      */
     static Map<String, Object> scriptSettings() {
-        Map<String, String> releaseStatuses = new LinkedHashMap<>();
-        for (PromptBundleState state : PromptBundleState.values()) {
-            releaseStatuses.put(state.name(), state.releaseStatus().name());
-        }
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("states", STATES);
         settings.put("tones", TONES);
         settings.put("actions", ACTIONS);
-        settings.put("releaseStatuses", releaseStatuses);
         settings.put("blockers", BLOCKERS);
         settings.put("refusals", REFUSALS);
         settings.put("activeState", PromptBundleState.ACTIVE.name());

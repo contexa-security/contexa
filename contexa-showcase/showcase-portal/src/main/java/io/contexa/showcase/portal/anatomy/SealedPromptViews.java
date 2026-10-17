@@ -7,8 +7,12 @@ import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * W7-13 (docs/showcase/화면설계-프롬프트신뢰-보강안.md 2, 3.1 to 3.3, 5): what a visitor sees of the sealed prompt of a
@@ -16,7 +20,8 @@ import java.util.Map;
  * read line by line by the OSS prompt parser with each line's dictionary source grades, the bundle the seal names, the
  * sealed reason codes and the latest inspection). The facts come by block in the order the model reads them, each with
  * its source; the quality gives the bundle, the seal, the inspection as control D gives it and the ribbon's counts. The
- * screen counts nothing. HTTP session identifiers are masked in every text.
+ * screen counts nothing. HTTP session identifiers are masked in every text. N-SRC-4: a fact's source is the grade of
+ * its value: the action line's as control D reads it from the seal, any other line's the first of its entry's grades.
  */
 public final class SealedPromptViews {
 
@@ -32,6 +37,22 @@ public final class SealedPromptViews {
     /** The core inspector's check of one fact stated twice with two values (SameFactCheck.CODE). */
     static final String SAME_FACT = "SAME_FACT";
     private static final String SESSION_MASK = "<SESSION>";
+    /** N-SRC-4: the field of control D's line that names the grade of the line's own value. */
+    private static final String LINE_SOURCE = "source";
+    /** N-UI-1 (U1-5): the user baseline lines that state how sufficient their evidence is (dictionary 1.3, S-21). */
+    static final Set<String> SUFFICIENCY_LABELS = Set.of("Evidence", "UsualActions");
+    private static final String USER_BASELINE = "USER_BASELINE";
+    /** The first grade below STRONG a line states is the baseline view's (core BaselineView.EvidenceGrade). */
+    private static final Pattern GRADE = Pattern.compile("\\bevidence (LIMITED|WEAK)\\b");
+    /** The causes core BaselineViewCalculator writes for such a grade, each read by its words. */
+    private static final Pattern ACTION_INFERRED = Pattern.compile(
+            "action family inferred from (\\S+(?: \\S+){0,2}?) in (\\d{1,9}) of (\\d{1,9}) observations");
+    private static final Pattern FEW_OBSERVATIONS =
+            Pattern.compile("only (\\d{1,9}) observations in the window, below the minimum (\\d{1,9})");
+    private static final Pattern WIDER_WINDOW = Pattern.compile("the last \\d{1,9} days hold (\\d{1,9}) "
+            + "observations, below the minimum \\d{1,9}; the view uses the last (\\d{1,9}) days");
+    /** A work profile field the collector marks for caution (core DefaultProtectableWorkProfileCollector). */
+    private static final Pattern FIELD_CAUTION = Pattern.compile("(\\S+) needs caution: ");
 
     private SealedPromptViews() {
     }
@@ -43,11 +64,39 @@ public final class SealedPromptViews {
     /**
      * One entry line of the prompt.
      *
-     * @param line   the line's 1-based number in the user prompt
-     * @param source the first of the line's source grades in the grade order; null when the line has none
-     * @param grades every source grade the line's dictionary entry declares
+     * @param line        the line's 1-based number in the user prompt
+     * @param source      the grade of the line's value: its own source when control D gives one (N-SRC-4: the
+     *                    action line's, as the seal states it), else the first of the line's source grades in the
+     *                    grade order; null when it has none
+     * @param grades      every source grade the line's dictionary entry declares
+     * @param sufficiency N-UI-1: how sufficient the evidence behind a user baseline line is, when the line states a
+     *                    grade below STRONG; null otherwise
      */
-    public record Fact(int line, String factId, String label, String value, String source, List<String> grades) {
+    public record Fact(int line, String factId, String label, String value, String source, List<String> grades,
+                       Sufficiency sufficiency) {
+    }
+
+    /**
+     * N-UI-1 (design 2.1, U1-5): how sufficient the evidence behind a line is, as the line states it, for the grey
+     * line under its fact card.
+     *
+     * @param grade    the grade the baseline view gave below STRONG: LIMITED or WEAK
+     * @param causes   the causes the line names, by kind, each once
+     * @param cautions how many fields of the work profile the line marks for caution, each once
+     */
+    public record Sufficiency(String grade, List<Cause> causes, int cautions) {
+    }
+
+    /**
+     * One cause of a grade below STRONG, as core BaselineViewCalculator writes it.
+     *
+     * @param kind ACTION_INFERRED: {@code count} of {@code of} observations had their action family inferred from
+     *             {@code from}; FEW_OBSERVATIONS: {@code count} observations, below the minimum {@code of};
+     *             WIDER_WINDOW: the recent days held {@code count} observations, so the view read the last
+     *             {@code of} days
+     * @param from the source of the inference; null for the other kinds
+     */
+    public record Cause(String kind, int count, int of, String from) {
     }
 
     /** The entry lines of one block, in prompt order. */
@@ -144,7 +193,7 @@ public final class SealedPromptViews {
                 continue;
             }
             facts++;
-            if (source(grades(line)) != null) {
+            if (source(line, grades(line)) != null) {
                 withSource++;
             }
         }
@@ -173,6 +222,19 @@ public final class SealedPromptViews {
         return SOURCES.stream().filter(grades::contains).findFirst().orElse(null);
     }
 
+    /**
+     * N-SRC-4: the source grade of a line's value. A line control D gives a source of its own for (the request's
+     * action, whose entry allows two grades, as the seal states it) takes that one, none when it is null or no source
+     * grade; any other line takes the first of its entry's grades in the grade order.
+     */
+    static String source(JsonNode line, List<String> grades) {
+        if (line.has(LINE_SOURCE)) {
+            String own = text(line.path(LINE_SOURCE));
+            return own != null && SOURCES.contains(own) ? own : null;
+        }
+        return source(grades);
+    }
+
     private static void mask(JsonNode node) {
         if (node instanceof ObjectNode object) {
             List<String> names = new ArrayList<>();
@@ -199,8 +261,48 @@ public final class SealedPromptViews {
 
     private static Fact fact(JsonNode line) {
         List<String> grades = grades(line);
-        return new Fact(line.path("number").asInt(), text(line.path("factId")), text(line.path("label")),
-                masked(text(line.path("value"))), source(grades), grades);
+        String label = text(line.path("label"));
+        String value = masked(text(line.path("value")));
+        return new Fact(line.path("number").asInt(), text(line.path("factId")), label, value, source(line, grades),
+                grades, sufficiency(text(line.path("block")), label, value));
+    }
+
+    /**
+     * N-UI-1 (U1-5): the grade below STRONG a user baseline line states (the block's evidence or the usual actions,
+     * dictionary 1.3) and the causes it names; null for any other line, outside text above all, and for a line that
+     * states no such grade. A cause the line states twice (a trust profile repeating the view's) counts once; the
+     * fields marked for caution are counted, each once, not named.
+     */
+    static Sufficiency sufficiency(String block, String label, String value) {
+        if (!USER_BASELINE.equals(block) || label == null || value == null || !SUFFICIENCY_LABELS.contains(label)) {
+            return null;
+        }
+        Matcher grade = GRADE.matcher(value);
+        if (!grade.find()) {
+            return null;
+        }
+        Set<Cause> causes = new LinkedHashSet<>();
+        Matcher inferred = ACTION_INFERRED.matcher(value);
+        while (inferred.find()) {
+            causes.add(new Cause("ACTION_INFERRED", Integer.parseInt(inferred.group(2)),
+                    Integer.parseInt(inferred.group(3)), inferred.group(1)));
+        }
+        Matcher few = FEW_OBSERVATIONS.matcher(value);
+        while (few.find()) {
+            causes.add(new Cause("FEW_OBSERVATIONS", Integer.parseInt(few.group(1)), Integer.parseInt(few.group(2)),
+                    null));
+        }
+        Matcher wider = WIDER_WINDOW.matcher(value);
+        while (wider.find()) {
+            causes.add(new Cause("WIDER_WINDOW", Integer.parseInt(wider.group(1)), Integer.parseInt(wider.group(2)),
+                    null));
+        }
+        Set<String> cautions = new LinkedHashSet<>();
+        Matcher caution = FIELD_CAUTION.matcher(value);
+        while (caution.find()) {
+            cautions.add(caution.group(1));
+        }
+        return new Sufficiency(grade.group(1), List.copyOf(causes), cautions.size());
     }
 
     private static List<String> grades(JsonNode line) {

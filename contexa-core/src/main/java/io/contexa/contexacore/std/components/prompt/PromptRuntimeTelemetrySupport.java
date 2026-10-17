@@ -306,10 +306,26 @@ public final class PromptRuntimeTelemetrySupport {
     public static final String FIRST_PASS_USER_PROMPT = "firstPassUserPrompt";
 
     /**
+     * N-RSN-1: the event metadata key of the reason codes the first pass's model gave; a Layer2 second pass that keeps
+     * the first verdict without a model call keeps them (W3-9), and the cold path drops them once the analysis ends.
+     */
+    public static final String FIRST_PASS_REASON_CODES = "firstPassReasonCodes";
+
+    /**
      * W6-6: the event metadata key of the model call stages of a decision: one entry per layer that called the model,
      * kept when the next layer clears its telemetry.
      */
     public static final String MODEL_CALL_STAGES = "modelCallStages";
+
+    /**
+     * N-OUT-3: the key of a decision's output retries in the order they were asked: why each was asked, whether its
+     * answer kept the response contract and, when that answer did not, what it broke. A pipeline run lists its own; the
+     * event lists those of every layer, each naming its layer, and keeps them when the next layer clears its telemetry,
+     * as it keeps the model call stages, while the single retry fields still hold the last layer's retry only. The
+     * list travels on a path of its own, not through the record keys the forwarding mappers read, and the seal keeps
+     * it with the model output.
+     */
+    public static final String OUTPUT_RETRIES = "securityDecisionOutputRetries";
 
     /**
      * W6-6: adds the stage the layer just ran to the event's model call stages: the layer, the prompt hashes it sent
@@ -340,6 +356,49 @@ public final class PromptRuntimeTelemetrySupport {
         }
         stages.add(stage);
         eventMetadata.put(MODEL_CALL_STAGES, List.copyOf(stages));
+    }
+
+    /**
+     * N-OUT-3: adds the retries of the run a layer just finished to the event's retries, after those of the layers
+     * before it and in their order, each naming the layer; a run without a retry leaves them as they are.
+     */
+    public static void appendOutputRetries(Map<String, Object> eventMetadata, String layer, Object runRetries) {
+        if (eventMetadata == null || !(runRetries instanceof List<?> retries) || retries.isEmpty()) {
+            return;
+        }
+        List<Object> all = new ArrayList<>();
+        if (eventMetadata.get(OUTPUT_RETRIES) instanceof List<?> earlier) {
+            all.addAll(earlier);
+        }
+        for (Object retry : retries) {
+            if (retry instanceof Map<?, ?> entry) {
+                Map<String, Object> named = new LinkedHashMap<>();
+                named.put("layer", layer);
+                entry.forEach((key, value) -> named.putIfAbsent(String.valueOf(key), value));
+                all.add(named);
+            }
+        }
+        eventMetadata.put(OUTPUT_RETRIES, List.copyOf(all));
+    }
+
+    /**
+     * N-OUT-3: the run's retries with one more at the end: why it was asked, whether its answer kept the contract and,
+     * when that answer did not, what it broke (a retry whose call failed names nothing).
+     */
+    public static List<Object> withOutputRetry(Object runRetries, String reason, boolean succeeded,
+                                               String failureReason) {
+        List<Object> retries = new ArrayList<>();
+        if (runRetries instanceof List<?> earlier) {
+            retries.addAll(earlier);
+        }
+        Map<String, Object> retry = new LinkedHashMap<>();
+        retry.put("reason", reason);
+        retry.put("succeeded", succeeded);
+        if (failureReason != null) {
+            retry.put("failureReason", failureReason);
+        }
+        retries.add(retry);
+        return List.copyOf(retries);
     }
 
     private PromptRuntimeTelemetrySupport() {

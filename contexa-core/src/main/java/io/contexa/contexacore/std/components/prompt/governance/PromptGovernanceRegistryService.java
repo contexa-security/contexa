@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Transactional(transactionManager = "contexaTransactionManager")
 public class PromptGovernanceRegistryService {
@@ -65,7 +67,9 @@ public class PromptGovernanceRegistryService {
             record.setRegistryScope(safeRegistryScope);
             record.setPromptKey(descriptor.promptKey());
             record.setPromptVersion(descriptor.promptVersion());
-            record.setReleaseStatus(PromptBundleState.fromReleaseStatus(descriptor.releaseStatus()).name());
+            // N-GOV-6: a declared production release does not take the default selection from an active release of
+            // a bundle this build runs; beside one it enters AVAILABLE (the release gate activates bundles, N-GOV-5).
+            record.setReleaseStatus(firstReleaseStatus(safeRegistryScope, descriptor).name());
             record.setReleaseApprovalReference(descriptor.releaseApprovalReference());
             record.setEvaluationBaselineReference(descriptor.evaluationBaselineReference());
             record.setRollbackPromptVersion(descriptor.rollbackPromptVersion());
@@ -77,6 +81,31 @@ public class PromptGovernanceRegistryService {
         applyTimestamps(record, created);
         PromptGovernanceRegistryRecord saved = repository.save(record);
         return receipt(safeRegistryScope, saved, created);
+    }
+
+    /**
+     * N-GOV-6: the first release status of a new row, the declaration. A declared production release enters AVAILABLE
+     * when the scope already has an active release of the prompt that this build runs: the release gate activated it
+     * (and deprecated the one it replaced, N-GOV-5), and a code sync must not take the default selection from it. An
+     * active release of a bundle this build no longer runs (an earlier version of the build default) does not hold a
+     * new build default back, so the registry keeps selecting a bundle the build can run. Existing rows keep their
+     * state (PV-4).
+     */
+    private PromptBundleState firstReleaseStatus(String registryScope, PromptGovernanceDescriptor descriptor) {
+        PromptBundleState declared = PromptBundleState.fromReleaseStatus(descriptor.releaseStatus());
+        if (declared != PromptBundleState.ACTIVE) {
+            return declared;
+        }
+        Set<String> runnable = PLATFORM_STANDARD_DESCRIPTORS.stream()
+                .filter(standard -> standard.promptKey().equals(descriptor.promptKey()))
+                .map(PromptGovernanceDescriptor::promptVersion)
+                .collect(Collectors.toSet());
+        boolean runnableActive = repository.findByRegistryScopeAndPromptKeyOrderByUpdatedAtDesc(registryScope,
+                        descriptor.promptKey()).stream()
+                .filter(other -> !descriptor.promptVersion().equals(other.getPromptVersion()))
+                .anyMatch(other -> runnable.contains(other.getPromptVersion())
+                        && PromptBundleState.is(other.getReleaseStatus(), PromptBundleState.ACTIVE));
+        return runnableActive ? PromptBundleState.AVAILABLE : declared;
     }
 
     private PromptRegistrationReceipt receipt(String registryScope, PromptGovernanceRegistryRecord record, boolean created) {

@@ -272,6 +272,72 @@ class VerificationLearningServiceTest {
                 .containsOnly(PastDeniedDecisions.RELEASED_BY_ADMINISTRATOR);
     }
 
+    /**
+     * N-LRN-3: the request the filter stopped under the challenge is another request than the challenged one. The first
+     * one sent again after the step-up is learned from its own facts as the challenged request is; no other is.
+     */
+    @Test
+    void theFirstRequestSentAgainOfTheOnesTheFilterStoppedIsLearnedAtTheWeight() {
+        service.hold(event("request-1"), ZeroTrustAction.CHALLENGE);
+        service.holdStopped(stopped("POST", "/api/projects/PLM-OPS/exports"));
+        assertThat(service.learnResent(event("request-early"))).isFalse();
+
+        assertThat(service.learnStepUp("alice", "request-1")).isTrue();
+        SecurityEvent resent = event("request-2");
+        assertThat(service.learnResent(resent)).isTrue();
+        assertThat(service.learnResent(event("request-3"))).isFalse();
+
+        ArgumentCaptor<SecurityDecision> decision = ArgumentCaptor.forClass(SecurityDecision.class);
+        verify(learning).learnAndStore(eq("alice"), any(SecurityDecision.class), any(SecurityEvent.class));
+        verify(learning).learnVerifiedResend(eq("alice"), decision.capture(), eq(resent));
+        verifyNoMoreInteractions(learning);
+        assertThat(decision.getValue().resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(resent.getMetadata()).containsEntry("verifiedBy", "STEP_UP")
+                .containsEntry("verificationWeight", 0.5);
+        assertThat(store.getRecentWorkProfileObservations("tenant-acme", "alice", 10)).hasSize(2)
+                .allSatisfy(line -> assertThat(weightOf(line)).isEqualTo("0.5"));
+    }
+
+    /**
+     * N-LRN-3: a synchronous request the decision challenged did not run. The step-up learns it from its kept facts and
+     * the user sends it again itself, so a copy of it the filter stopped before the step-up is not learned twice;
+     * another request the filter stopped is.
+     */
+    @Test
+    void aSynchronousChallengedRequestIsNotLearnedTwiceWhenACopyOfItWasStopped() {
+        SecurityEvent challenged = event("request-sync");
+        challenged.addMetadata("protectableSync", true);
+        service.hold(challenged, ZeroTrustAction.CHALLENGE);
+        service.holdStopped(stopped("POST", "/api/projects/PLM-OPS/exports"));
+        service.holdStopped(stopped("GET", "/api/customers/CUS-0012"));
+
+        assertThat(service.learnStepUp("alice", "request-sync")).isTrue();
+        SecurityEvent read = event("request-read");
+        read.addMetadata("httpMethod", "GET");
+        read.addMetadata("requestPath", "/api/customers/CUS-0012");
+
+        assertThat(service.learnResent(event("request-sync-again"))).isFalse();
+        assertThat(service.learnResent(read)).isTrue();
+        verify(learning).learnAndStore(eq("alice"), any(SecurityDecision.class), any(SecurityEvent.class));
+        verify(learning).learnVerifiedResend(eq("alice"), any(SecurityDecision.class), eq(read));
+        verifyNoMoreInteractions(learning);
+    }
+
+    /** A request the web filter stopped under the challenge: its method and URI, without method facts. */
+    private static SecurityEvent stopped(String method, String uri) {
+        SecurityEvent event = SecurityEvent.builder()
+                .eventId("event-stopped-" + method)
+                .userId("alice")
+                .sessionId("session-0")
+                .timestamp(NIGHT)
+                .build();
+        event.addMetadata("requestId", "request-stopped-" + method);
+        event.addMetadata("httpMethod", method);
+        event.addMetadata("requestUri", uri);
+        event.addMetadata("granted", false);
+        return event;
+    }
+
     private static SecurityEvent event(String requestId) {
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("event-" + requestId)

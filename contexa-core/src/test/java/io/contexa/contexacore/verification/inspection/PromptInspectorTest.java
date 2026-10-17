@@ -49,8 +49,8 @@ class PromptInspectorTest {
      */
     @Test
     void theVersionIsTheOneOfTheCurrentChecks() {
-        // 19: a source fact the UNKNOWN line names is its missing notation (N-SRC-1).
-        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/19");
+        // 21: the past records' reasons are compared with the sealed search state (N-INS-4).
+        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/21");
     }
 
     /**

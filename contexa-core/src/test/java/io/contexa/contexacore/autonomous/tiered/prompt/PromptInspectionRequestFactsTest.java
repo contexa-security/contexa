@@ -94,23 +94,61 @@ class PromptInspectionRequestFactsTest {
         assertThat(finding.expected()).isEqualTo("POST");
     }
 
+    /**
+     * N-INJ-3: the target line names the business label only by where it is (its text is an UNTRUSTED TEXT line) and
+     * states the sealed category; a line that states the label's text, or a label the sealed resource lacks, is
+     * pointed at.
+     */
     @Test
     void theTargetLabelAndCategoryAreComparedWithTheSealedResource() {
-        InspectionGolden.Render render = base();
-        CanonicalSecurityContext context = copy(render.used());
-        CanonicalSecurityContext.Resource resource = resource(context);
-        resource.setBusinessLabel("Design exports");
-        resource.setResourceCategory("ENGINEERING_DATA");
+        InspectionGolden.Render render = InspectionGolden.renderWith(base(), context -> {
+            resource(context).setBusinessLabel("Design exports");
+            resource(context).setResourceCategory("ENGINEERING_DATA");
+        });
         String target = lineStarting(render.userPrompt(), "Target: ");
         String head = InspectionGolden.bare(target).substring("Target: ".length()).split(" \\(")[0].split(", category ")[0];
 
-        String kept = render.userPrompt().replace(target, InspectionGolden.factIdOf(target) + "Target: " + head + " (Design exports), category ENGINEERING_DATA");
-        assertThat(mismatches(check(kept, render, context))).isEmpty();
+        assertThat(InspectionGolden.bare(target))
+                .isEqualTo("Target: " + head + " (business label in UNTRUSTED TEXT), category ENGINEERING_DATA");
+        assertThat(mismatches(check(render.userPrompt(), render, render.used()))).isEmpty();
 
-        String broken = render.userPrompt().replace(target, InspectionGolden.factIdOf(target) + "Target: " + head + " (Payroll), category ENGINEERING_DATA");
-        PromptInspectionFinding finding = single(check(broken, render, context));
+        String broken = render.userPrompt().replace(target, InspectionGolden.factIdOf(target) + "Target: " + head + " (Design exports), category ENGINEERING_DATA");
+        PromptInspectionFinding finding = single(check(broken, render, render.used()));
         assertThat(finding.entry()).isEqualTo("Target");
         assertThat(finding.sourceRef()).isEqualTo("canonicalContext.resource.businessLabel");
+        assertThat(finding.expected()).isEqualTo("business label in UNTRUSTED TEXT");
+        assertThat(finding.actual()).isEqualTo("Design exports");
+
+        InspectionGolden.Render unlabelled = InspectionGolden.renderWith(base(), context -> {
+            resource(context).setBusinessLabel(null);
+            resource(context).setResourceCategory("ENGINEERING_DATA");
+        });
+        String drawn = lineStarting(unlabelled.userPrompt(), "Target: ");
+        String claimed = unlabelled.userPrompt().replace(drawn, InspectionGolden.factIdOf(drawn) + "Target: " + head
+                + " (business label in UNTRUSTED TEXT), category ENGINEERING_DATA");
+        PromptInspectionFinding claim = single(check(claimed, unlabelled, unlabelled.used()));
+        assertThat(claim.entry()).isEqualTo("Target");
+        assertThat(claim.sourceRef()).isEqualTo("canonicalContext.resource.businessLabel");
+    }
+
+    /**
+     * N-INJ-3 (R1b-2): the render draws the business label once, as an UNTRUSTED TEXT line trimmed as every untrusted
+     * text is, and the inspector finds that line the sealed label.
+     */
+    @Test
+    void theBusinessLabelIsDrawnOnceAsTheUntrustedTextTheInspectorExpects() {
+        InspectionGolden.Render render = InspectionGolden.renderWith(base(),
+                context -> resource(context).setBusinessLabel(" Design exports "));
+        List<String> drawn = Arrays.stream(render.userPrompt().split("\n")).map(InspectionGolden::bare)
+                .filter(line -> line.contains("Design exports")).toList();
+
+        assertThat(drawn).hasSize(1);
+        assertThat(drawn.get(0))
+                .matches("UntrustedText\\d+: source=business label \\(host text\\); \"Design exports\"");
+        String label = drawn.get(0).substring(0, drawn.get(0).indexOf(": "));
+        PromptInspectionResult result = INSPECTOR.inspect(render.sealed());
+        assertThat(result.checks().get(0).findings())
+                .filteredOn(finding -> label.equals(finding.entry()) || "Target".equals(finding.entry())).isEmpty();
     }
 
     @Test

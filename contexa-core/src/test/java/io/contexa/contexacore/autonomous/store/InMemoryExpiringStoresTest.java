@@ -64,6 +64,31 @@ class InMemoryExpiringStoresTest {
     }
 
     @Test
+    void stoppedRequestsLastAsLongAsTheChallengeAndTheirVerificationAsLongAsTheAllow() {
+        // N-LRN-3: a stopped request waits for the step-up while the challenge is in force (30 min); once verified it
+        // is sent again under the ALLOW the step-up writes (15 s).
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore(
+                Duration.ofHours(24), Duration.ofDays(7), Duration.ofDays(7), clock);
+        store.holdStoppedRequest("erin", "POST /api/exports");
+        store.holdStoppedRequest("frank", "POST /api/exports");
+        store.holdStoppedRequest("gina", "POST /api/exports");
+
+        clock.advance(Duration.ofMinutes(29));
+        store.verifyStoppedRequests("erin", null);
+        store.verifyStoppedRequests("frank", null);
+        assertThat(store.takeVerifiedStoppedRequest("erin", "POST /api/exports")).isTrue();
+
+        clock.advance(Duration.ofSeconds(16));
+        assertThat(store.takeVerifiedStoppedRequest("frank", "POST /api/exports")).isFalse();
+        clock.advance(Duration.ofMinutes(2));
+        store.verifyStoppedRequests("gina", null);
+        assertThat(store.takeVerifiedStoppedRequest("gina", "POST /api/exports")).isFalse();
+        store.removeExpiredEntries();
+        assertThat(store.holdsUserRecordsFor("frank")).isFalse();
+        assertThat(store.holdsUserRecordsFor("gina")).isFalse();
+    }
+
+    @Test
     void aFailingStoreDoesNotStopTheSweep() {
         AtomicInteger swept = new AtomicInteger();
         ExpiringStateStore failing = () -> {

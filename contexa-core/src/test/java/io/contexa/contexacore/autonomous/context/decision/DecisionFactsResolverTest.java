@@ -15,7 +15,9 @@
  */
 package io.contexa.contexacore.autonomous.context.decision;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.baseline.BaselineView;
+import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.ApprovalRecord;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext.CompanyPolicy;
@@ -75,7 +77,7 @@ class DecisionFactsResolverTest {
         assertThat(value(facts, "SameAsBaseline")).isEqualTo("day Wed seen 5 of 25; network 10.40.12.0/24 seen 25 of 25; "
                 + "device Chrome/140 on WINDOWS seen 25 of 25; login method PASSWORD seen 25 of 25; "
                 + "action EXPORT seen 5 of 25; rate 1 requests in the last 60 min of this session, "
-                + "usual median 1, 95th percentile 3 per active hour");
+                + "usual median 1, 95th percentile 3 in the 60 min up to a request");
         assertThat(value(facts, "Policy")).isEqualTo("EXPORT_APPROVAL requires a covering approval "
                 + "(exceptions: assigned target up to 500 items; ticket while on call)");
         assertThat(value(facts, "PolicySatisfied")).isEqualTo("no — no approval for GB-500");
@@ -398,7 +400,7 @@ class DecisionFactsResolverTest {
 
     @Test
     void repeatsOfTheSameActionAndTheRateOfTheLastHourAreCountedFromTheSession() {
-        // Case S11 second step: one export of 480 items a minute before; the busiest hour before held 3 requests.
+        // Case S11 second step: one export of 480 items a minute before; the usual 95th percentile is 3 requests.
         List<SessionDecisionRecord> session = new ArrayList<>();
         session.add(new SessionDecisionRecord(AT.minusSeconds(240), "GET", "/api/projects", null, "READ", "ALLOW"));
         session.add(new SessionDecisionRecord(AT.minusSeconds(180), "GET", "/api/projects", null, "READ", "ALLOW"));
@@ -417,13 +419,14 @@ class DecisionFactsResolverTest {
         assertThat(facts.fact("RepeatInSession").orElseThrow().codes()).containsExactly("REPEAT_IN_SESSION");
         assertThat(value(facts, "DeviationsFromBaseline"))
                 .contains("rate 5 requests in the last 60 min of this session, usual median 1, 95th percentile 3 "
-                        + "per active hour (unexplained)");
+                        + "in the 60 min up to a request (unexplained)");
     }
 
     @Test
-    void theRateIsTheUsersRequestsOfTheLastHourAgainstTheNinetyFifthPercentileOfTheActiveHours() {
-        // W5-10 D5: the user's requests in the last 60 minutes across the sessions the user holds, against the requests
-        // of each active clock hour of the window (median 1, 95th percentile 3); different above the 95th percentile.
+    void theRateIsTheUsersRequestsOfTheLastHourAgainstTheNinetyFifthPercentileOfTheHourUpToEachRequest() {
+        // W5-10 D5, N-RATE-1: the user's requests in the last 60 minutes across the sessions the user holds, against
+        // the same count taken at each request of the window (median 1, 95th percentile 3); different above the 95th
+        // percentile.
         CanonicalSecurityContext busy = export(4831, friction(List.of()));
         busy.getSessionNarrativeProfile().setUserRequestsLastHour(14);
         CanonicalSecurityContext usual = export(4831, friction(List.of()));
@@ -435,9 +438,62 @@ class DecisionFactsResolverTest {
                 "10.40.12.0/24"), personal(), adminView()), UTC);
 
         assertThat(value(busyFacts, "DeviationsFromBaseline")).contains("rate 14 requests in the last 60 min, "
-                + "usual median 1, 95th percentile 3 per active hour (unexplained)");
+                + "usual median 1, 95th percentile 3 in the 60 min up to a request (unexplained)");
         assertThat(value(usualFacts, "SameAsBaseline")).contains("rate 3 requests in the last 60 min, "
-                + "usual median 1, 95th percentile 3 per active hour");
+                + "usual median 1, 95th percentile 3 in the 60 min up to a request");
+    }
+
+    /**
+     * N-RATE-1, administrator A (seal 9134): reads at 11:25, 11:59 and 12:07 of 09-25, 42 minutes, and single reads
+     * hours apart. By clock hours the usual 95th percentile was 2, so 3 requests in the last 60 minutes were a
+     * difference nothing explained; counted as the request being judged is counted, the usual 95th percentile is 3.
+     */
+    @Test
+    void threeRequestsInTheLastHourAreAsUsualForAUserWhoMadeThreeWithinFortyTwoMinutes() {
+        List<BaselineViewCalculator.Observation> history = new ArrayList<>();
+        for (String time : List.of("2026-09-25T11:25:00Z", "2026-09-25T11:59:00Z", "2026-09-25T12:07:00Z")) {
+            history.add(adminRead(Instant.parse(time)));
+        }
+        for (int days = 1; days <= 5; days++) {
+            for (int hour = 14; hour <= 18; hour += 2) {
+                history.add(adminRead(AT.minus(Duration.ofDays(days)).atZone(UTC).withHour(hour).withMinute(0)
+                        .toInstant()));
+            }
+        }
+        BaselineView view = BaselineViewCalculator.calculate(history, AT.toEpochMilli(), UTC);
+        CanonicalSecurityContext context = export(4831, friction(List.of()));
+        context.getSessionNarrativeProfile().setUserRequestsLastHour(3);
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(context, evidence(current("CRITICAL", "Chrome/140",
+                "10.40.12.0/24"), personal(), view), UTC);
+
+        assertThat(value(facts, "SameAsBaseline")).contains("rate 3 requests in the last 60 min, "
+                + "usual median 1, 95th percentile 3 in the 60 min up to a request");
+        assertThat(facts.deviations()).filteredOn(deviation -> deviation.dimension() == DeviationDimension.RATE)
+                .singleElement().extracting(Deviation::different).isEqualTo(false);
+    }
+
+    /**
+     * N-RATE-1: a view sealed before holds a rate of clock hours ({"activeHours":21,...}). That is no usual rate of
+     * this definition, so the rate is not compared rather than set against a 95th percentile of clock hours.
+     */
+    @Test
+    void aRateSealedUnderTheClockHourDefinitionLeavesTheRateNotCompared() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        BaselineView admin = adminView();
+        String sealed = json.writeValueAsString(admin.counts()).replace("\"requests\":25", "\"activeHours\":21");
+        BaselineView view = withCounts(admin, json.readValue(sealed, BaselineView.Counts.class));
+        CanonicalSecurityContext context = export(4831, friction(List.of()));
+        context.getSessionNarrativeProfile().setUserRequestsLastHour(3);
+
+        DecisionFacts facts = DecisionFactsResolver.resolve(context, evidence(current("CRITICAL", "Chrome/140",
+                "10.40.12.0/24"), personal(), view), UTC);
+
+        assertThat(view.counts().rate()).isNull();
+        assertThat(value(facts, "DeviationsFromBaseline")).contains("not compared: rate (no usual rate in the view)");
+        assertThat(value(facts, "SameAsBaseline")).doesNotContain("rate ");
+        assertThat(facts.deviations()).filteredOn(deviation -> deviation.dimension() == DeviationDimension.RATE)
+                .singleElement().extracting(Deviation::compared).isEqualTo(false);
     }
 
     @Test
@@ -755,10 +811,28 @@ class DecisionFactsResolverTest {
                 new BaselineView.ExportSize(5, 17, 29), List.of("INTERNAL=25"), 1.19, null, 0, List.of(),
                 List.of("10.40.12.0/24"), List.of("Chrome/140 on WINDOWS"), List.of("Chrome/140"), List.of("WINDOWS"),
                 List.of("PASSWORD"), BaselineView.EvidenceGrade.STRONG, List.of(),
-                // 25 requests in 21 active clock hours: median 1, 95th percentile 3 (W5-10 D5).
+                // 25 requests, each counted with the requests of the 60 minutes up to it: median 1, 95th percentile 3
+                // (W5-10 D5, N-RATE-1).
                 new BaselineView.Counts(hours, days, Map.of("projectKey=PLM-OPS", 25), 3, 25,
                         Map.of("10.40.12.0/24", 25), Map.of("Chrome/140 on WINDOWS", 25), Map.of("PASSWORD", 25), 25, 0,
-                        Map.of(), new BaselineView.Rate(21, 1, 3)));
+                        Map.of(), new BaselineView.Rate(25, 1, 3)));
+    }
+
+    /** Administrator A's view with other counts, as a package sealed them. */
+    private static BaselineView withCounts(BaselineView admin, BaselineView.Counts counts) {
+        return new BaselineView(admin.state(), admin.learnedUpdates(), admin.observations(), admin.daysCovered(),
+                admin.windowDays(), admin.windowBasis(), admin.usualHours(), admin.seenHours(), admin.usualDays(),
+                admin.seenDays(), admin.usualTargets(), admin.actionCounts(), admin.readWriteExportRatio(),
+                admin.exportSize(), admin.resourceClasses(), admin.requestsPerActiveHour(), admin.usualSessionMinutes(),
+                admin.privilegedActions(), admin.knownRareTasks(), admin.usualNetworks(), admin.usualDevices(),
+                admin.usualBrowsers(), admin.usualOperatingSystems(), admin.usualLoginMethods(), admin.evidenceGrade(),
+                admin.evidenceCauses(), counts);
+    }
+
+    /** One of administrator A's reads of PLM-OPS, as the work profile observes it after the decision. */
+    private static BaselineViewCalculator.Observation adminRead(Instant at) {
+        return new BaselineViewCalculator.Observation(at.toEpochMilli(), "READ", "host", false, "INTERNAL",
+                "/api/projects/{projectKey}", "/api/projects/PLM-OPS", null, true);
     }
 
     /**

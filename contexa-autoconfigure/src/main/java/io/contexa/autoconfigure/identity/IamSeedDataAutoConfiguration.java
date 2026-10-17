@@ -98,6 +98,19 @@ public class IamSeedDataAutoConfiguration {
             "db/data-system-settings.sql"
     };
 
+    /** Q-32: the sample accounts (one shared password) are seeded only when asked for; the rest always is. */
+    static final String ACCOUNT_SEED_LOCATION = "db/data-accounts.sql";
+    static final String ACCOUNT_SEED_PROPERTY = "contexa.iam.seed.accounts.enabled";
+
+    /** The seed files the initializer runs, in order; the sample accounts last, and only when the property is true. */
+    static List<String> seedLocations(Environment environment) {
+        List<String> locations = new ArrayList<>(List.of(SEED_LOCATIONS));
+        if (environment.getProperty(ACCOUNT_SEED_PROPERTY, Boolean.class, false)) {
+            locations.add(ACCOUNT_SEED_LOCATION);
+        }
+        return List.copyOf(locations);
+    }
+
     @Bean
     public static BeanFactoryPostProcessor iamSeedDataJpaDependencyConfigurer() {
         return beanFactory -> {
@@ -142,7 +155,7 @@ public class IamSeedDataAutoConfiguration {
             if (schemaInstallState == SchemaInstallState.ABSENT) {
                 ossSchemaGovernance.assertNoOssOwnershipCollisions(preInstallationObjects);
             }
-            initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged);
+            initializeSchemaAndSeedData(dataSource, schemaInstallState, enterpriseManaged, seedLocations(environment));
             OssSchemaGovernance.GovernanceReport report = ossSchemaGovernance.initializeAndRecordOss(
                     schemaInstallState == SchemaInstallState.ABSENT ? preInstallationObjects : null);
             log.info("[IamSeedData] OSS schema provenance verified. version={}, tables={}, views={}, checksum={}, "
@@ -163,7 +176,8 @@ public class IamSeedDataAutoConfiguration {
     private void initializeSchemaAndSeedData(
             DataSource dataSource,
             SchemaInstallState schemaInstallState,
-            boolean enterpriseManaged)
+            boolean enterpriseManaged,
+            List<String> seedLocations)
             throws SQLException, IOException {
         if (schemaInstallState == SchemaInstallState.PARTIAL) {
             throw new IllegalStateException(
@@ -197,7 +211,7 @@ public class IamSeedDataAutoConfiguration {
                 log.info("[IamSeedData] Enterprise provenance is present; OSS canonical DDL maintenance is skipped");
             }
         }
-        for (String location : SEED_LOCATIONS) {
+        for (String location : seedLocations) {
             Resource seed = new ClassPathResource(location);
             if (!seed.exists()) {
                 log.warn("[IamSeedData] classpath:{} not found, skipping", location);

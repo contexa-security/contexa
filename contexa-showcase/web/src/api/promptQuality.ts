@@ -35,6 +35,31 @@ export interface PromptFact {
   readonly source: FactSource | null;
   /** The source grades the dictionary entry of the line allows, in the grade order. */
   readonly grades: readonly string[];
+  /**
+   * N-UI-1 (U1-5): how sufficient the evidence behind a user baseline line is, when the line states a
+   * grade below strong; null or absent otherwise.
+   */
+  readonly sufficiency?: FactSufficiency | null;
+}
+
+/** One cause of an evidence grade below strong, as the server read it from the line. */
+export interface SufficiencyCause {
+  /**
+   * ACTION_INFERRED: `count` of `of` observations had their action inferred from `from`;
+   * FEW_OBSERVATIONS: `count` observations, below the minimum `of`; WIDER_WINDOW: few recent
+   * observations, so the last `of` days were read.
+   */
+  readonly kind: 'ACTION_INFERRED' | 'FEW_OBSERVATIONS' | 'WIDER_WINDOW';
+  readonly count: number;
+  readonly of: number;
+  readonly from: string | null;
+}
+
+/** The evidence grade below strong a line states, its causes and how many fields it marks for caution. */
+export interface FactSufficiency {
+  readonly grade: 'LIMITED' | 'WEAK';
+  readonly causes: readonly SufficiencyCause[];
+  readonly cautions: number;
 }
 
 export interface FactBlockView {
@@ -152,6 +177,11 @@ export interface DeltaStep {
    * ticket the requester named), so its value cannot reach the AI input; null or absent when it does.
    */
   readonly notLookedUp?: 'APPROVAL' | 'ON_CALL' | 'TICKET' | 'CLAIMED_TICKET' | null;
+  /**
+   * Whether the base run already had the changed value, so no line of the AI input changed, as expected;
+   * absent when the server does not say.
+   */
+  readonly sameAsBase?: boolean;
 }
 
 /** Why a lab run has no delta: run as designed, several conditions changed, not finished, no base, no control D. */
@@ -179,6 +209,8 @@ export interface BundleSide {
   readonly userPrompt: string | null;
   /** How many lines the system text had, as the server counted them. */
   readonly systemPromptLines: number | null;
+  /** N-UI-1 (U2-6): how many content lines the user prompt had, as the server counted them. */
+  readonly userPromptLines?: number | null;
 }
 
 /** Why there is no comparison: no measured run of the case under the other bundle, not sealed, no control D, no step. */
@@ -190,13 +222,54 @@ export interface OtherBundleView {
   readonly reason: OtherBundleReason | null;
   readonly current: BundleSide | null;
   readonly other: BundleSide | null;
+  /**
+   * N-UI-1 (U2-6): both user prompts' lengths, the earlier bundle first, as the server named, counted and
+   * ordered them; null or absent when it cannot tell which came first.
+   */
+  readonly lines?: SameCaseLineCounts | null;
+}
+
+/** The same case's user prompt lengths, the earlier bundle first (the server's names and counts). */
+export interface SameCaseLineCounts {
+  readonly before: string;
+  readonly beforeLines: number;
+  readonly after: string;
+  readonly afterLines: number;
+}
+
+/** N-PQ-1: the batch each harness number of a publication was measured in. */
+export interface PromptQualityBatches {
+  readonly delivery: string;
+  readonly reaction: string;
+  readonly injection: string;
+}
+
+/**
+ * U6-4: the earlier measurement against this one by run, as the server counted both by one definition
+ * (attack runs reacted, normal runs asked to verify or more); a side without a run of the class has no rate.
+ */
+export interface PromptQualityComparison {
+  readonly baselineProtocol: string;
+  readonly baselineBundle: string | null;
+  readonly bundle: string | null;
+  readonly attackBefore: BenchmarkRate | null;
+  readonly attackNow: BenchmarkRate | null;
+  readonly normalBefore: BenchmarkRate | null;
+  readonly normalNow: BenchmarkRate | null;
 }
 
 /** The prompt-quality measurement of a published batch (the benchmark's prompt-quality view). */
 export interface PromptQualityView {
   readonly measuredAt: string;
   readonly setting: string | null;
+  /** The one batch of every harness number; null when they come from batches of their own. */
   readonly batch: string | null;
+  /** N-PQ-1: the batch of each harness number; absent from a view published before. */
+  readonly batches?: PromptQualityBatches | null;
+  /** U6-4: the earlier measurement against this one; absent or null without one. */
+  readonly comparison?: PromptQualityComparison | null;
+  /** U6-5: the sources with their per-run results, only at promptQualityRawHref (never in the tab's read). */
+  readonly raw?: unknown;
   readonly protocol: string | null;
   readonly delivery: BenchmarkRate;
   readonly reaction: {
@@ -215,6 +288,15 @@ export interface PromptQualityView {
   readonly accuracy: BenchmarkRate;
   readonly consistency: BenchmarkRate;
   readonly reasonMatch: BenchmarkRate;
+}
+
+/**
+ * U6-5: the address of a publication's raw data, the published record with the per-run results of its
+ * sources, for the tab's download (the latest publication when no setting is named); the tab itself reads
+ * the record without them.
+ */
+export function promptQualityRawHref(setting: string | null): string {
+  return `/api/benchmark/prompt-quality?${setting ? `setting=${encodeURIComponent(setting)}&` : ''}raw=true`;
 }
 
 /**
@@ -292,14 +374,19 @@ export function useOtherBundle(runId: string | null, stepNo: number) {
   });
 }
 
+/**
+ * The address of a setting's published prompt quality, the latest when none is named: what the tab
+ * reads, and the raw data it offers to download (N-UI-1, U6-5).
+ */
+export function promptQualityHref(setting: string | null): string {
+  return `/api/benchmark/prompt-quality${setting ? `?setting=${encodeURIComponent(setting)}` : ''}`;
+}
+
 /** The prompt-quality measurement of a setting, the latest batch when none is named; 404 until one is published. */
 export function usePromptQuality(setting: string | null) {
   return useQuery({
     queryKey: ['prompt-quality', setting],
-    queryFn: () =>
-      getJson<PromptQualityView>(
-        `/api/benchmark/prompt-quality${setting ? `?setting=${encodeURIComponent(setting)}` : ''}`,
-      ),
+    queryFn: () => getJson<PromptQualityView>(promptQualityHref(setting)),
     staleTime: 60_000,
     retry: false,
   });

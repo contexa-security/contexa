@@ -16,13 +16,15 @@
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
 /**
- * The sources an UNTRUSTED TEXT line names (W3-6, N-INJ-1): the one list the render draws them by and the prompt
- * inspector compares them by (R1b-3).
+ * The sources an UNTRUSTED TEXT line names (W3-6, N-INJ-1, N-INJ-3): the one list the render draws them by and the
+ * prompt inspector compares them by (R1b-3).
  */
 public final class UntrustedTextSources {
 
     /** The document description an outside author wrote. */
     public static final String DOCUMENT_DESCRIPTION = "document description (external author)";
+    /** The host's business label of the target, its free text (a document title, an export's description), N-INJ-3. */
+    public static final String BUSINESS_LABEL = "business label (host text)";
     /** The request's body. */
     public static final String REQUEST_BODY = "request body (requester)";
     /** A sentence of outside threat knowledge. */

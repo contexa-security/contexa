@@ -96,6 +96,21 @@
   font-size: var(--text-sm);
 }
 
+/* N-UI-1 (U1-5): the grey line under a card whose evidence is below strong. */
+.factSufficiency {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* N-UI-1 (U2-6): the same case's user prompt length under both bundles. */
+.sameCaseLines {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
 /* The original line and its dictionary meaning, opened in place. */
 .factOriginal {
   display: flex;

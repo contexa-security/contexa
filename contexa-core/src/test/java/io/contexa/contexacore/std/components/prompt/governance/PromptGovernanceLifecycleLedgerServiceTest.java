@@ -8,6 +8,7 @@ import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceChangeRecord;
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceEvaluationRecord;
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceReleaseApprovalRecord;
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceRollbackRecord;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -72,15 +73,23 @@ class PromptGovernanceLifecycleLedgerServiceTest {
         assertThat(bundles).isEqualTo(2);
         verify(promptGovernanceRegistryService).syncPlatformRegistry();
         verify(changeRepository, times(bundles)).save(any(PromptGovernanceChangeRecord.class));
-        verify(evaluationRepository, times(bundles)).save(any(PromptGovernanceEvaluationRecord.class));
+        // N-GOV-2: a declaration row needs the scenario families its bundle's manifest declares, or the default ones.
+        ArgumentCaptor<PromptGovernanceEvaluationRecord> evaluation =
+                ArgumentCaptor.forClass(PromptGovernanceEvaluationRecord.class);
+        verify(evaluationRepository, times(bundles)).save(evaluation.capture());
+        for (PromptGovernanceEvaluationRecord row : evaluation.getAllValues()) {
+            assertThat(row.getRequiredScenarioCount()).isEqualTo(PromptGovernanceEmpiricalEvalService
+                    .requiredScenarioFamilies(PromptBundleCatalog.shared()
+                            .find(row.getPromptKey(), row.getPromptVersion()).orElse(null)).size());
+        }
         verify(releaseApprovalRepository, times(bundles)).save(any(PromptGovernanceReleaseApprovalRecord.class));
         // The v19 bundle declares no rollback target (its former target has no text), so it gets no rollback row. The
         // v20 bundle declares the v19 bundle of this build: its row records the declared target, not a ready rollback
         // (W1-18, PV-3).
         ArgumentCaptor<PromptGovernanceRollbackRecord> rollback = ArgumentCaptor.forClass(PromptGovernanceRollbackRecord.class);
         verify(rollbackRepository).save(rollback.capture());
-        assertThat(rollback.getValue().getPromptVersion()).isEqualTo("2026.10.16-v20.23");
-        assertThat(rollback.getValue().getRollbackTargetPromptVersion()).isEqualTo("2026.10.16-v19.19");
+        assertThat(rollback.getValue().getPromptVersion()).isEqualTo("2026.10.16-v20.24");
+        assertThat(rollback.getValue().getRollbackTargetPromptVersion()).isEqualTo("2026.10.16-v19.20");
         assertThat(rollback.getValue().getRollbackState()).isEqualTo("TARGET_DECLARED");
         assertThat(rollback.getValue().getRollbackReadinessState()).isEqualTo("WORKFLOW_MISSING");
     }

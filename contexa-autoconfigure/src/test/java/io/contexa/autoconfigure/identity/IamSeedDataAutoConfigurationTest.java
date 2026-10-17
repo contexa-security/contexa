@@ -38,6 +38,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.core.io.ClassPathResource;
 
 class IamSeedDataAutoConfigurationTest {
@@ -48,6 +49,23 @@ class IamSeedDataAutoConfigurationTest {
         assertThat(new ClassPathResource("data.sql").exists()).isFalse();
         assertThat(new ClassPathResource("schema.sql").exists()).isFalse();
         assertThat(new ClassPathResource("data-menu.sql").exists()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Q-32: the sample accounts are seeded only when contexa.iam.seed.accounts.enabled is true")
+    void sampleAccountsAreSeededOnlyWhenAskedFor() throws Exception {
+        String data = new ClassPathResource("db/data.sql").getContentAsString(StandardCharsets.UTF_8);
+        ClassPathResource accounts = new ClassPathResource(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
+        String accountRows = accounts.exists() ? accounts.getContentAsString(StandardCharsets.UTF_8) : "";
+
+        assertThat(data).doesNotContain("INSERT INTO USERS").doesNotContain("INSERT INTO USER_GROUPS");
+        assertThat(accountRows).contains("INSERT INTO USERS").contains("INSERT INTO USER_GROUPS");
+        assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()))
+                .containsExactly(IamSeedDataAutoConfiguration.SEED_LOCATIONS);
+        assertThat(IamSeedDataAutoConfiguration.seedLocations(new MockEnvironment()
+                .withProperty(IamSeedDataAutoConfiguration.ACCOUNT_SEED_PROPERTY, "true")))
+                .hasSize(IamSeedDataAutoConfiguration.SEED_LOCATIONS.length + 1)
+                .endsWith(IamSeedDataAutoConfiguration.ACCOUNT_SEED_LOCATION);
     }
 
     @Test

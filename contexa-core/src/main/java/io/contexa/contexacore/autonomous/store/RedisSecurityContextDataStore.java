@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.store;
 
 import java.time.Instant;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +57,13 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     /** The record of a stopped request is stored moments after its decision; a day covers a delayed store (W5-4). */
     private static final Duration VERIFICATION_OUTCOME_TTL = Duration.ofDays(1);
     private static final Duration PROMOTION_LEARNING_TTL = Duration.ofDays(30);
+    /** A request a filter stopped waits for the step-up while the challenge that stopped it is in force (N-LRN-3). */
+    private static final Duration STOPPED_REQUEST_TTL = ZeroTrustAction.CHALLENGE.getDefaultTtl();
+    /** A verified stopped request is sent again under the ALLOW the step-up writes (N-LRN-3). */
+    private static final Duration VERIFIED_STOPPED_REQUEST_TTL = ZeroTrustAction.ALLOW.getDefaultTtl();
+    private static final int MAX_STOPPED_REQUESTS = 20;
+    /** The member that marks a user's stopped requests verified; a request member is serialized text (N-LRN-3). */
+    private static final String STOPPED_REQUESTS_VERIFIED = "@verified";
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
     private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
     private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
@@ -91,6 +99,41 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
                     + "if #KEYS > 1 then redis.call('psetex', KEYS[2], " + SESSION_NARRATIVE_TTL.toMillis()
                     + ", ARGV[2]) end "
                     + "return 1",
+            Long.class);
+    /**
+     * Keeps a request a filter stopped under the user's challenge (N-LRN-3): a stop after a verification keeps the
+     * stopped requests anew, the first stop sets how long they are kept, and only the first distinct ones are kept.
+     */
+    private static final DefaultRedisScript<Long> HOLD_STOPPED_REQUEST_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then "
+                    + "redis.call('del', KEYS[1]) end "
+                    + "local size = redis.call('scard', KEYS[1]) "
+                    + "if size == 0 then "
+                    + "redis.call('sadd', KEYS[1], ARGV[1]) "
+                    + "redis.call('pexpire', KEYS[1], " + STOPPED_REQUEST_TTL.toMillis() + ") "
+                    + "elseif size < " + MAX_STOPPED_REQUESTS + " then "
+                    + "redis.call('sadd', KEYS[1], ARGV[1]) "
+                    + "end "
+                    + "return 1",
+            Long.class);
+    /**
+     * Marks the user's stopped requests verified while the ALLOW the step-up writes is in force, leaving out ARGV[1]
+     * when given (N-LRN-3); requests already verified stay as they are.
+     */
+    private static final DefaultRedisScript<Long> VERIFY_STOPPED_REQUESTS_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 then return 0 end "
+                    + "if #ARGV > 0 then redis.call('srem', KEYS[1], ARGV[1]) end "
+                    + "if redis.call('scard', KEYS[1]) == 0 then return 0 end "
+                    + "redis.call('sadd', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') "
+                    + "redis.call('pexpire', KEYS[1], " + VERIFIED_STOPPED_REQUEST_TTL.toMillis() + ") "
+                    + "return 1",
+            Long.class);
+    /** Takes the user's verified stopped requests when the request is one of them, once per verification (N-LRN-3). */
+    private static final DefaultRedisScript<Long> TAKE_VERIFIED_STOPPED_REQUEST_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('sismember', KEYS[1], '" + STOPPED_REQUESTS_VERIFIED + "') == 1 "
+                    + "and redis.call('sismember', KEYS[1], ARGV[1]) == 1 then "
+                    + "redis.call('del', KEYS[1]) return 1 end "
+                    + "return 0",
             Long.class);
     private static final String PROCESS_NODE_ID = resolveProcessNodeId();
     private static final long PROCESS_PID = ProcessHandle.current().pid();
@@ -839,6 +882,48 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void holdStoppedRequest(String userId, String requestSignature) {
+        if (userId == null || userId.isBlank() || requestSignature == null) {
+            return;
+        }
+        try {
+            redisTemplate.execute(HOLD_STOPPED_REQUEST_SCRIPT, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
+                    requestSignature);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to keep a request a filter stopped: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public void verifyStoppedRequests(String userId, String learnedRequestSignature) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            Object[] leftOut = learnedRequestSignature != null ? new Object[]{learnedRequestSignature} : new Object[0];
+            redisTemplate.execute(VERIFY_STOPPED_REQUESTS_SCRIPT, List.of(ZeroTrustRedisKeys.stoppedRequests(userId)),
+                    leftOut);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to verify the stopped requests: userId={}", userId, e);
+        }
+    }
+
+    @Override
+    public boolean takeVerifiedStoppedRequest(String userId, String requestSignature) {
+        if (userId == null || userId.isBlank() || requestSignature == null) {
+            return false;
+        }
+        try {
+            Long taken = redisTemplate.execute(TAKE_VERIFIED_STOPPED_REQUEST_SCRIPT,
+                    List.of(ZeroTrustRedisKeys.stoppedRequests(userId)), requestSignature);
+            return taken != null && taken == 1L;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to take a verified stopped request: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    @Override
     public void recordVerificationOutcome(String eventId, String outcome) {
         if (eventId == null || eventId.isBlank() || outcome == null) {
             return;
@@ -861,6 +946,30 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
             return outcome != null ? outcome.toString() : null;
         } catch (Exception e) {
             log.error("[SecurityContextDataStore] Failed to read the outcome of a verification: eventId={}", eventId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void recordAccountDeletion(String userId, Instant deletedAt, Duration retention) {
+        if (userId == null || userId.isBlank() || deletedAt == null || retention == null) {
+            return;
+        }
+        // Not caught: the purge reports a deletion it could not mark (Q-15).
+        redisTemplate.opsForValue().set(ZeroTrustRedisKeys.accountDeletion(userId),
+                Long.toString(deletedAt.toEpochMilli()), retention);
+    }
+
+    @Override
+    public Instant accountDeletedAt(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            Object deletedAt = redisTemplate.opsForValue().get(ZeroTrustRedisKeys.accountDeletion(userId));
+            return deletedAt != null ? Instant.ofEpochMilli(Long.parseLong(deletedAt.toString())) : null;
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to read an account deletion: userId={}", userId, e);
             return null;
         }
     }
@@ -916,6 +1025,7 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
         List<String> keys = new ArrayList<>(List.of(
                 ZeroTrustRedisKeys.verificationLearning(userId),
                 ZeroTrustRedisKeys.promotionLearning(userId),
+                ZeroTrustRedisKeys.stoppedRequests(userId),
                 ZeroTrustRedisKeys.userLastRequestTime(userId),
                 ZeroTrustRedisKeys.userPreviousPath(userId),
                 ZeroTrustRedisKeys.authenticationMfaVerified(userId),

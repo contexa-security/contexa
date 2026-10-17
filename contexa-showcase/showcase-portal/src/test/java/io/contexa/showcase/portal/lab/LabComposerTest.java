@@ -201,4 +201,49 @@ class LabComposerTest {
                 null, null, null, null), data);
         assertThat(single.designed()).isFalse();
     }
+
+    @Test
+    void aDesignedTicketStaysAsDesignedWhileItsConditionAndProjectStay() {
+        Fact designed = catalog.find("A6T").orElseThrow().facts().get(0);
+        for (Conditions variant : List.of(
+                new Conditions("eng-k", null, null, null, null, null, null, null, null, null, null),
+                new Conditions(null, null, Place.EXTERNAL, null, null, null, null, null, null, null, null),
+                new Conditions(null, TimeSlot.DAWN, null, null, null, null, null, null, null, null, null))) {
+            Composed composed = composer.compose("A6T", variant, data);
+
+            assertThat(composed.definition().facts()).as("N-LAB-1: %s", composed.changed()).containsExactly(designed);
+        }
+    }
+
+    @Test
+    void aDesignedApprovalKeepsItsApproverWhileTheProjectStays() throws IOException {
+        ObjectNode options;
+        try (InputStream in = LabComposerTest.class.getResourceAsStream("/lab/lab-options.json")) {
+            options = (ObjectNode) JSON.readTree(in);
+        }
+        for (var project : options.get("projects")) {
+            if ("GB-500".equals(project.path("project_key").asText())) {
+                ((ObjectNode) project).put("owner_employee_key", "pm-99");
+            }
+        }
+
+        Composed later = composer.compose("A3T", new Conditions(null, TimeSlot.MORNING, null, null, null, null, null,
+                null, null, null, null), LabData.of(options));
+
+        assertThat(later.definition().facts()).as("N-LAB-1: the designed approver, not the project's owner")
+                .containsExactly(catalog.find("A3T").orElseThrow().facts().get(0));
+    }
+
+    @Test
+    void aTicketWhoseConditionChangedIsComposedAgain() {
+        Composed other = composer.compose("A8T", new Conditions(null, null, null, null, null, null, null, null,
+                TicketChoice.OTHER_PROJECT, null, null), data);
+
+        assertThat(other.changed()).containsExactly("ticket");
+        assertThat(other.definition().facts()).filteredOn(fact -> "TICKET".equals(fact.kind())).singleElement()
+                .satisfies(fact -> {
+                    assertThat(fact.project()).as("the first project that is not GB-500").isEqualTo("CP-120");
+                    assertThat(fact.approver()).as("CP-120's owner").isEqualTo("pm-04");
+                });
+    }
 }

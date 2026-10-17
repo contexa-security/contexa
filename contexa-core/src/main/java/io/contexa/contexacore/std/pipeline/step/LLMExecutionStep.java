@@ -27,12 +27,14 @@ import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseL
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.ObservedPromptTokenUsageRegistry;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
 import io.contexa.contexacore.std.llm.observation.LlmObservationContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapability;
 import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
+import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -52,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class LLMExecutionStep implements PipelineStep {
@@ -375,6 +378,11 @@ public class LLMExecutionStep implements PipelineStep {
         // W4-8: a v20 decision is checked on the facts its prompt was drawn from.
         SecurityDecisionRawOutputContractInspector.V20Check v20Check = v20Check(request, context);
         return executeRaw(executionContext, context)
+                // N-OUT-2: an answer the provider cut at the output limit before any text (a reasoning model can spend
+                // the whole limit reasoning) is a cut answer without text, asked again below; any other failure stays.
+                .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
+                        ? Mono.just("")
+                        : Mono.error(error))
                 .flatMap(rawResponse -> {
                     Inspection initialCheck = rawOutputContractInspector.inspect(
                             rawResponse,
@@ -403,6 +411,8 @@ public class LLMExecutionStep implements PipelineStep {
                     if (truncated && executionContext.getMaxTokens() != null) {
                         retryContext.setMaxTokens(executionContext.getMaxTokens() * 2);
                     }
+                    // N-OUT-3: the retry joins the run's retries once, when its answer or its failure is known.
+                    AtomicBoolean retryRecorded = new AtomicBoolean();
                     return executeRaw(retryContext, context)
                             .map(retryResponse -> {
                                 Inspection retryCheck = rawOutputContractInspector.inspect(
@@ -414,6 +424,9 @@ public class LLMExecutionStep implements PipelineStep {
                                         v20Check);
                                 boolean succeeded = !retryCheck.requiresRetry();
                                 context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
+                                recordOutputRetry(context, retryReason, succeeded,
+                                        succeeded ? null : retryCheck.retryReason());
+                                retryRecorded.set(true);
                                 // N-OUT-1 (G1-2): the retry answer as it came and the action read from it.
                                 context.addMetadata("securityDecisionRetryRawOutput", retryResponse);
                                 if (!retryCheck.parsingFallback() && retryCheck.response() != null) {
@@ -435,7 +448,12 @@ public class LLMExecutionStep implements PipelineStep {
                                 }
                                 return retryResponse;
                             })
-                            .doOnError(error -> context.addMetadata("securityDecisionOutputRetrySucceeded", false));
+                            .doOnError(error -> {
+                                context.addMetadata("securityDecisionOutputRetrySucceeded", false);
+                                if (!retryRecorded.getAndSet(true)) {
+                                    recordOutputRetry(context, retryReason, false, null);
+                                }
+                            });
                 });
     }
 
@@ -484,6 +502,19 @@ public class LLMExecutionStep implements PipelineStep {
                 settings != null ? settings : MinimumActionRules.Settings.DEFAULTS);
     }
 
+    /** N-OUT-2: whether the call failed because the provider sent no text (the orchestrator's empty answer). */
+    private static boolean emptyAnswer(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.startsWith(UnifiedLLMOrchestrator.EMPTY_RESPONSE_MESSAGE)) {
+                return true;
+            }
+            current = current.getCause() != current ? current.getCause() : null;
+        }
+        return false;
+    }
+
     /** Whether the provider ended the answer at the output limit (OpenAI {@code length}, Anthropic {@code max_tokens}). */
     private static boolean truncatedAtTheOutputLimit(ExecutionContext executionContext) {
         Object reason = executionContext.getMetadata().get("providerFinishReason");
@@ -522,6 +553,15 @@ public class LLMExecutionStep implements PipelineStep {
             context.addMetadata("securityDecisionInitialProposedAction", check.response().getAction());
         }
     }
+
+    /** N-OUT-3: one output retry added to the run's retries in their order; the single retry fields keep the last. */
+    private static void recordOutputRetry(PipelineExecutionContext context, String reason, boolean succeeded,
+                                          String failureReason) {
+        context.addMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, PromptRuntimeTelemetrySupport.withOutputRetry(
+                context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, Object.class), reason, succeeded,
+                failureReason));
+    }
+
     private <T extends DomainContext> Mono<String> executeRaw(
             Prompt prompt,
             AIRequest<T> request,

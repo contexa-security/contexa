@@ -150,6 +150,21 @@ class UnifiedVectorServiceTest {
     }
 
     @Test
+    @DisplayName("documentId names the id an event's record is stored under, so it can be removed by its event (Q-15)")
+    @SuppressWarnings("unchecked")
+    void documentId_isTheIdAnEventsRecordIsStoredUnder() {
+        UnifiedVectorService unifiedVectorService = new UnifiedVectorService(new PgVectorStoreProperties(), cacheLayer,
+                vectorStore);
+
+        unifiedVectorService.storeDocument(new Document("late",
+                Map.of("documentType", "threat", "eventId", "event-2")));
+
+        ArgumentCaptor<List<Document>> stored = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore).add(stored.capture());
+        assertThat(stored.getValue().get(0).getId()).isEqualTo(UnifiedVectorService.documentId("threat", "event-2"));
+    }
+
+    @Test
     @DisplayName("a document without an event keeps its own id, and its metadata names the same id (W2-15)")
     @SuppressWarnings("unchecked")
     void storeDocument_keepsTheIdOfADocumentWithoutAnEvent() {

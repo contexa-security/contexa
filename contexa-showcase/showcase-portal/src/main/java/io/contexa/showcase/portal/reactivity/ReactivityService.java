@@ -72,9 +72,18 @@ public class ReactivityService {
                               List<StepDelivery> steps, boolean passed) {
     }
 
-    /** The lab runs of a batch against the batch's designed run of the same case, by condition. */
+    /**
+     * The lab runs of a batch against the batch's designed run of the same case, by condition. N-DLV-6: sameAsBase
+     * counts the runs whose first step is the base itself (the condition the base already had).
+     */
     public record BatchDelivery(BenchmarkView.Rate delivered, Map<String, BenchmarkView.Rate> byCondition,
-                                int withoutBase, List<RunDelivery> runs) {
+                                int withoutBase, int sameAsBase, List<RunDelivery> runs) {
+
+        /** A batch whose count of runs that are the base itself is not given. */
+        public BatchDelivery(BenchmarkView.Rate delivered, Map<String, BenchmarkView.Rate> byCondition,
+                             int withoutBase, List<RunDelivery> runs) {
+            this(delivered, byCondition, withoutBase, 0, runs);
+        }
     }
 
     /** The four metrics; a part is null when its source was not asked for. */
@@ -169,7 +178,15 @@ public class ReactivityService {
         counts.forEach((name, cell) -> byCondition.put(name, BenchmarkService.rate(cell[0], cell[1])));
         long delivered = compared.stream().filter(RunDelivery::passed).count();
         return new BatchDelivery(BenchmarkService.rate(delivered, compared.size()), byCondition, withoutBase,
-                List.copyOf(compared));
+                sameAsBase(compared), List.copyOf(compared));
+    }
+
+    /** N-DLV-6: the runs whose first step changed no line and states the value (the base itself). */
+    static int sameAsBase(List<RunDelivery> runs) {
+        return (int) runs.stream()
+                .filter(run -> run.steps().stream().anyMatch(step -> step.stepNo() == 1 && step.delivery() != null
+                        && step.delivery().sameAsBase()))
+                .count();
     }
 
     private ReactionEvaluator.Summary batchReaction(List<ReactivityRuns.Entry> entries) throws IOException {

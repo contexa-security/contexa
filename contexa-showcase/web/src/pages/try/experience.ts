@@ -25,16 +25,23 @@ export function stepPath(role: Role, step: string, mode: Mode): string {
   return `/try/${role}/${step}${mode === 'async' ? '?mode=async' : ''}`;
 }
 
-/** The dimensions of the comparison table in the design's order; the browser and the system make one device row. */
+/**
+ * The dimensions of the comparison table in the design's order; the browser and the system make one device
+ * row. A v20 step also compares the target, the size and the request rate (N-DEP-1); a step without one
+ * leaves it out.
+ */
 export const COMPARED = [
   'accessHour',
   'dayOfWeek',
   'network',
   'device',
   'authenticationType',
+  'target',
   'pathFamily',
   'actionFamily',
   'resourceFamily',
+  'size',
+  'rate',
 ] as const;
 export type Compared = (typeof COMPARED)[number];
 
@@ -45,11 +52,16 @@ export type Compared = (typeof COMPARED)[number];
 export function plainValue(t: TFunction, dimension: string, value: string): string {
   switch (dimension) {
     case 'accessHour':
-      return t('dim.hours', { hours: value });
+      // A value that is no single hour stays as the engine wrote it (N-DEP-1).
+      return /^[0-9]{1,2}$/.test(value) ? t('dim.hours', { hours: value }) : value;
     case 'dayOfWeek':
       return t(`dim.day.${value}`, { defaultValue: value });
     case 'authenticationType':
-      return t(`dim.auth.${value}`, { defaultValue: value });
+      // A v20 login of several methods names each (PASSWORD+ONE_TIME_CODE, N-DEP-1).
+      return value
+        .split('+')
+        .map((method) => t(`dim.auth.${method}`, { defaultValue: method }))
+        .join('+');
     case 'actionFamily':
       return t(`dim.action.${value}`, { defaultValue: value });
     case 'operatingSystem':
@@ -58,9 +70,49 @@ export function plainValue(t: TFunction, dimension: string, value: string): stri
       return t(`dim.sensitivity.${value}`, { defaultValue: value });
     case 'pathFamily':
       return plainPath(t, value);
+    case 'device':
+      return plainDevice(t, value);
+    case 'target':
+      return plainTarget(t, value);
+    case 'size':
+      return plainItems(t, value);
+    case 'rate':
+      return plainRate(t, value);
     default:
       return value;
   }
+}
+
+/** A v20 device as the engine names it ("Chrome/140 on WINDOWS"): the browser, then the system in words. */
+function plainDevice(t: TFunction, value: string): string {
+  const [browser, system, ...rest] = value.split(' on ');
+  return browser !== undefined && system !== undefined && rest.length === 0
+    ? `${browser} · ${plainValue(t, 'operatingSystem', system)}`
+    : value;
+}
+
+/**
+ * A v20 target: a usual one by its kind and name (projectKey=PLM-OPS); the request's by its kind only,
+ * since the engine names the request's target by its variables (N-INJ-1).
+ */
+function plainTarget(t: TFunction, value: string): string {
+  const named = /^([A-Za-z]+)=(.+)$/.exec(value);
+  if (named) {
+    return t(`dim.target.${named[1] ?? ''}`, { value: named[2], defaultValue: value });
+  }
+  return /^[A-Za-z]+$/.test(value) ? t(`dim.targetKind.${value}`, { defaultValue: value }) : value;
+}
+
+/** A count of items as the engine writes it ("4,831 items"), or a bare count, in the visitor's words. */
+function plainItems(t: TFunction, value: string): string {
+  const count = /^([0-9,]+) items$/.exec(value)?.[1] ?? (/^[0-9,]+$/.test(value) ? value : null);
+  return count === null ? value : t('dim.items', { n: count });
+}
+
+/** A v20 request rate as the engine writes it ("1 requests in the last 60 min"). */
+function plainRate(t: TFunction, value: string): string {
+  const rate = /^([0-9]+) requests in the last ([0-9]+) min$/.exec(value);
+  return rate ? t('dim.rate.recent', { n: rate[1], minutes: rate[2] }) : value;
 }
 
 /** A business API path as the operation it is: an export of a project, a document read or download, a customer. */

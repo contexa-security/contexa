@@ -132,7 +132,7 @@ public class TeaserService {
     }
 
     /** Experience 1 result: "{n} facts were hit", the facts the engine received for the replayed attack. */
-    private Teaser resultFacts(RunFacts run, DecisionAnatomy anatomy) {
+    static Teaser resultFacts(RunFacts run, DecisionAnatomy anatomy) {
         List<String> facts = new ArrayList<>();
         int departures = anatomy.juxtaposition().departures().size();
         if (departures > 0) {

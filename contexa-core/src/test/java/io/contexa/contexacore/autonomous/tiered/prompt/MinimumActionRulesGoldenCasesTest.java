@@ -63,7 +63,10 @@ class MinimumActionRulesGoldenCasesTest {
             Map.entry("S09C", List.of("P3")),
             Map.entry("S10", List.of("P1:DEVICE+TIME")),
             Map.entry("S11", List.of()),
-            Map.entry("S12", List.of("P3")));
+            Map.entry("S12", List.of("P3")),
+            // N-K5-2: the last step of an engine template relearn under v20.23, a NORMAL READ whose one unexplained
+            // difference is the target, its policy met.
+            Map.entry("TPL-ADM-C-50", List.of()));
 
     @Test
     void everyGoldenCaseMeetsTheRulesDictionarySixGivesItsFacts() {

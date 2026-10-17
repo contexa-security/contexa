@@ -156,7 +156,9 @@ public class PromptGovernanceLifecycleLedgerService {
         record.setPromptInjectionState("NOT_VERIFIED");
         record.setScenarioCoverageState("NOT_RECORDED");
         record.setCoveredScenarioCount(0);
-        record.setRequiredScenarioCount(3);
+        // N-GOV-2: the declaration row needs the scenario families its bundle's manifest declares, or the default ones.
+        record.setRequiredScenarioCount(
+                PromptGovernanceEmpiricalEvalService.requiredScenarioFamilies(descriptor.bundle().orElse(null)).size());
         record.setCoveredScenarioFamiliesJson("[]");
         record.setTevvGateState("NOT_READY");
         record.setQualityGateState("NOT_VERIFIED");

@@ -155,7 +155,10 @@ public final class LabComposer {
         if (project == null && (Boolean.TRUE.equals(effective.approval()) || effective.ticket() == TicketChoice.COVERS)) {
             throw new Refused("NO_PROJECT_FOR_RECORD");
         }
-        List<Fact> facts = facts(scenario, effective, project, steps, data);
+        // N-LAB-1: the designed target project, so a record whose condition stays keeps its designed values.
+        String designedProject = scenario.steps().stream().map(LabComposer::project).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+        List<Fact> facts = facts(scenario, effective, project, steps, data, changed, designedProject);
         if (single) {
             steps = List.of(claimed(steps.get(0), effective.claim(), facts));
         }
@@ -297,9 +300,13 @@ public final class LabComposer {
         return new ScenarioDefinition.DocumentSelector(project, types.get(0), 1);
     }
 
-    /** The company records of the composed case; a record left as designed keeps its designed values. */
+    /**
+     * The company records of the composed case; a record left as designed keeps its designed values (N-LAB-1: its
+     * condition unchanged and the target project the designed one); otherwise it follows the target.
+     */
     private List<Fact> facts(ScenarioDefinition scenario, Conditions conditions, String project, List<Step> steps,
-                             LabData data) {
+                             LabData data, List<String> changed, String designedProject) {
+        boolean projectKept = Objects.equals(project, designedProject);
         List<Fact> facts = new ArrayList<>();
         for (Fact fact : scenario.facts()) {
             switch (fact.kind()) {
@@ -310,12 +317,14 @@ public final class LabComposer {
                 }
                 case "APPROVAL" -> {
                     if (Boolean.TRUE.equals(conditions.approval())) {
-                        facts.add(forProject(fact, project, data, fact.maxItems()));
+                        facts.add(!changed.contains("approval") && projectKept ? fact
+                                : forProject(fact, project, data, fact.maxItems()));
                     }
                 }
                 case "TICKET" -> {
                     if (conditions.ticket() != TicketChoice.NONE) {
-                        facts.add(ticketFor(fact, conditions.ticket(), project, data));
+                        facts.add(!changed.contains("ticket") && projectKept ? fact
+                                : ticketFor(fact, conditions.ticket(), project, data));
                     }
                 }
                 case "ONCALL" -> {

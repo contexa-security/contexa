@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.components.prompt.governance;
 
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRegistryRepository;
@@ -17,6 +18,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -184,6 +186,76 @@ class PromptGovernanceRegistryServiceTest {
         assertThat(snapshot.prompts().get(0).evalLinked()).isTrue();
         assertThat(snapshot.prompts().get(0).rollbackReady()).isTrue();
         assertThat(snapshot.prompts().get(0).modelProfilesDeclared()).isTrue();
+    }
+
+    /**
+     * N-GOV-6: a new version that declares production (the build default does) entered ACTIVE with the latest update
+     * time and took the default selection from the release the gate activated. Beside an active release of a bundle
+     * this build runs it enters AVAILABLE; the release it found keeps its state (PV-4).
+     */
+    @Test
+    void aDeclaredProductionEntersAvailableBesideAnActiveReleaseOfABundleThisBuildRuns() {
+        PromptGovernanceDescriptor descriptor = descriptor();
+        PromptGovernanceRegistryRecord active = release(SecurityDecisionPromptBundles.V20.version(), "ACTIVE");
+        when(repository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE,
+                descriptor.promptKey(),
+                descriptor.promptVersion())).thenReturn(Optional.empty());
+        lenient().when(repository.findByRegistryScopeAndPromptKeyOrderByUpdatedAtDesc(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE, descriptor.promptKey()))
+                .thenReturn(List.of(active));
+        when(repository.save(any(PromptGovernanceRegistryRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PromptGovernanceRegistryService.PromptRegistrationReceipt receipt = service.registerPromptArtifact(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE,
+                descriptor,
+                "STANDARD_TEMPLATE_BOOTSTRAP");
+
+        assertThat(receipt.created()).isTrue();
+        assertThat(receipt.releaseStatus()).isEqualTo("AVAILABLE");
+        assertThat(active.getReleaseStatus()).isEqualTo("ACTIVE");
+        verify(repository, never()).save(active);
+    }
+
+    /**
+     * N-GOV-6: an active release of a bundle this build no longer runs (an earlier version of the build default) does
+     * not hold a new build default back: it enters as declared, so the registry selects a bundle the build can run.
+     */
+    @Test
+    void aDeclaredProductionEntersAsDeclaredBesideAnActiveReleaseOfABundleThisBuildNoLongerRuns() {
+        PromptGovernanceDescriptor descriptor = descriptor();
+        PromptGovernanceRegistryRecord earlier = release("2026.03.26-e0.1", "PRODUCTION");
+        when(repository.findFirstByRegistryScopeAndPromptKeyAndPromptVersionOrderByUpdatedAtDesc(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE,
+                descriptor.promptKey(),
+                descriptor.promptVersion())).thenReturn(Optional.empty());
+        lenient().when(repository.findByRegistryScopeAndPromptKeyOrderByUpdatedAtDesc(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE, descriptor.promptKey()))
+                .thenReturn(List.of(earlier));
+        when(repository.save(any(PromptGovernanceRegistryRecord.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PromptGovernanceRegistryService.PromptRegistrationReceipt receipt = service.registerPromptArtifact(
+                PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE,
+                descriptor,
+                "STANDARD_TEMPLATE_BOOTSTRAP");
+
+        assertThat(receipt.releaseStatus()).isEqualTo("ACTIVE");
+        assertThat(earlier.getReleaseStatus()).isEqualTo("PRODUCTION");
+        verify(repository, never()).save(earlier);
+    }
+
+    private static PromptGovernanceRegistryRecord release(String version, String releaseStatus) {
+        return PromptGovernanceRegistryRecord.builder()
+                .id(11L)
+                .registryScope(PromptGovernanceRegistryService.PLATFORM_GLOBAL_SCOPE)
+                .promptKey("cortex.security-decision")
+                .templateKey("SecurityDecisionStandard")
+                .promptVersion(version)
+                .releaseStatus(releaseStatus)
+                .updatedAt(LocalDateTime.of(2026, 10, 16, 9, 0))
+                .build();
     }
 
     private PromptGovernanceDescriptor descriptor() {

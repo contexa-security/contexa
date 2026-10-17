@@ -80,7 +80,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     /** The 4xx statuses that may pass when the same request is sent again: a timeout, a conflict, a rate limit. */
     private static final Set<Integer> RETRYABLE_CLIENT_STATUSES = Set.of(408, 409, 429);
     private static final int PROVIDER_OVERLOADED_STATUS = 529;
-    private static final String EMPTY_RESPONSE_MESSAGE = "LLM response is null or empty";
+    /** Q-38: a provider's rate limit; retried, and when the retries run out it is the limit, not an outage. */
+    private static final int PROVIDER_RATE_LIMITED_STATUS = 429;
+    /** The failure message of an answer without text; LLMExecutionStep reads it to tell a cut answer (N-OUT-2). */
+    public static final String EMPTY_RESPONSE_MESSAGE = "LLM response is null or empty";
 
     private final ModelSelectionStrategy modelSelectionStrategy;
     private final StreamingHandler streamingHandler;
@@ -252,8 +255,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     /**
      * Why a call that did not time out gave no decision: the provider stopped at the output limit (its reasoning or
-     * thinking may use it up), refused, sent an empty answer, was overloaded or refused the request itself; otherwise
-     * the model was unavailable.
+     * thinking may use it up), refused, sent an empty answer, was overloaded, limited the rate (Q-38) or refused the
+     * request itself; otherwise the model was unavailable.
      */
     private String providerFailureCategory(ExecutionContext context, Throwable error) {
         Object finish = context != null ? context.getMetadata().get("providerFinishReason") : null;
@@ -273,6 +276,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             Integer status = httpStatus(message);
             if ((status != null && status == PROVIDER_OVERLOADED_STATUS) || message.contains("overloaded_error")) {
                 return "PROVIDER_OVERLOADED";
+            }
+            if (status != null && status == PROVIDER_RATE_LIMITED_STATUS) {
+                return "PROVIDER_RATE_LIMITED";
             }
             if (isA(current, NON_TRANSIENT_AI_EXCEPTION)
                     && (status == null || !RETRYABLE_CLIENT_STATUSES.contains(status))) {

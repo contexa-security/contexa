@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Transactional(transactionManager = "contexaTransactionManager")
@@ -49,6 +50,10 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
     private final PromptGovernanceModelCompatibilityRepository modelCompatibilityRepository;
     private final PromptGovernanceBudgetProfileRepository budgetProfileRepository;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    /** N-GOV-5: the gate state of a deprecation, by a transition or by the activation of the bundle in its place. */
+    private static final String SUPERSEDED = "SUPERSEDED";
+    private static final String NO_OTHER_ACTIVE_RELEASE = "NO_OTHER_ACTIVE_RELEASE no other active release of this"
+            + " scope, prompt key and template runs in its place; activate another bundle or roll back instead.";
 
     public PromptGovernanceReleaseGateService(
             PromptGovernanceLifecycleLedgerService lifecycleLedgerService,
@@ -113,6 +118,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 LocalDateTime.now());
     }
 
+    /** The transition to the canonical state the descriptor vocabulary's release status reads as (decision 1). */
     public ReleaseTransitionReceipt transitionPromptRelease(
             String registryScope,
             String promptKey,
@@ -121,12 +127,30 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             String actor,
             String rationale,
             String approvalChannel) {
+        return transitionPromptRelease(registryScope, promptKey, promptVersion,
+                PromptBundleState.fromReleaseStatus(targetReleaseStatus), actor, rationale, approvalChannel);
+    }
+
+    /**
+     * N-GOV-4: a transition to a canonical state (decision 1). The transition APIs read a requested name of any
+     * vocabulary through {@link PromptBundleState} and ask for the state it reads as.
+     */
+    public ReleaseTransitionReceipt transitionPromptRelease(
+            String registryScope,
+            String promptKey,
+            String promptVersion,
+            PromptBundleState targetState,
+            String actor,
+            String rationale,
+            String approvalChannel) {
         String safeScope = normalizeRegistryScope(registryScope);
         validatePromptKey(promptKey);
         validatePromptVersion(promptVersion);
         validateActor(actor);
+        if (targetState == null) {
+            throw new IllegalArgumentException("Target release state is required.");
+        }
         PromptLifecycleContext context = resolveContext(safeScope, promptKey, promptVersion);
-        PromptBundleState targetState = PromptBundleState.fromReleaseStatus(targetReleaseStatus);
         List<String> blockers = determineBlockers(context, targetState);
         String workflowState = blockers.isEmpty() ? "APPROVED_AND_APPLIED" : "BLOCKED";
         String gateState = determineTransitionGateState(context.currentReleaseStatus(), targetState, blockers);
@@ -155,7 +179,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                     safeScope,
                     promptKey.trim(),
                     promptVersion.trim(),
-                    context.currentReleaseStatus(),
+                    // N-GOV-4: the previous state in the canonical vocabulary, as the target.
+                    PromptBundleState.canonicalName(context.currentReleaseStatus()),
                     targetState.name(),
                     false,
                     gateState,
@@ -168,15 +193,20 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         registryRecord.setReleaseApprovalReference(workflowReference(savedWorkflow));
         registryRecord.setRegistrationSource("PROMPT_RELEASE_GATE_WORKFLOW");
         registryRepository.save(registryRecord);
+        if (targetState == PromptBundleState.ACTIVE) {
+            // N-GOV-5 (version management 8: a bundle is DEPRECATED when another becomes ACTIVE): the activated
+            // release is the one active release of its scope, prompt key and template.
+            deprecateSupersededReleases(registryRecord, actor.trim(), normalizedChannel);
+        }
 
         upsertReleaseApproval(context, targetState, actor, normalizedRationale, normalizedChannel, savedWorkflow);
-        upsertRollbackState(context, targetState, actor, normalizedRationale, savedWorkflow);
+        upsertRollbackState(context, targetState, actor, savedWorkflow);
 
         return new ReleaseTransitionReceipt(
                 safeScope,
                 promptKey.trim(),
                 promptVersion.trim(),
-                context.currentReleaseStatus(),
+                PromptBundleState.canonicalName(context.currentReleaseStatus()),
                 targetState.name(),
                 true,
                 gateState,
@@ -208,6 +238,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                         promptVersion.trim())
                 .orElse(null);
         PromptGovernanceReleaseApprovalRecord approval = context.releaseApprovalRecord();
+        // N-GOV-3: the families the bundle requires (its manifest's, else the default ones), covered and uncovered.
+        List<String> requiredFamilies = PromptGovernanceEmpiricalEvalService.requiredScenarioFamilies(
+                PromptBundleCatalog.shared().find(promptKey.trim(), promptVersion.trim()).orElse(null));
+        List<String> coveredFamilies = evaluation != null
+                ? readJsonList(evaluation.getCoveredScenarioFamiliesJson()) : List.of();
         ReleaseGateEvidence evidence = new ReleaseGateEvidence(
                 context.changeRecorded(),
                 evaluation != null ? evaluation.getEvaluationReference() : null,
@@ -221,6 +256,9 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 evaluation != null ? evaluation.getScenarioCoverageState() : null,
                 evaluation != null ? evaluation.getCoveredScenarioCount() : 0,
                 evaluation != null ? evaluation.getRequiredScenarioCount() : 0,
+                requiredFamilies,
+                coveredFamilies,
+                PromptGovernanceEmpiricalEvalService.uncoveredScenarioFamilies(requiredFamilies, coveredFamilies),
                 evaluation != null ? evaluation.getBundleHash() : null,
                 evaluation != null ? evaluation.getRunReference() : null,
                 evaluation != null && !context.evaluationOfAnotherBundle(),
@@ -482,8 +520,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 blockers.add("ROLLBACK_TARGET_MISSING rollback target prompt version must be declared before production release.");
             }
         }
-        if (targetReleaseStatus == PromptBundleState.DEPRECATED && !context.rollbackTargetDeclared()) {
-            blockers.add("ROLLBACK_TARGET_MISSING rollback target prompt version must be declared before rollback execution.");
+        // N-GOV-5 (version management 8): a bundle is deprecated when another bundle of its scope is active in its
+        // place; a rollback is the rollback service's (W6-10), so a deprecation needs no rollback target of its own.
+        if (targetReleaseStatus == PromptBundleState.DEPRECATED
+                && otherActiveReleases(context.registryRecord()).isEmpty()) {
+            blockers.add(NO_OTHER_ACTIVE_RELEASE);
         }
         return blockers;
     }
@@ -546,8 +587,11 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
                 blockers.add("ROLLBACK_TARGET_MISSING rollback target prompt version must be declared before production release.");
             }
         }
-        if (targetReleaseStatus == PromptBundleState.DEPRECATED && !StringUtils.hasText(lifecycleItem.rollbackTargetPromptVersion())) {
-            blockers.add("ROLLBACK_TARGET_MISSING rollback target prompt version must be declared before rollback execution.");
+        // N-GOV-5: the same deprecation rule as a transition's.
+        if (targetReleaseStatus == PromptBundleState.DEPRECATED
+                && otherActiveReleases(registryScope, lifecycleItem.promptKey(), lifecycleItem.templateKey(),
+                lifecycleItem.promptVersion()).isEmpty()) {
+            blockers.add(NO_OTHER_ACTIVE_RELEASE);
         }
         return blockers;
     }
@@ -660,7 +704,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             return "READY_FOR_PRODUCTION";
         }
         if (PromptBundleState.DEPRECATED == targetReleaseStatus) {
-            return "ROLLBACK_EXECUTED";
+            // N-GOV-5: another active release runs in the deprecated bundle's place; no rollback is executed.
+            return SUPERSEDED;
         }
         if (PromptBundleState.SHADOW == targetReleaseStatus) {
             return "READY_FOR_EVAL_ONLY";
@@ -701,7 +746,8 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         approvalRecord.setContractVersion(context.registryRecord().getContractVersion());
         approvalRecord.setReleaseApprovalReference(workflowReference(workflowRecord));
         approvalRecord.setReleaseStatus(targetReleaseStatus.name());
-        approvalRecord.setApprovalState(targetReleaseStatus == PromptBundleState.DEPRECATED ? "ROLLED_BACK_EXECUTED" : "APPROVED");
+        // N-GOV-5: a deprecation is an approved transition, not a rollback execution.
+        approvalRecord.setApprovalState("APPROVED");
         approvalRecord.setApprovalChannel(approvalChannel);
         approvalRecord.setApprovedBy(actor);
         approvalRecord.setApprovalSummary(rationale);
@@ -713,11 +759,12 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             PromptLifecycleContext context,
             PromptBundleState targetReleaseStatus,
             String actor,
-            String rationale,
             PromptGovernanceReleaseWorkflowRecord workflowRecord) {
         // N-GOV-1: the ledger keeps the rollback of a declared target; a retirement, or a release without a target,
-        // has no rollback state to write, and its row would break the ledger's NOT NULL columns.
-        if (targetReleaseStatus == PromptBundleState.RETIRED || !StringUtils.hasText(resolveRollbackTarget(context))) {
+        // has no rollback state to write, and its row would break the ledger's NOT NULL columns. N-GOV-5: a
+        // deprecation executes no rollback (the rollback service records its executions), so it writes none either.
+        if (targetReleaseStatus == PromptBundleState.RETIRED || targetReleaseStatus == PromptBundleState.DEPRECATED
+                || !StringUtils.hasText(resolveRollbackTarget(context))) {
             return;
         }
         PromptGovernanceRollbackRecord rollbackRecord = Optional.ofNullable(context.rollbackRecord())
@@ -730,12 +777,7 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
         rollbackRecord.setRollbackStrategy("VERSION_ROLLBACK");
         rollbackRecord.setPreparedBy(actor);
         rollbackRecord.setRegistrationSource("PROMPT_RELEASE_GATE_WORKFLOW");
-        if (targetReleaseStatus == PromptBundleState.DEPRECATED) {
-            rollbackRecord.setRollbackState("EXECUTED");
-            rollbackRecord.setRollbackReadinessState("EXECUTED");
-            rollbackRecord.setRollbackReason(rationale);
-        }
-        else if (targetReleaseStatus == PromptBundleState.CANARY || targetReleaseStatus == PromptBundleState.ACTIVE) {
+        if (targetReleaseStatus == PromptBundleState.CANARY || targetReleaseStatus == PromptBundleState.ACTIVE) {
             rollbackRecord.setRollbackState("TARGET_DECLARED");
             rollbackRecord.setRollbackReadinessState("READY");
             rollbackRecord.setRollbackReason("Rollback workflow is prepared for governed release transitions.");
@@ -746,6 +788,51 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             rollbackRecord.setRollbackReason("Rollback workflow is declared and will become ready before canary or production.");
         }
         rollbackRepository.save(rollbackRecord);
+    }
+
+    /**
+     * N-GOV-5: the other active releases (any vocabulary) of a release's scope, prompt key and template: an activation
+     * deprecates them, and a deprecation needs one of them in the release's place.
+     */
+    private List<PromptGovernanceRegistryRecord> otherActiveReleases(PromptGovernanceRegistryRecord release) {
+        return otherActiveReleases(release.getRegistryScope(), release.getPromptKey(), release.getTemplateKey(),
+                release.getPromptVersion());
+    }
+
+    private List<PromptGovernanceRegistryRecord> otherActiveReleases(String registryScope, String promptKey,
+                                                                     String templateKey, String promptVersion) {
+        return registryRepository.findByRegistryScopeAndPromptKeyOrderByUpdatedAtDesc(registryScope, promptKey)
+                .stream()
+                .filter(other -> !Objects.equals(other.getPromptVersion(), promptVersion))
+                .filter(other -> Objects.equals(other.getTemplateKey(), templateKey))
+                .filter(other -> PromptBundleState.is(other.getReleaseStatus(), PromptBundleState.ACTIVE))
+                .toList();
+    }
+
+    /** N-GOV-5: the active releases an activation replaces become DEPRECATED, each with its workflow record. */
+    private void deprecateSupersededReleases(PromptGovernanceRegistryRecord activated, String actor,
+                                             String approvalChannel) {
+        for (PromptGovernanceRegistryRecord superseded : otherActiveReleases(activated)) {
+            PromptGovernanceReleaseWorkflowRecord workflowRecord = PromptGovernanceReleaseWorkflowRecord.builder()
+                    .registryScope(superseded.getRegistryScope())
+                    .promptKey(superseded.getPromptKey())
+                    .promptVersion(superseded.getPromptVersion())
+                    .currentReleaseStatus(PromptBundleState.canonicalName(superseded.getReleaseStatus()))
+                    .targetReleaseStatus(PromptBundleState.DEPRECATED.name())
+                    .workflowState("APPROVED_AND_APPLIED")
+                    .gateState(SUPERSEDED)
+                    .approvalChannel(approvalChannel)
+                    .actor(actor)
+                    .rationale(String.format(Locale.ROOT, "Superseded by %s, which the release gate activated in the"
+                            + " same scope, prompt key and template.", activated.getPromptVersion()))
+                    .blockersJson(writeJsonList(List.of()))
+                    .build();
+            workflowRepository.save(workflowRecord);
+            superseded.setReleaseStatus(PromptBundleState.DEPRECATED.name());
+            superseded.setReleaseApprovalReference(workflowReference(workflowRecord));
+            superseded.setRegistrationSource("PROMPT_RELEASE_GATE_WORKFLOW");
+            registryRepository.save(superseded);
+        }
     }
 
     private String resolveRollbackTarget(PromptLifecycleContext context) {
@@ -873,6 +960,9 @@ public class PromptGovernanceReleaseGateService implements PromptGovernanceRelea
             String scenarioCoverageState,
             int coveredScenarioCount,
             int requiredScenarioCount,
+            List<String> requiredScenarioFamilies,
+            List<String> coveredScenarioFamilies,
+            List<String> uncoveredScenarioFamilies,
             String evaluationBundleHash,
             String evaluationRunReference,
             boolean evaluationForThisBundle,

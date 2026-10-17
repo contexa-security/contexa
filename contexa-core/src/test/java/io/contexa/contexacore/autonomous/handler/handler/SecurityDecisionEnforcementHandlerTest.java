@@ -24,6 +24,7 @@ import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -463,6 +464,68 @@ class SecurityDecisionEnforcementHandlerTest {
 
         assertThat(recorded).containsExactly("CHALLENGE learnable=false");
         assertThat(store.getRecentSessionDecisions("session-recorded", 10)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Q-15: the result of a request taken in before its account was deleted is observed, not enforced")
+    void aResultOfARequestOfADeletedAccountIsObservedNotEnforced() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(store, Duration.ofMinutes(13));
+        VerificationLearningService verification = mock(VerificationLearningService.class);
+        SecurityDecisionEnforcementHandler fenced = recordingHandler(recorder, store, null);
+        fenced.setDeletedAccountWriteFence(fence);
+        fenced.setVerificationLearningService(verification);
+        List<String> recorded = new ArrayList<>();
+        SecurityEvent late = sessionEvent("request-of-the-deleted-account");
+        late.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() - 1_000);
+        recorder.stage(late, ContextObservationRecorder.WORK_PROFILE, null,
+                commit -> recorded.add(commit.outcome() + " learnable=" + commit.learnable()));
+        fence.markDeleted("user-recorded");
+
+        assertThat(fenced.handle(contextWith(late, ProcessingResult.builder().success(true)
+                .action(ZeroTrustAction.BLOCK.name()).build()))).isTrue();
+
+        verify(aiSecurityDecisionObservationWriter).recordDecision(eq(late), any(), eq(ZeroTrustAction.BLOCK));
+        verify(actionRepository, never()).writeFinalAction(anyString(), any(ZeroTrustAction.class), anyMap());
+        verify(actionRepository, never()).setBlockedFlag(anyString());
+        verify(verification, never()).hold(any(), any());
+        assertThat(recorded).containsExactly("BLOCK learnable=false");
+        assertThat(fence.discardedWrites()).containsEntry(DeletedAccountWriteFence.ENFORCEMENT, 1L);
+
+        SecurityEvent later = sessionEvent("request-of-a-later-account");
+        later.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() + 1_000);
+        fenced.handle(contextWith(later, ProcessingResult.builder().success(true)
+                .action(ZeroTrustAction.BLOCK.name()).build()));
+
+        verify(actionRepository).writeFinalAction(eq("user-recorded"), eq(ZeroTrustAction.BLOCK), anyMap());
+        verify(verification).hold(later, ZeroTrustAction.BLOCK);
+    }
+
+    @Test
+    @DisplayName("Q-15: a promotion hold that runs after the purge of its request's account holds nothing")
+    void aPromotionHoldThatRunsAfterThePurgeHoldsNothing() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(store, Duration.ofMinutes(13));
+        LearningPromotionService promotion = mock(LearningPromotionService.class);
+        List<Runnable> learning = new ArrayList<>();
+        SecurityDecisionEnforcementHandler deferred = new SecurityDecisionEnforcementHandler(actionRepository,
+                securityLearningService, blockedUserRecorder, blockingSignalBroadcaster, null, learning::add,
+                () -> aiSecurityDecisionObservationWriter, store, null);
+        deferred.setLearningPromotionService(promotion);
+        deferred.setDeletedAccountWriteFence(fence);
+        SecurityEvent held = sessionEvent("request-held-before-the-deletion");
+        held.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() - 1_000);
+        when(promotion.holds(held)).thenReturn(true);
+
+        deferred.handle(contextWith(held, ProcessingResult.builder().success(true)
+                .action(ZeroTrustAction.ALLOW.name()).build()));
+        fence.markDeleted("user-recorded");
+        learning.forEach(Runnable::run);
+
+        verify(actionRepository).writeFinalAction(eq("user-recorded"), eq(ZeroTrustAction.ALLOW), anyMap());
+        verify(promotion, never()).hold(any());
+        assertThat(fence.discardedWrites()).containsEntry(DeletedAccountWriteFence.ENFORCEMENT, 1L);
     }
 
     private SecurityDecisionEnforcementHandler recordingHandler(ContextObservationRecorder recorder,

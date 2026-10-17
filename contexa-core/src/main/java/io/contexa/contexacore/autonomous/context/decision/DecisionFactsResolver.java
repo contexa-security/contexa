@@ -245,9 +245,9 @@ public final class DecisionFactsResolver {
 
         BaselineView.Rate rate = view != null && view.counts() != null ? view.counts().rate() : null;
         if (windowObserved && request.at() != null && rate != null) {
-            // W5-10 D5: one definition of the rate: the user's requests in the last 60 minutes of the event clock,
-            // this one included, against the requests of each active clock hour of the window; different above the
-            // 95th percentile. Without the user's session list the count is the session's and says so.
+            // W5-10 D5, N-RATE-1: one definition of the rate: the user's requests in the last 60 minutes of the event
+            // clock, this one included, against the same count taken at each request of the window; different above
+            // its 95th percentile. Without the user's session list the count is the session's and says so.
             Integer userLastHour = context.getSessionNarrativeProfile() != null
                     ? context.getSessionNarrativeProfile().getUserRequestsLastHour() : null;
             int sessionLastHour = 1 + (int) request.sessionDecisions().stream()
@@ -259,14 +259,14 @@ public final class DecisionFactsResolver {
             boolean different = lastHour > rate.p95();
             deviations.add(new Deviation(DeviationDimension.RATE, lastHour + " requests in the last 60 min"
                     + (userLastHour != null ? "" : " of this session"), true, different, null, null,
-                    "median " + rate.median() + ", 95th percentile " + rate.p95() + " per active hour",
+                    "median " + rate.median() + ", 95th percentile " + rate.p95() + " " + BaselineView.Rate.WINDOW,
                     different ? explain(DeviationDimension.RATE, explainers) : null,
                     different ? explainers.by(DeviationDimension.RATE) : null));
         }
         else {
             deviations.add(Deviation.notCompared(DeviationDimension.RATE, null,
                     !windowObserved ? "no observations in the window"
-                            : request.at() == null ? "the request time is not known" : "no active hour in the window"));
+                            : request.at() == null ? "the request time is not known" : "no usual rate in the view"));
         }
         return deviations;
     }

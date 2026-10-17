@@ -1,5 +1,6 @@
 package io.contexa.showcase.portal.replay;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.RunSummary;
 import io.contexa.showcase.portal.orchestrator.RunOrchestrator.StepSummary;
@@ -9,6 +10,7 @@ import io.contexa.showcase.portal.replay.ReplayView.Layer;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -222,6 +224,28 @@ class ReplayUnitTest {
                 new ReplayView.ReasonCode("MIN_P3_POLICY_NOT_SATISFIED", "F4"));
         assertThat(coded.canonical()).isNull();
         assertThat(v19.reasonCodes()).isEmpty();
+    }
+
+    /**
+     * N-DEP-1 (W7-12 C-2): the reason of a live or replayed v20 decision counts the differences the engine sealed, as
+     * its stored anatomy does (the try's "{n} differences from usual"); a v19 record keeps its label's count.
+     */
+    @Test
+    void theEngineReasonOfAV20RecordCountsTheDifferencesItsSealStates() throws Exception {
+        ReplayViews views = new ReplayViews(null, null, json, null);
+        JsonNode attack;
+        try (InputStream in = ReplayUnitTest.class.getResourceAsStream("/anatomy/v20-deviations.json")) {
+            attack = json.readTree(in).path("decisions").get(0);
+        }
+        String v20 = attack.path("records").get(0).path("metadataJson").asText();
+        String v19 = json.writeValueAsString(Map.of("renderedLabelMatrix",
+                Map.of("CurrentVsObservedDeltaCount", "3")));
+
+        assertThat(attack.path("case").asText()).isEqualTo("A3");
+        assertThat(views.engineReason(Optional.of(decisionWith("Something else.", v20))).baselineDeltaCount())
+                .as("time, target, class and size").isEqualTo(4);
+        assertThat(views.engineReason(Optional.of(decisionWith("Something else.", v19))).baselineDeltaCount())
+                .isEqualTo(3);
     }
 
     private static RunSummary run(String runId, String engine) {

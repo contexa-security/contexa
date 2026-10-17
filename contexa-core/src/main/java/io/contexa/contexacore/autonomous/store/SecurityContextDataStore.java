@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.store;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -98,6 +99,32 @@ public interface SecurityContextDataStore {
     }
 
     /**
+     * Keeps, by its method and URI, a request a web filter stopped under the user's CHALLENGE, while the challenge is
+     * in force (N-LRN-3). The stopped request reached no protected method, so it has no facts to keep; the step-up the
+     * challenge asks for verifies it, and the first one sent again is learned. The first requests a challenge stops
+     * are kept, each once; a stop after a verification keeps them anew. A store that keeps none learns no request
+     * sent again after a step-up.
+     */
+    default void holdStoppedRequest(String userId, String requestSignature) {
+    }
+
+    /**
+     * Marks the user's stopped requests verified by the passed step-up, while the ALLOW the step-up writes is in force
+     * (N-LRN-3). The given request, a challenged request the step-up learns from its kept facts, is left out; requests
+     * already verified stay as they are.
+     */
+    default void verifyStoppedRequests(String userId, String learnedRequestSignature) {
+    }
+
+    /**
+     * Whether the request is one of the user's stopped requests the step-up verified (N-LRN-3). True once: after it no
+     * request of the user is taken until the next verification.
+     */
+    default boolean takeVerifiedStoppedRequest(String userId, String requestSignature) {
+        return false;
+    }
+
+    /**
      * Keeps, by the event of a request a restriction stopped, how its verification ended, so that the record of the
      * decision stored after the verification ended still takes the outcome (W5-4). A store that keeps none leaves
      * such a record without it.
@@ -107,6 +134,19 @@ public interface SecurityContextDataStore {
 
     /** How the verification of the event's stopped request ended; null when none is kept. */
     default String verificationOutcome(String eventId) {
+        return null;
+    }
+
+    /**
+     * Remembers, for {@code retention}, that the user's account was deleted at {@code deletedAt} on the server clock,
+     * so that the late writes of the requests the account made before are told apart from those of a later account of
+     * the same name (Q-15). {@link #deleteUserData} keeps it. A store that keeps none tells no late write apart.
+     */
+    default void recordAccountDeletion(String userId, Instant deletedAt, Duration retention) {
+    }
+
+    /** When the user's account was last deleted, while the deletion is remembered; null otherwise. */
+    default Instant accountDeletedAt(String userId) {
         return null;
     }
 

@@ -17,6 +17,7 @@ package io.contexa.contexacore.std.components.prompt;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -72,6 +73,31 @@ class PromptRuntimeTelemetrySupportTest {
                         "securityDecisionRetryAction", "securityDecisionRawOutput", "securityDecisionInitialRawOutput",
                         "securityDecisionRetryRawOutput", "providerFinishReason", "maxTokens", "providerReasoningEffort",
                         "providerResponseModel");
+    }
+
+    /**
+     * N-OUT-3: a layer's output retries join the event's after those of the layers before it, in their order and each
+     * naming its layer; a layer without a retry leaves them as they are. The list travels apart from the record keys
+     * the forwarding mappers read (the keys the next layer clears), and no model call stage holds it.
+     */
+    @Test
+    void aLayersOutputRetriesJoinTheEventsInTheirOrder() {
+        Map<String, Object> metadata = new HashMap<>();
+
+        PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, "Layer1", List.of(Map.of("reason",
+                "OUTPUT_TRUNCATED", "succeeded", false, "failureReason", "REASON_CODE_MISMATCH")));
+        PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, "Layer2", List.of());
+        PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, "Layer2", List.of(Map.of("reason",
+                "REASON_CODE_MISMATCH", "succeeded", true)));
+
+        assertThat(metadata.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES)).isEqualTo(List.of(
+                Map.of("layer", "Layer1", "reason", "OUTPUT_TRUNCATED", "succeeded", false,
+                        "failureReason", "REASON_CODE_MISMATCH"),
+                Map.of("layer", "Layer2", "reason", "REASON_CODE_MISMATCH", "succeeded", true)));
+        assertThat(PromptRuntimeTelemetrySupport.runtimeTelemetryKeys())
+                .doesNotContain(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES);
+        assertThat(PromptRuntimeTelemetrySupport.modelOutputRecordKeys())
+                .doesNotContain(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES);
     }
 
     /** W4-7 (inventory 6 bundle 10): the completeness reasons travel with the decision. */

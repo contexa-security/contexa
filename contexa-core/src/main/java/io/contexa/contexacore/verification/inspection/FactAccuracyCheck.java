@@ -286,6 +286,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             switch (source) {
                 case UntrustedTextSources.DOCUMENT_DESCRIPTION -> text(tally, line, source,
                         resource != null ? resource.getAuthorText() : null, CONTEXT + "resource.authorText");
+                case UntrustedTextSources.BUSINESS_LABEL -> text(tally, line, source,
+                        resource != null ? resource.getBusinessLabel() : null, CONTEXT + "resource.businessLabel");
                 case UntrustedTextSources.ANOMALY_SIGNAL_HEADER -> text(tally, line, source,
                         context.getIntent() != null ? context.getIntent().getUntrustedAnomalySignalClaim() : null,
                         CONTEXT + "intent.untrustedAnomalySignalClaim");
@@ -911,10 +913,12 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                     "the target is not named by the sealed path template");
             return;
         }
-        String label = text(resource.getBusinessLabel());
+        // N-INJ-3: the line says only where the business label is; its text is compared on its UNTRUSTED TEXT line.
+        String label = RequestLineValues.targetLabel(resource);
         if (!Objects.equals(label, drawnLabel)) {
-            mismatch(tally, line, label, drawnLabel, CONTEXT + "resource.businessLabel",
-                    "the target's label is not the sealed one");
+            mismatch(tally, line, label, drawnLabel, CONTEXT + "resource.businessLabel", label != null
+                    ? "the target line does not say where the sealed business label is (an UNTRUSTED TEXT line)"
+                    : "the target names a business label the sealed resource does not hold");
             return;
         }
         String category = text(resource.getResourceCategory());

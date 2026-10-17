@@ -1,6 +1,6 @@
 package io.contexa.showcase.workload.contexa.internal;
 
-import io.contexa.contexacore.std.components.prompt.PromptReleaseStatus;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleState;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceRegistryService;
 import io.contexa.contexacore.std.components.prompt.governance.PromptGovernanceReleaseGateService;
 import io.contexa.contexaiam.admin.promptquality.governance.PromptGovernanceRuntimeCacheInvalidationService;
@@ -21,7 +21,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * W6-9 (P6): the harness's release transition on control D goes through the OSS release gate with the harness as the
- * actor, tells the runtime caches when the gate applied it, and returns the gate's receipt either way.
+ * actor, tells the runtime caches when the gate applied it, and returns the gate's receipt either way. N-GOV-4: the
+ * target is a name of any vocabulary, read through the one table of PromptBundleState, the canonical name first.
  */
 class PromptReleaseHarnessControllerTest {
 
@@ -35,27 +36,40 @@ class PromptReleaseHarnessControllerTest {
     @Test
     void anAppliedShadowReleaseIsReturnedAndTheCachesAreTold() {
         when(gate.transitionPromptRelease(SCOPE, PromptReleaseHarnessController.PROMPT_KEY, VERSION,
-                PromptReleaseStatus.EVAL_ONLY, PromptReleaseHarnessController.ACTOR, "shadow check",
+                PromptBundleState.SHADOW, PromptReleaseHarnessController.ACTOR, "shadow check",
                 PromptReleaseHarnessController.SOURCE)).thenReturn(receipt(true, List.of()));
 
         ResponseEntity<PromptGovernanceReleaseGateService.ReleaseTransitionReceipt> response = controller(true)
-                .transition(new PromptReleaseHarnessController.TransitionRequest(VERSION, PromptReleaseStatus.EVAL_ONLY,
-                        "shadow check"));
+                .transition(new PromptReleaseHarnessController.TransitionRequest(VERSION, "SHADOW", "shadow check"));
 
+        // N-GOV-4: the canonical name was refused (the request took PromptReleaseStatus, which has no SHADOW).
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody().applied()).isTrue();
         verify(caches).publish(SCOPE, PromptReleaseHarnessController.PROMPT_KEY, VERSION,
-                "release transition to EVAL_ONLY", PromptReleaseHarnessController.ACTOR);
+                "release transition to SHADOW", PromptReleaseHarnessController.ACTOR);
+    }
+
+    @Test
+    void anOlderNameReadsThroughTheOneTable() {
+        when(gate.transitionPromptRelease(SCOPE, PromptReleaseHarnessController.PROMPT_KEY, VERSION,
+                PromptBundleState.ACTIVE, PromptReleaseHarnessController.ACTOR, "release",
+                PromptReleaseHarnessController.SOURCE)).thenReturn(receipt(true, List.of()));
+
+        ResponseEntity<PromptGovernanceReleaseGateService.ReleaseTransitionReceipt> response = controller(true)
+                .transition(new PromptReleaseHarnessController.TransitionRequest(VERSION, "PRODUCTION", "release"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        verify(caches).publish(SCOPE, PromptReleaseHarnessController.PROMPT_KEY, VERSION,
+                "release transition to ACTIVE", PromptReleaseHarnessController.ACTOR);
     }
 
     @Test
     void aRefusedTransitionReturnsTheGatesReceiptAndTellsNoCache() {
-        when(gate.transitionPromptRelease(anyString(), anyString(), anyString(), any(),
+        when(gate.transitionPromptRelease(anyString(), anyString(), anyString(), any(PromptBundleState.class),
                 anyString(), anyString(), anyString())).thenReturn(receipt(false, List.of("ILLEGAL_STATE_TRANSITION")));
 
         ResponseEntity<PromptGovernanceReleaseGateService.ReleaseTransitionReceipt> response = controller(true)
-                .transition(new PromptReleaseHarnessController.TransitionRequest(VERSION, PromptReleaseStatus.CANARY,
-                        "canary"));
+                .transition(new PromptReleaseHarnessController.TransitionRequest(VERSION, "CANARY", "canary"));
 
         assertThat(response.getStatusCode().value()).isEqualTo(422);
         assertThat(response.getBody().blockers()).containsExactly("ILLEGAL_STATE_TRANSITION");
@@ -63,11 +77,15 @@ class PromptReleaseHarnessControllerTest {
     }
 
     @Test
-    void withoutTheGateTheRouteIsNotFoundAndARequestWithoutAReasonIsRefused() {
+    void withoutTheGateTheRouteIsNotFoundAndARequestWithoutAReasonOrAKnownStateIsRefused() {
         assertThat(controller(false).transition(new PromptReleaseHarnessController.TransitionRequest(VERSION,
-                PromptReleaseStatus.EVAL_ONLY, "shadow check")).getStatusCode().value()).isEqualTo(404);
+                "SHADOW", "shadow check")).getStatusCode().value()).isEqualTo(404);
         assertThat(controller(true).transition(new PromptReleaseHarnessController.TransitionRequest(VERSION,
-                PromptReleaseStatus.EVAL_ONLY, " ")).getStatusCode().value()).isEqualTo(400);
+                "SHADOW", " ")).getStatusCode().value()).isEqualTo(400);
+        assertThat(controller(true).transition(new PromptReleaseHarnessController.TransitionRequest(VERSION,
+                "LIVE", "shadow check")).getStatusCode().value()).isEqualTo(400);
+        verify(gate, never()).transitionPromptRelease(anyString(), anyString(), anyString(),
+                any(PromptBundleState.class), anyString(), anyString(), anyString());
     }
 
     private PromptReleaseHarnessController controller(boolean withGate) {

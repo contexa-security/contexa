@@ -28,6 +28,8 @@ interface Fact {
   readonly label: string;
   readonly value: string;
   readonly source: string | null;
+  /** N-UI-1 (U1-5): the evidence grade below strong the server read from a user baseline line. */
+  readonly sufficiency?: { readonly grade: string } | null;
 }
 
 interface Facts {
@@ -181,6 +183,14 @@ async function expectCard(page: Page, m: Dictionary, fact: Fact) {
   }
   await expect(card).toContainText(labelWords(m, fact.label));
   await expect(card).toContainText(m[`fact.source.${fact.source ?? 'NONE'}`] ?? '');
+  // N-UI-1 (U1-5): a grey line under the card names the grade the server read, and only then.
+  const sufficiency = card.locator('[data-sufficiency]');
+  if (fact.sufficiency) {
+    await expect(sufficiency).toHaveAttribute('data-sufficiency', fact.sufficiency.grade);
+    await expect(sufficiency).toContainText(m[`fact.sufficiency.${fact.sufficiency.grade}`] ?? '');
+  } else {
+    await expect(sufficiency).toHaveCount(0);
+  }
   await card.getByRole('button', { name: m['source.original'] ?? '' }).click();
   await expect(card.locator('code[data-original]')).toHaveText(`${fact.label}: ${fact.value}`);
 }
@@ -238,6 +248,7 @@ for (const language of LANGUAGES) {
         available: boolean;
         current: { runId: string; bundle: { version: string | null } } | null;
         other: { runId: string; bundle: { version: string | null } } | null;
+        lines?: { before: string; beforeLines: number; after: string; afterLines: number } | null;
       }>(page, `/api/runs/${runId}/steps/1/other-bundle`)
     ).body;
     const offer = page.getByRole('button', { name: m['prompt.compare.open'] ?? '' });
@@ -258,6 +269,22 @@ for (const language of LANGUAGES) {
       await expect(sides).toBeHidden();
     } else {
       await expect(offer).toHaveCount(0);
+    }
+    // N-UI-1 (U2-6): the same case's user prompt lengths are the server's pair, the earlier bundle first.
+    const sameCase = page.locator('main [data-lines]');
+    if (other?.available && other.lines) {
+      const lines = other.lines;
+      const locale = language === 'ko' ? 'ko-KR' : 'en-US';
+      await expect(sameCase).toHaveText(
+        format(m['prompt.compare.lines'], {
+          before: lines.before,
+          beforeLines: lines.beforeLines.toLocaleString(locale),
+          after: lines.after,
+          afterLines: lines.afterLines.toLocaleString(locale),
+        }),
+      );
+    } else {
+      await expect(sameCase).toHaveCount(0);
     }
     expect(await seriousViolations(page)).toEqual([]);
 
@@ -327,6 +354,7 @@ for (const language of LANGUAGES) {
     await page.goto(`/benchmark/prompt?lng=${language}`);
     const answer = await api<{
       measuredAt: string;
+      setting: string | null;
       delivery: Rate;
       reaction: { direction: Rate };
       invariance: { firstStepFacts: Rate; decisionChanges: number };
@@ -343,6 +371,7 @@ for (const language of LANGUAGES) {
     if (answer.status === 404) {
       await expect(page.locator('main')).toContainText(m['promptQuality.notMeasured'] ?? '');
       await expect(page.getByRole('region', { name: m['promptQuality.cards'] ?? '' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: m['promptQuality.raw'] ?? '' })).toHaveCount(0);
       expect(await seriousViolations(page)).toEqual([]);
       return;
     }
@@ -390,6 +419,15 @@ for (const language of LANGUAGES) {
     await expect(page.locator('main')).toContainText(
       format(m['promptQuality.measured'], { date: view.measuredAt.slice(0, 10) }),
     );
+    // N-UI-1 (U6-5): the raw data is the published record of the shown setting, the answer this test read.
+    const setting = view.setting ? `setting=${encodeURIComponent(view.setting)}&` : '';
+    const href = `/api/benchmark/prompt-quality?${setting}raw=true`;
+    const raw = page.getByRole('link', { name: m['promptQuality.raw'] ?? '' });
+    await expect(raw).toHaveAttribute('href', href);
+    // N-PQ-1 (U6-5): the download is the published record with its raw data; the rest is the view read above.
+    const record = (await api<Record<string, unknown>>(page, href)).body ?? {};
+    expect(record.raw).toBeDefined();
+    expect({ ...record, raw: undefined }).toEqual(view);
     expect(await seriousViolations(page)).toEqual([]);
   });
 }
@@ -500,6 +538,7 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
       notCompared: string | null;
       unchangedLines?: number | null;
       notLookedUp?: string | null;
+      sameAsBase?: boolean;
     }[];
   }>(page, `/api/lab/runs/${runId}/delta`);
   expect(delta?.available, 'delta of the changed run').toBe(true);
@@ -517,7 +556,9 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
       const lines = flow.getByRole('list', { name: m['labDelta.lines'] ?? '' });
       // N-DLV-4: a passed step whose condition the request's work does not look up says so in one line.
       const notLookedUp = step.passed && step.notLookedUp ? step.notLookedUp : null;
-      if (step.changed.length === 0 && notLookedUp === null) {
+      // N-DLV-7: so does a passed step whose base run already had the value.
+      const sameAsBase = step.passed && step.sameAsBase === true;
+      if (step.changed.length === 0 && notLookedUp === null && !sameAsBase) {
         await expect(flow).toContainText(m['labDelta.none'] ?? '');
       } else if (step.changed.length > 0) {
         await expect(lines.locator(':scope > li')).toHaveCount(step.changed.length);
@@ -537,6 +578,9 @@ test("C-22: the lab result's changed lines are the server's delta of a run that 
         await expect(flow).not.toContainText(m['labDelta.passed'] ?? '');
       } else if (notLookedUp !== null) {
         await expect(flow).toContainText(m[`labDelta.notLookedUp.${notLookedUp}`] ?? '');
+        await expect(flow).not.toContainText(m['labDelta.none'] ?? '');
+      } else if (sameAsBase) {
+        await expect(flow).toContainText(m['labDelta.sameAsBase'] ?? '');
         await expect(flow).not.toContainText(m['labDelta.none'] ?? '');
       } else if (step.passed) {
         // The other lines are counted when the server says how many.

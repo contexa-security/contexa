@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.domain.SecurityEvent;
+import io.contexa.contexacommon.domain.TruthValues;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
@@ -29,6 +30,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +40,8 @@ import java.util.Set;
  * ESCALATE or BLOCK on an analysed request, the request's facts are kept. When the user then passes the step-up the
  * decision asked for, or an administrator releases the block with ALLOW, those facts are learned: the baseline and the
  * past records learn the request's own path, resource, action, size and time, and the work profile adds the request as
- * an observation at a reduced weight. A request without kept facts is not learned here.
+ * an observation at a reduced weight. A request without kept facts is not learned here. The step-up also verifies the
+ * requests a web filter stopped under the challenge; the first one sent again is learned the same way (N-LRN-3).
  */
 @Slf4j
 public class VerificationLearningService {
@@ -167,27 +170,52 @@ public class VerificationLearningService {
 
     /**
      * Learns the user's request the step-up answered, from its kept facts: the baseline and the past records, and the
-     * work profile at the reduced weight. False when no facts are kept for it.
+     * work profile at the reduced weight. False when no facts are kept for it. The step-up also verifies the requests
+     * the filter stopped under the challenge, for the first one sent again (N-LRN-3).
      */
     public boolean learnStepUp(String userId, String requestId) {
         Optional<SecurityEvent> held = take(userId, requestId, Verification.STEP_UP);
+        verifyStopped(userId, held.orElse(null));
         if (held.isEmpty()) {
             return false;
         }
         SecurityEvent event = held.get();
         if (securityLearningService != null) {
-            SecurityDecision decision = SecurityDecision.builder()
-                    .action(ZeroTrustAction.ALLOW)
-                    .confidence(0.95)
-                    .riskScore(0.05)
-                    .reasoning(STEP_UP_REASONING)
-                    .analysisTime(System.currentTimeMillis())
-                    .build();
-            securityLearningService.learnAndStore(userId.trim(), decision, event);
+            securityLearningService.learnAndStore(userId.trim(), stepUpDecision(), event);
         }
         learnWorkProfile(event);
         promoteVouched(userId.trim(), event);
         return true;
+    }
+
+    /**
+     * The step-up the challenge asked for verifies the requests the filter stopped under it (N-LRN-3). A synchronous
+     * challenged request did not run: it is learned from its kept facts here and is itself the request the user sends
+     * again, so a copy of it the filter stopped meanwhile is left out and not learned twice.
+     */
+    private void verifyStopped(String userId, SecurityEvent challenged) {
+        if (!StringUtils.hasText(userId) || dataStore == null) {
+            return;
+        }
+        String learned = challenged != null && challenged.getMetadata() != null
+                && Boolean.TRUE.equals(TruthValues.parse(challenged.getMetadata().get("protectableSync")))
+                ? requestSignature(challenged) : null;
+        try {
+            dataStore.verifyStoppedRequests(userId.trim(), learned);
+        } catch (Exception e) {
+            log.error("Failed to verify the requests a filter stopped after a step-up: userId={}", userId, e);
+        }
+    }
+
+    /** The decision a passed step-up stands for when its request is learned. */
+    private static SecurityDecision stepUpDecision() {
+        return SecurityDecision.builder()
+                .action(ZeroTrustAction.ALLOW)
+                .confidence(0.95)
+                .riskScore(0.05)
+                .reasoning(STEP_UP_REASONING)
+                .analysisTime(System.currentTimeMillis())
+                .build();
     }
 
     /** The step-up vouches for the identity values of the request it answered (W5-1). */
@@ -202,6 +230,55 @@ public class VerificationLearningService {
         } catch (RuntimeException e) {
             log.error("Failed to promote held requests after a step-up: userId={}", userId, e);
         }
+    }
+
+    /**
+     * Keeps a request a web filter stopped under the user's CHALLENGE, by its method and URI (N-LRN-3). It is not the
+     * challenged request: the decision was taken on another request, and this one reached no protected method, so it
+     * has no facts to keep. The step-up the challenge asks for verifies it, and the first one sent again is learned
+     * ({@link #learnResent}).
+     */
+    public void holdStopped(SecurityEvent event) {
+        String signature = requestSignature(event);
+        if (signature == null || dataStore == null) {
+            return;
+        }
+        try {
+            dataStore.holdStoppedRequest(event.getUserId().trim(), signature);
+        } catch (Exception e) {
+            log.error("Failed to keep a request a filter stopped for learning after verification: userId={}",
+                    event.getUserId(), e);
+        }
+    }
+
+    /**
+     * Learns a request the decision in force allowed without analysis when it is the first one sent again, after the
+     * user passed the step-up, of the requests the filter stopped under the challenge (N-LRN-3). Sent again, it reached
+     * the protected method with its own facts, so it is learned as the challenged request is: the baseline and the
+     * past records from its facts, and the work profile at the reduced weight. Any other request is not learned here.
+     * False when the request was not learned.
+     */
+    public boolean learnResent(SecurityEvent event) {
+        String signature = requestSignature(event);
+        if (signature == null || dataStore == null) {
+            return false;
+        }
+        String userId = event.getUserId().trim();
+        try {
+            if (!dataStore.takeVerifiedStoppedRequest(userId, signature)) {
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to take a stopped request a step-up verified: userId={}", userId, e);
+            return false;
+        }
+        event.addMetadata(VERIFIED_BY, Verification.STEP_UP.name());
+        event.addMetadata(VERIFICATION_WEIGHT, weight());
+        if (securityLearningService != null) {
+            securityLearningService.learnVerifiedResend(userId, stepUpDecision(), event);
+        }
+        learnWorkProfile(event);
+        return true;
     }
 
     /** Adds the request to the user's work profile at the reduced weight. */
@@ -234,6 +311,28 @@ public class VerificationLearningService {
             Object value = metadata.get(key);
             if (value != null && StringUtils.hasText(value.toString())) {
                 return value.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The method and URI a request is known by when it is sent again (N-LRN-3): the request the filter stopped and the
+     * one sent again carry the same; null without them or without a user.
+     */
+    static String requestSignature(SecurityEvent event) {
+        if (event == null || !StringUtils.hasText(event.getUserId()) || event.getMetadata() == null) {
+            return null;
+        }
+        Map<String, Object> metadata = event.getMetadata();
+        Object method = metadata.get("httpMethod");
+        if (method == null || !StringUtils.hasText(method.toString())) {
+            return null;
+        }
+        for (String key : new String[]{"requestUri", "httpUri", "requestPath"}) {
+            Object value = metadata.get(key);
+            if (value != null && StringUtils.hasText(value.toString())) {
+                return method.toString().trim().toUpperCase(Locale.ROOT) + " " + value.toString().trim();
             }
         }
         return null;

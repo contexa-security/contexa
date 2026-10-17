@@ -23,6 +23,7 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -71,6 +72,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     private final ContextObservationRecorder contextObservationRecorder;
     private VerificationLearningService verificationLearningService;
     private LearningPromotionService learningPromotionService;
+    private DeletedAccountWriteFence deletedAccountWriteFence;
 
     public SecurityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRedisRepository,
@@ -164,6 +166,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     /** Holds an allowed request whose first-seen values wait for promotion instead of learning it (W5-1). */
     public void setLearningPromotionService(LearningPromotionService learningPromotionService) {
         this.learningPromotionService = learningPromotionService;
+    }
+
+    /** Leaves unenforced the result of a request whose account was deleted after it was taken in (Q-15). */
+    public void setDeletedAccountWriteFence(DeletedAccountWriteFence deletedAccountWriteFence) {
+        this.deletedAccountWriteFence = deletedAccountWriteFence;
     }
 
     private boolean isEnforcementDisabled() {
@@ -393,6 +400,11 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private void holdForPromotion(SecurityEvent event) {
+        // Q-15: the hold runs on the learning executor after the enforcement, so the purge may have run in between; a
+        // held request is learned with the user's next promotion, which would be a later account's.
+        if (discardsAsOfADeletedAccount(event)) {
+            return;
+        }
         try {
             learningPromotionService.hold(event);
         } catch (RuntimeException e) {
@@ -590,7 +602,24 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private boolean isEnforcementSuppressed(SecurityEvent event) {
-        return isEnforcementDisabled() || isEventShadowBoundary(event);
+        return isEnforcementDisabled() || isEventShadowBoundary(event) || discardsAsOfADeletedAccount(event);
+    }
+
+    /**
+     * Whether the request's account was deleted after the engine took the request in (Q-15): its analysis outlived the
+     * purge of the account, so its result is observed as a shadow decision and writes nothing a later account of the
+     * same name would inherit (the action in force, the block, the held requests, what is learned). The discarded
+     * result is counted.
+     */
+    private boolean discardsAsOfADeletedAccount(SecurityEvent event) {
+        DeletedAccountWriteFence fence = deletedAccountWriteFence;
+        return fence != null && event != null
+                && fence.discards(DeletedAccountWriteFence.ENFORCEMENT, event.getUserId(), fence.takenInAt(event));
+    }
+
+    private boolean isOfADeletedAccount(SecurityEvent event) {
+        DeletedAccountWriteFence fence = deletedAccountWriteFence;
+        return fence != null && event != null && fence.fenced(event.getUserId(), fence.takenInAt(event));
     }
 
     private boolean isEventShadowBoundary(SecurityEvent event) {
@@ -604,6 +633,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
         if (isEnforcementDisabled()) {
             return "GLOBAL_SHADOW";
+        }
+        if (isOfADeletedAccount(event)) {
+            return "ACCOUNT_DELETED";
         }
         return "NONE";
     }

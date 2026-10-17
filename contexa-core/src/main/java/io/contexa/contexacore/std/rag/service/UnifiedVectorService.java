@@ -286,6 +286,14 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
     }
 
     /**
+     * The id an event's record of the document type is stored under (W2-15): storing the event's record again
+     * overwrites the row, and the record can be removed by its event (Q-15).
+     */
+    public static String documentId(String documentType, String eventId) {
+        return UUID.nameUUIDFromBytes((documentType + ":" + eventId).getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    /**
      * The document an event's record is stored as (W2-15): its id comes from the event and the document type, so that
      * storing the same event's record again overwrites the row instead of adding a second one. A document without an
      * event keeps its own id.
@@ -297,7 +305,7 @@ public class UnifiedVectorService implements VectorOperations, DisposableBean {
         if (eventId == null || documentType == null || eventId.toString().isBlank() || documentType.toString().isBlank()) {
             return document;
         }
-        String id = UUID.nameUUIDFromBytes((documentType + ":" + eventId).getBytes(StandardCharsets.UTF_8)).toString();
+        String id = documentId(documentType.toString(), eventId.toString());
         if (id.equals(document.getId())) {
             return document;
         }

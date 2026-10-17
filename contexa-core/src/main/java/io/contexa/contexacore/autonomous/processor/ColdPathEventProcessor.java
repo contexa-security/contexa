@@ -90,9 +90,10 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .success(true)
                     .build();
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore, listenerMetadata);
-            // N-L2-1: the first prompt was kept only for the second pass.
+            // N-L2-1: the first prompt was kept only for the second pass; N-RSN-1: so were the first reason codes.
             if (event.getMetadata() != null) {
                 event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT);
+                event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES);
             }
             result.setAction(analysisResult.getAction());
             result.setProposedAction(analysisResult.getProposedAction());
@@ -185,6 +186,9 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 Map<String, Object> layer1Snapshot = buildAssessmentSnapshot(layer1Assessment, "LAYER1");
                 result.setLayer1AssessmentSnapshot(layer1Snapshot);
                 putAssessmentSnapshot(event, "layer1Assessment", layer1Snapshot);
+                // N-RSN-1: the first pass's reason codes stay for the Layer2 second pass (the snapshot keeps none); a
+                // second pass that keeps the first verdict without a model call keeps them with it.
+                putFirstPassReasonCodes(event, layer1Assessment);
                 Map<String, Object> pipelineMetadata = buildPipelineMetadata(event, requestPath);
                 publishSessionContextLoaded(userId, pipelineMetadata);
                 publishBehaviorAnalysisComplete(userId, pipelineMetadata);
@@ -940,6 +944,20 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             return;
         }
         event.getMetadata().put(key, snapshot);
+    }
+
+    /** N-RSN-1: the first pass's reason codes for the Layer2 second pass, under their own key; none without codes. */
+    private void putFirstPassReasonCodes(SecurityEvent event, ThreatAssessment layer1Assessment) {
+        if (event == null || event.getMetadata() == null) {
+            return;
+        }
+        List<SecurityDecisionOutputContract.Citation> reasonCodes =
+                layer1Assessment != null ? layer1Assessment.getReasonCodes() : null;
+        if (reasonCodes == null || reasonCodes.isEmpty()) {
+            event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES);
+            return;
+        }
+        event.getMetadata().put(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES, List.copyOf(reasonCodes));
     }
 
     private void putIfNotNull(Map<String, Object> metadata, String key, Object value) {

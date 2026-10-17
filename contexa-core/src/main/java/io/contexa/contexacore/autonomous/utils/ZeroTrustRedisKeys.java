@@ -215,10 +215,22 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:context:event:verification-outcome:%s", NAMESPACE, eventId);
     }
 
+    /** When the user's account was deleted, while its late writes are told apart from a later account's (Q-15). */
+    public static String accountDeletion(String userId) {
+        validateUserId(userId);
+        return String.format("%s:context:user:account-deletion:%s", NAMESPACE, userId);
+    }
+
     /** The user's allowed requests whose first-seen values wait for promotion (W5-1). */
     public static String promotionLearning(String userId) {
         validateUserId(userId);
         return String.format("%s:context:user:promotion-learning:%s", NAMESPACE, userId);
+    }
+
+    /** The requests a filter stopped under the user's challenge, by method and URI, until the step-up (N-LRN-3). */
+    public static String stoppedRequests(String userId) {
+        validateUserId(userId);
+        return String.format("%s:context:user:stopped-requests:%s", NAMESPACE, userId);
     }
 
     public static String userLastRequestTime(String userId) {

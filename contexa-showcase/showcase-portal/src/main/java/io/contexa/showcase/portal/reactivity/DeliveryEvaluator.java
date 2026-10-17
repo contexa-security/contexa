@@ -78,14 +78,23 @@ public final class DeliveryEvaluator {
      * how many lines of the variant were compared and did not change, the volatile lines left out as for the changes.
      * N-DLV-2: what the base run's operation did not look up for the condition (its record kind or CLAIMED_TICKET),
      * the comparison then being the invariance one; null when the condition applies or the seal does not say.
+     * N-DLV-6: whether the step changed no line and the variant states the requested value: the condition the base
+     * already had, which passes without an expected fact.
      */
     public record Delivery(List<String> changed, List<String> delivered, List<String> unexpected, Boolean valueMatches,
-                           boolean passed, int unchangedLines, List<String> derived, String notLookedUp) {
+                           boolean passed, int unchangedLines, List<String> derived, String notLookedUp,
+                           boolean sameAsBase) {
 
         /** P7-CHANGE-9: a delivery without derived facts. */
         public Delivery(List<String> changed, List<String> delivered, List<String> unexpected, Boolean valueMatches,
                         boolean passed, int unchangedLines) {
-            this(changed, delivered, unexpected, valueMatches, passed, unchangedLines, List.of(), null);
+            this(changed, delivered, unexpected, valueMatches, passed, unchangedLines, List.of(), null, false);
+        }
+
+        /** A delivery that is not the base itself. */
+        public Delivery(List<String> changed, List<String> delivered, List<String> unexpected, Boolean valueMatches,
+                        boolean passed, int unchangedLines, List<String> derived, String notLookedUp) {
+            this(changed, delivered, unexpected, valueMatches, passed, unchangedLines, derived, notLookedUp, false);
         }
     }
 
@@ -212,11 +221,13 @@ public final class DeliveryEvaluator {
             }
         }
         Boolean valueMatches = notLookedUp != null || later ? null : valueMatches(variant, condition, value);
-        boolean passed = unexpected.isEmpty() && (INVARIANT.equals(compared) || later || !delivered.isEmpty())
-                && !Boolean.FALSE.equals(valueMatches);
+        // N-DLV-6: a step that changed no line and states the requested value is the condition the base already had.
+        boolean sameAsBase = changed.isEmpty() && Boolean.TRUE.equals(valueMatches);
+        boolean passed = unexpected.isEmpty() && (INVARIANT.equals(compared) || later || sameAsBase
+                || !delivered.isEmpty()) && !Boolean.FALSE.equals(valueMatches);
         return new Delivery(List.copyOf(changed), List.copyOf(delivered), List.copyOf(unexpected), valueMatches,
                 passed, unchangedLines,
-                List.copyOf(derivedChanges), notLookedUp);
+                List.copyOf(derivedChanges), notLookedUp, sameAsBase);
     }
 
     /** What the base run's operation did not look up for the condition (N-DLV-2); null when it did or is not known. */

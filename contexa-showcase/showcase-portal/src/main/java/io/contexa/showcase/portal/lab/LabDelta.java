@@ -54,10 +54,12 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
      * @param notLookedUp    N-DLV-4: what the request's work does not look up for the changed condition (a record kind
      *                       or CLAIMED_TICKET, DeliveryEvaluator, N-DLV-2), so its value cannot reach the prompt; null
      *                       when it does or the step was not compared
+     * @param sameAsBase     N-DLV-7: whether the step is the base run itself: no line changed and the variant states
+     *                       the requested value (DeliveryEvaluator, N-DLV-6); false when the step was not compared
      */
     public record Step(int stepNo, List<Change> changed, List<String> expected, List<String> unexpected,
                        Boolean valueMatches, boolean passed, String notCompared, Integer unchangedLines,
-                       String notLookedUp) {
+                       String notLookedUp, boolean sameAsBase) {
     }
 
     /** Why a lab run cannot be compared before a base is looked for; null when it can. */
@@ -101,7 +103,7 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
             DeliveryEvaluator.Delivery compared = step.delivery();
             if (compared == null) {
                 steps.add(new Step(step.stepNo(), List.of(), List.of(), List.of(), null, false, step.notCompared(),
-                        null, null));
+                        null, null, false));
                 continue;
             }
             Map<String, List<String>> before = values(facts.get(step.baseRequestId()));
@@ -113,7 +115,7 @@ public record LabDelta(String runId, String baseRunId, String condition, String 
             }
             steps.add(new Step(step.stepNo(), List.copyOf(changed), compared.delivered(), compared.unexpected(),
                     compared.valueMatches(), compared.passed(), null, compared.unchangedLines(),
-                    compared.notLookedUp()));
+                    compared.notLookedUp(), compared.sameAsBase()));
         }
         return new LabDelta(run.runId(), delivery.baseRunId(), delivery.condition(), delivery.value(), true, null,
                 List.copyOf(steps));

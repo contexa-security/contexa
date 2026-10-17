@@ -38,6 +38,8 @@ public class PromptBundleRollbackService {
     public static final String NOT_APPLICABLE = "NOT_APPLICABLE";
     /** W7-14: how many executions of a bundle the version screen lists. */
     private static final int EXECUTION_LIMIT = 20;
+    /** N-GOV-5: the stored values of an active release, of every vocabulary (decision 1). */
+    private static final String ACTIVE_STATES = PromptBundleState.sqlList(PromptBundleState.ACTIVE);
 
     private final JdbcTemplate jdbc;
     private final PromptBundleCatalog catalog;
@@ -108,16 +110,20 @@ public class PromptBundleRollbackService {
         String executionKey = "RBX-" + UUID.randomUUID();
         Timestamp now = Timestamp.from(clock.instant());
         if (!refusals.isEmpty()) {
-            record(executionKey, request, actor, REFUSED, conditions, refusals, now);
+            record(executionKey, request, actor, REFUSED, conditions, refusals, List.of(), now);
             return new Result(executionKey, REFUSED, conditions, List.copyOf(refusals));
         }
         // N-RBK-1: new writes store the canonical state names (PromptBundleState), as the release gate does.
         setStatus(scope, key, request.fromVersion(), PromptBundleState.DEPRECATED.name(), now);
         setStatus(scope, key, request.toVersion(), PromptBundleState.ACTIVE.name(), now);
+        // N-GOV-5: the target is the one active release of its scope, prompt key and template; the other active
+        // releases it replaces are deprecated with the source and named in the execution's conditions.
+        List<String> superseded = otherActiveVersions(scope, key, request.fromVersion(), request.toVersion());
+        superseded.forEach(version -> setStatus(scope, key, version, PromptBundleState.DEPRECATED.name(), now));
         invalidation.publish(scope, key, request.toVersion(),
                 "rollback from " + request.fromVersion() + (request.emergency() ? " (emergency stop)" : ""), actor);
         String status = request.emergency() ? AWAITING_APPROVAL : EXECUTED;
-        record(executionKey, request, actor, status, conditions, List.of(), now);
+        record(executionKey, request, actor, status, conditions, List.of(), superseded, now);
         return new Result(executionKey, status, conditions, List.of());
     }
 
@@ -189,16 +195,26 @@ public class PromptBundleRollbackService {
         return statuses.isEmpty() ? null : statuses.get(0);
     }
 
+    /** N-GOV-5: the other active releases of the target's scope, prompt key and template, by version. */
+    private List<String> otherActiveVersions(String scope, String key, String fromVersion, String toVersion) {
+        return jdbc.queryForList("select prompt_version from prompt_governance_registry where registry_scope = ? "
+                        + "and prompt_key = ? and prompt_version not in (?, ?) and upper(release_status) in ("
+                        + ACTIVE_STATES + ") and template_key in (select template_key from prompt_governance_registry "
+                        + "where registry_scope = ? and prompt_key = ? and prompt_version = ?) order by prompt_version",
+                String.class, scope, key, fromVersion, toVersion, scope, key, toVersion);
+    }
+
     private void setStatus(String scope, String key, String version, String status, Timestamp now) {
         jdbc.update("update prompt_governance_registry set release_status = ?, updated_at = ? "
                 + "where registry_scope = ? and prompt_key = ? and prompt_version = ?", status, now, scope, key, version);
     }
 
     private void record(String executionKey, Request request, String actor, String status, Conditions conditions,
-                        List<String> refusals, Timestamp now) {
+                        List<String> refusals, List<String> superseded, Timestamp now) {
         Map<String, Object> checked = new LinkedHashMap<>();
         checked.put("conditions", conditions);
         checked.put("refusals", refusals);
+        checked.put("superseded", superseded);
         String json;
         try {
             json = objectMapper.writeValueAsString(checked);

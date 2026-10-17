@@ -57,11 +57,15 @@ public record DecisionAnatomy(int builderVersion, String runId, int stepNo, Stri
     }
 
     /**
-     * One dimension of the request and whether the engine's baseline contains it, as rendered.
+     * One dimension of the request and whether the engine's baseline contains it, as rendered; of a v20 record as the
+     * engine sealed its decision facts (N-DEP-1, {@link SealedDeviations}).
      *
-     * @param now      the current value label's value (for example CurrentAccessHour)
-     * @param inUsual  the comparison label's value: true, false or the engine's UNKNOWN text
-     * @param labels   the two label names the values come from
+     * @param now      the current value label's value (for example CurrentAccessHour); of a v20 record the deviation's
+     *                 current value as its prompt line names it
+     * @param inUsual  the comparison label's value: true, false or the engine's UNKNOWN text; of a v20 record whether
+     *                 the value was seen (not different), or the engine's UNKNOWN with why it was not compared
+     * @param labels   the two label names the values come from; of a v20 record the prompt line that states it
+     *                 (DeviationsFromBaseline or SameAsBaseline)
      */
     public record Comparison(String dimension, String now, String inUsual, List<String> labels) {
     }
@@ -179,12 +183,14 @@ public record DecisionAnatomy(int builderVersion, String runId, int stepNo, Stri
     /**
      * ④ The facts the engine received next to the reasons, without any judgement of which fact matters.
      *
-     * @param departures       comparison labels the core rendered as not in the baseline (value false), with the value
+     * @param departures       comparison labels the core rendered as not in the baseline (value false), with the value;
+     *                         of a v20 record the dimensions its seal states as different, explained or not (N-DEP-1)
      * @param companyFacts     the company record sentences the engine received
      * @param sensitivity      the resource sensitivity the engine received
      * @param coreAdverseLabels the labels the core's response inspector reads as explicit adverse evidence, with the
      *                          values the prompt rendered and whether they meet the inspector's condition
-     *                          ({@link CoreAdverseLabels}); empty when no prompt was kept
+     *                          ({@link CoreAdverseLabels}); empty when no prompt was kept; of a v20 record the
+     *                          core's v20 conditions the facts it sealed state (N-DEP-2, CoreAdverseLabels#sealed)
      */
     public record Juxtaposition(List<Comparison> departures, List<String> companyFacts, String sensitivity,
                                 String modelReasoning, String recordedReasoning,

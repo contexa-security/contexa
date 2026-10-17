@@ -22,6 +22,8 @@ class CoreAdverseLabelsContractTest {
 
     private static final Path INSPECTOR = Path.of("..", "..", "contexa-core", "src", "main", "java", "io", "contexa",
             "contexacore", "std", "pipeline", "processor", "SecurityDecisionRawOutputContractInspector.java");
+    private static final Path FACT_CHECKS = Path.of("..", "..", "contexa-core", "src", "main", "java", "io", "contexa",
+            "contexacore", "autonomous", "tiered", "prompt", "SecurityDecisionFactChecks.java");
 
     @Test
     void theLabelsAreTheCoreInspectorsExplicitAdverseEvidenceRule() throws IOException {
@@ -57,6 +59,41 @@ class CoreAdverseLabelsContractTest {
         Map<String, String> demo = new HashMap<>();
         CoreAdverseLabels.RULES.forEach(entry -> demo.put(entry.key(), entry.condition()));
         assertThat(demo).isEqualTo(core);
+    }
+
+    /**
+     * N-DEP-2: the adverse conditions of a v20 decision are the core's v20 inspection's (SecurityDecisionFactChecks) as
+     * far as the facts the engine sealed state them; the test reads the core's list from its source and fails when the
+     * list changes, so the demo is looked at again instead of drifting.
+     */
+    @Test
+    void theSealedConditionsAreTheCoreV20InspectionsAdverseFacts() throws IOException {
+        String source = Files.readString(FACT_CHECKS, StandardCharsets.UTF_8).replaceAll("\\s+", " ");
+        int start = source.indexOf("boolean adverseOtherThanTheDifferences() {");
+        assertThat(start).as("the list is still where the demo reads it").isPositive();
+        int returns = source.indexOf("return ", start) + "return ".length();
+        List<String> terms = List.of(source.substring(returns, source.indexOf("; }", returns)).split(" \\|\\| "));
+
+        assertThat(terms).as("the core's adverse facts, in its order").containsExactly(
+                "\"BLOCK\".equals(effect)", "\"DENY\".equals(effect)", "fact(\"SessionDeviceChange\").isPresent()",
+                "fact(\"SessionNetworkChange\").isPresent()", "anySignal(intent())", "impossibleTravel()",
+                "(factHas(\"RoleScope\", \"ROLE_SCOPE_OUTSIDE\") && !provisionalScope)",
+                "fact(\"DataConflicts\").isPresent()", "prompt.states(PromptBlock.DECISION_FACTS, \"BlockedUser\")",
+                "prompt.states(PromptBlock.SESSION, \"RecentDenied\")",
+                "prompt.states(PromptBlock.DECISION_FACTS, \"ThreatMatch\")",
+                "(session != null && prompt.states(PromptBlock.SESSION, \"FailedLogins\")"
+                        + " && atLeast(session.getFailedLoginAttempts(), 1))",
+                "(session != null && prompt.states(PromptBlock.SESSION, \"MfaFailures\")"
+                        + " && atLeast(session.getRecentMfaFailureCount(), 1))");
+        assertThat(source).contains("boolean unmetRequirement() { return prompt.states(PromptBlock.DECISION_FACTS,"
+                + " \"Policy\") && !Boolean.TRUE.equals(policySatisfied()); }");
+
+        Map<String, String> demo = new HashMap<>();
+        CoreAdverseLabels.SEALED_RULES.forEach(entry -> demo.put(entry.key(), entry.condition()));
+        assertThat(demo).as("the effect, the session changes, the data conflicts, the blocked user and the policy")
+                .isEqualTo(Map.of("authorizationeffect", "DENY_OR_BLOCK", "sessiondevicechange", "STATED",
+                        "sessionnetworkchange", "STATED", "dataconflicts", "STATED", "blockeduser", "STATED",
+                        "policysatisfied", "NOT_SATISFIED"));
     }
 
     @Test

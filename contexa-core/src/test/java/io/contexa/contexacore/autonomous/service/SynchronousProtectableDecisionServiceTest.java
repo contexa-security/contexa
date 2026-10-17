@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -143,6 +144,25 @@ class SynchronousProtectableDecisionServiceTest {
                 service.analyze(methodInvocation, authentication);
 
         assertThat(result.action()).isEqualTo(ZeroTrustAction.CHALLENGE);
+    }
+
+    @Test
+    @DisplayName("Q-15: the synchronous analysis takes the event in on the server clock, as a collector does")
+    void analyze_takesTheEventInOnTheServerClock() {
+        MockHttpServletRequest request = request("/admin/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/admin/reports");
+        stubEvent(event);
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class)))
+                .thenReturn(mock(SecurityEventContext.class));
+        long before = System.currentTimeMillis();
+
+        service.analyze(methodInvocation, authentication);
+
+        ArgumentCaptor<SecurityEvent> analysed = ArgumentCaptor.forClass(SecurityEvent.class);
+        verify(securityPlaneAgent).processSecurityEvent(analysed.capture());
+        assertThat(analysed.getValue().getMetadata().get(DeletedAccountWriteFence.TAKEN_IN_AT))
+                .isInstanceOfSatisfying(Long.class, at -> assertThat(at).isBetween(before, System.currentTimeMillis()));
     }
 
     private void stubEvent(ZeroTrustSpringEvent event) {

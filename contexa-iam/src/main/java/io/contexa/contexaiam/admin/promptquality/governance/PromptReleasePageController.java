@@ -43,7 +43,7 @@ public class PromptReleasePageController {
                     "rollback.noTargets", "rollback.reasonRequired", "compare.changed", "compare.same",
                     "compare.notInBuild", "compare.cases", "compare.unpaired", "compare.noShadow",
                     "compare.decisionSeal", "compare.shadowSeal", "compare.thisBundle", "compare.otherBundle",
-                    "compare.noEvaluation")
+                    "compare.noEvaluation", "evidence.scenarioFamilies")
                     .map(word -> "promptRelease." + word))
             .flatMap(keys -> keys)
             .toList();

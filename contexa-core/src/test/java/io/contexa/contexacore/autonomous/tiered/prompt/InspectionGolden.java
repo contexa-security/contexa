@@ -170,6 +170,36 @@ final class InspectionGolden {
     }
 
     /**
+     * The v20 render of the base render's golden case and profile when its past-record search timed out, as the P2 gate
+     * measurement sealed one (the search inputs of the template test's timed-out case). N-INS-2: the render's caller
+     * names the past records unknown now.
+     */
+    static Render renderWithTimedOutSearch(Render base) {
+        SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
+        JsonNode goldenCase = golden.cases().stream()
+                .filter(node -> base.caseKey().equals(node.path("caseKey").asText())).findFirst().orElseThrow();
+        ObjectNode changed = goldenCase.deepCopy();
+        ObjectNode rag = (ObjectNode) changed.path("ragResults");
+        rag.put("ragRetrievalState", "TIMEOUT").put("ragAbsenceReason", "TIMEOUT").put("ragTimedOut", true)
+                .put("ragUnavailable", true).put("ragZeroResults", false).put("ragSearchExecuted", true)
+                .put("ragTimeoutMs", 500).put("ragAuthorizedDocumentCount", 0).put("ragCandidateDocumentCount", 0)
+                .put("ragDeniedDocumentCount", 0).put("relatedDocumentCount", 0)
+                .put("ragRelevance", "NO_DOCUMENTS").put("ragProjectionState", "UNAVAILABLE_DECLARED")
+                .put("ragFailureType", "java.util.concurrent.TimeoutException")
+                .put("ragFailureMessage", "RAG retrieval exceeded the interactive hot-path budget; background lookup "
+                        + "continues for cache warm-up.");
+        rag.putNull("ragProjectedToFinalPrompt");
+        rag.remove("ragEarlierRetrievalState");
+        rag.putArray("relatedDocuments");
+        TieredStrategyProperties properties = new TieredStrategyProperties();
+        properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V20.version());
+        SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(changed, base.profile(), properties);
+        return new Render(rendered.caseKey(), base.profile(), rendered.systemText(), rendered.userText(),
+                rendered.canonicalContext(), rendered.executionMetadata().toMetadataMap(),
+                changed.path("ragResults").toString(), changed.path("requestFacts").toString());
+    }
+
+    /**
      * Real v20 packages the showcase engine sealed under the current bundle (read from its database on 2026-10-14,
      * bundle 2026.10.14-v20.13: A3T 6480, A8 6481, S08 6482): the prompt the model got with the sources sealed with it,
      * as the inspector reads them from the package table.

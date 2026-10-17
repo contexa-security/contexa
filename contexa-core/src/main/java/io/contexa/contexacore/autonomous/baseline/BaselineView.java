@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.baseline;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -138,6 +140,8 @@ public record BaselineView(
      *                                  a value of an earlier vocabulary the vocabulary table no longer reads (W5-7)
      * @param request                   how the request's own value of each dimension was seen, by dimension name
      *                                  ({@code TIME}, {@code DAY}, {@code NETWORK}, ...; W5-10 D1~D3)
+     * @param rate                      the usual rate (N-RATE-1), null without a request in the window or when the
+     *                                  rate was sealed before N-RATE-1 under the clock-hour definition
      */
     public record Counts(
             Map<Integer, Integer> hours,
@@ -202,6 +206,9 @@ public record BaselineView(
             devices = devices == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(devices));
             logins = logins == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(logins));
             request = request == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(request));
+            // N-RATE-1: a usual rate counts at least one request. A rate sealed before counted clock hours and holds no
+            // count of requests (its activeHours is not read): it is no usual rate of this definition.
+            rate = rate != null && rate.requests() > 0 ? rate : null;
         }
     }
 
@@ -222,10 +229,21 @@ public record BaselineView(
     }
 
     /**
-     * The requests of each active clock hour of the window (W5-10 D5): how many hours had a request, and the median and
-     * the 95th percentile of their requests.
+     * The usual rate (W5-10 D5, N-RATE-1): at each request of the window, the window's requests of the 60 minutes
+     * (event clock) up to it, that request included, which is the count the decision facts take of the request being
+     * judged; the median and the 95th percentile (nearest rank) of these counts. A rate sealed before N-RATE-1 counted
+     * the requests of each active clock hour: its number of hours is not read, and with no request counted it is no
+     * usual rate of this definition ({@link Counts}).
+     *
+     * @param requests the requests counted, one count each: the window's observations
+     * @param median   the median of the counts
+     * @param p95      the 95th percentile of the counts
      */
-    public record Rate(int activeHours, int median, int p95) {
+    @JsonIgnoreProperties({"activeHours"})
+    public record Rate(int requests, int median, int p95) {
+
+        /** The span of each count, in the words the usual rate's lines use. */
+        public static final String WINDOW = "in the 60 min up to a request";
     }
 
     /** A view without counts, as before W2-5. */

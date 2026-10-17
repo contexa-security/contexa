@@ -7,6 +7,8 @@
   - auto = `contexa-autoconfigure/src/main/java/io/contexa/autoconfigure`
   - common = `contexa-common/src/main/java/io/contexa/contexacommon`
   - identity = `contexa-identity/src/main/java/io/contexa/contexaidentity`
+  - iam = `contexa-iam/src/main/java/io/contexa/contexaiam`
+  - 문서(모두 `docs/showcase/`): 계획 = `프롬프트-최종-구현계획.md`, 사전 = `프롬프트-v20-사전.md`, 버전관리 = `프롬프트-버전관리-설계.md`, 재설계 = `프롬프트-검사기-재설계.md`, P{n} 검수 = `프롬프트-P{n}-검수.md`, 승인대기 = `승인대기.md`
 
 ## ADR-01 저장소와 모듈 구조
 - **결정**: OSS 저장소 `contexa-showcase/` 아래에 다섯 단위를 둔다.
@@ -308,3 +310,224 @@
   - 방문자의 실행은 저장 기록으로도 그린다: 포털은 현재 실행을 메모리에만 두므로, 체험 단계는 현재 실행이 없으면 여정의 최신 완료 실행을 저장된 단계 결과·판정 해부로 그린다(`tryRun.ts`). 해부 기록은 판정의 토큰 합계를 서버가 계산해 준다.
   - 첫 로드는 방문자 언어 하나: 사전은 언어별 묶음이고, 첫 HTML의 작은 스크립트가 앱과 같은 규칙으로 언어를 골라 그 사전만 미리 받는다(`languagePreload.ts`).
 - 결과: S12 종합 검수 C-1~C-19 중 C-1(사람 시험)은 사용자, C-13은 첫 화면·API 기준 안·체험 화면 LCP 미달(Q-56), 나머지 PASS(`S12-검수.md`).
+
+## ADR-37 판정 프롬프트 v20 형식: 사전·블록·결측 표기·사실 ID (2026-10-10 W0-5 확정, 2026-10-15까지 보강)
+- **결정**
+  - 모델이 받는 모든 줄은 v20 사전에 등록된 항목으로만 만든다. 항목마다 뜻, 원천 경로, 값 형식, 결측 표기, 판정에서의 쓰임, 블록, 출처 등급을 정한다(계획:63-64, 원칙 2 계획:89-91).
+  - 블록은 시스템 둘(판정 규칙, 출력 계약)과 사용자 일곱(USER BASELINE, SESSION, REQUEST, DECISION FACTS, PAST RECORDS, UNKNOWN, UNTRUSTED TEXT)이다. Layer2 2차에서만 SECOND PASS를 덧붙인다. 순서는 바뀌는 주기 순이고, 바뀌지 않는 것이 앞에 와서 제공자 캐시 접두사가 된다(사전:11, 사전:29-42, 계획:399).
+  - 출처 등급은 host, learned, computed, inferred, untrusted 다섯이다(사전:45-53).
+  - 결측은 세 종류다. not-integrated와 unavailable-now는 줄을 쓰지 않고 UNKNOWN 블록에 이름과 종류로 적는다. not-applicable은 줄을 쓰지 않는다. UNKNOWN은 일치도 불일치도 아니다(사전:65-73, 계획:630).
+  - 근거 코드가 인용하는 줄에는 사실 ID를 붙인다. 판정 사실은 `F`, 기준선·세션·요청·과거 기록은 `B`·`S`·`R`·`P`(P3-추가-12), Unknown 줄이 모르는 사실마다 주는 ID는 `U`(N-UID-1, Q-87)다. ID는 그 프롬프트 안에서 블록 안에 그린 순서로 붙는다(사전:79-83, 계획:631).
+  - 한 사실은 한 줄, 한 이름, 한 출처, 한 어휘, 한 시계로 쓴다(계획:100, 사전:87). 목록 값의 순서는 입력 순서가 아니라 정한 규칙을 따른다(사전:88-92).
+  - 사실을 담은 항목은 빼지 않는다. 빼기는 항목마다 결정한 것만 했다: Q-61·Q-73(W3-5), Q-79(W3-19), Q-84와 P3-추가-36(지시 문장만), `TrustedSignal`(Q-78 요청 4, R4-T)(계획:130-134, 승인대기:1090-1091·1098·1100·1159·1177).
+  - 설계 정본은 사전 문서다(계획:624). 실행 정본은 코드 사전(번들 요소 B2)이고, DB 행은 시작 때 쓰는 사본이다(계획:409).
+- **이유**
+  - v19 판정은 `ApprovalMissing` 한 값에 거의 따라갔다. 공격 중 그 값이 false인 79단계의 정답은 5%였다(계획:5).
+  - 지시 3·4: 의미 없거나 틀리거나 출처가 없는 줄이 하나도 없어야 하고, 프롬프트 구성이 모델의 추론을 방해해서는 안 된다(계획:22-23).
+  - W0-5의 설계 확정은 사용자 위임으로 했다(사전:3, 승인대기:698-699). 원칙 14의 빼기는 위임 밖이라 항목마다 따로 정했다(승인대기:700).
+- **영향**
+  - 코드: 블록 `core/autonomous/context/prompt/PromptBlock.java:26-35`, 출처 등급 `PromptSourceGrade.java:19-30`, 결측 종류와 `U` 접두사 `PromptUnknownKind.java:25-33`.
+  - 사전이나 렌더가 바뀌면 새 번들 이름으로 고정한다(ADR-39). 프롬프트 검수기의 계약은 이 사전이다(ADR-43).
+  - 사전 8절(검사기 계약 v2 구조, 사전:374-395)은 ADR-44에 따라 쓰지 않는다(계획:73, 계획:251).
+
+## ADR-38 v19 형식 유지와 롤백 대상 (2026-10-10 계획 v3, 버전관리 결정 2)
+- **결정**
+  - P1·P2는 v19 형식을 유지하고 값만 바로잡는다. v20 번들은 P3부터 둔다(계획:264-266).
+  - v19·v20 번들을 한 빌드에 싣는다. 빌드 기본은 v19이고, 빌드에 남길 이전 번들은 하나다(계획:119, 계획:250, 버전관리:492).
+  - 전환 일정: P7까지 v19가 ACTIVE다. v20은 P3부터 AVAILABLE, P6~P7에 SHADOW다. P8에서 게이트·롤백 리허설·승인 뒤 v20이 CANARY → ACTIVE가 되고, v19는 DEPRECATED로 남아 롤백 대상이 된다(계획:254, 계획:616). v19를 RETIRED로 내릴 시점은 사용자가 정한다(계획:616). P8 결과: 관문 미달(2절 17개 중 A2·C5 미달)로 전환하지 않았다(아래 P8 결과).
+  - 출력 계약 v3와 고정 근거 문장 폐지는 v20 번들에만 적용한다. v19 번들은 그대로다(P4 검수:52·89·95).
+- **이유**
+  - 판정 변화가 어디서 왔는지 따로 보려는 것이다. 값의 뜻을 바로잡은 효과(P1·P2)와 구성을 바꾼 효과(P3·P4)를 따로 잰다(계획:273).
+  - 롤백은 빌드에 있는 번들로의 실제 전환이다. 빌드에 없는 번들은 롤백 대상이 될 수 없다(계획:119, 버전관리:97).
+- **현재(2026-10-16)**
+  - 빌드 기본 번들은 v19 레이아웃이고, 실행할 수 있는 번들은 둘이다(`core/autonomous/tiered/prompt/SecurityDecisionPromptBundles.java:55-62`). 이름은 `2026.10.16-v19.19`와 `2026.10.16-v20.23`이다(`SecurityDecisionStandardPromptTemplate.java:58`, `:108`).
+  - v20.23 매니페스트의 롤백 대상은 v19.19다(`contexa-core/src/main/resources/prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json:77`). 쇼케이스 D에서 v20.23은 SHADOW 릴리스다(P6-변경-19, P6 검수:325).
+- **P8 결과**
+  - ACTIVE가 된 v20 번들 이름·해시: 없다. P8 관문 미달(A2 정상 업무 본인 확인 25/75, C5 주입 변화 1/7)로 v20을 ACTIVE로 바꾸지 않았다. 측정·공개한 번들은 `2026.10.16-v20.24`(bundleHash `5e75a42543778f2367635001a97174cbe5b890c43bc50a318e50cb9dca23a06e`)다
+  - CANARY·ACTIVE 전환 시각과 v19 DEPRECATED 전환: 없다. 레지스트리는 재빌드 첫 등록 그대로다(v19.20 ACTIVE, v20.24 AVAILABLE, v20.23 SHADOW). 전환은 사용자 결정 뒤다
+  - 롤백 리허설 결과(W6-10, W8-3): 하지 않았다. 리허설은 전환 절차(연쇄 c)의 앞 단계라, 관문 미달로 연쇄 c를 시작하지 않았다
+
+## ADR-39 프롬프트 번들과 매니페스트 (2026-10-10 W0-10 확정, W1-18 v19 번들화, 2026-10-14 R4-B9)
+- **결정**
+  - 버전 단위는 번들이고 정체성은 내용 해시다. 한 글자라도 바뀌면 새 번들이다(계획:117, 버전관리:93-94).
+  - 요소는 B1~B11이다: B1 시스템 글, B2 사전, B3 렌더러(골든 렌더 다이제스트), B4 출력 계약, B5 최소 대응 규칙, B6 응답 검사 규칙, B7 과거 기록, B8 예산, B9 검사기 계약, B10 어휘, B11 2차 분석(B3에 포함)(버전관리:105-117).
+  - 번들 해시는 요소 해시 열한 개를 B1~B11 순서로 이은 글의 SHA-256이다. 글 요소는 줄바꿈을 LF로 바꾼 뒤 해시한다. 내용을 해시하지 않는 요소는 상태 표지(ABSENT, UNVERSIONED, INCLUDED)를 해시해 상태도 정체성에 든다(`core/std/components/prompt/bundle/PromptBundleHashes.java:31-32`, `:50-53`, `:63-68`, `:70-86`, `PromptBundleElementState.java:22-27`).
+  - 매니페스트의 다른 칸(골든 입력, 부모, 변경 요약, 문제 ID, 작성자, 고정일, 어휘, 롤백 대상, 모델 프로필)은 번들을 설명할 뿐 해시에 들지 않는다(`PromptBundleManifest.java:21-39`). 매니페스트를 읽을 때 선언한 해시가 요소 해시와 다르면 실패하고, 같은 이름에 다른 해시가 둘이면 실패한다(`PromptBundleManifest.java:50-54`, `PromptBundleCatalog.java:33-35`, `:46-53`).
+  - 고정 절차: 번들 시험이 코드에서 매니페스트를 계산해 `build/prompt-bundles/manifests`에 쓰고, 출하 매니페스트와 요소가 다르면 새 버전 이름을 요구한다(`contexa-core/src/test/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionPromptBundleTest.java:139-173`). 고정 도구가 그 매니페스트에 손 칸(부모, 문제 ID, 고정일, 쓰는 어휘와 읽는 어휘, 롤백 대상)을 채워 출하 위치에 둔다(P5 검수:796, P6 검수:211, `scratchpad/p5/bundle_p5_freeze.py:1-2`). 고정 도구는 작업 폴더 스크립트이고 레포에 없다. 손 칸은 위의 설명 칸이라 해시에 들지 않는다.
+  - 이름은 `YYYY.MM.DD-vNN`이고, 같은 날 다른 내용이면 `.2`, `.3`을 붙인다. 출력 계약 버전은 `CORTEX_PROMPT_CONTRACT_V3`다(버전관리:509-510).
+  - 모델 프로필은 번들 밖에 둔다. 실행 구성은 '번들 × 모델 프로필'이다(버전관리:119, 버전관리:495).
+  - B9(검사기 계약)는 ABSENT 표지로 바꿨다. v19·v20이 함께 쓰는 요소라 두 번들을 새 버전(v19.10, v20.12)으로 고정했다(R4-B9, Q-78 요청 2, Q-83: 계획:120, 계획:473, 버전관리:662-664, 승인대기:1096).
+- **이유**
+  - 계획 전의 버전 정체성은 글과 무관했다. 디스크립터 해시는 메타 12필드의 해시라, 글이 바뀌어도 메타가 같으면 해시가 같았다(PV-1, 버전관리:48, 계획:181).
+  - 지시 11·12: 프롬프트는 버전관리가 필요하고, 기본 버전관리는 OSS가 맡는다(계획:30-31).
+  - 검수 결과는 판정 출력에 영향이 없고 결과마다 검수기 판을 남기므로, 검사기 계약을 번들에 묶을 이유가 없다(재설계:200-201).
+- **영향**
+  - 지금 빌드의 v20.23 매니페스트: B9 ABSENT(`contexa-core/src/main/resources/prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json:46-49`). B9가 두 번들의 요소가 아님을 시험이 지킨다(`SecurityDecisionPromptBundleTest.java:120-130`).
+  - 옛 매니페스트는 렌더 코드가 없는 기록으로 남고 고를 수 없다(버전관리:523).
+  - P8에 ACTIVE가 된 번들의 해시: 없다(전환하지 않음). 측정한 v20 번들 해시는 `5e75a4254377…`다
+
+## ADR-40 번들 선택기, 레지스트리 수명주기, 활성화 게이트 (2026-10-10 버전관리 결정 1~13, 2026-10-12 W3-16, 2026-10-16 W6-8~W6-10)
+- **결정**
+  - 실행할 번들을 고르는 곳은 선택 SPI `PromptBundleSelector` 하나다. OSS가 설정 구현(`contexa.security.tiered.prompt-bundle.active`)과 레지스트리 구현을 둔다. 쓸 구현은 `contexa.security.tiered.prompt-bundle.selector`(기본 `configuration`, 또는 `registry`)로 고른다(계획:253, P3-변경-22 P3 검수:2962, `core/properties/TieredStrategyProperties.java:44-58`).
+  - 한 이벤트는 한 번들로 그린다. Layer2·2차 분석은 1차 프롬프트의 번들을 쓴다(P3-변경-23, P3 검수:2963). 고른 번들이 빌드에 없으면 기본 번들로 그리고 error 로그를 남긴다(버전관리:526).
+  - 상태 어휘 정본은 AVAILABLE, SHADOW, CANARY, ACTIVE, DEPRECATED, RETIRED와 이벤트 KILL_SWITCH다. 기존 어휘는 대응표로 읽기 호환이다(결정 1: 버전관리:491, 승인대기:679, `core/std/components/prompt/bundle/PromptBundleState.java:39-55`, `:71`). 앞으로 가는 전이는 단계를 건너뛰지 않는다(AVAILABLE → SHADOW → CANARY → ACTIVE). DEPRECATED에서는 CANARY와 RETIRED로만 가고, RETIRED에서는 갈 곳이 없다(`core/std/components/prompt/governance/PromptGovernanceReleaseGateService.java:676-686`).
+  - 게이트 증거는 그 번들 해시로 만든 실행의 평가만 받는다. 다른 번들의 평가로는 CANARY·ACTIVE로 갈 수 없다(W6-8, P6 검수:136, 게이트 `:427-431`, `:914-919`). 재지 않은 게이트 값은 `NOT_VERIFIED`로 둔다(계획:585, 게이트 `:393-396`).
+  - ACTIVE로 가려면 TEVV 게이트가 `READY_FOR_PRODUCTION`이고, 주입 게이트가 실패가 아니고, 지연·비용 게이트가 실패가 아니고, 경험 평가가 통과해야 한다. 모델 호환·예산·토큰 계산·캐시·압축 정책과 롤백 대상도 선언되어 있어야 한다(게이트 `:449-484`).
+  - 섀도는 기본 꺼짐(0%)이고, 켜면 비율과 하루 호출 상한을 설정으로 둔다(결정 3: 버전관리:493, `TieredStrategyProperties.java:64`, `:67`). 섀도는 판정 뒤 비동기로 후보 번들을 따로 봉인하고 집행·학습하지 않는다(P6-변경-6·11, P6 검수:312·317).
+  - 롤백은 매니페스트의 롤백 대상 가운데 하나로 바로 바꾼다. 조건은 원래 번들이 실행 중임, 대상이 빌드에 있음, 대상이 롤백 대상으로 선언되어 있음, 어휘 호환, 대상이 레지스트리에 있음, 정책 세트다. OSS에는 정책 세트가 없어 구현이 없으면 '해당 없음'을 원장에 적는다(P6-변경-7, P6 검수:159-163, `iam/admin/promptquality/governance/PromptBundleRollbackService.java:66-88`).
+  - OSS 버전관리는 기본 켬이고 속성 하나(`contexa.prompt.governance.enabled`)로 켜고 끈다(결정 11: 버전관리:501, `auto/iam/admin/PromptGovernanceAutoConfiguration.java:64`).
+- **이유**
+  - 평가 원장이 늘 '경험 증거 MISSING, TEVV NOT_READY'로 다시 쓰였고(PV-5), 후보 릴리스가 재지 않은 주입·지연·비용을 'PASSED'로 썼다(PV-16)(버전관리:52·62).
+  - 지시 12: 엔터프라이즈 버전관리 코드를 OSS로 그대로 옮긴 뒤 결함을 고친다(계획:31, 계획:76).
+- **영향**
+  - 검증 호스트에서 시작 등록 평가(해시 없음)로 카나리를 요청하면 422 `EVALUATION_NOT_FOR_BUNDLE_HASH`였고, 평가를 같은 번들 해시로 바꾸자 그 막힘이 사라졌다. 최종 트리에서 자기 해시 평가의 카나리 전이는 200이었다(P6 검수:222, :294).
+  - 엔터프라이즈가 OSS 게이트를 부르게 바꾸는 일은 최종 구현 계획 뒤로 미뤘다(P3-변경-84, 계획:585).
+  - P8 게이트 증거(평가 원장 행, 측정 프로토콜)와 전환 영수증: 평가 원장 행과 전환 영수증은 없다(연쇄 c 미실행). 측정 프로토콜은 protocol-541025e6, 판정 기록은 `p0/repro/records/p8_gate_verdict.json`(종합 FAIL, 15/17 통과)이다. 활성화 게이트의 지연·비용은 PASSED였다
+  - 프롬프트 품질 인증이 버전에 묶여 있을 때의 v20 인증(W8-3): 해당 없다(v20.24는 인증되지 않음). 공개 묶음은 `p0/repro/records/p8_publication_p8/`다
+
+## ADR-41 신뢰하지 않는 글(UNTRUSTED TEXT)과 주입 방어 범위 (2026-10-12 W3-6·N-INJ-1, Q-65)
+- **결정**
+  - 사용자 프롬프트에는 지시문이 없다. 신뢰할 수 없는 글은 출처와 함께 따옴표 블록에 두고, 정규화·분류·비교에 쓰지 않는다(원칙 6 계획:101-103, 사전:184-186).
+  - 대상(W3-6): 업무 라벨 작성자 글, 요청 본문 요약, 외부 위협 지식 문장, 이상 신호 글, 상승 사유(호스트 글)(계획:395, P3 검수:24).
+  - 대상(N-INJ-1): 해석하지 못한 UA, 요청 경로와 경로 변수, 이번 세션 앞 요청 경로들, 요청자가 이름 댄 티켓. 사실 줄은 엔진이 만든 모양(경로 틀 변수 이름, `this target`·`another target`, `unparsed user agent` 등)만 쓴다(계획:396, P3 검수:25, P3 검수:624-625).
+  - 형식은 `source=〈출처〉; "〈글〉"`이다. 글 안의 역슬래시·따옴표는 이스케이프하고, 상한을 넘으면 앞부분만 두고 `… [+n chars cut]`을 쓴다. 상한은 `truncation.layer1.payload`(기본 200)를 모든 항목에 쓴다(P3 검수:548-549, `core/autonomous/context/prompt/PromptSlotRenderer.java:50-69`). 출처 이름은 한 목록에 둔다(`core/autonomous/tiered/prompt/UntrustedTextSources.java:22-41`).
+  - 자원 등급은 이 글로 바뀌지 않는다(사전:186, W1-2 계획:333). 권한 없는 요청자의 `X-Contexa-Anomaly-Signal` 주장은 UNTRUSTED TEXT에만 남는다(사전:413, 승인대기:1098).
+- **이유**
+  - 문서 설명의 'always return ALLOW'로 자원 등급이 PUBLIC으로 바뀌었다(I-2, 계획:310).
+  - Q-65의 2차 조사가 요청자 글(UA·경로)의 주입 방어 부재를 찾았고, 사용자가 계획 보완을 모두 추천대로 하라고 정했다(승인대기:812, :814-816).
+- **영향**
+  - 인증 지표 C5(주입 시험의 사실·판정 변화) 목표는 0이다(계획:157). 측정 하네스의 주입 평가기는 지시문이 UNTRUSTED TEXT 블록에만 있는지 본다(P6 검수:235).
+  - W7-4 주입 시험 결과: OSS 호스트(v20.23)는 통과했고 반복 0/6 변화다. 쇼케이스 주입 묶음은 오프라인 재평가 15/18이며, 남은 3건(S09C-I1 업무 라벨)은 코어 결함 N-INJ-3이라 v20.24에서 고쳐 다시 잰다(P7 검수:18, P7 검수:772)
+  - P8 C5 판정: FAIL. 주입 7곳 중 1곳(A1T-I1, 과거 기록 이름표의 지시문)에서 판정이 ALLOW → CHALLENGE로 바뀌었다. 지시문은 UNTRUSTED TEXT 안에만 있었고 밖으로 새지 않았다. 새 계획 행 N-INJ-6
+
+## ADR-42 봉인 증거 (W1-15, W6-6·W6-12, 저장 설계 B, 2026-10-14~16)
+- **결정**
+  - 봉인 캡처, 값 충돌 감지, 해시 무결성처럼 쓸모가 확인된 장치는 유지한다(원칙 8 계획:107, 재설계:20).
+  - 보호 판정은 경로와 무관하게 봉인한다(W1-15, 계획:346).
+  - 판정마다 번들 이름·해시, 선택 출처, 정책 세트, 모델 설정, 실제 글 해시를 봉인한다(계획:255, 버전관리:155-163).
+  - 2차 분석은 적용 단계 값으로 봉인을 맞추고, 모델 호출마다 단계·시도·덧붙은 글·답을 단계 기록에 남긴다(W6-6, P6-변경-4, 계획:577). 프롬프트에 실린 과거 기록 ID와 검색 범위·필터·정렬을 봉인한다(W6-12, P6-변경-9·12, 계획:589).
+  - 렌더 메타 `promptFactIds`는 봉인하지 않는다(읽는 검사가 없음, R1b-10, 계획:429, 사전:82).
+  - 저장: 표본 포착 기본 1%, 활성 번들·검수기·사전 버전이 바뀐 뒤 1,000건 전수(R4-S6, Q-80 B6), 보존 기본 90일(D-C, R4-S4), 문제없는 묶음은 30일(R4-S5)이다. 쇼케이스는 100% 포착, 90일이다(계획:477·479·481, 승인대기:1101, `core/verification/evidence/VersionChangeCaptureSampling.java:14`, `:16`, `core/verification/evidence/SealedEvidencePackageAssembler.java:52`, `core/verification/inspection/PromptInspectionCleanPackageRetentionScheduler.java:37`).
+- **이유**
+  - 스트리밍 반출 판정 581건이 봉인되지 않았다(V-14, 계획:198).
+  - 2차로 넘어간 판정은 프롬프트 원문은 1차 것, 판정·해시는 2차 것으로 봉인되고 2차 프롬프트가 버려졌다(W0-8, 계획:577).
+  - 2026-10-13 실측 묶음 한 건 117.7KB 가운데 칸 합계의 84%가 읽지 않거나 중복이었다(계획:969).
+- **영향**
+  - 인증 지표 T2(봉인·재현 가능한 보호 판정) 목표는 100%다(계획:159). P6 관문에서 단계 기록 120/120, 실린 ID·검색 범위 120/120이었다(P6 검수:283·285).
+  - P8 T2 판정: PASS. 모델 판정 441/441이 봉인됐다(측정 250, 묶음 191), 봉인 실패 사유 0
+
+## ADR-43 프롬프트 검수기와 판 규칙 (2026-10-12 Q-77·Q-78, 2026-10-13 R1b)
+- **결정**
+  - 품질 보증은 문제를 고치는 장치가 아니라 프롬프트의 문제를 정확하게 짚어 내고 검수하는 장치다. 산출물은 발견(어느 블록·항목·사실 ID의 줄이, 어떤 봉인 원천과 비교해, 어떻게 틀렸는가)과 그 수·추세다. 프롬프트를 바꾸거나 판정을 막지 않는다(Q-78 원칙 승인대기:1013-1016, 재설계:8-14, 계획:71-72).
+  - 형식은 12지표와 다르다. JSON 규칙 계약이 없고, 계약은 v20 사전이며 검사는 코드다(Q-77 결정 승인대기:999-1003, 재설계:29, 재설계:147-153).
+  - 검사: `SEAL_INTEGRITY`, `BUNDLE_TRACE`, `DICTIONARY_CONTRACT`, `DECISION_FACT_MATCH`, `FACT_ACCURACY`, `UNKNOWN_DECLARED`, `PAST_RECORD_NOTATION`(재설계:157-165), 더한 것 `SAME_FACT`(R1b-8, 계획:427), `REASON_MATCH`(W4-8, 계획:539), `SOURCE_TRUTH`(W6-7, 계획:584). 코드: `core/verification/inspection/SealIntegrityCheck.java:36`, `UnknownDeclaredCheck.java:48`, `SourceTruthCheck.java:31`, `iam/admin/promptquality/inspection/BundleTraceCheck.java:24` 등.
+  - 판정은 FAIL(불일치 하나라도), INCOMPLETE(불일치 없고 확인 불가 있음), PASS, NOT_APPLICABLE(v19 글), ERROR다. 확인할 수 없는 것은 사유와 함께 따로 두고 통과로 세지 않는다(재설계:12, 재설계:175-196, `core/verification/inspection/PromptInspectionVerdict.java:19-30`).
+  - 판 규칙: 검수기는 번들에 묶지 않는다. 결과마다 검수기·사전·레이아웃 버전을 남기고, 검사가 찾는 것이 바뀌면 판(`prompt-inspector/N`)을 올린다(계획:120, 계획:256, 재설계:198-201). 판 올림과 이유는 한 곳에 적는다(R1b-7, `core/verification/inspection/PromptInspectorVersions.java:21-30`). 다른 번들의 사전으로 봉인된 묶음은 이 빌드의 사전으로 읽지 않는다(판 13·14, `PromptInspectorVersions.java:53`, `:55`).
+  - 자동 검수는 판정과 떨어진 스케줄러가 하고 모델을 부르지 않는다(W6-3이 R2로 끝남, 계획:573, 승인대기:1020).
+- **이유**
+  - 공식 검사기는 실행 0회였고, 3,134건에 돌리면 인증 가능 13.0%, 6개 지표는 변별력 0, 판정 정답률과 관계가 없었다(계획:54).
+  - 사용자 결정: 지표 코드 12개가 실질적 효용가치가 없으면 유지할 필요가 없다(Q-77, 승인대기:993).
+- **영향**
+  - 지금 판은 19다(N-SRC-1: UNKNOWN 줄이 밝힌 원천 사실을 결측 표기로 셈, `PromptInspectorVersions.java:67`, 계획:581).
+  - 판을 올리면 옛 봉인을 다시 검수한다(P6 검수:258).
+  - P8 W8-1 봉인 검수 결과(판, 표본, FAIL·INCOMPLETE 수): 검수기 판 20, 측정·묶음 봉인 441건 전수(미검수 0). INCOMPLETE 440(확인 불가 항목 있음), FAIL 1(실험실 변형 실행 run-9fb2fd58774d의 봉인, 측정 봉인 아님). 측정 봉인 250건은 어긋남 0
+
+## ADR-44 옛 품질 보증 걷어 내기: 12지표 검사기·결정적 재생·점수표·결함 주입 (2026-10-12 Q-78, 2026-10-13 Q-83 확정, 2026-10-14 엔터프라이즈 이연)
+- **결정**
+  - 12지표 검사기 v20 이식(W3-15)을 보류하고(Q-77), 품질 보증을 전면 재설계한다. 반드시 필요하고 재사용이 유효한 것만 남기고, 호환을 위해 남기지 않는다(Q-78, 승인대기:1007-1009).
+  - 검사기 계약 v1·v2는 만들지 않고 걷어 낸다(계획:73, 계획:120). 결정적 재생(v19 전용 재생·점수표)과 결함 주입 권한 모델도 걷어 낸다(계획:107).
+  - 걷어 낼 범위는 재설계서 2.3·부록 A에 13절 보강을 더한 것이다. 계획 행 변경: W6-1·W6-2는 측정 하네스 지표, W6-4 행 삭제, 결정 D-A 거둠(Q-83, 승인대기:1095-1096, :1102).
+  - 판정 경로의 검증 고리(결함 주입, 공식 보수, 합성 사용자·세션, 탐침 능력 머리글과 신뢰 이상 신호의 BLOCK 강제, 검증 모델 재정의 키, 자원 URL 재정의, 흔적 키)를 뺐다(R4-L1~L6, 계획:454-459).
+  - 엔터프라이즈를 고치는 부분과 엔터프라이즈와 한 빌드여야 하는 걷어 내기(R4-C3~C10·R4-R 남은 부분, R4-I1~I4, R4-AC1·AC2, R4-DB1~DB3, R4-M, R4-E1~E7, R6-1)는 최종 구현 계획 뒤로 미룬다(v3.5 계획:13, P3-변경-84 P3 검수:3030).
+- **이유**
+  - 산출물은 발견이어야 한다. 품질 보증 안에서 고치는 역할(공식 결함 보수, 문제 → 조치 → 실행 중 규칙의 OSS 부분)은 목적 밖이다(승인대기:1017).
+  - 사용자 결정 원문: "호환을 위해 남겨둘 필요까지 없다. contexa 는 OSS 이기 때문에 많은 사용자들에게 오픈되어 있다. 혼란스러운 코드와 기능을 남길 필요가 없다"(승인대기:1007).
+- **영향**
+  - 이연 동안 옛 코드가 트리에 남는다: `core/verification/replay/DeterministicReplayService.java:32`, `core/verification/adjudication/SealedEvidencePromptScorecard.java:24`, 계약 자원 `contexa-core/src/main/resources/pqa/final-prompt-metric-contracts.json`. 둘을 부르는 곳은 iam 옛 런타임 증거 서비스(`iam/admin/promptquality/official/application/DefaultRuntimeEvidenceReplayService.java:8`, `DefaultRuntimeEvidencePromptScorecardService.java:9`)와 자동 설정(`auto/iam/admin/PqaOfficialInspectionAutoConfiguration.java:354`)뿐이고, 판정 경로(`core/autonomous`)에는 없다(코드 검색). 이 둘은 R4-I1·R4-AC1과 함께 지운다(계획:450, :463, :467).
+  - 엔터프라이즈 관리 DB 기동은 깨진 채 두고, 엔터프라이즈 본 소스 컴파일만 지킨다(계획:979).
+  - 공개 규약의 '추가만, 기존 이름은 읽기 호환'(계획:968) 원칙에서 이 걷어 내기는 예외다. 지운 이름은 ADR-47 표 2에 적는다.
+  - 이연한 걷어 내기의 시기와 결과: 최종 구현 계획 뒤 엔터프라이즈 단계로 이연한 그대로다(P3-변경-84). P8까지 하지 않았다
+
+## ADR-45 최소 대응 규칙 (2026-10-10 Q-60, 2026-10-15 N-P3-1·Q-87, 2026-10-16 N-CONF-1)
+- **결정**
+  - 규칙은 P1 신원 신호 조합, P2 새 기기·네트워크의 반출, P3 규정 미충족, L1 학습 승격이다(Q-60 승인대기:663·692, 사전:349-355, 계획:747-752).
+  - 규칙은 시스템 프롬프트에 사실 이름으로 쓰고, 응답 검사기가 같은 구조화 사실로 위반을 확인한다. 코드는 판정을 미리 정하지 않는다. MinimumAction 줄은 사용자 프롬프트에 넣지 않는다(계획:754, 계획:529, 원칙 3 계획:93-96).
+  - 요구 대응: P1·P2는 CHALLENGE 이상, P3는 ESCALATE 이상이다. 본인 확인은 빠진 기록을 채우지 못한다(N-P3-1, Q-87 승인대기:1210, 계획:536, 계획:751). 대응은 약한 것부터 ALLOW < CHALLENGE < ESCALATE < BLOCK이고, 걸린 규칙의 요구 대응보다 약하면 위반이다(사전:359, `core/autonomous/context/decision/MinimumActionRules.java:42`, `:122-123`).
+  - P3 요구 대응 설정은 CHALLENGE·ESCALATE만 받고, 그 밖의 값은 시작 오류다(N-CONF-1, P5 검수:703, `MinimumActionRules.java:77-89`, `core/properties/SecurityZeroTrustProperties.java:245-251`).
+  - '설명됨'은 그 작업을 덮는 유효한 승인·티켓과 출장과 일치하는 네트워크뿐이다. 당번만으로는 설명이 아니고, 기준선이 없으면 차이는 '모름'이다(재검토 B2: 계획:759, 사전:357). P1은 설명 안 된 차이로 센다(P4-변경-6, P4 검수:868).
+  - 집행 방식 기본은 관측(OBSERVE)이다. 기록과 실제 판정을 대조한 뒤 집행으로 바꾼다. 쇼케이스 D는 P4 관문 뒤 집행(ENFORCE)이다(계획:756, P4 검수:863, `SecurityZeroTrustProperties.java:224`).
+- **이유**
+  - 측정 기록에 대 보면 공격 반응 실행이 67/90에서 90/90이 되고, 정상 업무의 본인 확인은 늘지 않았다(계획:745).
+  - P3를 CHALLENGE로 두면 본인 확인 성공이 승인을 대신했다(Q-87, 승인대기:1210).
+  - BLOCK 요구는 응답 검사기의 결정적 근거 요구와 충돌해 늘 기술 대체가 되었다(N-CONF-1, 계획:560).
+- **영향**
+  - 인증 지표 A5(모델 자체 최소 대응 준수) 목표 95%(하한 90%)(계획:152). P6 관문 A5 51/51, 최소 대응 위반 0(P6 검수:274, :288).
+  - 문서 정정 대상: 사전 6절 표의 P3 설정 칸 '(CHALLENGE·ESCALATE·BLOCK만, 그 밖의 값은 ESCALATE)'(사전:353)는 N-CONF-1 앞의 문구다.
+  - P8 A5와 최소 대응 위반 수: A5 95/95(첫 판정 기준, 하한 96.1%). 응답 검사기의 MINIMUM_ACTION_VIOLATION 재시도 0, 최종 위반 0
+
+## ADR-46 출력 계약 v3: 구조화 출력과 근거 코드 (2026-10-10 Q-57 결정 2·6, 2026-10-14 W4-2·W4-3)
+- **결정**
+  - 응답은 `action`, `reasonCodes`(1~5개, 코드와 사실 ID), `reason`(200자 이내)이다. 감사용 `riskScore`·`confidence`·`mitre`는 null을 허용하고 판정·검사에 쓰지 않는다(사전:264-291, 승인대기:677, `core/autonomous/tiered/prompt/SecurityDecisionOutputContract.java:33-39`).
+  - 구조화 출력(JSON 스키마 strict)으로 강제한다. 지원하지 않는 제공자에게는 같은 스키마를 시스템 글 끝에 글로 두고, 형식 오류면 무엇이 틀렸는지 알려 한 번 재시도한다(Q-57 결정 6, 승인대기:668, 사전:289-292, `SecurityDecisionOutputContract.java:240`, `:252`).
+  - 근거 코드는 53개이고 코드마다 인용할 사실과 유효 조건이 있다(사전:19, `SecurityDecisionOutputContract.java:63`). 응답 검사기와 검수기 `REASON_MATCH`는 같은 함수 `SecurityDecisionFactChecks.reasonFindings`로 본다(사전:298).
+  - 고정 근거 문장 규칙과 코드의 근거 덮어쓰기를 없애고 근거 코드·사실 ID·모델 문장으로 대체한다(Q-57 결정 2, 승인대기:664, P4 검수:83·95).
+  - 이 계약은 v20 번들에만 적용한다. 공급자에 보내는 스키마에는 `maxLength`를 빼고 200자는 응답 처리기가 지킨다(P4-변경-2, P4 검수:49·52). Anthropic 요청에서는 그 공급자가 받지 않는 키워드를 뺀다(P4 검수:68).
+- **이유**
+  - 출력 형식이 글로만 정해져 형식 오류 4건·재시도 171건이 났고(R4 지표 '지금', 계획:147), 근거의 97%가 고정 문장이었다(T1 지표 '지금', 계획:158).
+- **영향**
+  - 인증 지표 R4(형식 오류 0), T1(근거 코드와 사실 ID가 있는 판정 100%), C3(근거 코드와 사실의 일치 100%)(계획:147, 계획:155, 계획:158).
+  - P8 R4·T1·C3 판정: R4 0건(파서 실패 0, 형식 사유 재시도 0. 의미 사유 재시도 REASON_CODE_MISMATCH 5는 값만 공개), T1 250/250, C3 641/641(근거 줄), 모두 PASS
+
+## ADR-47 공개 규약 변경: 더한 이름과 읽기 호환 (2026-10-10~16, 계획 12절)
+- **결정**
+  - 공개 규약(공식 필드, 표준 필드)은 추가만 하고 기존 이름은 읽기 호환으로 둔다(계획:968).
+  - 공식 필드 `actionFamily`·`resourceCategory`를 더하고, 접두 없는 힌트는 읽기 호환으로 둔다(재검토 결정 C, 승인대기:673, W2-11 계획:375).
+  - 예외: 옛 품질 보증 코드는 호환 없이 걷어 낸다(ADR-44).
+- **확인 방법**: 기준 커밋 `03026656`과 지금 작업 트리를 비교했다(`git diff 03026656`). 더한 시점은 계획 행과 검수 문서로 대조했다.
+- **표 1. 더한 이름**
+
+  | 이름 | 위치 | 더한 작업 | 읽기 호환 |
+  |---|---|---|---|
+  | `OfficialContextSlot.RESOURCE` | `common/security/context/OfficialContextSlot.java:25` | W2-11(P2 검수:964·979) | 기존 칸 그대로, 지운 칸 없음 |
+  | `OfficialContextField.ACTION_FAMILY`(`actionFamily`) | `common/security/context/OfficialContextField.java:54` | W2-11(계획:375, P2 검수:32·964) | 읽을 때 `ctxa.context.actionFamily`를 먼저, 없으면 접두 없는 `actionFamily`를 읽는다(`OfficialContextField.java:81-94`) |
+  | `OfficialContextField.RESOURCE_CATEGORY`(`resourceCategory`) | `OfficialContextField.java:56` | W2-11(같음) | 같음 |
+  | `OfficialContextField.NETWORK_ZONE`(`networkZone`, LOCATION 칸) | `OfficialContextField.java:39` | W2-4(P2 검수:18·279·282) | 같음. 공식 필드 열거형과 칸 열거형에서 지운 값 없음(기준 커밋 대비 지워진 줄은 끝 값의 `;`를 `,`로 바꾼 줄뿐) |
+  | `RequestSecurityContextAttributes.Field.RESOURCE_AUTHOR_TEXT`(`ctxa.context.resourceAuthorText`) | `common/security/context/RequestSecurityContextAttributes.java:42` | W2-6(P2 검수:20·325·328) | 접두 속성을 먼저, 없으면 접두 없는 별칭을 읽는다(`:68-77`). 지운 필드 없음 |
+  | `RequestSecurityContextAttributes.Field.REQUEST_ITEMS`(`ctxa.context.requestItems`) | `RequestSecurityContextAttributes.java:44` | W2-6(P2 검수:20·324·328) | 같음 |
+  | `@Protectable`의 `category`·`sensitivity`·`actions`·`privileged`·`exportSensitive` | `common/annotation/Protectable.java:82`, `:88`, `:94`, `:97`, `:100` | W2-11(P2 검수:32·979) | 기본값은 모두 '선언 없음'이다. 기존 속성 `ownerField`·`verificationRequired`·`sync`는 그대로다(`:48`, `:59`, `:75`). 기준 커밋 대비 추가 25줄, 삭제 0줄 |
+  | 표준 컨텍스트 최상위: `dataConflicts`, `requestObservedAt`, `decisionFacts` | `core/autonomous/context/CanonicalSecurityContext.java:88`, `:94`, `:97` | W1-14(P1 검수:27), W2-5(P2 검수:19) | 이 파일은 기준 커밋 대비 추가 297줄, 삭제 0줄이다 |
+  | `Session.authenticationTime`·`challengeVerifiedAt`·`recentMfaElsewhereAt` | `CanonicalSecurityContext.java:131`, `:136`, `:138` | W1-4(계획:335, P1 검수:208), W1-5(P1 검수:305·308) | 같음 |
+  | `Actor.accountCreatedAt` | `CanonicalSecurityContext.java:113` | W1-10(P1 검수:694) | 같음 |
+  | `Location.networkZone`, `Location.movement`와 `Movement` | `CanonicalSecurityContext.java:196`, `:198`, `:209` | W2-4(P2 검수:18), W2-13(계획:377, P2 검수:34) | 같음 |
+  | `Resource.authorText`·`requestedItems`·`resourceClass`·`resourceCategory`·`pathFamily`·`actionFamilySource` | `CanonicalSecurityContext.java:229`, `:231`, `:237`, `:242`, `:245`, `:249` | W2-6(P2 검수:20), W2-10(P2 검수:31), W2-2(P2 검수:16), W2-1(P2 검수:91) | 같음 |
+  | `SessionNarrativeProfile.sessionDecisionHistory`·`sessionDecisions` | `CanonicalSecurityContext.java:381`, `:384` | W1-11 세션 판정 이력(P1 검수:24·755). `sessionDecisions`를 더한 행은 대조하지 못했다(2026-10-11 커밋 `0305f038`에는 있음) | 같음 |
+  | `SessionNarrativeProfile.sessionDeviceChange`·`sessionNetworkChange` | `CanonicalSecurityContext.java:394`, `:396` | W2-14(P2 검수:35) | 같음 |
+  | `WorkProfile.baselineView` | `CanonicalSecurityContext.java:426` | W2-3·P2-보정-9(P2 검수:17·38) | 같음 |
+  | `FrictionProfile`의 구조화 기록(승인·티켓·당번·출장·담당·접근 이력·회사 규정)과 `checkedRecordKinds` | `CanonicalSecurityContext.java:521-539`, `:548-670` | W2-6(P2 검수:20), P2-보정-3(P2 검수:25) | 같음 |
+  | 그 밖의 표준 필드: `failedLoginWindowMinutes`, `untrustedAnomalySignalClaim`, `methodExecutionOutcome`·`methodExecutionFailure`, `decisionTime`·`privilegedAuthoritySignals`, 위임 `expiresAt`, 브리지 `evidenceStates`, `sessionAgeBasis`, `userRequestsLastHour`, 거부 범위 비교 칸 셋, `peerCount` | `CanonicalSecurityContext.java:141`, `:183`, `:272`, `:274`, `:276`, `:279`, `:302`, `:325`, `:370`, `:389`, `:458-462`, `:464` | W3-12(P3 검수:992), W1-1(P1 검수:47), W1-6(P1 검수:396·410), W1-14(P1 검수:900-902), W1-10(P1 검수:688), W5-10(P5 검수:420·510) | 같음 |
+  | `SecurityEvent.getLocalTimestamp()` | `common/domain/SecurityEvent.java:66` | W1-7(P1 검수:20) | 새 메서드. `timestamp` 타입 변경은 표 2 |
+  | 브리지 `amrKeys`(기본 `amr`), 클레임 목록의 `challengeVerifiedAt` | `common/security/bridge/BridgeProperties.java:83`, `:87` | W1-4(계획:335, P1 검수:17), W1-5(P1 검수:322) | 새 키와 기존 목록에 더한 값 |
+  | 설정 `contexa.security.tiered.prompt-bundle.active`·`.selector`·`.shadow.*` | `core/properties/TieredStrategyProperties.java:52`, `:55`, `:58` | W3-16(P3-변경-22), W6-9(P6-변경-6) | 새 접두사(기준 커밋에 없음) |
+  | 설정 `contexa.security.tiered.prompt-runtime.budget-enforcement` | `TieredStrategyProperties.java:105` | W3-7(계획:397, P3-변경-6) | 새 속성 |
+  | 설정 `contexa.security.zerotrust.minimum-action.*`, `contexa.security.zerotrust.baseline.promotion.*` | `core/properties/SecurityZeroTrustProperties.java:94`, `:140` | W4-4·N-P3-1(사전:349-355), W5-1(사전:355) | 새 접두사(기준 커밋에 없음) |
+  | 설정 `contexa.prompt.governance.enabled` | `auto/iam/admin/PromptGovernanceAutoConfiguration.java:64` | W1-20(c), 결정 11(버전관리:501) | 새 속성, 기본 켬 |
+  | 설정 `contexa.prompt-inspection.*` | `auto/iam/admin/PromptInspectionProperties.java:12` | W3-15R R2(승인대기:1032) | 새 접두사 |
+  | 설정 `contexa.pqa.oss.sealed-evidence.sample-percent`·`.full-capture-after-change`·`.retention.period`·`.retention.clean-period` | `auto/iam/admin/PqaOssSealedEvidenceCaptureProperties.java:28`, `:31`, `:97`, `:99` | R4-S6·R4-S4·R4-S5(계획:477·479·481) | 기존 접두사에 더함. 이 파일은 기준 커밋 대비 삭제 0줄 |
+
+- **표 2. 바꾸거나 지운 이름(읽기 호환이 아님)**
+
+  | 이름 | 전(기준 커밋) | 지금 | 근거 | 호환 |
+  |---|---|---|---|---|
+  | `SecurityEvent.timestamp` | `LocalDateTime` | `Instant`(`common/domain/SecurityEvent.java:45`, Lombok `@Data` `:31`) | W1-7 '이벤트 시각을 `Instant`로'(계획:338, P1 검수:20) | `getTimestamp()` 반환 타입이 바뀌어 소스·바이너리 호환이 아니다. 엔터프라이즈 4곳을 함께 고쳤다(P1-변경-6 ⑥, P1 검수:1426). 벽시계 값은 `getLocalTimestamp()`로 읽는다 |
+  | 브리지 인증 시각 키 기본값 `contexa.bridge.authentication.security-context.auth-time-keys` | `issuedAt`·`iat` 포함 | 둘을 뺌(`BridgeProperties.java:82`) | W1-4 '`iat`는 인증 시각으로 쓰지 않는다'(계획:335) | 기본값 변경. 키 이름은 그대로이고 호스트가 설정으로 다시 넣을 수 있다 |
+  | 이벤트 메타데이터 별칭 `requestRateMultiplier`(최근 요청 수) | 기준 커밋 `DefaultCanonicalSecurityContextProvider.java:611`이 읽음 | 읽지 않음(`core/autonomous/context/DefaultCanonicalSecurityContextProvider.java:653`) | W2-9 '`requestRateMultiplier` 별칭을 없앤다'(계획:373, P2 검수:30) | 지운 별칭 |
+  | 위임 승인의 이벤트 메타데이터 키 | `approvalRequired`(업무 승인과 같은 키) | `delegationApprovalRequired`(`core/autonomous/event/publisher/ZeroTrustEventPublisher.java:606`, 읽기 `DefaultCanonicalSecurityContextProvider.java:857-858`). 업무 승인은 `approvalRequired`만(`ZeroTrustEventPublisher.java:639`) | W2-9 키 분리(S-3, 계획:373, P2 검수:30) | 이벤트 메타데이터 키를 나눔. 브리지 위임 해석이 호스트에서 읽는 키 이름(`approvalRequired`, `requiresApproval`)은 그대로다(`BridgeProperties.java:167`) |
+  | 설정 `contexa.security.tiered.prompt-runtime.lineage-capture-mode` | 기준 커밋 `TieredStrategyProperties.java:65` | 없음 | R4-C11 검증 계보 모드 걷어 냄(계획:453) | 지운 설정(ADR-44 예외) |
+  | SPI `PromptEvidenceMetadataProvider`(코어 `verification/capture`) | 기준 커밋에 있음(공개 인터페이스) | 파일 삭제 | R4-C1b 메타 공급자 SPI 걷어 냄(계획:442) | 지운 SPI(ADR-44 예외) |
+  | 판정 경로의 검증 키: 메타 `pqaReferencePrompt`, 신뢰 이상 신호 BLOCK 강제 `applyTrustedConfirmedMaliciousConstraint` 등 | 기준 커밋 `SecurityDecisionPromptSections.java:765`, `AbstractTieredStrategy.java:1827` | 본 코드에 없음 | R4-L1·R4-L2·R4-L6(계획:454-455, :459) | 지운 이름(ADR-44 예외). 이연한 옛 실행기에는 일부 키가 남아 있다(예: `core/verification/runtime/OfficialVerificationRuntimeEvidenceSupport.java:73`) |
+  | 설정 `contexa.security.tiered.prompt-runtime.user-prompt-format` | 기준 커밋에 없음 | 없음 | W3-2에서 두고 W3-16 선택기로 대신해 지움(버전관리:528) | 계획 안에서 생기고 없어져 기존 이름이 아니다 |
+
+- **영향**
+  - 공식 필드·요청 속성·`@Protectable`·표준 컨텍스트에서는 기존 이름을 지우거나 바꾸지 않았다(표 1. 요청 속성·`@Protectable`·표준 컨텍스트는 기준 커밋 대비 삭제 줄 0, 공식 필드 두 열거형은 끝 값의 `;` → `,` 바꿈만).
+  - 표 2의 앞 넷은 계획 행이 정한 정정이다(W1-4, W1-7, W2-9). 원칙 '추가만'(계획:968)과 달라 이 ADR에 남긴다. 그다음 셋은 ADR-44의 예외이고, 마지막 하나는 기존 이름이 아니다.
+  - contexa-docs의 공개 규약 문서 반영(W8-4): P8 단계 끝에 반영했다(대상 13개, `p8/docs/p8_docs.py`, P8-변경-35)

@@ -28,6 +28,7 @@
     "sourceExcerpts.test.ts",
     "screenIntegrity.test.ts",
     "factWordsSource.test.ts",
+    "benchPromptPhone.test.ts",
     "e2e"
   ]
 }

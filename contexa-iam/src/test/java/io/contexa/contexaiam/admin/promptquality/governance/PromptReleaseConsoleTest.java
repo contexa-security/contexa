@@ -206,7 +206,8 @@ class PromptReleaseConsoleTest {
         PromptGovernanceReleaseGateService.ReleaseGateEvidence evidence =
                 new PromptGovernanceReleaseGateService.ReleaseGateEvidence(true, "EVAL-" + version, "PASSED",
                         "SATISFIED", "READY_FOR_PRODUCTION", "PASSED", "PASSED", "PASSED", "PASSED", "COVERED", 3, 3,
-                        "hash-" + version, "protocol-" + version, true, AT, "APPROVED", "operator-a", V1, "READY",
+                        List.of("PROMPT_INJECTION", "TOOL_MISUSE", "MEMORY_POISONING"),
+                        List.of("PROMPT_INJECTION", "TOOL_MISUSE", "MEMORY_POISONING"), List.of(), "hash-" + version, "protocol-" + version, true, AT, "APPROVED", "operator-a", V1, "READY",
                         List.of("PROFILE"), true, List.of("BUDGET"), true, true, true);
         return new PromptGovernanceReleaseGateService.ReleaseGateAssessment(SCOPE, KEY, version, state,
                 List.of(targets), evidence);

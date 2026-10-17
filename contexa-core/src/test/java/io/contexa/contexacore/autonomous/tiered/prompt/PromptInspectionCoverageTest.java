@@ -77,6 +77,26 @@ class PromptInspectionCoverageTest {
         assertThat(found.get(0).sourceRef()).isEqualTo("canonicalContext.resource.requestPath");
     }
 
+    /** N-INJ-3: the business label's UNTRUSTED TEXT line is compared with the sealed label. */
+    @Test
+    void theBusinessLabelTextIsComparedWithTheSealedLabel() {
+        InspectionGolden.Render render = InspectionGolden.render(text -> text.contains("=== REQUEST"));
+        CanonicalSecurityContext context = InspectionGolden.SERIALIZER.deserialize(
+                InspectionGolden.SERIALIZER.serialize(render.used()));
+        if (context.getResource() == null) {
+            context.setResource(new CanonicalSecurityContext.Resource());
+        }
+        context.getResource().setBusinessLabel("Export of 4831 documents from project GB-500");
+        String source = "UntrustedText1: source=" + UntrustedTextSources.BUSINESS_LABEL + "; ";
+        String kept = withUntrusted(render.userPrompt(), source + "\"Export of 4831 documents from project GB-500\"");
+        String broken = withUntrusted(render.userPrompt(), source + "\"Export of 40 documents from project GB-500\"");
+
+        assertThat(mismatches(check(sealedWith(render, kept, context)), "UntrustedText1")).isEmpty();
+        List<PromptInspectionFinding> found = mismatches(check(sealedWith(render, broken, context)), "UntrustedText1");
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0).sourceRef()).isEqualTo("canonicalContext.resource.businessLabel");
+    }
+
     @Test
     void aCutTextKeepsTheFirstCodePointsOfItsSourceAndCountsTheRest() {
         InspectionGolden.Render render = InspectionGolden.render(text -> text.contains("=== REQUEST"));

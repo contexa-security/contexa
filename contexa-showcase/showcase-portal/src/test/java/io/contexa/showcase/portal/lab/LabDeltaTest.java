@@ -108,7 +108,8 @@ class LabDeltaTest {
         assertThat(names(delta)).containsExactlyInAnyOrder("runId", "baseRunId", "condition", "value", "available",
                 "reason", "steps");
         assertThat(names(delta.path("steps").path(0))).containsExactlyInAnyOrder("stepNo", "changed", "expected",
-                "unexpected", "valueMatches", "passed", "notCompared", "unchangedLines", "notLookedUp");
+                "unexpected", "valueMatches", "passed", "notCompared", "unchangedLines", "notLookedUp",
+                "sameAsBase");
         assertThat(names(delta.path("steps").path(0).path("changed").path(0))).containsExactlyInAnyOrder("label",
                 "before", "after");
     }
@@ -125,6 +126,19 @@ class LabDeltaTest {
         assertThat(delta.steps().get(0).notLookedUp()).isEqualTo("APPROVAL");
         assertThat(delta.steps().get(0).passed()).isTrue();
         assertThat(delta.steps().get(0).changed()).isEmpty();
+    }
+
+    @Test
+    void aStepThatIsTheBaseRunItselfIsMarkedOnItsStep() {
+        ReactivityService.RunDelivery delivery = new ReactivityService.RunDelivery("run-base00000000",
+                "run-lab000000000", "onCall", "true", List.of(new ReactivityService.StepDelivery(1, "a", "b",
+                new DeliveryEvaluator.Delivery(List.of(), List.of(), List.of(), true, true, 9, List.of(), null, true),
+                null)), true);
+
+        LabDelta delta = LabDelta.of(composition(List.of("onCall"), "COMPLETED"), delivery, new HashMap<>());
+
+        assertThat(delta.steps().get(0).sameAsBase()).as("N-DLV-7: the base run was on call already").isTrue();
+        assertThat(delta.steps().get(0).passed()).isTrue();
     }
 
     private static LabStore.Composition composition(List<String> changed, String status) {

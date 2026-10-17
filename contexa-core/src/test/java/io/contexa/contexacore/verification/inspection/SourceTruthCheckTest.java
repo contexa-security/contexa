@@ -104,6 +104,48 @@ class SourceTruthCheckTest {
                 .isInstanceOf(PromptInspectionUnavailableException.class);
     }
 
+    /**
+     * N-SRC-2: a host that does not keep the records of the sealed decision (the run rows the showcase removes when the
+     * run ends) has the facts counted once as not compared, where it looked; it is not a source without facts.
+     */
+    @Test
+    void aHostThatDoesNotKeepTheDecisionsRecordsCountsTheFactsAsNotCompared() {
+        PromptInspectionTally tally = tally(PROMPT);
+        PromptFactSourceVerifier verifier = new PromptFactSourceVerifier() {
+            @Override
+            public List<PromptFactSourceVerifier.SourceFact> sourceFacts(PromptInspectionSubject subject) {
+                return List.of();
+            }
+
+            @Override
+            public PromptFactSourceVerifier.SourceReading read(PromptInspectionSubject subject) {
+                return PromptFactSourceVerifier.SourceReading.notKept("work.run_principal");
+            }
+        };
+
+        new SourceTruthCheck(verifier).inspect(tally);
+
+        assertThat(tally.result().unverifiable()).isEqualTo(1);
+        assertThat(tally.result().matched()).isZero();
+        assertThat(tally.result().mismatched()).isZero();
+        assertThat(tally.result().findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.sourceRef()).isEqualTo("work.run_principal");
+            assertThat(finding.reason()).contains("does not keep the records of this decision");
+        });
+    }
+
+    /** N-SRC-2: a host that keeps the records but no fact of them leaves nothing to compare, and nothing is counted. */
+    @Test
+    void aHostThatKeepsNoFactOfTheDecisionLeavesNothingToCompare() {
+        PromptInspectionTally tally = tally(PROMPT);
+
+        new SourceTruthCheck(subject -> List.of()).inspect(tally);
+
+        assertThat(tally.result().matched()).isZero();
+        assertThat(tally.result().mismatched()).isZero();
+        assertThat(tally.result().unverifiable()).isZero();
+    }
+
     private static PromptInspectionTally tally(String prompt) {
         PromptInspectionSubject subject = mock(PromptInspectionSubject.class);
         when(subject.prompt()).thenReturn(InspectedPrompt.parse(prompt));

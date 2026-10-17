@@ -47,14 +47,17 @@ function hideOutcome() {
     document.querySelector('[data-pr-outcome-reasons]').replaceChildren();
 }
 
-/** W6-8: a transition through the release gate; a refusal (422) shows the receipt's blockers. */
+/**
+ * W6-8: a transition through the release gate, asked for by its canonical state (N-GOV-4: the API reads it); a refusal
+ * (422) shows the receipt's blockers.
+ */
 async function transition(targetState, button) {
     button.disabled = true;
     hideOutcome();
     try {
         const answer = await call('/transition', {method: 'POST', body: {
             registryScope: bundle.registryScope, promptKey: bundle.promptKey, promptVersion: bundle.promptVersion,
-            targetReleaseStatus: settings.releaseStatuses?.[targetState], rationale: rationale.value || null
+            targetReleaseStatus: targetState, rationale: rationale.value || null
         }});
         if (answer.ok) {
             await load();
@@ -112,8 +115,10 @@ function renderEvidence(evidence) {
     evidenceValue('promptInjectionState', value.promptInjectionState);
     evidenceValue('latencyGateState', value.latencyGateState);
     evidenceValue('costGateState', value.costGateState);
-    evidenceValue('scenarios', evidence ? `${number(value.coveredScenarioCount)} / ${number(value.requiredScenarioCount)}`
-        : null);
+    // N-GOV-3: the families the bundle requires and the ones the evaluation left uncovered, next to the counts.
+    evidenceValue('scenarios', evidence ? t('promptRelease.evidence.scenarioFamilies', number(value.coveredScenarioCount),
+        number(value.requiredScenarioCount), list(value.requiredScenarioFamilies),
+        list(value.uncoveredScenarioFamilies)) : null);
     evidenceValue('approval', [value.approvalState, value.approvedBy].filter(Boolean).join(' / '));
     evidenceValue('rollback', [value.rollbackTargetPromptVersion, value.rollbackReadinessState].filter(Boolean)
         .join(' / '));

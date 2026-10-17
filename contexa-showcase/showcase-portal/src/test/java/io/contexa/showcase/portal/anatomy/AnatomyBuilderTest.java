@@ -2,6 +2,7 @@ package io.contexa.showcase.portal.anatomy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.showcase.portal.anatomy.AnatomyBuilder.StoredCall;
 import io.contexa.showcase.portal.anatomy.AnatomyBuilder.StoredDecision;
@@ -194,6 +195,144 @@ class AnatomyBuilderTest {
                 "2. If the chosen action is ALLOW, reasoning must be exactly \"A fixed sentence.\"");
         assertThat(AnatomyBuilder.contractLines(prompt, "A sentence of the model's own.")).isEmpty();
         assertThat(AnatomyBuilder.contractLines(null, "A fixed sentence.")).isEmpty();
+    }
+
+    /**
+     * N-DEP-1 (W7-12 C-2): a v20 user prompt renders no label matrix, so the comparison is the one the engine sealed in
+     * its decision facts, the computation the prompt's DeviationsFromBaseline and SameAsBaseline lines are drawn from.
+     * Step 1 of the representative attack (anatomy/v20-deviations.json, run-3766bd77c869) states 4 of 10 compared, all
+     * unexplained: time, target, class and size; the six others are as usual.
+     */
+    @Test
+    void aV20DecisionIsComparedAsTheEngineSealedItsDeviations() throws IOException {
+        DecisionAnatomy anatomy = v20(v20Decision("A3"));
+
+        assertThat(anatomy.context().usualVsNow()).extracting(DecisionAnatomy.Comparison::dimension,
+                DecisionAnatomy.Comparison::now, DecisionAnatomy.Comparison::inUsual).containsExactly(
+                tuple("accessHour", "03", "false"), tuple("dayOfWeek", "Wed", "true"),
+                tuple("network", "10.40.12.0/24", "true"), tuple("device", "Chrome/140 on WINDOWS", "true"),
+                tuple("authenticationType", "PASSWORD+ONE_TIME_CODE", "true"), tuple("target", "projectKey", "false"),
+                tuple("actionFamily", "EXPORT", "true"), tuple("resourceFamily", "CRITICAL", "false"),
+                tuple("size", "4,831 items", "false"), tuple("rate", "1 requests in the last 60 min", "true"));
+        assertThat(anatomy.juxtaposition().departures()).as("the dimensions the seal states as unexplained")
+                .extracting(DecisionAnatomy.Comparison::dimension)
+                .containsExactly("accessHour", "target", "resourceFamily", "size");
+        assertThat(anatomy.juxtaposition().departures()).allSatisfy(departure -> assertThat(departure.labels())
+                .containsExactly("DeviationsFromBaseline"));
+        assertThat(anatomy.figures().departureCount()).isEqualTo(4);
+        assertThat(anatomy.context().labelMatrix()).as("the v20 prompt rendered no label").isEmpty();
+        assertThat(BeforeSend.sealedUsual(anatomy.context().usual()).keySet())
+                .as("the comparison before sending has the usual of every dimension compared")
+                .containsExactlyInAnyOrderElementsOf(anatomy.context().usualVsNow().stream()
+                        .map(DecisionAnatomy.Comparison::dimension).toList());
+    }
+
+    /**
+     * N-DEP-1: a difference a record explains is still a difference from the usual: the real employee's step 1
+     * (run-f2855b9824ce) states the same four, each explained by the approval (design E2-2: the differences stay, the
+     * company records no longer flag).
+     */
+    @Test
+    void aDifferenceTheApprovalExplainsIsStillADeparture() throws IOException {
+        DecisionAnatomy anatomy = v20(v20Decision("A3T"));
+
+        assertThat(anatomy.juxtaposition().departures()).extracting(DecisionAnatomy.Comparison::dimension)
+                .containsExactly("accessHour", "target", "resourceFamily", "size");
+        assertThat(anatomy.figures().departureCount()).isEqualTo(4);
+    }
+
+    /** N-DEP-1: a dimension the engine could not compare is neither as usual nor a departure, with the engine's why. */
+    @Test
+    void aDimensionTheEngineDidNotCompareIsUnknownWithItsReason() {
+        ObjectNode metadata = JSON.createObjectNode().put("userPromptLayoutVersion", "v20-dictionary-blocks");
+        metadata.putObject("sealedEvidence.canonicalContext").putObject("decisionFacts").putArray("deviations")
+                .addObject().put("dimension", "TARGET").put("current", "projectKey").put("compared", false)
+                .put("different", false).put("explanation", "UNKNOWN")
+                .put("notComparedReason", "no usual target of this kind");
+
+        DecisionAnatomy anatomy = fromMetadata(metadata, null);
+
+        assertThat(anatomy.context().usualVsNow()).singleElement().satisfies(target -> {
+            assertThat(target.dimension()).isEqualTo("target");
+            assertThat(target.inUsual()).isEqualTo("UNKNOWN - no usual target of this kind");
+        });
+        assertThat(anatomy.juxtaposition().departures()).isEmpty();
+        assertThat(anatomy.figures().departureCount()).as("one dimension listed, none different").isZero();
+    }
+
+    /** N-DEP-1: a v19 record keeps the comparison of its label matrix, even with decision facts in its context. */
+    @Test
+    void aV19RecordKeepsItsLabelMatrix() throws IOException {
+        JsonNode sample = sample("a3s-challenge");
+        ObjectNode record = (ObjectNode) sample.path("decision").path("records").get(0);
+        ObjectNode metadata = (ObjectNode) JSON.readTree(record.path("metadataJson").asText());
+        JsonNode sealed = JSON.readTree(v20Decision("A3").path("records").get(0).path("metadataJson").asText());
+        ((ObjectNode) metadata.path("sealedEvidence.canonicalContext")).set("decisionFacts",
+                sealed.path("sealedEvidence.canonicalContext").path("decisionFacts"));
+        record.put("metadataJson", metadata.toString());
+
+        DecisionAnatomy anatomy = build(sample);
+
+        assertThat(anatomy.context().usualVsNow()).extracting(DecisionAnatomy.Comparison::dimension)
+                .as("the v19 labels").contains("accessHour", "pathFamily").doesNotContain("target", "size");
+        assertThat(anatomy.figures().departureCount()).isEqualTo(3);
+        assertThat(anatomy.juxtaposition().coreAdverseLabels()).as("the v19 inspector's labels, read from the prompt")
+                .hasSize(CoreAdverseLabels.RULES.size());
+    }
+
+    /**
+     * N-DEP-2 (W7-12 C-2): a v20 prompt renders none of the labels the core's v19 inspector reads, so the adverse
+     * conditions are the core's v20 ones, read from the facts the engine sealed: the representative attack states its
+     * company policy as not met (PolicySatisfied no) and nothing else of the list; the real employee's approval meets
+     * it.
+     */
+    @Test
+    void aV20DecisionsAdverseConditionsAreReadFromItsSealedFacts() throws IOException {
+        DecisionAnatomy attack = v20(v20Decision("A3"));
+        DecisionAnatomy owner = v20(v20Decision("A3T"));
+
+        assertThat(attack.juxtaposition().coreAdverseLabels()).extracting(CoreAdverseLabels.Reading::label,
+                CoreAdverseLabels.Reading::met).containsExactly(tuple("authorizationeffect", false),
+                tuple("sessiondevicechange", false), tuple("sessionnetworkchange", false),
+                tuple("dataconflicts", false), tuple("blockeduser", false), tuple("policysatisfied", true));
+        assertThat(attack.juxtaposition().coreAdverseLabels().get(0).values()).containsExactly("ALLOW");
+        assertThat(attack.juxtaposition().coreAdverseLabels().get(5).values()).singleElement()
+                .satisfies(value -> assertThat(value).startsWith("no ").endsWith("no approval for GB-500"));
+        assertThat(attack.juxtaposition().adverseMet()).isEqualTo(1L);
+        assertThat(attack.juxtaposition().adverseChecked()).isEqualTo(6);
+        assertThat(BeforeSend.companyAdverse(attack.juxtaposition().coreAdverseLabels()))
+                .extracting(CoreAdverseLabels.Reading::label).containsExactly("policysatisfied");
+        assertThat(owner.juxtaposition().coreAdverseLabels()).filteredOn(reading -> reading.label()
+                .equals("policysatisfied")).singleElement().satisfies(policy -> {
+                    assertThat(policy.met()).isFalse();
+                    assertThat(policy.values()).singleElement().satisfies(value -> assertThat(value)
+                            .startsWith("yes ").contains("approval APR-f2855b9824ce-1"));
+                });
+        assertThat(BeforeSend.companyAdverse(owner.juxtaposition().coreAdverseLabels())).isEmpty();
+    }
+
+    /** Step 1 of a case of anatomy/v20-deviations.json, built as the store builds it; no model call is kept. */
+    private DecisionAnatomy v20(JsonNode decision) throws IOException {
+        return fromMetadata(JSON.readTree(decision.path("records").get(0).path("metadataJson").asText()),
+                decision.path("userPrompt").asText());
+    }
+
+    private DecisionAnatomy fromMetadata(JsonNode metadata, String userPrompt) {
+        ArrayNode records = JSON.createArrayNode();
+        records.addObject().put("metadataJson", metadata.toString());
+        StoredDecision stored = new StoredDecision("request-v20", "ESCALATE", "ESCALATE", null, null, null, null,
+                false, null, null, null, null, null, records, JSON.createArrayNode());
+        return builder.build("run-v20", 1, "EXPORT_STREAM", stored, List.of(), null,
+                new Surroundings(null, null, null, Map.of(), Map.of(), null, null, userPrompt));
+    }
+
+    private static JsonNode v20Decision(String caseKey) throws IOException {
+        for (JsonNode decision : sample("v20-deviations").path("decisions")) {
+            if (caseKey.equals(decision.path("case").asText())) {
+                return decision;
+            }
+        }
+        throw new IllegalArgumentException("no " + caseKey + " in anatomy/v20-deviations.json");
     }
 
     private DecisionAnatomy build(JsonNode sample) {

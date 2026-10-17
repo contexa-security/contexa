@@ -8,12 +8,19 @@ import io.contexa.showcase.business.work.BusinessOperation;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import io.contexa.showcase.portal.scenario.ScenarioDefinition;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -121,6 +128,31 @@ class OrchestratorUnitTest {
         assertThat(RunOrchestrator.foreignPrincipals(decision, "v111111111111-eng-k"))
                 .containsExactly("v222222222222-eng-k");
         assertThat(EngineDecision.from(json.readTree("{\"records\":[]}"), false)).isNull();
+    }
+
+    /**
+     * N-SRC-3: every sealed decision of the run is inspected before the clean-up; a package stored late is asked for
+     * again, one never stored and one that fails are counted as missing, and a failure stops asking for it.
+     */
+    @Test
+    void theSealedDecisionsAreInspectedAndALatePackageIsAskedForAgain() {
+        Map<String, Integer> asked = new LinkedHashMap<>();
+        RunOrchestrator.SealInspector inspector = requestId -> {
+            int times = asked.merge(requestId, 1, Integer::sum);
+            if ("req-failing".equals(requestId)) {
+                throw new IOException("control D is down");
+            }
+            boolean stored = "req-1".equals(requestId) || ("req-late".equals(requestId) && times >= 3);
+            return stored ? Optional.of(json.createObjectNode()) : Optional.empty();
+        };
+
+        Map<String, Object> counts = RunOrchestrator.inspectSealed(List.of("req-1", "req-late", "req-never",
+                "req-failing"), inspector, Duration.ZERO, 4);
+
+        assertThat(counts).containsEntry("requested", 4).containsEntry("inspected", 2);
+        assertThat(counts.get("missing")).isEqualTo(List.of("req-never", "req-failing"));
+        assertThat(asked).containsEntry("req-1", 1).containsEntry("req-late", 3).containsEntry("req-never", 4)
+                .containsEntry("req-failing", 1);
     }
 
     @Test
@@ -358,6 +390,85 @@ class OrchestratorUnitTest {
         int sum = within.steps().stream().mapToInt(ScenarioDefinition.Step::items).sum();
         assertThat(sum).isEqualTo(2400).isLessThanOrEqualTo(within.facts().get(0).maxItems())
                 .isGreaterThan(beyond.facts().get(0).maxItems());
+    }
+
+    /**
+     * N-INJ-5 (plan 8.7, the label of a request that becomes a past record): a step that starts a new session is sent
+     * with the later steps in a session of their own. The engine leaves a request's own session out of its past
+     * records (W3-18), so the allowed requests of the earlier session become past records of the later steps. The run
+     * signs in before its first step, so the first step cannot start one.
+     */
+    @Test
+    void aStepThatStartsANewSessionIsSentWithTheLaterStepsInASessionOfTheirOwn() throws Exception {
+        ScenarioDefinition.Step first = readOf(1, null);
+        ScenarioDefinition.Step again = readOf(2, true);
+
+        assertThat(RunOrchestrator.sessionNumbers(definition(List.of(first, again, readOf(3, null)))))
+                .containsExactly(1, 2, 2);
+        assertThat(RunOrchestrator.sessionNumbers(definition(List.of(first, readOf(2, false))))).containsExactly(1, 1);
+        assertThatThrownBy(() -> RunOrchestrator.checkRequestParts(definition(List.of(again, first))))
+                .as("the run signs in before its first step").isInstanceOf(IllegalArgumentException.class);
+        for (ScenarioDefinition scenario : new ScenarioCatalog(json).all()) {
+            assertThat(RunOrchestrator.sessionNumbers(scenario)).as(scenario.key()).containsOnly(1);
+        }
+        ScenarioDefinition pastRecordLabel = variant("A1T-I1");
+        assertThat(RunOrchestrator.sessionNumbers(pastRecordLabel)).containsExactly(1, 2, 2);
+        assertThatCode(() -> RunOrchestrator.checkRequestParts(pastRecordLabel)).doesNotThrowAnyException();
+        assertThat(RunOrchestrator.facts(pastRecordLabel, "aabbccddeeff", Instant.parse("2026-09-30T09:40:00Z"))
+                .documents()).singleElement().extracting(RunFacts.Document::documentKey)
+                .as("the key the injection row's reachedBy names").isEqualTo("DOC-aabbccddeeff-2");
+    }
+
+    /**
+     * N-INJ-5: the run signs in two minutes before the company time, or two minutes before its first step when that
+     * step comes earlier, so every packaged case and every earlier variant keeps the sign-in time its runs had.
+     */
+    @Test
+    void theRunSignsInBeforeItsFirstStep() throws Exception {
+        Instant companyTime = Instant.parse("2026-09-30T00:00:00Z");
+        Instant usual = companyTime.minus(Duration.ofMinutes(2));
+        assertThat(RunOrchestrator.SIGN_IN_LEAD).isEqualTo(Duration.ofMinutes(2));
+        for (ScenarioDefinition scenario : new ScenarioCatalog(json).all()) {
+            assertThat(RunOrchestrator.signInTime(scenario, companyTime)).as(scenario.key()).isEqualTo(usual);
+        }
+        List<String> keys = new ArrayList<>();
+        for (Resource resource : new PathMatchingResourcePatternResolver()
+                .getResources("classpath*:reactivity/variants/*.json")) {
+            ScenarioDefinition variant;
+            try (InputStream in = resource.getInputStream()) {
+                variant = json.readValue(in, ScenarioDefinition.class);
+            }
+            keys.add(variant.key());
+            assertThat(RunOrchestrator.signInTime(variant, companyTime)).as(variant.key()).isEqualTo(
+                    "A1T-I1".equals(variant.key()) ? Instant.parse("2026-09-29T23:48:00Z") : usual);
+        }
+        assertThat(keys).as("the variants read").contains("A3-I3", "A1T-I1");
+    }
+
+    /** N-INJ-5: a new session survives the round trip of its definition, and only a step that starts one names it. */
+    @Test
+    void aNewSessionSurvivesTheRoundTripAndOnlyAStepThatStartsOneNamesIt() throws Exception {
+        ScenarioDefinition definition = definition(List.of(readOf(1, null), readOf(2, true)));
+
+        ScenarioDefinition read = json.readValue(json.writeValueAsString(definition), ScenarioDefinition.class);
+
+        assertThat(read).isEqualTo(definition);
+        assertThat(read.steps()).extracting(ScenarioDefinition.Step::startsNewSession).containsExactly(false, true);
+        assertThat(RunOrchestrator.canonicalJson(json.valueToTree(readOf(2, true)))).contains("\"newSession\":true");
+        assertThat(RunOrchestrator.canonicalJson(json.valueToTree(readOf(1, null)))).doesNotContain("newSession");
+    }
+
+    private static ScenarioDefinition.Step readOf(int position, Boolean newSession) {
+        return new ScenarioDefinition.Step(BusinessOperation.DOCUMENT_READ,
+                new ScenarioDefinition.DocumentSelector("HX-310", "DRAWING", position), null, null, null,
+                60L * position, Map.of(), null, null, null, null, null, null, null, newSession);
+    }
+
+    private ScenarioDefinition variant(String key) throws IOException {
+        try (InputStream stream = getClass().getResourceAsStream("/reactivity/variants/" + key + ".json")) {
+            assertThat(stream).as(key).isNotNull();
+            return json.readValue(stream, ScenarioDefinition.class);
+        }
     }
 
     private static ScenarioDefinition.Step exportWith(Map<String, String> headers, Integer requestIdOf) {

@@ -137,10 +137,14 @@ class PromptDictionaryRendererTest {
         String text = rendering.text();
 
         assertThat(text).contains("ChallengeVerified: none\n", "RequestsInSession: this is the first\n",
-                "UsualHours: not learned\n", "DeviationsFromBaseline: 0 of 8 compared\n");
-        assertThat(text).doesNotContain("RecentMfaElsewhere:", "Approval:", "Target:", "SessionAge:", "Network:");
+                "UsualHours: not learned\n");
+        // N-DIC-1: the permissions and the comparisons with the baseline have no missing text, so without a value they
+        // are named unknown; a numbered entry without items draws no line and is not named (its state entry says why).
+        assertThat(text).doesNotContain("RecentMfaElsewhere:", "Approval:", "Target:", "SessionAge:", "Network:",
+                "Permissions:", "DeviationsFromBaseline:", "SameAsBaseline:", "PastRecord1:");
         assertThat(rendering.unknownNames()).contains("SessionAge", "LoginMethod", "Policy", "PolicySatisfied",
-                "Network", "Device", "Target").doesNotContain("RecentMfaElsewhere", "ChallengeVerified");
+                "Network", "Device", "Target", "Permissions", "DeviationsFromBaseline", "SameAsBaseline")
+                .doesNotContain("RecentMfaElsewhere", "ChallengeVerified", "PastRecord");
         List<String> sorted = new ArrayList<>(rendering.unknownNames());
         Collections.sort(sorted);
         assertThat(rendering.unknownNames()).isEqualTo(sorted);

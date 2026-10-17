@@ -87,4 +87,30 @@ public final class PastRecordLineValues {
     public static String state(Map<?, ?> retrievalState) {
         return SecurityDecisionPromptValues.pastRecordsState(SecurityDecisionPromptSections.RagState.fromMetadata(retrievalState));
     }
+
+    /**
+     * Whether the retrieval state the render kept is a search the request did not finish or did not run: the render
+     * then names the past records unknown now (dictionary 1.4). N-INS-2: shared with the inspector.
+     */
+    public static boolean notRetrieved(Map<?, ?> retrievalState) {
+        return notRetrieved(state(retrievalState));
+    }
+
+    /** Whether a PastRecordsState value says the search did not finish or did not run (N-INS-2: shared). */
+    public static boolean notRetrieved(String stateValue) {
+        return stateValue != null && stateValue.startsWith(NOT_RETRIEVED + " (");
+    }
+
+    /**
+     * The reason the render names the past records unknown now with, from the retrieval state it kept, or null when
+     * the search finished (N-INS-4: shared with the inspector).
+     */
+    public static String notRetrievedReason(Map<?, ?> retrievalState) {
+        return SecurityDecisionPromptValues.notRetrievedReason(SecurityDecisionPromptSections.RagState.fromMetadata(retrievalState));
+    }
+
+    /** The reason the render names the counted facts unknown with when it draws no counts line (N-INS-4: shared). */
+    public static String countsUnknownReason(Map<?, ?> retrievalState) {
+        return SecurityDecisionPromptValues.countsUnknownReason(SecurityDecisionPromptSections.RagState.fromMetadata(retrievalState));
+    }
 }

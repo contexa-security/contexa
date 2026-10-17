@@ -38,4 +38,19 @@ class PromptInspectorVersionsTest {
         assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo(PromptInspectorVersions.current().name());
         assertThat(PromptInspectorVersions.current().number()).isEqualTo(PromptInspectorVersions.ALL.size());
     }
+
+    /** N-SRC-2 lands in version 20 with N-INJ-3, N-INS-2 and N-INS-3 (one P8 build), not in a version of its own. */
+    @Test
+    void theSourceRecordsAHostDoesNotKeepAreNamedInVersionTwenty() {
+        PromptInspectorVersions.Version twenty = PromptInspectorVersions.ALL.get(19);
+        assertThat(twenty.number()).isEqualTo(20);
+        assertThat(twenty.reason()).contains("(N-INJ-3)").contains("(N-INS-3)").contains("(N-SRC-2)");
+    }
+
+    /** N-INS-4, the first change after P8, is version 21. */
+    @Test
+    void thePastRecordsReasonsAreComparedFromVersionTwentyOne() {
+        assertThat(PromptInspectorVersions.current().number()).isEqualTo(21);
+        assertThat(PromptInspectorVersions.current().reason()).contains("(N-INS-4)");
+    }
 }

@@ -39,13 +39,13 @@ class DeliveryEvaluatorTest {
     @Test
     void aFactTheConditionShouldNotChangeIsUnexpected() throws Exception {
         PromptFacts base = facts("""
-                {"lines": [{"label": "Time", "value": "03:17 Wed"}, {"label": "OnCall", "value": "not on call"}]}""");
+                {"lines": [{"label": "Time", "value": "03:17 Wed"}, {"label": "Device", "value": "usual laptop"}]}""");
         PromptFacts variant = facts("""
-                {"lines": [{"label": "Time", "value": "14:05 Wed"}, {"label": "OnCall", "value": "on call (HX)"}]}""");
+                {"lines": [{"label": "Time", "value": "14:05 Wed"}, {"label": "Device", "value": "new phone"}]}""");
 
         DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "timeSlot");
 
-        assertThat(delivery.unexpected()).containsExactly("OnCall");
+        assertThat(delivery.unexpected()).containsExactly("Device");
         assertThat(delivery.passed()).isFalse();
     }
 
@@ -222,11 +222,34 @@ class DeliveryEvaluatorTest {
         try (var stream = DeliveryEvaluator.class.getResourceAsStream("/reactivity/delivery-expected.json")) {
             derived = JSON.readTree(stream).path("derived");
         }
-        assertThat(derived.size()).isEqualTo(6);
+        assertThat(derived.size()).as("N-DLV-6 adds onCall").isEqualTo(7);
         derived.fields().forEachRemaining(condition -> {
             assertThat(condition.getValue().path("because").asText()).as(condition.getKey()).isNotBlank();
             assertThat(condition.getValue().path("facts").size()).as(condition.getKey()).isPositive();
         });
+    }
+
+    /**
+     * N-INJ-3: from v20.24 the target's business label, which states the item count, is an UNTRUSTED TEXT line (a
+     * v20.23 seal states it on the Target line).
+     */
+    @Test
+    void anItemsChangeMayMoveTheBusinessLabelLine() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Size", "value": "4,831 items"},
+                           {"label": "UntrustedText1",
+                            "value": "source=business label (host text); \\"Export of 4831 documents\\""}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Size", "value": "40 items"},
+                           {"label": "UntrustedText1",
+                            "value": "source=business label (host text); \\"Export of 40 documents\\""}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "items");
+
+        assertThat(delivery.delivered()).containsExactly("Size");
+        assertThat(delivery.derived()).containsExactly("UntrustedText1");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
     }
 
     @Test
@@ -432,6 +455,118 @@ class DeliveryEvaluatorTest {
         assertThat(laterSteps.path("timeSlot").path("facts").path(0).asText()).isEqualTo("PeerReference");
         laterSteps.fields().forEachRemaining(condition ->
                 assertThat(condition.getValue().path("because").asText()).as(condition.getKey()).isNotBlank());
+    }
+
+    @Test
+    void theOnCallRosterFollowsTheEmployee() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Subject", "value": "lab-eng-k"},
+                           {"label": "OnCall", "value": "on call (HX on-call)"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Subject", "value": "lab-eng-01"},
+                           {"label": "OnCall", "value": "not on call"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "employee", "eng-01");
+
+        assertThat(delivery.derived()).containsExactly("OnCall");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void theRelativeEndsOfOnCallAndOfATicketFollowTheTimeSlot() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Time", "value": "14:20 Wed"},
+                           {"label": "OnCall", "value": "on call until 10-05 09:00 (4 days after)"},
+                           {"label": "Ticket", "value": "INC-7 valid until 10-05 09:00 (4 days after)"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Time", "value": "03:17 Wed"},
+                           {"label": "OnCall", "value": "on call until 10-05 09:00 (5 days after)"},
+                           {"label": "Ticket", "value": "INC-7 valid until 10-05 09:00 (5 days after)"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "timeSlot", "DAWN");
+
+        assertThat(delivery.delivered()).containsExactly("Time");
+        assertThat(delivery.derived()).containsExactly("OnCall", "Ticket");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void aConditionTheBaseAlreadyHadIsTheBaseItself() throws Exception {
+        PromptFacts onCall = facts("""
+                {"lines": [{"label": "OnCall", "value": "on call (HX on-call)"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(onCall, onCall, "onCall", "true");
+
+        assertThat(delivery.changed()).isEmpty();
+        assertThat(delivery.valueMatches()).as("the variant states the value").isTrue();
+        assertThat(delivery.sameAsBase()).isTrue();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void aConditionThatChangedNothingAndDoesNotStateItsValueStillFails() throws Exception {
+        PromptFacts notOnCall = facts("""
+                {"lines": [{"label": "OnCall", "value": "not on call"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(notOnCall, notOnCall, "onCall", "true");
+
+        assertThat(delivery.valueMatches()).isFalse();
+        assertThat(delivery.sameAsBase()).isFalse();
+        assertThat(delivery.passed()).isFalse();
+    }
+
+    @Test
+    void theResourceGivesTheOnCallRosterAndTheRelativeEndsTheirConditions() throws Exception {
+        JsonNode derived;
+        try (var stream = DeliveryEvaluator.class.getResourceAsStream("/reactivity/delivery-expected.json")) {
+            derived = JSON.readTree(stream).path("derived");
+        }
+        assertThat(derived.path("employee").path("facts")).extracting(JsonNode::asText).contains("OnCall");
+        assertThat(derived.path("employee").path("because").asText()).contains("on-call roster");
+        assertThat(derived.path("timeSlot").path("facts")).extracting(JsonNode::asText).contains("OnCall", "Ticket");
+        assertThat(derived.path("timeSlot").path("because").asText()).contains("ticket's validity");
+        assertThat(derived.path("target").path("facts")).extracting(JsonNode::asText).contains("Ticket");
+        assertThat(derived.path("target").path("because").asText()).contains("a ticket names its project");
+        assertThat(derived.path("onCall").path("facts")).extracting(JsonNode::asText)
+                .containsExactly("DeviationsFromBaseline");
+        assertThat(derived.path("onCall").path("because").asText()).contains("ticket while on call");
+    }
+
+    @Test
+    void aTicketFollowsTheTargetLikeTheApproval() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "Assignment", "value": "not assigned to GB-500"},
+                           {"label": "Ticket", "value": "TCK-1 by pm-11 for GB-500 covers this request"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "Assignment", "value": "assigned to PLM-OPS"},
+                           {"label": "Ticket", "value": "TCK-1 by adm-a for PLM-OPS does not cover"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "target", "ASSIGNED");
+
+        assertThat(delivery.delivered()).containsExactly("Assignment");
+        assertThat(delivery.derived()).containsExactly("Ticket");
+        assertThat(delivery.unexpected()).isEmpty();
+        assertThat(delivery.passed()).isTrue();
+    }
+
+    @Test
+    void theDeviationsFollowOnCallThroughThePolicysTicketException() throws Exception {
+        PromptFacts base = facts("""
+                {"lines": [{"label": "OnCall", "value": "on call (PLATFORM)"},
+                           {"label": "PolicySatisfied", "value": "yes - ticket while on call"},
+                           {"label": "DeviationsFromBaseline", "value": "1 of 8 -> time 20 explained by TCK-1"}]}""");
+        PromptFacts variant = facts("""
+                {"lines": [{"label": "OnCall", "value": "not on call"},
+                           {"label": "PolicySatisfied", "value": "no - no approval"},
+                           {"label": "DeviationsFromBaseline", "value": "1 of 8 -> time 20 (unexplained)"}]}""");
+
+        DeliveryEvaluator.Delivery delivery = evaluator.compare(base, variant, "onCall", "false");
+
+        assertThat(delivery.delivered()).containsExactly("OnCall", "PolicySatisfied");
+        assertThat(delivery.derived()).containsExactly("DeviationsFromBaseline");
+        assertThat(delivery.passed()).isTrue();
     }
 
     private static PromptFacts facts(String json) throws Exception {

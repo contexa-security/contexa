@@ -54,6 +54,7 @@ import io.contexa.contexacore.std.llm.client.StructuredOutputCapabilityRegistry;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.UserAccountDeletionListener;
 import io.contexa.contexacore.autonomous.service.UserEngineStatePurger;
 import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
@@ -355,13 +356,16 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
             ObjectProvider<SecurityDecisionPostProcessor> postProcessorProvider,
             @Qualifier("securityLearningPostProcessExecutor") ExecutorService securityLearningPostProcessExecutor,
-            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider) {
+            ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
+            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
         SecurityLearningService service = new SecurityLearningService(
                 baselineLearningServiceProvider.getIfAvailable(),
                 postProcessorProvider.getIfAvailable(),
                 securityLearningPostProcessExecutor);
         // The analysis layers' decision documents are stored once the decision is enforced (W5-3).
         service.setContextObservationRecorder(contextObservationRecorderProvider.getIfAvailable());
+        // Q-15: the late writes of a request whose account was deleted after it was taken in are discarded.
+        service.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
         return service;
     }
 @Bean
@@ -640,16 +644,22 @@ public class CoreAutonomousAutoConfiguration {
                 protectableWorkProfileCollector.getIfAvailable(), securityZeroTrustProperties);
     }
 
-    /** Keeps a request answered by the decision in force, which reaches no analysis, in its session (N-SES-1). */
+    /**
+     * Keeps a request answered by the decision in force, which reaches no analysis, in its session (N-SES-1), and
+     * learns the first one sent again after a passed step-up of those a web filter stopped (N-LRN-3).
+     */
     @Bean
     @ConditionalOnMissingBean
     public UnanalysedRequestRecorder unanalysedRequestRecorder(
             SessionNarrativeCollector sessionNarrativeCollector,
             ContextObservationRecorder contextObservationRecorder,
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            ZeroTrustEventPublisher zeroTrustEventPublisher) {
-        return new UnanalysedRequestRecorder(sessionNarrativeCollector, contextObservationRecorder,
-                securityZeroTrustProperties, zeroTrustEventPublisher);
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ObjectProvider<VerificationLearningService> verificationLearningService) {
+        UnanalysedRequestRecorder recorder = new UnanalysedRequestRecorder(sessionNarrativeCollector,
+                contextObservationRecorder, securityZeroTrustProperties, zeroTrustEventPublisher);
+        recorder.setVerificationLearningService(verificationLearningService.getIfAvailable());
+        return recorder;
     }
 
     @Bean
@@ -797,6 +807,19 @@ public class CoreAutonomousAutoConfiguration {
         return store;
     }
 
+    /** Discards the late writes of a deleted account's requests for the analysis budget and a margin (Q-15). */
+    @Bean
+    @ConditionalOnMissingBean
+    public DeletedAccountWriteFence deletedAccountWriteFence(
+            ObjectProvider<SecurityContextDataStore> securityContextDataStore,
+            ObjectProvider<SecurityPlaneProperties> securityPlaneProperties) {
+        SecurityPlaneProperties.AgentSettings agent =
+                securityPlaneProperties.getIfAvailable(SecurityPlaneProperties::new).getAgent();
+        Duration retention = DeletedAccountWriteFence.retention(
+                agent.getEventTimeoutMs(), agent.getMaxDeferredRetries(), agent.getDeletedAccountFenceMarginMs());
+        return new DeletedAccountWriteFence(securityContextDataStore.getIfAvailable(), retention);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public UserEngineStatePurger userEngineStatePurger(
@@ -809,7 +832,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<VectorStore> vectorStore,
             ObjectProvider<IForceLogoutService> forceLogoutService,
             ObjectProvider<UserStatePurgeContributor> contributors,
-            ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer) {
+            ObjectProvider<VectorStoreCacheLayer> vectorStoreCacheLayer,
+            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
         UserEngineStatePurger purger = new UserEngineStatePurger(
                 zeroTrustActionRepository,
                 blockingSignalBroadcaster.getIfAvailable(),
@@ -821,6 +845,7 @@ public class CoreAutonomousAutoConfiguration {
                 forceLogoutService.getIfAvailable(),
                 contributors.orderedStream().toList());
         purger.setVectorStoreCacheLayer(vectorStoreCacheLayer.getIfAvailable());
+        purger.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
         return purger;
     }
 

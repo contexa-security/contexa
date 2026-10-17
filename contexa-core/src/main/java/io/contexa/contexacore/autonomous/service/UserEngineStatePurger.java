@@ -37,6 +37,9 @@ import java.util.Map;
  * this purge a later account with the same name would inherit a permanent BLOCK, the personal baseline, the decision
  * history used as RAG evidence and the open sessions of the deleted account.
  * <p>
+ * The deletion is marked first (Q-15): while the mark lasts, a late write of a request the account made before is
+ * discarded and a request of a later account of the same name is written ({@link DeletedAccountWriteFence}).
+ * <p>
  * Every step runs even when an earlier one fails; failures are reported in the result and logged. Audit records,
  * decision observations and sealed evidence are kept: they are retained by their own retention policies.
  * Host applications that delete users outside Contexa call {@link #purge(String)} themselves.
@@ -56,6 +59,7 @@ public class UserEngineStatePurger {
     private final IForceLogoutService forceLogoutService;
     private final List<UserStatePurgeContributor> contributors;
     private VectorStoreCacheLayer vectorStoreCacheLayer;
+    private DeletedAccountWriteFence deletedAccountWriteFence;
 
     public UserEngineStatePurger(
             ZeroTrustActionRepository actionRepository,
@@ -83,6 +87,14 @@ public class UserEngineStatePurger {
         this.vectorStoreCacheLayer = vectorStoreCacheLayer;
     }
 
+    /**
+     * Marks the deletion before the purge removes anything, so that the late writes of the requests the account made
+     * before are discarded (Q-15). Without it nothing is marked.
+     */
+    public void setDeletedAccountWriteFence(DeletedAccountWriteFence deletedAccountWriteFence) {
+        this.deletedAccountWriteFence = deletedAccountWriteFence;
+    }
+
     public UserEngineStatePurgeResult purge(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");
@@ -90,6 +102,9 @@ public class UserEngineStatePurger {
         List<String> purged = new ArrayList<>();
         Map<String, String> failed = new LinkedHashMap<>();
 
+        // Q-15: the mark comes first, so that a late write landing while the steps run is discarded too.
+        step("deletion-fence", deletedAccountWriteFence != null,
+                () -> deletedAccountWriteFence.markDeleted(userId), purged, failed);
         step("sessions", forceLogoutService != null,
                 () -> forceLogoutService.forceLogoutByUserId(userId, "ACCOUNT_DELETED"), purged, failed);
         step("decision-state", actionRepository != null,

@@ -55,11 +55,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.16-v19.19",
+                    "2026.10.16-v19.20",
                     "CORTEX_PROMPT_CONTRACT_V2",
                     PromptReleaseStatus.PRODUCTION,
                     "contexa-cortex-core",
-                    "P5-GOLD-2026-10-16",
+                    "N-K5-2-2026-10-16",
                     "protocol-938648df",
                     null,
                     "Zero Trust runtime decision prompt in the v19 format with computed facts: one action family vocabulary with its source (W2-1), the host's URL template as the path family (W2-2), one usual-behaviour view with its evidence grade (W2-3), and the device as one dimension with networks in one form and the host's network zone (W2-4), the host's company records as structured facts with the resource author's words apart from its business label (W2-6), and the approval facts as they hold at the request time with a missing approval status no longer read as a missing lineage (W2-5), and each past record related to the request by the URL template and the target it names, the request's own session left out of the past records (W2-8), and each distinct past record of one protected method on its own line with only copies of one record sharing a line (W2-2 correction), and a change of device or of network within the session stated against the client the session first came from, in place of the binding-hash mismatch no code produced (W2-14), and the observed work pattern from the host's access history only, a missing history stated rather than the work profile repeated (W2-12); with the render unchanged: the budget profiles fitted to the v20 prompts (TO-5; after P4, W4-2, W4-4), the verifier contracts left the bundle (R4-B9), a 600 ms interactive past record wait (P3-EXTRA-4), golden inputs from the P3 gate measurement (P2-CHANGE-25), the response checker's fallback to the contract's action after a failed retry and the floor each minimum action rule names (N-OUT-1, W4-5, N-P3-1), its label checks for v19 prompts only (W4-8), a golden render of the sealed baselines (N-GOLD-1); P5 drew the learning facts anew and the bundle declares its vocabulary (W5-4, W5-7, W5-9, W5-10); the login classifier source changed, the render unchanged (W5-10 D6)",
@@ -97,7 +97,9 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
      * learning and memory facts anew and declared the vocabulary (W5-4, W5-7, W5-9, W5-10, {@code 2026.10.15-v20.20})
      * and its usual login line takes a login of two methods (W5-10 D6, {@code 2026.10.16-v20.21}) and a login holding a
      * usual login and more is no departure (P5-변경-17, {@code 2026.10.16-v20.22}) and the golden render draws the P5 gate
-     * measurement (two-method logins included), so it ships as {@code 2026.10.16-v20.23}; the
+     * measurement (two-method logins included, {@code 2026.10.16-v20.23}) and the business label is an untrusted text
+     * (N-INJ-3) and the usual rate counts the hour up to each request (N-RATE-1), so it ships as
+     * {@code 2026.10.16-v20.24}; the
      * earlier v20 manifests stay as the records of what they were. It is not approved for runtime and not evaluated yet (version management 10: evaluation and
      * approval come in P6 to P8).
      */
@@ -105,14 +107,14 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.16-v20.23",
+                    "2026.10.16-v20.24",
                     "CORTEX_PROMPT_CONTRACT_V3",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
-                    "P5-GOLD-2026-10-16",
+                    "N-INJ-3-2026-10-16",
                     "NOT-EVALUATED",
-                    "2026.10.16-v19.19",
-                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). An approval without a decision time says what was not checked (N-WORD-1). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks the boundaries, the reason claims and the reason codes on the facts the prompt was drawn from (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket whose decision time is not recorded does not prevent covered work (N-WORD-2). The budget profiles fitted to these prompts the TO-5 way. P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: each dimension with its counts, days and first and last times, first seen apart from rare, one denominator, maturity by dates and convergence with the reasons it misses, one request rate, logins of two factors kept, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7). Logins of two methods are kept and one holding a usual login is no departure (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1).",
+                    "2026.10.16-v19.20",
+                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks the boundaries, the reason claims and the reason codes on the facts the prompt was drawn from (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket without a recorded decision time says what was not checked and does not prevent covered work (N-WORD-1, N-WORD-2). The business label is untrusted text (N-INJ-3); the usual rate counts the hour up to a request (N-RATE-1). P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: each dimension with its counts, days and first and last times, first seen apart from rare, one denominator, maturity by dates and convergence with the reasons it misses, one request rate, logins of two factors kept, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7). Logins of two methods are kept and one holding a usual login is no departure (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1).",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",

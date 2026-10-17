@@ -135,8 +135,8 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
 
     /**
      * Why a call gave no decision is named: the provider stopped at the output limit (the thinking used it up), refused,
-     * sent an empty answer, was overloaded or refused the request itself; only what is none of these is the model
-     * being unavailable.
+     * sent an empty answer, was overloaded, limited the rate (Q-38: 429, after the retries) or refused the request
+     * itself; only what is none of these is the model being unavailable.
      */
     @Test
     void executeEntityShouldNameWhyTheProviderGaveNoDecision() {
@@ -148,6 +148,8 @@ class UnifiedLLMOrchestratorSecurityDecisionRawGuardTest {
         assertThat(failureCategory("end_turn", new IllegalStateException(empty))).isEqualTo("EMPTY_RESPONSE");
         assertThat(failureCategory(null, new TransientAiException("HTTP 529 - {\"type\":\"overloaded_error\"}")))
                 .isEqualTo("PROVIDER_OVERLOADED");
+        assertThat(failureCategory(null, new TransientAiException("HTTP 429 - {\"type\":\"rate_limit_error\"}")))
+                .isEqualTo("PROVIDER_RATE_LIMITED");
         assertThat(failureCategory(null, new NonTransientAiException("HTTP 400 - invalid_request_error")))
                 .isEqualTo("PROVIDER_REQUEST_REJECTED");
         assertThat(failureCategory(null, new IllegalStateException("connection refused"))).isEqualTo("MODEL_UNAVAILABLE");

@@ -153,7 +153,7 @@ class AiSecurityDecisionObservationWriterTest {
     @DisplayName("Why the provider gave no decision is kept as the failure type")
     void recordDecision_providerAnswerFailure_shouldKeepItsCategory() {
         for (String category : new String[]{"OUTPUT_TRUNCATED", "PROVIDER_REFUSAL", "PROVIDER_OVERLOADED",
-                "PROVIDER_REQUEST_REJECTED"}) {
+                "PROVIDER_RATE_LIMITED", "PROVIDER_REQUEST_REJECTED"}) {
             JdbcOperations jdbcOperations = jdbcOperations();
             AiSecurityDecisionObservationWriter writer =
                     new AiSecurityDecisionObservationWriter(() -> jdbcOperations, new ObjectMapper());

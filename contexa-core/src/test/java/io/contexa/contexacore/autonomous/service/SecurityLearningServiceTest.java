@@ -32,8 +32,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.Duration;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -158,6 +162,71 @@ class SecurityLearningServiceTest {
 
         verify(postProcessor).storeInVectorDatabase(escalated, second);
         verify(postProcessor, never()).storeInVectorDatabase(escalated, first);
+    }
+
+    @Test
+    @DisplayName("Q-15: the late writes of a request taken in before its account was deleted are discarded")
+    void theLateWritesOfARequestOfADeletedAccountAreDiscarded() {
+        InMemorySecurityContextDataStore store = new InMemorySecurityContextDataStore();
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(store, Duration.ofMinutes(13));
+        ContextObservationRecorder recorder = new ContextObservationRecorder(store);
+        service.setContextObservationRecorder(recorder);
+        service.setDeletedAccountWriteFence(fence);
+        SecurityEvent late = requestEvent("request-of-the-deleted-account");
+        late.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() - 1_000);
+        fence.markDeleted("user1");
+
+        service.postProcessDecision(late, decision);
+        recorder.commit(late, ZeroTrustAction.ALLOW.name(), true);
+        service.learnAndStore("user1", decision, late);
+        service.learnPromoted("user1", decision, late);
+
+        verify(postProcessor, never()).updateSessionContext(any(), any());
+        verify(postProcessor, never()).storeInVectorDatabase(any(), any());
+        verify(baselineLearningService, never()).learnIfNormal(any(), any(), any());
+        assertThat(fence.discardedWrites())
+                .containsEntry(DeletedAccountWriteFence.DECISION_DOCUMENT, 3L)
+                .containsEntry(DeletedAccountWriteFence.SESSION_CONTEXT, 2L)
+                .containsEntry(DeletedAccountWriteFence.BASELINE, 2L);
+    }
+
+    @Test
+    @DisplayName("Q-15: a request of a later account of the same name, taken in after the deletion, is learned")
+    void aRequestOfALaterAccountOfTheSameNameIsLearned() {
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(new InMemorySecurityContextDataStore(),
+                Duration.ofMinutes(13));
+        service.setDeletedAccountWriteFence(fence);
+        fence.markDeleted("user1");
+        SecurityEvent later = requestEvent("request-of-a-later-account");
+        later.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() + 1_000);
+
+        service.learnAndStore("user1", decision, later);
+
+        verify(baselineLearningService).learnIfNormal("user1", decision, later);
+        verify(postProcessor).updateSessionContext(later, decision);
+        verify(postProcessor).storeInVectorDatabase(later, decision);
+        verify(postProcessor, never()).removeStoredRecord(any(), any());
+        assertThat(fence.discardedWrites()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Q-15: a decision document stored while the purge of its account ran is removed again")
+    void aDocumentStoredWhileThePurgeRanIsRemovedAgain() {
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(new InMemorySecurityContextDataStore(),
+                Duration.ofMinutes(13));
+        service.setDeletedAccountWriteFence(fence);
+        SecurityEvent racing = requestEvent("request-racing-the-purge");
+        racing.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis() - 1_000);
+        doAnswer(invocation -> {
+            fence.markDeleted("user1");
+            return null;
+        }).when(postProcessor).storeInVectorDatabase(racing, decision);
+
+        service.learnPromoted("user1", decision, racing);
+
+        verify(postProcessor).storeInVectorDatabase(racing, decision);
+        verify(postProcessor).removeStoredRecord(racing, decision);
+        assertThat(fence.discardedWrites()).containsEntry(DeletedAccountWriteFence.DECISION_DOCUMENT_REMOVED, 1L);
     }
 
     private static SecurityEvent requestEvent(String requestId) {

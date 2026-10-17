@@ -64,6 +64,8 @@ public class SynchronousProtectableDecisionService {
 
         if (zeroTrustEventListener.shouldPublishAuthorizationEvent(event)) {
             SecurityEvent securityEvent = ZeroTrustSecurityEventConverter.convert(event);
+            // The engine takes the request in here, as a collector does for an analysis it queues (Q-15).
+            securityEvent.addMetadata(DeletedAccountWriteFence.TAKEN_IN_AT, System.currentTimeMillis());
             SecurityEventContext processingContext = securityPlaneAgent.processSecurityEvent(securityEvent);
             return currentResult(event, userId, contextBindingHash, processingContext);
         }

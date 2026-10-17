@@ -5,19 +5,6 @@
 -- ============================================================
 
 -- ----------------------------------------------------------------
--- USERS — required NOT NULL: account_locked, bridge_managed,
--- credentials_expired, enabled, external_auth_only,
--- failed_login_attempts, mfa_enabled, created_at, name, username, password.
--- ----------------------------------------------------------------
-INSERT INTO USERS (id, username, password, name, email, mfa_enabled, enabled, account_locked, bridge_managed, credentials_expired, external_auth_only, failed_login_attempts, created_at) VALUES
-    (1, 'admin',     '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '최고관리자', 'admin@gmail.com', TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (2, 'manager',   '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '김팀장',     'manager@gmail.com',TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (3, 'developer', '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '박개발',     'developer@gmail.com',FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (4, 'user',      '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '이운영',     'user@gmail.com',FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP),
-    (5, 'finance',   '{bcrypt}$2a$06$8zyaQFyvO1gn1gbPp.bjrumKfRFif3CiDgpqK4aB4n8Gl2cbTOxJy', '최재무',     'finance@gmail.com',TRUE,  TRUE, FALSE, FALSE, FALSE, FALSE, 0, CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
-
--- ----------------------------------------------------------------
 -- APP_GROUP — required NOT NULL: enabled, created_at, group_name.
 -- ----------------------------------------------------------------
 INSERT INTO APP_GROUP (group_id, group_name, description, enabled, created_at) VALUES
@@ -37,17 +24,6 @@ INSERT INTO ROLE (role_id, role_name, role_desc, enabled, expression, created_at
     (4, 'ROLE_FINANCE',   '재무팀 역할 - 회계 및 재무 데이터 관리',                    TRUE, FALSE, CURRENT_TIMESTAMP),
     (5, 'ROLE_USER',      '일반 사용자 역할',                                          TRUE, FALSE, CURRENT_TIMESTAMP)
 ON CONFLICT (role_id) DO NOTHING;
-
--- ----------------------------------------------------------------
--- USER_GROUPS — required NOT NULL: assigned_at, group_id, user_id.
--- ----------------------------------------------------------------
-INSERT INTO USER_GROUPS (user_id, group_id, assigned_at) VALUES
-    (1, 1, CURRENT_TIMESTAMP),
-    (2, 2, CURRENT_TIMESTAMP),
-    (3, 2, CURRENT_TIMESTAMP),
-    (4, 3, CURRENT_TIMESTAMP),
-    (5, 4, CURRENT_TIMESTAMP)
-ON CONFLICT (group_id, user_id) DO NOTHING;
 
 -- ----------------------------------------------------------------
 -- GROUP_ROLES — required NOT NULL: assigned_at, group_id, role_id.

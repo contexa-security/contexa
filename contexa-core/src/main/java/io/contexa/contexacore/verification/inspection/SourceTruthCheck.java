@@ -25,12 +25,15 @@ import java.util.List;
  * hold; a line that holds it matches, a line that does not or no line at all is a mismatch, unless the UNKNOWN line
  * names the fact (its missing notation, N-SRC-1). Without a verifier the
  * check records that no host source is integrated; a source that cannot be read now inspects the package again later.
+ * A host that does not keep the records of the decision has the facts counted once as not compared (N-SRC-2).
  */
 public final class SourceTruthCheck implements PromptInspectionCheck {
 
     public static final String CODE = "SOURCE_TRUTH";
     private static final String NOT_INTEGRATED = "host source verifier";
     private static final String UNKNOWN = "Unknown";
+    private static final String NOT_KEPT = "the host does not keep the records of this decision, so the facts are not "
+            + "compared with the host's records";
 
     private final PromptFactSourceVerifier verifier;
 
@@ -56,8 +59,14 @@ public final class SourceTruthCheck implements PromptInspectionCheck {
                     .build());
             return;
         }
-        List<PromptFactSourceVerifier.SourceFact> facts = verifier.sourceFacts(tally.subject());
-        for (PromptFactSourceVerifier.SourceFact fact : facts == null ? List.<PromptFactSourceVerifier.SourceFact>of() : facts) {
+        PromptFactSourceVerifier.SourceReading reading = verifier.read(tally.subject());
+        if (reading != null && !reading.recordsKept()) {
+            // N-SRC-2: the decision's records are gone at the host, so the facts are counted once as not compared.
+            tally.unverifiable(tally.unverifiableFinding().sourceRef(reading.notKeptRef()).reason(NOT_KEPT).build());
+            return;
+        }
+        List<PromptFactSourceVerifier.SourceFact> facts = reading == null ? List.of() : reading.facts();
+        for (PromptFactSourceVerifier.SourceFact fact : facts) {
             List<InspectedPrompt.Line> lines = linesOf(tally.subject().prompt(), fact.block(), fact.entry());
             if (lines.isEmpty()) {
                 // N-SRC-1: a fact the UNKNOWN line names has its missing notation, which the unknown check grades.

@@ -172,7 +172,7 @@ class CoreAutonomousAutoConfigurationTest {
         void shouldDrawThePromptWithTheBundleTheSelectorBeanChooses() {
             DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
             beans.registerSingleton("promptBundleSelector", (PromptBundleSelector) (context, subject) ->
-                    new PromptBundleSelection("2026.10.16-v20.23", PromptBundleSelectionSource.REGISTRY));
+                    new PromptBundleSelection("2026.10.16-v20.24", PromptBundleSelectionSource.REGISTRY));
 
             SecurityDecisionStandardPromptTemplate template = new CoreAutonomousAutoConfiguration()
                     .securityDecisionStandardPromptTemplate(
@@ -192,7 +192,7 @@ class CoreAutonomousAutoConfigurationTest {
             @SuppressWarnings("unchecked")
             Map<String, Object> descriptor = (Map<String, Object>) metadata.get("governanceDescriptor");
             assertThat(descriptor)
-                    .containsEntry("promptVersion", "2026.10.16-v20.23")
+                    .containsEntry("promptVersion", "2026.10.16-v20.24")
                     .containsEntry("promptBundleSelectionSource", "REGISTRY");
         }
 

@@ -150,6 +150,8 @@ public class RunOrchestrator {
         String username = "v" + runHex + "-" + scenario.protagonist();
         String password = "Run-" + UUID.randomUUID() + "-Aa1";
         List<StepSummary> summaries = new ArrayList<>();
+        // N-SRC-3: the decisions that called the model, which control D seals.
+        List<String> sealedRequests = new ArrayList<>();
         Map<String, Object> cleanup = new LinkedHashMap<>();
         String status = "COMPLETED";
         String failure = null;
@@ -206,19 +208,15 @@ public class RunOrchestrator {
             String templateId = template.map(TemplateStore.ReadyTemplate::templateId).orElse(null);
             List<String> systemPromptHashes = new ArrayList<>();
             Map<Control, ControlSession> sessions = new EnumMap<>(Control.class);
-            Instant signInTime = companyTime.minus(Duration.ofMinutes(2));
+            Instant signInTime = signInTime(scenario, companyTime);
             for (Control control : Control.values()) {
-                ControlSession session = new ControlSession(control,
-                        new WorkloadClient(endpoints.of(control), signer, run, endpoints.requestTimeout()), json);
-                if (control.plain()) {
-                    session.signInPlain(username, password, signInTime);
-                } else {
+                if (!control.plain()) {
                     stageStart = stage(stages, "plainSignIn", stageStart);
-                    session.signInEngine(username, password, username + "@" + CompanyBlueprint.EMAIL_DOMAIN,
-                            signInTime, admin);
+                }
+                sessions.put(control, signedIn(control, run, username, password, signInTime));
+                if (!control.plain()) {
                     stage(stages, "engineSignIn", stageStart);
                 }
-                sessions.put(control, session);
             }
             listener.principalReady(stages);
             approver = new RunApprover(admin, run, runHex, companyTime, () -> new ControlSession(Control.D,
@@ -226,6 +224,8 @@ public class RunOrchestrator {
 
             // W7-4: the request id every control sent each step with, for a later step that sends it again.
             Map<Control, Map<Integer, String>> sent = new EnumMap<>(Control.class);
+            // N-INJ-5: the session every step goes in; a step that starts a new one is signed in again before it.
+            List<Integer> sessionOfStep = sessionNumbers(scenario);
             for (int index = 0; index < scenario.steps().size(); index++) {
                 Step step = scenario.steps().get(index);
                 int stepNo = index + 1;
@@ -234,6 +234,14 @@ public class RunOrchestrator {
                 }
                 String path = path(step, runHex);
                 Instant stepTime = companyTime.plusSeconds(step.offsetSeconds());
+                if (index > 0 && !sessionOfStep.get(index).equals(sessionOfStep.get(index - 1))) {
+                    // The engine leaves a request's own session out of its past records (W3-18): the run's earlier
+                    // allowed requests are past records of this step and the later ones.
+                    for (Control control : Control.values()) {
+                        sessions.put(control, signedIn(control, run, username, password,
+                                stepTime.minus(SIGN_IN_LEAD)));
+                    }
+                }
                 Map<Control, ControlSession.RequestParts> parts = new EnumMap<>(Control.class);
                 for (Control control : Control.values()) {
                     parts.put(control, requestParts(json, step, sent.getOrDefault(control, Map.of())));
@@ -269,6 +277,9 @@ public class RunOrchestrator {
                         systemPromptHashes.add(call.path("systemPromptSha256").asText());
                     }
                 }
+                if (!decision.raw().path("modelCalls").isEmpty()) {
+                    sealedRequests.add(engineOutcome.requestId());
+                }
                 summaries.add(new StepSummary(stepNo, step.operation().name(), path, outcomes, step.expected(),
                         rulesAsExpected(step.expected(), outcomes), decision.finalAction(), decision.applied(),
                         decision.unresolved(), engineOutcome.requestId(), firstPromptSha(decision),
@@ -282,6 +293,9 @@ public class RunOrchestrator {
             for (StepSummary summary : summaries) {
                 collectExchanges(runId, summary.stepNo(), summary.requestId());
             }
+            // N-SRC-3: inspected while the records the source checks read are still there (the clean-up removes them).
+            cleanup.put("sealInspection", inspectSealed(sealedRequests, admin::inspectSealed, SEAL_INSPECTION_WAIT,
+                    SEAL_INSPECTION_ATTEMPTS));
             if (template.isPresent()) {
                 try {
                     JsonNode atEnd = admin.snapshot(username, scenario.protagonist(), run.organization(),
@@ -330,6 +344,19 @@ public class RunOrchestrator {
             }
         }
         return new RunSummary(runId, scenario.key(), username, organization, status, failure, summaries);
+    }
+
+    /** The run principal signed in to a control in a session of its own: the run's first, or one a step starts. */
+    private ControlSession signedIn(Control control, RunIdentity run, String username, String password, Instant at)
+            throws IOException {
+        ControlSession session = new ControlSession(control,
+                new WorkloadClient(endpoints.of(control), signer, run, endpoints.requestTimeout()), json);
+        if (control.plain()) {
+            session.signInPlain(username, password, at);
+        } else {
+            session.signInEngine(username, password, username + "@" + CompanyBlueprint.EMAIL_DOMAIN, at, admin);
+        }
+        return session;
     }
 
     /**
@@ -629,18 +656,55 @@ public class RunOrchestrator {
         return "&claimedTicket=" + URLEncoder.encode(key, StandardCharsets.UTF_8);
     }
 
+    /** N-INJ-5: how long before a session's first request the run principal signs in to it. */
+    static final Duration SIGN_IN_LEAD = Duration.ofMinutes(2);
+
+    /**
+     * N-INJ-5: when the run principal signs in to the run's first session: two minutes before the company time, or two
+     * minutes before the first step when that step comes earlier (a read the definition puts before the case's time).
+     */
+    static Instant signInTime(ScenarioDefinition scenario, Instant companyTime) {
+        Instant at = companyTime.minus(SIGN_IN_LEAD);
+        if (scenario.steps().isEmpty()) {
+            return at;
+        }
+        Instant first = companyTime.plusSeconds(scenario.steps().get(0).offsetSeconds());
+        return first.isAfter(at) ? at : first.minus(SIGN_IN_LEAD);
+    }
+
+    /**
+     * N-INJ-5: the session (1-based) each step of a definition is sent in: the run signs in before its first step, and
+     * again before every later step that starts a new session.
+     */
+    static List<Integer> sessionNumbers(ScenarioDefinition scenario) {
+        List<Integer> numbers = new ArrayList<>();
+        int session = 1;
+        for (int index = 0; index < scenario.steps().size(); index++) {
+            if (index > 0 && scenario.steps().get(index).startsNewSession()) {
+                session++;
+            }
+            numbers.add(session);
+        }
+        return List.copyOf(numbers);
+    }
+
     /** W7-4: the header a step sends the request id of an earlier step in (plan 8.7). */
     static final String CLIENT_REQUEST_ID = "X-Request-ID";
 
     /**
      * W7-4: refuses a definition whose request parts cannot be sent as written, before anything of its run is
      * created: a body on a GET step, a header of the signed internal context or the run's device, or a request id taken
-     * from a step that is not an earlier one or beside an X-Request-ID the step names itself.
+     * from a step that is not an earlier one or beside an X-Request-ID the step names itself. N-INJ-5: and a first step
+     * that starts a new session (the run signs in before its first step).
      */
     static void checkRequestParts(ScenarioDefinition scenario) {
         for (int index = 0; index < scenario.steps().size(); index++) {
             Step step = scenario.steps().get(index);
             int stepNo = index + 1;
+            if (index == 0 && step.startsNewSession()) {
+                throw new IllegalArgumentException("Step 1 of " + scenario.key() + " starts a new session, but the"
+                        + " run signs in before its first step");
+            }
             if (step.body() != null && !"POST".equals(ControlSession.method(step.operation()))) {
                 throw new IllegalArgumentException("Step " + stepNo + " of " + scenario.key()
                         + " sends a body with a GET request");
@@ -777,6 +841,50 @@ public class RunOrchestrator {
         byte[] bytes = new byte[length];
         random.nextBytes(bytes);
         return bytes;
+    }
+
+    /** N-SRC-3: how often and how long apart a sealed decision not stored yet is asked for again. */
+    static final int SEAL_INSPECTION_ATTEMPTS = 20;
+    static final Duration SEAL_INSPECTION_WAIT = Duration.ofMillis(250);
+
+    /** N-SRC-3: how the run asks control D to inspect a sealed decision now; empty while it is not stored. */
+    interface SealInspector {
+        Optional<JsonNode> inspect(String requestId) throws IOException;
+    }
+
+    /**
+     * N-SRC-3: the run's sealed decisions inspected before the run is cleaned up, while the records the source checks
+     * read are still there. A package not stored yet is asked for again after the wait, up to the attempts; an error
+     * stops asking for that decision and does not fail the run. Gives the counts the cleanup record keeps.
+     */
+    static Map<String, Object> inspectSealed(List<String> requestIds, SealInspector inspector, Duration wait,
+                                             int attempts) {
+        int inspected = 0;
+        List<String> missing = new ArrayList<>();
+        for (String requestId : requestIds) {
+            boolean done = false;
+            for (int attempt = 0; attempt < attempts && !done; attempt++) {
+                try {
+                    done = inspector.inspect(requestId).isPresent();
+                } catch (IOException | RuntimeException e) {
+                    log.error("Sealed decision could not be inspected: requestId={}", requestId, e);
+                    break;
+                }
+                if (!done && attempt < attempts - 1) {
+                    sleep(wait);
+                }
+            }
+            if (done) {
+                inspected++;
+            } else {
+                missing.add(requestId);
+            }
+        }
+        Map<String, Object> counts = new LinkedHashMap<>();
+        counts.put("requested", requestIds.size());
+        counts.put("inspected", inspected);
+        counts.put("missing", List.copyOf(missing));
+        return counts;
     }
 
     private static void sleep(Duration duration) {

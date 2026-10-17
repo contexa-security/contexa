@@ -1,5 +1,6 @@
 package io.contexa.showcase.portal.anatomy;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,39 @@ class BeforeSendTest {
         assertThat(BeforeSend.boundary(prompt, "HIGH", 0, missing).applies()).isFalse();
         assertThat(BeforeSend.boundary(null, "CRITICAL", 3, missing).applies())
                 .as("without the prompt text the baseline state is unknown").isNull();
+    }
+
+    /**
+     * N-DEP-1 (W7-12 C-2, C-5): the "usual" of a v20 step (E1-2) is the BaselineView the engine sealed with it, the
+     * computation its USER BASELINE lines are drawn from, one value per item so the screen names each in plain words:
+     * step 1 of the A3 run of anatomy/v20-deviations.json.
+     */
+    @Test
+    void theUsualOfAV20StepIsTheBaselineViewTheEngineSealed() throws Exception {
+        JsonNode attack = resource("v20-deviations").path("decisions").get(0);
+        JsonNode metadata = JSON.readTree(attack.path("records").get(0).path("metadataJson").asText());
+        Map<String, Object> workProfile = JSON.convertValue(
+                metadata.path("sealedEvidence.canonicalContext").path("workProfile"), new TypeReference<>() {
+                });
+
+        Map<String, BeforeSend.Usual> usual = BeforeSend.sealedUsual(workProfile);
+
+        assertThat(attack.path("case").asText()).isEqualTo("A3");
+        assertThat(usual).containsOnlyKeys("accessHour", "dayOfWeek", "network", "device", "authenticationType",
+                "target", "actionFamily", "resourceFamily", "size", "rate");
+        assertThat(usual.get("accessHour")).isEqualTo(new BeforeSend.Usual("UsualHours",
+                List.of("10", "11", "13", "14", "17")));
+        assertThat(usual.get("dayOfWeek").values()).containsExactly("1", "2", "3", "4", "5");
+        assertThat(usual.get("device").values()).containsExactly("Chrome/140 on WINDOWS");
+        assertThat(usual.get("authenticationType").values()).containsExactly("PASSWORD", "PASSWORD+ONE_TIME_CODE");
+        assertThat(usual.get("target").values()).containsExactly("projectKey=PLM-OPS");
+        assertThat(usual.get("actionFamily").values()).containsExactly("READ", "EXPORT");
+        assertThat(usual.get("resourceFamily").values()).as("the class of NORMAL=24").containsExactly("NORMAL");
+        assertThat(usual.get("size")).as("the largest export").isEqualTo(new BeforeSend.Usual("UsualExportSize",
+                List.of("29")));
+        assertThat(usual.get("rate")).as("the median per active hour").isEqualTo(new BeforeSend.Usual(
+                "UsualRequestRate", List.of("1")));
+        assertThat(BeforeSend.sealedUsual(Map.of())).as("a decision without a sealed view").isEmpty();
     }
 
     @Test

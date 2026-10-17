@@ -18,11 +18,13 @@ package io.contexa.contexacore.std.pipeline.step;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,5 +97,26 @@ class PostprocessingStepTest {
         SecurityDecisionResponse response = (SecurityDecisionResponse) result;
         assertThat(response.getMetadata("securityDecisionRawOutput", String.class)).isEqualTo("{\"action\":\"ALLOW\"}");
         assertThat(response.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("PARSER_MALFORMED_JSON");
+    }
+
+    /** N-OUT-3: the run's output retries reach the response in their order. */
+    @Test
+    void theOutputRetriesReachTheResponse() {
+        PostprocessingStep step = new PostprocessingStep(Optional.empty());
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(null, null, null, List.of()));
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        SecurityDecisionResponse parsedResponse = new SecurityDecisionResponse();
+        parsedResponse.setAction("ALLOW");
+        context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, parsedResponse);
+        context.addMetadata("targetResponseType", SecurityDecisionResponse.class);
+        List<Map<String, Object>> retries = List.of(Map.of("reason", "OUTPUT_TRUNCATED", "succeeded", false),
+                Map.of("reason", "PARSER_ACTION_MISSING", "succeeded", true));
+        context.addMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+
+        Object result = step.execute(request, context).block();
+
+        SecurityDecisionResponse response = (SecurityDecisionResponse) result;
+        assertThat(response.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class)).isEqualTo(retries);
     }
 }

@@ -144,6 +144,19 @@ public class WorkloadAdmin {
         return Optional.of(read(response));
     }
 
+    /**
+     * N-SRC-3: control D inspects the decision's sealed package at once, while the run's records are still there;
+     * empty while the package is not stored yet.
+     */
+    public Optional<JsonNode> inspectSealed(String requestId) throws IOException {
+        Response response = engine("ops").postJson("/internal/decisions/" + requestId + "/inspection", null, null,
+                "{}");
+        if (response.status() == 404) {
+            return Optional.empty();
+        }
+        return Optional.of(read(response));
+    }
+
     /** A release transition's answer from control D: the HTTP status and the gate's receipt. */
     public record ReleaseTransition(int status, JsonNode receipt) {
     }

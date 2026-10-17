@@ -1378,12 +1378,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return metadata;
     }
 
+    // N-RAG-1: the queries hold no user or tenant ID. The search's filter scopes it to the user; an ID in the text
+    // only moved the query vector and the order of close documents from run to run.
     private String buildRelatedContextQuery(SecurityEvent event, String targetResource) {
         StringBuilder query = new StringBuilder();
-        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
-        appendQueryPart(query, "tenant", event != null && event.getMetadata() != null
-                ? firstNonBlankTextValue(textValue(event.getMetadata().get("tenantId")), textValue(event.getMetadata().get("tenant_id")))
-                : null);
         appendQueryPart(query, "path", targetResource);
         appendQueryPart(query, "resource", event != null && event.getMetadata() != null
                 ? firstNonBlankTextValue(textValue(event.getMetadata().get("resourceId")), textValue(event.getMetadata().get("ResourceId")))
@@ -1409,7 +1407,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     private String buildBroadRelatedContextQuery(SecurityEvent event, String targetResource) {
         StringBuilder query = new StringBuilder();
-        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
         appendQueryPart(query, "action", queryActionFamily(event));
         appendQueryPart(query, "pathFamily", SecuritySemanticNormalizer.pathFamilyOf(
                 event != null ? event.getMetadata() : null, targetResource));
@@ -1421,7 +1418,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     private String buildUserBaselineContextQuery(SecurityEvent event) {
         StringBuilder query = new StringBuilder();
-        appendQueryPart(query, "user", event != null ? event.getUserId() : null);
         appendQueryPart(query, "purpose", getContextRetrievalPurpose());
         appendQueryPart(query, "action", queryActionFamily(event));
         appendQueryPart(query, "resourceFamily", resourceClassOf(event));
@@ -2048,20 +2044,30 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return structuredOutputCapabilityRegistry.resolve(modelHint, providerHint, true);
     }
 
+    /**
+     * W4-3: the reason codes the model gave stay with the decision, as the model gave them, with the provenance of the
+     * decision's fields. N-RSN-1: a Layer2 second pass that keeps the first pass's verdict without a model call keeps
+     * the first pass's ones the same way.
+     */
+    protected void applyReasonCodesAndProvenance(SecurityDecision decision, SecurityDecisionResponse response) {
+        if (decision == null || response == null) {
+            return;
+        }
+        if (response.getReasonCodes() != null && !response.getReasonCodes().isEmpty()) {
+            decision.setReasonCodes(List.copyOf(response.getReasonCodes()));
+        }
+        if (response.getFieldProvenance() != null && !response.getFieldProvenance().isEmpty()) {
+            decision.setFieldProvenance(Map.copyOf(response.getFieldProvenance()));
+        }
+    }
+
     protected void applySecurityDecisionRuntimeTelemetry(
             SecurityDecision decision,
             SecurityDecisionResponse pipelineResponse) {
         if (decision == null || pipelineResponse == null) {
             return;
         }
-        // W4-3: the reason codes the model gave stay with the decision, as the model gave them.
-        if (pipelineResponse.getReasonCodes() != null && !pipelineResponse.getReasonCodes().isEmpty()) {
-            decision.setReasonCodes(List.copyOf(pipelineResponse.getReasonCodes()));
-        }
-        if (pipelineResponse.getFieldProvenance() != null
-                && !pipelineResponse.getFieldProvenance().isEmpty()) {
-            decision.setFieldProvenance(Map.copyOf(pipelineResponse.getFieldProvenance()));
-        }
+        applyReasonCodesAndProvenance(decision, pipelineResponse);
         Map<String, Object> metadata = pipelineResponse.getAllMetadata();
         if (metadata == null || metadata.isEmpty()) {
             return;
@@ -2418,6 +2424,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         // W6-6: this layer's model call stays in the record when the next layer clears the telemetry above.
         PromptRuntimeTelemetrySupport.appendModelCallStage(metadata, getLayerName());
+        // N-OUT-3: so do this layer's output retries, after those of the layers before it.
+        PromptRuntimeTelemetrySupport.appendOutputRetries(metadata, getLayerName(),
+                responseMetadata.get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES));
         if (promptContextAuditRecorder != null && hasPromptLineage(metadata)) {
             promptContextAuditRecorder.enrich(event);
         }

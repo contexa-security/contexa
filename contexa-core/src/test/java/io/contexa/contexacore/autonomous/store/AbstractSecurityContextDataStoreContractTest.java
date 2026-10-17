@@ -246,6 +246,56 @@ abstract class AbstractSecurityContextDataStoreContractTest {
     }
 
     @Test
+    @DisplayName("a request a filter stopped under a challenge is taken once, after the step-up verified it (N-LRN-3)")
+    void stoppedRequests_areTakenOnceAfterTheStepUp() {
+        store.holdStoppedRequest("user-stopped", "POST /api/projects/GB-500/exports");
+        store.holdStoppedRequest("user-stopped", "GET /api/customers/CUS-0012");
+        store.holdStoppedRequest("user-stopped", "POST /api/projects/GB-500/exports");
+
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/projects/GB-500/exports")).isFalse();
+        store.verifyStoppedRequests("user-stopped", null);
+        assertThat(store.takeVerifiedStoppedRequest("user-other", "POST /api/projects/GB-500/exports")).isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "DELETE /api/projects/GB-500/exports")).isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/projects/GB-500/exports")).isTrue();
+        // One request is taken for a step-up: the other stopped request is not taken after it.
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "GET /api/customers/CUS-0012")).isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/projects/GB-500/exports")).isFalse();
+    }
+
+    @Test
+    @DisplayName("the step-up leaves out the request it learned, and a stop after it keeps the requests anew (N-LRN-3)")
+    void stoppedRequests_leaveOutTheLearnedRequestAndStartAnewAfterAStop() {
+        store.holdStoppedRequest("user-stopped", "POST /api/a");
+        store.verifyStoppedRequests("user-stopped", "POST /api/a");
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/a")).isFalse();
+
+        store.holdStoppedRequest("user-stopped", "POST /api/b");
+        store.verifyStoppedRequests("user-stopped", null);
+        // A stop after the verification belongs to a new challenge: what the step-up verified is not taken any more.
+        store.holdStoppedRequest("user-stopped", "POST /api/c");
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/b")).isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/c")).isFalse();
+        store.verifyStoppedRequests("user-stopped", null);
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/c")).isTrue();
+    }
+
+    @Test
+    @DisplayName("the first requests a challenge stopped are kept, and they go with the user (N-LRN-3)")
+    void stoppedRequests_keepTheFirstOnesAndGoWithTheUser() {
+        for (int index = 0; index < 25; index++) {
+            store.holdStoppedRequest("user-stopped", "GET /api/items/" + index);
+        }
+        store.verifyStoppedRequests("user-stopped", null);
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "GET /api/items/24")).isFalse();
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "GET /api/items/0")).isTrue();
+
+        store.holdStoppedRequest("user-stopped", "POST /api/a");
+        store.verifyStoppedRequests("user-stopped", null);
+        store.deleteUserData("user-stopped");
+        assertThat(store.takeVerifiedStoppedRequest("user-stopped", "POST /api/a")).isFalse();
+    }
+
+    @Test
     @DisplayName("a held request waits, listed with the user's other held requests, until it is removed (W5-1)")
     void promotionLearning_isListedUntilRemoved() {
         store.holdPromotionLearning("user-held", "request-1", "{\"day\":\"2026-09-29\"}");
@@ -315,6 +365,23 @@ abstract class AbstractSecurityContextDataStoreContractTest {
                 .isEqualTo("UA|WINDOWS|Chrome/140|10.40.12.0/24|CORPORATE");
         assertThat(store.getSessionFirstClient("session-first")).isNull();
         assertThat(store.getSessionFirstClient("session-unknown")).isNull();
+    }
+
+    @Test
+    @DisplayName("an account deletion is remembered for its retention, past the deletion of the user's data (Q-15)")
+    void accountDeletion_isRememberedForItsRetention() {
+        Instant deletedAt = Instant.ofEpochMilli(System.currentTimeMillis());
+        store.recordAccountDeletion("user-deleted", deletedAt, Duration.ofMillis(1500));
+        store.deleteUserData("user-deleted");
+
+        assertThat(store.accountDeletedAt("user-deleted")).isEqualTo(deletedAt);
+        assertThat(store.accountDeletedAt("user-other")).isNull();
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> assertThat(store.accountDeletedAt("user-deleted"))
+                        .as("the deletion is forgotten once its retention has passed")
+                        .isNull());
     }
 
     @Test

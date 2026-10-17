@@ -45,6 +45,11 @@ public final class RequestLineValues {
         return SecurityDecisionPromptValues.targetHead(resource);
     }
 
+    /** Where the target's business label is, or null without a label: its text is an UNTRUSTED TEXT line (N-INJ-3). */
+    public static String targetLabel(CanonicalSecurityContext.Resource resource) {
+        return SecurityDecisionPromptValues.targetLabel(resource);
+    }
+
     /** The device the sealed context names, or null. */
     public static String sealedDeviceName(CanonicalSecurityContext.Device device) {
         return SecurityDecisionPromptValues.sealedDeviceName(device);

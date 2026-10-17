@@ -13,6 +13,8 @@ const out = process.argv[2];
 const state = process.argv[3];
 const base = process.argv[4] ?? 'http://127.0.0.1:19180';
 const m = JSON.parse(readFileSync('src/i18n/ko.json', 'utf-8'));
+// N-UI-2: the Korean screens name a recorded time's zone in Korean words (source.recordedAt), never UTC.
+const ZONE = '(세계 표준시)';
 mkdirSync(out, { recursive: true });
 
 const benchmark = await (await fetch(`${base}/api/benchmark`)).json();
@@ -116,7 +118,7 @@ for (const [name, path, root = 'main'] of SCREENS) {
     }
     const opened = page.locator(`[id="${found[0]}"]`);
     // A run's recorded time arrives with the run's score after the box opens.
-    await opened.getByText(/\(UTC\)/).first().waitFor({ timeout: 3000 }).catch(() => undefined);
+    await opened.getByText(ZONE).first().waitFor({ timeout: 3000 }).catch(() => undefined);
     box = (await opened.innerText()).replace(/\s+/g, ' ');
     firstLine = ((await opened.locator('span').first().textContent()) ?? '').trim();
   }
@@ -141,11 +143,11 @@ for (const [name, path, root = 'main'] of SCREENS) {
     kind,
     runIds: [...new Set(box.match(/run-[0-9a-f]{12}/g) ?? [])],
     ids: [...new Set(ids)].slice(0, 6),
-    recordedAt: box.includes('(UTC)'),
+    recordedAt: box.includes(ZONE),
     numbersText,
     box: box.slice(0, 240),
   });
-  console.log(`${name.padEnd(15)} numbers ${String(checks.limits.numbers).padStart(2)} marks ${found.length} kind ${kind ?? '-'} ids ${[...new Set(ids)].slice(0, 3).join(',') || '-'} utc ${box.includes('(UTC)')}`);
+  console.log(`${name.padEnd(15)} numbers ${String(checks.limits.numbers).padStart(2)} marks ${found.length} kind ${kind ?? '-'} ids ${[...new Set(ids)].slice(0, 3).join(',') || '-'} utc ${box.includes(ZONE)}`);
 }
 writeFileSync(join(out, 'sources.json'), JSON.stringify(report, null, 2));
 await browser.close();

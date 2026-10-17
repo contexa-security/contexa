@@ -13,7 +13,7 @@ mkdirSync(out, { recursive: true });
 
 const SCREENS = [
   { name: 'U2-prompt', path: '/try/prompt' },
-  { name: 'U4-detail-original', path: `/run/${measuredRun}/detail?step=1&tab=original` },
+  { name: 'U4-detail-original', path: `/run/${measuredRun}/detail?step=1&tab=original`, window: true },
   { name: 'U5-lab-result', path: `/lab/result?run=${labRun}&against=${labBase}` },
   { name: 'U6-bench-prompt', path: '/benchmark/prompt' },
   { name: 'U7-value', path: '/try/summary/value' },
@@ -29,10 +29,18 @@ for (const language of ['ko', 'en']) {
     await page.goto(`${base}${screen.path}${screen.path.includes('?') ? '&' : '?'}lng=${language}`, {
       waitUntil: 'networkidle',
     });
-    await page.locator('main h1, [role="dialog"] h2').first().waitFor();
+    // N-TST-2: a window is an open <dialog> element (src/components/common/Modal.tsx) without a role attribute, so
+    // '[role="dialog"]' never matched it and the main area behind the window was read. A screen that opens a window
+    // (window: true) waits for the window's title, and any open window is the part that is read.
+    await page.locator(screen.window ? 'dialog[open] h2[data-modal-title]' : 'main h1').first().waitFor();
     await page.waitForTimeout(800);
-    const root = (await page.locator('[role="dialog"]').count()) > 0 ? '[role="dialog"]' : 'main';
+    const windowOpen = screen.window === true || (await page.locator('dialog[open]').count()) > 0;
+    const root = windowOpen ? 'dialog[open]' : 'main';
+    const from = report.length;
     await capture(page, out, language, screen.name, report, root);
+    for (const row of report.slice(from)) {
+      row.root = root;
+    }
   }
   await context.close();
 }

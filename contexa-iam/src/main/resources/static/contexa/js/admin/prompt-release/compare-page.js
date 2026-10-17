@@ -90,8 +90,11 @@ function renderEvaluation(sideName, side) {
     sideValue('data-pr-eval', 'evaluationRunReference', sideName, evidence?.evaluationRunReference);
     sideValue('data-pr-eval', 'tevvGateState', sideName, evidence?.tevvGateState);
     sideValue('data-pr-eval', 'qualityGateState', sideName, evidence?.qualityGateState);
+    // N-GOV-3: the families the bundle requires and the ones the evaluation left uncovered, next to the counts.
     sideValue('data-pr-eval', 'scenarios', sideName, evidence
-        ? `${number(evidence.coveredScenarioCount)} / ${number(evidence.requiredScenarioCount)}` : null);
+        ? t('promptRelease.evidence.scenarioFamilies', number(evidence.coveredScenarioCount),
+            number(evidence.requiredScenarioCount), list(evidence.requiredScenarioFamilies),
+            list(evidence.uncoveredScenarioFamilies)) : null);
 }
 
 function outcomeRow(comparison, outcome) {

@@ -532,7 +532,7 @@
     "HOST"
    ],
    "conditional": false,
-   "missing": "ALWAYS_PRESENT",
+   "missing": "UNKNOWN_BLOCK",
    "missingText": null,
    "preservedLabels": [
     "BridgeAuthorizationSource"
@@ -678,8 +678,8 @@
     "COMPUTED"
    ],
    "conditional": false,
-   "missing": "RENDERED_VALUE",
-   "missingText": "0 of 8 compared",
+   "missing": "UNKNOWN_BLOCK",
+   "missingText": null,
    "preservedLabels": [
     "CurrentRequestClosestObservedOverlap",
     "CurrentRequestCombinationComparedDimensions",
@@ -701,7 +701,7 @@
     "COMPUTED"
    ],
    "conditional": false,
-   "missing": "ALWAYS_PRESENT",
+   "missing": "UNKNOWN_BLOCK",
    "missingText": null,
    "preservedLabels": [
     "Current",
@@ -1137,7 +1137,7 @@
     "LEARNED"
    ],
    "conditional": false,
-   "missing": "ALWAYS_PRESENT",
+   "missing": "LINE_OMITTED",
    "missingText": null,
    "preservedLabels": [
     "ComparableExample",

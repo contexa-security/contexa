@@ -53,6 +53,7 @@ import io.contexa.contexacore.autonomous.baseline.BaselineLearningService;
 import io.contexa.contexacommon.security.baseline.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.StructuredOutputMode;
@@ -416,6 +417,39 @@ class AbstractTieredStrategyTest {
                 .containsEntry("securityDecisionRawOutput", "{\"action\":\"ALLOW\"}")
                 .containsEntry("securityDecisionInitialRawOutput", "{\"action\":\"CHALLENGE\"}");
         assertThat(event.getMetadata()).doesNotContainKeys("securityDecisionRawOutput", "securityDecisionInitialRawOutput");
+    }
+
+    /**
+     * N-OUT-3: the output retries of every layer stay with the event in the order they were asked, each naming its
+     * layer, when the next layer clears the telemetry of the one before; the single retry fields hold the last layer's
+     * (P8 N-OUT-2 host, N2A: the first layer's truncated retry, then the second layer's corrective retry).
+     */
+    @Test
+    void theOutputRetriesOfEveryLayerStayWithTheEventInTheirOrder() {
+        SecurityEvent event = SecurityEvent.builder().metadata(new LinkedHashMap<>()).build();
+        SecurityDecisionResponse first = new SecurityDecisionResponse();
+        first.withMetadata("securityDecisionOutputRetryReason", "OUTPUT_TRUNCATED");
+        first.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.of(Map.of("reason", "OUTPUT_TRUNCATED",
+                "succeeded", false, "failureReason", "REASON_CODE_MISMATCH")));
+        SecurityDecisionResponse second = new SecurityDecisionResponse();
+        second.withMetadata("securityDecisionOutputRetryReason", "REASON_CODE_MISMATCH");
+        second.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.of(Map.of("reason",
+                "REASON_CODE_MISMATCH", "succeeded", false, "failureReason", "REASON_CODE_MISMATCH")));
+        Layer2ConcreteStrategy layer2 = new Layer2ConcreteStrategy(eventEnricher, promptTemplate,
+                behaviorVectorService, unifiedVectorService, baselineLearningService,
+                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
+
+        strategy.clearPromptRuntimeTelemetryForTest(event);
+        strategy.capturePromptRuntimeTelemetryForTest(event, first);
+        layer2.clearPromptRuntimeTelemetryForTest(event);
+        layer2.capturePromptRuntimeTelemetryForTest(event, second);
+
+        assertThat(event.getMetadata().get(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES)).isEqualTo(List.of(
+                Map.of("layer", "TestLayer", "reason", "OUTPUT_TRUNCATED", "succeeded", false,
+                        "failureReason", "REASON_CODE_MISMATCH"),
+                Map.of("layer", "Layer2-Test", "reason", "REASON_CODE_MISMATCH", "succeeded", false,
+                        "failureReason", "REASON_CODE_MISMATCH")));
+        assertThat(event.getMetadata()).containsEntry("securityDecisionOutputRetryReason", "REASON_CODE_MISMATCH");
     }
 
     @Test
@@ -994,7 +1028,10 @@ class AbstractTieredStrategyTest {
         when(unifiedVectorService.searchSimilar(any(SearchRequest.class)))
                 .thenAnswer(invocation -> {
                     SearchRequest req = invocation.getArgument(0);
-                    if (req != null && req.getQuery() != null && req.getQuery().contains("user: persona_fin_lead")) {
+                    // N-RAG-1: the user scope is the filter's; the query holds no user ID. Only the baseline
+                    // fallback (threshold 0) finds the learned context, as the strict searches return zero.
+                    if (req != null && req.getSimilarityThreshold() == 0.0d
+                            && String.valueOf(req.getFilterExpression()).contains("persona_fin_lead")) {
                         return List.of(learnedContext);
                     }
                     return List.of();
@@ -1018,13 +1055,17 @@ class AbstractTieredStrategyTest {
 
         assertThat(result).containsExactly(learnedContext);
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(unifiedVectorService, times(4)).searchSimilar(searchRequestCaptor.capture());
+        // The personal, broad and baseline searches, then the organization's supporting search and, as it finds
+        // nothing in this user's scope, its supporting fallback. With the user ID in the query text the stub matched
+        // the organization search too, so it ran four.
+        verify(unifiedVectorService, times(5)).searchSimilar(searchRequestCaptor.capture());
         SearchRequest fallbackRequest = searchRequestCaptor.getAllValues().stream()
                 .filter(req -> req.getSimilarityThreshold() == 0.0d)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Could not find baseline fallback request with threshold 0.0"));
         assertThat(fallbackRequest.getQuery())
-                .contains("user: persona_fin_lead", "purpose: security_investigation", "action: READ")
+                .contains("purpose: security_investigation", "action: READ")
+                .doesNotContain("persona_fin_lead")
                 .doesNotContain("Chrome/148")
                 .doesNotContain("/admin/api/enterprise/verification/runtime/probe/normal/resource-001");
         assertThat(fallbackRequest.getSimilarityThreshold()).isEqualTo(0.0d);
@@ -1035,6 +1076,52 @@ class AbstractTieredStrategyTest {
                 .containsEntry("ragRetrievalState", "AVAILABLE")
                 .containsEntry("relatedDocumentCount", 1)
                 .containsEntry("ragProjectedToFinalPrompt", true);
+    }
+
+    @Test
+    @DisplayName("N-RAG-1: the search queries hold no user or tenant ID, so two users' same request is the same query")
+    void searchRelatedContextBase_queriesHoldNoUserOrTenantId() {
+        when(eventEnricher.getTargetResource(any(SecurityEvent.class)))
+                .thenReturn(Optional.of("/api/projects/GB-500/exports"));
+        when(baselineLearningService.describeBaselineMaturity(any(), any(), any()))
+                .thenReturn(new BaselineLearningService.BaselineMaturitySnapshot(true, true, true, true, true,
+                        List.of("ACCESS_HOURS")));
+        when(unifiedVectorService.searchSimilar(any(SearchRequest.class))).thenReturn(List.of());
+        when(promptContextAuthorizationService.authorize(any(SecurityEvent.class), any(),
+                ArgumentMatchers.<List<Document>>any()))
+                .thenAnswer(invocation -> new AuthorizedPromptContext(
+                        List.of(), 0, 0, 0, "security_investigation", List.of()));
+
+        strategy.callSearchRelatedContextBase(sameRequestOf("user-one", "tenant-one"), 3, 0.7d);
+        strategy.callSearchRelatedContextBase(sameRequestOf("user-two", "tenant-two"), 3, 0.7d);
+
+        ArgumentCaptor<SearchRequest> requests = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(unifiedVectorService, atLeastOnce()).searchSimilar(requests.capture());
+        List<String> queries = requests.getAllValues().stream().map(SearchRequest::getQuery).toList();
+        assertThat(queries).isNotEmpty().hasSize(queries.size() / 2 * 2)
+                .noneMatch(query -> query.contains("user-") || query.contains("tenant-"));
+        // The personal, broad and baseline searches of one request run on the retrieval executor, so their order
+        // within a request varies; the second request starts after the first one returned.
+        assertThat(queries.subList(queries.size() / 2, queries.size()))
+                .containsExactlyInAnyOrderElementsOf(queries.subList(0, queries.size() / 2));
+        assertThat(requests.getAllValues().stream().map(request -> String.valueOf(request.getFilterExpression())))
+                .anyMatch(filter -> filter.contains("user-one")).anyMatch(filter -> filter.contains("user-two"));
+    }
+
+    private static SecurityEvent sameRequestOf(String userId, String tenantId) {
+        return SecurityEvent.builder()
+                .eventId("event-" + userId)
+                .userId(userId)
+                .sourceIp("10.40.12.7")
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0.0.0 Safari/537.36")
+                .metadata(new LinkedHashMap<>(Map.of(
+                        "organizationId", "demo-org",
+                        "tenantId", tenantId,
+                        "resourceId", "GB-500",
+                        "resourceType", "project",
+                        "httpMethod", "POST",
+                        "authenticationType", "PASSWORD")))
+                .build();
     }
 
     @Test

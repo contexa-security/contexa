@@ -3,9 +3,13 @@ package io.contexa.showcase.portal.teaser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.contexa.showcase.portal.anatomy.AnatomyBuilder;
+import io.contexa.showcase.portal.anatomy.DecisionAnatomy;
+import io.contexa.showcase.portal.hook.HookStore;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +48,34 @@ class TeaserServiceTest {
 
         assertThat(view.falseConditions()).as("a card without a fact (null) is never listed")
                 .containsExactly("E1_AFTER_RULES", "G_WHERE_C2");
+    }
+
+    /**
+     * N-DEP-1 (W7-12 C-2): the value screen's "{departures} differences" of the replayed attack are the differences the
+     * engine sealed for it: step 1 of run-3766bd77c869 (anatomy/v20-deviations.json) states time, target, class and
+     * size as unexplained, next to a CRITICAL resource and a missing approval.
+     */
+    @Test
+    void theResultFactsCountTheDifferencesTheEngineSealedForTheAttack() throws Exception {
+        JsonNode attack;
+        try (InputStream in = TeaserServiceTest.class.getResourceAsStream("/anatomy/v20-deviations.json")) {
+            attack = JSON.readTree(in).path("decisions").get(0);
+        }
+        DecisionAnatomy anatomy = new AnatomyBuilder(JSON).build("run-3766bd77c869", 1, "EXPORT_STREAM",
+                new AnatomyBuilder.StoredDecision(attack.path("requestId").asText(), "ESCALATE", "ESCALATE", null,
+                        null, null, null, false, null, null, null, null, null, attack.path("records"),
+                        JSON.createArrayNode()),
+                List.of(), null, new AnatomyBuilder.Surroundings(null, null, null, Map.of(), Map.of(), null, null,
+                        attack.path("userPrompt").asText()));
+        HookStore.RunFacts run = new HookStore.RunFacts("run-3766bd77c869", "A3", "COMPLETED", null, null, null, null);
+
+        TeaserService.Teaser teaser = TeaserService.resultFacts(run, anatomy);
+
+        assertThat(attack.path("case").asText()).isEqualTo("A3");
+        assertThat(teaser.values()).containsEntry("departures", 4).containsEntry("count", 3)
+                .containsEntry("facts", List.of("BASELINE_DEPARTURE", "HIGH_SENSITIVITY", "APPROVAL_MISSING"))
+                .containsEntry("sensitivity", "CRITICAL");
+        assertThat(teaser.holds()).isTrue();
     }
 
     @Test

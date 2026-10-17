@@ -36,4 +36,13 @@ describe('visitor dictionaries', () => {
       }
     }
   });
+
+  it('write the zone of a recorded time in Korean words, never UTC (C-5)', () => {
+    // N-UI-2: the Korean screens name the zone the way the benchmark keys do (S11-04); the English
+    // dictionary keeps UTC.
+    const utc = Object.entries(ko)
+      .filter(([, value]) => /\bUTC\b/i.test(value))
+      .map(([key]) => key);
+    expect(utc, 'Korean values that write UTC').toEqual([]);
+  });
 });

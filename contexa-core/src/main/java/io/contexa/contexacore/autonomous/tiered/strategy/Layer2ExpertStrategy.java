@@ -252,6 +252,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityResponse response;
             SecurityDecisionResponse pipelineResponse = null;
+            // N-RSN-1: the first pass's verdict with its model values, when this pass keeps it without a model call.
+            SecurityDecisionResponse firstPassVerdict = null;
             clearPromptRuntimeTelemetry(event);
             List<Document> newPastRecords = secondPass ? firstPass.newPastRecords(relatedDocuments) : List.of();
             if (secondPass && newPastRecords.isEmpty()) {
@@ -260,6 +262,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 SecurityDecisionResponse firstVerdict = new SecurityDecisionResponse();
                 firstVerdict.setAction(firstPass.verdict());
                 firstVerdict.setReasoning(firstPass.reason());
+                // N-RSN-1: the verdict kept is the first pass's model verdict, so are its model values: the risk score
+                // and confidence, the reason codes with the fact IDs they cite, and the provenance of these fields.
+                firstVerdict.setRiskScore(firstPass.riskScore());
+                firstVerdict.setConfidence(firstPass.confidence());
+                firstVerdict.setReasonCodes(firstPass.reasonCodes());
+                firstVerdict.setFieldProvenance(firstPass.fieldProvenance());
+                firstPassVerdict = firstVerdict;
                 response = validateAndFixResponse(firstVerdict.toSecurityResponse());
             } else if (pipelineOrchestrator != null) {
                 long pipelineStart = System.currentTimeMillis();
@@ -303,6 +312,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             if (pipelineResponse != null) {
                 applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
                 applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
+            } else if (firstPassVerdict != null) {
+                applyReasonCodesAndProvenance(expertDecision, firstPassVerdict);
             }
             terminalizeLayer2EscalateDecision(expertDecision, event);
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);

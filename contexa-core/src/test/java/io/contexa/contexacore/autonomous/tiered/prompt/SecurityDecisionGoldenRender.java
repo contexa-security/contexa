@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.prompt.PromptContextComposer;
+import io.contexa.contexacore.autonomous.context.support.PastDeniedDecisions;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -50,9 +51,12 @@ import java.util.zip.GZIPInputStream;
 
 /**
  * Renders the security decision prompt from the golden inputs: real sealed evidence of the showcase measurement
- * cases, turned back into renderer inputs. The canonical context is deserialized as sealed; the request facts,
+ * cases and of one engine template relearn step (N-K5-2), turned back into renderer inputs. The canonical context is
+ * deserialized as sealed; the request facts,
  * authentication state, baseline summary and retrieval counts go back into the event metadata under the keys the
- * sealed evidence assembler read them from; the retrieval summaries become documents. The behaviour analysis is not
+ * sealed evidence assembler read them from; the retrieval summaries become documents; the past denied decisions the
+ * sealed render drew, which its execution metadata keeps and its retrieval results do not, go back under the event
+ * key the render read them from (N-K5-2). The behaviour analysis is not
  * sealed; unless a caller gives one, it is built from the case's learning evidence (the baselines its source run held)
  * the way the decision layers build it (N-GOLD-1). The prompts come from the template the way the decision request
  * sends them.
@@ -231,6 +235,11 @@ final class SecurityDecisionGoldenRender {
             if (!"relatedDocuments".equals(entry.getKey())) {
                 event.addMetadata(entry.getKey(), OBJECT_MAPPER.convertValue(entry.getValue(), Object.class));
             }
+        }
+        // N-K5-2: the decisions that did not allow, as the sealed render drew them, under the key the render reads.
+        JsonNode denied = goldenCase.path("pastDeniedDecisions");
+        if (denied.isArray()) {
+            event.addMetadata(PastDeniedDecisions.EVENT_METADATA_KEY, OBJECT_MAPPER.convertValue(denied, Object.class));
         }
         return event;
     }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.anatomy.SealedDeviations;
 import io.contexa.showcase.portal.orchestrator.EngineDecision;
 import io.contexa.showcase.portal.replay.PairDefinition.SceneKind;
 import io.contexa.showcase.portal.replay.ReplayStore.ArmRow;
@@ -293,6 +294,11 @@ public class ReplayViews {
         JsonNode baselineDeltas = metadata.path("renderedLabelMatrix").path("CurrentVsObservedDeltaCount");
         Integer baselineDeltaCount = baselineDeltas.canConvertToInt() || baselineDeltas.asText("").matches("\\d+")
                 ? Integer.valueOf(baselineDeltas.asInt()) : null;
+        // N-DEP-1: a v20 record states its differences in the sealed decision facts; it renders no such label.
+        Integer sealed = SealedDeviations.differentCount(metadata);
+        if (sealed != null) {
+            baselineDeltaCount = sealed;
+        }
         // W4-3: the reason codes the engine recorded with the fact IDs they cite (none before the output contract v3).
         List<ReplayView.ReasonCode> reasonCodes = new ArrayList<>();
         for (JsonNode code : metadata.path("finalDecisionReasonCodes")) {

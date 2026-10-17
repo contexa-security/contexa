@@ -88,6 +88,36 @@ class PromptBundleRollbackServiceTest {
         assertThat(status(TO)).isEqualTo("ACTIVE");
     }
 
+    /**
+     * N-GOV-5: the target is the one active release of its scope, prompt key and template after a rollback; the other
+     * active releases it replaces (bundles left active before N-GOV-5) are deprecated with the source and named in the
+     * execution's conditions. Another scope and another template keep their releases.
+     */
+    @Test
+    void aRollbackLeavesItsTargetTheOneActiveReleaseOfItsScopeKeyAndTemplate() {
+        registry(FROM, "CANARY");
+        registry(TO, "ACTIVE");
+        registry("2026.10.13-v19.9", "PRODUCTION");
+        registry("2026.10.11-v19.8", "ACTIVE");
+        release("TENANT_A", "SecurityDecisionStandard", "2026.10.11-v19.7", "ACTIVE");
+        release(SCOPE, "OtherTemplate", "2026.10.11-v19.5", "ACTIVE");
+
+        PromptBundleRollbackService.Result result = service.rollback(
+                new PromptBundleRollbackService.Request(SCOPE, KEY, FROM, TO, "canary answers", false), "operator-a");
+
+        assertThat(result.status()).isEqualTo(PromptBundleRollbackService.EXECUTED);
+        assertThat(status(TO)).isEqualTo("ACTIVE");
+        assertThat(status(FROM)).isEqualTo("DEPRECATED");
+        assertThat(status("2026.10.13-v19.9")).isEqualTo("DEPRECATED");
+        assertThat(status("2026.10.11-v19.8")).isEqualTo("DEPRECATED");
+        assertThat(status("2026.10.11-v19.7")).isEqualTo("ACTIVE");
+        assertThat(status("2026.10.11-v19.5")).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select conditions_json from prompt_governance_rollback_execution "
+                + "where execution_key = ?", String.class, result.executionKey()))
+                .contains("superseded", "2026.10.13-v19.9", "2026.10.11-v19.8")
+                .doesNotContain("2026.10.11-v19.7", "2026.10.11-v19.5");
+    }
+
     @Test
     void aTargetTheManifestDoesNotDeclareIsRefusedAndNothingChanges() {
         registry(FROM, "PRODUCTION");
@@ -147,6 +177,16 @@ class PromptBundleRollbackServiceTest {
                         values (?, ?, 'SecurityDecisionStandard', ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
                             'SecurityDecisionStandardPromptTemplate', 'test')""",
                 SCOPE, KEY, version, status);
+    }
+
+    private void release(String scope, String templateKey, String version, String status) {
+        jdbc.update("""
+                insert into prompt_governance_registry (registry_scope, prompt_key, template_key, prompt_version,
+                    contract_version, prompt_artifact_hash_sha256, release_status, owner_name,
+                    template_class_name, registration_source)
+                values (?, ?, ?, ?, 'CORTEX_PROMPT_CONTRACT_V3', 'hash', ?, 'pqa',
+                    'SecurityDecisionStandardPromptTemplate', 'test')""",
+                scope, KEY, templateKey, version, status);
     }
 
     private void ledger(String version, String target, String readiness) {

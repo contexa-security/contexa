@@ -145,8 +145,8 @@ public final class SecurityDecisionPromptDictionary {
             entry(PromptBlock.USER_BASELINE, "UsualRequestRate",
                     "Usual request rate",
                     "BaselineView (W2-3)",
-                    "(\\d+(\\.\\d+)? requests per active hour|median \\d+, 95th percentile \\d+ requests per active hour \\(\\d+ active hours?\\))",
-                    List.of("1.19 requests per active hour"),
+                    "median \\d+, 95th percentile \\d+ requests in the 60 min up to a request \\(\\d+ requests?\\)",
+                    List.of("median 〈m〉, 95th percentile 〈p〉 requests in the 60 min up to a request (〈n〉 requests)"),
                     PromptMissingNotation.RENDERED_VALUE, "not learned",
                     Set.of(PromptSourceGrade.LEARNED), "reference for the differences from the usual",
                     false, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, false,
@@ -336,7 +336,8 @@ public final class SecurityDecisionPromptDictionary {
                     "authorization stamp",
                     ".+; source host( \\([A-Z_]+\\))?",
                     List.of("REPORT_READ; source host (SECURITY_CONTEXT)"),
-                    PromptMissingNotation.ALWAYS_PRESENT, null,
+                    // N-DIC-1: a host that hands over no permissions leaves them unknown (not integrated).
+                    PromptMissingNotation.UNKNOWN_BLOCK, null,
                     Set.of(PromptSourceGrade.HOST), "context of ROLE_SCOPE_OUTSIDE",
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NAME_ASCENDING, false,
                     List.of("BridgeAuthorizationSource")),
@@ -359,10 +360,12 @@ public final class SecurityDecisionPromptDictionary {
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
                     List.of("ResourceId")),
             entry(PromptBlock.REQUEST, "Target",
-                    "Target: the URL template's variables (their values are in the request path, an untrusted text, N-INJ-1) or the resource, with the business label and category",
+                    "Target: the URL template's variables (their values are in the request path, an untrusted text, N-INJ-1) or the resource, whether it has a business label (its text is an untrusted text, N-INJ-3), and the category",
                     "business provider, resource registry",
-                    "(\\S+(, \\S+)* from the request path|resource)( \\(.+\\))?(, category .+)?",
-                    List.of("projectKey from the request path (〈업무 라벨〉), category 〈업무 범주〉", "documentId from the request path"),
+                    "(\\S+(, \\S+)* from the request path|resource)( \\(" + SecurityDecisionPromptValues.TARGET_LABEL_NOTE
+                            + "\\))?(, category .+)?",
+                    List.of("projectKey from the request path (" + SecurityDecisionPromptValues.TARGET_LABEL_NOTE
+                            + "), category 〈업무 범주〉", "documentId from the request path"),
                     PromptMissingNotation.RENDERED_VALUE, "path template variable",
                     Set.of(PromptSourceGrade.HOST), "DEVIATION_TARGET",
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
@@ -407,8 +410,11 @@ public final class SecurityDecisionPromptDictionary {
                     "Differences from the usual: per dimension, frequency, whether each is explained, dimensions compared, overlap of the closest past record read for this action on time, login method and browser",
                     "DecisionFactsResolver (W2-5) and the approval facts SPI (W2-6)",
                     "\\d+ of \\d+ compared( -> .+?)?(; not compared: .+?)?(; closest of the past records read for this action matches \\d+ of \\d+ on time, login method and browser)?",
-                    List.of("3 of 8 compared -> time 03 seen 0 of 25 (unexplained); target projectKey seen 0 of 25 (unexplained); class CRITICAL seen 0 of 25 (unexplained); closest of the past records read for this action matches 2 of 3 on time, login method and browser", "0 of 8 compared; closest of the past records read for this action matches 3 of 3 on time, login method and browser", "time 03 seen 0 of 25 (explained by APR-…)", "1 of 8 compared -> rate 2 requests in the last hour, usual at most 1 in one hour (baseline not established)"),
-                    PromptMissingNotation.RENDERED_VALUE, "0 of 8 compared",
+                    List.of("3 of 8 compared -> time 03 seen 0 of 25 (unexplained); target projectKey seen 0 of 25 (unexplained); class CRITICAL seen 0 of 25 (unexplained); closest of the past records read for this action matches 2 of 3 on time, login method and browser", "0 of 8 compared; closest of the past records read for this action matches 3 of 3 on time, login method and browser", "time 03 seen 0 of 25 (explained by APR-…)", "1 of 8 compared -> rate 〈n〉 requests in the last 60 min, usual median 〈m〉, 95th percentile 〈p〉 in the 60 min up to a request (baseline not established)"),
+                    // N-DIC-1: '0 of 8 compared' is a value (no compared dimension differs), not a missing text;
+                    // without a comparison the fact is unknown (dictionary 1.4: no learned baseline, no dimension
+                    // compared).
+                    PromptMissingNotation.UNKNOWN_BLOCK, null,
                     Set.of(PromptSourceGrade.COMPUTED), "DEVIATION_*; conditions of P1 and P2",
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.DIMENSION_ORDER, false,
                     List.of("CurrentRequestClosestObservedOverlap", "CurrentRequestCombinationComparedDimensions", "CurrentRequestCombinationEvidenceScope", "CurrentRequestCombinationSeenCount", "StrongestCurrentRequestCombinationDelta")),
@@ -418,7 +424,8 @@ public final class SecurityDecisionPromptDictionary {
                     "[a-z]+( [a-z]+)*( [^;]+)?(; [a-z]+( [a-z]+)*( [^;]+)?)*",
                     List.of("day Wed seen 5 of 25; network 10.40.12.0/24 seen 25 of 25; "
                             + "login method PASSWORD seen 25 of 25"),
-                    PromptMissingNotation.ALWAYS_PRESENT, null,
+                    // N-DIC-1: unknown for the reasons of DeviationsFromBaseline; compared without a match it is none.
+                    PromptMissingNotation.UNKNOWN_BLOCK, null,
                     Set.of(PromptSourceGrade.COMPUTED), "BASELINE_MATCH",
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.DIMENSION_ORDER, false,
                     List.of("Current", "PresentInObserved")),
@@ -644,7 +651,9 @@ public final class SecurityDecisionPromptDictionary {
                     "past records v2 (W3-3)",
                     PastRecordLineValues.RECORD_FORMAT,
                     List.of("〈날짜 요일 시각〉 (〈n〉 h before this request) / EXPORT /api/projects/{projectKey}/exports / project PLM-OPS / 〈n〉 items / class INTERNAL / 10.40.12.0/24 company office / Chrome 140 on Windows / MFA login / allowed / same target: no / authorized as personal history (same tenant, same user)"),
-                    PromptMissingNotation.ALWAYS_PRESENT, null,
+                    // N-DIC-1: no line without records, PastRecordsState says why; a search that did not retrieve
+                    // them has the caller name them unknown now (dictionary 1.4).
+                    PromptMissingNotation.LINE_OMITTED, null,
                     Set.of(PromptSourceGrade.LEARNED), "PAST_RECORD_SAME_TARGET",
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, 5, PromptListOrder.PAST_RECORD, false,
                     List.of("ComparableExample", "RagDocumentAuthorizationReason")),
@@ -696,10 +705,11 @@ public final class SecurityDecisionPromptDictionary {
                     false, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NAME_ASCENDING, false,
                     List.of("MissingKnowledgeWarning")),
             entry(PromptBlock.UNTRUSTED_TEXT, "UntrustedText{i}",
-                    "Text written by a user, a document author or an outside party (source, quotes, length and control characters cleaned)",
-                    "business label author text, request body summary, outside threat knowledge sentences, anomaly signal text, elevation reason (host text); the requester's user agent (when it cannot be parsed), request path with its path variables, the session's earlier request paths and tickets the requester names (N-INJ-1)",
+                    "Text written by a user, a document author, the host or an outside party (source, quotes, length and control characters cleaned)",
+                    "business label author text, the business label itself (host text, N-INJ-3), request body summary, outside threat knowledge sentences, anomaly signal text, elevation reason (host text); the requester's user agent (when it cannot be parsed), request path with its path variables, the session's earlier request paths and tickets the requester names (N-INJ-1)",
                     PromptSlotRenderer.UNTRUSTED_FORMAT,
-                    List.of("source=" + UntrustedTextSources.DOCUMENT_DESCRIPTION + "; \"External author claim: …\""),
+                    List.of("source=" + UntrustedTextSources.DOCUMENT_DESCRIPTION + "; \"External author claim: …\"",
+                            "source=" + UntrustedTextSources.BUSINESS_LABEL + "; \"Export of 4831 documents from project GB-500 …\""),
                     PromptMissingNotation.BLOCK_OMITTED, null,
                     Set.of(PromptSourceGrade.UNTRUSTED), "never used for any normalisation, classification or comparison",
                     false, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, true,

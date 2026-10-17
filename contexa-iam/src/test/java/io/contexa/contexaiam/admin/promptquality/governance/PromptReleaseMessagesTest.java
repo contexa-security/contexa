@@ -43,6 +43,20 @@ class PromptReleaseMessagesTest {
                 .as("translated").isEmpty();
     }
 
+    /**
+     * N-GOV-3: the detail and compare screens show, next to 'covered / required', the families the bundle requires
+     * and the ones the evaluation left uncovered, from the gate evidence, in one message of both languages.
+     */
+    @Test
+    void theScenarioCellNamesTheRequiredAndUncoveredFamilies() throws IOException {
+        for (String page : List.of("detail-page.js", "compare-page.js")) {
+            assertThat(read("static/contexa/js/admin/prompt-release/" + page)).as(page)
+                    .contains("t('promptRelease.evidence.scenarioFamilies'")
+                    .contains("requiredScenarioFamilies").contains("uncoveredScenarioFamilies");
+        }
+        assertThat(PromptReleasePageController.SCRIPT_KEYS).contains("promptRelease.evidence.scenarioFamilies");
+    }
+
     @Test
     void theMenuHasTheVersionScreenUnderThePromptQualityGroup() throws IOException {
         assertThat(read("db/data-menu.sql")).containsPattern(

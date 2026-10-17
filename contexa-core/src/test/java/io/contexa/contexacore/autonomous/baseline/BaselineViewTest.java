@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.baseline;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.baseline.BaselineViewCalculator.Observation;
 import io.contexa.contexacore.autonomous.tiered.prompt.BaselineLineValues;
 import org.junit.jupiter.api.Test;
@@ -433,8 +434,10 @@ class BaselineViewTest {
     }
 
     @Test
-    void theUsualRateIsTheMedianAndTheNinetyFifthPercentileOfTheActiveHours() {
-        // W5-10 D5: the requests of each active clock hour of the window are 1, 2, 2, 3 and 10.
+    void theUsualRateIsTheMedianAndTheNinetyFifthPercentileOfTheCountsOfTheHourUpToEachRequest() {
+        // N-RATE-1 (W5-10 D5): each request of the window counts the window's requests of the 60 minutes up to it, as
+        // the decision facts count the request being judged. Five days hold 1, 2, 2, 3 and 10 requests a minute apart:
+        // the counts are 1; 1, 2; 1, 2; 1, 2, 3; and 1 to 10, so 18 counts of median 3 and 95th percentile 10.
         List<Observation> history = new ArrayList<>();
         int[] perHour = {1, 2, 2, 3, 10};
         for (int slot = 0; slot < perHour.length; slot++) {
@@ -444,12 +447,12 @@ class BaselineViewTest {
             }
         }
 
-        assertThat(calculate(history).counts().rate()).isEqualTo(new BaselineView.Rate(5, 2, 10));
+        assertThat(calculate(history).counts().rate()).isEqualTo(new BaselineView.Rate(18, 3, 10));
     }
 
     @Test
-    void theUsualRateLineStatesTheMedianAndTheNinetyFifthPercentileOfTheActiveHours() {
-        // W5-10 D5: the line states the definition the decision facts compare the request's rate with.
+    void theUsualRateLineStatesTheCountsOfTheHourUpToEachRequestAndHowManyWereCounted() {
+        // N-RATE-1: the line states the definition the decision facts compare the request's rate with.
         List<Observation> history = new ArrayList<>();
         int[] perHour = {1, 2, 2, 3, 10};
         for (int slot = 0; slot < perHour.length; slot++) {
@@ -460,7 +463,57 @@ class BaselineViewTest {
         }
 
         assertThat(BaselineLineValues.of(calculate(history)).get("UsualRequestRate"))
-                .isEqualTo("median 2, 95th percentile 10 requests per active hour (5 active hours)");
+                .isEqualTo("median 3, 95th percentile 10 requests in the 60 min up to a request (18 requests)");
+    }
+
+    /**
+     * N-RATE-1, administrator A's week (seal 9134): requests at 11:25, 11:59 and 12:07 of one day, 42 minutes, and
+     * single requests hours apart. By clock hours the three were 2 and 1, so the usual 95th percentile was 2 while the
+     * decision facts counted 3 in the 60 minutes up to 12:07; counted the same way, the usual 95th percentile is 3.
+     */
+    @Test
+    void threeRequestsWithinFortyTwoMinutesAcrossAClockHourAreAUsualThreeInTheHourUpToARequest() {
+        BaselineView view = calculate(administratorAWeek());
+
+        assertThat(view.counts().rate()).isEqualTo(new BaselineView.Rate(18, 1, 3));
+        assertThat(BaselineLineValues.of(view).get("UsualRequestRate"))
+                .isEqualTo("median 1, 95th percentile 3 requests in the 60 min up to a request (18 requests)");
+        // The clock hour that held the most requests is a count of its own (W2-5), not the usual rate.
+        assertThat(view.counts().busiestActiveHourRequests()).isEqualTo(2);
+    }
+
+    /**
+     * N-RATE-1: a view sealed before holds a rate of clock hours ({"activeHours":17,...}): its median and 95th
+     * percentile are of another definition and it counted no request, so the view read again holds no usual rate and
+     * draws no rate line (the dictionary's missing notation stands); a rate of this definition reads as it was written.
+     */
+    @Test
+    void aRateSealedUnderTheClockHourDefinitionReadsAsNoUsualRateAndDrawsNoRateLine() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        BaselineView view = calculate(administratorAWeek());
+        String written = json.writeValueAsString(view);
+        String clockHours = written.replace("\"requests\":" + view.counts().rate().requests(), "\"activeHours\":17");
+
+        BaselineView sealed = json.readValue(clockHours, BaselineView.class);
+
+        assertThat(json.readValue(written, BaselineView.class).counts().rate()).isEqualTo(view.counts().rate());
+        assertThat(sealed.observed()).isTrue();
+        assertThat(sealed.counts().rate()).isNull();
+        assertThat(BaselineLineValues.of(sealed)).doesNotContainKey("UsualRequestRate");
+        assertThat(BaselineLineValues.of(sealed).values()).noneMatch(line -> line.contains("percentile"));
+    }
+
+    /** Administrator A's week: 11:25, 11:59 and 12:07 of one day, and fifteen single requests two hours apart. */
+    private static List<Observation> administratorAWeek() {
+        LocalDateTime day = NOW.minusDays(3);
+        List<Observation> history = new ArrayList<>(List.of(read(day.withHour(11).withMinute(25)),
+                read(day.withHour(11).withMinute(59)), read(day.withHour(12).withMinute(7))));
+        for (int days = 1; days <= 5; days++) {
+            for (int hour = 14; hour <= 18; hour += 2) {
+                history.add(read(NOW.minusDays(days).withHour(hour).withMinute(0)));
+            }
+        }
+        return history;
     }
 
     private static Observation identified(LocalDateTime time, String network, String device, String login) {

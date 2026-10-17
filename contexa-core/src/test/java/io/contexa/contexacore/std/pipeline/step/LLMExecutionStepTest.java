@@ -28,6 +28,7 @@ import io.contexa.contexacore.std.components.prompt.PromptEvidenceCompleteness;
 import io.contexa.contexacore.std.components.prompt.PromptExecutionMetadata;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.LLMOperations;
 import io.contexa.contexacore.std.llm.config.LLMClient;
@@ -338,6 +339,143 @@ class LLMExecutionStepTest {
         assertThat(llmClient.executionContexts.get(1).getPrompt().getInstructions())
                 .isEqualTo(llmClient.executionContexts.get(0).getPrompt().getInstructions());
         assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("OUTPUT_TRUNCATED");
+    }
+
+    /**
+     * N-OUT-2: a reasoning model can spend the whole output limit reasoning; the provider then ends at the limit
+     * with no text, which the orchestrator fails as an empty answer. That answer is cut too: it is asked again once,
+     * with the same prompt and twice the limit.
+     */
+    @Test
+    void anAnswerCutAtTheOutputLimitBeforeAnyTextIsAskedAgainWithTwiceTheOutputLimit() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.firstFinishReason = "length";
+        llmClient.firstRawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-nout2");
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout2-length", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(llmClient.executionContexts).hasSize(2);
+        assertThat(llmClient.executionContexts.get(0).getMaxTokens()).isEqualTo(256);
+        assertThat(llmClient.executionContexts.get(1).getMaxTokens()).isEqualTo(512);
+        assertThat(llmClient.executionContexts.get(1).getPrompt().getInstructions())
+                .isEqualTo(llmClient.executionContexts.get(0).getPrompt().getInstructions());
+        assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isTrue();
+    }
+
+    /** N-OUT-2: the call again is the one retry; cut before any text again, it fails as an empty answer does. */
+    @Test
+    void anAnswerCutBeforeAnyTextTwiceIsAskedAgainOnce() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.firstFinishReason = "length";
+        llmClient.rawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-nout2-twice");
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout2-twice", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(llmClient.executionContexts).hasSize(2);
+        assertThat(llmClient.executionContexts.get(1).getMaxTokens()).isEqualTo(512);
+        assertThat(response).isEqualTo("");
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
+    }
+
+    /** N-OUT-2 keeps: an empty answer the provider did not cut at the output limit fails at once, not asked again. */
+    @Test
+    void anEmptyAnswerNotCutAtTheOutputLimitIsNotAskedAgain() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.firstFinishReason = "stop";
+        llmClient.firstRawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-stop");
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout2-stop", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(llmClient.executionContexts).hasSize(1);
+        assertThat(response).isEqualTo("");
+        assertThat(context.getMetadata("rawExecutionSucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionOutputRetryAttempted", Boolean.class)).isNull();
+    }
+
+    /**
+     * N-OUT-3: every output retry is kept in the order it was asked, with why it was asked and whether its answer kept
+     * the contract; the single retry fields keep the last one. An answer cut before any text is asked again with twice
+     * the limit, and an answer that then breaks a rule is that retry failed on the rule (P8 N-OUT-2 host, N2A).
+     */
+    @Test
+    void aTruncatedRetryWhoseAnswerBreaksARuleIsKeptWithItsReasonAndTheRule() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.firstFinishReason = "length";
+        llmClient.firstRawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-nout3");
+        llmClient.secondRawResponse = "{\"action\":\"CHALLENGE\",\"reasoning\":\"Fresh verification required for this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout3-truncated",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("");
+        assertThat(llmClient.executionContexts).hasSize(2);
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class)).isEqualTo(List.of(
+                Map.of("reason", "OUTPUT_TRUNCATED", "succeeded", false,
+                        "failureReason", "REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH")));
+        assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class)).isEqualTo("OUTPUT_TRUNCATED");
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
+        assertThat(context.getMetadata("securityDecisionOutputRetryFailureReason", String.class))
+                .isEqualTo("REQUIRED_LOW_RISK_BOUNDARY_ACTION_MISMATCH");
+    }
+
+    /** N-OUT-3: a corrective retry whose answer keeps the contract is kept as succeeded, naming no rule. */
+    @Test
+    void aCorrectiveRetryThatSucceedsIsKeptWithItsReason() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.rawResponse = "{\"reasoning\":\"Authorization allows this request.\"}";
+        llmClient.secondRawResponse = "{\"action\":\"ALLOW\",\"reasoning\":\"Authorization allows this request.\"}";
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout3-corrective",
+                "VerificationRequired: false\nMfaVerified: false\nSensitivity: MEDIUM\nAuthorizationEffect: ALLOW");
+
+        Object response = step.execute(securityRequest(), context).block();
+
+        assertThat(response).isEqualTo(llmClient.secondRawResponse);
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
+                .isEqualTo(List.of(Map.of("reason", "PARSER_ACTION_MISSING", "succeeded", true)));
+        assertThat(context.getMetadata("securityDecisionOutputRetryReason", String.class))
+                .isEqualTo("PARSER_ACTION_MISSING");
+    }
+
+    /** N-OUT-3: a retry whose call fails is kept once, as failed and naming no rule. */
+    @Test
+    void aRetryWhoseCallFailsIsKeptOnceAsFailed() {
+        RecordingLlmClient llmClient = new RecordingLlmClient();
+        llmClient.firstFinishReason = "length";
+        llmClient.rawError = new IllegalStateException("LLM response is null or empty - RequestId: exec-nout3-twice");
+        LLMExecutionStep step = new LLMExecutionStep(llmClient);
+        PipelineExecutionContext context = securityDecisionContext("exec-nout3-twice", "AuthorizationEffect: ALLOW");
+        AIRequest<TestContext> request = securityRequest();
+        request.withParameter("platformSecurityDecisionMaxTokens", 256);
+
+        Object response = step.execute(request, context).block();
+
+        assertThat(response).isEqualTo("");
+        assertThat(llmClient.executionContexts).hasSize(2);
+        assertThat(context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, List.class))
+                .isEqualTo(List.of(Map.of("reason", "OUTPUT_TRUNCATED", "succeeded", false)));
+        assertThat(context.getMetadata("securityDecisionOutputRetrySucceeded", Boolean.class)).isFalse();
     }
 
     /** W4-6: a security decision runs with the platform's determinism settings, never the request's. */
@@ -877,6 +1015,8 @@ class LLMExecutionStepTest {
         private String rawResponse = "raw-response";
         private String secondRawResponse;
         private Throwable rawError;
+        /** N-OUT-2: the error of the first call only; the calls after it answer as usual. */
+        private Throwable firstRawError;
         private SecurityDecisionResponseLite entityResponse;
         private Throwable entityError;
         private Integer actualPromptTokens;
@@ -900,6 +1040,9 @@ class LLMExecutionStepTest {
             }
             if (providerReasoningEffort != null) {
                 context.addMetadata(ExecutionContext.PROVIDER_REASONING_EFFORT, providerReasoningEffort);
+            }
+            if (rawExecutions == 1 && firstRawError != null) {
+                return Mono.error(firstRawError);
             }
             if (rawError != null) {
                 return Mono.error(rawError);

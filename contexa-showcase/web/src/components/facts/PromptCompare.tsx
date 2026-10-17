@@ -57,3 +57,26 @@ export function PromptCompare({ view }: { readonly view: OtherBundleView }) {
     </div>
   );
 }
+
+/**
+ * N-UI-1 (U2-6): the same case's user prompt length under the earlier and the later bundle, as the server
+ * named, counted and ordered them; nothing while the server has no such pair.
+ */
+export function SameCaseLines({ view }: { readonly view: OtherBundleView | null }) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language === 'ko' ? 'ko' : 'en';
+  const lines = compareOffered(view) ? (view?.lines ?? null) : null;
+  if (lines === null) {
+    return null;
+  }
+  return (
+    <p className={styles.sameCaseLines} data-lines>
+      {t('prompt.compare.lines', {
+        before: lines.before,
+        beforeLines: count(lines.beforeLines, language),
+        after: lines.after,
+        afterLines: count(lines.afterLines, language),
+      })}
+    </p>
+  );
+}

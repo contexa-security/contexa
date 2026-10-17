@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PromptQualityView } from '../../api/promptQuality';
+import { promptQualityRawHref, type PromptQualityView } from '../../api/promptQuality';
 import '../../i18n';
 import i18n from '../../i18n';
 import ko from '../../i18n/ko.json';
@@ -132,6 +132,85 @@ describe('prompt quality tab', () => {
     expect(screen.getByText(fill('promptQuality.measured', { date: '2026-10-16' }))).toBeInTheDocument();
   });
 
+  it('slides the four big numbers sideways on phones, the rest top to bottom (U6-7)', async () => {
+    answer = { status: 200, body: view };
+    open();
+    const cards = await screen.findByRole('region', { name: word('promptQuality.cards') });
+    // The region scrolls on its own, is reached by the keyboard and holds the four cards only.
+    expect(cards).toHaveAttribute('tabindex', '0');
+    const names = Array.from(cards.querySelectorAll<HTMLElement>('[data-card]'), (card) => card.dataset.card);
+    expect(names).toEqual(['delivery', 'reaction', 'invariance', 'injection']);
+    expect(cards).not.toContainElement(screen.getByRole('list', { name: word('promptQuality.more') }));
+    // How the region slides at phone width is the stylesheet's (benchPromptPhone.test.ts).
+  });
+
+  it('gives the raw data an address of its own, apart from what the tab reads (U6-5)', () => {
+    expect(promptQualityRawHref('a'.repeat(64))).toBe(
+      `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`,
+    );
+    expect(promptQualityRawHref(null)).toBe('/api/benchmark/prompt-quality?raw=true');
+  });
+
+  it('names the batch of each number when they come from batches of their own (N-PQ-1)', async () => {
+    answer = {
+      status: 200,
+      body: {
+        ...view,
+        batch: null,
+        batches: { delivery: 'p8-delivery', reaction: 'p8-reaction', injection: 'p8-injection' },
+      },
+    };
+    open();
+    // The source line is in the source box, which its button opens.
+    await userEvent.click(await screen.findByRole('button', { name: word('source.measured') }));
+    expect(
+      await screen.findByText(
+        fill('promptQuality.sources', {
+          delivery: 'p8-delivery',
+          reaction: 'p8-reaction',
+          injection: 'p8-injection',
+          protocol: 'protocol-p7-1',
+        }),
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: word('promptQuality.method') }));
+    const dialog = screen.getByRole('dialog');
+    for (const batch of ['p8-delivery', 'p8-reaction', 'p8-injection']) {
+      expect(within(dialog).getByText(batch)).toHaveAttribute('data-original');
+    }
+  });
+
+  it('shows the earlier measurement against this one by run, as the server counted both (U6-4)', async () => {
+    answer = {
+      status: 200,
+      body: {
+        ...view,
+        comparison: {
+          baselineProtocol: 'protocol-v19',
+          baselineBundle: '2026.10.16-v19.20',
+          bundle: '2026.10.16-v20.24',
+          attackBefore: rate(67, 90, 0.64, 0.82),
+          attackNow: rate(80, 80, 0.95, 1),
+          normalBefore: rate(8, 66, 0.06, 0.22),
+          normalNow: rate(2, 75, 0.01, 0.09),
+        },
+      },
+    };
+    open();
+    expect(
+      await screen.findByText(
+        fill('promptQuality.comparison', {
+          before: 'v19.20',
+          now: 'v20.24',
+          attackBefore: '67/90',
+          attackNow: '80/80',
+          normalBefore: '8/66',
+          normalNow: '2/75',
+        }),
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('opens how it was measured in its own window, with the numbers measured alongside', async () => {
     answer = { status: 200, body: view };
     open();
@@ -141,5 +220,20 @@ describe('prompt quality tab', () => {
     expect(dialog).toHaveTextContent(word('promptQuality.method.delivery'));
     expect(dialog).toHaveTextContent(fill('promptQuality.method.minimumKept', { value: '40/40' }));
     expect(within(dialog).getByText('batch-p7-1')).toHaveAttribute('data-original');
+  });
+
+  it("offers the shown setting's published record as the raw data to download (U6-5)", async () => {
+    answer = { status: 200, body: view };
+    open();
+    const raw = await screen.findByRole('link', { name: word('promptQuality.raw') });
+    expect(raw).toHaveAttribute('href', `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`);
+    expect(raw).toHaveAttribute('download', 'contexa-prompt-quality.json');
+  });
+
+  it('offers no raw data while nothing is published', async () => {
+    answer = { status: 404, body: null };
+    open();
+    await screen.findByText(word('promptQuality.notMeasured'));
+    expect(screen.queryByRole('link', { name: word('promptQuality.raw') })).not.toBeInTheDocument();
   });
 });

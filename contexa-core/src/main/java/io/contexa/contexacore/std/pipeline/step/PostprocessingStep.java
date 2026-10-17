@@ -170,6 +170,11 @@ public class PostprocessingStep implements PipelineStep {
                     aiResponse.withMetadata(key, value);
                 }
             }
+            // N-OUT-3: the run's output retries in their order, apart from the record keys too.
+            Object retries = context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, Object.class);
+            if (retries != null) {
+                aiResponse.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+            }
         }
     }
 

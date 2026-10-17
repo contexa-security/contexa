@@ -40,6 +40,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.UnanalysedRequestRecorder;
+import io.contexa.contexacore.autonomous.service.DeletedAccountWriteFence;
 import io.contexa.contexacore.autonomous.service.LearningPromotionService;
 import io.contexa.contexacore.autonomous.service.VerificationLearningService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -321,7 +322,8 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ObjectProvider<ContextObservationRecorder> contextObservationRecorderProvider,
             ObjectProvider<VerificationLearningService> verificationLearningService,
-            ObjectProvider<LearningPromotionService> learningPromotionService) {
+            ObjectProvider<LearningPromotionService> learningPromotionService,
+            ObjectProvider<DeletedAccountWriteFence> deletedAccountWriteFence) {
         SecurityDecisionEnforcementHandler handler = new SecurityDecisionEnforcementHandler(
                 actionRepository,
                 securityLearningService,
@@ -334,6 +336,7 @@ public class CoreAutonomousEventAutoConfiguration {
                 contextObservationRecorderProvider.getIfAvailable());
         handler.setVerificationLearningService(verificationLearningService.getIfAvailable());
         handler.setLearningPromotionService(learningPromotionService.getIfAvailable());
+        handler.setDeletedAccountWriteFence(deletedAccountWriteFence.getIfAvailable());
         return handler;
     }
 

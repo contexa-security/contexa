@@ -5,6 +5,8 @@ import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceEvaluationRec
 import io.contexa.contexacore.domain.entity.prompt.PromptGovernanceRegistryRecord;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceEvaluationRecordRepository;
 import io.contexa.contexacore.repository.prompt.PromptGovernanceRegistryRepository;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleCatalog;
+import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleManifest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,20 +25,48 @@ public class PromptGovernanceEmpiricalEvalService {
 
     private static final int DEFAULT_LIMIT = 16;
     private static final int MAX_LIMIT = 40;
-    private static final List<String> REQUIRED_SCENARIO_FAMILIES = List.of(
+    // N-GOV-2: the families an evaluation must cover when the bundle manifest declares none of its own.
+    private static final List<String> DEFAULT_REQUIRED_SCENARIO_FAMILIES = List.of(
             "PROMPT_INJECTION",
             "TOOL_MISUSE",
             "MEMORY_POISONING");
 
     private final PromptGovernanceRegistryRepository registryRepository;
     private final PromptGovernanceEvaluationRecordRepository evaluationRepository;
+    private final PromptBundleCatalog bundleCatalog;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     public PromptGovernanceEmpiricalEvalService(
             PromptGovernanceRegistryRepository registryRepository,
             PromptGovernanceEvaluationRecordRepository evaluationRepository) {
+        this(registryRepository, evaluationRepository, PromptBundleCatalog.shared());
+    }
+
+    /** N-GOV-2: the bundles of this build, whose manifests may declare the scenario families of their evaluation. */
+    public PromptGovernanceEmpiricalEvalService(
+            PromptGovernanceRegistryRepository registryRepository,
+            PromptGovernanceEvaluationRecordRepository evaluationRepository,
+            PromptBundleCatalog bundleCatalog) {
         this.registryRepository = registryRepository;
         this.evaluationRepository = evaluationRepository;
+        this.bundleCatalog = bundleCatalog;
+    }
+
+    /**
+     * N-GOV-2: the scenario families an evaluation of a bundle must cover. A manifest that declares
+     * {@code evaluationScenarioFamilies} sets them (a prompt that calls no tools has no tool misuse to cover); a
+     * manifest that declares none, or a version without a manifest, needs the default families.
+     */
+    public static List<String> requiredScenarioFamilies(PromptBundleManifest manifest) {
+        List<String> declared = manifest == null
+                ? List.of() : normalizeFamilyNames(manifest.evaluationScenarioFamilies());
+        return declared.isEmpty() ? DEFAULT_REQUIRED_SCENARIO_FAMILIES : declared;
+    }
+
+    /** N-GOV-3: the required families an evaluation left uncovered, in the required order. */
+    public static List<String> uncoveredScenarioFamilies(List<String> requiredFamilies, List<String> coveredFamilies) {
+        List<String> covered = normalizeFamilyNames(coveredFamilies);
+        return requiredFamilies.stream().filter(family -> !covered.contains(family)).toList();
     }
 
     public EvalRegistrationReceipt recordEvaluation(
@@ -82,13 +112,16 @@ public class PromptGovernanceEmpiricalEvalService {
                         requireText(promptVersion, "promptVersion"))
                 .orElseThrow(() -> new IllegalArgumentException("Unknown prompt governance artifact: " + promptKey + "@" + promptVersion));
 
-        List<String> normalizedFamilies = normalizeScenarioFamilies(coveredScenarioFamilies);
+        // N-GOV-2: the families this bundle's evaluation must cover come from its manifest, or are the default ones.
+        List<String> requiredFamilies = requiredScenarioFamilies(
+                registryRecord.getPromptKey(), registryRecord.getPromptVersion());
+        List<String> normalizedFamilies = normalizeScenarioFamilies(coveredScenarioFamilies, requiredFamilies);
         String normalizedPromptInjectionState = normalizeGateState(promptInjectionState, "promptInjectionState");
         String normalizedLatencyGateState = normalizeGateState(latencyGateState, "latencyGateState");
         String normalizedCostGateState = normalizeGateState(costGateState, "costGateState");
 
         int coveredScenarioCount = normalizedFamilies.size();
-        int requiredScenarioCount = REQUIRED_SCENARIO_FAMILIES.size();
+        int requiredScenarioCount = requiredFamilies.size();
         String scenarioCoverageState = determineScenarioCoverageState(coveredScenarioCount, requiredScenarioCount);
         String empiricalEvidenceState = coveredScenarioCount > 0 ? "SATISFIED" : "MISSING";
         String tevvGateState = determineTevvGateState(
@@ -178,6 +211,8 @@ public class PromptGovernanceEmpiricalEvalService {
             PromptGovernanceRegistryRecord registryRecord,
             PromptGovernanceEvaluationRecord evaluationRecord) {
         List<String> families = evaluationRecord != null ? readJsonList(evaluationRecord.getCoveredScenarioFamiliesJson()) : List.of();
+        // N-GOV-3: the families the bundle requires and the required ones the evaluation left uncovered, by name.
+        List<String> required = requiredScenarioFamilies(registryRecord.getPromptKey(), registryRecord.getPromptVersion());
         List<String> facts = new ArrayList<>();
         facts.add(String.format(
                 Locale.ROOT,
@@ -197,8 +232,10 @@ public class PromptGovernanceEmpiricalEvalService {
                     "NOT_VERIFIED",
                     "NOT_RECORDED",
                     0,
-                    REQUIRED_SCENARIO_FAMILIES.size(),
+                    required.size(),
                     List.of(),
+                    required,
+                    required,
                     "NOT_READY",
                     "NOT_VERIFIED",
                     "NOT_VERIFIED",
@@ -237,6 +274,8 @@ public class PromptGovernanceEmpiricalEvalService {
                 evaluationRecord.getCoveredScenarioCount(),
                 evaluationRecord.getRequiredScenarioCount(),
                 families,
+                required,
+                uncoveredScenarioFamilies(required, families),
                 evaluationRecord.getTevvGateState(),
                 evaluationRecord.getQualityGateState(),
                 evaluationRecord.getLatencyGateState(),
@@ -365,15 +404,25 @@ public class PromptGovernanceEmpiricalEvalService {
         return promptKey + "::" + promptVersion;
     }
 
-    private List<String> normalizeScenarioFamilies(List<String> coveredScenarioFamilies) {
-        if (coveredScenarioFamilies == null || coveredScenarioFamilies.isEmpty()) {
+    private List<String> requiredScenarioFamilies(String promptKey, String promptVersion) {
+        return requiredScenarioFamilies(bundleCatalog.find(promptKey, promptVersion).orElse(null));
+    }
+
+    /** The covered families the bundle requires; a family it does not require is not counted (N-GOV-2). */
+    private List<String> normalizeScenarioFamilies(List<String> coveredScenarioFamilies, List<String> requiredFamilies) {
+        return normalizeFamilyNames(coveredScenarioFamilies).stream()
+                .filter(requiredFamilies::contains)
+                .toList();
+    }
+
+    private static List<String> normalizeFamilyNames(List<String> families) {
+        if (families == null || families.isEmpty()) {
             return List.of();
         }
-        return coveredScenarioFamilies.stream()
+        return families.stream()
                 .filter(StringUtils::hasText)
                 .map(value -> value.trim().toUpperCase(Locale.ROOT))
                 .distinct()
-                .filter(REQUIRED_SCENARIO_FAMILIES::contains)
                 .sorted()
                 .toList();
     }

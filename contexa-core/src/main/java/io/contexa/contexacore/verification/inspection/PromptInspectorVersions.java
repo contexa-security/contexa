@@ -65,7 +65,17 @@ public final class PromptInspectorVersions {
                     + "kept with the applied stage's prompt, the sealed prompt compared with the one the last model "
                     + "call sent (W6-6)"),
             new Version(19, "a source fact the UNKNOWN line names counted as its missing notation, not as a line the "
-                    + "prompt left out (N-SRC-1)"));
+                    + "prompt left out (N-SRC-1)"),
+            new Version(20, "the target's business label compared on the UNTRUSTED TEXT line that holds its text, the "
+                    + "target line saying only where it is (N-INJ-3); an entry without a value graded by its own "
+                    + "missing notation: an UNKNOWN name in place of a missing text, unless the sealed context lacks "
+                    + "its source by the render's rule, and one of an entry left out with its line or block, unless "
+                    + "the seal shows the render's caller named it, pointed at (N-INS-2); a name after a word the "
+                    + "render does not write in a kind's place read under that word (N-INS-3); a host that does not "
+                    + "keep the records of the sealed decision counted as its facts not compared, not as a source "
+                    + "without facts (N-SRC-2)"),
+            new Version(21, "the past records' reasons compared with the sealed search state: the state line without "
+                    + "the event clock, and the UNKNOWN line's past record names by kind and reason (N-INS-4)"));
 
     private PromptInspectorVersions() {
     }

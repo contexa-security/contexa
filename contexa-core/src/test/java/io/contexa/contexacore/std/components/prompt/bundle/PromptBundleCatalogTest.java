@@ -15,11 +15,16 @@
  */
 package io.contexa.contexacore.std.components.prompt.bundle;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceDescriptor;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -101,7 +106,7 @@ class PromptBundleCatalogTest {
         assertThat(descriptor.rollbackPromptVersion()).isNull();
         assertThat(manifest.rollbackTargets()).isEmpty();
         assertThat(descriptor.toMetadataMap())
-                .containsEntry("promptBundleVersion", "2026.10.16-v19.19")
+                .containsEntry("promptBundleVersion", "2026.10.16-v19.20")
                 .containsEntry("promptBundleHash", manifest.bundleHash())
                 .doesNotContainKey("promptRollbackVersion");
     }
@@ -114,6 +119,42 @@ class PromptBundleCatalogTest {
         assertThat(descriptor.promptVersion()).isEqualTo("UNVERSIONED");
         assertThat(descriptor.rollbackPromptVersion()).isNull();
         assertThat(descriptor.bundle()).isEmpty();
+    }
+
+    // N-GOV-2: the evaluation scenario families are a hand field; they do not enter the bundle hash.
+    @Test
+    void theEvaluationScenarioFamiliesDoNotEnterTheBundleHash() {
+        List<PromptBundleElement> elements = elements("content");
+        PromptBundleManifest undeclared = manifest("cortex.test", "2026.10.16-v1", elements, null);
+        PromptBundleManifest declared = declared(elements);
+
+        assertThat(declared.bundleHash()).isEqualTo(undeclared.bundleHash());
+        assertThat(declared.evaluationScenarioFamilies()).containsExactly("PROMPT_INJECTION", "MEMORY_POISONING");
+        assertThat(undeclared.evaluationScenarioFamilies()).isEmpty();
+    }
+
+    @Test
+    void aManifestReadsWithItsScenarioFamiliesAndAManifestFrozenBeforeTheFieldReadsWithNone() throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        PromptBundleManifest declared = declared(elements("content"));
+
+        assertThat(objectMapper.readValue(objectMapper.writeValueAsString(declared), PromptBundleManifest.class))
+                .isEqualTo(declared);
+        String older;
+        try (InputStream input = PromptBundleCatalogTest.class.getClassLoader().getResourceAsStream(
+                "prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json")) {
+            assertThat(input).isNotNull();
+            older = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertThat(older).doesNotContain("evaluationScenarioFamilies");
+        assertThat(PromptBundleCatalog.shared().find("cortex.security-decision", "2026.10.16-v20.23").orElseThrow()
+                .evaluationScenarioFamilies()).isEmpty();
+    }
+
+    private static PromptBundleManifest declared(List<PromptBundleElement> elements) {
+        return new PromptBundleManifest("cortex.test", "2026.10.16-v1", PromptBundleHashes.bundleHash(elements), elements,
+                null, null, "summary", List.of(), "author", "2026-10-16", null, List.of(), List.of(), List.of(),
+                List.of("PROMPT_INJECTION", "MEMORY_POISONING"));
     }
 
     private static List<PromptBundleElement> elements(String content) {

@@ -1,6 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import type { BenchmarkRate } from '../../api/benchmark';
-import { notPublished, usePromptQuality, type PromptQualityView } from '../../api/promptQuality';
+import {
+  notPublished,
+  promptQualityRawHref,
+  usePromptQuality,
+  type PromptQualityView,
+} from '../../api/promptQuality';
 import { ActionChip } from '../../components/common/ActionChip';
 import { Term } from '../../components/common/Glossary';
 import type { GlossaryTerm } from '../../components/common/glossaryTerms';
@@ -17,6 +22,39 @@ import styles from './BenchPrompt.module.css';
 
 /** The prompt-quality window's name in the address (?modal=prompt-method). */
 const METHOD_MODAL = 'prompt-method';
+
+/** N-PQ-1: the batches a view's numbers come from, one when every number comes from the same batch. */
+function batchesOf(view: PromptQualityView): readonly string[] {
+  if (view.batch === null && view.batches) {
+    return [...new Set([view.batches.delivery, view.batches.reaction, view.batches.injection])];
+  }
+  return [view.batch ?? '-'];
+}
+
+/** A bundle's version as the line names it ('2026.10.16-v20.24' is 'v20.24'). */
+function shortBundle(bundle: string | null): string {
+  return bundle ? bundle.slice(bundle.lastIndexOf('-') + 1) : '-';
+}
+
+type Comparison = NonNullable<PromptQualityView['comparison']>;
+
+/** U6-4: the earlier measurement against this one by run (A1 attacks reacted, A2 normal work verified). */
+function ComparisonLine({ comparison }: { readonly comparison: Comparison }) {
+  const { t } = useTranslation();
+  const counted = (rate: BenchmarkRate | null) => (rate ? fraction(rate) : '-');
+  return (
+    <p className={styles.measured} data-comparison>
+      {t('promptQuality.comparison', {
+        before: shortBundle(comparison.baselineBundle),
+        now: shortBundle(comparison.bundle),
+        attackBefore: counted(comparison.attackBefore),
+        attackNow: counted(comparison.attackNow),
+        normalBefore: counted(comparison.normalBefore),
+        normalNow: counted(comparison.normalNow),
+      })}
+    </p>
+  );
+}
 
 type CardName = 'delivery' | 'reaction' | 'invariance' | 'injection';
 const CARD_TERMS: Readonly<Record<CardName, GlossaryTerm>> = {
@@ -44,7 +82,8 @@ function Interval({ rate }: { readonly rate: BenchmarkRate }) {
  * delivery, reaction, invariance and injection defence, then fact accuracy, reasons matching facts and repeat
  * consistency, each with its sample and 95% interval and the measured date (C-23); "preliminary" where the server
  * says the sample is small. Before an operator publishes a batch the server answers 404 and the view says nothing is
- * measured yet. How each number is measured is in its window. On phones the four cards slide sideways.
+ * measured yet. How each number is measured is in its window, and the published record (every number
+ * with its counts) downloads as the raw data (N-UI-1, U6-5). On phones the four cards slide sideways.
  */
 export default function BenchPromptPage() {
   const { t } = useTranslation();
@@ -93,15 +132,26 @@ export default function BenchPromptPage() {
       source={
         view ? (
           <SourceMark kind="MEASUREMENT" measured recordedAt={view.measuredAt}>
-            {t('promptQuality.source', { batch: view.batch ?? '-', protocol: view.protocol ?? '-' })}
+            {view.batch === null && view.batches
+              ? t('promptQuality.sources', { ...view.batches, protocol: view.protocol ?? '-' })
+              : t('promptQuality.source', { batch: view.batch ?? '-', protocol: view.protocol ?? '-' })}
           </SourceMark>
         ) : null
       }
       more={
         view ? (
-          <ActionChip icon="book" variant="open" onClick={() => method.show()}>
-            {t('promptQuality.method')}
-          </ActionChip>
+          <>
+            <ActionChip icon="book" variant="open" onClick={() => method.show()}>
+              {t('promptQuality.method')}
+            </ActionChip>
+            <ActionChip
+              download={{ href: promptQualityRawHref(view.setting), name: 'contexa-prompt-quality.json' }}
+              icon="download"
+              variant="open"
+            >
+              {t('promptQuality.raw')}
+            </ActionChip>
+          </>
         ) : null
       }
       back={{ to: `/benchmark/judgment${search}`, label: t('benchmark.toJudgment') }}
@@ -149,6 +199,7 @@ export default function BenchPromptPage() {
               </li>
             ))}
           </ul>
+          {view.comparison ? <ComparisonLine comparison={view.comparison} /> : null}
         </>
       ) : null}
       <Modal open={method.open} onClose={method.hide} title={t('promptQuality.method')} wide>
@@ -196,7 +247,11 @@ function MethodWindow({ view }: { readonly view: PromptQualityView }) {
           {t('promptQuality.method.record')}
         </h3>
         <p className={styles.codes}>
-          <code data-original>{view.batch ?? '-'}</code>
+          {batchesOf(view).map((batch) => (
+            <code key={batch} data-original>
+              {batch}
+            </code>
+          ))}
           <code data-original>{view.protocol ?? '-'}</code>
           <code data-original>{(view.setting ?? '-').slice(0, 12)}</code>
           <span>{t('promptQuality.measured', { date: utcTime(view.measuredAt) })}</span>

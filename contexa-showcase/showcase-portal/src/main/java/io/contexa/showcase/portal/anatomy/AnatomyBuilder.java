@@ -34,11 +34,12 @@ import java.util.regex.Pattern;
 public final class AnatomyBuilder {
 
     /** Raised when the anatomy's shape or a rule of copying changes; stored anatomies keep the version they had. */
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
 
     /**
-     * The dimensions the core compares (its label names). The current value label and the comparison label are read
-     * as rendered; a dimension the record does not have is left out.
+     * The dimensions the core compares (its label names) in a v19 record; a v20 record's are sealed
+     * ({@link SealedDeviations}, N-DEP-1). The current value label and the comparison label are read as rendered; a
+     * dimension the record does not have is left out.
      */
     static final List<String[]> DIMENSIONS = List.of(
             new String[]{"accessHour", "CurrentAccessHour", "CurrentAccessHourPresentInObservedHours"},
@@ -102,11 +103,15 @@ public final class AnatomyBuilder {
         Map<String, Object> labels = map(metadata.path("renderedLabelMatrix"));
         JsonNode canonical = metadata.path("sealedEvidence.canonicalContext");
 
-        List<Comparison> usualVsNow = new ArrayList<>();
-        for (String[] dimension : DIMENSIONS) {
-            if (labels.containsKey(dimension[1]) || labels.containsKey(dimension[2])) {
-                usualVsNow.add(new Comparison(dimension[0], text(labels.get(dimension[1])),
-                        text(labels.get(dimension[2])), List.of(dimension[1], dimension[2])));
+        // N-DEP-1: a v20 record's comparison is the engine's sealed decision facts; its prompt renders no labels.
+        List<Comparison> sealed = SealedDeviations.comparisons(metadata);
+        List<Comparison> usualVsNow = sealed != null ? new ArrayList<>(sealed) : new ArrayList<>();
+        if (sealed == null) {
+            for (String[] dimension : DIMENSIONS) {
+                if (labels.containsKey(dimension[1]) || labels.containsKey(dimension[2])) {
+                    usualVsNow.add(new Comparison(dimension[0], text(labels.get(dimension[1])),
+                            text(labels.get(dimension[2])), List.of(dimension[1], dimension[2])));
+                }
             }
         }
         Map<String, Object> rag = new LinkedHashMap<>();
@@ -189,9 +194,11 @@ public final class AnatomyBuilder {
         String sent = systemPrompt == null && around.userPrompt() == null ? null
                 : (systemPrompt == null ? "" : systemPrompt) + "\n" + (around.userPrompt() == null ? ""
                 : around.userPrompt());
+        // N-DEP-2: a v20 prompt renders none of the labels the core's v19 inspector reads; its conditions are sealed.
+        List<CoreAdverseLabels.Reading> sealedAdverse = CoreAdverseLabels.sealed(metadata);
         Juxtaposition juxtaposition = new Juxtaposition(departures, companyFacts,
                 textOrNull(canonical.path("resource").path("sensitivity")), modelReasoning, decision.reasoning(),
-                CoreAdverseLabels.read(sent));
+                sealedAdverse != null ? sealedAdverse : CoreAdverseLabels.read(sent));
 
         Recovery recovery = around.challenge() == null && around.release() == null ? null
                 : new Recovery(around.challenge(), around.release());

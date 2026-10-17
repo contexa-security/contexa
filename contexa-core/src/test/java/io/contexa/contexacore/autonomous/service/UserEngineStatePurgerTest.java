@@ -13,6 +13,7 @@ import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -100,6 +101,39 @@ class UserEngineStatePurgerTest {
         assertThat(result.complete()).isTrue();
         verify(vectorStore).delete(new FilterExpressionBuilder().eq("userId", quoted).build());
         assertThat(baselines.getUserBaseline(quoted)).isNull();
+    }
+
+    @Test
+    void thePurgeMarksTheDeletionFirstAndKeepsTheMarkWhenAStepFails() {
+        // Q-15: the late writes of the requests the account made before are told apart while the steps run, and after
+        // a failed step too; the user's data deletion keeps the mark.
+        seed(USER);
+        DeletedAccountWriteFence fence = new DeletedAccountWriteFence(context, Duration.ofMinutes(13));
+        UserEngineStatePurger purger = purger(List.of(failing("host-records")));
+        purger.setDeletedAccountWriteFence(fence);
+        long takenInBefore = System.currentTimeMillis() - 1_000;
+
+        UserEngineStatePurgeResult result = purger.purge(USER);
+
+        assertThat(result.purgedSteps()).startsWith("deletion-fence", "sessions");
+        assertThat(result.failedSteps()).containsOnlyKeys("host-records");
+        assertThat(fence.fenced(USER, takenInBefore)).isTrue();
+        assertThat(fence.fenced(OTHER, takenInBefore)).isFalse();
+        assertThat(fence.fenced(USER, System.currentTimeMillis() + 1_000)).isFalse();
+    }
+
+    private static UserStatePurgeContributor failing(String name) {
+        return new UserStatePurgeContributor() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public void purge(String userId) {
+                throw new IllegalStateException("host store unavailable");
+            }
+        };
     }
 
     private UserEngineStatePurger purger(List<UserStatePurgeContributor> contributors) {

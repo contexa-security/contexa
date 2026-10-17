@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import i18n from '../../i18n';
+import { approvalFact } from './decision';
 import { CASES, companyClock, membership, modeOf, plainPath, plainValue, stepPath } from './experience';
 
 beforeAll(async () => {
@@ -37,5 +38,48 @@ describe('try helpers', () => {
     expect(membership('UNKNOWN - insufficient comparison evidence; do not infer')).toBe('unknown');
     expect(companyClock('2026-09-30T03:17:00Z', 'ko')).toBe('수요일 03:17');
     expect(companyClock('2026-09-30T03:17:00Z', 'en')).toBe('Wednesday 03:17');
+  });
+
+  it('names a v20 value in the visitor words, not as the engine wrote it (N-DEP-1, C-5)', () => {
+    const t = i18n.t.bind(i18n);
+    expect(plainValue(t, 'accessHour', '03')).toBe(t('dim.hours', { hours: '03' }));
+    expect(plainValue(t, 'accessHour', '10-11, 13-14')).toBe('10-11, 13-14');
+    expect(plainValue(t, 'dayOfWeek', 'Wed')).toBe(t('dim.day.3'));
+    expect(plainValue(t, 'device', 'Chrome/140 on WINDOWS')).toBe(`Chrome/140 · ${t('dim.os.WINDOWS')}`);
+    expect(plainValue(t, 'authenticationType', 'PASSWORD+ONE_TIME_CODE')).toBe(
+      `${t('dim.auth.PASSWORD')}+${t('dim.auth.ONE_TIME_CODE')}`,
+    );
+    expect(plainValue(t, 'target', 'projectKey=PLM-OPS')).toBe(
+      t('dim.target.projectKey', { value: 'PLM-OPS' }),
+    );
+    expect(plainValue(t, 'target', 'projectKey')).toBe(t('dim.targetKind.projectKey'));
+    expect(plainValue(t, 'size', '4,831 items')).toBe(t('dim.items', { n: '4,831' }));
+    expect(plainValue(t, 'rate', '1 requests in the last 60 min')).toBe(
+      t('dim.rate.recent', { n: '1', minutes: '60' }),
+    );
+  });
+
+  it('words the approval: the v19 labels, or the policy a v20 decision states (N-DEP-2)', () => {
+    const t = i18n.t.bind(i18n);
+    const label = (name: string, met: boolean, values: readonly string[] = []) => ({
+      label: name,
+      condition: 'TRUE',
+      values,
+      met,
+    });
+    expect(approvalFact(t, [label('approvalrequired', true), label('approvalmissing', true)])).toBe(
+      t('e1.reason.noApproval'),
+    );
+    expect(approvalFact(t, [label('approvalrequired', true), label('approvalmissing', false)])).toBe(
+      t('e1.reason.approval'),
+    );
+    expect(approvalFact(t, [label('policysatisfied', true, ['no — no approval for GB-500'])])).toBe(
+      t('e1.reason.policyNotMet'),
+    );
+    expect(approvalFact(t, [label('policysatisfied', false, ['yes — approval APR-1'])])).toBe(
+      t('e1.reason.policyMet'),
+    );
+    expect(approvalFact(t, [label('policysatisfied', true)])).toBeNull();
+    expect(approvalFact(t, [])).toBeNull();
   });
 });

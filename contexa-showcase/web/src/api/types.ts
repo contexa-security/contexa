@@ -429,7 +429,10 @@ export interface EngineReason {
   readonly reasoning: string | null;
   readonly evidenceRefs: readonly string[];
   readonly deltas: readonly string[];
-  /** How many compared items the engine received as outside the baseline (CurrentVsObservedDeltaCount). */
+  /**
+   * How many compared items the engine received as outside the baseline (CurrentVsObservedDeltaCount; of a
+   * v20 decision the dimensions its seal states as different, N-DEP-1).
+   */
   readonly baselineDeltaCount: number | null;
   readonly resourceSensitivity: string | null;
 }
