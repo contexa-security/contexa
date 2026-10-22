@@ -416,6 +416,7 @@ public class BusinessFrictionProvider implements FrictionContextProvider {
         boolean found = ticket.ticketKey() != null;
         return CanonicalSecurityContext.TicketRecord.builder()
                 .ticketId(ticketId)
+                .kind(ticket.kind())
                 .approver(ticket.approver())
                 .purpose(ticket.purpose())
                 .target(found && !mismatches.contains("TARGET") ? target : null)

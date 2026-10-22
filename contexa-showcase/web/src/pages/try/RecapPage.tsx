@@ -1,202 +1,178 @@
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { useBenchmark } from '../../api/benchmark';
-import { useJourney, type RecapLine } from '../../api/journey';
-import { useVisitor } from '../../api/queries';
-import { ActionChip } from '../../components/common/ActionChip';
-import { useDetail } from '../../components/detail/useDetail';
-import { SourceMark } from '../../components/common/SourceMark';
-import { DifferenceMark, IdentityDefinition, IdentityLine } from '../../components/journey/JourneyParts';
+import { useActEnd } from '../../api/journey';
+import { usePromptQuality } from '../../api/promptQuality';
+import { usePublicSettings } from '../../api/settings';
+import { useTeasers, type TeaserKey, type TeasersView } from '../../api/teasers';
+import { SourceLine } from '../../components/journey/FrameParts';
+import { DifferenceMark } from '../../components/journey/JourneyParts';
 import { RouteScreen } from '../../components/journey/RouteScreen';
-import { StateScreen } from '../../components/StateScreen';
-import { VerdictChip } from '../../components/VerdictChip';
-import { DIFFERENCES } from '../../journey/journey';
-import { count, utcTime } from '../../journey/format';
+import { Icon } from '../../components/Icon';
+import { DEFAULT_ROUTE, DIFFERENCES, type Difference } from '../../journey/journey';
+import { count, seconds } from '../../journey/format';
 import { useJourneyPlace } from '../../journey/useJourneyPlace';
-import { VERDICTS, type Verdict } from '../../domain/verdict';
 import styles from './RecapPage.module.css';
 
-/** The existing approaches in the order of the five approaches (g3-five), Contexa apart. */
-const EXISTING = ['A', 'B', 'C1', 'C2'] as const;
-
-/** The differences each designed case of the default route shows (thread slide; the recap wire's last column). */
-const SHOWN: Readonly<Record<string, readonly number[]>> = {
-  A3: [1, 2, 4, 5],
-  A3A: [1],
-  A3T: [3, 5],
-  A6T: [6],
-  A6: [6],
+/** The screen where each difference is seen first on the route (the screens that mark it seen). */
+const SEEN_AT: Readonly<Record<Difference, string>> = {
+  1: '1-3',
+  2: '1-1',
+  3: '2-3',
+  4: '1-5',
+  5: '1-6',
+  6: '3-3',
 };
 
-/** The engine's recorded action as a verdict the chip draws; null for none. */
-function verdictOf(action: string | null): Verdict | null {
-  return action !== null && action in VERDICTS ? (action as Verdict) : null;
+function pathOf(number: string): string {
+  return DEFAULT_ROUTE.find((screen) => screen.number === number)?.path ?? '/';
 }
 
-/** The cases whose "what you did" has its own words in the dictionary; any other case is named by its title. */
-const OWN_WORDS = new Set(['A3', 'A3A', 'A3T', 'A3TA', 'A6T', 'A6']);
+/** A measured value of a teaser record (portal TeaserService); null when the record has none or it is not a number. */
+function value(teasers: TeasersView | undefined, key: TeaserKey, name: string): number | null {
+  const item = teasers?.teasers.find((candidate) => candidate.key === key);
+  const raw = item && !item.missing ? item.values[name] : null;
+  return typeof raw === 'number' ? raw : null;
+}
+
+function holds(teasers: TeasersView | undefined, key: TeaserKey): boolean | null {
+  return teasers?.teasers.find((candidate) => candidate.key === key)?.holds ?? null;
+}
+
+interface Measures {
+  readonly decisions: number | null;
+  readonly learned: number | null;
+  readonly departures: number | null;
+  readonly contexaBlocked: number | null;
+  readonly ruleBlocked: number | null;
+  readonly normal: number | null;
+  readonly reasons: { readonly hits: number; readonly total: number } | null;
+  readonly conditions: number | null;
+  readonly reissueMs: number | null;
+  readonly reissueHolds: boolean;
+  readonly resumed: number | null;
+  readonly from: number | null;
+  readonly to: number | null;
+  readonly grew: boolean;
+}
+
+/** A stored number, or null when the record holds none. */
+function numberOf(raw: unknown): number | null {
+  return typeof raw === 'number' ? raw : null;
+}
 
 /**
- * What you did (recap, 7.4): every run the visitor sent, with what Contexa and the existing approaches did in it as
- * recorded and the differences it showed; the six differences; and the definition seen at the start, now checked. A
- * skipped try is not in the table; a run sent again is. Each row opens the run's decision in detail.
+ * Each difference's one measured line (the old core-value cards' line), every number a server value. A line whose
+ * value the record does not hold says so; a sentence whose fact the record does not make true takes its other words.
+ */
+function measuredLine(t: TFunction, language: string, difference: Difference, m: Measures): string | null {
+  const n = (raw: number) => count(raw, language);
+  switch (difference) {
+    case 1:
+      return m.decisions === null ? null : t('p5.recap.measure.1', { decisions: n(m.decisions) });
+    case 2:
+      return m.learned === null || m.departures === null
+        ? null
+        : t('p5.recap.measure.2', { learned: n(m.learned), departures: n(m.departures) });
+    case 3:
+      return m.contexaBlocked === null || m.ruleBlocked === null || m.normal === null
+        ? null
+        : t('p5.recap.measure.3', {
+            contexa: n(m.contexaBlocked),
+            numberRule: n(m.ruleBlocked),
+            normal: n(m.normal),
+          });
+    case 4:
+      if (m.reasons) {
+        return t('p5.recap.measure.4.quality', { hits: n(m.reasons.hits), total: n(m.reasons.total) });
+      }
+      return m.conditions === null ? null : t('p5.recap.measure.4', { n: n(m.conditions) });
+    case 5:
+      if (m.resumed === null) {
+        return null;
+      }
+      return m.reissueHolds && m.reissueMs !== null
+        ? t('p5.recap.measure.5', { seconds: seconds(m.reissueMs), resumed: n(m.resumed) })
+        : t('p5.recap.measure.5.fallback', { resumed: n(m.resumed) });
+    case 6:
+      if (m.from === null || m.to === null) {
+        return null;
+      }
+      return t(m.grew ? 'p5.recap.measure.6' : 'p5.recap.measure.6.flat', { from: n(m.from), to: n(m.to) });
+  }
+}
+
+/**
+ * Screen 5-2, the six differences (화면재편-기획안 7절, T8): one card per difference with the line this demo measured for
+ * it; pressing a card leads back to the screen where it is seen. A difference the visitor has not seen yet keeps its
+ * question and says so, and its card leads to the screen that shows it. The identity line closes the screen (8절).
+ * The run table, the core-value cards and the quiz are gone: the cards do their work.
  */
 export default function RecapPage() {
   const { t, i18n } = useTranslation();
-  const detail = useDetail();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const visitor = useVisitor();
-  const journey = useJourney(visitor.isSuccess);
   const place = useJourneyPlace();
   const benchmark = useBenchmark(null);
-  const titles = new Map((benchmark.data?.cases ?? []).map((entry) => [entry.key, entry.title]));
-  const runs = (journey.data?.runs ?? []).filter((line) => line.status === 'COMPLETED');
+  const teasers = useTeasers().data;
+  const settings = usePublicSettings();
+  // The reasons that matched the facts they cite, from the published prompt-quality batch (U-7).
+  const quality = usePromptQuality(null).data ?? null;
   const seen = new Set(place.differences);
-  const did = (line: RecapLine) => {
-    const items = line.requestedItems === null ? '-' : count(line.requestedItems, language);
-    const words = OWN_WORDS.has(line.scenarioKey)
-      ? t(`recap.did.${line.scenarioKey}`, { items, steps: line.steps })
-      : (titles.get(line.scenarioKey)?.[language] ?? t('recap.did.other'));
-    return line.lab ? t('recap.lab', { words }) : words;
+  // Difference 6 reads the learned requests at the start and the end of try 3, as 3-3 and its wrap-up do (act-end 3).
+  const learning = useActEnd(3, true).data ?? null;
+  const learnedFrom = numberOf(learning?.values['from']);
+  const learnedTo = numberOf(learning?.values['to']);
+  const measures: Measures = {
+    decisions: benchmark.data?.engine?.decisions ?? null,
+    learned: value(teasers, 'FOLLOW_LEARNED', 'learned'),
+    departures: value(teasers, 'E1_RESULT_FACTS', 'departures'),
+    contexaBlocked: value(teasers, 'LEARN_AFTER_FALSE_BLOCKS', 'contexa'),
+    ruleBlocked: value(teasers, 'LEARN_AFTER_FALSE_BLOCKS', 'numberRule'),
+    normal: value(teasers, 'LEARN_AFTER_FALSE_BLOCKS', 'normalRuns'),
+    reasons: quality ? { hits: quality.reasonMatch.hits, total: quality.reasonMatch.total } : null,
+    conditions: settings.data?.engine.inspectorConditions ?? null,
+    reissueMs: value(teasers, 'G_RULES_RESUME', 'reissueMs'),
+    reissueHolds: holds(teasers, 'G_RULES_RESUME') === true,
+    resumed: value(teasers, 'CHALLENGE_OUTCOMES', 'resumed'),
+    from: learnedFrom,
+    to: learnedTo,
+    grew: learnedFrom !== null && learnedTo !== null && learnedTo > learnedFrom,
   };
+  const lines = new Map(
+    DIFFERENCES.map((difference) => [difference, measuredLine(t, language, difference, measures)] as const),
+  );
+  const measured = DIFFERENCES.some((difference) => seen.has(difference) && lines.get(difference) !== null);
+
   return (
     <RouteScreen
-      title={t('recap.title')}
-      purpose={t('recap.purpose')}
-      source={
-        runs.length > 0 ? (
-          <SourceMark kind="ENGINE">
-            {t('recap.source', {
-              n: count(runs.length, language),
-              runs: runs
-                .map((line) => (line.startedAt ? `${line.runId} ${utcTime(line.startedAt)}` : line.runId))
-                .join(', '),
-            })}
-          </SourceMark>
-        ) : null
-      }
-      nextLabel={t('recap.next')}
-      more={
-        <ActionChip to="/lab" icon="refresh" variant="open">
-          {t('recap.lab.try')}
-        </ActionChip>
-      }
+      title={t('screen.5-2.title')}
+      purpose={t('screen.5-2.guide')}
+      sourceLine={measured ? <SourceLine kind="measured" /> : null}
     >
-      {journey.isPending ? <StateScreen kind="loading" /> : null}
-      {journey.isSuccess && runs.length === 0 ? (
-        <div className={styles.empty}>
-          <p>{t('recap.empty')}</p>
-          <ActionChip to="/try/attacker/scene" icon="play" variant="move" size="sm">
-            {t('recap.emptyStart')}
-          </ActionChip>
-        </div>
-      ) : null}
-      {runs.length > 0 ? (
-        <table className={styles.table}>
-          <caption className={styles.caption}>{t('recap.caption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('recap.col.did')}</th>
-              <th scope="col">{t('recap.col.contexa')}</th>
-              <th scope="col">{t('recap.col.existing')}</th>
-              <th scope="col">{t('recap.col.difference')}</th>
-              <th scope="col">
-                <span className={styles.hidden}>{t('recap.col.open')}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((line) => (
-              <tr key={line.runId}>
-                <th scope="row" className={styles.did} data-label={t('recap.col.did')}>
-                  {did(line)}
-                </th>
-                <td data-label={t('recap.col.contexa')}>
-                  <span className={styles.engine}>
-                    {verdictOf(line.engineAction) ? (
-                      <VerdictChip verdict={verdictOf(line.engineAction) ?? 'NONE'} />
-                    ) : null}
-                    <span>
-                      {t('recap.engine', {
-                        result: t(`recap.result.${line.business['D'] ?? 'NONE'}`),
-                        items: count(line.exposedItems, language),
-                      })}
-                    </span>
-                    {line.correct === false ? <span className={styles.wrong}>{t('recap.wrong')}</span> : null}
-                  </span>
-                </td>
-                <td data-label={t('recap.col.existing')}>
-                  <ExistingResults business={line.business} />
-                </td>
-                <td data-label={t('recap.col.difference')}>
-                  {(SHOWN[line.scenarioKey] ?? []).length > 0 ? (
-                    <span className={styles.marks}>
-                      {(SHOWN[line.scenarioKey] ?? []).map((difference) => (
-                        <DifferenceMark key={difference} difference={difference} seen />
-                      ))}
-                      <span className={styles.hidden}>
-                        {(SHOWN[line.scenarioKey] ?? [])
-                          .map((difference) => t(`difference.${difference}`))
-                          .join(', ')}
-                      </span>
-                    </span>
-                  ) : (
-                    <span aria-label={t('recap.noDifference')}>-</span>
-                  )}
-                </td>
-                <td className={styles.open}>
-                  <ActionChip onClick={() => detail.show(line.runId)} icon="search" variant="open" size="sm">
-                    {t('recap.open')}
-                  </ActionChip>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-      <section className={styles.differences} aria-labelledby="recap-differences">
-        <h2 id="recap-differences" className={styles.sectionTitle}>
-          {t('recap.differences', { n: place.differences.length })}
-        </h2>
-        <ol className={styles.differenceList}>
-          {DIFFERENCES.map((difference) => (
-            <li key={difference} className={styles.difference} data-seen={seen.has(difference) || undefined}>
-              <DifferenceMark difference={difference} seen={seen.has(difference)} />
-              {t(`difference.${difference}`)}
+      <ol className={styles.cards} aria-label={t('difference.cards.title')} data-count="exempt">
+        {DIFFERENCES.map((difference) => {
+          const isSeen = seen.has(difference);
+          return (
+            <li key={difference} className={styles.item}>
+              <Link to={pathOf(SEEN_AT[difference])} className={styles.card} data-seen={isSeen || undefined}>
+                <span className={styles.name}>
+                  <DifferenceMark difference={difference} seen={isSeen} />
+                  <span>{t(isSeen ? `difference.${difference}` : `difference.question.${difference}`)}</span>
+                </span>
+                <span className={styles.line}>
+                  {isSeen ? (lines.get(difference) ?? t('p5.recap.measure.none')) : t('p5.recap.unseen')}
+                </span>
+                <span className={styles.go}>
+                  <span className={styles.hidden}>{t(isSeen ? 'difference.back' : 'p5.recap.go')}</span>
+                  <Icon name="chevronRight" className={styles.goIcon} />
+                </span>
+              </Link>
             </li>
-          ))}
-        </ol>
-      </section>
-      <section className={styles.definition} aria-labelledby="recap-definition">
-        <h2 id="recap-definition" className={styles.sectionTitle}>
-          {t('recap.definitionLead')}
-        </h2>
-        {place.route === 'DEFAULT' ? <IdentityLine /> : null}
-        <IdentityDefinition />
-      </section>
+          );
+        })}
+      </ol>
+      <p className={styles.identity}>{t('identity.line')}</p>
     </RouteScreen>
-  );
-}
-
-/** The existing approaches' recorded results, each result once with the approaches that had it. */
-function ExistingResults({ business }: { readonly business: Readonly<Record<string, string>> }) {
-  const { t } = useTranslation();
-  const byResult = new Map<string, string[]>();
-  for (const control of EXISTING) {
-    const result = business[control];
-    if (result) {
-      byResult.set(result, [...(byResult.get(result) ?? []), t(`control.${control}.name`)]);
-    }
-  }
-  return (
-    <ul className={styles.existing}>
-      {[...byResult.entries()].map(([result, names]) => (
-        <li key={result}>
-          <span className={styles.result} data-result={result}>
-            {t(`recap.result.${result}`)}
-          </span>{' '}
-          {names.join(', ')}
-        </li>
-      ))}
-    </ul>
   );
 }

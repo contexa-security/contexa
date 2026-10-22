@@ -110,6 +110,35 @@ class SealedPromptViewsTest {
         assertThat(quality.reason()).isEqualTo("NO_STEP");
         assertThat(quality.ribbon()).isNull();
         assertThat(quality.reasonCodes()).isEmpty();
+        assertThat(quality.hypotheses()).isEmpty();
+    }
+
+    /**
+     * SC-6 and SC-8 of docs/showcase/프롬프트-v21-구현계획.md: the seal of a v21 decision names its v21 layout, so its
+     * reason codes are those of the output contract v4, and it carries the explanations the decision weighed, each with
+     * the model's assessment and the facts it named for and against it (the values of the real v21.3 decision of A3T,
+     * run-9061d9f71432).
+     */
+    @Test
+    void theSealOfAV21DecisionCarriesItsContractAndTheExplanationsItWeighed() throws Exception {
+        JsonNode sealed = JSON.readTree("""
+                {"packageId": "pkg-21", "packageHash": "sha256:def", "capturedAt": "2026-10-19T13:02:46Z",
+                 "promptBundleVersion": "2026.10.19-v21.3", "userPromptLayoutVersion": "v21-dictionary-blocks",
+                 "reasonCodes": [{"code": "RECORD_COVERS_WORK", "fact": "F4"}],
+                 "hypotheses": [
+                   {"id": "H1", "name": null, "assessment": "MOST_LIKELY", "for": ["F4", "S1"], "against": ["F1"]},
+                   {"id": "H5", "name": "test export", "assessment": "UNLIKELY", "for": [], "against": ["F4"]}],
+                 "lines": [], "inspection": null}""");
+
+        SealedPromptViews.QualityView view = SealedPromptViews.quality(null, sealed);
+
+        assertThat(view.reasonCodes()).containsExactly(new SealedPromptViews.ReasonCode("RECORD_COVERS_WORK", "F4",
+                "V4"));
+        assertThat(view.hypotheses()).containsExactly(
+                new SealedPromptViews.Hypothesis("H1", null, "MOST_LIKELY", List.of("F4", "S1"), List.of("F1")),
+                new SealedPromptViews.Hypothesis("H5", "test export", "UNLIKELY", List.of(), List.of("F4")));
+        assertThat(JSON.valueToTree(view.hypotheses().get(0)).path("for").get(0).asText())
+                .as("the model's own key").isEqualTo("F4");
     }
 
     @Test
@@ -125,6 +154,7 @@ class SealedPromptViewsTest {
         assertThat(view.seal()).isEqualTo(new SealedPromptViews.Seal("pkg-1", "sha256:abc", "2026-10-16T03:17:20Z"));
         assertThat(view.reasonCodes()).containsExactly(new SealedPromptViews.ReasonCode("DEVIATION_TIME", "F1"),
                 new SealedPromptViews.ReasonCode("APPROVAL_INVALID_MISSING", null));
+        assertThat(view.hypotheses()).as("a decision before v21").isEmpty();
         assertThat(view.inspection().path("verdict").asText()).isEqualTo("FAIL");
         assertThat(view.inspection().path("checks")).hasSize(3);
         assertThat(view.inspection().path("checks").get(0).path("mismatches").get(0).path("line").asInt())
@@ -169,10 +199,12 @@ class SealedPromptViewsTest {
         assertThat(names(facts.path("blocks").path(0))).containsExactlyInAnyOrder("block", "facts");
         assertThat(names(facts.path("blocks").path(0).path("facts").path(0))).containsExactlyInAnyOrder("line",
                 "factId", "label", "value", "source", "grades", "sufficiency");
+        // SC-6 and SC-8 of docs/showcase/프롬프트-v21-구현계획.md: the explanations a decision weighed, and each reason
+        // code's contract.
         assertThat(names(quality)).containsExactlyInAnyOrder("available", "reason", "bundle", "seal", "inspection",
-                "reasonCodes", "ribbon");
+                "reasonCodes", "hypotheses", "ribbon");
         assertThat(names(quality.path("seal"))).containsExactlyInAnyOrder("packageId", "packageHash", "capturedAt");
-        assertThat(names(quality.path("reasonCodes").path(0))).containsExactlyInAnyOrder("code", "fact");
+        assertThat(names(quality.path("reasonCodes").path(0))).containsExactlyInAnyOrder("code", "fact", "contract");
         assertThat(names(quality.path("ribbon"))).containsExactlyInAnyOrder("facts", "withSource", "factAccuracy",
                 "contradictions", "unknown");
         assertThat(names(quality.path("ribbon").path("factAccuracy"))).containsExactlyInAnyOrder("matched", "total");

@@ -16,6 +16,7 @@
 package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacommon.domain.SecurityEvent;
 import io.contexa.contexacore.SecurityEventContext;
@@ -25,6 +26,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.event.support.ZeroTrustSecurityEventConverter;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -36,6 +38,8 @@ public class SynchronousProtectableDecisionService {
     private final SecurityPlaneAgent securityPlaneAgent;
     private final ZeroTrustActionRepository actionRepository;
     private UnanalysedRequestRecorder unanalysedRequestRecorder;
+    private SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest =
+            SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
 
     public SynchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -83,6 +87,16 @@ public class SynchronousProtectableDecisionService {
      * analysis; its session still keeps it (N-SES-1).
      */
     public ZeroTrustAction storedRestriction(MethodInvocation methodInvocation, Authentication authentication) {
+        return asyncGate(methodInvocation, authentication).restriction();
+    }
+
+    /**
+     * What an asynchronous {@code @Protectable} does before it runs: the restriction in force ({@link
+     * #storedRestriction}), or, A1-5, a decision in place for an agent request with no decision on record. An agent
+     * is not let through without a decision (OWASP ASI02, ASI05); a person's request proceeds while it is analysed, as
+     * before. {@code contexa.security.zerotrust.protectable.unrecorded-agent-request=proceed} treats agents as people.
+     */
+    public AsyncProtectableGate asyncGate(MethodInvocation methodInvocation, Authentication authentication) {
         ZeroTrustSpringEvent event = zeroTrustEventPublisher.buildMethodAuthorizationEvent(
                 methodInvocation,
                 authentication,
@@ -90,16 +104,43 @@ public class SynchronousProtectableDecisionService {
                 null
         );
         if (isEventShadowBoundary(event)) {
-            return null;
+            return AsyncProtectableGate.PROCEED;
         }
         ZeroTrustAction action = actionRepository.getCurrentAction(
                 event.getUserId(), zeroTrustEventListener.generateAuthorizationContextBindingHash(event));
         if (action == ZeroTrustAction.BLOCK || action == ZeroTrustAction.CHALLENGE
                 || action == ZeroTrustAction.ESCALATE) {
             recordUnanalysed(event, action);
-            return action;
+            return AsyncProtectableGate.restricted(action);
         }
-        return null;
+        if (action == ZeroTrustAction.PENDING_ANALYSIS
+                && unrecordedAgentRequest == SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE
+                && agentRequest(event)) {
+            return AsyncProtectableGate.DECIDE_IN_PLACE;
+        }
+        return AsyncProtectableGate.PROCEED;
+    }
+
+    public void setUnrecordedAgentRequest(SecurityZeroTrustProperties.UnrecordedAgentRequest unrecordedAgentRequest) {
+        this.unrecordedAgentRequest = unrecordedAgentRequest != null
+                ? unrecordedAgentRequest
+                : SecurityZeroTrustProperties.UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    }
+
+    /** The subject the publisher recorded on the event (A1-3). */
+    private static boolean agentRequest(ZeroTrustSpringEvent event) {
+        if (event == null || event.getPayload() == null) {
+            return false;
+        }
+        Object kind = event.getPayload().get("executionSubjectKind");
+        if (kind == null) {
+            return false;
+        }
+        try {
+            return SubjectKind.valueOf(kind.toString().trim()).agent();
+        } catch (IllegalArgumentException unknownKind) {
+            return false;
+        }
     }
 
     private void recordUnanalysed(ZeroTrustSpringEvent event, ZeroTrustAction action) {
@@ -183,6 +224,17 @@ public class SynchronousProtectableDecisionService {
             }
         }
         return null;
+    }
+
+    /** The restriction in force, or whether the request is decided in place; neither means it proceeds. */
+    public record AsyncProtectableGate(ZeroTrustAction restriction, boolean decideInPlace) {
+
+        public static final AsyncProtectableGate PROCEED = new AsyncProtectableGate(null, false);
+        public static final AsyncProtectableGate DECIDE_IN_PLACE = new AsyncProtectableGate(null, true);
+
+        public static AsyncProtectableGate restricted(ZeroTrustAction restriction) {
+            return new AsyncProtectableGate(restriction, false);
+        }
     }
 
     public record SyncDecisionResult(

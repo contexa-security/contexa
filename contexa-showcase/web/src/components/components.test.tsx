@@ -19,9 +19,9 @@ describe('VerdictChip', () => {
   it('never relies on color alone: the word is present for every verdict', async () => {
     await i18n.changeLanguage('en');
     for (const [verdict, word] of [
-      ['ALLOW', 'Allow'],
-      ['CHALLENGE', 'Identity check'],
-      ['ESCALATE', 'Escalate to review'],
+      ['ALLOW', 'Pass'],
+      ['CHALLENGE', 'Extra check'],
+      ['ESCALATE', 'Held (analysis unfinished)'],
       ['BLOCK', 'Block'],
     ] as const) {
       const { unmount } = render(<VerdictChip verdict={verdict} />);
@@ -39,7 +39,7 @@ describe('StateScreen', () => {
         <StateScreen kind="dailyLimit" recordTo="/replay/A3" />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent("You have used all of today's live runs.");
+    expect(screen.getByRole('alert')).toHaveTextContent("You have used all of today's live sends.");
     expect(screen.getByRole('link', { name: 'See the stored real run' })).toHaveAttribute(
       'href',
       '/replay/A3',
@@ -88,7 +88,7 @@ describe('StateScreen', () => {
         <StateScreen kind="outage" recordTo="/replay/A3" onRetry={() => undefined} />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('A temporary fault kept the decision from arriving');
+    expect(screen.getByRole('alert')).toHaveTextContent("A temporary fault kept Contexa's judgment from arriving");
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 

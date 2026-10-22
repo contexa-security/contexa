@@ -104,11 +104,30 @@ class ExecutionStatsIntegrationTest {
         assertThat(view.spec().specHash()).isEqualTo(SPEC);
         assertThat(view.spec().chatModel()).isEqualTo("gpt-5-nano");
         assertThat(view.specCount()).isEqualTo(1);
+        // t2's block was released; the forced run's release is left out.
+        assertThat(view.releases()).isEqualTo(1);
+        assertThat(view.escalateHeld()).isZero();
+        assertThat(view.blockedAfterReview()).isZero();
 
         run("t4", "A3", "COMPLETED", null, null, NOW.minusSeconds(30));
         assertThat(stats.view()).as("cached for a minute").isSameAs(view);
         clock.advance(Duration.ofMinutes(1));
         assertThat(stats.view().runs().completed()).isEqualTo(6);
+
+        // e1: D refers step 1 to review and holds it (423); the review expires unresolved, so step 2 meets the
+        // account block. The block was met and not released: counted after review, not as a release.
+        run("e1", "S11", "COMPLETED", null, null, NOW.minusSeconds(20));
+        arms("e1", 1, "DELIVERED", "DELIVERED", "REFUSED", "REFUSED", "REFUSED", 423);
+        arms("e1", 2, "DELIVERED", "DELIVERED", "REFUSED", "REFUSED", "REFUSED", 403);
+        decision("e1", 1, "ESCALATE", false, "BEFORE_RESPONSE", 5000L);
+        decision("e1", 2, null, false, "NONE", null);
+        release("e1", 2, false);
+        clock.advance(Duration.ofMinutes(1));
+        StatsView after = stats.view();
+        assertThat(after.engineActions()).containsEntry("ESCALATE", 1L).containsEntry("BLOCK", 1L);
+        assertThat(after.escalateHeld()).isEqualTo(1);
+        assertThat(after.blockedAfterReview()).isEqualTo(1);
+        assertThat(after.releases()).isEqualTo(1);
     }
 
     private void world() {
@@ -126,6 +145,7 @@ class ExecutionStatsIntegrationTest {
         run("t2", "A3", "COMPLETED", null, null, NOW.minusSeconds(600));
         arms("t2", 1, "DELIVERED", "DELIVERED", "REFUSED", "ERROR", "REFUSED", 403);
         decision("t2", 1, "BLOCK", false, "BEFORE_RESPONSE", 3000L);
+        release("t2", 1, true);
         // t3 (A1, threat, featured step 1): the WAF stops step 1; D delivers step 1 with an unresolved decision and
         // has no new analysis at step 2, where it refuses (step 2 is not the decisive step).
         run("t3", "A1", "COMPLETED", null, null, NOW.minusSeconds(300));
@@ -151,6 +171,7 @@ class ExecutionStatsIntegrationTest {
         run("f1", "A3", "COMPLETED", "CHALLENGE", null, NOW.minusSeconds(30));
         arms("f1", 1, "DELIVERED", "DELIVERED", "DELIVERED", "DELIVERED", "REFUSED", 401);
         decision("f1", 1, "CHALLENGE", false, "BEFORE_RESPONSE", 50L);
+        release("f1", 1, true);
         run("x1", "A3", "FAILED", null, null, NOW.minusSeconds(30));
         // Published recordings 4 of 5 and 5 of 5; a draft is left out.
         record("r1", "ATTACK", "PUBLISHED", 4, 5, "t1");
@@ -189,6 +210,13 @@ class ExecutionStatsIntegrationTest {
                     total_analysis_ms, records, events)
                 values (?, ?, ?, ?, ?, ?, ?, '[]'::jsonb, '[]'::jsonb)""",
                 UUID.randomUUID(), runId, step, action, unresolved, applied, totalMs);
+    }
+
+    private void release(String runId, int step, boolean released) {
+        jdbc.update("""
+                insert into run_release (run_id, step_no, request_id, released, reason, blocked_at)
+                values (?, ?, ?, ?, ?, ?)""",
+                runId, step, UUID.randomUUID(), released, released ? "RELEASED" : "NOT_ASKED", Timestamp.from(NOW));
     }
 
     private void record(String recordId, String scene, String status, int agreeing, int repetitions, String runId) {

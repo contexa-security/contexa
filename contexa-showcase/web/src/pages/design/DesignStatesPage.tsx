@@ -9,7 +9,7 @@ import styles from './DesignStatesPage.module.css';
 
 /** Development-only gallery of the state screens (deck p.20), with sample values marked as samples. */
 const SAMPLE_CAUSE = {
-  ko: '예시: 본인 확인 뒤 원래 요청을 15초 안에 다시 보내지 못했습니다.',
+  ko: '예시: 추가 인증 뒤 원래 요청을 15초 안에 다시 보내지 못했습니다.',
   en: 'Sample: the original request could not be sent again within 15 seconds after the identity check.',
 } as const;
 

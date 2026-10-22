@@ -12,6 +12,7 @@ import io.contexa.showcase.workload.contexa.observation.DecisionRecords;
 import io.contexa.showcase.workload.contexa.observation.UsageLedger;
 import io.contexa.showcase.workload.contexa.observation.ModelExchanges;
 import io.contexa.showcase.workload.contexa.observation.RequestReceipts;
+import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.showcase.workload.contexa.principal.OrphanPrincipalSweeper;
 import io.contexa.showcase.workload.contexa.principal.RunPrincipalService;
@@ -83,6 +84,8 @@ public class ContexaInternalController {
     private final Integer behaviorRetentionDays;
     /** W7-13: how D seals the decision inputs, as bound; absent without the OSS sealed evidence capture. */
     private final ObjectProvider<PqaOssSealedEvidenceCaptureProperties> sealedEvidence;
+    /** The model of each analysis layer as the core selects it (판정층 E-8c). */
+    private final ObjectProvider<TieredLLMProperties> layerModels;
 
     public ContexaInternalController(RunPrincipalService principals, SharedAccountGuard sharedAccounts,
                                      OrphanPrincipalSweeper orphans,
@@ -101,7 +104,8 @@ public class ContexaInternalController {
                                      @Value("${showcase.dev.forced-actions:false}") boolean forcedActions,
                                      @Value("${contexa.rag.etl.behavior.retention-days:#{null}}")
                                      Integer behaviorRetentionDays,
-                                     ObjectProvider<PqaOssSealedEvidenceCaptureProperties> sealedEvidence) {
+                                     ObjectProvider<PqaOssSealedEvidenceCaptureProperties> sealedEvidence,
+                                     ObjectProvider<TieredLLMProperties> layerModels) {
         this.principals = principals;
         this.sharedAccounts = sharedAccounts;
         this.orphans = orphans;
@@ -123,6 +127,7 @@ public class ContexaInternalController {
         this.forcedActions = forcedActions;
         this.behaviorRetentionDays = behaviorRetentionDays;
         this.sealedEvidence = sealedEvidence;
+        this.layerModels = layerModels;
     }
 
     @PostMapping("/internal/runs/{runId}/principals")
@@ -229,9 +234,11 @@ public class ContexaInternalController {
         if (tiered != null) {
             // An Anthropic request carries no OpenAI reasoning effort or verbosity; only its output limit is sent.
             boolean openAi = !ANTHROPIC.equals(chatProvider);
-            engine.put("layer1Model", modelSettings(openAi ? tiered.getLayer1().getOpenAiReasoningEffort() : null,
+            engine.put("layer1Model", modelSettings(layerModel(1),
+                    openAi ? tiered.getLayer1().getOpenAiReasoningEffort() : null,
                     openAi ? tiered.getLayer1().getOpenAiVerbosity() : null, tiered.getLayer1().getMaxOutputTokens()));
-            engine.put("layer2Model", modelSettings(openAi ? tiered.getLayer2().getOpenAiReasoningEffort() : null,
+            engine.put("layer2Model", modelSettings(layerModel(2),
+                    openAi ? tiered.getLayer2().getOpenAiReasoningEffort() : null,
                     openAi ? tiered.getLayer2().getOpenAiVerbosity() : null, tiered.getLayer2().getMaxOutputTokens()));
             // The prompt bundle the configuration runs (LU-6): one this build cannot run falls back to the build's
             // default, as in the core; the registry selector chooses per request, so it is not stated then.
@@ -280,8 +287,20 @@ public class ContexaInternalController {
         return actions;
     }
 
-    private static Map<String, Object> modelSettings(String reasoningEffort, String verbosity, int maxOutputTokens) {
+    /**
+     * The model a layer's analysis runs on (판정층 E-8c): the layer model the core selects
+     * (contexa.security.tiered.llm.layerN.model, verified at start), else the primary chat model.
+     */
+    private String layerModel(int tier) {
+        TieredLLMProperties layers = layerModels.getIfAvailable();
+        String model = layers != null ? layers.getModelNameForTier(tier) : null;
+        return model != null ? model : chatModel;
+    }
+
+    private static Map<String, Object> modelSettings(String model, String reasoningEffort, String verbosity,
+                                                     int maxOutputTokens) {
         Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put("model", model);
         settings.put("reasoningEffort", reasoningEffort);
         settings.put("verbosity", verbosity);
         settings.put("maxOutputTokens", maxOutputTokens);

@@ -19,16 +19,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 /**
  * In-memory registry backed by Redisson RTopic for real-time cross-instance
  * propagation of BLOCK/UNBLOCK signals. Allows O(1) local lookup so that
  * BlockableServletOutputStream can abort in-flight responses immediately.
  *
- * Stores the action type (BLOCK, CHALLENGE, ESCALATE) along with the block signal
- * so the client can redirect to the appropriate page.
+ * A signal keeps the moment this instance received it (see BlockSignals). Pub/sub does not deliver to a subscription
+ * that dropped, so the probe also reads the decision in force from the shared decision store: a BLOCK this instance
+ * did not hear still cuts its responses within one probe interval.
  */
 @Slf4j
 public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
@@ -38,13 +40,28 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
     private static final String UNBLOCK_PREFIX = "UNBLOCK:";
     private static final int MAX_PUBLISH_RETRIES = 1;
 
-    private final ConcurrentHashMap<String, String> blockedUsers = new ConcurrentHashMap<>();
+    private final BlockSignals blockedUsers;
     private final RTopic topic;
     private final AtomicLong publishRequestedCount = new AtomicLong(0);
     private final AtomicLong publishConfirmedCount = new AtomicLong(0);
     private final AtomicLong publishFailedCount = new AtomicLong(0);
 
     public BlockingDecisionRegistry(RedissonClient redissonClient) {
+        this(redissonClient, null, BlockSignals.DEFAULT_PROBE_INTERVAL);
+    }
+
+    public BlockingDecisionRegistry(RedissonClient redissonClient, BlockedStateProbe probe) {
+        this(redissonClient, probe, BlockSignals.DEFAULT_PROBE_INTERVAL);
+    }
+
+    public BlockingDecisionRegistry(RedissonClient redissonClient, BlockedStateProbe probe,
+                                    Duration probeInterval) {
+        this(redissonClient, probe, probeInterval, System::nanoTime);
+    }
+
+    BlockingDecisionRegistry(RedissonClient redissonClient, BlockedStateProbe probe, Duration probeInterval,
+                             LongSupplier clock) {
+        this.blockedUsers = new BlockSignals(probe, probeInterval, clock);
         this.topic = redissonClient.getTopic(TOPIC_NAME);
         this.topic.addListener(String.class, (channel, message) -> {
             try {
@@ -109,7 +126,7 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         if (userId == null || userId.isBlank()) {
             return false;
         }
-        return blockedUsers.containsKey(userId);
+        return blockedUsers.contains(userId);
     }
 
     @Override
@@ -117,7 +134,15 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         if (userId == null || userId.isBlank()) {
             return null;
         }
-        return blockedUsers.get(userId);
+        return blockedUsers.action(userId);
+    }
+
+    @Override
+    public boolean shouldCut(String userId, long responseStartNanos) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        return blockedUsers.cuts(userId, responseStartNanos);
     }
 
     private void publishSignalAsync(String message, String signalType, String userId, int attempt) {

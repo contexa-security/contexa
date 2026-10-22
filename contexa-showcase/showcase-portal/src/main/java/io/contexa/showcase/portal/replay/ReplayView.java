@@ -154,8 +154,17 @@ public final class ReplayView {
                                String resourceSensitivity, Integer baselineDeltaCount, List<ReasonCode> reasonCodes) {
     }
 
-    /** A reason code of the engine's output contract v3 and the ID of the prompt fact it cites (W4-3). */
-    public record ReasonCode(String code, String fact) {
+    /**
+     * A reason code of the engine's output contract and the ID of the prompt fact it cites (W4-3).
+     *
+     * @param contract "V4" for a code of the output contract v4 (a v21 decision, whose judgment codes say what the
+     *                 model judged), null for one of the contract v3 (SC-6, 변경 6 of docs/showcase/프롬프트-v21-구현계획.md)
+     */
+    public record ReasonCode(String code, String fact, String contract) {
+
+        public ReasonCode(String code, String fact) {
+            this(code, fact, null);
+        }
     }
 
     public record Fact(String code, String value) {

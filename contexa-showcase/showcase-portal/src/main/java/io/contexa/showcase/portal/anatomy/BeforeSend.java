@@ -78,18 +78,73 @@ public class BeforeSend {
      *                       null when its system text states the minimum action rules instead (N-K5-1)
      * @param minimumRules   N-K5-1: the minimum action rules of the engine's system text, each with the engine's
      *                       finding; null when the text states none or was not kept
+     * @param modelJudges    SC-2: the engine's input was drawn by a v21 bundle, whose text states no line it always
+     *                       keeps (neither rules nor a boundary): the decision is the model's own reasoning
      */
     public record View(String runId, int stepNo, Instant startedAt, Instant companyTime,
                        List<DecisionAnatomy.Comparison> usualVsNow, Map<String, Usual> usual,
                        List<DecisionAnatomy.Comparison> departures, int departureCount,
                        List<CoreAdverseLabels.Reading> companyAdverse, Map<String, Object> company,
                        List<String> companyFacts, List<ReplayView.Fact> businessFacts, String sensitivity,
-                       Boundary boundary, MinimumRules minimumRules) {
+                       Boundary boundary, MinimumRules minimumRules, boolean modelJudges) {
 
         /** How many company record labels were read as adverse: the screen's "flagged by company records". */
         @JsonProperty("companyAdverseCount")
         public int companyAdverseCount() {
             return companyAdverse.size();
+        }
+
+        /** How many dimensions the engine compared this time: those it read as in or out of the usual (V-10). */
+        @JsonProperty("comparedCount")
+        public int comparedCount() {
+            return BeforeSend.comparedCount(usualVsNow);
+        }
+
+        /** The export's size against the usual largest export (최종화면-구현계획 FP-1); null when either is unknown. */
+        @JsonProperty("sizeRatio")
+        public SizeRatio sizeRatio() {
+            return BeforeSend.sizeRatio(usual, businessFacts);
+        }
+    }
+
+    /**
+     * An export's size against the largest export the baseline holds (the screen's "평소 최대의 약 N배"), counted here
+     * so the screen computes nothing.
+     *
+     * @param items        the items the request asks for, as the business database returned them
+     * @param usualLargest the largest export the engine's sealed baseline holds
+     * @param times        items over the usual largest, rounded to a whole number
+     */
+    public record SizeRatio(long items, long usualLargest, long times) {
+    }
+
+    /** The dimensions the engine compared: read as in the usual or not; its UNKNOWN text is left out. */
+    static int comparedCount(List<DecisionAnatomy.Comparison> usualVsNow) {
+        return usualVsNow == null ? 0 : (int) usualVsNow.stream()
+                .filter(row -> "true".equals(row.inUsual()) || "false".equals(row.inUsual())).count();
+    }
+
+    /** The size ratio of a step: null without the request's items or a usual largest export above zero. */
+    static SizeRatio sizeRatio(Map<String, Usual> usual, List<ReplayView.Fact> businessFacts) {
+        Usual size = usual == null ? null : usual.get("size");
+        Long largest = size == null || size.values().isEmpty() ? null : whole(size.values().get(0));
+        Long items = businessFacts == null ? null : businessFacts.stream()
+                .filter(fact -> "ITEMS".equals(fact.code())).findFirst().map(fact -> whole(fact.value()))
+                .orElse(null);
+        if (largest == null || items == null || largest <= 0) {
+            return null;
+        }
+        return new SizeRatio(items, largest, Math.round((double) items / largest));
+    }
+
+    private static Long whole(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
@@ -233,9 +288,8 @@ public class BeforeSend {
         } catch (IOException e) {
             throw new UncheckedIOException("the decision records of " + runId + " step " + stepNo, e);
         }
-        // A text that states the minimum action rules states no elevated-risk boundary.
-        Boundary boundary = rules != null ? null : boundary(prompt, juxtaposition.sensitivity(),
-                juxtaposition.departures().size(), juxtaposition.coreAdverseLabels());
+        Boundary boundary = boundaryOf(rules, prompt, juxtaposition.sensitivity(), juxtaposition.departures().size(),
+                juxtaposition.coreAdverseLabels());
         // N-DEP-1: a v20 comparison names its usual from the BaselineView the engine sealed; a v19 one from its prompt.
         Map<String, Usual> baseline = SealedDeviations.sealed(context.usualVsNow()) ? sealedUsual(context.usual())
                 : prompt == null ? Map.of() : usual(prompt);
@@ -244,7 +298,17 @@ public class BeforeSend {
                 juxtaposition.departures().size(), companyAdverse(juxtaposition.coreAdverseLabels()),
                 context.company(), juxtaposition.companyFacts(),
                 replayViews.storedStep(runId, stepNo).map(ReplayView.StepResult::companyFacts).orElse(List.of()),
-                juxtaposition.sensitivity(), boundary, rules));
+                juxtaposition.sensitivity(), boundary, rules, PromptLines.v21(prompt)));
+    }
+
+    /**
+     * The elevated-risk boundary a step's texts state, or null: a text that states the minimum action rules states no
+     * elevated-risk boundary, and a v21 text states neither (SC-2 of docs/showcase/프롬프트-v21-구현계획.md: its
+     * decision is the model's own reasoning, with no rule a screen could name).
+     */
+    static Boundary boundaryOf(MinimumRules rules, String prompt, String sensitivity, int departures,
+                               List<CoreAdverseLabels.Reading> readings) {
+        return rules != null || PromptLines.v21(prompt) ? null : boundary(prompt, sensitivity, departures, readings);
     }
 
     /** The elevated-risk boundary's conditions in the engine's input. */

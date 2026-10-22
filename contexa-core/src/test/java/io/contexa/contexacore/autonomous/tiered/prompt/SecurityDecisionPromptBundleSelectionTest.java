@@ -45,7 +45,7 @@ class SecurityDecisionPromptBundleSelectionTest {
 
     private static final String PROMPT_KEY = "cortex.security-decision";
     private static final String V19 = "2026.10.16-v19.20";
-    private static final String V20 = "2026.10.16-v20.24";
+    private static final String V20 = "2026.10.17-v20.25";
     private static final PromptBudgetProfile L1 = PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT;
     private static final PromptBudgetProfile L2 = PromptBudgetProfile.CORTEX_L2_EXPERT_STRICT;
 
@@ -60,9 +60,13 @@ class SecurityDecisionPromptBundleSelectionTest {
 
     @Test
     void theBuildRunsTheCurrentBundleAndOnePreviousOneWithTheV19BundleAsItsDefault() {
+        // V-1 (변경): v21 runs next to v20, its rollback target and the comparison it is measured against.
         assertThat(SecurityDecisionPromptBundles.ALL)
                 .extracting(bundle -> bundle.descriptor().promptVersion())
-                .containsExactly(V19, V20);
+                .containsExactly(V19, V20, SecurityDecisionPromptBundles.V21.version());
+        assertThat(SecurityDecisionPromptBundles.V21.layout())
+                .isEqualTo(SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS);
+        assertThat(SecurityDecisionPromptBundles.V21.descriptor().rollbackPromptVersion()).isEqualTo(V20);
         assertThat(SecurityDecisionPromptBundles.DEFAULT.descriptor())
                 .isEqualTo(SecurityDecisionStandardPromptTemplate.SECURITY_DECISION_PROMPT_GOVERNANCE);
         assertThat(SecurityDecisionPromptBundles.DEFAULT.layout())

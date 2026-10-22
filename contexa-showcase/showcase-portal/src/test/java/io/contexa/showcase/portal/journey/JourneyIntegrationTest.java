@@ -63,7 +63,7 @@ class JourneyIntegrationTest {
         assertThat(reloaded.state().step()).isEqualTo("predict");
         assertThat(reloaded.state().differences()).containsExactly(1, 2);
         assertThat(reloaded.predictions()).singleElement().satisfies(score -> {
-            assertThat(score.caseKey()).isEqualTo("A3");
+            assertThat(score.caseKey()).isEqualTo("S13");
             assertThat(score.engineRight()).as("CHALLENGE is a right answer to the attacker's case").isTrue();
             assertThat(score.existingActual()).as("the visitor has not sent it yet").isNull();
         });
@@ -72,6 +72,12 @@ class JourneyIntegrationTest {
         assertThat(journey.update(VISITOR, new JourneyViews.Update(null, null, null, 7, null))).isEmpty();
         assertThat(journey.update(VISITOR, new JourneyViews.Update(null, null, "Scene/1", null, null))).isEmpty();
         assertThat(journey.view(VISITOR).state().step()).as("an invalid change stores nothing").isEqualTo("predict");
+
+        // One route and seven groups (최종화면-구현계획 F0-1, IN-6): the concept path and an eighth group are refused.
+        assertThat(journey.update(VISITOR, new JourneyViews.Update("INTRO", null, null, null, null))).isEmpty();
+        assertThat(journey.update(VISITOR, new JourneyViews.Update(null, 8, null, null, null))).isEmpty();
+        journey.update(VISITOR, new JourneyViews.Update("DEFAULT", 7, "summary", null, null)).orElseThrow();
+        assertThat(journey.view(VISITOR).state().act()).as("the seventh group is a place").isEqualTo(7);
 
         jdbc.update("delete from visitor where visitor_hash = ?", VISITOR);
         assertThat(jdbc.queryForObject("select count(*) from visitor_journey where visitor_hash = ?", Integer.class,

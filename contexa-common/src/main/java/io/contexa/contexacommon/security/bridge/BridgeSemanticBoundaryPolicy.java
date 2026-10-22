@@ -43,6 +43,8 @@ public final class BridgeSemanticBoundaryPolicy {
     public static final String DERIVED_FROM_AMR = "DERIVED_FROM_AMR";
     /** A Java class name standing in for a fact the host did not state; it is not a login fact. */
     public static final String CLASS_NAME_FALLBACK = "CLASS_NAME_FALLBACK";
+    /** A value read from a claim of the access token the authorization server signed (A1-1). */
+    public static final String SIGNED_TOKEN_CLAIM = "SIGNED_TOKEN_CLAIM";
 
     private BridgeSemanticBoundaryPolicy() {
     }

@@ -39,4 +39,13 @@ public interface BlockingSignalBroadcaster {
     boolean isBlocked(String userId);
 
     String getBlockAction(String userId);
+
+    /**
+     * Whether a response in flight must be cut now. {@code responseStartNanos} is the {@link System#nanoTime()} of this
+     * JVM read before the decision in force was read for the request, so a block signal received after it is a
+     * decision the response did not pass.
+     */
+    default boolean shouldCut(String userId, long responseStartNanos) {
+        return isBlocked(userId);
+    }
 }

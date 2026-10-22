@@ -425,7 +425,7 @@ public class RunOrchestrator {
         String email = call.username() + "@" + CompanyBlueprint.EMAIL_DOMAIN;
         if (control == Control.D && ControlSession.challenged(outcome)) {
             challenge = call.responder().respond(new ChallengeResponder.Challenge(
-                    call.scenario().oracle().classification(),
+                    call.scenario().oracle().classification(), call.scenario().oracle().ownerActs(),
                     outcome.sentAt().plusMillis(outcome.elapsedMs()),
                     session.challengeActions(call.username(), email, call.step().operation(), call.path(),
                             call.parts().get(control), call.stepTime(), admin)));

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,11 +37,44 @@ class BaselineEvidenceTest {
         assertThat(read.observedScopeSummary()).isEqualTo("Observed work-pattern history is limited.");
     }
 
+    /**
+     * A v20 prompt names the lines differently (화면재편 F-3, P-3): the personal baseline as "BaselineStatus", the role
+     * scope's evidence at the end of its "RoleScope" line, and both hour lists in one "UsualHours" line (the usual
+     * hours as ranges, then every hour seen). The prompt is a real decision of run-494441907aba (2026-10-18).
+     */
+    @Test
+    void aV20PromptIsReadWithItsOwnLineNames() throws Exception {
+        String prompt = resource("/live/v20-a3-user-prompt.txt");
+        BaselineEvidence.EngineHours read = BaselineEvidence.of(prompt, "run-494441907aba", 1, null);
+
+        assertThat(read.personalBaselineStatus()).as("[B1] BaselineStatus: ESTABLISHED (...)").isEqualTo("ESTABLISHED");
+        assertThat(read.roleScopeState()).as("RoleScope: ...; evidence PROVISIONAL").isEqualTo("PROVISIONAL");
+        assertThat(read.normalAccessHours()).as("the usual hours 10-11, 13-14, 17").containsExactly(10, 11, 13, 14, 17);
+        assertThat(read.observedHours()).as("seen 9,10,11,12,13,14,17").containsExactly(9, 10, 11, 12, 13, 14, 17);
+        assertThat(read.workProfileState()).as("no such line in v20").isNull();
+        assertThat(read.observedScopeSummary()).as("no such line in v20").isNull();
+    }
+
+    @Test
+    void aV20HourLineWithoutUsualHoursGivesOnlyTheSeenHours() {
+        String prompt = "UsualHours: seen 9,10\n";
+
+        assertThat(BaselineEvidence.normalAccessHours(prompt)).isEmpty();
+        assertThat(BaselineEvidence.observedHours(prompt)).containsExactly(9, 10);
+        assertThat(BaselineEvidence.normalAccessHours("UsualHours: 09-11, 14\n")).containsExactly(9, 10, 11, 14);
+    }
+
     @Test
     void aMissingLineGivesNoHours() {
         assertThat(BaselineEvidence.observedHours("CurrentAccessHourPresentInObservedHours: false\n")).isEmpty();
         assertThat(BaselineEvidence.normalAccessHours(null)).isEmpty();
         assertThat(BaselineEvidence.of("NormalAccessHours: [9]\n", "run-1", 1, null).roleScopeState()).isNull();
+    }
+
+    private static String resource(String path) throws Exception {
+        try (InputStream in = BaselineEvidenceTest.class.getResourceAsStream(path)) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private static String userPrompt(String name) throws Exception {

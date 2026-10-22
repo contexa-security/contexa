@@ -28,7 +28,12 @@ public interface ChallengeResponder {
      * @param classification the scenario's ground truth: NORMAL, THREAT or UNCERTAIN
      * @param challengedAt   when control D's answer with the check came back
      */
-    record Challenge(String classification, Instant challengedAt, ChallengeActions actions) {
+    record Challenge(String classification, boolean ownerActs, Instant challengedAt, ChallengeActions actions) {
+
+        /** A challenge of a case whose actor is who its classification says (an attacker, or the owner at work). */
+        public Challenge(String classification, Instant challengedAt, ChallengeActions actions) {
+            this(classification, false, challengedAt, actions);
+        }
     }
 
     /**
@@ -43,12 +48,13 @@ public interface ChallengeResponder {
 
     /**
      * Recordings: the legitimate user reads the inbox and enters the code at once; an attacker holds the password and
-     * the session but not the mailbox (R1 contract), and so does an uncertain actor.
+     * the session but not the mailbox (R1 contract), and so does an uncertain actor. An insider is the account's owner
+     * (IN-6): the code reaches their own mailbox, so they enter it as the legitimate user does.
      */
     ChallengeResponder AUTOMATIC = ChallengeResponder::automatic;
 
     private static ChallengeTrace automatic(Challenge challenge) {
-        if (!"NORMAL".equals(challenge.classification())) {
+        if (!"NORMAL".equals(challenge.classification()) && !challenge.ownerActs()) {
             return ControlSession.abandoned(challenge.challengedAt());
         }
         Instant requested = null;

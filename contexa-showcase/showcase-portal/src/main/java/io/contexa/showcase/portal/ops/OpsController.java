@@ -204,20 +204,21 @@ public class OpsController {
     /**
      * W6-1: runs of a case-definition variant: of the reaction matrix (plan 8.5, section 4 of the matrix, keys -V) or
      * of the injection places a case definition carries (plan 8.7, keys -I). With a batch, every run is recorded
-     * under it with the variant's label.
+     * under it with the variant's label. N-INJ-6: the control of an injection place (keys -C, the place's variant with
+     * clean text) is recorded as a base under its key, labelled "key:control".
      */
     @PostMapping("/ops/variant-runs/{variantKey}")
     public ResponseEntity<Job> variantRuns(@PathVariable("variantKey") String variantKey,
                                            @RequestParam(name = "repeat", defaultValue = "1") int repeat,
                                            @RequestParam(name = "batch", required = false) String batch)
             throws IOException {
-        if (repeat < 1 || repeat > 10 || !variantKey.matches("[A-Z0-9]+-[VI]\\d+")
-                || (batch != null && !BATCH.matcher(batch).matches())) {
+        ReactivityRuns.Kind recorded = variantKind(variantKey);
+        if (repeat < 1 || repeat > 10 || recorded == null || (batch != null && !BATCH.matcher(batch).matches())) {
             return ResponseEntity.badRequest().build();
         }
-        boolean injection = variantKey.matches("[A-Z0-9]+-I\\d+");
-        ReactivityRuns.Kind recorded = injection ? ReactivityRuns.Kind.INJECTION : ReactivityRuns.Kind.VARIANT;
-        String runLabel = injection
+        // N-INJ-6: a control variant's runs are the base of the injection place that names its key.
+        String runLabel = recorded == ReactivityRuns.Kind.BASE ? variantKey + ":control"
+                : recorded == ReactivityRuns.Kind.INJECTION
                 ? injectionVariants.placeOfKey(variantKey).map(InjectionEvaluator.Place::label).orElse(variantKey)
                 : reactionVariants.variantOfKey(variantKey).map(ReactionEvaluator.Variant::label).orElse(variantKey);
         ScenarioDefinition variant;
@@ -236,6 +237,21 @@ public class OpsController {
                 results.add(summary);
             }
         }));
+    }
+
+    /**
+     * W6-1: the kind a case-definition variant's runs are recorded with, by its key: a reaction matrix variant (-V)
+     * or an injection place's (-I). N-INJ-6: a control variant (-C), an injection variant with clean text, is the
+     * base its place names (plan 8.7: the same run without the text). Null for a key of no variant.
+     */
+    static ReactivityRuns.Kind variantKind(String variantKey) {
+        if (!variantKey.matches("[A-Z0-9]+-[VIC]\\d+")) {
+            return null;
+        }
+        if (variantKey.matches("[A-Z0-9]+-C\\d+")) {
+            return ReactivityRuns.Kind.BASE;
+        }
+        return variantKey.matches("[A-Z0-9]+-I\\d+") ? ReactivityRuns.Kind.INJECTION : ReactivityRuns.Kind.VARIANT;
     }
 
     /** W6-1: the delivery check of a lab condition over the designed run and the run that changed it (plan 8.4). */

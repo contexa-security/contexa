@@ -23,7 +23,8 @@ const QUESTIONS = [
     id: 'Q2',
     question: 'Contexa는 판단할 때 무엇을 보나요? (판단 방식 뒤)',
     path: '/intro/how',
-    keys: ['inside.cell.usual', 'inside.cell.company', 'inside.cell.history', 'how.new.text'],
+    // 3-2 (화면재편): the steps that gather what Contexa looks at, by their names on the nine-step figure.
+    keys: ['p3.how.step.usual.name', 'p3.how.step.company.name', 'p3.how.step.history.name', 'p3.how.loop'],
   },
   {
     id: 'Q3',

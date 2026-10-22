@@ -49,8 +49,10 @@ class PromptInspectorTest {
      */
     @Test
     void theVersionIsTheOneOfTheCurrentChecks() {
-        // 21: the past records' reasons are compared with the sealed search state (N-INS-4).
-        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/21");
+        // 23: a v21 package is read with the v21 dictionary, the records notation and the output contract v4 (V-6);
+        // 24: the target scope line (finding 7); 25: the counted fact of the past records as a same-target citation
+        // (finding 12).
+        assertThat(PromptInspector.INSPECTOR_VERSION).isEqualTo("prompt-inspector/25");
     }
 
     /**

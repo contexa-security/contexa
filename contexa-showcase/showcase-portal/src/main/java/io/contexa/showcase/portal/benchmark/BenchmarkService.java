@@ -1,6 +1,7 @@
 package io.contexa.showcase.portal.benchmark;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.replay.OutcomeSignature;
 import io.contexa.showcase.portal.scenario.ScenarioCatalog;
@@ -24,10 +25,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Counts the benchmark of one engine setting (docs/showcase/데모-재설계.md 5A.2, W5-1 to W5-4) from the stored runs of
@@ -47,6 +51,31 @@ public class BenchmarkService {
 
     /** Price per million tokens: input, cached input, output. */
     public record Price(double input, double cachedInput, double output) {
+    }
+
+    /** The tokens of the model calls of one model: prompt (cached ones included), cached prompt and completion. */
+    public record ModelTokens(long prompt, long cached, long completion) {
+    }
+
+    /**
+     * The cost per decision with each model's calls priced by that model (판정층 E-11: the layers run on different
+     * models); unknown (null) without decisions or when a model with calls has no price, never priced as another.
+     */
+    static Double costPerDecision(Map<String, ModelTokens> byModel, Map<String, Price> prices, long decisions) {
+        if (decisions == 0) {
+            return null;
+        }
+        double total = 0;
+        for (Map.Entry<String, ModelTokens> entry : byModel.entrySet()) {
+            Price price = entry.getKey() == null ? null : prices.get(entry.getKey());
+            if (price == null) {
+                return null;
+            }
+            ModelTokens tokens = entry.getValue();
+            total += (tokens.prompt() - tokens.cached()) * price.input() + tokens.cached() * price.cachedInput()
+                    + tokens.completion() * price.output();
+        }
+        return total / 1_000_000 / decisions;
     }
 
     private record Cached(BenchmarkView view, Instant at) {
@@ -133,9 +162,9 @@ public class BenchmarkService {
         long withoutSetting = count("select count(*) from run r where r.protocol_id is not null and " + COUNTED
                 + " and r.setting_hash is null", new MapSqlParameterSource());
         if (spec == null) {
-            return new BenchmarkView(now, NOTICES, specs, null, new BenchmarkView.Scope(0, 0, 0, 0, 0, List.of()),
+            return new BenchmarkView(now, NOTICES, specs, null, new BenchmarkView.Scope(0, 0, 0, 0, 0, List.of(), 0, 0),
                     List.of(), List.of(), List.of(), 0, List.of(), riskJudged(List.of()), judgmentTiming(List.of()),
-                    null,
+                    judgmentExposure(List.of()), List.of(), null,
                     observations(null), withoutSetting);
         }
         MapSqlParameterSource bySpec = new MapSqlParameterSource("spec", spec.settingHash());
@@ -157,12 +186,17 @@ public class BenchmarkService {
                 (rs, n) -> new BenchmarkView.Protocol(rs.getString(1), rs.getInt(2), rs.getInt(3),
                         (long) rs.getInt(2) * rs.getInt(3), instant(rs.getTimestamp(4)), instant(rs.getTimestamp(5)),
                         rs.getLong(6), rs.getLong(7), rs.getLong(8)));
+        Map<String, Integer> perCase = new HashMap<>();
+        scored.forEach(score -> perCase.merge(score.scenarioKey(), 1, Integer::sum));
         BenchmarkView.Scope scope = new BenchmarkView.Scope(scored.size(), attack, normal,
                 scored.size() - attack - normal,
-                (int) scored.stream().map(RunScore::scenarioKey).distinct().count(), protocols);
+                (int) scored.stream().map(RunScore::scenarioKey).distinct().count(), protocols,
+                perCase.values().stream().mapToInt(Integer::intValue).min().orElse(0),
+                perCase.values().stream().mapToInt(Integer::intValue).max().orElse(0));
         return new BenchmarkView(now, NOTICES, specs, spec, scope, controls(scored), cases(scored),
                 wrongRuns(scored), unresolvedRuns(scored), suites(scored), riskJudged(scored), judgmentTiming(scored),
-                engine(runIds, spec),
+                judgmentExposure(scored), judgmentOthers(scored),
+                engine(runIds, spec, scored),
                 observations(spec.settingHash()), withoutSetting);
     }
 
@@ -177,7 +211,8 @@ public class BenchmarkService {
                                coalesce(string_agg(distinct r.template_id, ','), ''),
                                coalesce(string_agg(distinct t.learned_under, ','), ''),
                                coalesce(string_agg(distinct s.prompt_hash, ','), ''),
-                               count(r.run_id), min(r.started_at), max(r.started_at)
+                               count(r.run_id), min(r.started_at), max(r.started_at),
+                               coalesce(string_agg(distinct s.prompt_bundle, ','), '')
                           from run r join execution_spec s on s.spec_hash = r.spec_hash
                           left join engine_template t on t.template_id = r.template_id
                          where r.protocol_id is not null and r.setting_hash is not null and %s
@@ -186,7 +221,7 @@ public class BenchmarkService {
                 (rs, n) -> new BenchmarkView.Spec(rs.getString(1), rs.getString(2), map(rs.getString(3)),
                         rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), split(rs.getString(8)),
                         split(rs.getString(9)), split(rs.getString(10)), rs.getLong(11),
-                        instant(rs.getTimestamp(12)), instant(rs.getTimestamp(13))));
+                        instant(rs.getTimestamp(12)), instant(rs.getTimestamp(13)), split(rs.getString(14))));
     }
 
     private static List<String> split(String joined) {
@@ -334,9 +369,18 @@ public class BenchmarkService {
                     caseRisks.stream().min(Double::compare).orElse(null),
                     caseRisks.stream().max(Double::compare).orElse(null), caseRisks.size(),
                     resolved.getOrDefault(key, 0L));
+            Map<String, Map<String, String>> runResults = new LinkedHashMap<>();
+            runs.forEach(run -> {
+                Map<String, String> byControl = new LinkedHashMap<>();
+                for (String control : OutcomeSignature.CONTROLS) {
+                    Optional.ofNullable(run.business().get(control))
+                            .ifPresent(result -> byControl.put(control, result.result().name()));
+                }
+                runResults.put(run.runId(), byControl);
+            });
             rows.add(new BenchmarkView.CaseRow(key, runs.get(0).truth().classification(), title, runs.size(),
                     hashes.getOrDefault(key, List.of()), results, actions, verdicts, sources,
-                    runs.stream().map(RunScore::runId).toList(), risk, cells));
+                    runs.stream().map(RunScore::runId).toList(), risk, cells, runResults));
         });
         return rows;
     }
@@ -364,21 +408,52 @@ public class BenchmarkService {
         return suites;
     }
 
-    /** Contexa's attack runs the model judged risky, and how many of them were stopped (section 8 of the plan). */
+    /**
+     * Contexa's attack runs the model judged risky, and how many of them were stopped (section 8 of the plan), with
+     * those runs by their judgment-and-timing kind and the cases of the ones not stopped (V-01).
+     */
     static BenchmarkView.RiskJudged riskJudged(List<RunScore> scored) {
         long runs = 0;
         long stopped = 0;
+        Map<String, Long> kinds = new LinkedHashMap<>();
+        for (JudgmentTiming.Kind kind : JudgmentTiming.Kind.values()) {
+            kinds.put(kind.name(), 0L);
+        }
+        List<String> notStopped = new ArrayList<>();
         for (RunScore score : scored) {
-            if (JudgmentTiming.of(score).isEmpty() || !JudgmentTiming.judgedRisky(score)) {
+            Optional<JudgmentTiming.Kind> kind = JudgmentTiming.of(score);
+            if (kind.isEmpty() || !JudgmentTiming.judgedRisky(score)) {
                 continue;
             }
             runs++;
+            kinds.merge(kind.get().name(), 1L, Long::sum);
             BusinessResult result = score.business().get("D").result();
             if (result == BusinessResult.STOPPED || result == BusinessResult.PARTLY_STOPPED) {
                 stopped++;
+            } else {
+                notStopped.add(score.scenarioKey());
             }
         }
-        return new BenchmarkView.RiskJudged(runs, stopped);
+        return new BenchmarkView.RiskJudged(runs, stopped, kinds, List.copyOf(notStopped));
+    }
+
+    /** V-01: Contexa's attack runs of the kind OTHER in run order, each with its case, result and every step's shape. */
+    static List<BenchmarkView.JudgmentRun> judgmentOthers(List<RunScore> scored) {
+        List<BenchmarkView.JudgmentRun> others = new ArrayList<>();
+        for (RunScore score : scored) {
+            if (JudgmentTiming.of(score).filter(kind -> kind == JudgmentTiming.Kind.OTHER).isEmpty()) {
+                continue;
+            }
+            CaseScore business = score.business().get("D");
+            List<BenchmarkView.JudgmentStep> steps = score.verdicts().stream()
+                    .map(verdict -> new BenchmarkView.JudgmentStep(verdict.score().stepNo(),
+                            verdict.score().finalAction(), verdict.score().applied(), verdict.source().name(),
+                            verdict.score().applicable()))
+                    .toList();
+            others.add(new BenchmarkView.JudgmentRun(score.runId(), score.scenarioKey(), business.result().name(),
+                    business.exposedItems(), steps));
+        }
+        return List.copyOf(others);
     }
 
     /** Contexa's attack runs by how its answer came about, every kind present in its order (work 16). */
@@ -389,6 +464,24 @@ public class BenchmarkService {
         }
         scored.forEach(score -> JudgmentTiming.of(score).ifPresent(kind -> counts.merge(kind.name(), 1L, Long::sum)));
         return counts;
+    }
+
+    /**
+     * BM-S3: the items that left in Contexa's attack runs over every step, by the kinds of the timing above. Not only
+     * before a decision: a run judged to pass lets its items out after it (R-04 of docs/showcase/영상전-검토.md).
+     */
+    static Map<String, Long> judgmentExposure(List<RunScore> scored) {
+        Map<String, Long> items = new LinkedHashMap<>();
+        for (JudgmentTiming.Kind kind : JudgmentTiming.Kind.values()) {
+            items.put(kind.name(), 0L);
+        }
+        for (RunScore score : scored) {
+            JudgmentTiming.of(score).ifPresent(kind -> {
+                CaseScore business = score.business().get("D");
+                items.merge(kind.name(), business == null ? 0L : business.exposedItems(), Long::sum);
+            });
+        }
+        return items;
     }
 
     /** Runs with a ground truth whose result for Contexa is unresolved (the engine made no real decision). */
@@ -445,10 +538,11 @@ public class BenchmarkService {
         return rows;
     }
 
-    private BenchmarkView.Engine engine(List<String> runIds, BenchmarkView.Spec spec) {
+    private BenchmarkView.Engine engine(List<String> runIds, BenchmarkView.Spec spec, List<RunScore> scored) {
         if (runIds.isEmpty()) {
             return new BenchmarkView.Engine(0, Map.of(), 0, null, null, 0, null, priceSource, 0, 0, 0, null, 0, null,
-                    0);
+                    0, new BenchmarkView.ModelAgreement(0, 0, 0, 0, 0), BenchmarkView.AnalysisBin.of(List.of()),
+                    BenchmarkView.Reasoning.NONE);
         }
         MapSqlParameterSource runs = new MapSqlParameterSource("runs", runIds.toArray(new String[0]));
         Map<String, Long> actions = new TreeMap<>();
@@ -490,13 +584,155 @@ public class BenchmarkService {
                     measured[0] = rs.getLong(2);
                     means[1] = rs.getObject(3) == null ? null : rs.getDouble(3);
                 });
-        Price price = prices.get(spec.chatModel());
-        Double cost = price == null || counts[0] == 0 ? null
-                : ((tokens[0] - tokens[2]) * price.input() + tokens[2] * price.cachedInput()
-                + tokens[1] * price.output()) / 1_000_000 / counts[0];
+        // PB-3 (G4): each decision record against the action in its last model call's answer.
+        long[] agreement = new long[4];
+        jdbc.query("""
+                        select count(*),
+                               count(*) filter (where m.action is not null),
+                               count(*) filter (where m.action is not null and m.action = d.final_action
+                                   and not (coalesce(d.unresolved, false) or coalesce(d.technical_fallback, false)
+                                       or coalesce(d.parser_failure, false))),
+                               count(*) filter (where m.action is not null and (coalesce(d.unresolved, false)
+                                   or coalesce(d.technical_fallback, false) or coalesce(d.parser_failure, false)))
+                          from run_decision d
+                          left join lateral (select substring(e.answer from '"action"\\s*:\\s*"([A-Z]+)"') as action
+                                               from run_model_exchange e where e.request_id = d.request_id
+                                              order by e.call_no desc limit 1) m on true
+                         where d.run_id = any(:runs)""", runs, rs -> {
+            agreement[0] = rs.getLong(1);
+            agreement[1] = rs.getLong(2);
+            agreement[2] = rs.getLong(3);
+            agreement[3] = rs.getLong(4);
+        });
+        // 판정층 E-11: each model call priced by the model it called (the layers run on different models).
+        Map<String, ModelTokens> byModel = new HashMap<>();
+        jdbc.query("""
+                        select e.model, coalesce(sum(e.prompt_tokens), 0),
+                               coalesce(sum((e.provider_response::jsonb #>> '{usage,prompt_tokens_details,cached_tokens}')
+                                   ::bigint), 0), coalesce(sum(e.completion_tokens), 0)
+                          from run_model_exchange e where e.run_id = any(:runs) group by e.model""", runs,
+                rs -> {
+                    byModel.put(rs.getString(1), new ModelTokens(rs.getLong(2), rs.getLong(3), rs.getLong(4)));
+                });
+        Double cost = costPerDecision(byModel, prices, counts[0]);
         return new BenchmarkView.Engine(counts[0], actions, counts[1], percentile(times, 0.5), percentile(times, 0.95),
                 times.size(), cost, priceSource, tokens[0], tokens[2], tokens[1], means[0], measured[0], means[1],
-                tokens[3]);
+                tokens[3], new BenchmarkView.ModelAgreement(agreement[0], agreement[1], agreement[2], agreement[3],
+                agreement[0] - agreement[1]), BenchmarkView.AnalysisBin.of(times), reasoning(runs, scored));
+    }
+
+    /** The corrective retry's words around what was wrong, in the prompt of a retried call. */
+    private static final Pattern RETRY = Pattern.compile(
+            "did not follow the output contract or cited what the lines do not state \\((.*?)\\)\\. Answer again",
+            Pattern.DOTALL);
+    private static final Pattern KIND = Pattern.compile("^([A-Z][A-Z_]+): ");
+    private static final Pattern FACT_ID = Pattern.compile("\\b([BSRFPU])\\d+\\b");
+    private static final Pattern ACTION = Pattern.compile("\"action\"\\s*:\\s*\"([A-Z]+)\"");
+
+    /**
+     * BM-S6 of docs/showcase/벤치마크-구현계획.md: from each decision's model calls, the explanation the last answer judged
+     * most likely (by the run's truth), whether and why the response check asked again, and whether the answer moved.
+     */
+    private BenchmarkView.Reasoning reasoning(MapSqlParameterSource runs, List<RunScore> scored) {
+        Map<String, String> truthByRun = new HashMap<>();
+        for (RunScore score : scored) {
+            if (score.truth() != null && score.truth().classification() != null) {
+                truthByRun.put(score.runId(), score.truth().classification());
+            }
+        }
+        Map<String, Map<String, Long>> mostLikely = new TreeMap<>();
+        Map<String, Map<String, Map<String, Long>>> byAction = new TreeMap<>();
+        Map<String, Long> kinds = new TreeMap<>();
+        Map<String, Long> reasons = new HashMap<>();
+        Map<String, Long> flips = new TreeMap<>();
+        long[] retried = new long[1];
+        jdbc.query("""
+                select d.run_id,
+                       (select e.answer from run_model_exchange e where e.request_id = d.request_id
+                         order by e.call_no limit 1),
+                       (select e.answer from run_model_exchange e where e.request_id = d.request_id
+                         order by e.call_no desc limit 1),
+                       (select string_agg(e.user_prompt, chr(10) order by e.call_no) from run_model_exchange e
+                         where e.request_id = d.request_id and e.call_no > 1),
+                       d.final_action
+                  from run_decision d where d.run_id = any(:runs)""", runs, rs -> {
+            String truth = truthByRun.get(rs.getString(1));
+            String first = rs.getString(2);
+            String last = rs.getString(3);
+            String prompts = rs.getString(4);
+            String applied = rs.getString(5);
+            if (last != null && truth != null) {
+                String explanation = mostLikelyOf(last);
+                mostLikely.computeIfAbsent(truth, key -> new TreeMap<>()).merge(explanation, 1L, Long::sum);
+                byAction.computeIfAbsent(truth, key -> new TreeMap<>())
+                        .computeIfAbsent(explanation, key -> new TreeMap<>())
+                        .merge(applied == null ? "NONE" : applied, 1L, Long::sum);
+            }
+            if (prompts == null) {
+                return;
+            }
+            retried[0]++;
+            TreeSet<String> seenKinds = new TreeSet<>();
+            TreeSet<String> seenReasons = new TreeSet<>();
+            Matcher retry = RETRY.matcher(prompts);
+            while (retry.find()) {
+                for (String part : retry.group(1).split("; ")) {
+                    Matcher kind = KIND.matcher(part);
+                    String reason = part;
+                    if (kind.find()) {
+                        seenKinds.add(kind.group(1));
+                        reason = part.substring(kind.end());
+                    }
+                    seenReasons.add(FACT_ID.matcher(reason.strip()).replaceAll("$1#"));
+                }
+            }
+            seenKinds.forEach(kind -> kinds.merge(kind, 1L, Long::sum));
+            seenReasons.forEach(reason -> reasons.merge(reason, 1L, Long::sum));
+            String from = actionOf(first);
+            String to = actionOf(last);
+            if (from != null && to != null && !from.equals(to)) {
+                flips.merge(from + "->" + to, 1L, Long::sum);
+            }
+        });
+        List<BenchmarkView.RetryReason> top = reasons.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+                .limit(5)
+                .map(entry -> new BenchmarkView.RetryReason(entry.getKey(), entry.getValue()))
+                .toList();
+        Map<String, Map<String, Long>> explanations = new TreeMap<>();
+        mostLikely.forEach((truth, counts) -> explanations.put(truth, Map.copyOf(counts)));
+        Map<String, Map<String, Map<String, Long>>> actions = new TreeMap<>();
+        byAction.forEach((truth, byExplanation) -> {
+            Map<String, Map<String, Long>> copied = new TreeMap<>();
+            byExplanation.forEach((explanation, counts) -> copied.put(explanation, Map.copyOf(counts)));
+            actions.put(truth, Map.copyOf(copied));
+        });
+        return new BenchmarkView.Reasoning(Map.copyOf(explanations), retried[0], Map.copyOf(kinds), top,
+                Map.copyOf(flips), Map.copyOf(actions));
+    }
+
+    /** The explanation an answer judged most likely: its id, SEVERAL, or NONE (also for an answer that is no JSON). */
+    private String mostLikelyOf(String answer) {
+        List<String> ids = new ArrayList<>();
+        try {
+            for (JsonNode hypothesis : json.readTree(answer).path("hypotheses")) {
+                if ("MOST_LIKELY".equalsIgnoreCase(hypothesis.path("assessment").asText("").strip())) {
+                    ids.add(hypothesis.path("id").asText("").strip().toUpperCase(Locale.ROOT));
+                }
+            }
+        }
+        catch (IOException exception) {
+            return "NONE";
+        }
+        return ids.isEmpty() ? "NONE" : ids.size() > 1 ? "SEVERAL" : ids.get(0);
+    }
+
+    private static String actionOf(String answer) {
+        if (answer == null) {
+            return null;
+        }
+        Matcher action = ACTION.matcher(answer);
+        return action.find() ? action.group(1) : null;
     }
 
     private BenchmarkView.Observations observations(String settingHash) {

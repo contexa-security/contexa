@@ -17,9 +17,12 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import java.time.ZoneId;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.security.bridge.AgentTokenClaims;
 import io.contexa.contexacommon.security.bridge.AuthenticationMethodReferences;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
+import io.contexa.contexacommon.security.bridge.OAuth2AuthenticationSupport;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import jakarta.servlet.http.HttpServletRequest;
@@ -93,6 +96,12 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
         String authenticationAssurance = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationAssuranceKeys());
         String principalType = SecurityContextStampSupport.extractString(authentication, config.getPrincipalTypeKeys());
         String principalTypeEvidenceState = BridgeSemanticBoundaryPolicy.EXPLICIT_CUSTOMER_SIGNAL;
+        if (principalType == null && isClientsOwnToken(authentication, properties)) {
+            // A1-3: a client's own token (client credentials) stands for no person, so it is not recorded as one. An
+            // agent's own token is left to the delegation channel, which names the agent.
+            principalType = SubjectKind.SERVICE_CLIENT.subjectType();
+            principalTypeEvidenceState = BridgeSemanticBoundaryPolicy.SIGNED_TOKEN_CLAIM;
+        }
         if (principalType == null) {
             Object principal = authentication.getPrincipal();
             principalType = principal != null ? principal.getClass().getSimpleName() : "AuthenticationPrincipal";
@@ -118,6 +127,20 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
                 List.copyOf(new LinkedHashSet<>(authorities)),
                 Map.copyOf(attributes)
         ));
+    }
+
+    /** A validated access token whose subject is the client it was issued to and that names no agent. */
+    private static boolean isClientsOwnToken(Authentication authentication, BridgeProperties properties) {
+        Map<String, Object> claims = OAuth2AuthenticationSupport.tokenClaims(authentication);
+        if (claims.isEmpty()) {
+            return false;
+        }
+        BridgeProperties.Delegation.Token token = properties != null && properties.getDelegation() != null
+                && properties.getDelegation().getToken() != null
+                ? properties.getDelegation().getToken()
+                : new BridgeProperties.Delegation.Token();
+        return AgentTokenClaims.isClientOwnToken(claims, token)
+                && AgentTokenClaims.agent(claims, authentication.getName(), token).isEmpty();
     }
 
     private BridgeProperties.Authentication.SecurityContext resolveConfig(BridgeProperties properties) {

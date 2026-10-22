@@ -1,16 +1,36 @@
+/* The redesigned frame's page (화면재편-기획안 5절, 10절): one column, 960 px wide, blocks 32 px apart. */
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  max-width: 72rem;
+  max-width: var(--frame-wide);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-12);
+  padding: 0 var(--frame-gutter) var(--frame-zone-gap);
 }
 
 .step {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--frame-block-gap);
+}
+
+/* The body zone: the screen's one content, its blocks 32 px apart. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-block-gap);
+  min-width: 0;
+}
+
+/* The source line (R-10): one quiet line for the whole screen. */
+.sourceLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
 }
 
 .lead {
@@ -610,9 +630,13 @@
 }
 
 .barFill[data-outcome='STOPPED'],
-.barFill[data-outcome='HELD'],
-.barFill[data-outcome='CUT'] {
+.barFill[data-outcome='HELD'] {
   background-color: var(--color-safe);
+}
+
+/* A stream cut part-way: some items went out before the block, so it is drawn as partly stopped, not safe. */
+.barFill[data-outcome='CUT'] {
+  background-color: var(--color-auth);
 }
 
 .barFill[data-held],
@@ -1032,12 +1056,22 @@
     grid-column: 1 / -1;
   }
 
+  /* Phones: the name and the answer share the first line (the name keeps at least 6rem), the bar runs under them. */
   .bar {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(6rem, 1fr) auto;
+  }
+
+  .barName {
+    grid-area: 1 / 1;
   }
 
   .barLabel {
-    grid-column: 1;
+    grid-area: 1 / 2;
+    text-align: right;
+  }
+
+  .barTrack {
+    grid-area: 2 / 1 / 3 / 3;
   }
 
   .axis {

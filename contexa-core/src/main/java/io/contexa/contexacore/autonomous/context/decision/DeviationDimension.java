@@ -18,8 +18,8 @@ package io.contexa.contexacore.autonomous.context.decision;
 /**
  * A dimension on which a request is compared with the usual behaviour, in the order the prompt lists them (W2-5).
  * What may explain a difference follows the review's definition (B2): a valid approval or ticket that covers the work
- * explains the dimensions of the work, a registered trip explains the network, nothing explains the device or the
- * login method.
+ * explains the dimensions of the work, the item limit of a satisfied assigned exception explains a size within it
+ * (N-FRIC-2), a registered trip explains the network, nothing explains the device or the login method.
  */
 public enum DeviationDimension {
 
@@ -31,12 +31,14 @@ public enum DeviationDimension {
     TARGET("target", "DEVIATION_TARGET", Explainer.COVERING_RECORD),
     ACTION("action", "DEVIATION_ACTION", Explainer.COVERING_RECORD),
     RESOURCE_CLASS("class", "DEVIATION_RESOURCE_CLASS", Explainer.COVERING_RECORD),
-    SIZE("size", "DEVIATION_SIZE", Explainer.COVERING_RECORD),
+    SIZE("size", "DEVIATION_SIZE", Explainer.COVERING_RECORD_OR_ITEM_LIMIT),
     RATE("rate", "DEVIATION_RATE", Explainer.COVERING_RECORD);
 
     /** What can explain a difference on a dimension. */
     public enum Explainer {
         COVERING_RECORD,
+        /** The covering record, else the item limit of a satisfied assigned exception the request is within. */
+        COVERING_RECORD_OR_ITEM_LIMIT,
         TRAVEL,
         NONE
     }

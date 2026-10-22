@@ -1,0 +1,80 @@
+/* Screen 1-1's comparison (T2): one panel with the table of differences, then one line of company records. */
+.compact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-block-gap);
+  max-width: var(--frame-measure);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.head {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-medium);
+}
+
+.name {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.usual {
+  color: var(--color-text-body);
+}
+
+/* This time's value is the screen's one emphasis: it is what differs. */
+.now {
+  color: var(--color-halt);
+  font-weight: var(--weight-bold);
+}
+
+.table .arrowCell {
+  width: var(--space-6);
+  padding-right: 0;
+  padding-left: 0;
+  color: var(--color-text-muted);
+}
+
+.arrow {
+  display: block;
+}
+
+.company {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.companyIcon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--color-safe);
+}
+
+.company[data-flagged] .companyIcon {
+  color: var(--color-halt);
+}
+
+.companyLabel {
+  font-weight: var(--weight-bold);
+}

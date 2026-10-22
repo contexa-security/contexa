@@ -1,8 +1,11 @@
-/* Eight cells in four columns: the name of what changes, then how it changes; measured values sit in the sentence. */
+/*
+ * Screen 5-3 (T7): four cells in one row, the name of what changes over how it changes; two per row on tablets, one on
+ * phones. The code cell, where it starts, carries the accent.
+ */
 .cells {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: var(--frame-inner-gap);
   margin: 0;
 }
 
@@ -10,34 +13,36 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border-strong);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
 }
 
+.cell[data-cell='code'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
 .name {
   color: var(--color-text);
-  font-size: var(--text-md);
+  font-size: var(--type-body);
   font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
 }
 
 .value {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
   margin: 0;
   color: var(--color-text-body);
-  font-size: var(--text-sm);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
 .inline {
   font-family: var(--font-mono);
-}
-
-.mode {
-  color: var(--color-accent);
+  font-size: inherit;
   font-weight: var(--weight-semibold);
+  white-space: nowrap;
 }
 
 @media (width <= 64rem) {
@@ -49,5 +54,9 @@
 @media (width <= 40rem) {
   .cells {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cell {
+    padding: var(--space-4);
   }
 }

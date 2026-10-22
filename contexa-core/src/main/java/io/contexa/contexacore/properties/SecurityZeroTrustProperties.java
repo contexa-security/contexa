@@ -69,6 +69,9 @@ public class SecurityZeroTrustProperties {
     private ProtectableSettings protectable = new ProtectableSettings();
 
     @NestedConfigurationProperty
+    private AgentSettings agent = new AgentSettings();
+
+    @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
     @NestedConfigurationProperty
@@ -205,6 +208,29 @@ public class SecurityZeroTrustProperties {
     @Data
     public static class ProtectableSettings {
         private long rapidReentryWindowMs = 5000;
+        /**
+         * How an agent's request to an asynchronous {@code @Protectable} method with no decision on record is handled.
+         * By default it is decided in the request, so an agent is not let through without a decision (OWASP ASI02,
+         * ASI05); a person's request keeps proceeding while it is analysed.
+         */
+        private UnrecordedAgentRequest unrecordedAgentRequest = UnrecordedAgentRequest.DECIDE_IN_PLACE;
+    }
+
+    @Data
+    public static class AgentSettings {
+        /**
+         * How often the same agent's requests are written to the agent registry; requests in between only reach the
+         * decision. The first request of an agent is always written.
+         */
+        private Duration registryWriteInterval = Duration.ofMinutes(1);
+    }
+
+    /** How an agent request with no decision on record is handled at an asynchronous {@code @Protectable} method. */
+    public enum UnrecordedAgentRequest {
+        /** Decide it in the request, as a {@code @Protectable(sync = true)} method does, and enforce the decision. */
+        DECIDE_IN_PLACE,
+        /** Let it proceed while it is analysed, as a person's request does. */
+        PROCEED
     }
 
     @Data

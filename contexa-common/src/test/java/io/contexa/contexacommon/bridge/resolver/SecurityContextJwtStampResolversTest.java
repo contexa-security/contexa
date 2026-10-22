@@ -290,6 +290,58 @@ class SecurityContextJwtStampResolversTest {
         assertThat(stamp.mfaCompleted()).isNull();
     }
 
+    /** A1-3: a client's own token (client credentials, sub = client ID) names a service client, not a person. */
+    @Test
+    void aClientsOwnTokenIsAServiceClient() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "report-service")
+                .claim("client_id", "report-service")
+                .claim("scope", "reports.read")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_reports.read"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.principalType()).isEqualTo("SERVICE_CLIENT");
+        assertThat(stamp.attributes()).containsEntry("principalTypeEvidenceState", "SIGNED_TOKEN_CLAIM");
+    }
+
+    /** A1-3: an agent client's own token stays an agent (the delegation channel names it), never a service client. */
+    @Test
+    void anAgentClientsOwnTokenIsNotTakenForAServiceClient() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "agent-app-1")
+                .claim("azp", "agent-app-1")
+                .claim("xms_act_fct", "11")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_Files.Read"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.principalType()).isEqualTo("Jwt");
+        assertThat(stamp.attributes()).containsEntry("principalTypeEvidenceState", "CLASS_NAME_FALLBACK");
+    }
+
+    /** A1-3: a person's token issued to a client keeps today's stamp. */
+    @Test
+    void aPersonsTokenIssuedToAClientIsNotAServiceClient() {
+        Jwt jwt = Jwt.withTokenValue("header.payload.signature")
+                .header("alg", "RS256")
+                .claim("sub", "alice")
+                .claim("client_id", "web-app")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("SCOPE_profile"))));
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(null, requestContext(), new BridgeProperties()).orElseThrow();
+
+        assertThat(stamp.principalType()).isEqualTo("Jwt");
+    }
+
     @Test
     void defaultMfaKeysShouldNotIncludeAuthenticationMethodClaimButAttributeKeysShouldKeepIt() {
         BridgeProperties.Authentication.SecurityContext defaults =

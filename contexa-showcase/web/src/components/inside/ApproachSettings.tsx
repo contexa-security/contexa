@@ -125,7 +125,14 @@ function Values({
     case 'D':
       return (
         <dl className={styles.settings}>
-          <Row name={t('settings.D.model')} value={code(settings.engine.chatModel)} />
+          {settings.engine.layer1Model && settings.engine.layer2Model ? (
+            <>
+              <Row name={t('settings.D.layer1Model')} value={code(settings.engine.layer1Model)} />
+              <Row name={t('settings.D.layer2Model')} value={code(settings.engine.layer2Model)} />
+            </>
+          ) : (
+            <Row name={t('settings.D.model')} value={code(settings.engine.chatModel)} />
+          )}
           <Row
             name={t('settings.D.mode')}
             value={

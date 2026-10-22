@@ -226,6 +226,50 @@ class IdentityOAuth2AutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("An access token names the client it was issued to (RFC 9068), so a client's own token is told from a person's (A1-2)")
+    void accessTokenNamesTheClientItWasIssuedTo() throws Exception {
+        IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());
+        JwtGenerator generator = new JwtGenerator(new NimbusJwtEncoder(configuration.jwkSource()));
+        generator.setJwtCustomizer(configuration.tokenCustomizer());
+        RegisteredClient client = RegisteredClient.withId("report-service")
+                .clientId("report-service")
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .build();
+        AuthorizationServerContext serverContext = new AuthorizationServerContext() {
+            @Override
+            public String getIssuer() {
+                return "https://issuer.test";
+            }
+
+            @Override
+            public AuthorizationServerSettings getAuthorizationServerSettings() {
+                return AuthorizationServerSettings.builder().build();
+            }
+        };
+
+        Jwt token = generator.generate(DefaultOAuth2TokenContext.builder()
+                .registeredClient(client)
+                .authorizationServerContext(serverContext)
+                .principal(new UsernamePasswordAuthenticationToken("report-service", null, List.of()))
+                .authorizedScopes(Set.of("reports.read"))
+                .tokenType(OAuth2TokenType.ACCESS_TOKEN)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .build());
+
+        assertThat(token.getClaims())
+                .containsEntry("client_id", "report-service")
+                .containsEntry("sub", "report-service");
+
+        // An ID token describes the person who signed in; it gets no client_id claim.
+        JwtClaimsSet.Builder idTokenClaims = JwtClaimsSet.builder().subject("alice");
+        configuration.tokenCustomizer().customize(JwtEncodingContext.with(JwsHeader.with(SignatureAlgorithm.RS256), idTokenClaims)
+                .registeredClient(client)
+                .tokenType(new OAuth2TokenType("id_token"))
+                .build());
+        assertThat(idTokenClaims.build().getClaims()).doesNotContainKey("client_id");
+    }
+
+    @Test
     @DisplayName("A token the real token engine issues carries the login facts, and its stored claims read back")
     void issuedTokenClaimsReadBackFromTheStoredAuthorization() throws Exception {
         IdentityOAuth2AutoConfiguration configuration = configuration(new AuthContextProperties());

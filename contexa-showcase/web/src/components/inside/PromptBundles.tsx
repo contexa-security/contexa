@@ -3,7 +3,17 @@ import { useTranslation } from 'react-i18next';
 import type { DecisionAnatomyView, ExchangeCall } from '../../api/anatomy';
 import { count } from '../../journey/format';
 import styles from '../../pages/try/PromptPage.module.css';
-import { plainLinesOf, sectionsOf, shownBundles, trimEnd, type Block, type Bundle } from './promptSections';
+import {
+  blockNameKey,
+  blockWhatKey,
+  isV21Prompt,
+  plainLinesOf,
+  sectionsOf,
+  shownBundles,
+  trimEnd,
+  type Block,
+  type Bundle,
+} from './promptSections';
 
 interface PromptBundlesProps {
   readonly lines: NonNullable<DecisionAnatomyView['promptLines']>;
@@ -21,9 +31,9 @@ export function PromptBundles({ lines, call }: PromptBundlesProps) {
   const v20 = lines.layout === 'V20_BLOCKS';
   const bundles = shownBundles(lines);
   const [picked, setPicked] = useState<Bundle | Block>(v20 ? 'DECISION_FACTS' : 'COMPANY');
-  const name = (bundle: Bundle | Block): string => t(v20 ? `prompt.block.${bundle}` : `prompt.bundle.${bundle}`);
-  const what = (bundle: Bundle | Block): string =>
-    t(v20 ? `prompt.blockWhat.${bundle}` : `prompt.bundleWhat.${bundle}`);
+  const v21 = isV21Prompt(lines.sections);
+  const name = (bundle: Bundle | Block): string => t(v20 ? blockNameKey(bundle, v21) : `prompt.bundle.${bundle}`);
+  const what = (bundle: Bundle | Block): string => t(v20 ? blockWhatKey(bundle, v21) : `prompt.bundleWhat.${bundle}`);
   const sections = sectionsOf(call.userPrompt);
   const bundleLines = (bundle: Bundle | Block): readonly string[] =>
     bundle === 'RULES'

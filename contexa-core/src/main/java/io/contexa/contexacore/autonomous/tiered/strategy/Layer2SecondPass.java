@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySuppor
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +38,7 @@ import java.util.Set;
 final class Layer2SecondPass {
 
     static final String V20_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20;
+    static final String V21_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21;
 
     /** Past record states of a search the first pass did not finish or did not run. */
     private static final Set<String> NOT_RETRIEVED = Set.copyOf(PastRecordLineValues.NOT_RETRIEVED_STATES);
@@ -51,7 +53,7 @@ final class Layer2SecondPass {
      */
     record FirstPass(String verdict, boolean modelVerdict, String reason, String userPrompt, String layout,
                      String pastRecordsState, Double riskScore, Double confidence, Map<String, String> fieldProvenance,
-                     List<SecurityDecisionOutputContract.Citation> reasonCodes) {
+                     List<SecurityDecisionOutputContract.Citation> reasonCodes, List<Map<String, Object>> hypotheses) {
 
         static FirstPass of(SecurityEvent event) {
             Map<String, Object> metadata = event != null && event.getMetadata() != null ? event.getMetadata() : Map.of();
@@ -76,12 +78,13 @@ final class Layer2SecondPass {
                     ? prompt : null;
             return new FirstPass(verdict, modelVerdict, reason, userPrompt, text(metadata.get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION)),
                     text(metadata.get("ragRetrievalState")), riskScore, confidence, fieldProvenance,
-                    citations(metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES)));
+                    citations(metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES)),
+                    explanations(metadata.get(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES)));
         }
 
-        /** A model verdict on a v20 prompt the second pass can add to. */
+        /** A model verdict on a dictionary prompt (v20, v21) the second pass can add to. */
         boolean givesASecondPass() {
-            return modelVerdict && V20_LAYOUT.equals(layout) && userPrompt != null;
+            return modelVerdict && (V20_LAYOUT.equals(layout) || V21_LAYOUT.equals(layout)) && userPrompt != null;
         }
 
         /** The past records this pass found when the first pass could not retrieve any. */
@@ -96,6 +99,22 @@ final class Layer2SecondPass {
 
     private static String text(Object value) {
         return value != null && StringUtils.hasText(String.valueOf(value)) ? String.valueOf(value).trim() : null;
+    }
+
+    /** V-3: the explanations the first pass's v21 model weighed, each as its fields; empty without any. */
+    private static List<Map<String, Object>> explanations(Object value) {
+        if (!(value instanceof List<?> given)) {
+            return List.of();
+        }
+        List<Map<String, Object>> hypotheses = new ArrayList<>();
+        for (Object item : given) {
+            if (item instanceof Map<?, ?> fields) {
+                Map<String, Object> hypothesis = new LinkedHashMap<>();
+                fields.forEach((key, field) -> hypothesis.put(String.valueOf(key), field));
+                hypotheses.add(hypothesis);
+            }
+        }
+        return List.copyOf(hypotheses);
     }
 
     /** N-RSN-1: a score of the first pass's assessment; null when it holds none. */

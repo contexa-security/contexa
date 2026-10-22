@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.prompt.PromptGovernanceSupport;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 
@@ -28,8 +29,9 @@ import java.util.Map;
  * Whether the sealed package can be trusted as the record of what the model got: the package hash still covers every
  * sealed field, the system and user prompts were captured and match their hashes (the prompt hash is the one the
  * render's metadata computes over {@code system \n---\n user}), the prompt the model got is the rendered one or the
- * difference is recorded (compression or layout-only normalization), and the request and correlation ids are there to
- * trace it. Runs on every layout.
+ * difference is recorded (compression or layout-only normalization), the request and correlation ids are there to
+ * trace it, and the decision's output retries agree with its model call stages and its single retry fields (N-OUT-3).
+ * Runs on every layout.
  */
 public final class SealIntegrityCheck implements PromptInspectionCheck {
 
@@ -37,6 +39,14 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
 
     private static final String PACKAGE = "sealedPackage.";
     private static final String STAGES = PACKAGE + "decisionJson.modelCallStages";
+    /** N-OUT-3: where the sealed decision keeps its output retries and the single retry fields. */
+    private static final String MODEL_OUTPUT = PACKAGE + "decisionJson.modelOutput.";
+    private static final String RETRIES = PromptRuntimeTelemetrySupport.OUTPUT_RETRIES;
+    /** N-OUT-3: the single retry fields, of the model output and of every model call stage. */
+    private static final String RETRY_ATTEMPTED = "securityDecisionOutputRetryAttempted";
+    private static final String RETRY_REASON = "securityDecisionOutputRetryReason";
+    private static final String RETRY_SUCCEEDED = "securityDecisionOutputRetrySucceeded";
+    private static final String RETRY_FAILURE = "securityDecisionOutputRetryFailureReason";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final SealedEvidencePackageIntegrity integrity;
@@ -78,6 +88,7 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
         parity(tally, sealed, metadata);
         trace(tally, sealed.getCorrelationId());
         lastModelCall(tally, sealed.getDecisionJson(), user);
+        outputRetries(tally, sealed.getDecisionJson());
     }
 
     /**
@@ -107,6 +118,101 @@ public final class SealIntegrityCheck implements PromptInspectionCheck {
         }
         record(tally, declared.equals(recomputed), "modelCallStages", declared, recomputed, STAGES,
                 "the sealed prompt is not the one the last model call sent");
+    }
+
+    /**
+     * N-OUT-3: the decision's output retries agree with its model call stages and its single retry fields. The step
+     * asks a run's answer again once (W4-5), so a stage that retried owns the next retry of the list, which names the
+     * stage's layer and the reason, outcome and broken rule the stage recorded; a stage that did not retry owns none,
+     * and a retry no stage owns is pointed at. The retry of the last model call is the one the single retry fields
+     * name. A package sealed before the retries were kept, or of a decision without a retry, holds no list and is not
+     * compared; a list without model call stages cannot be; a decision JSON that does not read is the package hash's
+     * to point at.
+     */
+    private static void outputRetries(PromptInspectionTally tally, String decisionJson) {
+        JsonNode decision;
+        try {
+            decision = decisionJson == null || decisionJson.isBlank() ? null : JSON.readTree(decisionJson);
+        }
+        catch (JsonProcessingException exception) {
+            return;
+        }
+        JsonNode modelOutput = decision == null ? null : decision.path("modelOutput");
+        JsonNode retries = modelOutput == null ? null : modelOutput.path(RETRIES);
+        if (retries == null || retries.isMissingNode() || retries.isNull()
+                || (retries.isArray() && retries.isEmpty())) {
+            return;
+        }
+        JsonNode stages = decision.path("modelCallStages");
+        if (!retries.isArray() || !stages.isArray() || stages.isEmpty()) {
+            tally.unverifiable(tally.unverifiableFinding().entry(RETRIES).sourceRef(MODEL_OUTPUT + RETRIES)
+                    .reason(retries.isArray() ? "the decision recorded no model call stages to compare its retries with"
+                            : "the retries do not read as a list").build());
+            return;
+        }
+        int next = 0;
+        Retry owned = null;
+        for (JsonNode stage : stages) {
+            owned = null;
+            if (!stage.path(RETRY_ATTEMPTED).asBoolean(false)) {
+                continue;
+            }
+            Retry recorded = Retry.of(stage.path("layer"), stage.path(RETRY_REASON), stage.path(RETRY_SUCCEEDED),
+                    stage.path(RETRY_FAILURE));
+            if (next >= retries.size()) {
+                record(tally, false, RETRIES, recorded.text(), "missing", STAGES,
+                        "the retries do not name the retry a model call stage recorded");
+                continue;
+            }
+            owned = Retry.listed(retries.get(next++));
+            record(tally, recorded.equals(owned), RETRIES, recorded.text(), owned.text(), STAGES,
+                    "the retries do not name the retry a model call stage recorded");
+        }
+        for (int index = next; index < retries.size(); index++) {
+            record(tally, false, RETRIES, "no retry", Retry.listed(retries.get(index)).text(), STAGES,
+                    "the retries name a retry no model call stage recorded");
+        }
+        lastRetry(tally, modelOutput, owned);
+    }
+
+    /**
+     * N-OUT-3: the single retry fields name the retry of the last model call (the one its stage owns). Fields that name
+     * none are not compared: a later layer that did not call the model clears them while the retries keep the first
+     * layer's.
+     */
+    private static void lastRetry(PromptInspectionTally tally, JsonNode modelOutput, Retry lastCall) {
+        String reason = field(modelOutput.path(RETRY_REASON));
+        String succeeded = field(modelOutput.path(RETRY_SUCCEEDED));
+        if (reason == null && succeeded == null) {
+            return;
+        }
+        Retry named = new Retry(null, reason, succeeded, null);
+        Retry last = lastCall == null ? null : new Retry(null, lastCall.reason(), lastCall.succeeded(), null);
+        record(tally, named.equals(last), RETRIES, named.text(), last == null ? "no retry" : last.text(),
+                MODEL_OUTPUT + RETRY_REASON, "the single retry fields do not name the retry of the last model call");
+    }
+
+    /** N-OUT-3: one output retry as a stage, the retries or the single fields name it; a value not named is null. */
+    private record Retry(String layer, String reason, String succeeded, String failureReason) {
+
+        static Retry of(JsonNode layer, JsonNode reason, JsonNode succeeded, JsonNode failureReason) {
+            return new Retry(field(layer), field(reason), field(succeeded), field(failureReason));
+        }
+
+        /** A retry of the list: {@code {layer, reason, succeeded, failureReason}}. */
+        static Retry listed(JsonNode retry) {
+            return of(retry.path("layer"), retry.path("reason"), retry.path("succeeded"), retry.path("failureReason"));
+        }
+
+        String text() {
+            String named = (layer != null ? layer + ": " : "") + (reason != null ? reason : "none") + ", succeeded "
+                    + (succeeded != null ? succeeded : "none");
+            return failureReason != null ? named + ", failure " + failureReason : named;
+        }
+    }
+
+    private static String field(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
     }
 
     private void packageHash(PromptInspectionTally tally, SealedEvidencePackage sealed) {

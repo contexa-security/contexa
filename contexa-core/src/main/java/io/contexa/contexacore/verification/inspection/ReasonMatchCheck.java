@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.prompt.PromptBlock;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionFactChecks;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionV21FactChecks;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 
 import java.util.ArrayList;
@@ -37,6 +38,22 @@ public final class ReasonMatchCheck implements PromptInspectionCheck {
     public static final String CODE = "REASON_MATCH";
     private static final String SOURCE = "decision.reasonCodes";
     private static final ObjectMapper JSON = new ObjectMapper();
+
+    private final boolean v21;
+
+    public ReasonMatchCheck() {
+        this(false);
+    }
+
+    private ReasonMatchCheck(boolean v21) {
+        this.v21 = v21;
+    }
+
+    /** The reason codes of a v21 decision, checked against the output contract v4. */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new ReasonMatchCheck(true);
+    }
 
     @Override
     public String code() {
@@ -65,8 +82,11 @@ public final class ReasonMatchCheck implements PromptInspectionCheck {
         }
         SecurityDecisionFactChecks.DrawnPrompt drawn =
                 SecurityDecisionFactChecks.DrawnPrompt.of(subject.evidencePackage().getUserPromptText());
-        for (SecurityDecisionFactChecks.ReasonFinding finding : SecurityDecisionFactChecks.reasonFindings(
-                subject.canonicalContext(), null, drawn, citations)) {
+        // V-6: a v21 decision's codes are those of the output contract v4, checked as its response check checks them.
+        List<SecurityDecisionFactChecks.ReasonFinding> findings = v21
+                ? SecurityDecisionV21FactChecks.reasonFindings(subject.canonicalContext(), drawn, citations)
+                : SecurityDecisionFactChecks.reasonFindings(subject.canonicalContext(), null, drawn, citations);
+        for (SecurityDecisionFactChecks.ReasonFinding finding : findings) {
             InspectedPrompt.Line line = lineOf(subject.prompt(), finding.fact(), drawn);
             String block = line != null && line.block() != null ? line.block().title() : null;
             Integer number = line != null ? line.number() : null;

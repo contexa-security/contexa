@@ -1,7 +1,7 @@
 {
   "key": "S11",
-  "version": 2,
-  "frozenOn": "2026-10-08",
+  "version": 3,
+  "frozenOn": "2026-10-19",
   "title": {
     "ko": "승인 범위를 나눠 넘기는 반복 반출",
     "en": "Repeated exports that add up beyond an approval"
@@ -20,7 +20,8 @@
       "maxItems": 500,
       "validFromOffset": "-P1D",
       "validUntilOffset": "P1D",
-      "status": "APPROVED"
+      "status": "APPROVED",
+      "recordedAtOffset": "-P1D"
     }
   ],
   "steps": [

@@ -202,15 +202,33 @@ public record ScenarioDefinition(
      * @param counterpoint   the expected objection to the ground truth and why the case decides as it does, ko and en
      *                       (review R-16); never sent to the engine
      */
+    /**
+     * @param actor who acts in the case when it is not who the classification says: {@link #OWNER_ACTS} for a threat the
+     *              account's owner carries out (an insider, IN-6), who holds the mailbox an additional check sends its
+     *              code to; null otherwise (a threat is someone else holding the account, normal work is the owner's)
+     */
     public record Oracle(String classification, List<String> allowedEngineActions, Map<String, String> rationale,
-                         @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> counterpoint) {
+                         @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> counterpoint,
+                         @JsonInclude(JsonInclude.Include.NON_NULL) String actor) {
+
+        public static final String OWNER_ACTS = "OWNER";
 
         public Oracle(String classification, List<String> allowedEngineActions) {
-            this(classification, allowedEngineActions, null, null);
+            this(classification, allowedEngineActions, null, null, null);
         }
 
         public Oracle(String classification, List<String> allowedEngineActions, Map<String, String> rationale) {
-            this(classification, allowedEngineActions, rationale, null);
+            this(classification, allowedEngineActions, rationale, null, null);
+        }
+
+        public Oracle(String classification, List<String> allowedEngineActions, Map<String, String> rationale,
+                      Map<String, String> counterpoint) {
+            this(classification, allowedEngineActions, rationale, counterpoint, null);
+        }
+
+        /** Whether the account's owner carries the case out, as an insider does. */
+        public boolean ownerActs() {
+            return OWNER_ACTS.equals(actor);
         }
     }
 }

@@ -29,6 +29,7 @@ import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacommon.security.subject.SubjectClassifier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -227,13 +228,10 @@ public class BridgeRuntimeSupport {
         String bridgeSubjectKey = userSyncResult != null ? text(userSyncResult.bridgeSubjectKey()) : null;
         Long internalUserId = userSyncResult != null ? userSyncResult.internalUserId() : null;
         String externalSubjectId = authenticationStamp.principalId();
-        String canonicalSubjectType = resolveCanonicalSubjectType(authenticationStamp, result.delegationStamp(), userSyncResult);
-        String canonicalExecutionMode = result.delegationStamp() != null && result.delegationStamp().delegated()
-                ? "DELEGATED_AGENT"
-                : "DIRECT_USER";
-        String canonicalLineageState = result.delegationStamp() != null && result.delegationStamp().delegated()
-                ? "DECLARED"
-                : "DIRECT";
+        SubjectClassifier.Result subjectKind = classifySubject(authenticationStamp, result.delegationStamp());
+        String canonicalSubjectType = subjectKind.subjectType();
+        String canonicalExecutionMode = subjectKind.executionMode();
+        String canonicalLineageState = subjectKind.lineageState();
         String canonicalExecutionId = result.delegationStamp() != null
                 ? firstBridgeAttribute(result.delegationStamp(), "executionId", "execution_id", "requestId", "request_id")
                 : null;
@@ -316,22 +314,23 @@ public class BridgeRuntimeSupport {
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
         return authenticationToken;
     }
-    @Nullable
-    private String resolveCanonicalSubjectType(AuthenticationStamp authenticationStamp, @Nullable DelegationStamp delegationStamp, @Nullable BridgeUserMirrorSyncResult userSyncResult) {
-        if (delegationStamp != null && delegationStamp.delegated()) {
-            return "AGENT_RUNTIME";
-        }
-        String principalType = text(authenticationStamp != null ? authenticationStamp.principalType() : null);
-        if (principalType != null) {
-            String normalized = principalType.toUpperCase();
-            if (normalized.contains("SERVICE") || normalized.contains("CLIENT") || normalized.contains("WORKLOAD")) {
-                return "SERVICE_CLIENT";
-            }
-        }
-        if (userSyncResult != null && Boolean.TRUE.equals(userSyncResult.externalAuthOnly())) {
-            return "HUMAN_USER";
-        }
-        return "HUMAN_USER";
+    /**
+     * A1-3: the same decision the event publisher and the canonical context make. A principal type the bridge only
+     * took from a class name states no subject, as the publisher treats it.
+     */
+    private SubjectClassifier.Result classifySubject(AuthenticationStamp authenticationStamp,
+                                                     @Nullable DelegationStamp delegationStamp) {
+        String principalType = authenticationStamp != null
+                && !BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK.equals(
+                        authenticationStamp.attributes().get("principalTypeEvidenceState"))
+                ? text(authenticationStamp.principalType())
+                : null;
+        return SubjectClassifier.classify(SubjectClassifier.Facts.builder()
+                .delegated(delegationStamp != null ? delegationStamp.delegated() : null)
+                .agentId(delegationStamp != null ? text(delegationStamp.agentId()) : null)
+                .delegationId(firstBridgeAttribute(delegationStamp, "delegationId", "delegation_id"))
+                .principalType(principalType)
+                .build());
     }
 
     @Nullable

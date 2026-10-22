@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { InspectionCheck, PromptFact, RunFacts, RunQuality } from '../../api/promptQuality';
 import en from '../../i18n/en.json';
 import ko from '../../i18n/ko.json';
-import { GLOSSARY } from '../common/glossaryTerms';
+import { GLOSSARY, glossaryKey, type GlossaryTerm } from '../common/glossaryTerms';
 import { factKey, factNoteKey, failuresFirst, ribbonHolds, ribbonLines, sourcesOf } from './factWords';
 
 const DICTIONARIES: readonly (readonly [string, Readonly<Record<string, string>>])[] = [
@@ -28,14 +28,24 @@ function line(label: string, value: string, source: PromptFact['source'] = 'COMP
  */
 describe('prompt trust words', () => {
   it('holds the eight new glossary terms with their plain words (U-8)', () => {
-    const terms = ['factSource', 'fact', 'reasonCode', 'seal', 'delivery', 'reaction', 'invariance', 'injection'];
-    expect(GLOSSARY).toEqual(expect.arrayContaining(terms));
-    expectWords(terms.flatMap((term) => [`glossary.${term}.term`, `glossary.${term}.plain`]));
-    expect(terms.map((term) => (ko as Readonly<Record<string, string>>)[`glossary.${term}.term`])).toEqual([
+    const terms: readonly GlossaryTerm[] = [
+      'factSource',
+      'fact',
+      'reasonCode',
+      'seal',
+      'delivery',
+      'reaction',
+      'invariance',
+      'injection',
+    ];
+    expect(GLOSSARY).toEqual(expect.arrayContaining([...terms]));
+    expectWords(terms.flatMap((term) => [glossaryKey(term, 'term'), glossaryKey(term, 'plain')]));
+    // The glossary's words follow the final design's term table (설계서 43~45장: 봉인 is named with its SHA-256).
+    expect(terms.map((term) => (ko as Readonly<Record<string, string>>)[glossaryKey(term, 'term')])).toEqual([
       '출처',
       '사실',
-      '근거 코드',
-      '봉인',
+      '이유 코드',
+      '봉인(SHA-256)',
       '전달',
       '반응',
       '불변',

@@ -2,6 +2,7 @@ package io.contexa.showcase.workload.contexa.probe;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
@@ -13,12 +14,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Probe-only protected endpoints and the engine event recorder. The business API arrives in P1; the probes need
@@ -60,22 +66,84 @@ class ProbeEndpoints {
             return Map.of("document", documents.read(id));
         }
 
-        /** Asynchronous export stream: one row every 100 ms. */
+        /** Asynchronous export stream: one row every {@code everyMs} (100 ms unless given). */
         @GetMapping(value = "/probe/stream", produces = MediaType.APPLICATION_NDJSON_VALUE)
-        ResponseEntity<StreamingResponseBody> stream(@RequestParam(name = "rows", defaultValue = "50") int rows) {
+        ResponseEntity<StreamingResponseBody> stream(@RequestParam(name = "rows", defaultValue = "50") int rows,
+                                                     @RequestParam(name = "everyMs", defaultValue = "100") long everyMs) {
             StreamingResponseBody body = out -> {
                 for (int row = 1; row <= rows; row++) {
-                    out.write(("{\"row\":" + row + "}\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(row(row));
                     out.flush();
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                    if (!pause(everyMs)) {
                         return;
                     }
                 }
             };
             return ResponseEntity.ok().contentType(MediaType.APPLICATION_NDJSON).body(body);
+        }
+
+        /** Synchronous export stream written on the request thread: one row every {@code everyMs}. */
+        @GetMapping(value = "/probe/stream-sync", produces = MediaType.APPLICATION_NDJSON_VALUE)
+        void streamSync(@RequestParam(name = "rows", defaultValue = "50") int rows,
+                        @RequestParam(name = "everyMs", defaultValue = "100") long everyMs,
+                        HttpServletResponse response) throws IOException {
+            response.setContentType(MediaType.APPLICATION_NDJSON_VALUE);
+            OutputStream out = response.getOutputStream();
+            for (int row = 1; row <= rows; row++) {
+                out.write(row(row));
+                out.flush();
+                if (!pause(everyMs)) {
+                    return;
+                }
+            }
+        }
+
+        /** Two rows into the buffer without a flush, held until the probe releases it, then a third row. */
+        @GetMapping(value = "/probe/stream-held", produces = MediaType.APPLICATION_NDJSON_VALUE)
+        ResponseEntity<StreamingResponseBody> streamHeld(@RequestParam("id") String id) {
+            Hold hold = hold(id);
+            StreamingResponseBody body = out -> {
+                out.write(row(1));
+                out.write(row(2));
+                hold.holding.countDown();
+                try {
+                    if (!hold.release.await(20, TimeUnit.SECONDS)) {
+                        return;
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                out.write(row(3));
+                out.flush();
+            };
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_NDJSON).body(body);
+        }
+
+        private static final Map<String, Hold> HOLDS = new ConcurrentHashMap<>();
+
+        static Hold hold(String id) {
+            return HOLDS.computeIfAbsent(id, key -> new Hold());
+        }
+
+        static final class Hold {
+
+            final CountDownLatch holding = new CountDownLatch(1);
+            final CountDownLatch release = new CountDownLatch(1);
+        }
+
+        private static byte[] row(int row) {
+            return ("{\"row\":" + row + "}\n").getBytes(StandardCharsets.UTF_8);
+        }
+
+        private static boolean pause(long millis) {
+            try {
+                Thread.sleep(millis);
+                return true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
         }
     }
 

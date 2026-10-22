@@ -227,6 +227,31 @@ class ReplayUnitTest {
     }
 
     /**
+     * SC-3 and SC-6 of docs/showcase/프롬프트-v21-구현계획.md: the reason codes of a v21 decision belong to the output
+     * contract v4 (the record names CORTEX_PROMPT_CONTRACT_V4, as the real v21.3 decision of A3T, run-9061d9f71432,
+     * does), and its reason, which the model wrote itself, is no fixed sentence of the contract v3.
+     */
+    @Test
+    void theReasonCodesOfAV21DecisionBelongToTheOutputContractV4() throws Exception {
+        ReplayViews views = new ReplayViews(null, null, json, null);
+        String v21 = json.writeValueAsString(Map.of("contractVersion", "CORTEX_PROMPT_CONTRACT_V4",
+                "finalDecisionReasonCodes", List.of(Map.of("code", "RECORD_COVERS_WORK", "fact", "F4"),
+                        Map.of("code", "DEVIATION_SIZE", "fact", "F1"))));
+        String reason = "Legitimate approved transfer is most likely: the prior approval covers GB-500, "
+                + "PROJECT_TRANSFER, this period and 4,831 items, despite an unusually large, critical export at an "
+                + "unfamiliar hour and target.";
+
+        ReplayView.EngineReason coded = views.engineReason(Optional.of(decisionWith(reason, v21)));
+
+        assertThat(coded.canonical()).isNull();
+        assertThat(coded.reasonCodes()).containsExactly(new ReplayView.ReasonCode("RECORD_COVERS_WORK", "F4", "V4"),
+                new ReplayView.ReasonCode("DEVIATION_SIZE", "F1", "V4"));
+        assertThat(ReplayViews.contractOf(null, "v21-dictionary-blocks")).isEqualTo("V4");
+        assertThat(ReplayViews.contractOf(null, "v20-dictionary-blocks")).isNull();
+        assertThat(ReplayViews.canonicalCode(reason)).as("SC-3: the model's own sentence").isNull();
+    }
+
+    /**
      * N-DEP-1 (W7-12 C-2): the reason of a live or replayed v20 decision counts the differences the engine sealed, as
      * its stored anatomy does (the try's "{n} differences from usual"); a v19 record keeps its label's count.
      */

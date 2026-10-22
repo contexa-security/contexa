@@ -463,11 +463,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         actionRedisRepository.setBlockedFlag(userId);
 
         requireCurrentProcessingOwner(event);
+        // Signalled before the block is recorded, so responses in flight are cut first; a failed publication is
+        // rethrown once the block is recorded, so the record never depends on the signal.
+        RuntimeException publicationFailure = null;
         if (blockingDecisionRegistry != null) {
-            blockingDecisionRegistry.registerBlockAndAwait(userId);
+            try {
+                blockingDecisionRegistry.registerBlockAndAwait(userId);
+            } catch (RuntimeException e) {
+                publicationFailure = e;
+            }
         }
 
-        requireCurrentProcessingOwner(event);
+        try {
+            requireCurrentProcessingOwner(event);
+        } catch (IllegalStateException e) {
+            if (publicationFailure != null) {
+                e.addSuppressed(publicationFailure);
+            }
+            throw e;
+        }
         if (blockedUserRecorder != null) {
             try {
                 blockedUserRecorder.recordBlock(
@@ -480,6 +494,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             } catch (Exception ex) {
                 log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB: userId={}", userId, ex);
             }
+        }
+        if (publicationFailure != null) {
+            throw publicationFailure;
         }
     }
 

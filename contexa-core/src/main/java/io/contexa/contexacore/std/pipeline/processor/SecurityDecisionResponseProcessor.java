@@ -18,6 +18,7 @@ package io.contexa.contexacore.std.pipeline.processor;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponseLite;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import java.util.ArrayList;
@@ -85,9 +86,13 @@ public class SecurityDecisionResponseProcessor implements DomainResponseProcesso
         List<SecurityDecisionOutputContract.Citation> reasonCodes =
                 lite.getReasonCodes() == null ? List.of() : List.copyOf(lite.getReasonCodes());
         normalized.setReasonCodes(reasonCodes);
-        // W4-2: a v3 response keeps its reason within the contract's limit, which the provider schema cannot carry.
+        // W4-2: a v3 response keeps its reason within the contract's limit, which the provider schema cannot carry; a v4
+        // response (v21) within the v4 limit, which holds its sentence of 40 words.
+        boolean v4 = context != null && SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4.equals(
+                context.getMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT, String.class));
         int reasoningLimit = reasonCodes.isEmpty()
                 ? MAX_REASONING_CHARS
+                : v4 ? SecurityDecisionOutputContractV4.MAX_REASON_CHARACTERS
                 : SecurityDecisionOutputContract.MAX_REASON_CHARACTERS;
         String normalizedReasoning = normalizeReasoning(lite.getReasoning(), repairedFields, reasoningLimit);
         normalized.setReasoning(normalizedReasoning);

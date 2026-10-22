@@ -106,7 +106,9 @@ public class RunScores {
     }
 
     static final List<String> CONTROLS = List.of("A", "B", "C1", "C2", "D");
-    private static final List<String> PRIOR_DECISION_RULES = List.of("ACCOUNT_BLOCKED", "MFA_CHALLENGE_REQUIRED");
+    /** The refusals an earlier decision makes: a block, a challenge, and the review hold of an escalation. */
+    private static final List<String> PRIOR_DECISION_RULES = List.of("ACCOUNT_BLOCKED", "MFA_CHALLENGE_REQUIRED",
+            "SECURITY_REVIEW_IN_PROGRESS");
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ScenarioCatalog scenarios;

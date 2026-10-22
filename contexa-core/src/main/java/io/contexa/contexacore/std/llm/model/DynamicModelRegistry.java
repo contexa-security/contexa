@@ -16,6 +16,7 @@
 package io.contexa.contexacore.std.llm.model;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.std.llm.client.ChatModelProviders;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeBinding;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Runtime model registry backed by Spring AI runtime bindings.
@@ -44,6 +46,7 @@ public class DynamicModelRegistry {
     private final Map<String, ModelDescriptor> modelDescriptors = new ConcurrentHashMap<>();
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
     private final Map<String, String> aliases = new ConcurrentHashMap<>();
+    private volatile Supplier<ChatModel> variantBase;
 
     public DynamicModelRegistry(ApplicationContext applicationContext, TieredLLMProperties tieredLLMProperties) {
         this(applicationContext, tieredLLMProperties, null);
@@ -55,6 +58,14 @@ public class DynamicModelRegistry {
             LlmRuntimeCatalog runtimeCatalog) {
         this.tieredLLMProperties = tieredLLMProperties;
         this.runtimeCatalog = runtimeCatalog;
+    }
+
+    /**
+     * The chat model a model id with no runtime binding is made from (the primary chat model): a layer model named in
+     * application.yml then runs on the same provider with that model id (docs/showcase/판정층-수정계획.md E-7).
+     */
+    public void setVariantBase(Supplier<ChatModel> base) {
+        this.variantBase = base;
     }
 
     @PostConstruct
@@ -217,18 +228,21 @@ public class DynamicModelRegistry {
         if (modelId == null) {
             throw new ModelSelectionException("Model ID is null");
         }
-        if (runtimeCatalog == null) {
-            throw new ModelSelectionException("No LLM runtime catalog configured", modelId);
-        }
-
         String canonicalId = resolveCanonicalModelId(modelId);
         ChatModel cached = modelInstances.get(canonicalId);
         if (cached != null) {
             return cached;
         }
 
-        LlmRuntimeBinding binding = findBinding(modelId, canonicalId);
+        LlmRuntimeBinding binding = runtimeCatalog != null ? findBinding(modelId, canonicalId) : null;
         if (binding == null) {
+            ChatModel variant = modelInstances.computeIfAbsent(canonicalId, this::variantOf);
+            if (variant != null) {
+                return variant;
+            }
+            if (runtimeCatalog == null) {
+                throw new ModelSelectionException("No LLM runtime catalog configured", modelId);
+            }
             throw new ModelSelectionException("Model runtime binding not found: " + modelId, modelId);
         }
 
@@ -237,6 +251,30 @@ public class DynamicModelRegistry {
         modelInstances.put(binding.canonicalId(), model);
         modelInstances.put(canonicalId, model);
         return model;
+    }
+
+    /** The primary chat model copied with the model id; null when there is no base or it cannot be copied. */
+    private ChatModel variantOf(String canonicalId) {
+        Supplier<ChatModel> base = variantBase;
+        ChatModel primary;
+        try {
+            primary = base != null ? base.get() : null;
+        } catch (RuntimeException e) {
+            log.error("[DynamicModelRegistry] The primary chat model to copy for {} is not available", canonicalId, e);
+            return null;
+        }
+        ChatModel variant = ChatModelVariants.withModel(primary, canonicalId).orElse(null);
+        if (variant != null) {
+            String provider = ChatModelProviders.providerOf(variant);
+            ModelDescriptor descriptor = modelDescriptors.get(canonicalId);
+            if (descriptor == null) {
+                registerModel(ModelDescriptor.builder().modelId(canonicalId).displayName(canonicalId)
+                        .provider(provider).status(ModelDescriptor.ModelStatus.AVAILABLE).build());
+            } else if (provider != null) {
+                descriptor.setProvider(provider);
+            }
+        }
+        return variant;
     }
 
     public Collection<ModelDescriptor> getAllModels() {

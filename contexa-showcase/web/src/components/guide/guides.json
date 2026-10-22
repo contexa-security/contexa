@@ -1,0 +1,13 @@
+{
+  "console": {
+    "title": "guide.console.title",
+    "scenes": [
+      "guide.console.request",
+      "guide.console.arrive",
+      "guide.console.hold",
+      "guide.console.bars",
+      "guide.console.log",
+      "guide.console.judgment"
+    ]
+  }
+}

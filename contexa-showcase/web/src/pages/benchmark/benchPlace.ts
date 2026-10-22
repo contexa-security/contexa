@@ -33,5 +33,39 @@ export function percent(value: number | null): string {
   return value === null ? '-' : `${Math.round(value * 1000) / 10}%`;
 }
 
+/**
+ * A share always with one decimal (0.21 → 21.0%, 0 → 0.0%), for a rate and the ends of its range, so the numbers of
+ * one range read alike (L-39 of docs/showcase/영상전-검토.md: never 0.8%~21% beside 0%~16.8%).
+ */
+export function percentFixed(value: number | null): string {
+  return value === null ? '-' : `${(Math.round(value * 1000) / 10).toFixed(1)}%`;
+}
+
 /** The benchmark windows' names in the address (?modal=…). */
 export const BENCH_MODALS = { method: 'method', approach: 'approach', benchCase: 'case' } as const;
+
+/**
+ * The benchmark's views (화면재편-구현계획 RO-3; B-2 of docs/showcase/벤치마크-구현계획.md adds the approaches), in the
+ * one order the action bar walks them.
+ */
+export type BenchView = 'summary' | 'approaches' | 'cases' | 'judgment' | 'reasoning' | 'prompt' | 'limits';
+
+// B-5 takes the old prompt view's place in the order; that view is no longer walked (its address leads to B-5).
+export const BENCH_ORDER: readonly BenchView[] = [
+  'summary',
+  'approaches',
+  'cases',
+  'judgment',
+  'reasoning',
+  'limits',
+];
+
+export const BENCH_PATHS: Readonly<Record<BenchView, string>> = {
+  summary: '/benchmark',
+  approaches: '/benchmark/approaches',
+  cases: '/benchmark/cases',
+  judgment: '/benchmark/judgment',
+  reasoning: '/benchmark/reasoning',
+  prompt: '/benchmark/prompt',
+  limits: '/benchmark/limits',
+};

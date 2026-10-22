@@ -74,6 +74,16 @@
   line-height: var(--leading-normal);
 }
 
+/* The wrap-up's one sentence from the visitor's own run (T8), over the six differences. */
+.wrapSentence {
+  max-width: var(--frame-measure);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
 .six {
   display: grid;
 

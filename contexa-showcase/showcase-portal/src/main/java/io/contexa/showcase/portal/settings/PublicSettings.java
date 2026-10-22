@@ -48,8 +48,12 @@ public final class PublicSettings {
      * @param effectiveMode       the engine's zero-trust mode as it runs (ENFORCE, SHADOW, DISABLED)
      * @param inspectorConditions how many adverse conditions the core's response inspector checks in every answer (the
      *                            label contract kept equal to the core by CoreAdverseLabelsContractTest)
+     * @param layer1Model         the model the first analysis runs on, as the engine states it; null when it does not
+     * @param layer2Model         the model the second analysis runs on (판정층 E-8c); null when the engine does not
+     *                            state it
      */
-    public record Engine(String chatModel, String effectiveMode, int inspectorConditions) {
+    public record Engine(String chatModel, String effectiveMode, int inspectorConditions, String layer1Model,
+                         String layer2Model) {
     }
 
     /**
@@ -99,7 +103,8 @@ public final class PublicSettings {
                         export.has("ticketAndOncallExempt") ? export.path("ticketAndOncallExempt").asBoolean() : null,
                         integer(c2, "historyWindowDays"), integer(c2, "exportHistoryWindowDays"),
                         List.copyOf(access)),
-                new Engine(text(engine, "chatModel"), text(engine, "effectiveMode"), CoreAdverseLabels.RULES.size()),
+                new Engine(text(engine, "chatModel"), text(engine, "effectiveMode"), CoreAdverseLabels.RULES.size(),
+                        text(engine.path("layer1Model"), "model"), text(engine.path("layer2Model"), "model")),
                 new Retention(integer(engine, "behaviorRetentionDays"), promptOriginalDays), text(rules, "sha256"),
                 sealedEvidence(engine.path("sealedEvidence")));
     }

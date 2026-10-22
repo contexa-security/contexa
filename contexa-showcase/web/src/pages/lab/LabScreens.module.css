@@ -1,0 +1,584 @@
+/*
+ * The lab's screens in the redesigned frame (화면재편 R7, RO-2): the frame's own sizes only (zones, blocks, items,
+ * four type sizes), one box per role at most, and every input in reach of 44 px.
+ */
+
+/* A plain line of the body: the scope, a note, the set handling, a check's summary. */
+.line {
+  max-width: var(--frame-measure);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.strong {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* A quiet label before a value on the same line. */
+.label {
+  margin-right: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+}
+
+/* The entrance (T1): the lab's three steps as one numbered list, read, not pressed. */
+.walk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-measure);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.walkStep {
+  display: flex;
+  align-items: center;
+  gap: var(--frame-inner-gap);
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+.walkMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+  font-size: var(--type-aside);
+  line-height: var(--leading-none);
+}
+
+/* The way to the rule tightening: one line and its link, beside the walk. */
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  max-width: var(--frame-measure);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.pathLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+}
+
+.pathLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* An input with its name over it, as wide as the action bar below (L-03); plain text keeps the reading width. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: var(--frame-wide);
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.select {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--type-body);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Two inputs side by side (the condition and its value, the rule and its value); one under the other on phones. */
+.controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
+}
+
+/* The rule tightening's three inputs (the security, its setting, the value) in one row on wide screens (L-03). */
+.controls[data-three] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* The one card of a screen: the picked situation, the original situation; as wide as the action bar (L-03). */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
+  margin: 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-emphasis);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.cardName {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+/* The lines of a card: a quiet name and its value. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--frame-inner-gap);
+  margin: 0;
+}
+
+.facts[data-lines] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+  overflow-wrap: anywhere;
+}
+
+/* Tables: the comparison before sending, the result, the rule counts. One rule under each row, no boxes. */
+.table {
+  width: 100%;
+  max-width: var(--frame-wide);
+  border-collapse: collapse;
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-medium);
+}
+
+.table tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* Contexa's row is the screen's one emphasis: one ground for the whole row, its name in the accent. */
+.table tr[data-contexa] {
+  background-color: var(--color-surface-accent);
+}
+
+.table tr[data-contexa] th {
+  color: var(--color-accent);
+}
+
+.table td[data-now] {
+  color: var(--color-text);
+}
+
+/* A table of counts: the count columns as narrow as their values, the names keep the rest of the width. */
+.table[data-numbers] td {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Their headings stay on one line too, so the head row is no taller than a row of values (L-24). */
+.table[data-numbers] thead th {
+  white-space: nowrap;
+}
+
+/* A date and time of a source line, never broken inside (L-24). */
+.whole {
+  white-space: nowrap;
+}
+
+/* A row whose answer changed: the word "changed" after its value, in the accent. */
+.changedTag {
+  margin-left: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-semibold);
+}
+
+/* A value that differs after the change (V-29): read first, the unchanged ones stay in the body color. */
+.table td[data-changed] {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* Contexa's judgment next to its result chip (T-01, V-06): the chip says what the data did, this what it judged. */
+.judged {
+  margin-left: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  white-space: nowrap;
+}
+
+/* The source line's "see the record" of each column (V-29), as the shared source line draws it. */
+.sourceOpen {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sourceOpen:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Predict (T3): three calls to pick from, three across, one under the other on phones. */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--frame-inner-gap);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 8rem;
+  padding: var(--space-5);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: var(--color-accent);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.choice[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-surface-accent);
+}
+
+.choiceIcon {
+  flex: none;
+  color: var(--color-accent);
+  font-size: var(--type-emphasis);
+}
+
+.choiceName {
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.choiceHint {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+
+/* A main button that waits looks the same at every width: solid and muted, as the phone bar draws it (L-23). */
+.send:disabled {
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.send:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * The way on before a pick (L-20): the next button's shape and size (StepParts .next), off, solid and muted like a
+ * waiting Send, with the reason beside it.
+ */
+.nextOff {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  cursor: not-allowed;
+}
+
+.offNote {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* Watching the run (T4): the time line of the latest request, nothing beside it. */
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-block-gap);
+  min-width: 0;
+}
+
+.requestLine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  min-width: 0;
+}
+
+.requestTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sendNext {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.sendNext:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* The result's second chip (rate the judgment), quiet like the details chip beside it. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: var(--type-aside);
+  cursor: pointer;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* The rule tightening's changed situations: one plain list and one button for the next page. */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--frame-measure);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changes li {
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.changesTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--frame-inner-gap);
+}
+
+.pageButton {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pageButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (width <= 48rem) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .controls[data-three] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .choice {
+    min-height: 0;
+  }
+}
+
+/* Phones: two inputs one under the other; a card's lines keep two across so the card stays short. */
+@media (width <= 40rem) {
+  .controls,
+  .controls[data-three] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* On phones the way on fills the fixed bar, as the next button does there (StepParts .next). */
+  .nextOff {
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    font-size: var(--type-body);
+    line-height: var(--leading-tight);
+    text-wrap: balance;
+  }
+
+  .offNote {
+    text-align: center;
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .table th,
+  .table td {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  /* On phones a count heading may break, or the table runs past the screen in English (re-walk 2026-10-21). */
+  .table[data-numbers] thead th {
+    white-space: normal;
+  }
+
+  /* The result's three columns share the phone's width, the chips wrapping inside them (re-walk 2026-10-21). */
+  .table[data-compare] {
+    table-layout: fixed;
+    width: 100%;
+  }
+}
+
+/* Whether the visitor's call was right, beside the call (B-08 of the review before the guide videos). */
+.callMark {
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.callMark[data-right] {
+  color: var(--color-ok);
+}

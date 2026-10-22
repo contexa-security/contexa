@@ -62,26 +62,6 @@ describe('visitor screen integrity', () => {
     }
   });
 
-  it('uses the 0-3 table of the screen design as the teaser copy', () => {
-    const design = readFileSync(DESIGN, 'utf-8').replace(/\r\n/g, '\n');
-    const start = design.indexOf('### 궁금증 사슬: 예고 카드');
-    const rows = design
-      .slice(start, design.indexOf('### 막 끝 카드', start))
-      .split('\n')
-      .filter((line) => line.startsWith('|') && !line.startsWith('|---') && !line.includes('예고 질문'))
-      .map((line) => line.split('|').map((cell) => cell.trim()));
-    const keys = DEFAULT_ROUTE.filter((screen) => screen.teaser).map((screen) => screen.teaser as string);
-    expect(rows).toHaveLength(15);
-    expect(keys).toHaveLength(15);
-    const shape = (text: string) => text.replace(/\{\{\w+\}\}/g, '#').replace(/\d[\d,.]*/g, '#');
-    const ko = dictionary('ko');
-    rows.forEach((row, index) => {
-      const key = keys[index];
-      expect(shape(ko[`teaser.${key}.question`] ?? ''), key).toBe(shape(row[2] ?? ''));
-      expect(shape(ko[`teaser.${key}.teaser`] ?? ''), key).toBe(shape(row[3] ?? ''));
-    });
-  });
-
   it('uses the copy source table (plan 7.0) for the eight just-seen lines and the one seen-again line', () => {
     const plan = readFileSync(PLAN, 'utf-8').replace(/\r\n/g, '\n');
     const start = plan.indexOf('### 7.0 문구 원천표');
@@ -104,8 +84,18 @@ describe('visitor screen integrity', () => {
       E3: 'e3Stack',
       '판정 뒤 학습': 'learnAfter',
     };
+    // The plan's words read in the final design's terms (설계서 43~45장, 최종화면-구현계획 F3-6).
+    const terms: readonly (readonly [string, string])[] = [
+      ['진짜 직원이', '정상 사용자가'],
+      ['진짜 직원', '정상 사용자'],
+      ['본인 확인', '추가 인증'],
+      ['평소 모습', '평소 행동 패턴'],
+      ['응답 전에 막기', '응답 전 차단'],
+      ['다음 요청부터 막기', '다음 요청부터 차단'],
+    ];
     const shape = (text: string) =>
-      text
+      terms
+        .reduce((words, [old, now]) => words.split(old).join(now), text)
         .replace(/^(다시 보는 차이 )?[①-⑥] /, '')
         .replace(/\{\{\w+\}\}/g, '#')
         .replace(/\{[\d.,]+\}/g, '#');

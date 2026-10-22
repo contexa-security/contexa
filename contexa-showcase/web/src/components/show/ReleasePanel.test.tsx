@@ -34,10 +34,10 @@ function panel(release: LiveRelease) {
 }
 
 describe('ReleasePanel', () => {
-  it('walks the real employee from the block to the request, each step on its own press', async () => {
+  it('walks the real user from the block to the request, each step on its own press', async () => {
     await i18n.changeLanguage('ko');
     const blocked = panel(base);
-    await userEvent.click(screen.getByRole('button', { name: '본인 확인하고 해제 요청하기' }));
+    await userEvent.click(screen.getByRole('button', { name: '추가 인증하고 해제 요청하기' }));
     expect(blocked.onStart).toHaveBeenCalledOnce();
   });
 

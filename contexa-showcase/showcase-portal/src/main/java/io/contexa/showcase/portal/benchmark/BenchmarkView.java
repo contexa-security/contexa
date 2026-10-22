@@ -4,9 +4,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.ToLongFunction;
 
 /**
@@ -26,13 +30,20 @@ import java.util.function.ToLongFunction;
  * @param judgmentTiming             Contexa's attack runs by how its answer came about (the names of the scoring
  *                                   JudgmentTiming kinds in their order, every kind present): a limit of timing or of
  *                                   judgement
+ * @param judgmentExposure           the items that left in those runs over every step, before and after a decision (a
+ *                                   run judged to pass lets its items out after the decision), by the same kinds
+ *                                   (BM-S3)
+ * @param judgmentOthers             the runs of the kind OTHER, each with its case, its result and the shape of every
+ *                                   step, so a screen words the shape instead of a fixed sentence (V-01 of
+ *                                   docs/showcase/영상전-검토.md)
  * @param protocolRunsWithoutSetting completed, unforced protocol runs that recorded no measurement setting and so
  *                                   belong to no setting's scores (H-22); stated, not hidden
  */
 public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec> specs, Spec spec, Scope scope,
                             List<ControlScore> controls, List<CaseRow> cases, List<WrongRun> wrongRuns,
                             long unresolvedRuns, List<Suite> suites, RiskJudged riskJudged,
-                            Map<String, Long> judgmentTiming, Engine engine,
+                            Map<String, Long> judgmentTiming, Map<String, Long> judgmentExposure,
+                            List<JudgmentRun> judgmentOthers, Engine engine,
                             Observations observations, long protocolRunsWithoutSetting) {
 
     /** How many runs Contexa got wrong; the whole list's length, so a title and its list never differ. */
@@ -67,6 +78,156 @@ public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec>
     @JsonProperty("missedEveryRunCases")
     public List<String> missedEveryRunCases() {
         return cases.stream().filter(CaseRow::missedEveryRun).map(CaseRow::key).toList();
+    }
+
+    /** The existing approaches a blind-spot run is let through by (G1 of the v21 plan), Contexa left out. */
+    static final List<String> EXISTING = List.of("A", "B", "C1", "C2");
+
+    /** The results of an existing approach that let an attack's data out at every step. */
+    static final Set<String> LET_THROUGH = Set.of("MISSED");
+
+    /** The results of an existing approach that let normal work go on. */
+    static final Set<String> LET_PASS = Set.of("PASSED", "PASSED_AFTER_CHECK");
+
+    /** Contexa's results that stopped an attack, fully or after some items left. */
+    static final Set<String> CONTEXA_STOPPED = Set.of("STOPPED", "PARTLY_STOPPED");
+
+    /**
+     * BM-S2 of docs/showcase/벤치마크-구현계획.md: the pairs designed in 4.6 of docs/showcase/프롬프트-v21-구현계획.md, each
+     * blind-spot attack and the normal work of the same conditions (S18's is S16T), in the demo's two themes: someone
+     * holding a stolen account, and the insider (the account's owner acts, the oracle actor OWNER).
+     */
+    static final List<BlindSpotPair> PAIRS = List.of(
+            new BlindSpotPair("STOLEN_ACCOUNT", "S13", "S13T"),
+            new BlindSpotPair("STOLEN_ACCOUNT", "S17", "S17T"),
+            new BlindSpotPair("STOLEN_ACCOUNT", "S19", "S19T"),
+            new BlindSpotPair("INSIDER", "S16", "S16T"),
+            new BlindSpotPair("INSIDER", "S18", "S16T"));
+
+    /**
+     * PB-1 and PB-2 of 4.8 in docs/showcase/프롬프트-v21-구현계획.md (G1 to G3 of its 0.1), from each run's own results:
+     * per attack case, the runs every existing approach let through and what Contexa did in those same runs (a case
+     * without such a run is left out); per normal case of the rule-blind suite, the runs every existing approach let
+     * pass and what Contexa did in them; the designed pairs whose attack was measured and the totals of G1 to G3 over
+     * them (BM-S2). Nothing is judged here beyond the recorded results.
+     */
+    @JsonProperty("blindSpot")
+    public BlindSpot blindSpot() {
+        Set<String> ruleBlind = new HashSet<>();
+        for (Suite suite : suites == null ? List.<Suite>of() : suites) {
+            if ("RULE_BLIND".equals(suite.suite())) {
+                ruleBlind.addAll(suite.cases());
+            }
+        }
+        List<BlindSpotCase> attacks = new ArrayList<>();
+        List<BlindSpotCase> normals = new ArrayList<>();
+        Map<String, CaseRow> byKey = new HashMap<>();
+        for (CaseRow row : cases == null ? List.<CaseRow>of() : cases) {
+            byKey.put(row.key(), row);
+            if ("THREAT".equals(row.classification())) {
+                BlindSpotCase found = BlindSpotCase.of(row, LET_THROUGH);
+                if (found.allPassed() > 0) {
+                    attacks.add(found);
+                }
+            } else if ("NORMAL".equals(row.classification()) && ruleBlind.contains(row.key())) {
+                normals.add(BlindSpotCase.of(row, LET_PASS));
+            }
+        }
+        List<BlindSpotPair> pairs = PAIRS.stream().filter(pair -> byKey.containsKey(pair.attack())).toList();
+        return new BlindSpot(List.copyOf(attacks), List.copyOf(normals), pairs, BlindSpotTotals.of(pairs, byKey));
+    }
+
+    /**
+     * @param attacks the attack cases with a run every existing approach let through, in case order
+     * @param normals the normal cases of the rule-blind suite, in case order
+     * @param pairs   the designed pairs whose attack was measured, in their order
+     * @param totals  G1 to G3 over the pairs' runs
+     */
+    public record BlindSpot(List<BlindSpotCase> attacks, List<BlindSpotCase> normals, List<BlindSpotPair> pairs,
+                            BlindSpotTotals totals) {
+
+        /**
+         * V-64 of docs/showcase/영상전-검토.md: the normal cases more than one pair names (S16T for S16 and S18), in pair
+         * order; the totals count such a case once.
+         */
+        @JsonProperty("sharedNormals")
+        public List<String> sharedNormals() {
+            Map<String, Integer> named = new LinkedHashMap<>();
+            for (BlindSpotPair pair : pairs == null ? List.<BlindSpotPair>of() : pairs) {
+                if (pair.normal() != null) {
+                    named.merge(pair.normal(), 1, Integer::sum);
+                }
+            }
+            return named.entrySet().stream().filter(entry -> entry.getValue() > 1).map(Map.Entry::getKey).toList();
+        }
+    }
+
+    /** A designed blind-spot attack and the normal work of the same conditions, in its group. */
+    public record BlindSpotPair(String group, String attack, String normal) {
+    }
+
+    /** A run every existing approach let through (or let pass), with Contexa's business result in it. */
+    public record BlindSpotRun(String runId, String result) {
+    }
+
+    /**
+     * G1 to G3 of the v21 plan over the designed pairs' runs.
+     *
+     * @param attackRuns          the attack runs of the pairs
+     * @param attackAllPassed     of those, the runs every existing approach let through
+     * @param contexaStopped      of those, the runs Contexa stopped, fully or after some items left
+     * @param contexaFullyStopped of those, the runs Contexa stopped from the start
+     * @param normalRuns          the normal runs of the pairs (a normal case two pairs share is counted once)
+     * @param normalAllPassed     of those, the runs every existing approach let pass
+     * @param contexaPassed       of those, the runs Contexa let pass, with or without an extra check
+     */
+    public record BlindSpotTotals(long attackRuns, long attackAllPassed, long contexaStopped, long contexaFullyStopped,
+                                  long normalRuns, long normalAllPassed, long contexaPassed) {
+
+        static BlindSpotTotals of(List<BlindSpotPair> pairs, Map<String, CaseRow> byKey) {
+            long[] attack = new long[4];
+            for (String key : pairs.stream().map(BlindSpotPair::attack).distinct().toList()) {
+                BlindSpotCase found = BlindSpotCase.of(byKey.get(key), LET_THROUGH);
+                attack[0] += found.runs();
+                attack[1] += found.allPassed();
+                attack[2] += found.passedRuns().stream().filter(run -> CONTEXA_STOPPED.contains(run.result())).count();
+                attack[3] += found.passedRuns().stream().filter(run -> "STOPPED".equals(run.result())).count();
+            }
+            long[] normal = new long[3];
+            for (String key : pairs.stream().map(BlindSpotPair::normal).filter(byKey::containsKey).distinct().toList()) {
+                BlindSpotCase found = BlindSpotCase.of(byKey.get(key), LET_PASS);
+                normal[0] += found.runs();
+                normal[1] += found.allPassed();
+                normal[2] += found.passedRuns().stream().filter(run -> LET_PASS.contains(run.result())).count();
+            }
+            return new BlindSpotTotals(attack[0], attack[1], attack[2], attack[3], normal[0], normal[1], normal[2]);
+        }
+    }
+
+    /**
+     * @param runs      the case's runs with every approach's result recorded
+     * @param allPassed the runs every existing approach let through (an attack) or let go on (normal work)
+     * @param contexa    Contexa's results in those same runs, by result
+     * @param passedRuns those runs with Contexa's result in each, in the case's run order (BM-S2)
+     */
+    public record BlindSpotCase(String key, long runs, long allPassed, Map<String, Long> contexa,
+                                List<BlindSpotRun> passedRuns) {
+
+        static BlindSpotCase of(CaseRow row, Set<String> through) {
+            Map<String, Map<String, String>> results = row.runResults() == null ? Map.of() : row.runResults();
+            long allPassed = 0;
+            Map<String, Long> contexa = new TreeMap<>();
+            List<BlindSpotRun> passedRuns = new ArrayList<>();
+            for (Map.Entry<String, Map<String, String>> entry : results.entrySet()) {
+                Map<String, String> run = entry.getValue();
+                if (EXISTING.stream().allMatch(control -> through.contains(run.get(control)))) {
+                    allPassed++;
+                    contexa.merge(run.getOrDefault("D", "NONE"), 1L, Long::sum);
+                    passedRuns.add(new BlindSpotRun(entry.getKey(), run.getOrDefault("D", "NONE")));
+                }
+            }
+            return new BlindSpotCase(row.key(), results.size(), allPassed, Map.copyOf(contexa), List.copyOf(passedRuns));
+        }
     }
 
     /** The summary's three questions answered from these scores (bench-1). */
@@ -124,18 +285,24 @@ public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec>
      * @param templates        the templates the setting's runs were cloned from (one per protagonist)
      * @param templateVersions the versions those templates were learned under (one when the setting is sound)
      * @param promptHashes     the system prompt hashes of its runs ({@code NO_MODEL_CALL} for runs without a call)
+     * @param promptBundles    SC-12 (docs/showcase/프롬프트-v21-구현계획.md): the prompt bundles its runs' engine ran, as
+     *                         their execution specifications state; a screen names the facts of that bundle's
+     *                         measurement, never those of another
      */
     public record Spec(String settingHash, String chatModel, Map<String, Object> modelSettings, String codeCommit,
                        String engineVersion, String ruleVersion, String contractVersion, List<String> templates,
                        List<String> templateVersions, List<String> promptHashes, long protocolRuns,
-                       Instant firstRunAt, Instant lastRunAt) {
+                       Instant firstRunAt, Instant lastRunAt, List<String> promptBundles) {
     }
 
     /**
-     * @param protocols the protocols whose runs are counted, with how many times each case was run
+     * @param protocols         the protocols whose runs are counted, with how many times each case was run
+     * @param fewestRunsPerCase the counted runs of the case sent the fewest times (BM-S9: a protocol stopped before its
+     *                          plan sent its cases fewer times than its repeat)
+     * @param mostRunsPerCase   the counted runs of the case sent the most times
      */
     public record Scope(long runs, long attackRuns, long normalRuns, long otherRuns, int cases,
-                        List<Protocol> protocols) {
+                        List<Protocol> protocols, int fewestRunsPerCase, int mostRunsPerCase) {
     }
 
     /**
@@ -208,10 +375,29 @@ public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec>
     }
 
     /**
-     * @param runs    attack runs with a result where at least one model decision was not to allow
-     * @param stopped of them, the runs stopped fully or after some items left
+     * @param runs       attack runs with a result where at least one model decision was not to allow
+     * @param stopped    of them, the runs stopped fully or after some items left
+     * @param kinds      those runs by their judgment-and-timing kind, every kind present in its order, so the line
+     *                   that states them names the bars they sit in (V-01 of docs/showcase/영상전-검토.md)
+     * @param notStopped the cases of those runs that were not stopped, in run order
      */
-    public record RiskJudged(long runs, long stopped) {
+    public record RiskJudged(long runs, long stopped, Map<String, Long> kinds, List<String> notStopped) {
+    }
+
+    /**
+     * An attack run of the kind OTHER (V-01): its case, Contexa's business result and the items that left, and how
+     * each step was answered.
+     */
+    public record JudgmentRun(String runId, String caseKey, String result, long exposedItems,
+                              List<JudgmentStep> steps) {
+    }
+
+    /**
+     * A step of such a run as scored: the engine's action (null without a decision of this step), when it applied
+     * (BEFORE_RESPONSE, NEXT_REQUEST or NONE), where the answer came from (a RunScores decision source) and whether
+     * the decision could still change the case (false for a decision from the next request after the last step).
+     */
+    public record JudgmentStep(int stepNo, String action, String applied, String source, boolean applicable) {
     }
 
     /**
@@ -240,12 +426,14 @@ public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec>
      * @param cells            per control, the runs handled as the ground truth says over the scored runs, by the
      *                         scorecard's own rule (an attack stopped at some step, normal work passed with or without
      *                         a check); empty for a case without a ground truth
+     * @param runResults       each run's business result per control, by run (최종화면-구현계획 FP-4: a dot of the run
+     *                         matrix opens its own run)
      */
     public record CaseRow(String key, String classification, Map<String, String> title, long runs,
                           List<String> definitionSha256, Map<String, Map<String, Long>> results,
                           Map<String, Long> engineActions, Map<String, Long> engineVerdicts,
                           Map<String, Long> decisionSources, List<String> runIds, RiskSpread risk,
-                          Map<String, Cell> cells) {
+                          Map<String, Cell> cells, Map<String, Map<String, String>> runResults) {
 
         /** Whether Contexa got at least one scored run of the case wrong (the case list's filter). */
         @JsonProperty("contexaWrong")
@@ -302,11 +490,73 @@ public record BenchmarkView(Instant computedAt, List<String> notices, List<Spec>
      * @param tokensMeasured        decisions with recorded tokens
      * @param modelCallsPerDecision the mean of the model calls the engine recorded per decision
      * @param modelCalls            model calls captured as raw exchanges
+     * @param agreement             the decisions against the model's own answers (PB-3, G4 of the v21 plan)
+     * @param analysisBins          the timed decisions in fixed bins of their analysis time (BM-S4)
+     * @param reasoning             the decisions' explanations, retries and moved answers (BM-S6)
      */
     public record Engine(long decisions, Map<String, Long> actions, long unresolved, Long analysisP50Ms,
                          Long analysisP95Ms, long analysisMeasured, Double costPerDecisionUsd, String priceSource,
                          long promptTokens, long cachedTokens, long completionTokens, Double tokensPerDecision,
-                         long tokensMeasured, Double modelCallsPerDecision, long modelCalls) {
+                         long tokensMeasured, Double modelCallsPerDecision, long modelCalls, ModelAgreement agreement,
+                         List<AnalysisBin> analysisBins, Reasoning reasoning) {
+    }
+
+    /**
+     * BM-S6 of docs/showcase/벤치마크-구현계획.md: what the model's answers show of its judgment.
+     *
+     * @param mostLikely      per run truth (THREAT, NORMAL, UNCERTAIN), the decisions by the explanation their last
+     *                        answer judged most likely: its id (H1 to H5), SEVERAL, or NONE when no explanation was
+     *                        judged most likely; a decision without a model answer is left out
+     * @param retried         the decisions the response check asked again at least once
+     * @param retryKinds      of those, the decisions by each kind of what was wrong (REASON_CODE_MISMATCH and so on)
+     * @param topRetryReasons the five most frequent reasons, each with its decisions, fact IDs read as their kind (P#)
+     * @param flips           the asked-again decisions whose last answer named another action than the first, by
+     *                        FIRST->LAST
+     * @param mostLikelyActions the decisions of {@code mostLikely} by the action each applied (NONE without one), per
+     *                        run truth and explanation (V-46 of docs/showcase/영상전-검토.md: an attack decision that
+     *                        judged legitimate work most likely may still have refused)
+     */
+    public record Reasoning(Map<String, Map<String, Long>> mostLikely, long retried, Map<String, Long> retryKinds,
+                            List<RetryReason> topRetryReasons, Map<String, Long> flips,
+                            Map<String, Map<String, Map<String, Long>>> mostLikelyActions) {
+
+        static final Reasoning NONE = new Reasoning(Map.of(), 0, Map.of(), List.of(), Map.of(), Map.of());
+    }
+
+    /** A reason the response check gave for asking again, with the decisions it was given for. */
+    public record RetryReason(String reason, long decisions) {
+    }
+
+    /** A bin of decision times: from (inclusive) to (exclusive; null for the last, open bin), and its decisions. */
+    public record AnalysisBin(long fromMs, Long toMs, long decisions) {
+
+        /** The bin edges in milliseconds (BM-S4): 0, 5, 10, 15, 20, 30 and 60 s, the last bin open. */
+        static final List<Long> EDGES = List.of(0L, 5000L, 10000L, 15000L, 20000L, 30000L, 60000L);
+
+        /** The given times in the bins, every bin present (an empty one with 0). */
+        static List<AnalysisBin> of(List<Long> times) {
+            List<AnalysisBin> bins = new ArrayList<>();
+            for (int index = 0; index < EDGES.size(); index++) {
+                long from = EDGES.get(index);
+                Long to = index + 1 < EDGES.size() ? EDGES.get(index + 1) : null;
+                long decisions = times.stream().filter(time -> time >= from && (to == null || time < to)).count();
+                bins.add(new AnalysisBin(from, to, decisions));
+            }
+            return List.copyOf(bins);
+        }
+    }
+
+    /**
+     * PB-3 of 4.8 in docs/showcase/프롬프트-v21-구현계획.md (G4): the decision records of the setting's runs against the
+     * action in the last model call's answer of each.
+     *
+     * @param decisions     every decision record
+     * @param modelAnswered the decisions with a model answer that names an action
+     * @param asAnswered    of those, the decisions whose applied action is the answer's, with no technical failure
+     * @param technical     of those, the decisions an unresolved answer or a technical or parser fallback decided
+     * @param held          the decisions without a model answer: a decision before held the request
+     */
+    public record ModelAgreement(long decisions, long modelAnswered, long asAnswered, long technical, long held) {
     }
 
     /**

@@ -16,7 +16,7 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacommon.domain.TruthValues;
-import io.contexa.contexacore.autonomous.execution.DelegatedExecutionContext;
+import io.contexa.contexacommon.security.subject.SubjectClassifier;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -28,31 +28,37 @@ public final class CanonicalExecutionEventMetadataSupport {
 
     public static Map<String, Object> enrich(Map<String, Object> payload) {
         Map<String, Object> metadata = payload == null ? new LinkedHashMap<>() : new LinkedHashMap<>(payload);
-        String subjectType = firstNonBlank(
-                text(metadata.get("executionSubjectType")),
-                inferSubjectType(metadata));
-        String executionMode = firstNonBlank(
-                text(metadata.get("executionMode")),
-                Boolean.TRUE.equals(resolveBoolean(metadata.get("delegated")))
-                        ? DelegatedExecutionContext.EXECUTION_MODE_DELEGATED_AGENT
-                        : DelegatedExecutionContext.EXECUTION_MODE_DIRECT_USER);
-        String lineageState = firstNonBlank(
-                text(metadata.get("lineageState")),
-                Boolean.TRUE.equals(resolveBoolean(metadata.get("delegated")))
-                        ? DelegatedExecutionContext.LINEAGE_STATE_DECLARED
-                        : DelegatedExecutionContext.LINEAGE_STATE_DIRECT);
+        // A1-3: who the request acts as is decided once (SubjectClassifier), the same way the canonical context and the
+        // bridge decide it. A declared subject type or mode is one of the facts, so it stays unless agent facts or a
+        // stated delegation contradict it; the recorded values then follow the decision.
+        SubjectClassifier.Result subjectKind = SubjectClassifier.classify(SubjectClassifier.Facts.builder()
+                .delegated(resolveBoolean(metadata.get("delegated")))
+                .agentId(text(metadata.get("agentId")))
+                .delegationId(text(metadata.get("delegationId")))
+                .declaredSubjectType(text(metadata.get("executionSubjectType")))
+                .declaredExecutionMode(text(metadata.get("executionMode")))
+                .declaredLineageState(text(metadata.get("lineageState")))
+                .actorType(text(metadata.get("actorType")))
+                .principalType(text(metadata.get("principalType")))
+                .serviceClientPrincipal(Boolean.TRUE.equals(resolveBoolean(metadata.get("serviceClientPrincipal"))))
+                .build());
+        String subjectType = subjectKind.subjectType();
+        String executionMode = subjectKind.executionMode();
+        String lineageState = subjectKind.lineageState();
         String protocolType = firstNonBlank(
                 text(metadata.get("executionProtocolType")),
                 text(metadata.get("protocolType")),
                 text(metadata.get("sourceProtocol")),
                 "UNKNOWN");
 
-        metadata.putIfAbsent("executionSubjectType", subjectType);
-        metadata.putIfAbsent("executionMode", executionMode);
-        metadata.putIfAbsent("lineageState", lineageState);
+        metadata.put("executionSubjectKind", subjectKind.kind().name());
+        metadata.put("executionSubjectType", subjectType);
+        metadata.put("executionMode", executionMode);
+        metadata.put("lineageState", lineageState);
         metadata.putIfAbsent("sourceProtocol", protocolType);
 
         Map<String, Object> subject = new LinkedHashMap<>();
+        subject.put("subjectKind", subjectKind.kind().name());
         subject.put("subjectType", subjectType);
         subject.put("actorUserId", firstNonBlank(text(metadata.get("actorUserId")), text(metadata.get("userId"))));
         subject.put("agentId", text(metadata.get("agentId")));
@@ -91,24 +97,6 @@ public final class CanonicalExecutionEventMetadataSupport {
             });
         }
         return Map.copyOf(sanitized);
-    }
-
-    private static String inferSubjectType(Map<String, Object> metadata) {
-        String actorType = text(metadata.get("actorType"));
-        String principalType = text(metadata.get("principalType"));
-        if (actorType != null && (actorType.contains("AGENT") || actorType.contains("DELEGATED"))) {
-            return "AGENT_RUNTIME";
-        }
-        if (principalType != null && (principalType.toUpperCase().contains("SERVICE") || principalType.toUpperCase().contains("CLIENT") || principalType.toUpperCase().contains("WORKLOAD"))) {
-            return "SERVICE_CLIENT";
-        }
-        if (Boolean.TRUE.equals(resolveBoolean(metadata.get("delegated"))) || text(metadata.get("agentId")) != null) {
-            return "AGENT_RUNTIME";
-        }
-        if (text(metadata.get("clientId")) != null && Boolean.TRUE.equals(resolveBoolean(metadata.get("serviceClientPrincipal")))) {
-            return "SERVICE_CLIENT";
-        }
-        return "HUMAN_USER";
     }
 
     private static Object firstNonBlankCollection(Object primary, Object fallback) {

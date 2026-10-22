@@ -227,6 +227,11 @@ public class CanonicalSecurityContext {
         private String businessLabel;
         /** Text the resource's author wrote, as the host stored it: untrusted, never an instruction (W2-6). */
         private String authorText;
+        /**
+         * The scope the target belongs to in the host's records, as {@code key=value} (projectKey=HX-310 for a document
+         * of that project): a host fact, unlike the business label and the request path.
+         */
+        private String scope;
         /** How many items the request asks for, as the host counted them (W2-6). */
         private Integer requestedItems;
         private String sensitivity;

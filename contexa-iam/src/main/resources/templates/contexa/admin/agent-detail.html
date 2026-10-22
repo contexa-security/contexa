@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.detail.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl" th:object="${agent}">
+            <div class="mb-8 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-gradient"
+                    th:text="*{displayName != null} ? *{displayName} : *{agentId}">Agent</h1>
+                <p class="text-dark-muted mt-1" th:text="#{admin.agents.detail.subtitle}">What Contexa knows about this agent</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <section class="detail-card">
+                    <h2 class="detail-heading" th:text="#{admin.agents.detail.identity}">Identity</h2>
+                    <dl>
+                        <dt th:text="#{admin.agents.table.agent}">Agent</dt>
+                        <dd class="font-mono text-xs" th:text="*{agentId}"></dd>
+                        <dt th:text="#{admin.agents.table.type}">Type</dt>
+                        <dd th:text="*{agentType != null} ? *{agentType} : '-'"></dd>
+                        <dt th:text="#{admin.agents.detail.client}">OAuth2 client</dt>
+                        <dd class="font-mono text-xs" th:text="*{clientId != null} ? *{clientId} : '-'"></dd>
+                        <dt th:text="#{admin.agents.detail.tenant}">Tenant</dt>
+                        <dd th:text="*{tenantId != null} ? *{tenantId} : '-'"></dd>
+                        <dt th:text="#{admin.agents.table.subject}">Subject</dt>
+                        <dd th:text="*{subjectKind != null} ? #{${'admin.agents.subject.' + agent.subjectKind}} : '-'"></dd>
+                    </dl>
+                </section>
+
+                <section class="detail-card">
+                    <h2 class="detail-heading" th:text="#{admin.agents.detail.accountability}">Accountability</h2>
+                    <dl>
+                        <dt th:text="#{admin.agents.table.sponsor}">Sponsor</dt>
+                        <dd th:text="*{sponsorId != null} ? *{sponsorId} : '-'"></dd>
+                        <dt th:text="#{admin.agents.table.allowlisted}">Approved</dt>
+                        <dd th:text="*{allowlisted} ? #{admin.agents.allowlisted.yes} : #{admin.agents.allowlisted.no}"></dd>
+                        <dt th:text="#{admin.agents.detail.source}">Source</dt>
+                        <dd th:text="#{${'admin.agents.source.' + agent.source}}"></dd>
+                    </dl>
+                    <p th:if="*{sponsorId == null}" class="detail-note" th:text="#{admin.agents.detail.sponsor.none}">
+                        No sponsor.
+                    </p>
+                </section>
+
+                <section class="detail-card">
+                    <h2 class="detail-heading" th:text="#{admin.agents.detail.lifecycle}">Life cycle</h2>
+                    <dl>
+                        <dt th:text="#{admin.agents.table.status}">Status</dt>
+                        <dd th:text="#{${'admin.agents.status.' + agent.status}}"></dd>
+                        <dt th:text="#{admin.agents.table.first.seen}">First seen</dt>
+                        <dd th:text="*{firstSeenAt != null} ? ${#temporals.format(agent.firstSeenAt, 'yyyy-MM-dd HH:mm:ss')} : '-'"></dd>
+                        <dt th:text="#{admin.agents.table.last.seen}">Last seen</dt>
+                        <dd th:text="*{lastSeenAt != null} ? ${#temporals.format(agent.lastSeenAt, 'yyyy-MM-dd HH:mm:ss')} : '-'"></dd>
+                        <dt th:text="#{admin.agents.detail.registered.at}">Registered</dt>
+                        <dd th:text="*{registeredAt != null} ? ${#temporals.format(agent.registeredAt, 'yyyy-MM-dd HH:mm:ss')} : '-'"></dd>
+                        <dt th:text="#{admin.agents.detail.deregistered.at}">Deregistered</dt>
+                        <dd th:text="*{deregisteredAt != null} ? ${#temporals.format(agent.deregisteredAt, 'yyyy-MM-dd HH:mm:ss')} : '-'"></dd>
+                        <dt th:text="#{admin.agents.detail.status.reason}">Status reason</dt>
+                        <dd th:text="*{statusReason != null} ? *{statusReason} : '-'"></dd>
+                    </dl>
+                </section>
+            </div>
+
+            <div class="mt-8">
+                <a th:href="@{/contexa/admin/agents}"
+                   class="px-4 py-2 rounded-lg text-sm font-medium text-white inline-block"
+                   style="background:linear-gradient(135deg,#6366f1,#4f46e5);"
+                   th:text="#{admin.agents.detail.back}">Back to agents</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+
+<style>
+    .detail-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.3);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        color: #e2e8f0;
+    }
+    .detail-heading {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #c7d2fe;
+    }
+    .detail-card dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    .detail-card dt {
+        color: #94a3b8;
+    }
+    .detail-card dd {
+        word-break: break-all;
+    }
+    .detail-note {
+        margin-top: 0.75rem;
+        font-size: 0.8125rem;
+        color: #fbbf24;
+    }
+</style>
+
+</body>
+</html>

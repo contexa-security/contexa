@@ -1,10 +1,14 @@
 package io.contexa.showcase.portal.benchmark;
 
+import io.contexa.showcase.portal.scoring.RunScores.DecisionSource;
 import io.contexa.showcase.portal.scoring.RunScores.RunScore;
+import io.contexa.showcase.portal.scoring.RunScores.StepVerdict;
 import io.contexa.showcase.portal.scoring.RunScores.TruthSource;
 import io.contexa.showcase.portal.scoring.Scoring.BusinessResult;
 import io.contexa.showcase.portal.scoring.Scoring.CaseScore;
 import io.contexa.showcase.portal.scoring.Scoring.Truth;
+import io.contexa.showcase.portal.scoring.Scoring.VerdictResult;
+import io.contexa.showcase.portal.scoring.Scoring.VerdictScore;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -82,6 +86,88 @@ class BenchmarkServiceTest {
         assertThat(new BenchmarkView.Cell(0, 0).state()).isEqualTo("NONE");
         assertThat(new BenchmarkView.Cell(3, 3).state()).isEqualTo("RIGHT");
         assertThat(new BenchmarkView.Cell(0, 3).state()).isEqualTo("WRONG");
+    }
+
+    private static StepVerdict step(int stepNo, String action, String applied, DecisionSource source,
+                                    boolean applicable) {
+        VerdictResult result = action == null ? VerdictResult.NO_DECISION : VerdictResult.RIGHT;
+        return new StepVerdict(new VerdictScore(stepNo, action, result, applicable, false, applied), source, action);
+    }
+
+    private static RunScore attack(String id, String key, BusinessResult result, long exposed, StepVerdict... steps) {
+        return new RunScore(id, key, 1, "COMPLETED", TruthSource.RUN_SNAPSHOT, THREAT, steps.length, steps.length,
+                Map.of("D", new CaseScore(result, exposed, 1)), Map.of(), List.of(steps), List.of(), null);
+    }
+
+    /** The shapes of the 2026-10-20 measurement protocol-7b925e8e (v21.8), one run of each kind and both "other" runs. */
+    private static List<RunScore> measuredShapes() {
+        return List.of(
+                // R1 run-8ddb21acf432: refused by the role check before any analysis.
+                attack("run-r1", "R1", BusinessResult.STOPPED, 0,
+                        step(1, null, "NONE", DecisionSource.STATIC_AUTHORIZATION, false)),
+                // A3: the export held for a CHALLENGE before any item left.
+                attack("run-a3", "A3", BusinessResult.STOPPED, 0,
+                        step(1, "CHALLENGE", "BEFORE_RESPONSE", DecisionSource.MODEL, true)),
+                // A3S: the stream left, the CHALLENGE applied from the next request refused what followed.
+                attack("run-a3s", "A3S", BusinessResult.PARTLY_STOPPED, 4831,
+                        step(1, "CHALLENGE", "NEXT_REQUEST", DecisionSource.MODEL, true),
+                        step(2, null, "NONE", DecisionSource.PRIOR_DECISION, false)),
+                // S17 run-3bb57a898289: allowed, the 300 items left.
+                attack("run-s17", "S17", BusinessResult.MISSED, 300,
+                        step(1, "ALLOW", "BEFORE_RESPONSE", DecisionSource.MODEL, true)),
+                // S11 run-87c7bd071cb8: request 1 allowed before the response, request 2 blocked before the response,
+                // the rest refused by that decision.
+                attack("run-s11", "S11", BusinessResult.PARTLY_STOPPED, 480,
+                        step(1, "ALLOW", "BEFORE_RESPONSE", DecisionSource.MODEL, true),
+                        step(2, "BLOCK", "BEFORE_RESPONSE", DecisionSource.MODEL, true),
+                        step(3, null, "NONE", DecisionSource.PRIOR_DECISION, false),
+                        step(4, null, "NONE", DecisionSource.PRIOR_DECISION, false)),
+                // S19 run-8d9e43b2882e: document 1 allowed, document 2 not analysed, document 3 met a CHALLENGE that
+                // applied from a next request there was none of: all three left.
+                attack("run-s19", "S19", BusinessResult.MISSED, 3,
+                        step(1, "ALLOW", "NEXT_REQUEST", DecisionSource.MODEL, true),
+                        step(2, null, "NONE", DecisionSource.NOT_ANALYSED, false),
+                        step(3, "CHALLENGE", "NEXT_REQUEST", DecisionSource.MODEL, false)),
+                run("run-n1", "A3T", NORMAL, BusinessResult.PASSED, 0));
+    }
+
+    /**
+     * V-01 of docs/showcase/영상전-검토.md: the line "of the n attacks judged risky, m were stopped" names which bars the
+     * risky runs sit in and which risky run was not stopped, so it adds up with the bar.
+     */
+    @Test
+    void theRiskyRunsAreCountedByTheirKindAndTheOneNotStoppedIsNamed() {
+        BenchmarkView.RiskJudged risky = BenchmarkService.riskJudged(measuredShapes());
+
+        assertThat(risky.runs()).as("A3, A3S, S11 and S19 made a decision not to allow").isEqualTo(4);
+        assertThat(risky.stopped()).isEqualTo(3);
+        assertThat(risky.kinds()).containsExactly(Map.entry("STATIC_REFUSAL", 0L), Map.entry("BEFORE_RESPONSE", 1L),
+                Map.entry("NEXT_REQUEST", 1L), Map.entry("JUDGED_ALLOW", 0L), Map.entry("OTHER", 2L));
+        assertThat(risky.notStopped()).containsExactly("S19");
+    }
+
+    /** V-01: the runs of the kind "other", each with its case, its result and the shape of every step. */
+    @Test
+    void theOtherRunsCarryTheirCaseResultAndTheShapeOfEveryStep() {
+        List<BenchmarkView.JudgmentRun> others = BenchmarkService.judgmentOthers(measuredShapes());
+
+        assertThat(others).extracting(BenchmarkView.JudgmentRun::caseKey).containsExactly("S11", "S19");
+        BenchmarkView.JudgmentRun s11 = others.get(0);
+        assertThat(s11.runId()).isEqualTo("run-s11");
+        assertThat(s11.result()).isEqualTo("PARTLY_STOPPED");
+        assertThat(s11.exposedItems()).isEqualTo(480);
+        assertThat(s11.steps()).containsExactly(
+                new BenchmarkView.JudgmentStep(1, "ALLOW", "BEFORE_RESPONSE", "MODEL", true),
+                new BenchmarkView.JudgmentStep(2, "BLOCK", "BEFORE_RESPONSE", "MODEL", true),
+                new BenchmarkView.JudgmentStep(3, null, "NONE", "PRIOR_DECISION", false),
+                new BenchmarkView.JudgmentStep(4, null, "NONE", "PRIOR_DECISION", false));
+        BenchmarkView.JudgmentRun s19 = others.get(1);
+        assertThat(s19.result()).isEqualTo("MISSED");
+        assertThat(s19.exposedItems()).isEqualTo(3);
+        assertThat(s19.steps()).containsExactly(
+                new BenchmarkView.JudgmentStep(1, "ALLOW", "NEXT_REQUEST", "MODEL", true),
+                new BenchmarkView.JudgmentStep(2, null, "NONE", "NOT_ANALYSED", false),
+                new BenchmarkView.JudgmentStep(3, "CHALLENGE", "NEXT_REQUEST", "MODEL", false));
     }
 
     /**

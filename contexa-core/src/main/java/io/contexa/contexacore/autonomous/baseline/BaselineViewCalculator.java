@@ -73,6 +73,11 @@ public final class BaselineViewCalculator {
     static final long SESSION_IDLE_MS = 30L * 60L * 1_000L;
     /** The activity periods a usual session length needs: with fewer, the median is one of two values, not usual. */
     static final int MINIMUM_SESSION_PERIODS = 3;
+    /**
+     * The counts a usual rate needs (N-FRIC-2): the 95th percentile by nearest rank of fewer than 60 counts is one of
+     * the three highest, so a quiet window's busiest moment or two would set what is usual.
+     */
+    static final int MINIMUM_RATE_COUNTS = 60;
 
     private static final long HOUR_MS = 60L * 60L * 1_000L;
     private static final long DAY_MS = 24L * HOUR_MS;
@@ -552,9 +557,12 @@ public final class BaselineViewCalculator {
         return counts;
     }
 
-    /** The counts as their median and 95th percentile (nearest rank, W5-10 D5), with how many there are. */
+    /**
+     * The counts as their median and 95th percentile (nearest rank, W5-10 D5), with how many there are; none from fewer
+     * than {@link #MINIMUM_RATE_COUNTS} (N-FRIC-2).
+     */
     private static BaselineView.Rate rate(List<Integer> perRequest) {
-        if (perRequest.isEmpty()) {
+        if (perRequest.size() < MINIMUM_RATE_COUNTS) {
             return null;
         }
         List<Integer> sorted = perRequest.stream().sorted().toList();

@@ -1,0 +1,147 @@
+/*
+ * 1-2 (IN-6): the topic cards under the two themes they tell, the stolen account over three groups and the insider in
+ * one, then the groups of trying and the summary; each card with what you try, what you will know and its basis.
+ */
+.themes {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
+}
+
+.theme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-accent-line);
+  border-radius: var(--radius-xl);
+}
+
+.themeHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.themeName {
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.themeLine {
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+}
+
+.topics {
+  --map-step: 70ms;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topics[data-count='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.topics[data-count='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.topic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-block-size: 16rem;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  animation: map-in var(--motion-reveal) var(--ease-out) both;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-end: var(--space-2);
+}
+
+.number {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: var(--radius-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
+.name {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.label {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.text,
+.learn {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.learn {
+  color: var(--color-text);
+  font-weight: var(--weight-bold);
+}
+
+.badge {
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+}
+
+@keyframes map-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-3));
+  }
+}
+
+@media (width <= 72rem) {
+  .themes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 48rem) {
+  .topics,
+  .topics[data-count='2'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topic {
+    min-block-size: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topic {
+    animation: none;
+  }
+}

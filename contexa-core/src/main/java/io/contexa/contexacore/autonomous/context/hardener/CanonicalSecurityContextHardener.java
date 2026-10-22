@@ -25,9 +25,14 @@ import io.contexa.contexacore.autonomous.context.support.SecuritySemanticNormali
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class CanonicalSecurityContextHardener {
+
+    /** A scope as the host keys it: a name, then its value (projectKey=HX-310). */
+    private static final Pattern RESOURCE_SCOPE =
+            Pattern.compile("[A-Za-z][A-Za-z0-9_]{0,63}=[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
 
     public CanonicalSecurityContext harden(CanonicalSecurityContext context) {
         if (context == null) {
@@ -164,6 +169,7 @@ public class CanonicalSecurityContextHardener {
         resource.setResourceType(normalizeUpperText(resource.getResourceType()));
         resource.setBusinessLabel(normalizeText(resource.getBusinessLabel()));
         resource.setAuthorText(normalizeText(resource.getAuthorText()));
+        resource.setScope(normalizeScope(resource.getScope()));
         resource.setRequestedItems(normalizeInteger(resource.getRequestedItems()));
         resource.setSensitivity(SecuritySemanticNormalizer.normalizeSensitivity(resource.getSensitivity()));
         resource.setResourceClass(SecuritySemanticNormalizer.normalizeResourceClass(resource.getResourceClass()));
@@ -383,6 +389,15 @@ public class CanonicalSecurityContextHardener {
             return null;
         }
         return Math.max(value, 0L);
+    }
+
+    /**
+     * The target's scope only in the host's {@code key=value} form; any other text is left out, so the host fact the
+     * prompt draws carries no prose.
+     */
+    private String normalizeScope(String scope) {
+        String value = normalizeText(scope);
+        return value != null && RESOURCE_SCOPE.matcher(value).matches() ? value : null;
     }
 
     private String normalizeText(String value) {

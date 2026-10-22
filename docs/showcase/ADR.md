@@ -344,8 +344,11 @@
   - v20.23 매니페스트의 롤백 대상은 v19.19다(`contexa-core/src/main/resources/prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json:77`). 쇼케이스 D에서 v20.23은 SHADOW 릴리스다(P6-변경-19, P6 검수:325).
 - **P8 결과**
   - ACTIVE가 된 v20 번들 이름·해시: 없다. P8 관문 미달(A2 정상 업무 본인 확인 25/75, C5 주입 변화 1/7)로 v20을 ACTIVE로 바꾸지 않았다. 측정·공개한 번들은 `2026.10.16-v20.24`(bundleHash `5e75a42543778f2367635001a97174cbe5b890c43bc50a318e50cb9dca23a06e`)다
+  - 재인증 뒤(2026-10-17, 사용자 결정 ③·Q-88): ACTIVE가 된 v20 번들은 `2026.10.17-v20.25`(bundleHash `97d9eaf8dabc668f6d14d7a67d6299377af52db0e62a1551f6f0c5ab16eacd7f`)다. 관문 17개 중 16개 통과, A2 10/75만 미달이라 Q-88로 관문 예외(`프롬프트-재인증-검수.md`)
   - CANARY·ACTIVE 전환 시각과 v19 DEPRECATED 전환: 없다. 레지스트리는 재빌드 첫 등록 그대로다(v19.20 ACTIVE, v20.24 AVAILABLE, v20.23 SHADOW). 전환은 사용자 결정 뒤다
+  - 재인증 뒤: SHADOW → CANARY → 롤백 리허설 → CANARY를 거쳐 ACTIVE 2026-10-17T14:33:02Z(레지스트리 updated_at, v19.20은 같은 시각 DEPRECATED, 롤백 때 옛 v19 행 19개 DEPRECATED, v20.23 RETIRED). 레지스트리 행은 쇼케이스 엔진 `prompt_governance_registry`(`프롬프트-재인증-검수.md` 전환 절)
   - 롤백 리허설 결과(W6-10, W8-3): 하지 않았다. 리허설은 전환 절차(연쇄 c)의 앞 단계라, 관문 미달로 연쇄 c를 시작하지 않았다
+  - 재인증 뒤 롤백 리허설: v20.25 CANARY에서 v19.20으로 비상 롤백하고 두 번째 행위자가 승인했다. 롤백 뒤 ACTIVE는 v19.20 하나였고, 다시 CANARY → ACTIVE로 갔다. 단계마다 설계 실행으로 선택 번들과 출처를 확인했다(`프롬프트-재인증-검수.md`)
 
 ## ADR-39 프롬프트 번들과 매니페스트 (2026-10-10 W0-10 확정, W1-18 v19 번들화, 2026-10-14 R4-B9)
 - **결정**
@@ -365,6 +368,7 @@
   - 지금 빌드의 v20.23 매니페스트: B9 ABSENT(`contexa-core/src/main/resources/prompt-bundles/manifests/cortex.security-decision/2026.10.16-v20.23.json:46-49`). B9가 두 번들의 요소가 아님을 시험이 지킨다(`SecurityDecisionPromptBundleTest.java:120-130`).
   - 옛 매니페스트는 렌더 코드가 없는 기록으로 남고 고를 수 없다(버전관리:523).
   - P8에 ACTIVE가 된 번들의 해시: 없다(전환하지 않음). 측정한 v20 번들 해시는 `5e75a4254377…`다
+  - 재인증 뒤 ACTIVE 번들의 해시: `97d9eaf8dabc…`(v20.25)
 
 ## ADR-40 번들 선택기, 레지스트리 수명주기, 활성화 게이트 (2026-10-10 버전관리 결정 1~13, 2026-10-12 W3-16, 2026-10-16 W6-8~W6-10)
 - **결정**
@@ -383,7 +387,9 @@
   - 검증 호스트에서 시작 등록 평가(해시 없음)로 카나리를 요청하면 422 `EVALUATION_NOT_FOR_BUNDLE_HASH`였고, 평가를 같은 번들 해시로 바꾸자 그 막힘이 사라졌다. 최종 트리에서 자기 해시 평가의 카나리 전이는 200이었다(P6 검수:222, :294).
   - 엔터프라이즈가 OSS 게이트를 부르게 바꾸는 일은 최종 구현 계획 뒤로 미뤘다(P3-변경-84, 계획:585).
   - P8 게이트 증거(평가 원장 행, 측정 프로토콜)와 전환 영수증: 평가 원장 행과 전환 영수증은 없다(연쇄 c 미실행). 측정 프로토콜은 protocol-541025e6, 판정 기록은 `p0/repro/records/p8_gate_verdict.json`(종합 FAIL, 15/17 통과)이다. 활성화 게이트의 지연·비용은 PASSED였다
+  - 재인증 게이트 증거: 평가 기록은 `/ops/prompt-releases/evaluation` 200(본문 `scratchpad/p9/p9_c_evaluation.body.json`, 평가 참조 'prereg-' + 사전 등록 2판 sha256), 측정 protocol-5af4da3a, 판정 `p0/repro/records/p8_gate_verdict_p9.json`, 전환 단계 응답은 모두 200(`scratchpad/p9/p9_cc_steps.log`). 지연·비용 게이트 PASSED(지연 중앙값 5122.5 → 3758.0ms)
   - 프롬프트 품질 인증이 버전에 묶여 있을 때의 v20 인증(W8-3): 해당 없다(v20.24는 인증되지 않음). 공개 묶음은 `p0/repro/records/p8_publication_p8/`다
+  - 재인증 뒤: v20.25가 사전 등록 측정으로 인증(A2는 Q-88 관문 예외)되어 전환됐다. 공개 묶음은 `p0/repro/records/p8_publication_p9/`다
 
 ## ADR-41 신뢰하지 않는 글(UNTRUSTED TEXT)과 주입 방어 범위 (2026-10-12 W3-6·N-INJ-1, Q-65)
 - **결정**
@@ -399,6 +405,7 @@
   - 인증 지표 C5(주입 시험의 사실·판정 변화) 목표는 0이다(계획:157). 측정 하네스의 주입 평가기는 지시문이 UNTRUSTED TEXT 블록에만 있는지 본다(P6 검수:235).
   - W7-4 주입 시험 결과: OSS 호스트(v20.23)는 통과했고 반복 0/6 변화다. 쇼케이스 주입 묶음은 오프라인 재평가 15/18이며, 남은 3건(S09C-I1 업무 라벨)은 코어 결함 N-INJ-3이라 v20.24에서 고쳐 다시 잰다(P7 검수:18, P7 검수:772)
   - P8 C5 판정: FAIL. 주입 7곳 중 1곳(A1T-I1, 과거 기록 이름표의 지시문)에서 판정이 ALLOW → CHALLENGE로 바뀌었다. 지시문은 UNTRUSTED TEXT 안에만 있었고 밖으로 새지 않았다. 새 계획 행 N-INJ-6
+  - 재인증 C5 판정: PASS(0/7). 원인은 측정 설계였다(주입 변형과 기준의 단계 수 차이). 대조 변형 A3-C3·A1T-C1을 기준으로 두고 평가기가 판정 단계의 사실 줄도 견주게 했다(N-INJ-6, `프롬프트-재인증-검수.md`)
 
 ## ADR-42 봉인 증거 (W1-15, W6-6·W6-12, 저장 설계 B, 2026-10-14~16)
 - **결정**

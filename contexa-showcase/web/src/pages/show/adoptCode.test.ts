@@ -5,6 +5,9 @@ import { ADOPT_CODE } from './adoptCode';
 describe('the code of scene 5', () => {
   it('highlights the Contexa annotation and nothing else', () => {
     const highlighted = ADOPT_CODE.map((excerpt) => excerpt.lines[excerpt.highlight]?.trim());
-    expect(highlighted).toEqual(['@EnableAISecurity(mode = SecurityMode.FULL)', '@Protectable']);
+    expect(highlighted[0]).toBe('@EnableAISecurity(mode = SecurityMode.FULL)');
+    // The protected method's annotation as the business code writes it, with whatever attributes it names.
+    expect(highlighted[1]).toMatch(/^@Protectable(\(|$)/);
+    expect(highlighted).toHaveLength(2);
   });
 });

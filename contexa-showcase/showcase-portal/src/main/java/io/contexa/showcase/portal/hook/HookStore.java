@@ -13,9 +13,12 @@ import java.util.Optional;
 /** The designated representative runs of the first screen and the stored facts their designation is checked on. */
 public class HookStore {
 
-    /** The two columns of the first screen, each replaying one case (decisions 2 and 14). */
+    /**
+     * The two columns of the first screen, each replaying one case (decisions 2 and 14): since IN-6 the stolen account
+     * and the owner's same export, whose runs every existing control let through alike (L1).
+     */
     public enum Slot {
-        ATTACKER("A3"), OWNER("A3T");
+        ATTACKER("S13"), OWNER("S13T");
 
         private final String caseKey;
 

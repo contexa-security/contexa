@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promptQualityRawHref, type PromptQualityView } from '../../api/promptQuality';
-import '../../i18n';
 import i18n from '../../i18n';
 import ko from '../../i18n/ko.json';
 import { required } from '../../test/required';
+import { stubFetch } from './benchFixture';
 import BenchPromptPage from './BenchPromptPage';
 
 const KO: Readonly<Record<string, string>> = ko;
@@ -24,7 +24,7 @@ function rate(hits: number, total: number, low: number, high: number, preliminar
   return { hits, total, rate: hits / total, low, high, preliminary };
 }
 
-/** A published batch as the portal's prompt-quality view gives it (the numbers are this test's own). */
+/** A published record as the portal's prompt-quality view gives it (the numbers are this test's own). */
 const view: PromptQualityView = {
   measuredAt: '2026-10-16T05:40:00Z',
   setting: 'a'.repeat(64),
@@ -51,15 +51,7 @@ let answer: { readonly status: number; readonly body: unknown };
 
 beforeEach(async () => {
   await i18n.changeLanguage('ko');
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) => {
-      const { status, body } = url.startsWith('/api/benchmark/prompt-quality')
-        ? answer
-        : { status: 404, body: null };
-      return new Response(body === null ? null : JSON.stringify(body), { status });
-    }),
-  );
+  vi.stubGlobal('fetch', vi.fn(stubFetch(() => ({ '/api/benchmark/prompt-quality': answer }))));
 });
 
 afterEach(() => {
@@ -85,73 +77,106 @@ function open(path = '/benchmark/prompt') {
   );
 }
 
-/** U-6, C-23: the benchmark's prompt-quality tab. */
-describe('prompt quality tab', () => {
-  it('says nothing is measured yet while the server has no published batch (404)', async () => {
+function row(name: string): HTMLElement {
+  return required(document.querySelector<HTMLElement>(`tr[data-row="${name}"]`), name);
+}
+
+function range(low: string, high: string): string {
+  return fill('bench.r7.rangeValue', { low, high });
+}
+
+/** The text sent to the AI (화면재편-구현계획 RO-3, a table view; U-6, C-23). */
+describe('benchmark text sent to the AI', () => {
+  it('says there is nothing to show yet while the server has no published record (404)', async () => {
     answer = { status: 404, body: null };
+    const { container } = open();
+    expect(await screen.findByText(word('bench.r7.prompt.notMeasured'))).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(word('bench.r7.prompt.title'));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-zone="source"]')).toBeNull();
+    // Nothing published: no record to download, no window to open.
+    expect(screen.queryByRole('button', { name: word('frame.source.open') })).not.toBeInTheDocument();
+  });
+
+  it('shows the seven values in one table with what each checks, its sample and its range', async () => {
+    answer = { status: 200, body: view };
+    const { container } = open();
+    await screen.findByRole('table');
+    expect(container.querySelector('main')).toHaveAttribute('data-type', 'table');
+    expect(
+      Array.from(document.querySelectorAll<HTMLElement>('tr[data-row]'), (element) => element.dataset.row),
+    ).toEqual(['delivery', 'reaction', 'invariance', 'injection', 'accuracy', 'reasonMatch', 'consistency']);
+    expect(row('delivery')).toHaveTextContent(word('bench.r7.prompt.row.delivery'));
+    expect(row('delivery')).toHaveTextContent('10/11');
+    expect(row('delivery')).toHaveTextContent(word('bench.r7.prompt.row.delivery.what'));
+    expect(row('delivery')).toHaveTextContent(range('62.3%', '98.4%'));
+    expect(row('reaction')).toHaveTextContent('81.1%');
+    expect(row('reaction')).toHaveTextContent(fill('bench.r7.prompt.sample', { n: '99/122' }));
+    // Invariance: the judgments that changed as the value, the unchanged facts as its sample.
+    expect(row('invariance')).toHaveTextContent(fill('bench.r7.prompt.invariance.value', { n: 2 }));
+    expect(row('invariance')).toHaveTextContent(fill('bench.r7.prompt.unchanged', { n: '26/26' }));
+    expect(row('injection')).toHaveTextContent(fill('bench.r7.prompt.injection.value', { n: 1, total: 4 }));
+    expect(row('injection')).toHaveTextContent(fill('bench.r7.prompt.unchanged', { n: '3/4' }));
+    // "Few runs yet" only where the server says the sample is small.
+    expect(row('injection')).toHaveTextContent(word('bench.r7.preliminary'));
+    expect(row('delivery')).not.toHaveTextContent(word('bench.r7.preliminary'));
+    expect(row('accuracy')).toHaveTextContent('99%');
+    expect(row('accuracy')).toHaveTextContent(fill('bench.r7.prompt.sample', { n: '950/960' }));
+    expect(row('reasonMatch')).toHaveTextContent('97.8%');
+    expect(row('consistency')).toHaveTextContent('94.9%');
+    expect(
+      screen.getByRole('columnheader', { name: word('bench.r7.prompt.column.range') }),
+    ).toBeInTheDocument();
+  });
+
+  it('scrolls the table sideways inside its own region, reached by the keyboard (U6-7)', async () => {
+    answer = { status: 200, body: view };
     open();
-    expect(await screen.findByText(word('promptQuality.notMeasured'))).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(word('promptQuality.title'));
-    expect(screen.queryByRole('region', { name: word('promptQuality.cards') })).not.toBeInTheDocument();
-    // The tab is the current view of the benchmark's band, after "judgment and timing".
-    const views = screen.getByRole('list', { name: word('benchBar.views') });
-    const names = within(views)
-      .getAllByRole('link')
-      .map((link) => link.textContent);
-    expect(names.indexOf(word('benchBar.view.prompt'))).toBe(names.indexOf(word('benchBar.view.judgment')) + 1);
-    expect(within(views).getByRole('link', { name: word('benchBar.view.prompt') })).toHaveAttribute(
-      'aria-current',
-      'page',
+    const region = await screen.findByRole('region', { name: word('bench.r7.prompt.caption') });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toContainElement(screen.getByRole('table'));
+    // How the region scrolls at phone width is the stylesheets' (benchPromptPhone.test.ts).
+  });
+
+  it('keeps one thing to press in the body: the source line with the record date opening how it was made', async () => {
+    answer = { status: 200, body: view };
+    const { container } = open();
+    await screen.findByRole('table');
+    const zones = Array.from(
+      container.querySelectorAll('[data-zone="title"], [data-zone="body"], [data-zone="source"]'),
+    );
+    const pressables = zones.flatMap((zone) =>
+      Array.from(zone.querySelectorAll('button, a[href], select, summary')),
+    );
+    expect(pressables.map((element) => element.textContent)).toEqual([word('frame.source.open')]);
+    expect(required(container.querySelector('[data-zone="source"]'), 'the source line')).toHaveTextContent(
+      fill('bench.r7.prompt.source', { date: '2026-10-16' }),
+    );
+    expect(screen.getByRole('link', { name: word('frame.back') })).toHaveAttribute(
+      'href',
+      '/benchmark/judgment',
+    );
+    expect(screen.getByRole('link', { name: word('bench.r7.next.limits') })).toHaveAttribute(
+      'href',
+      '/benchmark/limits',
     );
   });
 
-  it("shows the four big numbers and the other three with their samples, 95% intervals and the measured date", async () => {
+  it('opens how the record was made in its own window, with the values made alongside and the download', async () => {
     answer = { status: 200, body: view };
     open();
-    const cards = await screen.findByRole('region', { name: word('promptQuality.cards') });
-    const card = (name: string) => required(cards.querySelector(`[data-card="${name}"]`), name);
-    expect(card('delivery')).toHaveTextContent('10/11');
-    expect(card('delivery')).toHaveTextContent(fill('benchmark.interval', { low: '62.3%', high: '98.4%' }));
-    expect(card('reaction')).toHaveTextContent('81.1%');
-    expect(card('reaction')).toHaveTextContent(fill('promptQuality.sample', { n: '99/122' }));
-    // Invariance: the decision changes as the big number, the unchanged facts as its denominator line.
-    expect(card('invariance')).toHaveTextContent(fill('promptQuality.card.invariance.value', { n: 2 }));
-    expect(card('invariance')).toHaveTextContent(fill('promptQuality.unchanged', { n: '26/26' }));
-    // Injection: the changed decisions over the injected variants, then the unchanged ones.
-    expect(card('injection')).toHaveTextContent(fill('promptQuality.card.injection.value', { n: 1, total: 4 }));
-    expect(card('injection')).toHaveTextContent(fill('promptQuality.unchanged', { n: '3/4' }));
-    expect(card('injection')).toHaveTextContent(word('benchmark.preliminary'));
-    expect(card('delivery')).not.toHaveTextContent(word('benchmark.preliminary'));
-    const more = screen.getByRole('list', { name: word('promptQuality.more') });
-    expect(more).toHaveTextContent(fill('promptQuality.more.accuracy', { rate: '99%' }));
-    expect(more).toHaveTextContent(fill('promptQuality.sample', { n: '950/960' }));
-    expect(more).toHaveTextContent(fill('promptQuality.more.reasonMatch', { rate: '97.8%' }));
-    expect(more).toHaveTextContent(fill('promptQuality.more.consistency', { rate: '94.9%' }));
-    // Every number has its interval: four cards and three lines.
-    expect(screen.getAllByText(/95%/)).toHaveLength(7);
-    expect(screen.getByText(fill('promptQuality.measured', { date: '2026-10-16' }))).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: word('frame.source.open') }));
+    expect(screen.getByTestId('where')).toHaveTextContent('modal=prompt-method');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(word('bench.r7.prompt.method.delivery'));
+    expect(dialog).toHaveTextContent(fill('bench.r7.prompt.method.minimumKept', { value: '40/40' }));
+    expect(within(dialog).getByText('batch-p7-1')).toHaveAttribute('data-original');
+    const raw = within(dialog).getByRole('link', { name: word('bench.r7.raw') });
+    expect(raw).toHaveAttribute('href', `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`);
+    expect(raw).toHaveAttribute('download', 'contexa-prompt-quality.json');
   });
 
-  it('slides the four big numbers sideways on phones, the rest top to bottom (U6-7)', async () => {
-    answer = { status: 200, body: view };
-    open();
-    const cards = await screen.findByRole('region', { name: word('promptQuality.cards') });
-    // The region scrolls on its own, is reached by the keyboard and holds the four cards only.
-    expect(cards).toHaveAttribute('tabindex', '0');
-    const names = Array.from(cards.querySelectorAll<HTMLElement>('[data-card]'), (card) => card.dataset.card);
-    expect(names).toEqual(['delivery', 'reaction', 'invariance', 'injection']);
-    expect(cards).not.toContainElement(screen.getByRole('list', { name: word('promptQuality.more') }));
-    // How the region slides at phone width is the stylesheet's (benchPromptPhone.test.ts).
-  });
-
-  it('gives the raw data an address of its own, apart from what the tab reads (U6-5)', () => {
-    expect(promptQualityRawHref('a'.repeat(64))).toBe(
-      `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`,
-    );
-    expect(promptQualityRawHref(null)).toBe('/api/benchmark/prompt-quality?raw=true');
-  });
-
-  it('names the batch of each number when they come from batches of their own (N-PQ-1)', async () => {
+  it('names the record batch of each value when they come from batches of their own (N-PQ-1)', async () => {
     answer = {
       status: 200,
       body: {
@@ -161,26 +186,14 @@ describe('prompt quality tab', () => {
       },
     };
     open();
-    // The source line is in the source box, which its button opens.
-    await userEvent.click(await screen.findByRole('button', { name: word('source.measured') }));
-    expect(
-      await screen.findByText(
-        fill('promptQuality.sources', {
-          delivery: 'p8-delivery',
-          reaction: 'p8-reaction',
-          injection: 'p8-injection',
-          protocol: 'protocol-p7-1',
-        }),
-      ),
-    ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: word('promptQuality.method') }));
+    await userEvent.click(await screen.findByRole('button', { name: word('frame.source.open') }));
     const dialog = screen.getByRole('dialog');
     for (const batch of ['p8-delivery', 'p8-reaction', 'p8-injection']) {
       expect(within(dialog).getByText(batch)).toHaveAttribute('data-original');
     }
   });
 
-  it('shows the earlier measurement against this one by run, as the server counted both (U6-4)', async () => {
+  it('shows the earlier record against this one, as the server counted both (U6-4)', async () => {
     answer = {
       status: 200,
       body: {
@@ -211,29 +224,10 @@ describe('prompt quality tab', () => {
     ).toBeInTheDocument();
   });
 
-  it('opens how it was measured in its own window, with the numbers measured alongside', async () => {
-    answer = { status: 200, body: view };
-    open();
-    await userEvent.click(await screen.findByRole('button', { name: word('promptQuality.method') }));
-    expect(screen.getByTestId('where')).toHaveTextContent('modal=prompt-method');
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent(word('promptQuality.method.delivery'));
-    expect(dialog).toHaveTextContent(fill('promptQuality.method.minimumKept', { value: '40/40' }));
-    expect(within(dialog).getByText('batch-p7-1')).toHaveAttribute('data-original');
-  });
-
-  it("offers the shown setting's published record as the raw data to download (U6-5)", async () => {
-    answer = { status: 200, body: view };
-    open();
-    const raw = await screen.findByRole('link', { name: word('promptQuality.raw') });
-    expect(raw).toHaveAttribute('href', `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`);
-    expect(raw).toHaveAttribute('download', 'contexa-prompt-quality.json');
-  });
-
-  it('offers no raw data while nothing is published', async () => {
-    answer = { status: 404, body: null };
-    open();
-    await screen.findByText(word('promptQuality.notMeasured'));
-    expect(screen.queryByRole('link', { name: word('promptQuality.raw') })).not.toBeInTheDocument();
+  it('gives the raw data an address of its own, apart from what the view reads (U6-5)', () => {
+    expect(promptQualityRawHref('a'.repeat(64))).toBe(
+      `/api/benchmark/prompt-quality?setting=${'a'.repeat(64)}&raw=true`,
+    );
+    expect(promptQualityRawHref(null)).toBe('/api/benchmark/prompt-quality?raw=true');
   });
 });

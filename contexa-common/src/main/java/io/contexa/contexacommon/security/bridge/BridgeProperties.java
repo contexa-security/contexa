@@ -19,7 +19,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @ConfigurationProperties(prefix = "contexa.bridge")
@@ -149,6 +151,55 @@ public class BridgeProperties {
 
         @NestedConfigurationProperty
         private Headers headers = new Headers();
+
+        @NestedConfigurationProperty
+        private Token token = new Token();
+
+        /**
+         * The delegation an OAuth2 access token states (A1-1, AG-11a). An agent arrives in one of several token forms:
+         * an RFC 8693 actor claim; the agent as the authorized party ({@code client_id}/{@code azp}) and the user as
+         * {@code sub} (IETF WIMSE AIMS, Microsoft Entra Agent ID); snake_case delegation claims. RFC 9396
+         * {@code authorization_details} carry the delegated operations and resources. A token that names no agent
+         * leaves the stamp to the session, request attribute and header channels.
+         */
+        @Data
+        public static class Token {
+            private boolean enabled = true;
+            /** RFC 8693 actor claims; the outermost is the current actor, nested ones are prior actors. */
+            private List<String> actorClaims = List.of("act");
+            /** RFC 8693 claims naming who may act for the subject; kept as information only. */
+            private List<String> mayActClaims = List.of("may_act");
+            /** Claims naming the client the token was issued to (the agent in the AIMS and Entra forms). */
+            private List<String> clientIdClaims = List.of("azp", "client_id", "appid");
+            /** Claims naming the agent directly. */
+            private List<String> agentIdClaims = List.of("agent_id", "agentId");
+            /**
+             * Claims whose values mark the token's actor as an agent, by claim name; a claim holding several values
+             * separated by spaces matches when any value is listed (Entra {@code xms_act_fct} 11 = AgentIdentity).
+             */
+            private Map<String, List<String>> agentActorMarkers = new LinkedHashMap<>(Map.of("xms_act_fct", List.of("11")));
+            /** Claims whose values state the token is a delegation to an agent, by claim name. */
+            private Map<String, List<String>> delegatedMarkers = new LinkedHashMap<>(Map.of("execution_mode", List.of("DELEGATED_AGENT")));
+            /** Client IDs the host registers as agents, for authorization servers that mark agents no other way. */
+            private List<String> agentClientIds = List.of();
+            /** Claims stating whether the subject is a user or an application (Entra {@code idtyp}, Auth0 {@code sub_profile}). */
+            private List<String> subjectTypeClaims = List.of("idtyp", "sub_profile");
+            /** Subject type values that mean a person, so the agent acts for that person. */
+            private List<String> userSubjectTypes = List.of("user");
+            private List<String> scopeClaims = List.of("scope", "scp");
+            /** RFC 9396 authorization details. */
+            private List<String> authorizationDetailsClaims = List.of("authorization_details");
+            private List<String> objectiveIdClaims = List.of("objective_id", "objectiveId");
+            private List<String> objectiveFamilyClaims = List.of("objective_family", "objectiveFamily");
+            private List<String> objectiveSummaryClaims = List.of("task_purpose", "objective_summary", "objectiveSummary");
+            private List<String> allowedOperationsClaims = List.of("allowed_operations", "allowedOperations");
+            private List<String> allowedResourcesClaims = List.of("allowed_resources", "allowed_resource_families", "allowedResources");
+            private List<String> approvalRequiredClaims = List.of("approval_required", "approvalRequired");
+            private List<String> privilegedExportAllowedClaims = List.of("privileged_export_allowed", "privilegedExportAllowed");
+            private List<String> containmentOnlyClaims = List.of("containment_only", "containmentOnly");
+            /** Claims stating when the delegation ends; without one, a delegation ends no later than the token. */
+            private List<String> expiresAtClaims = List.of("delegation_expires_at", "execution_expires_at", "delegationExpiresAt");
+        }
 
         @Data
         public static class Session {

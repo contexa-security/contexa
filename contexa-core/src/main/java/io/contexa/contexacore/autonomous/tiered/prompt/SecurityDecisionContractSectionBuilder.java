@@ -28,6 +28,19 @@ public class SecurityDecisionContractSectionBuilder implements SecurityPromptSec
         return formatInstructions(false);
     }
 
+    /** The output format of the layout's bundle: v21 states the output contract v4, v20 the v3, v19 its own format. */
+    static String formatInstructions(SecurityDecisionPromptBundles.UserPromptLayout layout) {
+        if (layout == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS) {
+            return """
+                    Your response should be in JSON format.
+                    Return one RFC8259 compliant JSON object without explanations or markdown.
+                    The response must satisfy this JSON Schema:
+                    ```%s```
+                    """.formatted(SecurityDecisionOutputContractV4.textSchema());
+        }
+        return formatInstructions(layout == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS);
+    }
+
     /**
      * The output format; the v20 bundle's wording check names the dictionary's facts (TO-4), the v19 bundle's keeps its
      * labels.

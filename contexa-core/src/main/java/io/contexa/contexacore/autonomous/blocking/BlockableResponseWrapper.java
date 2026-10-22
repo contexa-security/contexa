@@ -16,6 +16,8 @@
 package io.contexa.contexacore.autonomous.blocking;
 
 import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.ServletResponseWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletResponseWrapper;
 
@@ -26,12 +28,14 @@ import java.io.PrintWriter;
  * HttpServletResponseWrapper that returns a BlockableServletOutputStream
  * (and a PrintWriter backed by it) so every response write is subject
  * to real-time BLOCK checks via BlockingSignalBroadcaster.
+ *
+ * The response start is the moment the access filter read before the decision in force: a BLOCK received after it cuts
+ * the response, whichever way it is written (bytes, characters, sendError, sendRedirect, flushBuffer).
  */
 public class BlockableResponseWrapper extends HttpServletResponseWrapper {
 
-    private final BlockingSignalBroadcaster registry;
-    private final String userId;
     private final String blockedRedirectUrl;
+    private final ResponseCut cut;
     private BlockableServletOutputStream blockableStream;
     private PrintWriter writer;
     private boolean monitoredHeaderSet = false;
@@ -46,10 +50,44 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
                                     BlockingSignalBroadcaster registry,
                                     String userId,
                                     String blockedRedirectUrl) {
+        this(response, registry, userId, blockedRedirectUrl, System.nanoTime());
+    }
+
+    public BlockableResponseWrapper(HttpServletResponse response,
+                                    BlockingSignalBroadcaster registry,
+                                    String userId,
+                                    String blockedRedirectUrl,
+                                    long responseStartNanos) {
         super(response);
-        this.registry = registry;
-        this.userId = userId;
         this.blockedRedirectUrl = blockedRedirectUrl;
+        this.cut = new ResponseCut(response, registry, userId, responseStartNanos);
+    }
+
+    /** The {@link System#nanoTime()} the response started at, read before the decision in force. */
+    public long responseStartNanos() {
+        return cut.responseStartNanos();
+    }
+
+    /** Whether this response was cut by a BLOCK. */
+    /**
+     * Marks the engine's own deny response of a decision made before the response (a synchronous BLOCK answered by
+     * ZeroTrustExceptionHandler): it carries no protected data, so it is written whole and not cut (R-12). The access
+     * filter's wrapper is found through any wrapper laid over it; false when the response has none.
+     */
+    public static boolean permitOwnDenyResponse(ServletResponse response) {
+        ServletResponse current = response;
+        while (current instanceof ServletResponseWrapper wrapped) {
+            if (wrapped instanceof BlockableResponseWrapper blockable) {
+                blockable.cut.permitOwnDenyResponse();
+                return true;
+            }
+            current = wrapped.getResponse();
+        }
+        return false;
+    }
+
+    public boolean isCut() {
+        return cut.isCut();
     }
 
     private void ensureMonitoredHeader() {
@@ -66,9 +104,9 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     public ServletOutputStream getOutputStream() throws IOException {
         if (blockableStream == null) {
             ensureMonitoredHeader();
-            blockableStream = new BlockableServletOutputStream(
-                    super.getOutputStream(), registry, userId,
-                    (HttpServletResponse) getResponse());
+            ServletOutputStream delegate = super.getOutputStream();
+            cut.useStream(delegate);
+            blockableStream = new BlockableServletOutputStream(delegate, cut);
         }
         return blockableStream;
     }
@@ -77,8 +115,9 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     public PrintWriter getWriter() throws IOException {
         if (writer == null) {
             ensureMonitoredHeader();
-            writer = new BlockablePrintWriter(
-                    super.getWriter(), registry, userId);
+            PrintWriter delegate = super.getWriter();
+            cut.useWriter(delegate);
+            writer = new BlockablePrintWriter(delegate, cut);
         }
         return writer;
     }
@@ -112,14 +151,8 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     }
 
     private void ensureNotBlocked() throws IOException {
-        if (registry != null && registry.isBlocked(userId)) {
-            try {
-                if (!isCommitted()) {
-                    setStatus(HttpServletResponse.SC_FORBIDDEN);
-                }
-            } catch (Exception ignored) {
-            }
-            throw new IOException("Response aborted: user " + userId + " blocked by security decision");
+        if (cut.cutIfBlocked()) {
+            throw new IOException("Response aborted: user " + cut.userId() + " blocked by security decision");
         }
     }
 }

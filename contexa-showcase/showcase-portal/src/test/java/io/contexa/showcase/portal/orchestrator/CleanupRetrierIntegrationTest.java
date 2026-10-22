@@ -58,6 +58,31 @@ class CleanupRetrierIntegrationTest {
     private final List<String> cleaned = new CopyOnWriteArrayList<>();
     private final AtomicBoolean engineDown = new AtomicBoolean(false);
 
+    /**
+     * 벤치마크 계획 BM-S9: a protocol's job lives in the portal, so a protocol a stopped portal left unfinished gets no
+     * more runs; the start closes it at its last run (at its start when none ran) and keeps a finished one.
+     */
+    @Test
+    void aProtocolAStoppedPortalLeftUnfinishedEndsAtItsLastRun() throws Exception {
+        jdbc.update("delete from run");
+        jdbc.update("delete from measurement_protocol");
+        protocol("p-stopped", Duration.ofHours(3), null);
+        protocol("p-empty", Duration.ofHours(2), null);
+        protocol("p-done", Duration.ofHours(5), Duration.ofHours(4));
+        run("run-first", "COMPLETED", Duration.ofMinutes(170), null);
+        run("run-last", "COMPLETED", Duration.ofMinutes(100), null);
+        jdbc.update("""
+                update run set protocol_id = 'p-stopped', finished_at = started_at + interval '5 minutes'
+                 where run_id in ('run-first', 'run-last')""");
+
+        new OrchestrationConfiguration()
+                .unfinishedProtocolCloser(new RunStore(new NamedParameterJdbcTemplate(jdbc), JSON)).run(null);
+
+        assertThat(finished("p-stopped")).isEqualTo(NOW.minus(Duration.ofMinutes(95)));
+        assertThat(finished("p-empty")).isEqualTo(NOW.minus(Duration.ofHours(2)));
+        assertThat(finished("p-done")).isEqualTo(NOW.minus(Duration.ofHours(4)));
+    }
+
     @Test
     void failedAndAbandonedRunsAreCleanedAgainAndTheRestIsLeftAlone() {
         jdbc.update("delete from run");
@@ -112,6 +137,19 @@ class CleanupRetrierIntegrationTest {
         };
         return new CleanupRetrier(new RunStore(new NamedParameterJdbcTemplate(jdbc), JSON), admin, JSON,
                 Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    private void protocol(String protocolId, Duration startedAgo, Duration finishedAgo) {
+        jdbc.update("""
+                insert into measurement_protocol (protocol_id, repeat, cases, started_at, finished_at)
+                values (?, 5, cast('["K2"]' as jsonb), ?, ?)""",
+                protocolId, Timestamp.from(NOW.minus(startedAgo)),
+                finishedAgo == null ? null : Timestamp.from(NOW.minus(finishedAgo)));
+    }
+
+    private Instant finished(String protocolId) {
+        return jdbc.queryForObject("select finished_at from measurement_protocol where protocol_id = ?",
+                Timestamp.class, protocolId).toInstant();
     }
 
     private void run(String runId, String status, Duration startedAgo, String cleanup) {

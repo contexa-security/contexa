@@ -39,6 +39,7 @@ final class InspectionGolden {
     private static final Pattern FACT_ID = Pattern.compile("^\\[[BSRFP]\\d+] ");
 
     private static List<Render> renders;
+    private static List<Render> v21Renders;
 
     private InspectionGolden() {
     }
@@ -112,6 +113,26 @@ final class InspectionGolden {
             renders = List.copyOf(all);
         }
         return renders;
+    }
+
+    /** V-6: the v21 renders of the golden cases with the L1 profile, as the packages a v21 decision seals. */
+    static synchronized List<Render> v21Renders() {
+        if (v21Renders == null) {
+            SecurityDecisionGoldenRender golden = SecurityDecisionGoldenRender.load();
+            TieredStrategyProperties properties = new TieredStrategyProperties();
+            properties.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+            List<Render> all = new ArrayList<>();
+            for (JsonNode goldenCase : golden.cases()) {
+                SecurityDecisionGoldenRender.RenderedCase rendered = golden.render(goldenCase,
+                        PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT, properties);
+                all.add(new Render(rendered.caseKey(), PromptBudgetProfile.CORTEX_L1_INTERACTIVE_STRICT,
+                        rendered.systemText(), rendered.userText(), rendered.canonicalContext(),
+                        rendered.executionMetadata().toMetadataMap(), goldenCase.path("ragResults").toString(),
+                        goldenCase.path("requestFacts").toString()));
+            }
+            v21Renders = List.copyOf(all);
+        }
+        return v21Renders;
     }
 
     /** The drawn line without the fact id drawn before it, if any. */

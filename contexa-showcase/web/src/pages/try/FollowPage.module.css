@@ -1,69 +1,71 @@
+/* Screen 2-6 (T7): four rows, one per judgment, and one plain line under them. */
 .rows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* One decision per row: the decision and its hold, what happens next, and how often it happened. */
+/*
+ * One judgment per row: the judgment and how long it holds on the left; what happens next and, under it, how often it
+ * happened on the right. Two columns only, so a long count never squeezes what happens next (768 px, English).
+ */
 .row {
   display: grid;
-  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) auto;
-  gap: var(--space-2) var(--space-5);
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-6);
   align-items: center;
   padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
 }
 
 .head {
+  grid-row: span 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .hold {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface-raised);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
 .next {
   color: var(--color-text);
-  font-size: var(--text-md);
+  font-size: var(--type-body);
   font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
 }
 
 .count {
   color: var(--color-text-body);
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-  text-align: right;
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
-.outcomes {
-  grid-column: 2 / -1;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+.line {
+  max-width: var(--frame-measure);
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
+/* Phones: each row stacked, the count under what happens next. */
 @media (width <= 40rem) {
   .row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .count {
-    text-align: left;
-  }
-
-  .outcomes {
-    grid-column: 1;
+  .head {
+    grid-row: auto;
   }
 }

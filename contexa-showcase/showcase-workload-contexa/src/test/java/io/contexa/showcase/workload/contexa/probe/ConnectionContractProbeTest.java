@@ -36,6 +36,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -245,6 +249,147 @@ class ConnectionContractProbeTest {
         assertThat(lines).as("stream lines").contains(BLOCK_MARKER);
         long rows = lines.stream().filter(line -> line.startsWith("{\"row\":")).count();
         assertThat(rows).as("rows delivered before the cut").isBetween(3L, 49L);
+    }
+
+    @Test
+    void probe6bASynchronousStreamIsCutRightAfterTheBlock() throws Exception {
+        ProbeClient client = newRun();
+        signIn(client);
+        String user = client.run().username();
+        awaitAction(user, ZeroTrustAction.PENDING_ANALYSIS, Duration.ofSeconds(25));
+
+        List<String> lines = readBlockingAfter(client, "/probe/stream-sync?rows=50", 3, user);
+
+        assertCutRightAfterTheBlock(lines);
+    }
+
+    @Test
+    void probe6cTwoStreamsOfTheUserInFlightAreBothCut() throws Exception {
+        ProbeClient client = newRun();
+        signIn(client);
+        String user = client.run().username();
+        awaitAction(user, ZeroTrustAction.PENDING_ANALYSIS, Duration.ofSeconds(25));
+        AtomicBoolean slowStarted = new AtomicBoolean();
+        CompletableFuture<List<String>> slow = CompletableFuture.supplyAsync(() -> {
+            try {
+                return readAll(client.call("GET", "/probe/stream-sync?rows=40&everyMs=400")
+                        .accept("application/x-ndjson").sendStreaming(), slowStarted);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        Instant deadline = Instant.now().plusSeconds(10);
+        while (!slowStarted.get() && Instant.now().isBefore(deadline)) {
+            Thread.sleep(20);
+        }
+        assertThat(slowStarted).as("the slow stream started").isTrue();
+
+        List<String> fast = readBlockingAfter(client, "/probe/stream-sync?rows=200&everyMs=20", 3, user);
+        List<String> slowLines = slow.get(30, TimeUnit.SECONDS);
+
+        assertThat(fast).as("the stream that wrote first").contains(BLOCK_MARKER);
+        assertThat(slowLines).as("the user's other stream in flight").contains(BLOCK_MARKER);
+        assertThat(slowLines.subList(slowLines.indexOf(BLOCK_MARKER) + 1, slowLines.size())).allMatch(String::isBlank);
+        assertThat(slowLines.stream().filter(line -> line.startsWith("{\"row\":")).count())
+                .as("rows of the slow stream (one every 400 ms) before its cut").isLessThanOrEqualTo(3L);
+    }
+
+    @Test
+    void probe6dAStreamCutBeforeItsCommitSendsOnly403AndTheMarker() throws Exception {
+        ProbeClient client = newRun();
+        signIn(client);
+        String user = client.run().username();
+        awaitAction(user, ZeroTrustAction.PENDING_ANALYSIS, Duration.ofSeconds(25));
+        String id = UUID.randomUUID().toString();
+        CompletableFuture<HttpResponse<Stream<String>>> sent = CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.call("GET", "/probe/stream-held?id=" + id).accept("application/x-ndjson")
+                        .sendStreaming();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        assertThat(ProbeEndpoints.ProbeController.hold(id).holding.await(20, TimeUnit.SECONDS)).isTrue();
+
+        block(user);
+        ProbeEndpoints.ProbeController.hold(id).release.countDown();
+        HttpResponse<Stream<String>> response = sent.get(30, TimeUnit.SECONDS);
+        List<String> lines = readAll(response, new AtomicBoolean());
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(lines).contains(BLOCK_MARKER);
+        assertThat(lines).as("the two rows written into the buffer before the BLOCK")
+                .noneMatch(line -> line.startsWith("{\"row\":"));
+    }
+
+    @Test
+    void probe6eASignalLeftFromAnEarlierBlockDoesNotCutANewStream() throws Exception {
+        ProbeClient client = newRun();
+        signIn(client);
+        String user = client.run().username();
+        awaitAction(user, ZeroTrustAction.PENDING_ANALYSIS, Duration.ofSeconds(25));
+        block(user);
+        // Lifted in the decision store only: the signal stays, as when no release path cleared it.
+        actions.removeBlockedFlag(user);
+        awaitAction(user, ZeroTrustAction.PENDING_ANALYSIS, Duration.ofSeconds(5));
+
+        HttpResponse<Stream<String>> response = client.call("GET", "/probe/stream?rows=10&everyMs=50")
+                .accept("application/x-ndjson").sendStreaming();
+        List<String> lines = readAll(response, new AtomicBoolean());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(lines).doesNotContain(BLOCK_MARKER);
+        assertThat(lines.stream().filter(line -> line.startsWith("{\"row\":")).count()).isEqualTo(10L);
+    }
+
+    /** Same order as SecurityDecisionEnforcementHandler applies a BLOCK decision. */
+    private void block(String user) {
+        actions.setBlockedFlag(user);
+        blockingSignals.registerBlockAndAwait(user);
+    }
+
+    private List<String> readBlockingAfter(ProbeClient client, String path, int rows, String user) throws Exception {
+        HttpResponse<Stream<String>> response = client.call("GET", path).accept("application/x-ndjson")
+                .sendStreaming();
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("X-Contexa-Monitored")).hasValue("true");
+        List<String> lines = new ArrayList<>();
+        Iterator<String> reader = response.body().iterator();
+        try {
+            while (reader.hasNext()) {
+                lines.add(reader.next());
+                if (lines.size() == rows) {
+                    block(user);
+                }
+            }
+        } catch (UncheckedIOException expected) {
+            // The engine aborts the response after the marker; the stream ends without a final chunk.
+        }
+        return lines;
+    }
+
+    private static List<String> readAll(HttpResponse<Stream<String>> response, AtomicBoolean started) {
+        List<String> lines = new ArrayList<>();
+        Iterator<String> reader = response.body().iterator();
+        try {
+            while (reader.hasNext()) {
+                lines.add(reader.next());
+                started.set(true);
+            }
+        } catch (UncheckedIOException expected) {
+            // The engine aborts the response after the marker.
+        }
+        started.set(true);
+        return lines;
+    }
+
+    private static void assertCutRightAfterTheBlock(List<String> lines) {
+        assertThat(lines).as("stream lines").contains(BLOCK_MARKER);
+        assertThat(lines.subList(lines.indexOf(BLOCK_MARKER) + 1, lines.size())).as("nothing after the marker")
+                .allMatch(String::isBlank);
+        long rows = lines.stream().filter(line -> line.startsWith("{\"row\":")).count();
+        assertThat(rows).as("rows delivered: the three read before the BLOCK, and at most one in flight")
+                .isBetween(3L, 4L);
     }
 
     @Test

@@ -21,6 +21,12 @@ public class BusinessRequestAttributes {
     public static final String RESOURCE_AUTHOR_TEXT = "ctxa.context.resourceAuthorText";
     /** How many items an export asks for (W2-6). */
     public static final String REQUEST_ITEMS = "ctxa.context.requestItems";
+    /**
+     * The scope the business database holds the target in, as {@code projectKey=<key>}: a document's, an export's, a
+     * grant's or a customer's project, stated as the host's record (finding 7 of the v21 plan) instead of only inside
+     * the label text.
+     */
+    public static final String RESOURCE_SCOPE = "ctxa.context.resourceScope";
 
     private static final String SOURCE = " (source: business database)";
     /** The most characters of a document author's own text that reach the engine (case S09). */
@@ -44,6 +50,7 @@ public class BusinessRequestAttributes {
                             + " (" + rs.getString(6) + ") of project " + rs.getString(3) + " " + rs.getString(4)
                             + SOURCE;
                     write(request, label, rs.getString(5));
+                    scope(request, rs.getString(3));
                     String author = rs.getString(7);
                     if (author != null && !author.isBlank()) {
                         request.setAttribute(RESOURCE_AUTHOR_TEXT,
@@ -63,6 +70,7 @@ public class BusinessRequestAttributes {
                     String label = "Export of " + items + " documents from project " + projectKey + " "
                             + rs.getString(1) + ", which holds " + rs.getInt(3) + " documents" + SOURCE;
                     write(request, label, rs.getString(2));
+                    scope(request, projectKey);
                     request.setAttribute(REQUEST_ITEMS, items);
                 });
     }
@@ -77,6 +85,7 @@ public class BusinessRequestAttributes {
                     String label = "Grant of the " + responsibility + " role on project " + projectKey + " "
                             + rs.getString(1) + " to employee " + grantee + " (" + rs.getString(3) + ")" + SOURCE;
                     write(request, label, rs.getString(2));
+                    scope(request, projectKey);
                 });
     }
 
@@ -88,7 +97,15 @@ public class BusinessRequestAttributes {
                     String label = "Customer record " + customerKey + " " + rs.getString(1) + " in region "
                             + rs.getString(2) + ", buyer of project " + rs.getString(3) + SOURCE;
                     write(request, label, "CONFIDENTIAL");
+                    scope(request, rs.getString(3));
                 });
+    }
+
+    /** The project the business database holds the target in, read from the same row as the label. */
+    private static void scope(HttpServletRequest request, String projectKey) {
+        if (projectKey != null && !projectKey.isBlank()) {
+            request.setAttribute(RESOURCE_SCOPE, "projectKey=" + projectKey);
+        }
     }
 
     private static void write(HttpServletRequest request, String label, String sensitivity) {

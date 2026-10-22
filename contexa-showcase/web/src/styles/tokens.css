@@ -1,7 +1,7 @@
 /*
  * Design tokens of the Contexa Showcase. Every color, size, spacing, radius, shadow and motion value
  * used by the application comes from this file; stylelint rejects literal values elsewhere.
- * Dark is the default theme; the light theme follows the system preference or data-theme="light".
+ * One dark console theme for every visitor (최종화면-구현계획 F0-4); no light theme follows the system.
  */
 @import url('@fontsource/jetbrains-mono/400.css');
 @import url('@fontsource/jetbrains-mono/600.css');
@@ -11,11 +11,20 @@
   --font-sans:
     'Pretendard Demo', 'Pretendard Variable', pretendard, -apple-system, blinkmacsystemfont, 'Segoe UI',
     roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, sfmono-regular, menlo, consolas, monospace;
+  --font-mono:
+    'JetBrains Mono', 'Pretendard Demo', 'Pretendard Variable', pretendard, 'Malgun Gothic', ui-monospace,
+    sfmono-regular, menlo, consolas, monospace;
+
+  /*
+   * Numbers read as values (the top bar's counts and the like): the body font, with font-variant-numeric: tabular-nums
+   * beside it so the digits keep one width. The mono font's slashed zero reads as Ø there (L-01); it stays for code,
+   * record ids and logs.
+   */
+  --font-figures: var(--font-sans);
 
   /* Only the numbers inside small circles (the difference marks); never running text. */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
+  --text-xs: 1rem;
+  --text-sm: 1rem;
   --text-md: 1rem;
   --text-lg: 1.25rem;
   --text-xl: 1.75rem;
@@ -51,6 +60,50 @@
   --space-reserve-strip: 9rem;
 
   /*
+   * The redesigned frame (docs/showcase/화면재편-기획안.md 5절, 10절): zones 64 px apart, blocks 32, items 16; a 760 px
+   * reading width and 960 px for tables and pictures; four type sizes. Only the new frame parts use them, so the old
+   * screens do not move until their part is redone (implementation plan 2.3).
+   */
+  --frame-zone-gap: var(--space-16);
+  --frame-block-gap: var(--space-8);
+  --frame-inner-gap: var(--space-4);
+  --frame-title-top: var(--space-16);
+  --frame-title-bottom: var(--space-10);
+  --frame-gutter: var(--space-6);
+  --frame-measure: 47.5rem;
+  --frame-wide: 60rem;
+  --frame-bar-height: 4rem;
+
+  /* The main flow's wide frame (v4): a 1440 px page, 40 px side gutters, a 66 px footer kept in view. */
+  --frame-max: 90rem;
+  --frame-gutter-wide: 2.5rem;
+  --frame-foot-height: 4.125rem;
+  --frame-foot-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+  --ring-live: 0 0 0 5px var(--color-live-soft);
+  --ring-live-small: 0 0 0 2px var(--color-live-soft);
+  --type-title: 2.125rem;
+  --type-emphasis: 1.75rem;
+  --type-body: 1.125rem;
+  --type-aside: 1rem;
+
+  /* The question of a part's briefing (T0), the largest line of the flow. */
+  --type-statement: 3.375rem;
+  --type-counter: 2.75rem;
+  --type-summary: 3.625rem;
+  --type-cover: 3.125rem;
+  --type-cover-cell: 1.4375rem;
+  --type-cover-numeral: 23.75rem;
+
+  /* A guide video's caption, against the browser's own size (5% of the video's height): one row, small. */
+  --type-caption: 70%;
+  --leading-frame: 1.6;
+
+  /* What the title zone and the action bar add to the 32 px block gap, and the phone bar's bottom padding. */
+  --frame-title-rest: calc(var(--frame-title-bottom) - var(--frame-block-gap));
+  --frame-zone-rest: calc(var(--frame-zone-gap) - var(--frame-block-gap));
+  --frame-bar-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+
+  /*
    * Layout joins: the current act's tab overlaps by one line the border of the panel it opens into, and a table's
    * note is pulled up to the table it belongs to.
    */
@@ -72,6 +125,17 @@
   --duration-slow: 360ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
+  /* The live console's motion (설계서 41~42장): a lane fills, a fact is checked, the stamp lands. The beats follow the
+     run's own recorded times; these only shape each beat. */
+  --motion-lane: 1200ms;
+  --motion-row: 600ms;
+  --motion-fact: 450ms;
+  --motion-stamp: 250ms;
+  --motion-reveal: 520ms;
+  --motion-pulse: 1400ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-stamp: cubic-bezier(0.34, 1.56, 0.64, 1);
+
   /* Layout */
   --header-height: 4rem;
 
@@ -79,20 +143,64 @@
   --layer-raised: 10;
   --layer-drawer: 100;
 
-  /* Dark theme (default) */
-  --color-bg: #0b1220;
-  --color-surface: #111a2b;
-  --color-surface-raised: #16223a;
-  --color-surface-accent: #1b2a47;
-  --color-border: #22314d;
-  --color-border-strong: #3a4b6b;
-  --color-text: #f4f1e8;
-  --color-text-body: #e9e6dd;
-  --color-text-muted: #a9b4c4;
-  --color-text-subtle: #8e9aae;
-  --color-accent: #d4af5a;
-  --color-accent-ink: #0e1726;
+  /* The dark console theme (v4 설계서), the only one */
+  --color-bg: #070c18;
+  --color-bg-deep: #03060d;
+  --color-bar: rgb(11 18 34 / 90%);
+  --color-bar-soft: rgb(11 18 34 / 60%);
+  --color-surface: #0f1a2e;
+  --color-surface-raised: #15223b;
+  --color-surface-accent: #1b2a48;
+  --color-border: #22314f;
+  --color-border-strong: #34476d;
+  --color-text: #f3f0e7;
+  --color-text-body: #d6dbe6;
+  --color-text-muted: #9aa6bb;
+  --color-text-subtle: #8693a9;
+  --color-accent: #e8b84d;
+  --color-accent-soft: rgb(232 184 77 / 15%);
+  --color-accent-line: rgb(232 184 77 / 45%);
+  --color-accent-ink: #171206;
   --color-focus: #f2c14e;
+  --color-glow: rgb(232 184 77 / 7%);
+
+  /* Result chips of the console (v4): a soft fill with a light word, the word and an icon always shown together. */
+  --color-chip-allow: rgb(85 145 255 / 18%);
+  --color-chip-allow-ink: #9fc0ff;
+  --color-chip-auth: rgb(243 164 58 / 18%);
+  --color-chip-auth-ink: #f6b55e;
+  --color-chip-block: rgb(169 139 255 / 20%);
+  --color-chip-block-ink: #c9b8ff;
+  --color-chip-bad: #ff5d63;
+  --color-chip-bad-ink: #1a0405;
+  --color-chip-ok: rgb(57 207 143 / 18%);
+  --color-chip-ok-ink: #5fdca6;
+  --color-allow: #5591ff;
+  --color-auth: #f3a43a;
+  --color-block: #a98bff;
+  --color-bad: #ff5d63;
+  --color-bad-bright: #ff8a8e; /* the same red, light enough to read on a marked (accent-soft) row */
+  --color-ok: #39cf8f;
+
+  /* The engine's own log lines and the raw records (monospace panes). */
+  --color-log-bg: #060b16;
+  --color-log-line: #172340;
+  --color-log-text: #9aa6bb;
+  --color-log-strong: #e6ebf5;
+  --color-log-time: #7d8aa3;
+  --color-lane-track: #0a1324;
+
+  /* The LIVE mark while a real request runs. */
+  --color-live: #ff5d63;
+  --color-live-soft: rgb(255 93 99 / 16%);
+  --color-live-line: rgb(255 93 99 / 50%);
+  --color-live-ink: #ffd0d2;
+
+  /* Contexa's lane while it holds the response, and the stamp once the decision is applied. */
+  --color-hold-strong: rgb(232 184 77 / 55%);
+  --color-hold-soft: rgb(232 184 77 / 18%);
+  --color-stamp-veil: rgb(7 12 24 / 75%);
+  --shadow-stamp: 0 0 40px rgb(169 139 255 / 35%);
   --color-backdrop: rgb(4 8 16 / 60%);
   --shadow-raised: 0 12px 32px rgb(0 0 0 / 35%);
 
@@ -117,6 +225,16 @@
   --color-lock-veil: rgb(4 8 16 / 92%);
   --color-lock-ink: #f4f1e8;
   --color-lock-ink-muted: #c9cfd9;
+
+  /* The group cover (T0): a warm light panel on the dark page, so a group's start stands apart. */
+  --color-brief-bg: #f6edd6;
+  --color-brief-bg-end: #e8d9b2;
+  --color-brief-ink: #10151f;
+  --color-brief-muted: #5b5140;
+  --color-brief-mark: #7a5c14;
+  --color-brief-line: rgb(16 21 31 / 20%);
+  --color-brief-numeral: rgb(16 21 31 / 7%);
+  --color-brief-past: #a08a5c;
 }
 
 /* Phones (mobile slide): no running text under 16 px; the circles' numbers keep their own size. */
@@ -124,53 +242,25 @@
   :root {
     --text-sm: 1rem;
     --text-md: 1.0625rem;
+    --frame-zone-gap: var(--space-10);
+    --frame-block-gap: var(--space-6);
+    --frame-inner-gap: var(--space-3);
+    --frame-title-top: var(--space-8);
+    --frame-title-bottom: var(--space-6);
+    --frame-gutter: var(--space-5);
+    --frame-bar-height: 3.5rem;
+    --type-title: 1.75rem;
+    --type-emphasis: 1.375rem;
+    --type-body: 1rem;
+    --type-aside: 1rem;
+    --type-statement: 2.25rem;
+    --type-counter: 2rem;
+    --type-summary: 2.5rem;
+    --type-cover: 2rem;
+    --type-caption: 100%;
+    --type-cover-cell: 1.25rem;
+    --type-cover-numeral: 12rem;
   }
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --color-bg: #f6f5f1;
-    --color-surface: #fdfcf9;
-    --color-surface-raised: #f1eee6;
-    --color-surface-accent: #f3ecd9;
-    --color-border: #e2ded3;
-    --color-border-strong: #cfc8b8;
-    --color-text: #0e1726;
-    --color-text-body: #1b2433;
-    --color-text-muted: #4a5568;
-    --color-text-subtle: #5b6576;
-    --color-accent: #7a5c14;
-    --color-accent-ink: #fbfaf6;
-    --color-focus: #7a5c14;
-    --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
-    --color-safe: #1d7a4e;
-    --color-halt: #9a5208;
-    --color-loss: #b3261e;
-    --color-signal-ink: #fbfaf6;
-    --color-lock-veil: rgb(14 23 38 / 90%);
-  }
-}
-
-:root[data-theme='light'] {
-  --color-bg: #f6f5f1;
-  --color-surface: #fdfcf9;
-  --color-surface-raised: #f1eee6;
-  --color-surface-accent: #f3ecd9;
-  --color-border: #e2ded3;
-  --color-border-strong: #cfc8b8;
-  --color-text: #0e1726;
-  --color-text-body: #1b2433;
-  --color-text-muted: #4a5568;
-  --color-text-subtle: #5b6576;
-  --color-accent: #7a5c14;
-  --color-accent-ink: #fbfaf6;
-  --color-focus: #7a5c14;
-  --shadow-raised: 0 12px 32px rgb(14 23 38 / 12%);
-  --color-safe: #1d7a4e;
-  --color-halt: #9a5208;
-  --color-loss: #b3261e;
-  --color-signal-ink: #fbfaf6;
-  --color-lock-veil: rgb(14 23 38 / 90%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -178,5 +268,11 @@
     --duration-fast: 0ms;
     --duration-base: 0ms;
     --duration-slow: 0ms;
+    --motion-lane: 0ms;
+    --motion-row: 0ms;
+    --motion-fact: 0ms;
+    --motion-stamp: 0ms;
+    --motion-reveal: 0ms;
+    --motion-pulse: 0ms;
   }
 }

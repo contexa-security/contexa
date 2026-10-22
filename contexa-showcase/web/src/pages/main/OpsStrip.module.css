@@ -1,0 +1,163 @@
+/* EV-6: the engine as an operated product, four tiles over every measured decision. */
+.ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.stack {
+  display: flex;
+  gap: var(--space-1);
+  block-size: 1.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.dot {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: var(--radius-pill);
+}
+
+.segment {
+  flex-basis: 0;
+  background-color: var(--color-border-strong);
+}
+
+.segment[data-action='ALLOW'],
+.legendItem[data-action='ALLOW'] .dot {
+  background-color: var(--color-allow);
+}
+
+.segment[data-action='CHALLENGE'],
+.legendItem[data-action='CHALLENGE'] .dot {
+  background-color: var(--color-auth);
+}
+
+.segment[data-action='ESCALATE'],
+.legendItem[data-action='ESCALATE'] .dot,
+.segment[data-action='BLOCK'],
+.legendItem[data-action='BLOCK'] .dot {
+  background-color: var(--color-block);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.legendItem b {
+  font-family: var(--font-mono);
+}
+
+.timeRow {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.timeName {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.timeTrack {
+  position: relative;
+  block-size: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-lane-track);
+}
+
+.timeFill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+}
+
+.timeFill[data-key='p95'] {
+  background-color: var(--color-halt);
+}
+
+.timeValue {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+}
+
+.big {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--type-counter);
+  line-height: var(--leading-none);
+}
+
+.big[data-clean] {
+  color: var(--color-ok);
+}
+
+.of {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+@media (width <= 80rem) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 40rem) {
+  .tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

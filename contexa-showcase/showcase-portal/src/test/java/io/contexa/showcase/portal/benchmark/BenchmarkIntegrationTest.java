@@ -24,6 +24,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -107,6 +108,9 @@ class BenchmarkIntegrationTest {
             assertThat(protocol.failedRuns()).isEqualTo(1);
             assertThat(protocol.forcedRuns()).isEqualTo(1);
         });
+        // BM-S9: how many times each case was sent, as measured (A3 twice: t1, t2; R1 and A3T once).
+        assertThat(view.scope().fewestRunsPerCase()).isEqualTo(1);
+        assertThat(view.scope().mostRunsPerCase()).isEqualTo(2);
         assertThat(view.protocolRunsWithoutSetting()).as("u1 recorded no setting").isEqualTo(1);
         // Control D: t1 missed (10 items out), t2 and r1 stopped; n1 passed.
         BenchmarkView.ControlScore d = view.controls().stream().filter(score -> score.control().equals("D"))
@@ -122,10 +126,32 @@ class BenchmarkIntegrationTest {
         assertThat(view.engine().analysisP50Ms()).isEqualTo(2000L);
         assertThat(view.engine().analysisP95Ms()).isEqualTo(3000L);
         assertThat(view.engine().analysisMeasured()).isEqualTo(3);
+        // BM-S4: the three timed decisions (1, 2 and 3 s) fall in the first bin; the last bin is open-ended.
+        assertThat(view.engine().analysisBins()).extracting(BenchmarkView.AnalysisBin::decisions)
+                .containsExactly(3L, 0L, 0L, 0L, 0L, 0L, 0L);
+        assertThat(view.engine().analysisBins()).extracting(BenchmarkView.AnalysisBin::fromMs)
+                .containsExactly(0L, 5000L, 10000L, 15000L, 20000L, 30000L, 60000L);
+        assertThat(view.engine().analysisBins().get(6).toMs()).isNull();
         // The engine recorded 9000, 11000 and 10000 tokens and 1, 2 and 1 model calls for those decisions.
         assertThat(view.engine().tokensPerDecision()).isEqualTo(10000.0);
         assertThat(view.engine().tokensMeasured()).isEqualTo(3);
         assertThat(view.engine().modelCallsPerDecision()).isCloseTo(4.0 / 3, within(1e-9));
+        // PB-3 (G4): t1 applied its model's answer, t2 not (its last answer named another action), n1 had no model
+        // answer recorded (held apart); the other setting's and the forced run's decisions are left out.
+        assertThat(view.engine().agreement()).isEqualTo(new BenchmarkView.ModelAgreement(3, 2, 1, 0, 1));
+        // BM-S6: the explanation each last answer judged most likely, by the run's truth (n1's decision has no model
+        // answer); t2 was asked again once for a citation (its fact ID read as P#) and its answer moved.
+        BenchmarkView.Reasoning reasoning = view.engine().reasoning();
+        assertThat(reasoning.mostLikely()).isEqualTo(Map.of("THREAT", Map.of("H1", 1L, "H2", 1L)));
+        // V-46: the same decisions by the action each applied, so "judged legitimate work in an attack run" can say
+        // how many of those decisions still refused.
+        assertThat(reasoning.mostLikelyActions()).isEqualTo(Map.of("THREAT",
+                Map.of("H1", Map.of("ALLOW", 1L), "H2", Map.of("BLOCK", 1L))));
+        assertThat(reasoning.retried()).isEqualTo(1);
+        assertThat(reasoning.retryKinds()).isEqualTo(Map.of("REASON_CODE_MISMATCH", 1L));
+        assertThat(reasoning.topRetryReasons()).containsExactly(new BenchmarkView.RetryReason(
+                "PAST_RECORD_SAME_TARGET P# (the code does not cite PAST_RECORDS.PastRecordCounts)", 1));
+        assertThat(reasoning.flips()).isEqualTo(Map.of("BLOCK->ESCALATE", 1L));
         // A3 opens t1 then t2; their risk scores 0.2 and 0.9 make its spread. R1 had no decision.
         assertThat(view.cases()).filteredOn(row -> row.key().equals("A3")).singleElement().satisfies(row -> {
             assertThat(row.runIds()).containsExactly("t1", "t2");
@@ -141,12 +167,20 @@ class BenchmarkIntegrationTest {
         assertThat(view.unresolvedRuns()).isZero();
         assertThat(view.suites()).as("none of A3 and R1 belongs to a named case group").isEmpty();
         assertThat(view.riskJudged()).as("t2's BLOCK was the only decision not to allow, and t2 was stopped")
-                .isEqualTo(new BenchmarkView.RiskJudged(1, 1));
+                .isEqualTo(new BenchmarkView.RiskJudged(1, 1, Map.of("STATIC_REFUSAL", 0L, "BEFORE_RESPONSE", 0L,
+                        "NEXT_REQUEST", 0L, "JUDGED_ALLOW", 0L, "OTHER", 1L), List.of()));
+        // V-01: the run of the kind "other" with its case, result and the shape of its one step.
+        assertThat(view.judgmentOthers()).containsExactly(new BenchmarkView.JudgmentRun("t2", "A3", "STOPPED", 0,
+                List.of(new BenchmarkView.JudgmentStep(1, "BLOCK", "NEXT_REQUEST", "MODEL", false))));
         // t1 missed with every decision to allow; r1 was refused by the role check; t2 was refused at its only step
         // although its recorded decision applied from the next request, a shape none of the kinds describes.
         assertThat(view.judgmentTiming()).containsExactly(Map.entry("STATIC_REFUSAL", 1L),
                 Map.entry("BEFORE_RESPONSE", 0L), Map.entry("NEXT_REQUEST", 0L), Map.entry("JUDGED_ALLOW", 1L),
                 Map.entry("OTHER", 1L));
+        // BM-S3: t1 let its 10 items out before a decision to allow; r1 and t2 let nothing out.
+        assertThat(view.judgmentExposure()).containsExactly(Map.entry("STATIC_REFUSAL", 0L),
+                Map.entry("BEFORE_RESPONSE", 0L), Map.entry("NEXT_REQUEST", 0L), Map.entry("JUDGED_ALLOW", 10L),
+                Map.entry("OTHER", 0L));
         assertThat(view.cases()).filteredOn(row -> row.key().equals("R1")).singleElement()
                 .satisfies(row -> assertThat(row.decisionSources()).isEqualTo(Map.of("STATIC_AUTHORIZATION", 1L)));
         // Visitors: v1 counts with its call and its assessment, c1 (a composed lab run without a ground truth) with
@@ -195,6 +229,8 @@ class BenchmarkIntegrationTest {
         BenchmarkView other = benchmark.view(OTHER_SETTING).orElseThrow();
         assertThat(other.scope().runs()).isEqualTo(1);
         assertThat(other.engine().analysisP50Ms()).isEqualTo(9000L);
+        assertThat(other.engine().analysisBins()).extracting(BenchmarkView.AnalysisBin::decisions)
+                .containsExactly(0L, 1L, 0L, 0L, 0L, 0L, 0L);
         assertThat(benchmark.view("7".repeat(64))).as("a setting without protocol runs").isEmpty();
     }
 
@@ -215,11 +251,21 @@ class BenchmarkIntegrationTest {
         // t1 (A3, threat): D lets 10 items out and allows it (1000 ms).
         run("t1", "A3", THREAT, "COMPLETED", null, "p-1", SETTING, SPEC_ADMIN, false, NOW.minusSeconds(3500));
         arms("t1", "DELIVERED", null);
-        decision("t1", "ALLOW", 1000L, 0.2, 9000L, 1);
+        UUID t1 = decision("t1", "ALLOW", 1000L, 0.2, 9000L, 1);
+        // PB-3: t1's one model call answered the action it applied.
+        exchange(t1, "t1", 1, "{\"action\":\"ALLOW\",\"reason\":\"usual work\",\"hypotheses\":"
+                + "[{\"id\":\"H1\",\"assessment\":\"MOST_LIKELY\"},{\"id\":\"H2\",\"assessment\":\"UNLIKELY\"}]}");
         // t2 (A3, threat): D blocks it (3000 ms).
         run("t2", "A3", THREAT, "COMPLETED", null, "p-1", SETTING, SPEC_ADMIN, false, NOW.minusSeconds(3400));
         arms("t2", "REFUSED", null);
-        decision("t2", "BLOCK", 3000L, 0.9, 11000L, 2);
+        UUID t2 = decision("t2", "BLOCK", 3000L, 0.9, 11000L, 2);
+        // PB-3: t2's last model call answered another action than the one applied.
+        exchange(t2, "t2", 1, "{\"action\":\"BLOCK\"}");
+        // BM-S6: the second call was a corrective retry for a citation, and the answer moved from BLOCK to ESCALATE.
+        exchange(t2, "t2", 2, "{\"action\": \"ESCALATE\",\"hypotheses\":[{\"id\":\"H2\",\"assessment\":\"MOST_LIKELY\"}]}",
+                "=== REQUEST ===\nThe previous answer did not follow the output contract or cited what the lines do not"
+                        + " state (REASON_CODE_MISMATCH: PAST_RECORD_SAME_TARGET P1 (the code does not cite"
+                        + " PAST_RECORDS.PastRecordCounts)). Answer again with one JSON object. Your action is yours.");
         // r1 (R1, threat): the role check refuses it before any analysis, so no model call and no decision.
         run("r1", "R1", THREAT, "COMPLETED", null, "p-1", SETTING, SPEC_NO_CALL, false, NOW.minusSeconds(3300));
         arms("r1", "REFUSED", null);
@@ -312,12 +358,24 @@ class BenchmarkIntegrationTest {
         }
     }
 
-    private void decision(String runId, String action, long totalMs, Double risk, long tokens, int calls) {
+    private UUID decision(String runId, String action, long totalMs, Double risk, long tokens, int calls) {
+        UUID requestId = UUID.randomUUID();
         jdbc.update("""
                 insert into run_decision (request_id, run_id, step_no, final_action, proposed_action, unresolved,
                     applied, total_analysis_ms, risk_score, total_tokens, model_calls, records, events)
                 values (?, ?, 1, ?, ?, false, 'NEXT_REQUEST', ?, ?, ?, ?, '[]'::jsonb, '[]'::jsonb)""",
-                UUID.randomUUID(), runId, action, action, totalMs, risk, tokens, calls);
+                requestId, runId, action, action, totalMs, risk, tokens, calls);
+        return requestId;
+    }
+
+    private void exchange(UUID requestId, String runId, int callNo, String answer) {
+        exchange(requestId, runId, callNo, answer, null);
+    }
+
+    private void exchange(UUID requestId, String runId, int callNo, String answer, String userPrompt) {
+        jdbc.update("""
+                insert into run_model_exchange (request_id, call_no, run_id, step_no, answer, user_prompt, success)
+                values (?, ?, ?, 1, ?, ?, true)""", requestId, callNo, runId, answer, userPrompt);
     }
 
     private static String randomKey() {

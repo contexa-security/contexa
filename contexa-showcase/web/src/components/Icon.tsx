@@ -20,7 +20,8 @@ export type IconName =
   | 'refresh'
   | 'book'
   | 'download'
-  | 'skip';
+  | 'skip'
+  | 'menu';
 
 const PATHS: Record<IconName, string> = {
   check: 'M5 12.5l4.2 4.2L19 7',
@@ -48,6 +49,7 @@ const PATHS: Record<IconName, string> = {
   book: 'M5 5a2 2 0 0 1 2-2h11v16H7a2 2 0 0 0-2 2zM5 21V5M9 7h6',
   download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
   skip: 'M5 6l8 6-8 6zM16 6v12',
+  menu: 'M4 7h16M4 12h16M4 17h16',
 };
 
 interface IconProps {

@@ -61,6 +61,25 @@ contexa:
   security:
     zerotrust:
       mode: ENFORCE
+    tiered:
+      # The decision prompt bundle D runs (docs/showcase/판정층-수정계획.md 8절 1): without it a plain start runs the
+      # core default bundle.
+      prompt-bundle:
+        active: 2026.10.20-v21.8
+      # The model of each analysis layer (docs/showcase/판정층-수정계획.md E-7): Layer1 decides, Layer2 decides what
+      # Layer1 could not. A model id with no runtime binding runs on a copy of the primary chat model; one that cannot
+      # be made stops the start.
+      llm:
+        layer1:
+          model: gpt-6-luna
+        layer2:
+          model: gpt-6.1-sol
+      layer1:
+        open-ai-reasoning-effort: low
+        max-output-tokens: 2048
+      layer2:
+        open-ai-reasoning-effort: low
+        max-output-tokens: 2560
     plane:
       context:
         # The virtual company keeps its time in UTC; event hours and days are read in it whatever the JVM zone is.
@@ -69,6 +88,11 @@ contexa:
     state-type: SESSION
     cookie-secure: ${SHOWCASE_SECURE_COOKIE:false}
   llm:
+    # The OpenAI models that take max_completion_tokens and the reasoning effort (the core default covers gpt-5 and o).
+    model-capabilities:
+      openai:
+        max-completion-token-patterns: gpt-5.*,gpt-6.*,o[0-9].*
+        default-sampling-only-patterns: gpt-5.*,gpt-6.*,o[0-9].*
     selection:
       chat:
         priority: ${SHOWCASE_CHAT_PROVIDER:openai}

@@ -179,3 +179,79 @@ describe('comparison with the usual', () => {
     expect(flagged[0]).toHaveTextContent(word('prompt.plain.approvalMissing'));
   });
 });
+
+/** The cells of one table row a visitor reads: the item, the usual and this time (the arrow cell is decoration). */
+function rowCells(tableRow: HTMLElement): readonly (string | null)[] {
+  return Array.from(tableRow.children)
+    .filter((cell) => cell.getAttribute('aria-hidden') !== 'true')
+    .map((cell) => cell.textContent);
+}
+
+/** The table's rows under its header row. */
+function bodyRows(): readonly HTMLElement[] {
+  const table = screen.getByRole('table', { name: word('p1.compare.table') });
+  return within(table).getAllByRole('row').slice(1);
+}
+
+/** Screen 1-1 (화면재편-기획안 T2): the simple form of the same comparison; the details' tab keeps the full one. */
+describe('compact comparison of screen 1-1', () => {
+  it('shows usual then this time for the differing items only, without originals or folds', () => {
+    const hours = ['10', '11', '13', '14', '17']
+      .map((value) => fill('dim.hours', { hours: value }))
+      .join(' · ');
+    const { container } = render(<Comparison comparison={comparison} level="h2" compact />);
+
+    const table = screen.getByRole('table', { name: word('p1.compare.table') });
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      word('p1.compare.item'),
+      word('p1.compare.usual'),
+      word('p1.compare.now'),
+    ]);
+    expect(bodyRows().map(rowCells)).toEqual([
+      [word('dim.accessHour'), hours, fill('dim.hours', { hours: '03' })],
+      [
+        word('dim.target'),
+        fill('dim.target.projectKey', { value: 'PLM-OPS' }),
+        word('dim.targetKind.projectKey'),
+      ],
+      [word('dim.resourceFamily'), word('dim.sensitivity.NORMAL'), word('dim.sensitivity.CRITICAL')],
+      [word('dim.size'), fill('dim.items.upTo', { n: '29' }), fill('dim.items', { n: '4,831' })],
+    ]);
+    // No original chips, no folds, no counted headings: those stay in the decision details' tab.
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryAllByRole('heading')).toHaveLength(0);
+    expect(container.querySelectorAll('details, summary, [data-original]')).toHaveLength(0);
+    expect(english(container)).toEqual([]);
+  });
+
+  it('flags the company work records in one line', () => {
+    const { container } = render(<Comparison comparison={comparison} level="h2" compact />);
+
+    const lines = Array.from(container.querySelectorAll('p')).filter((line) =>
+      line.textContent?.includes(word('p1.compare.company')),
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveTextContent(`${word('p1.compare.company')} ${word('prompt.plain.approvalMissing')}`);
+    expect(screen.queryByText(word('p1.compare.noFlag'))).not.toBeInTheDocument();
+  });
+
+  it('keeps four differing items at most and says when no company record is flagged', () => {
+    const wider: BeforeSendView = {
+      ...comparison,
+      usualVsNow: comparison.usualVsNow.map((entry) =>
+        entry.dimension === 'dayOfWeek' ? row('dayOfWeek', 'Sun', 'false') : entry,
+      ),
+      companyAdverse: [],
+      companyAdverseCount: 0,
+    };
+    render(<Comparison comparison={wider} level="h2" compact />);
+
+    expect(bodyRows().map((tableRow) => rowCells(tableRow)[0])).toEqual([
+      word('dim.accessHour'),
+      word('dim.dayOfWeek'),
+      word('dim.target'),
+      word('dim.resourceFamily'),
+    ]);
+    expect(screen.getByText(word('p1.compare.noFlag'))).toBeInTheDocument();
+  });
+});

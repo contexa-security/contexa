@@ -53,11 +53,20 @@ public final class PromptDictionaryRenderer {
     private final PromptSlotPlanProvider plans;
     private final PromptDictionarySlotPlanProvider dictionaryPlans;
     private final PromptSlotRenderer lineRenderer = new PromptSlotRenderer();
+    /** Whether the headers carry the titles the v21 bundle draws ({@link PromptBlock#v21Title()}). */
+    private final boolean v21Titles;
 
     public PromptDictionaryRenderer(List<PromptDictionaryEntry> entries, PromptSlotPlanProvider plans) {
+        this(entries, plans, false);
+    }
+
+    /** A renderer whose headers carry the v21 titles when asked (RECORDS AND COMPARISONS for the decision facts). */
+    public PromptDictionaryRenderer(List<PromptDictionaryEntry> entries, PromptSlotPlanProvider plans,
+                                    boolean v21Titles) {
         this.entries = List.copyOf(entries);
         this.dictionaryPlans = new PromptDictionarySlotPlanProvider(this.entries, "renderer");
         this.plans = plans == null ? dictionaryPlans : plans;
+        this.v21Titles = v21Titles;
     }
 
     public PromptEntryValues.Builder values() {
@@ -139,7 +148,8 @@ public final class PromptDictionaryRenderer {
             String grade = block != PromptBlock.UNKNOWN && grades.size() == 1 ? grades.iterator().next().word() : null;
             // Dictionary 1.1: a block that drew a value on the event clock names the clock's time zone once (W3-13).
             String zone = clocked && values.timeZone() != null ? "time zone " + values.timeZone().getId() : null;
-            text.append(header(block, grade, values.headerQualifier(block), zone)).append(body);
+            text.append(header(block, v21Titles ? block.v21Title() : block.title(), grade,
+                    values.headerQualifier(block), zone)).append(body);
             slots.addAll(blockSlots);
             blocks.add(block);
         }
@@ -237,7 +247,7 @@ public final class PromptDictionaryRenderer {
         return String.join("; ", parts);
     }
 
-    private static String header(PromptBlock block, String grade, String qualifier, String zone) {
+    private static String header(PromptBlock block, String title, String grade, String qualifier, String zone) {
         List<String> parts = new ArrayList<>();
         if (StringUtils.hasText(grade)) {
             parts.add(grade);
@@ -248,7 +258,7 @@ public final class PromptDictionaryRenderer {
         if (StringUtils.hasText(zone)) {
             parts.add(zone);
         }
-        return block.header(parts);
+        return block.header(title, parts);
     }
 
     /** How many items of a list the entry shows: all of them, or as many as its cap (R1b-3: shared). */

@@ -124,6 +124,7 @@ public final class RequestInfoExtractor {
                 .resourceSensitivity(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_SENSITIVITY)))
                 .resourceBusinessLabel(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_BUSINESS_LABEL)))
                 .resourceAuthorText(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_AUTHOR_TEXT)))
+                .resourceScope(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_SCOPE)))
                 .requestItems(castToInteger(RequestSecurityContextAttributes.read(request, Field.REQUEST_ITEMS)))
                 .resourceId(castToText(RequestSecurityContextAttributes.read(request, Field.RESOURCE_ID)))
                 .currentResourceFamily(extractAttributeText(request,
@@ -672,6 +673,8 @@ public final class RequestInfoExtractor {
         private final String resourceSensitivity;
         private final String resourceBusinessLabel;
         private final String resourceAuthorText;
+        /** The scope the host's records hold the target in ({@code key=value}), a host fact. */
+        private final String resourceScope;
         private final Integer requestItems;
         private final String resourceId;
         private final String currentResourceFamily;

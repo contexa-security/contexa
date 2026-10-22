@@ -5,14 +5,21 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import i18n from '../../i18n';
-import { GlossaryModal, Term, TermScope } from '../common/Glossary';
 import { Modal } from '../common/Modal';
 import { SourceMark } from '../common/SourceMark';
 import { CumulativeMeter } from '../inside/CumulativeMeter';
 import { DecisionDetail, InsidePanel } from '../inside/InsidePanel';
-import { actStart, screenAt, type Route as JourneyRoute, type Screen } from '../../journey/journey';
-import { ActEndCard, TeaserBand } from './Cards';
-import { GoalChips, IdentityDefinition, IdentityLine, JourneyBar, JustSaw, RoleBanner } from './JourneyParts';
+import {
+  nextScreen,
+  previousScreen,
+  screenAt,
+  skipTarget,
+  TOPICS,
+  type Route as JourneyRoute,
+  type Screen,
+} from '../../journey/journey';
+import { AppHeader } from '../AppHeader';
+import { GoalChips, IdentityDefinition, IdentityLine, JustSaw, RoleBanner } from './JourneyParts';
 import { ActionBar, NextLink } from './StepParts';
 
 // The place band and the action area read where the visitor is from the server's journey; here it is set per test.
@@ -25,6 +32,20 @@ const place = vi.hoisted(() => ({
   },
 }));
 vi.mock('../../journey/useJourneyPlace', () => ({ useJourneyPlace: () => place.current }));
+// The frame reports the place to the server and reads the visitor; here both answer from the place set per test.
+vi.mock('../../journey/useJourneyPosition', () => ({
+  useJourneyPosition: () => ({
+    ...place.current,
+    next: place.current.screen ? nextScreen('DEFAULT', place.current.screen.path) : null,
+    previous: place.current.screen ? previousScreen('DEFAULT', place.current.screen.path) : null,
+    see: () => Promise.resolve(),
+  }),
+}));
+vi.mock('../../api/queries', async (original) => ({
+  ...(await original<typeof import('../../api/queries')>()),
+  useVisitor: () => ({ isSuccess: true }),
+  useStats: () => ({ data: { runs: { today: 316 }, engineDecisions: 7658 } }),
+}));
 
 function placeAt(path: string, differences: readonly number[]) {
   const screen = screenAt('DEFAULT', path);
@@ -32,7 +53,7 @@ function placeAt(path: string, differences: readonly number[]) {
     route: 'DEFAULT',
     screen,
     differences,
-    skip: screen?.act && screen.act < 4 ? actStart((screen.act + 1) as 2 | 3 | 4) : null,
+    skip: skipTarget('DEFAULT', path),
   };
 }
 
@@ -77,40 +98,61 @@ describe('thread devices', () => {
     );
     expect(
       screen.getByText(
-        'Contexa · 로그인 이후 요청마다, 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리',
+        'Contexa · 로그인 이후 요청마다, 평소 행동 패턴과 회사 업무 기록으로 판단하는 AI 보안 라이브러리',
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Contexa는 로그인 이후의 요청마다, 그 사람의 평소 모습과 회사 기록으로 판단하는 AI 보안 라이브러리입니다.',
+        'Contexa는 로그인 이후의 요청마다, 그 사람의 평소 행동 패턴과 회사 업무 기록으로 판단하는 AI 보안 라이브러리입니다.',
       ),
     ).toBeInTheDocument();
   });
 
-  it('leads a past act to its start, spells out only the current act and lists its screens as steps', async () => {
-    placeAt('/intro/how/rules', [1, 2, 4, 5]);
-    at('/intro/how/rules', <JourneyBar />);
-    expect(screen.getByRole('link', { name: /막 1 처음으로/ })).toHaveAttribute('href', '/');
-    // The tab's own name; phones show the same question again over the steps (jsdom applies no media query).
-    expect(screen.getAllByText('진짜 직원이면 통과한다')[0]?.closest('[aria-current]')).toHaveAttribute(
-      'aria-current',
-      'step',
+  it('shows the seven groups, the finished ones ticked and the current one named, and the rest in the menu (F0-2)', async () => {
+    placeAt('/normal/request', []);
+    at('/normal/request', <AppHeader />);
+    const groups = screen.getByRole('list', { name: '체험 진행' });
+    expect(groups.querySelectorAll('li')).toHaveLength(7);
+    expect(groups.querySelectorAll('[data-state="done"]')).toHaveLength(3);
+    expect(groups.querySelector('[aria-current="step"]')).toHaveTextContent('정상 사용 체험');
+    await userEvent.click(screen.getByRole('button', { name: '메뉴' }));
+    const menu = screen.getByRole('navigation', { name: '메뉴' });
+    expect(menu).toHaveTextContent(
+      '처음부터 다시더 알아보기실험실벤치마크도입하기개인정보 안내용어 사전English로 보기',
     );
-    expect(screen.queryByText('어떻게 알고, 언제 막나')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /막 3/ })).not.toBeInTheDocument();
-    // The steps are the act's screens in the order the "next" button walks them.
-    const steps = screen.getByRole('list', { name: '막 2 · 진짜 직원이면 통과한다의 단계' });
-    expect(steps).toHaveTextContent('상황비교판단실행결과근거7공개 규칙8본인 확인9후속 지도10정리');
-    expect(screen.getByText('공개 규칙').closest('li')).toHaveAttribute('aria-current', 'step');
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: '확인한 Contexa 차이 4/6 · 카드 열기' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('/intro/how/rules?modal=differences');
-    expect(screen.getByText('요청마다 판단')).toBeInTheDocument();
-    expect(screen.getByText('? 진짜 직원이면')).toBeInTheDocument();
-    expect(screen.getByText('막 2에서 확인합니다')).toBeInTheDocument();
+  // Review before the guide videos (2026-10-21): the top numbers had no unit (P-13) and the English group tabs cut
+  // their names, the current one too (B-18).
+  it('counts the top numbers with their units and names a group tab by its short name', async () => {
+    placeAt('/attack/request', []);
+    const { unmount } = at('/attack/request', <AppHeader />);
+    expect(screen.getByText(/오늘 실제 실행/)).toHaveTextContent('오늘 실제 실행 316회 · 누적 판단 7,658건');
+    expect(
+      screen.getByRole('list', { name: '체험 진행' }).querySelector('[aria-current="step"]'),
+    ).toHaveTextContent('외부 공격: 훔친 계정');
+    unmount();
+    await i18n.changeLanguage('en');
+    try {
+      at('/attack/request', <AppHeader />);
+      const tabs = screen.getByRole('list', { name: i18n.t('top.groups') });
+      expect(tabs.querySelector('[aria-current="step"]')).toHaveTextContent('Stolen account');
+      expect(tabs).toHaveTextContent('Insider');
+    } finally {
+      await i18n.changeLanguage('ko');
+    }
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: '닫기' }));
-    expect(screen.getByTestId('where')).toHaveTextContent(/^\/intro\/how\/rules$/);
+  // Review before the guide videos (2026-10-21, P-33): the nine-step screen read only as the learning topic.
+  it("names a 'learn more' screen after its topic and its place in it", () => {
+    place.current = { ...place.current, screen: null, more: true } as typeof place.current;
+    at('/intro/how', <AppHeader />);
+    expect(screen.getByText(/학습이 쌓이는 과정/)).toHaveTextContent(i18n.t('more.name.g-how'));
+    for (const topic of TOPICS) {
+      for (const each of topic.screens) {
+        expect(i18n.exists(`more.name.${each.id}`), each.id).toBe(true);
+      }
+    }
   });
 
   it('names the goals, the difference just seen and a role change in the same words everywhere', () => {
@@ -125,7 +167,7 @@ describe('thread devices', () => {
     expect(screen.getByText('정당한 업무는 통과')).toBeInTheDocument();
     const notes = screen.getAllByRole('note');
     expect(notes[0]).toHaveTextContent(
-      /^5방금 본 차이의심받은 진짜 직원이 치른 비용은 코드 한 번, 업무는 0.05초 만에/,
+      /^5방금 본 차이의심받은 정상 사용자가 치른 비용은 코드 한 번, 업무는 0.05초 만에/,
     );
     expect(notes[1]).toHaveTextContent(/^6다시 보는 차이무엇을 배우고/);
     expect(screen.getByRole('status')).toHaveTextContent(
@@ -134,70 +176,30 @@ describe('thread devices', () => {
   });
 });
 
-/** The curiosity chain (0-3, C-10) and the act-end card (act-end, C-11). */
-describe('cards', () => {
-  it('puts the question band right over the one main button, with skip beside it and back on the left', () => {
+/** The redesigned frame's action bar and the part wrap-up (화면재편-기획안 5절, T8; R-2, R-6). */
+describe('frame', () => {
+  it('has only the way back and one main button, and draws no teaser or skip even when given one', () => {
     placeAt('/try/attacker/result', []);
     at(
       '/try/attacker/result',
       <ActionBar
-        back={{ to: '/try/attacker/run', label: '이전 · 실행' }}
-        teaser={
-          <TeaserBand
-            copy={{
-              question: '왜 막혔을까?',
-              teaser: '걸린 사실 3가지',
-              teaserItem: {
-                key: 'E1_RESULT_FACTS',
-                values: { facts: 3 },
-                holds: null,
-                source: { kind: 'MEASUREMENT', ref: 'protocol-1' },
-                missing: null,
-              },
-            }}
-          />
-        }
-        main={<NextLink to="/try/attacker/reason" label="이어서 보기" />}
+        back={{ to: '/try/attacker/run', label: '이전' }}
+        teaser={<p>예고 카드</p>}
+        main={<NextLink to="/try/attacker/reason" label="다음: 왜 막았을까?" />}
       />,
     );
     const area = screen.getByRole('navigation', { name: '이 화면에서 할 일' });
-    expect(area).toHaveTextContent(/^다음 질문왜 막혔을까\?걸린 사실 3가지/);
-    expect(screen.getByRole('button', { name: '측정' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '이어서 보기' })).toHaveAttribute('href', '/try/attacker/reason');
-    expect(screen.getByRole('link', { name: '막 2로 건너뛰기' })).toHaveAttribute('href', '/try/owner/scene');
-    expect(screen.getByRole('link', { name: '이전 · 실행' })).toHaveAttribute('href', '/try/attacker/run');
-  });
-
-  it("states the visitor's sentence, the definition, and the unseen differences as questions", () => {
-    placeAt('/try/attacker/end', [1, 2, 4, 5]);
-    at(
-      '/try/attacker/after',
-      <ActEndCard
-        act={1}
-        differences={[1, 2, 4, 5]}
-        sentence="당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa는 8.0초 판단 뒤 본인 확인을 요구해 0건에서 멈췄습니다."
-        measured={false}
-        runId="run-1"
-        next={{ question: '진짜 직원이 하면?', teaser: '숫자 규칙은 막았습니다', teaserItem: null }}
-        continueTo="/try/owner/scene"
-        back={{ to: '/try/attacker/after', label: '이전 · 후속' }}
-        resendAsyncTo="/try/timing/try?from=attacker"
-        benchmarkTo="/benchmark"
-        shareUrl="https://demo/try/attacker/after"
-      />,
+    expect(area).toHaveTextContent(/^이전다음: 왜 막았을까\?$/);
+    expect(screen.getByRole('link', { name: '다음: 왜 막았을까?' })).toHaveAttribute(
+      'href',
+      '/try/attacker/reason',
     );
-    expect(screen.getByRole('heading', { name: '막 1 끝 · 약 3분' })).toBeInTheDocument();
-    expect(screen.getByText(/0건에서 멈췄습니다/)).toBeInTheDocument();
-    expect(screen.getByText('? 쓸수록')).toBeInTheDocument();
-    expect(screen.getByText('막 2 · 약 3분')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '막 2 시작' })).toHaveAttribute('href', '/try/owner/scene');
-    // The main button already goes where skip would, so there is no skip here.
-    expect(screen.queryByRole('link', { name: '막 2로 건너뛰기' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '비동기식으로 다시 보내기' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '이전' })).toHaveAttribute('href', '/try/attacker/run');
+    expect(screen.queryByText('예고 카드')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /건너뛰기/ })).not.toBeInTheDocument();
   });
 });
 
-/** Modal rules (common-2, C-7, C-8). */
 describe('modal', () => {
   it('moves focus to its title, and closes on Esc and on its button', async () => {
     let closed = 0;
@@ -275,71 +277,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Term tooltips and the glossary (common-1, words, words2). */
-describe('terms and glossary', () => {
-  it('underlines a term only the first time on a screen and leads to the glossary entry', async () => {
-    at(
-      '/intro',
-      <TermScope>
-        <p>
-          <Term term="permission">권한</Term>이 같으면 <Term term="permission">권한</Term>만으로는 모릅니다
-        </p>
-        <GlossaryModal />
-      </TermScope>,
-    );
-    expect(screen.getAllByRole('button', { name: '권한' })).toHaveLength(1);
-    await userEvent.click(screen.getByRole('button', { name: '권한' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('이 역할이 이 메뉴를 쓸 수 있는지');
-    await userEvent.click(screen.getByRole('button', { name: '용어 사전에서 더 보기' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('modal=glossary');
-    expect(screen.getByRole('heading', { name: '용어 사전' })).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('용어 찾기'), '동기');
-    expect(screen.getByText('판단을 마칠 때까지 응답을 붙잡아 둠')).toBeInTheDocument();
-    expect(screen.queryByText('그 직원이 평소 언제, 어디서, 얼마나 요청하는지')).not.toBeInTheDocument();
-  });
-
-  it('holds every screen word of both plain-words tables, and the tooltip word of the problem screen', () => {
-    // words (12 rows) and words2 (9 rows) of the screen design, then g2-concept's tooltip word, then the prompt
-    // trust terms (screen design reinforcement U-8).
-    const words = [
-      '결과',
-      '계정을 훔친 사람',
-      '평소 모습',
-      '판정 못 함',
-      '정상 업무를 막음',
-      '공격을 놓침',
-      '공격을 막은 비율',
-      '오차 범위',
-      '막',
-      '판정 자세히 보기',
-      '로그인 상태',
-      '기록만 하는 모드',
-      '동기식',
-      '비동기식',
-      '판단 규칙',
-      'AI에게 보낸 상황',
-      '과거 기록 검색',
-      '앞선 판정 적용',
-      '본인 확인',
-      '평소 모습에 더함',
-      '업무 범위',
-      '권한',
-      '출처',
-      '사실',
-      '근거 코드',
-      '봉인',
-      '전달',
-      '반응',
-      '불변',
-      '주입',
-    ];
-    at('/?modal=glossary', <GlossaryModal />);
-    const terms = screen.getAllByRole('term').map((term) => term.textContent);
-    expect(terms).toHaveLength(words.length);
-    expect(new Set(terms)).toEqual(new Set(words));
-    expect(terms).toEqual([...terms].sort(new Intl.Collator('ko').compare));
-  });
-});
+// Term tooltips and the glossary: components/common/Glossary.test.tsx (R7, RO-6).
 
 /** The inside-view panel and the cumulative meter (panel, meter slides). */
 describe('inside view', () => {
@@ -356,7 +294,7 @@ describe('inside view', () => {
           {
             id: 'decision',
             state: 'decision',
-            summary: '본인 확인 요구',
+            summary: '추가 인증 요구',
             detail: (
               <DecisionDetail
                 plain="민감한 자료를 평소와 다르게, 승인 없이 내보내려 합니다"

@@ -1,15 +1,20 @@
+/* The title zone (화면재편-기획안 5절, 10절): the headline and the one guide line, with room above and below. */
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-measure);
+  padding-top: var(--frame-title-top);
+  padding-bottom: var(--frame-title-rest);
 }
 
 .title {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--text-xl);
+  font-size: var(--type-title);
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
+  text-wrap: balance;
 }
 
 .purpose {
@@ -18,52 +23,110 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
+/* The action bar: "back" on the left, the one main button on the right, a zone gap above it. */
 .actions {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
-  padding-top: var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--frame-zone-rest);
+  padding-top: var(--frame-block-gap);
   border-top: 1px solid var(--color-border);
 }
 
-/* Fixed places: back on the left, skip then the main action on the right. */
-.row {
-  display: grid;
-  grid-template-areas: 'back . skip main';
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: start;
-  gap: var(--space-3);
-}
-
-/* The chips are 2.75rem high and the main button 3.25rem; this keeps their middles on one line. */
-.back,
-.skip {
-  margin-top: var(--space-1);
-}
-
 .back {
-  grid-area: back;
-}
-
-.start {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
+  min-height: 2.75rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
 }
 
-.skip {
-  grid-area: skip;
+.back:hover,
+.back:focus-visible {
+  color: var(--color-text);
+}
+
+.backIcon {
+  flex: none;
 }
 
 .main {
   display: flex;
-  grid-area: main;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.skipPart {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Phones: the whole bar is fixed at the bottom with its own ground, and the page keeps its height free (F-8). */
+@media (width <= 40rem) {
+  .actions {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--layer-raised);
+    margin: 0;
+    padding: var(--space-3) var(--frame-gutter) var(--frame-bar-bottom);
+    border-top: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+  }
+
+  /* "Back" keeps its name for screen readers and shows its arrow only, so the main button gets the bar's width. */
+  .back {
+    justify-content: center;
+    min-width: 2.75rem;
+  }
+
+  .backLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The main button fills the rest of the bar; "skip this part" (covers only) sits under it. */
+  .main {
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+
+  .skipPart {
+    order: 1;
+    align-self: center;
+  }
+
+  /* The bar is fixed as a whole, so the button inside it stays in the bar (stronger than base.css's lone button). */
+  .actions [data-main] {
+    position: static;
+    box-shadow: none;
+  }
+
+  .next {
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    font-size: var(--type-body);
+    line-height: var(--leading-tight);
+    text-wrap: balance;
+  }
 }
 
 .moreRow {

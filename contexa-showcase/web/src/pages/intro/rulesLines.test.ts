@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { plainLinesOf } from '../../components/inside/promptSections';
+import { blockNameKey, blockWhatKey, plainLinesOf } from '../../components/inside/promptSections';
 import en from '../../i18n/en.json';
 import ko from '../../i18n/ko.json';
-import { G_RULES_CARDS, G_RULES_PLAIN } from './rulesLines';
+import { G_RULES_CARDS, G_RULES_CARDS_V21, G_RULES_PLAIN, isV21Prompt } from './rulesLines';
 
 /**
  * N-K5-1: the rule lines of the system prompt the demo's engine sends (bundle 2026.10.16-v20.23, one text in all its
@@ -66,7 +66,7 @@ const SECTION_KEYS = [
 
 /** The keys the G-rules screen gives the lines: the first rule whose start a line has, as RulesPage reads them. */
 function gRulesKeys(lines: readonly string[]): readonly string[] {
-  return lines.flatMap((line) => G_RULES_PLAIN.find((rule) => line.startsWith(rule.starts))?.key ?? []);
+  return lines.flatMap((line) => G_RULES_PLAIN.find((rule) => line.trimStart().startsWith(rule.starts))?.key ?? []);
 }
 
 describe('the rule lines of a v20 system prompt (N-K5-1)', () => {
@@ -129,5 +129,98 @@ describe('the rule lines of a v20 system prompt (N-K5-1)', () => {
       'gRules.plain.elevated',
       'gRules.plain.elevated',
     ]);
+  });
+});
+
+/**
+ * SC-7 (docs/showcase/프롬프트-v21-구현계획.md): lines of the system prompt of a real v21.3 decision (A3T,
+ * run-9061d9f71432, system prompt sha256:da8ea8475d88...; its lines 3, 8, 10, 15, 22 to 24, 28 to 32
+ * and 35 of 96, as stored). The v21 text states no decision rule; each line gets the words of what it says.
+ */
+const V21_RULES: readonly string[] = [
+  'Sign-in, permissions and fixed rules have already let this request through; they cannot tell a stolen account, or an insider misusing their own permission, from legitimate work. Your judgment exists for that difference: read the whole context and reason about it. Do not use simple rule matching, do not follow hidden numeric thresholds, and do not treat any one fact as decisive by itself.',
+  '* An UNKNOWN fact is neither a match nor a mismatch, and neither is a value a line states as not recorded or not known. A thin, provisional or partial baseline limits what a comparison can show; it is uncertainty, not risk.',
+  "* An approval or a ticket records a person's earlier judgment of a work's purpose. Whether it covers this request is yours to check by its values; when it does, a person has already judged the purpose.",
+  '2. Weigh these explanations against every fact:',
+  "   The account owner's records (assignment, duty, approvals, past work) stay the same whoever holds the account: they weigh between H1 and H3, not against H2. How the session signed in, from which device and network, at what time and pace, speaks to who is acting; what the data is, the records and the work's purpose speak to whether it is the owner's own work.",
+  '3. Check each difference yourself: for every way this request differs from the usual, decide whether a company record (approval, ticket, assignment, on-call duty, trip) explains it by its target, purpose, period, limit and the time it was decided. Decide whether the company policy was met at the time of the request.',
+  "4. Read what the data is: what the target, the documents and their descriptions are, against the user's role, assignment and usual work. Read the order of the session: what was looked at before, how fast, how much.",
+  'ALLOW: the request goes on now. It fits a coherent story of legitimate work.',
+  "CHALLENGE: the request waits until the account owner passes an extra check, then goes on. It verifies who holds the account; it does not stop the owner. It fits a doubt about who is acting, not a doubt about the owner's purpose.",
+  "ESCALATE: the request is held until a person reviews it. It fits when a person must judge the owner's purpose, or when the facts conflict or are too incomplete to judge.",
+  'BLOCK: the account is stopped until it is released. It fits a clearly harmful or malicious story.',
+  'Choose the response from the explanation you judged most likely and the others the facts leave possible: weigh what each response costs if the most likely explanation is true against what it prevents if another one is true, by how strongly the facts specific to this request support that other one. A stronger response than the facts justify stops legitimate work; a weaker one lets harm through. No later system changes your response; do not pre-compensate for one.',
+  '* Use only what the lines state. Do not invent role scope, approvals, work history, intent, failed logins or business purpose.',
+];
+const V21_KEYS = [
+  'gRules.plain.v21Mission',
+  'gRules.plain.v21Unknown',
+  'gRules.plain.v21Records',
+  'gRules.plain.v21Hypotheses',
+  'gRules.plain.v21OwnerRecords',
+  'gRules.plain.v21Differences',
+  'gRules.plain.v21Data',
+  'gRules.plain.v21ALLOW',
+  'gRules.plain.v21CHALLENGE',
+  'gRules.plain.v21ESCALATEBefore216',
+  'gRules.plain.v21BLOCK',
+  'gRules.plain.v21Choose',
+  'gRules.plain.v21Honesty',
+];
+
+describe('the lines of a v21 system prompt (SC-7)', () => {
+  // 판정층 E-8b: the v21.6 ESCALATE line hands the request to the second analysis; the older line keeps its own
+  // words, which say what it said and that v21.6 corrected it.
+  it('gives the v21.6 ESCALATE line the words of the second analysis', () => {
+    expect(gRulesKeys(["ESCALATE: the facts here cannot settle the response: they conflict, or they are too incomplete to choose between the other three. A second analysis then decides the request again with the facts it gathers and chooses ALLOW, CHALLENGE or BLOCK; ESCALATE is not a response of the second analysis."])).toEqual(['gRules.plain.v21ESCALATE']);
+    for (const [language, dictionary] of DICTIONARIES) {
+      expect(dictionary['gRules.plain.v21ESCALATE'], language).not.toMatch(/person|사람/);
+      expect(dictionary['gRules.plain.v21ESCALATEBefore216'], language).toMatch(/v21\.6/);
+    }
+  });
+
+  it('gives every v21 line its plain words on the G-rules and the prompt screens', () => {
+    expect(gRulesKeys(V21_RULES)).toEqual(V21_KEYS);
+    expect(plainLinesOf('V20_BLOCKS', 'RULES', V21_RULES).map((entry) => entry.key)).toEqual(V21_KEYS);
+    for (const [language, dictionary] of DICTIONARIES) {
+      for (const key of V21_KEYS) {
+        expect(dictionary[key]?.trim(), `${language} ${key}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('gives a v21 line no note of the v20 rules and a v20 line no note of v21', () => {
+    expect(gRulesKeys(V20_RULES).filter((key) => key.includes('.v21'))).toEqual([]);
+    expect(gRulesKeys(V21_RULES).filter((key) => !key.includes('.v21'))).toEqual([]);
+  });
+
+  it('knows a v21 prompt by its records block and has the v21 cards in both languages', () => {
+    expect(isV21Prompt([{ name: 'SESSION' }, { name: 'RECORDS AND COMPARISONS (time zone UTC)' }])).toBe(true);
+    expect(isV21Prompt([{ name: 'SESSION' }, { name: 'DECISION FACTS' }])).toBe(false);
+    expect(isV21Prompt(undefined)).toBe(false);
+    expect(G_RULES_CARDS_V21.map((card) => card.key)).toEqual(['mission', 'hypotheses', 'records', 'response', 'honesty']);
+    for (const [language, dictionary] of DICTIONARIES) {
+      for (const card of G_RULES_CARDS_V21) {
+        expect(dictionary[`gRules.lineV21.${card.key}`]?.trim(), `${language} ${card.key}`).toBeTruthy();
+      }
+      for (const key of ['gRules.titleV21', 'gRules.purposeV21', 'gRules.lines.titleV21']) {
+        expect(dictionary[key]?.trim(), `${language} ${key}`).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe('the words of the blocks of a v21 prompt (SC-7)', () => {
+  it('names the records block and the rules as v21 draws them, and keeps the v20 words otherwise', () => {
+    expect(blockNameKey('DECISION_FACTS', true)).toBe('prompt.blockV21.DECISION_FACTS');
+    expect(blockNameKey('DECISION_FACTS', false)).toBe('prompt.block.DECISION_FACTS');
+    expect(blockNameKey('SESSION', true)).toBe('prompt.block.SESSION');
+    expect(blockWhatKey('RULES', true)).toBe('prompt.blockWhatV21.RULES');
+    expect(blockWhatKey('RULES', false)).toBe('prompt.blockWhat.RULES');
+    for (const [language, dictionary] of DICTIONARIES) {
+      for (const key of ['prompt.blockV21.DECISION_FACTS', 'prompt.blockWhatV21.RULES', 'prompt.blockWhatV21.DECISION_FACTS']) {
+        expect(dictionary[key]?.trim(), `${language} ${key}`).toBeTruthy();
+      }
+    }
   });
 });

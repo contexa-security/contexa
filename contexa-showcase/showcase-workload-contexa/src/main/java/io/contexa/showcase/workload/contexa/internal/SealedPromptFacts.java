@@ -66,8 +66,12 @@ final class SealedPromptFacts {
                 "userPromptLayoutVersion")) {
             view.put(key, descriptor.get(key));
         }
-        Object reasonCodes = read(sealed, "decisionJson", sealed.getDecisionJson(), objectMapper).get("reasonCodes");
+        Map<String, Object> decision = read(sealed, "decisionJson", sealed.getDecisionJson(), objectMapper);
+        Object reasonCodes = decision.get("reasonCodes");
         view.put("reasonCodes", reasonCodes instanceof List<?> codes ? codes : List.of());
+        // SC-8: the explanations a v21 decision weighed, each with its assessment and the facts for and against it.
+        Object hypotheses = decision.get("hypotheses");
+        view.put("hypotheses", hypotheses instanceof List<?> weighed ? weighed : List.of());
         Map<String, Object> context = read(sealed, "canonicalContextJson", sealed.getCanonicalContextJson(),
                 objectMapper);
         view.put("lines", lines(sealed.getUserPromptText(), context));

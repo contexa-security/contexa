@@ -130,13 +130,18 @@ import io.contexa.contexacore.autonomous.context.collector.DefaultSessionNarrati
 import io.contexa.contexacore.autonomous.context.collector.ProtectableWorkProfileCollector;
 import io.contexa.contexacore.autonomous.context.collector.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.collector.SessionNarrativeCollector;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.agent.AgentRegistryRecorder;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.context.enricher.AuthenticationContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.AuthorizationSnapshotProvider;
 import io.contexa.contexacore.autonomous.context.enricher.DelegationContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.DelegationRecordLookup;
 import io.contexa.contexacore.autonomous.context.enricher.FrictionContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.OrganizationContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.PeerCohortContextProvider;
 import io.contexa.contexacore.autonomous.context.enricher.ReasoningMemoryContextProvider;
+import io.contexa.contexacore.autonomous.context.enricher.RecordedDelegationContextProvider;
 import io.contexa.contexacore.autonomous.context.inference.ContextCoverageEvaluator;
 import io.contexa.contexacore.autonomous.context.inference.MetadataObservedScopeInferenceService;
 import io.contexa.contexacore.autonomous.context.inference.ObservedScopeInferenceService;
@@ -229,6 +234,30 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public ContextCoverageEvaluator contextCoverageEvaluator() {
         return new ContextCoverageEvaluator();
+    }
+
+    /** A1-6: the agents Contexa knows; the database registry of the IAM module replaces this one when present. */
+    @Bean
+    @ConditionalOnMissingBean(AgentRegistry.class)
+    public AgentRegistry defaultAgentRegistry() {
+        return new InMemoryAgentRegistry();
+    }
+
+    /** A1-6: every agent request reaches the registry. */
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentRegistryRecorder agentRegistryRecorder(AgentRegistry agentRegistry,
+                                                       SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new AgentRegistryRecorder(agentRegistry,
+                securityZeroTrustProperties.getAgent().getRegistryWriteInterval());
+    }
+
+    /** A1-4: the host's delegation records reach agent requests once the host declares how to find them. */
+    @Bean
+    @ConditionalOnBean(DelegationRecordLookup.class)
+    @ConditionalOnMissingBean(RecordedDelegationContextProvider.class)
+    public RecordedDelegationContextProvider recordedDelegationContextProvider(DelegationRecordLookup delegationRecordLookup) {
+        return new RecordedDelegationContextProvider(delegationRecordLookup);
     }
 
     @Bean
@@ -676,13 +705,16 @@ public class CoreAutonomousAutoConfiguration {
             ZeroTrustEventListener zeroTrustEventListener,
             SecurityPlaneAgent securityPlaneAgent,
             ZeroTrustActionRepository actionRepository,
-            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder) {
+            ObjectProvider<UnanalysedRequestRecorder> unanalysedRequestRecorder,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         SynchronousProtectableDecisionService service = new SynchronousProtectableDecisionService(
                 zeroTrustEventPublisher,
                 zeroTrustEventListener,
                 securityPlaneAgent,
                 actionRepository);
         service.setUnanalysedRequestRecorder(unanalysedRequestRecorder.getIfAvailable());
+        // A1-5: contexa.security.zerotrust.protectable.unrecorded-agent-request
+        service.setUnrecordedAgentRequest(securityZeroTrustProperties.getProtectable().getUnrecordedAgentRequest());
         return service;
     }
     /**

@@ -5,18 +5,15 @@ import { useBeforeSend } from '../../api/anatomy';
 import { useActEnd } from '../../api/journey';
 import { useLabOptions } from '../../api/lab';
 import { useVisitor } from '../../api/queries';
-import { useTeasers } from '../../api/teasers';
 import { AppHeader } from '../../components/AppHeader';
 import { TermScope } from '../../components/common/Glossary';
-import { ActEndCard, TeaserBand } from '../../components/journey/Cards';
-import { stepName } from '../../components/journey/flow';
-import { JourneyBar } from '../../components/journey/JourneyParts';
+import { PartWrap } from '../../components/journey/Cards';
 import { NextLink } from '../../components/journey/StepParts';
 import { StateScreen } from '../../components/StateScreen';
-import { actEndSentence, teaserCopy } from '../../journey/copy';
+import { actEndSentence } from '../../journey/copy';
 import { EXPERIENCE_STEPS } from '../../journey/journey';
 import { useJourneyPosition } from '../../journey/useJourneyPosition';
-import { CASES, modeOf, stepPath, type Role, type StepFlow } from './experience';
+import { CASES, modeOf, type Role, type StepFlow } from './experience';
 import styles from './Experience.module.css';
 import { AfterStep } from './steps/AfterStep';
 import { CheckStep } from './steps/CheckStep';
@@ -26,23 +23,6 @@ import { ReasonStep } from './steps/ReasonStep';
 import { ResultStep } from './steps/ResultStep';
 import { RunStep } from './steps/RunStep';
 import { SceneStep } from './steps/SceneStep';
-
-/** The "next" button of a step whose route device is a button, naming the step it leads to, by try. */
-const NEXT_LABELS: Readonly<Record<Role, Readonly<Partial<Record<string, string>>>>> = {
-  attacker: {
-    scene: 'e1.next.compare',
-    compare: 'e1.next.predict',
-    run: 'e1.next.result',
-    after: 'e1.next.end',
-  },
-  owner: {
-    scene: 'e1.next.compare',
-    compare: 'e1.next.predict',
-    run: 'e1.next.result',
-    reason: 'e2.next.rules',
-    after: 'e2.next.follow',
-  },
-};
 
 /**
  * A try of the default route in its seven steps (7.1, 7.2): each step has its own address (/try/attacker/scene …,
@@ -59,7 +39,6 @@ export default function ExperiencePage({ role }: { readonly role: Role }) {
   useVisitor();
   const position = useJourneyPosition();
   const options = useLabOptions();
-  const teasers = useTeasers();
   const ending = role === 'attacker' && step === 'end';
   const index = (EXPERIENCE_STEPS as readonly string[]).indexOf(step);
   const actEnd = useActEnd(1, ending);
@@ -86,38 +65,18 @@ export default function ExperiencePage({ role }: { readonly role: Role }) {
 
   if (ending) {
     return (
-      <>
-        <AppHeader />
-        <main id="main" className={styles.page}>
-          <JourneyBar />
-          <ActEndCard
-            act={1}
-            differences={position.differences}
-            sentence={
-              actEnd.data && actEnd.data.source !== 'NONE' ? actEndSentence(t, language, actEnd.data) : null
-            }
-            measured={actEnd.data?.source === 'MEASUREMENT'}
-            runId={actEnd.data?.runId ?? null}
-            next={teaserCopy(t, language, 'E1_AFTER_RULES', teasers.data, position.differences.length)}
-            continueTo={nextTo ?? '/try/owner/scene'}
-            back={{
-              to: stepPath('attacker', 'after', mode),
-              label: t('step.back', { step: t('place.step.e1-after') }),
-            }}
-            resendAsyncTo={mode === 'sync' ? '/try/timing/try?from=attacker' : null}
-            benchmarkTo="/benchmark"
-            shareUrl={window.location.href}
-          />
-        </main>
-      </>
+      <PartWrap
+        sentence={actEnd.data && actEnd.data.source !== 'NONE' ? actEndSentence(t, language, actEnd.data) : null}
+        measured={actEnd.data?.source === 'MEASUREMENT'}
+        differences={position.differences}
+      />
     );
   }
 
   const previous = position.previous;
-  const teaser =
-    screen?.teaser && !screen.actEnd && nextTo ? (
-      <TeaserBand copy={teaserCopy(t, language, screen.teaser, teasers.data, position.differences.length)} />
-    ) : null;
+  // The main button's words are the next screen's question from the copy source (R-6); a step with its own action
+  // (Send on the predict step) has none and draws that action itself.
+  const nextWords = screen ? t(`screen.${screen.number}.next`, { defaultValue: '' }) : '';
   let nextDevice: ReactNode = null;
   // An attack sent again asynchronously from the "send it again" screen (sync-try, D-34) goes back there when it ends.
   const from = params.get('from');
@@ -128,10 +87,8 @@ export default function ExperiencePage({ role }: { readonly role: Role }) {
         label={t('timing.try.backToResend')}
       />
     );
-  } else if (teaser && nextTo) {
-    nextDevice = <NextLink to={nextTo} label={t('teaser.see')} />;
-  } else if (nextTo && NEXT_LABELS[role][step]) {
-    nextDevice = <NextLink to={nextTo} label={t(NEXT_LABELS[role][step] ?? '')} />;
+  } else if (nextTo && nextWords) {
+    nextDevice = <NextLink to={nextTo} label={nextWords} />;
   }
   const flow: StepFlow = {
     // The run is not left backwards while it goes; its way on is the result.
@@ -139,25 +96,24 @@ export default function ExperiencePage({ role }: { readonly role: Role }) {
       previous && step !== 'run'
         ? {
             to: `${previous.path}${mode === 'async' && previous.path.startsWith(`/try/${role}/`) ? '?mode=async' : ''}`,
-            label: t('step.back', { step: stepName(t, previous, screen) }),
+            label: t('frame.back'),
           }
         : null,
     next: nextDevice,
-    teaser,
+    teaser: null,
   };
 
   return (
     <>
       <AppHeader />
-      <main id="main" className={styles.page}>
-        <JourneyBar />
+      <main id="main" className={styles.page} data-type={position.screen?.type}>
         <TermScope>
           {options.isPending ? <StateScreen kind="loading" /> : null}
           {options.isError || (options.data && (!labCase || !employee)) ? (
             <StateScreen kind="notReady" />
           ) : null}
           {labCase && employee && options.data ? (
-            <div className={styles.step}>
+            <>
               {step === 'scene' ? (
                 <SceneStep
                   role={role}
@@ -196,7 +152,7 @@ export default function ExperiencePage({ role }: { readonly role: Role }) {
                   flow={flow}
                 />
               ) : null}
-            </div>
+            </>
           ) : null}
         </TermScope>
       </main>

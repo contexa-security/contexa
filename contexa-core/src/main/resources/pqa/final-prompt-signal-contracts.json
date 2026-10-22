@@ -123,6 +123,7 @@
   {"label":"HistoricalComparableSummary","promptLocation":"finalUserPrompt.supportingLearning.historicalComparableSummary"},
   {"label":"CurrentRequestClosestObservedOverlap","promptLocation":"finalUserPrompt.supportingLearning.currentRequestClosestObservedOverlap"},
   {"label":"ComparableExample1","promptLocation":"finalUserPrompt.supportingLearning.comparableExample1"},
+  {"label":"ComparableExample2","promptLocation":"finalUserPrompt.supportingLearning.comparableExample2"},
   {"label":"FrequentPaths","promptLocation":"finalUserPrompt.supportingLearning.frequentPaths"},
   {"label":"SupportingEvidenceMode","promptLocation":"finalUserPrompt.supportingLearning.evidenceMode"},
   {"label":"SupportingEvidenceNeverReplacesPersonalBaseline","promptLocation":"finalUserPrompt.supportingLearning.neverReplacesPersonalBaseline"},

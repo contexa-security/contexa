@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.context.prompt.PromptSourceGrade;
 import io.contexa.contexacore.autonomous.context.prompt.PromptUnknownKind;
 import io.contexa.contexacore.std.components.prompt.bundle.PromptBundleHashes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -360,10 +361,11 @@ public final class SecurityDecisionPromptDictionary {
                     false, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
                     List.of("ResourceId")),
             entry(PromptBlock.REQUEST, "Target",
-                    "Target: the URL template's variables (their values are in the request path, an untrusted text, N-INJ-1) or the resource, whether it has a business label (its text is an untrusted text, N-INJ-3), and the category",
+                    "Target: the URL template's variables (their values are in the request path, an untrusted text, N-INJ-1) or the resource, whether it has a business label (its text is an untrusted text, N-INJ-3), and the category as a token (a category of other text is an untrusted text, N-INJ-4)",
                     "business provider, resource registry",
                     "(\\S+(, \\S+)* from the request path|resource)( \\(" + SecurityDecisionPromptValues.TARGET_LABEL_NOTE
-                            + "\\))?(, category .+)?",
+                            + "\\))?(, category (" + SecurityDecisionPromptValues.CATEGORY_TOKEN_FORM + "|"
+                            + SecurityDecisionPromptValues.TARGET_CATEGORY_NOTE + "))?",
                     List.of("projectKey from the request path (" + SecurityDecisionPromptValues.TARGET_LABEL_NOTE
                             + "), category 〈업무 범주〉", "documentId from the request path"),
                     PromptMissingNotation.RENDERED_VALUE, "path template variable",
@@ -468,7 +470,8 @@ public final class SecurityDecisionPromptDictionary {
             entry(PromptBlock.DECISION_FACTS, "Ticket",
                     "Ticket record; a ticket the requester names is 'the ticket named by the requester' (what the requester wrote is an untrusted text, N-INJ-1)",
                     "DecisionFactsResolver (W2-5) and the approval facts SPI (W2-6)",
-                    "no ticket found|the ticket named by the requester does not exist|.+ \\u2014 (covers this request|does not cover: .+)",
+                    "no ticket found|the ticket named by the requester does not exist(; .+)?|.+ \\u2014 (covers this request(; .+)?"
+                            + "|not known whether it covers: .+|does not cover: .+)",
                     List.of("no ticket found", "the ticket named by the requester does not exist", "TCK-90090ef490a6-1 by pm-11, INCIDENT_RECOVERY, HX-200, valid 09-30 12:20..09-30 20:20 (from 〈n〉 h before to 〈n〉 h after this request) — covers this request"),
                     PromptMissingNotation.UNKNOWN_BLOCK, null,
                     Set.of(PromptSourceGrade.HOST), "whether a difference is explained; ASSIGNED_TARGET",
@@ -706,10 +709,11 @@ public final class SecurityDecisionPromptDictionary {
                     List.of("MissingKnowledgeWarning")),
             entry(PromptBlock.UNTRUSTED_TEXT, "UntrustedText{i}",
                     "Text written by a user, a document author, the host or an outside party (source, quotes, length and control characters cleaned)",
-                    "business label author text, the business label itself (host text, N-INJ-3), request body summary, outside threat knowledge sentences, anomaly signal text, elevation reason (host text); the requester's user agent (when it cannot be parsed), request path with its path variables, the session's earlier request paths and tickets the requester names (N-INJ-1)",
+                    "business label author text, the business label itself (host text, N-INJ-3), the target's category when it is not a token (host text, N-INJ-4), request body summary, outside threat knowledge sentences, anomaly signal text, elevation reason (host text); the requester's user agent (when it cannot be parsed), request path with its path variables, the session's earlier request paths and tickets the requester names (N-INJ-1)",
                     PromptSlotRenderer.UNTRUSTED_FORMAT,
                     List.of("source=" + UntrustedTextSources.DOCUMENT_DESCRIPTION + "; \"External author claim: …\"",
-                            "source=" + UntrustedTextSources.BUSINESS_LABEL + "; \"Export of 4831 documents from project GB-500 …\""),
+                            "source=" + UntrustedTextSources.BUSINESS_LABEL + "; \"Export of 4831 documents from project GB-500 …\"",
+                            "source=" + UntrustedTextSources.RESOURCE_CATEGORY + "; \"Engineering data …\""),
                     PromptMissingNotation.BLOCK_OMITTED, null,
                     Set.of(PromptSourceGrade.UNTRUSTED), "never used for any normalisation, classification or comparison",
                     false, PromptDictionaryEntry.PRIORITY_HIGH_VALUE, null, PromptListOrder.NONE, true,
@@ -746,11 +750,158 @@ public final class SecurityDecisionPromptDictionary {
     public static final Map<PromptBlock, List<String>> BLOCK_HEADER_PRESERVED_LABELS = Map.of(
             PromptBlock.PAST_RECORDS, List.of("HistoricalComparableScope", "HistoricalComparableSummary"));
 
+    /** The version of the v21 dictionary. */
+    public static final String V21_VERSION = "v21";
+
+    /** One approval or ticket record of a v21 line: its id or the requester's naming, kind, approver and values. */
+    private static final String V21_TICKET_RECORD =
+            "(the ticket named by the requester does not exist|(\\S+|the ticket named by the requester)( [A-Z_]+)?( by \\S+)?(, [^;]+)?)";
+
+    /** The request's value against one of the scope group's lists, or a denied mark (v21). */
+    private static final String V21_SCOPE_PART = "(action [A-Z_]+ against the scope group's actions \\(.+?\\)"
+            + "|category \\S+ against the scope group's categories \\(.+?\\)"
+            + "|action in the scope group's denied actions|category in the scope group's denied categories)";
+
+    /**
+     * v21.4 (finding 7 of the v21 plan): the scope the host's records hold the request's target in (a document's or a
+     * customer's project), after the target line. A v21 entry only, so the v20 render keeps its lines.
+     */
+    private static final PromptDictionaryEntry TARGET_SCOPE = entry(PromptBlock.REQUEST, "TargetScope",
+            "The scope the host's records hold the target in, by its key and value: the host's own record, unlike the"
+                    + " request path and the business label",
+            "host request attributes (resource scope)",
+            "[A-Za-z][A-Za-z0-9_]*=[A-Za-z0-9][A-Za-z0-9._:-]* \\(" + SecurityDecisionPromptValues.TARGET_SCOPE_NOTE + "\\)",
+            List.of("projectKey=HX-310 (" + SecurityDecisionPromptValues.TARGET_SCOPE_NOTE + ")"),
+            PromptMissingNotation.LINE_OMITTED, null,
+            Set.of(PromptSourceGrade.HOST),
+            "which scope the target is in; the model reads it with the assignment and the usual targets",
+            true, PromptDictionaryEntry.PRIORITY_REQUIRED, null, PromptListOrder.NONE, false,
+            List.of());
+
+    /**
+     * The v21 dictionary (V-4): the v20 entries without PolicySatisfied, the lines that state records and comparisons in
+     * place of the core's conclusions (no difference marked explained, no record that covers, no scope that holds), and
+     * the decision use of each entry without the minimum action rules. The model judges what the lines mean.
+     */
+    public static final List<PromptDictionaryEntry> V21_ENTRIES = v21Entries();
+
     private SecurityDecisionPromptDictionary() {
     }
 
     public static PromptDictionarySlotPlanProvider slotPlanProvider() {
         return new PromptDictionarySlotPlanProvider(ENTRIES, VERSION);
+    }
+
+    /** The slot plans of the v21 dictionary. */
+    public static PromptDictionarySlotPlanProvider v21SlotPlanProvider() {
+        return new PromptDictionarySlotPlanProvider(V21_ENTRIES, V21_VERSION);
+    }
+
+    private static List<PromptDictionaryEntry> v21Entries() {
+        List<PromptDictionaryEntry> entries = new ArrayList<>();
+        for (PromptDictionaryEntry entry : ENTRIES) {
+            // Whether the policy is met is the model's to judge from the policy and the records.
+            if (entry.block() == PromptBlock.DECISION_FACTS && "PolicySatisfied".equals(entry.name())) {
+                continue;
+            }
+            entries.add(v21(entry));
+            if (entry.block() == PromptBlock.REQUEST && "Target".equals(entry.name())) {
+                entries.add(TARGET_SCOPE);
+            }
+        }
+        return List.copyOf(entries);
+    }
+
+    private static PromptDictionaryEntry v21(PromptDictionaryEntry entry) {
+        // 판정층 E-4b: after a first pass that retrieved its own past records the second pass knows none as new.
+        if (entry.block() == PromptBlock.SECOND_PASS && "NewlyKnown".equals(entry.name())) {
+            return with(entry,
+                    "What the second pass knows that the first did not: the past records it found when the first pass"
+                            + " could not retrieve any (how many, with the first pass state), or none new when the first"
+                            + " pass retrieved its own",
+                    "PastRecord\\{i\\}: (\\d+ found \\(first pass: not retrieved, [A-Z_]+\\)"
+                            + "|none new \\(first pass: retrieved, [A-Z_]+\\))",
+                    List.of("PastRecord{i}: 3 found (first pass: not retrieved, TIMEOUT)",
+                            "PastRecord{i}: none new (first pass: retrieved, AVAILABLE)"),
+                    entry.decisionUse());
+        }
+        if (entry.block() == PromptBlock.REQUEST) {
+            return switch (entry.name()) {
+                case "ResourceClass" -> withUse(entry, "DEVIATION_RESOURCE_CLASS; what the data is");
+                case "Network" -> withUse(entry, "DEVIATION_NETWORK");
+                case "Device" -> withUse(entry, "DEVIATION_DEVICE");
+                default -> entry;
+            };
+        }
+        if (entry.block() != PromptBlock.DECISION_FACTS) {
+            return entry;
+        }
+        return switch (entry.name()) {
+            case "DeviationsFromBaseline" -> with(entry,
+                    "Differences from the usual: per dimension, the request's value, how often and when it was seen and"
+                            + " the usual value, dimensions compared, overlap of the closest past record read for this"
+                            + " action on time, login method and browser; whether a record explains a difference is the"
+                            + " model's to judge",
+                    entry.formatPattern(),
+                    List.of("3 of 8 compared -> time 03 seen 0 of 25 on 0 of 5 days, first time; target projectKey seen 0"
+                                    + " of 25; class CRITICAL seen 0 of 25; closest of the past records read for this"
+                                    + " action matches 2 of 3 on time, login method and browser",
+                            "0 of 8 compared; closest of the past records read for this action matches 3 of 3 on time,"
+                                    + " login method and browser",
+                            "1 of 8 compared -> rate \u3008n\u3009 requests in the last 60 min, usual median \u3008m\u3009, 95th"
+                                    + " percentile \u3008p\u3009 in the 60 min up to a request (baseline not established)"),
+                    "DEVIATION_*; each difference is checked against the records by the model");
+            case "Policy" -> withUse(entry, "what the work needs a record for; NO_COVERING_RECORD, POLICY_NOT_KNOWN");
+            case "Approval" -> with(entry,
+                    "Approval record: approver, state, purpose, target, limit, use before this request, period, decision"
+                            + " time, pending approvers, the host's own check against this request (what it marks as not"
+                            + " matching, or that it marks none) and what could not be checked",
+                    entry.formatPattern(),
+                    List.of("APR-\u2026 by pm-11, APPROVED, PROJECT_TRANSFER, GB-500, up to 5,000 items, used 0 before this"
+                                    + " request, valid 09-29 03:17..10-01 03:17 (from 24 h before to 24 h after this"
+                                    + " request), decided 09-29 03:10 (24 h before this request), the host's own check"
+                                    + " marks no mismatch with this request",
+                            "APR-\u2026 by pm-11, APPROVED, PROJECT_TRANSFER, GB-500, up to 5,000 items, decided 09-30 03:37"
+                                    + " (20 min after this request), not known: the items exported under it outside this"
+                                    + " session (the host does not report them)"),
+                    "RECORD_*: whether the record covers the work is the model's judgment");
+            case "Ticket" -> with(entry,
+                    "Ticket record: kind, approver, state, purpose, target, period and the host's own check against"
+                            + " this request (what it marks as not matching, or that it marks none); a ticket the requester"
+                            + " names is 'the ticket named by the requester' (what the requester wrote is an untrusted"
+                            + " text, N-INJ-1)",
+                    "no ticket found|" + V21_TICKET_RECORD + "(; " + V21_TICKET_RECORD + ")*",
+                    List.of("no ticket found", "the ticket named by the requester does not exist",
+                            "TCK-90090ef490a6-1 INCIDENT by pm-11, ACTIVE, INCIDENT_RECOVERY, HX-200, valid 09-30"
+                                    + " 12:20..09-30 20:20 (from \u3008n\u3009 h before to \u3008n\u3009 h after this request)"),
+                    "RECORD_*, TICKET_CLAIM_FALSE: whether the ticket covers the work is the model's judgment");
+            case "Assignment" -> withUse(entry, "a record the model checks a difference against; ASSIGNED_TARGET");
+            case "OnCall" -> withUse(entry, "a record the model checks a difference against; ON_CALL");
+            case "Travel" -> withUse(entry, "a record the model checks a difference against; TRAVEL_EXPLAINS_NETWORK");
+            case "RepeatInSession" -> withUse(entry,
+                    "REPEAT_IN_SESSION, SESSION_SEQUENCE; the use under a record before this request");
+            case "RoleScope" -> with(entry,
+                    "The request's action and category against the scope group's 30-day lists, the denied marks and the"
+                            + " evidence state; whether the lists hold the request is the model's to read",
+                    V21_SCOPE_PART + "(; " + V21_SCOPE_PART + ")*(; scope group of \\d+ other users?)?(; evidence PROVISIONAL)?",
+                    List.of("action EXPORT against the scope group's actions (READ, EXPORT)",
+                            "action READ against the scope group's actions (EXPORT); evidence PROVISIONAL"),
+                    "ROLE_SCOPE_OUTSIDE (the model's reading of the lists)");
+            case "SessionDeviceChange", "SessionNetworkChange" ->
+                    withUse(entry, "SESSION_DEVICE_CHANGE, SESSION_NETWORK_CHANGE");
+            default -> entry;
+        };
+    }
+
+    private static PromptDictionaryEntry withUse(PromptDictionaryEntry entry, String decisionUse) {
+        return with(entry, entry.meaning(), entry.formatPattern(), entry.formatExamples(), decisionUse);
+    }
+
+    private static PromptDictionaryEntry with(PromptDictionaryEntry entry, String meaning, String formatPattern,
+                                              List<String> formatExamples, String decisionUse) {
+        return new PromptDictionaryEntry(entry.block(), entry.name(), meaning, entry.sourcePath(), formatPattern,
+                formatExamples, entry.missing(), entry.missingText(), entry.grades(), decisionUse, entry.conditional(),
+                entry.priority(), entry.listCap(), entry.listOrder(), entry.truncationAllowed(), entry.preservedLabels());
     }
 
     private static PromptDictionaryEntry entry(PromptBlock block, String name, String meaning, String sourcePath,
@@ -770,8 +921,22 @@ public final class SecurityDecisionPromptDictionary {
      * set has no order) and the labels each block header keeps. A bundle's dictionary element (B2) is this text (R1b-7).
      */
     public static String contentText() {
-        StringBuilder text = new StringBuilder("version=").append(VERSION).append('\n');
-        for (PromptDictionaryEntry entry : ENTRIES) {
+        return contentText(VERSION, ENTRIES) + "blockHeaderLabels=" + new TreeMap<>(BLOCK_HEADER_PRESERVED_LABELS) + '\n';
+    }
+
+    /** The v21 dictionary as text, with the titles the v21 blocks carry; the v21 bundle's dictionary element (B2). */
+    public static String contentTextV21() {
+        StringBuilder titles = new StringBuilder();
+        for (PromptBlock block : PromptBlock.values()) {
+            titles.append(block).append('=').append(block.v21Title()).append(';');
+        }
+        return contentText(V21_VERSION, V21_ENTRIES) + "blockHeaderLabels=" + new TreeMap<>(BLOCK_HEADER_PRESERVED_LABELS)
+                + '\n' + "blockTitles=" + titles + '\n';
+    }
+
+    private static String contentText(String version, List<PromptDictionaryEntry> entries) {
+        StringBuilder text = new StringBuilder("version=").append(version).append('\n');
+        for (PromptDictionaryEntry entry : entries) {
             text.append(entry.block()).append('|').append(entry.name()).append('|').append(entry.meaning())
                     .append('|').append(entry.sourcePath()).append('|').append(entry.formatPattern())
                     .append('|').append(entry.formatExamples()).append('|').append(entry.missing())
@@ -781,7 +946,6 @@ public final class SecurityDecisionPromptDictionary {
                     .append('|').append(entry.listOrder()).append('|').append(entry.truncationAllowed())
                     .append('|').append(entry.preservedLabels()).append('\n');
         }
-        text.append("blockHeaderLabels=").append(new TreeMap<>(BLOCK_HEADER_PRESERVED_LABELS)).append('\n');
         return text.toString();
     }
 
@@ -790,9 +954,15 @@ public final class SecurityDecisionPromptDictionary {
         return ContentDigest.VALUE;
     }
 
-    /** The digest, computed once when it is first asked for. */
+    /** The digest of {@link #contentTextV21()}, the same as the v21 bundle's dictionary element hash. */
+    public static String contentDigestV21() {
+        return ContentDigest.V21_VALUE;
+    }
+
+    /** The digests, computed once when they are first asked for. */
     private static final class ContentDigest {
 
         private static final String VALUE = PromptBundleHashes.present("B2", contentText(), "dictionary").hash();
+        private static final String V21_VALUE = PromptBundleHashes.present("B2", contentTextV21(), "dictionary").hash();
     }
 }

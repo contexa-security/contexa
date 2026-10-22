@@ -39,9 +39,24 @@ class PublicSettingsTest {
                 .isEqualTo(new PublicSettings.AccessPolicy("CUSTOMER_ACCESS", true, false, 14));
         assertThat(view.permission().roleRules()).containsExactly("GET /api/customers/* [ROLE_SUPPORT]");
         assertThat(view.engine()).isEqualTo(new PublicSettings.Engine("gpt-5-nano", "ENFORCE",
-                CoreAdverseLabels.RULES.size()));
+                CoreAdverseLabels.RULES.size(), null, null));
         assertThat(view.retention()).isEqualTo(new PublicSettings.Retention(400, 90));
         assertThat(view.ruleVersion()).isEqualTo("abc");
+    }
+
+    /** 판정층 E-8c: the model of each analysis layer is the one the engine states for it. */
+    @Test
+    void eachLayersModelIsTheOneTheEngineStates() throws Exception {
+        JsonNode engine = JSON.readTree("""
+                {"chatModel":"gpt-6-luna","effectiveMode":"ENFORCE",
+                 "layer1Model":{"model":"gpt-6-luna","reasoningEffort":"low"},
+                 "layer2Model":{"model":"gpt-6.1-sol","reasoningEffort":"low"}}""");
+
+        PublicSettings.View view = PublicSettings.of(JSON.readTree("{}"), engine,
+                new PublicSettings.Waf("coraza-crs:caddy-alpine", "OWASP Core Rule Set, defaults"), 90);
+
+        assertThat(view.engine().layer1Model()).isEqualTo("gpt-6-luna");
+        assertThat(view.engine().layer2Model()).isEqualTo("gpt-6.1-sol");
     }
 
     /** W7-13: the adoption screen's sealed inputs line is the engine's own capture share and clean period. */

@@ -53,6 +53,19 @@ public class ReplayViews {
             "High-sensitivity access departs from the established personal baseline without a required approval; "
                     + "challenge is required.", "CHALLENGE_ELEVATED_RISK_BOUNDARY");
 
+    /** The engine's name of the output contract v4 (a v21 bundle's) and the user prompt layout of a v21 bundle. */
+    static final String CONTRACT_V4 = "CORTEX_PROMPT_CONTRACT_V4";
+    static final String LAYOUT_V21 = "v21-dictionary-blocks";
+
+    /**
+     * "V4" when a decision's reason codes are those of the output contract v4, by the contract its record names or,
+     * without one, by the v21 layout of its prompt; null for the contract v3 (SC-6).
+     */
+    public static String contractOf(String contractVersion, String layout) {
+        return CONTRACT_V4.equals(contractVersion) || contractVersion == null && LAYOUT_V21.equals(layout) ? "V4"
+                : null;
+    }
+
     /**
      * The code of a fixed sentence of the engine's output contract, so a screen shows its fixed translation; null for
      * a sentence the model wrote itself.
@@ -299,11 +312,14 @@ public class ReplayViews {
         if (sealed != null) {
             baselineDeltaCount = sealed;
         }
-        // W4-3: the reason codes the engine recorded with the fact IDs they cite (none before the output contract v3).
+        // W4-3: the reason codes the engine recorded with the fact IDs they cite (none before the output contract v3),
+        // with the contract they belong to (SC-6).
+        String contract = contractOf(metadata.path("contractVersion").asText(null), null);
         List<ReplayView.ReasonCode> reasonCodes = new ArrayList<>();
         for (JsonNode code : metadata.path("finalDecisionReasonCodes")) {
             if (code.hasNonNull("code")) {
-                reasonCodes.add(new ReplayView.ReasonCode(code.path("code").asText(), code.path("fact").asText(null)));
+                reasonCodes.add(new ReplayView.ReasonCode(code.path("code").asText(), code.path("fact").asText(null),
+                        contract));
             }
         }
         return new EngineReason(canonicalCode(reasoning), reasoning, refs,

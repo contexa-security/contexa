@@ -1,0 +1,242 @@
+/*
+ * 4-3: the two runs' requests and input lines overlaid on the left, each approach's two results on the right. The
+ * results keep their chips whole; the table, whose words wrap, takes what is left.
+ */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(min-content, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.cardTitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.table tbody th {
+  inline-size: 9rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.table td {
+  color: var(--color-text);
+}
+
+.table tr[data-changed] {
+  background-color: var(--color-accent-soft);
+  animation: diff-mark var(--motion-reveal) var(--ease-out) both;
+}
+
+.table tr[data-changed] td[data-side='attack'] {
+  color: var(--color-bad-bright);
+  font-weight: var(--weight-bold);
+}
+
+.table tr[data-changed] td[data-side='normal'] {
+  color: var(--color-ok);
+  font-weight: var(--weight-bold);
+}
+
+.table code {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  overflow-wrap: break-word;
+}
+
+/* Every row shares the columns: a result column is as wide as its longest chip, so no chip is ever cut. */
+.results {
+  display: grid;
+  grid-template-columns: minmax(9rem, auto) max-content max-content;
+  column-gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-block-end: 1px solid var(--color-border);
+}
+
+.result > :not(.resultName) {
+  justify-self: start;
+}
+
+/* The two runs over their columns, in the table's order. */
+.resultHead {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.resultCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* Each result names its run: read aloud everywhere, shown where the columns' heading is not (phones). */
+.resultSide {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.resultName {
+  color: var(--color-text);
+  font-size: var(--type-body);
+}
+
+.result[data-contexa] .resultName {
+  color: var(--color-accent);
+}
+
+/* EV-2: what each run added to the learned usual pattern. */
+.learning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.learningTitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.learningRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conclusion {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-normal);
+}
+
+.footnote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@keyframes diff-mark {
+  from {
+    background-color: transparent;
+  }
+}
+
+@media (width <= 72rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 40rem) {
+  .results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .resultName {
+    flex-basis: 100%;
+  }
+
+  .resultHead {
+    display: none;
+  }
+
+  .resultSide {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* Each row's name goes above its two values, so the values have the width ("Administrator A" stays whole). */
+  .table thead tr,
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .table tbody th {
+    grid-column: 1 / -1;
+    inline-size: auto;
+    padding-block-end: 0;
+    border-block-end: none;
+  }
+
+  .table thead th:first-child {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table tr[data-changed] {
+    animation: none;
+  }
+}

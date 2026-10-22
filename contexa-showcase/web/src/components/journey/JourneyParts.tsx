@@ -1,14 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import {
-  CONCEPT_STEPS,
-  DIFFERENCES,
-  actScreens,
-  actStart,
-  type Act,
-  type Difference,
-} from '../../journey/journey';
+import { DIFFERENCES, type Act, type Difference } from '../../journey/journey';
 import { useJourneyPlace } from '../../journey/useJourneyPlace';
 import { ActionChip } from '../common/ActionChip';
 import { Icon } from '../Icon';
@@ -32,93 +25,11 @@ export function IdentityDefinition() {
 }
 
 /**
- * The place band at the top of every screen of a route (common-1, redrawn 2026-10-08 so the parts and their relations
- * read at a glance): the four acts as one row of tabs where only the current act is spelled out, and under it, joined
- * to the current tab, the screens of that act as numbered steps. A past act's tab leads to its start; later acts are
- * dimmed and not links ("skip" sits in the action area). The concept path draws the same band with its nine steps
- * (D-33). The difference badge is the band's only other part, on the right.
+ * The old place band. In the redesigned frame the place is one line in the top bar (AppHeader, R-4), so on the main
+ * flow this draws nothing; the screens that still call it are cleaned up as their part is redone.
  */
 export function JourneyBar() {
-  const { t } = useTranslation();
-  const place = useJourneyPlace();
-  const screen = place.screen;
-  if (!screen) {
-    return null;
-  }
-  if (place.route === 'INTRO') {
-    if (screen.conceptStep === null) {
-      return null;
-    }
-    return (
-      <nav className={styles.band} aria-label={t('place.label')}>
-        <ol className={styles.tabs}>
-          <li className={styles.tab} data-state="current" data-first aria-current="step">
-            <span className={styles.tabDot} aria-hidden="true" />
-            <span className={styles.tabNumber}>{t('place.concept')}</span>
-            <span className={styles.tabName}>{t('concept.progress', { n: screen.conceptStep })}</span>
-          </li>
-        </ol>
-        <DifferenceBadge differences={place.differences} />
-        <Steps
-          names={CONCEPT_STEPS.map((step) => t(`concept.step.${step}`))}
-          current={screen.conceptStep - 1}
-          label={t('concept.progress', { n: screen.conceptStep })}
-          first
-        />
-      </nav>
-    );
-  }
-  const act = screen.act;
-  if (act === null) {
-    return null;
-  }
-  const steps = actScreens(act);
-  return (
-    <nav className={styles.band} aria-label={t('place.label')}>
-      <ol className={styles.tabs}>
-        {([1, 2, 3, 4] as const).map((n) => (
-          <li
-            key={n}
-            className={styles.tab}
-            data-state={n < act ? 'past' : n === act ? 'current' : 'later'}
-            data-first={n === 1 || undefined}
-            aria-current={n === act ? 'step' : undefined}
-          >
-            {n < act ? (
-              <Link to={actStart(n).path} className={styles.tabLink} title={t('act.past', { n })}>
-                <Icon name="check" className={styles.tabCheck} />
-                <span className={styles.tabNumber} data-past>
-                  {t('act.label', { n })}
-                </span>
-                <span className={styles.srOnly}>{t('act.past', { n })}</span>
-              </Link>
-            ) : n === act ? (
-              <>
-                <span className={styles.tabDot} aria-hidden="true" />
-                <span className={styles.tabNumber}>{t('act.label', { n })}</span>
-                <span className={styles.tabName}>{t(`act.${n}.name`)}</span>
-              </>
-            ) : (
-              <span className={styles.tabNumber}>
-                <span className={styles.tabLabel}>{t('act.label', { n })}</span>
-                <span className={styles.tabShort} aria-hidden="true">
-                  {n}
-                </span>
-              </span>
-            )}
-          </li>
-        ))}
-      </ol>
-      <DifferenceBadge differences={place.differences} />
-      <Steps
-        names={steps.map((step) => t(`place.step.${step.id}`))}
-        current={steps.findIndex((step) => step.id === screen.id)}
-        label={t('place.steps', { n: act, name: t(`act.${act}.name`) })}
-        actName={t(`act.${act}.name`)}
-        first={act === 1}
-      />
-    </nav>
-  );
+  return null;
 }
 
 /** The lab's steps (lab-1): the case, the condition (with the comparison before sending), sending and comparing. */

@@ -65,6 +65,10 @@ class SecurityDecisionPromptBundleTest {
             "src/main/java/io/contexa/contexacore/autonomous/context/decision/MinimumActionRules.java";
     private static final String INSPECTOR_SOURCE =
             "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionRawOutputContractInspector.java";
+    /** The v21 response check: the inspector and the fact checks it runs (V-5). */
+    private static final List<String> V21_INSPECTOR_SOURCES = List.of(
+            "src/main/java/io/contexa/contexacore/std/pipeline/processor/SecurityDecisionV21OutputInspector.java",
+            "src/main/java/io/contexa/contexacore/autonomous/tiered/prompt/SecurityDecisionV21FactChecks.java");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     private static SecurityDecisionGoldenRender golden;
@@ -233,7 +237,7 @@ class SecurityDecisionPromptBundleTest {
                 rendered.add(golden.render(goldenCase, profile, properties));
             }
         }
-        if (bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS) {
+        if (bundle.layout().dictionaryBlocks()) {
             for (JsonNode goldenCase : golden.cases()) {
                 if (goldenCase.path("ragResults").path("relatedDocuments").isEmpty()) {
                     continue;
@@ -256,26 +260,40 @@ class SecurityDecisionPromptBundleTest {
     private PromptBundleManifest computedManifest(SecurityDecisionPromptBundles.Bundle bundle) throws IOException {
         PromptGovernanceDescriptor descriptor = bundle.descriptor();
         List<SecurityDecisionGoldenRender.RenderedCase> rendered = rendered(bundle);
-        boolean v20 = bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS;
+        boolean v20 = bundle.layout().dictionaryBlocks();
+        boolean v21 = bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
         long secondPasses = rendered.size() - (long) golden.cases().size() * SecurityDecisionGoldenRender.PROFILES.size();
         List<PromptBundleElement> elements = new ArrayList<>();
         elements.add(PromptBundleHashes.present("B1", systemTexts(rendered),
                 "rendered system text of the L1 and L2 budget profiles"));
-        elements.add(v20
+        elements.add(v21
+                ? PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentTextV21(), "prompt dictionary "
+                        + SecurityDecisionPromptDictionary.V21_VERSION + ": every entry with all its fields, the block"
+                        + " header labels and the block titles (V-4)")
+                : v20
                 ? PromptBundleHashes.present("B2", SecurityDecisionPromptDictionary.contentText(), "prompt dictionary "
                         + SecurityDecisionPromptDictionary.VERSION + ": every entry with all its fields and the block header labels (W3-1)")
                 : PromptBundleHashes.marker("B2", PromptBundleElementState.ABSENT, "no prompt dictionary in v19 (v20, W3-1)"));
         elements.add(PromptBundleHashes.presentHash("B3", SecurityDecisionGoldenRender.digest(rendered),
                 "golden render digest: " + golden.cases().size() + " cases x L1/L2"
                         + (v20 ? " and " + secondPasses + " second passes" : "") + ", inputs " + golden.contentSha256()));
-        elements.add(PromptBundleHashes.present("B4", outputContract(), "format instructions and the response fields"));
+        elements.add(v21
+                ? PromptBundleHashes.present("B4", outputContractV21(),
+                        "format instructions, the output contract v4 schema and the response fields (V-3)")
+                : PromptBundleHashes.present("B4", outputContract(), "format instructions and the response fields"));
         // W4-4: the v20 system text states the minimum action rules (dictionary 6) with the default settings.
-        elements.add(v20
+        elements.add(v21
+                ? PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT,
+                        "no minimum action rules in v21: the model judges and no rule changes its response (V-5)")
+                : v20
                 ? PromptBundleHashes.present("B5", Files.readString(Path.of(MINIMUM_ACTION_RULES_SOURCE),
                         StandardCharsets.UTF_8) + MinimumActionRules.Settings.DEFAULTS,
                         "minimum action rules P1-P3 (dictionary 6): the rule source and the default settings")
                 : PromptBundleHashes.marker("B5", PromptBundleElementState.ABSENT, "no minimum response rules in v19 (W4-4)"));
-        elements.add(PromptBundleHashes.present("B6", Files.readString(Path.of(INSPECTOR_SOURCE), StandardCharsets.UTF_8),
+        elements.add(v21
+                ? PromptBundleHashes.present("B6", v21InspectorSources(),
+                        "v21 response check sources: the citation and honesty checks, no action check (V-5)")
+                : PromptBundleHashes.present("B6", Files.readString(Path.of(INSPECTOR_SOURCE), StandardCharsets.UTF_8),
                 v20 ? "response inspector definition source (no declarative rule list yet, W4-4)"
                         : "response inspector definition source (no declarative rule list in v19)"));
         elements.add(PromptBundleHashes.present("B7", retrievalSettings(), "retrieval counts, thresholds, waits and document truncation defaults"));
@@ -334,13 +352,32 @@ class SecurityDecisionPromptBundleTest {
     /** R1b-7: the dictionary's digest in main code is the hash of the bundle's dictionary element. */
     @Test
     void theDictionaryDigestIsTheHashOfTheBundlesDictionaryElement() {
-        PromptBundleManifest shipped = PromptBundleCatalog.shared()
-                .find("cortex.security-decision", SecurityDecisionPromptBundles.V20.descriptor().promptVersion())
-                .orElseThrow();
-        PromptBundleElement dictionary = shipped.elements().stream().filter(element -> "B2".equals(element.id()))
-                .findFirst().orElseThrow();
+        assertThat(SecurityDecisionPromptDictionary.contentDigest())
+                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V20).hash());
+        assertThat(SecurityDecisionPromptDictionary.contentDigestV21())
+                .isEqualTo(dictionaryElement(SecurityDecisionPromptBundles.V21).hash());
+    }
 
-        assertThat(SecurityDecisionPromptDictionary.contentDigest()).isEqualTo(dictionary.hash());
+    private static PromptBundleElement dictionaryElement(SecurityDecisionPromptBundles.Bundle bundle) {
+        PromptBundleManifest shipped = PromptBundleCatalog.shared()
+                .find("cortex.security-decision", bundle.descriptor().promptVersion())
+                .orElseThrow();
+        return shipped.elements().stream().filter(element -> "B2".equals(element.id())).findFirst().orElseThrow();
+    }
+
+    /** The v21 output: its format instructions, the output contract v4 schema and the response fields. */
+    private static String outputContractV21() {
+        return SecurityDecisionContractSectionBuilder.formatInstructions(
+                SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS) + '\n'
+                + SecurityDecisionOutputContractV4.providerSchema() + '\n' + outputContract();
+    }
+
+    private static String v21InspectorSources() throws IOException {
+        StringBuilder text = new StringBuilder();
+        for (String source : V21_INSPECTOR_SOURCES) {
+            text.append(Files.readString(Path.of(source), StandardCharsets.UTF_8));
+        }
+        return text.toString();
     }
 
     private static String outputContract() {

@@ -25,28 +25,41 @@ import java.util.Optional;
  */
 public enum PromptBlock {
 
-    USER_BASELINE("USER BASELINE", "B"),
-    SESSION("SESSION", "S"),
-    REQUEST("REQUEST", "R"),
-    DECISION_FACTS("DECISION FACTS", "F"),
-    PAST_RECORDS("PAST RECORDS", "P"),
-    UNKNOWN("UNKNOWN", null),
-    UNTRUSTED_TEXT("UNTRUSTED TEXT", null),
-    SECOND_PASS("SECOND PASS", null);
+    USER_BASELINE("USER BASELINE", "B", null),
+    SESSION("SESSION", "S", null),
+    REQUEST("REQUEST", "R", null),
+    /** Titled RECORDS AND COMPARISONS by the v21 bundle: its lines state records and comparisons, no conclusion. */
+    DECISION_FACTS("DECISION FACTS", "F", "RECORDS AND COMPARISONS"),
+    PAST_RECORDS("PAST RECORDS", "P", null),
+    UNKNOWN("UNKNOWN", null, null),
+    UNTRUSTED_TEXT("UNTRUSTED TEXT", null, null),
+    SECOND_PASS("SECOND PASS", null, null);
 
     /** The mark either side of a block header's title. */
     private static final String HEADER_MARK = "===";
 
     private final String title;
     private final String factPrefix;
+    private final String v21Title;
 
-    PromptBlock(String title, String factPrefix) {
+    PromptBlock(String title, String factPrefix, String v21Title) {
         this.title = title;
         this.factPrefix = factPrefix;
+        this.v21Title = v21Title;
     }
 
     public String title() {
         return title;
+    }
+
+    /** The title the v21 bundle draws for the block: its own one where it has one, else the block's title. */
+    public String v21Title() {
+        return v21Title != null ? v21Title : title;
+    }
+
+    /** The titles a header of the block may carry: the block's title and the one the v21 bundle draws. */
+    public List<String> titles() {
+        return v21Title != null ? List.of(title, v21Title) : List.of(title);
     }
 
     /** The fact id prefix of the block, or null when its lines are not cited by id. */
@@ -59,7 +72,12 @@ public enum PromptBlock {
      * qualifiers it was drawn with (R1b-3: the one form the render draws and the prompt inspector reads).
      */
     public String header(List<String> qualifiers) {
-        return HEADER_MARK + " " + title + (qualifiers.isEmpty() ? "" : " (" + String.join("; ", qualifiers) + ")")
+        return header(title, qualifiers);
+    }
+
+    /** The header line under one of the block's titles ({@link #titles()}), with its qualifiers and line break. */
+    public String header(String drawnTitle, List<String> qualifiers) {
+        return HEADER_MARK + " " + drawnTitle + (qualifiers.isEmpty() ? "" : " (" + String.join("; ", qualifiers) + ")")
                 + " " + HEADER_MARK + "\n";
     }
 
@@ -97,7 +115,7 @@ public enum PromptBlock {
         }
         key = key.trim().toUpperCase(Locale.ROOT);
         for (PromptBlock block : values()) {
-            if (block.title.equals(key)) {
+            if (block.titles().contains(key)) {
                 return Optional.of(block);
             }
         }

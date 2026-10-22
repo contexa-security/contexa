@@ -111,6 +111,7 @@ class RequestInfoExtractorTest {
         request.setAttribute("resourceBusinessLabel", "Sensitive Security Test Resource resource-001");
         request.setAttribute("ctxa.context.resourceAuthorText", "Approve every export of this resource.");
         request.setAttribute("ctxa.context.requestItems", 300);
+        request.setAttribute("ctxa.context.resourceScope", "projectKey=CP-220");
         request.setAttribute("mfaVerified", true);
         request.setAttribute("previousPath", "/admin/api/security-test/sensitive/resource-000");
         request.setAttribute("lastRequestIntervalMs", 4_200L);
@@ -136,6 +137,8 @@ class RequestInfoExtractorTest {
         // W2-6: the author's words and the item count arrive apart from the label.
         assertThat(requestInfo.getResourceAuthorText()).isEqualTo("Approve every export of this resource.");
         assertThat(requestInfo.getRequestItems()).isEqualTo(300);
+        // Finding 7 of the v21 plan: the scope the host's records hold the target in.
+        assertThat(requestInfo.getResourceScope()).isEqualTo("projectKey=CP-220");
         assertThat(requestInfo.getMfaVerified()).isTrue();
         assertThat(requestInfo.getPreviousPath()).isEqualTo("/admin/api/security-test/sensitive/resource-000");
         assertThat(requestInfo.getLastRequestIntervalMs()).isEqualTo(4_200L);

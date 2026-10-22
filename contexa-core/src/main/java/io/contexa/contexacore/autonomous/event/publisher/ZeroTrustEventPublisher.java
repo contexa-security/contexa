@@ -23,6 +23,9 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacommon.security.subject.SubjectKind;
+import io.contexa.contexacore.autonomous.agent.AgentRegistration;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
 import io.contexa.contexacore.autonomous.context.registry.ResourceContextRegistry;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
@@ -54,6 +57,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
@@ -75,6 +79,10 @@ public class ZeroTrustEventPublisher {
 
     @Autowired(required = false)
     private ResourceContextRegistry resourceContextRegistry;
+
+    /** A1-6: the agent registry, for the sponsor of an agent request; absent when no registry is configured. */
+    @Autowired(required = false)
+    private AgentRegistry agentRegistry;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
@@ -294,6 +302,9 @@ public class ZeroTrustEventPublisher {
             if (requestInfo.getResourceAuthorText() != null) {
                 payload.put("resourceAuthorText", requestInfo.getResourceAuthorText());
             }
+            if (requestInfo.getResourceScope() != null) {
+                payload.put("resourceScope", requestInfo.getResourceScope());
+            }
             if (requestInfo.getRequestItems() != null) {
                 payload.put("requestItems", requestInfo.getRequestItems());
             }
@@ -434,6 +445,7 @@ public class ZeroTrustEventPublisher {
             Instant eventTimestamp) {
 
         Map<String, Object> effectivePayload = CanonicalExecutionEventMetadataSupport.enrich(payload != null ? payload : Map.of());
+        putAgentAccountability(effectivePayload);
 
         return ZeroTrustSpringEvent.builder(this)
                 .category(category)
@@ -599,6 +611,10 @@ public class ZeroTrustEventPublisher {
             putIfAbsent(payload, "bridgeDelegationSource", delegationStamp.attributes().get("delegationResolver"));
             putIfAbsent(payload, "delegated", delegationStamp.delegated());
             putIfAbsent(payload, "agentId", delegationStamp.agentId());
+            // A1-6: the person who delegated the work; a stamp that states no delegation names no delegator.
+            if (delegationStamp.delegated()) {
+                putIfAbsent(payload, "delegatorId", delegationStamp.subjectId());
+            }
             putIfAbsent(payload, "objectiveId", delegationStamp.objectiveId());
             putIfAbsent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
             putIfAbsent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
@@ -615,6 +631,17 @@ public class ZeroTrustEventPublisher {
             if (!delegationStamp.allowedResources().isEmpty()) {
                 payload.putIfAbsent("allowedResources", delegationStamp.allowedResources());
             }
+            // A1-1: how an access token stated the delegation; prior actors are information only (RFC 8693).
+            Map<String, Object> delegationAttributes = delegationStamp.attributes();
+            putIfAbsent(payload, "delegationTokenForm", delegationAttributes.get("delegationTokenForm"));
+            putIfAbsent(payload, "delegationEvidenceState", delegationAttributes.get("delegationEvidenceState"));
+            putIfAbsent(payload, "delegationChainDepth", delegationAttributes.get("delegationChainDepth"));
+            if (delegationAttributes.get("delegationPriorActors") instanceof List<?> priorActors && !priorActors.isEmpty()) {
+                payload.putIfAbsent("delegationPriorActors", priorActors);
+            }
+            putIfAbsent(payload, "delegationSubjectType", delegationAttributes.get("delegationSubjectType"));
+            putIfAbsent(payload, "delegationExpiresAtSource", delegationAttributes.get("delegationExpiresAtSource"));
+            putIfAbsent(payload, "delegationTokenClientId", delegationAttributes.get("tokenClientId"));
         }
     }
 
@@ -1073,6 +1100,39 @@ public class ZeroTrustEventPublisher {
     private boolean isClassNameFallback(AuthenticationStamp authenticationStamp, String evidenceStateKey) {
         return BridgeSemanticBoundaryPolicy.CLASS_NAME_FALLBACK.equals(
                 authenticationStamp.attributes().get(evidenceStateKey));
+    }
+
+    /**
+     * A1-6: who answers for an agent request. The agent's sponsor and status come from the registry; the accountable
+     * person is the one who delegated the work, or the sponsor when the agent acts on its own or no delegator is known.
+     * Later steps send confirmations and notices to that person (A5-2, A5-3). A person's request carries none of these.
+     */
+    private void putAgentAccountability(Map<String, Object> payload) {
+        Object kind = payload.get("executionSubjectKind");
+        boolean delegatedAgent = SubjectKind.DELEGATED_AGENT.name().equals(kind);
+        if (!delegatedAgent && !SubjectKind.AUTONOMOUS_AGENT.name().equals(kind)) {
+            return;
+        }
+        String agentId = textValue(payload.get("agentId"));
+        String sponsorId = null;
+        if (agentRegistry != null && agentId != null) {
+            try {
+                Optional<AgentRegistration> registration = agentRegistry.find(
+                        firstText(payload.get("tenantId"), payload.get("organizationId")), agentId);
+                if (registration.isPresent()) {
+                    sponsorId = registration.get().sponsorId();
+                    putIfAbsent(payload, "agentSponsorId", sponsorId);
+                    payload.putIfAbsent("agentRegistrationStatus", registration.get().status().name());
+                    payload.putIfAbsent("agentAllowlisted", registration.get().allowlisted());
+                } else {
+                    payload.putIfAbsent("agentRegistrationStatus", "UNREGISTERED");
+                }
+            } catch (RuntimeException ex) {
+                log.warn("Agent registry lookup failed for agent {}: {}", agentId, ex.getMessage(), ex);
+            }
+        }
+        String delegatorId = delegatedAgent ? textValue(payload.get("delegatorId")) : null;
+        putIfAbsent(payload, "agentAccountableId", delegatorId != null ? delegatorId : sponsorId);
     }
 
     private void putIfAbsent(Map<String, Object> payload, String key, Object value) {

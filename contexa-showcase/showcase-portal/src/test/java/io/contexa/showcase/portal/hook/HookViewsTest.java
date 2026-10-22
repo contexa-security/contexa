@@ -26,12 +26,12 @@ class HookViewsTest {
 
     private final List<String> designated = new ArrayList<>();
     private final Map<String, RunFacts> runs = Map.of(
-            "run-a", facts("run-a", "A3", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-o", facts("run-o", "A3T", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-other", facts("run-other", "A3T", "COMPLETED", null, "p-2", NOW.minus(Duration.ofDays(1))),
-            "run-forced", facts("run-forced", "A3", "COMPLETED", "CHALLENGE", "p-1", NOW.minus(Duration.ofDays(1))),
-            "run-live", facts("run-live", "A3", "COMPLETED", null, null, NOW.minus(Duration.ofDays(1))),
-            "run-old", facts("run-old", "A3", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(91))));
+            "run-a", facts("run-a", "S13", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
+            "run-o", facts("run-o", "S13T", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(1))),
+            "run-other", facts("run-other", "S13T", "COMPLETED", null, "p-2", NOW.minus(Duration.ofDays(1))),
+            "run-forced", facts("run-forced", "S13", "COMPLETED", "CHALLENGE", "p-1", NOW.minus(Duration.ofDays(1))),
+            "run-live", facts("run-live", "S13", "COMPLETED", null, null, NOW.minus(Duration.ofDays(1))),
+            "run-old", facts("run-old", "S13", "COMPLETED", null, "p-1", NOW.minus(Duration.ofDays(91))));
 
     private final HookStore store = new HookStore(null) {
         @Override

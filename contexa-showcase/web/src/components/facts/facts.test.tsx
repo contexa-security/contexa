@@ -375,7 +375,7 @@ describe('prompt parts', () => {
     const names = Array.from(list.querySelectorAll(':scope > li > button'), (button) =>
       button.querySelector('span:nth-child(2)')?.textContent,
     );
-    expect(names).toEqual(['이 요청', '이 세션', '평소 모습', '판정 사실', '모르는 것']);
+    expect(names).toEqual(['이 요청', '이 세션', '평소 행동 패턴', '판정 사실', '모르는 것']);
     const folds = screen.getByRole('group', { name: word('prompt.folds') });
     expect(Array.from(folds.querySelectorAll('summary'), (summary) => summary.textContent)).toEqual([
       `${word('prompt.block.PAST_RECORDS')} · ${word('prompt.blockWhat.PAST_RECORDS')}`,
@@ -474,6 +474,51 @@ describe('reason chain', () => {
     one.unmount();
     // Without the inspector's reason check there is no line, never a check mark.
     expect(chain(null).container.querySelector('p[data-ok]')).toBeNull();
+  });
+
+  // F-1: the reason screen's plain mode, each cited fact once, the reasons citing no received fact after them.
+  it('draws each cited fact once in plain words in its plain mode, without codes, fact IDs or buttons', () => {
+    const codes = [
+      { code: 'MIN_P3_POLICY_NOT_SATISFIED', fact: 'F4' },
+      { code: 'DEVIATION_TIME', fact: 'F1' },
+      { code: 'POLICY_NOT_SATISFIED_NO_RECORD', fact: 'F4' },
+      { code: 'APPROVAL_COVERS', fact: null },
+      { code: 'DEVIATION_TARGET', fact: 'F9' },
+    ];
+    const { container } = render(
+      <ReasonChain mode="plain" reasonCodes={codes} facts={facts} verdict="ESCALATE" check={null} />,
+    );
+    const cards = Array.from(container.querySelectorAll<HTMLElement>('li'));
+    expect(cards.map((card) => card.dataset.fact ?? '')).toEqual(['F4', 'F1', '']);
+    expect(cards[0]).toHaveTextContent(word('fact.label.PolicySatisfied'));
+    expect(cards[0]).toHaveTextContent(
+      `${word('reasonCode.MIN_P3_POLICY_NOT_SATISFIED')} ${word('reasonCode.POLICY_NOT_SATISFIED_NO_RECORD')}`,
+    );
+    expect(cards[2]).toHaveTextContent(word('p1.reason.unlinked'));
+    expect(cards[2]).toHaveTextContent(word('reasonCode.DEVIATION_TARGET'));
+    expect(screen.getByText(word('verdict.review'))).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b|\bF\d{1,2}\b/);
+    expect(container.querySelector('button, code, [data-original]')).toBeNull();
+  });
+
+  it('puts the changed fact first with its tag in its plain mode', () => {
+    render(
+      <ReasonChain
+        mode="plain"
+        reasonCodes={[
+          { code: 'DEVIATION_TIME', fact: 'F1' },
+          { code: 'APPROVAL_COVERS', fact: 'F4' },
+        ]}
+        facts={facts}
+        verdict="ALLOW"
+        changed={{ fact: 'F4', tag: 'changed-tag' }}
+      />,
+    );
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('li'));
+    expect(cards.map((card) => card.dataset.fact)).toEqual(['F4', 'F1']);
+    expect(cards[0]).toHaveAttribute('data-changed');
+    expect(cards[0]).toHaveTextContent('changed-tag');
+    expect(cards[0]).not.toHaveTextContent(word('fact.label.PolicySatisfied'));
   });
 });
 

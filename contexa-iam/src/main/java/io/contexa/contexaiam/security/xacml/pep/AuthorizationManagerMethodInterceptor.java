@@ -146,7 +146,32 @@ public class AuthorizationManagerMethodInterceptor
                 enforcePromptQualityCertificateGate(mi, authentication, protectable);
             }
 
-            if (llmAnalysisAllowed && rapidReentryAllowed && isSyncProtectable(protectable)) {
+            boolean decideInPlace = isSyncProtectable(protectable);
+            if (llmAnalysisAllowed && !decideInPlace) {
+                // A stored BLOCK, CHALLENGE or ESCALATE restricts every request of the user; an asynchronous method
+                // does not wait for a new decision, so the one in force is enforced before it runs.
+                SynchronousProtectableDecisionService.AsyncProtectableGate gate = asyncGate(mi, authentication);
+                ZeroTrustAction restriction = gate.restriction();
+                if (restriction != null) {
+                    if (isEnforcementDisabled()) {
+                        log.info("[ZeroTrust][SHADOW] stored decision observed for async Protectable but not enforced. resource={}, action={}",
+                                buildResourceId(mi, protectable), restriction);
+                    } else {
+                        publishEvent = false;
+                        throw toZeroTrustAccessDeniedException(restriction, buildResourceId(mi, protectable));
+                    }
+                } else if (gate.decideInPlace()) {
+                    // A1-5: an agent request with no decision on record is not let through; it is decided here as a
+                    // synchronous method's request is. One already being analysed for the same session waits.
+                    if (rapidReentryAllowed) {
+                        decideInPlace = true;
+                    } else if (!isEnforcementDisabled()) {
+                        throw ZeroTrustAccessDeniedException.analysisRequired(actorSessionDecisionScopeId());
+                    }
+                }
+            }
+
+            if (llmAnalysisAllowed && rapidReentryAllowed && decideInPlace) {
                 SynchronousProtectableDecisionService.SyncDecisionResult syncDecision;
                 try {
                     syncDecision = evaluateSynchronousProtectable(mi, authentication);
@@ -172,21 +197,6 @@ public class AuthorizationManagerMethodInterceptor
                     }
                 } else {
                     publishEvent = false;
-                }
-            }
-
-            if (llmAnalysisAllowed && !isSyncProtectable(protectable)) {
-                // A stored BLOCK, CHALLENGE or ESCALATE restricts every request of the user; an asynchronous method
-                // does not wait for a new decision, so the one in force is enforced before it runs.
-                ZeroTrustAction restriction = storedRestriction(mi, authentication);
-                if (restriction != null) {
-                    if (isEnforcementDisabled()) {
-                        log.info("[ZeroTrust][SHADOW] stored decision observed for async Protectable but not enforced. resource={}, action={}",
-                                buildResourceId(mi, protectable), restriction);
-                    } else {
-                        publishEvent = false;
-                        throw toZeroTrustAccessDeniedException(restriction, buildResourceId(mi, protectable));
-                    }
                 }
             }
 
@@ -318,11 +328,14 @@ public class AuthorizationManagerMethodInterceptor
         return synchronousProtectableDecisionService.analyze(mi, authentication);
     }
 
-    private ZeroTrustAction storedRestriction(MethodInvocation mi, Authentication authentication) {
+    private SynchronousProtectableDecisionService.AsyncProtectableGate asyncGate(MethodInvocation mi,
+                                                                                 Authentication authentication) {
         if (synchronousProtectableDecisionService == null || authentication == null) {
-            return null;
+            return SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
         }
-        return synchronousProtectableDecisionService.storedRestriction(mi, authentication);
+        SynchronousProtectableDecisionService.AsyncProtectableGate gate =
+                synchronousProtectableDecisionService.asyncGate(mi, authentication);
+        return gate != null ? gate : SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED;
     }
 
     private ZeroTrustAccessDeniedException toZeroTrustAccessDeniedException(

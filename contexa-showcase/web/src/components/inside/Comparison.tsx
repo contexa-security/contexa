@@ -5,6 +5,7 @@ import { COMPARED, membership, plainValue, type Compared } from '../../pages/try
 import styles from '../../pages/try/Experience.module.css';
 import { OriginalChip } from '../facts/OriginalChip';
 import { Icon } from '../Icon';
+import compactStyles from './Comparison.module.css';
 import { plainLinesOf } from './promptSections';
 
 type T = ReturnType<typeof useTranslation>['t'];
@@ -29,6 +30,9 @@ interface CompanyRow {
 /** The prompt lines a v20 comparison is read from (portal SealedDeviations, N-DEP-1). */
 const SEALED_LINES = ['DeviationsFromBaseline', 'SameAsBaseline'];
 
+/** The compact comparison of screen 1-1 shows this many differing items at most (화면재편-기획안 T2). */
+const COMPACT_ROWS = 4;
+
 /** The usual of a v20 export size is its largest export, of a request rate its median per active hour. */
 const USUAL_WORDS: Readonly<Record<string, string>> = { size: 'dim.items.upTo', rate: 'dim.rate.usual' };
 
@@ -38,6 +42,11 @@ interface ComparisonProps {
   readonly level: 'h2' | 'h3';
   /** A company record the screen shows as its own card above the others (try 2's approval), left out of the list. */
   readonly approval?: { readonly card: ReactNode; readonly leaveOut: string } | null;
+  /**
+   * Screen 1-1's simple form (T2): usual then this time for the differing items only, four at most, and the flagged
+   * company work records in one line; no originals and no folds (they stay in the decision details' tab).
+   */
+  readonly compact?: boolean;
 }
 
 /**
@@ -45,7 +54,7 @@ interface ComparisonProps {
  * the items that differ from the usual, usual then now, and the company records it flagged. The differences stand
  * out; the items that are the same and the records that flag nothing stay folded (D-41).
  */
-export function Comparison({ comparison, level: Heading, approval = null }: ComparisonProps) {
+export function Comparison({ comparison, level: Heading, approval = null, compact = false }: ComparisonProps) {
   const { t } = useTranslation();
   const usualId = useId();
   const companyId = useId();
@@ -54,8 +63,11 @@ export function Comparison({ comparison, level: Heading, approval = null }: Comp
   );
   const different = rows.filter((row) => row.state === 'different');
   const rest = rows.filter((row) => row.state !== 'different');
-  const company = companyRows(t, comparison);
+  const company = companyRows(t, comparison, compact);
   const flagged = company.filter((row) => row.flagged);
+  if (compact) {
+    return <CompactComparison different={different.slice(0, COMPACT_ROWS)} flagged={flagged} />;
+  }
   const unflagged = company.filter((row) => !row.flagged && row.key !== approval?.leaveOut);
   return (
     <div className={styles.compareGrid}>
@@ -135,6 +147,82 @@ export function Comparison({ comparison, level: Heading, approval = null }: Comp
   );
 }
 
+interface CompactComparisonProps {
+  readonly different: readonly Row[];
+  readonly flagged: readonly CompanyRow[];
+}
+
+/**
+ * Screen 1-1's comparison (T2): one table of the differing items, usual then this time, and one line of what the
+ * company work records flag. Rows are told apart by a rule line, never a box per row (10절).
+ */
+function CompactComparison({ different, flagged }: CompactComparisonProps) {
+  const { t } = useTranslation();
+  return (
+    <div className={compactStyles.compact}>
+      <table className={compactStyles.table} aria-label={t('p1.compare.table')}>
+        <thead>
+          <tr>
+            <th scope="col" className={compactStyles.head}>
+              {t('p1.compare.item')}
+            </th>
+            <th scope="col" className={compactStyles.head}>
+              {t('p1.compare.usual')}
+            </th>
+            <td className={compactStyles.arrowCell} aria-hidden="true" />
+            <th scope="col" className={compactStyles.head}>
+              {t('p1.compare.now')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {different.map((row) => (
+            <tr key={row.dimension}>
+              <th scope="row" className={compactStyles.name}>
+                {t(`dim.${row.dimension}`)}
+              </th>
+              <td className={compactStyles.usual}>{row.usual || t('dim.unknown')}</td>
+              <td className={compactStyles.arrowCell} aria-hidden="true">
+                <Icon name="arrowRight" className={compactStyles.arrow} />
+              </td>
+              <td className={compactStyles.now}>{row.now || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className={compactStyles.company} data-flagged={flagged.length > 0 || undefined}>
+        <Icon name={flagged.length > 0 ? 'cross' : 'check'} className={compactStyles.companyIcon} />
+        {flagged.length > 0 ? (
+          <span>
+            <span className={compactStyles.companyLabel}>{t('p1.compare.company')}</span>{' '}
+            {flagged.map((row) => row.text).join(' · ')}
+          </span>
+        ) : (
+          <span>{t('p1.compare.noFlag')}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/** A compared item and a company record as the comparison reads them, for a screen that draws them its own way. */
+export type ComparedRow = Row;
+export type CompanyRecordRow = CompanyRow;
+
+/**
+ * The compared items that differ from the usual and the company records of a comparison, read the same way as the
+ * comparison table (the live console's fact check, 설계서 2-2).
+ */
+export function comparisonRows(
+  t: T,
+  comparison: BeforeSendView,
+): { readonly different: readonly ComparedRow[]; readonly company: readonly CompanyRecordRow[] } {
+  const rows = COMPARED.map((dimension) => compareRow(t, dimension, comparison)).filter(
+    (row): row is Row => row !== null,
+  );
+  return { different: rows.filter((row) => row.state === 'different'), company: companyRows(t, comparison, true) };
+}
+
 /**
  * One compared item: the baseline's values from the prompt line, the current value, and the engine's own label. The
  * browser and the system make one device item (a v20 step compares the device as one, N-DEP-1); hours are
@@ -190,9 +278,10 @@ function originalOf(
 
 /**
  * The company records: a v20 decision's policy its PolicySatisfied states as not met (N-DEP-2), the approval
- * requirement as the engine read it, then the business database's facts.
+ * requirement as the engine read it, then the business database's facts. The compact form names the approval
+ * requirement in the redesign's words (화면재편-기획안 11절).
  */
-function companyRows(t: T, comparison: BeforeSendView): readonly CompanyRow[] {
+function companyRows(t: T, comparison: BeforeSendView, compact: boolean): readonly CompanyRow[] {
   const flagged = new Set(comparison.companyAdverse.map((label) => label.label));
   return [
     ...comparison.companyAdverse
@@ -202,7 +291,7 @@ function companyRows(t: T, comparison: BeforeSendView): readonly CompanyRow[] {
       ? [
           {
             key: 'approvalRequired',
-            text: t('e1.compare.approvalRequired'),
+            text: t(compact ? 'p1.compare.approvalRequired' : 'e1.compare.approvalRequired'),
             flagged: flagged.has('approvalrequired'),
             original: null,
           },

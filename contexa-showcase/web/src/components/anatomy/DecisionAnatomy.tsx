@@ -754,12 +754,14 @@ function ProblemSection({ anatomy }: { readonly anatomy: DecisionAnatomyView }) 
               </li>
             ))}
           </ul>
-          <p className={styles.source}>
-            {t('anatomy.problem.signalSource', {
-              checked: juxtaposition.coreAdverseLabels.length,
-              met: met.length,
-            })}
-          </p>
+          {juxtaposition.coreAdverseLabels.length > 0 ? (
+            <p className={styles.source}>
+              {t('anatomy.problem.signalSource', {
+                checked: juxtaposition.coreAdverseLabels.length,
+                met: met.length,
+              })}
+            </p>
+          ) : null}
         </div>
         <div className={styles.versusSide}>
           <h3 className={styles.blockTitle}>{t('anatomy.problem.reasoning')}</h3>

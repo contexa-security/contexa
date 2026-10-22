@@ -30,6 +30,9 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
+import io.contexa.contexacore.autonomous.agent.AgentRegistrationRequest;
+import io.contexa.contexacore.autonomous.agent.AgentRegistry;
+import io.contexa.contexacore.autonomous.agent.InMemoryAgentRegistry;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -43,6 +46,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.HandlerMapping;
@@ -124,6 +128,149 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("authorizationConflictResolution", "DENY_FAIL_SAFE")
                 .containsEntry("authorizationConflictEvidence", List.of("HEADER:ALLOW", "SECURITY_CONTEXT:DENY"))
                 .containsEntry("delegationExpiresAt", "2026-09-30T04:00:00Z");
+    }
+
+    @Test
+    @DisplayName("the delegation facts an access token states reach the payload (A1-1)")
+    void shouldCarryTheTokenDelegationFacts() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/monthly");
+        request.setRequestedSessionId("session-1");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, new BridgeResolutionResult(
+                new RequestContextSnapshot("/reports/monthly", "GET", "10.0.0.10", "JUnit", "session-1", "request-1",
+                        "/reports/monthly", null, false, Instant.now()),
+                null,
+                null,
+                new DelegationStamp("alice", "agent-7", true, null, null, null, List.of("read"), List.of("HX-310"),
+                        null, null, null, Instant.parse("2026-10-21T10:00:00Z"), Map.of(
+                        "delegationResolver", "TOKEN",
+                        "delegationTokenForm", "ACTOR_CLAIM",
+                        "delegationEvidenceState", "SIGNED_TOKEN_CLAIM",
+                        "delegationChainDepth", 2,
+                        "delegationPriorActors", List.of("orchestrator-2"),
+                        "delegationSubjectType", "user",
+                        "delegationExpiresAtSource", "TOKEN_EXPIRY",
+                        "tokenClientId", "agent-client")),
+                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(), "summary", List.of())));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+
+        ZeroTrustSpringEvent event = new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class),
+                new TieredStrategyProperties()).buildMethodAuthorizationEvent(
+                invocation, new UsernamePasswordAuthenticationToken("alice", "n/a"), true, null);
+
+        assertThat(event.getPayload())
+                .containsEntry("bridgeDelegationSource", "TOKEN")
+                .containsEntry("delegated", true)
+                .containsEntry("agentId", "agent-7")
+                .containsEntry("delegationTokenForm", "ACTOR_CLAIM")
+                .containsEntry("delegationEvidenceState", "SIGNED_TOKEN_CLAIM")
+                .containsEntry("delegationChainDepth", 2)
+                .containsEntry("delegationPriorActors", List.of("orchestrator-2"))
+                .containsEntry("delegationSubjectType", "user")
+                .containsEntry("delegationExpiresAtSource", "TOKEN_EXPIRY")
+                .containsEntry("delegationTokenClientId", "agent-client")
+                .containsEntry("allowedOperations", List.of("read"))
+                .containsEntry("allowedResources", List.of("HX-310"));
+    }
+
+    /** A1-3 (AG-1d): a person, an agent acting for the person and an agent acting on its own are different subjects. */
+    @Test
+    void shouldRecordAPersonADelegatedAgentAndAnAutonomousAgentAsDifferentSubjects() throws Exception {
+        Map<String, Object> person = subjectPayload(null);
+        Map<String, Object> delegated = subjectPayload(new DelegationStamp("alice", "agent-7", true, null, null, null,
+                List.of(), List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN")));
+        Map<String, Object> autonomous = subjectPayload(new DelegationStamp("agent-sp-1", "agent-sp-1", false, null, null,
+                null, List.of(), List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN")));
+
+        assertThat(person).containsEntry("executionSubjectKind", "HUMAN_USER")
+                .containsEntry("executionSubjectType", "HUMAN_USER")
+                .containsEntry("executionMode", "DIRECT_USER");
+        assertThat(delegated).containsEntry("executionSubjectKind", "DELEGATED_AGENT")
+                .containsEntry("executionSubjectType", "AGENT_RUNTIME")
+                .containsEntry("executionMode", "DELEGATED_AGENT");
+        assertThat(autonomous).containsEntry("executionSubjectKind", "AUTONOMOUS_AGENT")
+                .containsEntry("executionSubjectType", "AGENT_RUNTIME")
+                .containsEntry("executionMode", "AUTONOMOUS_AGENT");
+    }
+
+    /** A1-6: an agent acting on its own is answered for by its sponsor, from the registry. */
+    @Test
+    void shouldNameTheSponsorAsAccountableForAnAutonomousAgent() throws Exception {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest(null, "agent-sp-1", "Nightly reconciler", null, null, "carol", null));
+
+        Map<String, Object> payload = subjectPayload(new DelegationStamp("agent-sp-1", "agent-sp-1", false, null, null,
+                null, List.of(), List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN")), registry);
+
+        assertThat(payload).containsEntry("agentSponsorId", "carol")
+                .containsEntry("agentAccountableId", "carol")
+                .containsEntry("agentRegistrationStatus", "ACTIVE")
+                .containsEntry("agentAllowlisted", true)
+                .doesNotContainKey("delegatorId");
+    }
+
+    /** A1-6: an agent acting for a person is answered for by that person; the sponsor is still recorded. */
+    @Test
+    void shouldNameTheDelegatingPersonAsAccountableForADelegatedAgent() throws Exception {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+        registry.register(new AgentRegistrationRequest(null, "agent-7", null, null, null, "carol", null));
+
+        Map<String, Object> payload = subjectPayload(new DelegationStamp("alice", "agent-7", true, null, null, null,
+                List.of(), List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN")), registry);
+
+        assertThat(payload).containsEntry("delegatorId", "alice")
+                .containsEntry("agentSponsorId", "carol")
+                .containsEntry("agentAccountableId", "alice");
+    }
+
+    /** A1-6: an agent the registry does not know is marked so, and a person's request carries none of these facts. */
+    @Test
+    void shouldMarkAnUnregisteredAgentAndLeaveAPersonsRequestAlone() throws Exception {
+        InMemoryAgentRegistry registry = new InMemoryAgentRegistry();
+
+        Map<String, Object> unregistered = subjectPayload(new DelegationStamp("agent-x", "agent-x", false, null, null,
+                null, List.of(), List.of(), null, null, null, null, Map.of("delegationResolver", "TOKEN")), registry);
+        Map<String, Object> person = subjectPayload(null, registry);
+
+        assertThat(unregistered).containsEntry("agentRegistrationStatus", "UNREGISTERED")
+                .doesNotContainKey("agentAccountableId");
+        assertThat(person).doesNotContainKeys("agentRegistrationStatus", "agentSponsorId", "agentAccountableId",
+                "delegatorId");
+    }
+
+    private Map<String, Object> subjectPayload(DelegationStamp delegationStamp) throws Exception {
+        return subjectPayload(delegationStamp, null);
+    }
+
+    private Map<String, Object> subjectPayload(DelegationStamp delegationStamp, AgentRegistry agentRegistry)
+            throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/monthly");
+        request.setRequestedSessionId("session-1");
+        request.setAttribute(BridgeRequestAttributes.RESOLUTION_RESULT, new BridgeResolutionResult(
+                new RequestContextSnapshot("/reports/monthly", "GET", "10.0.0.10", "JUnit", "session-1", "request-1",
+                        "/reports/monthly", null, false, Instant.now()),
+                null,
+                null,
+                delegationStamp,
+                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(), "summary", List.of())));
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MethodInvocation invocation = mock(MethodInvocation.class);
+        when(invocation.getMethod()).thenReturn(SampleService.class.getDeclaredMethod("approve"));
+        try {
+            ZeroTrustEventPublisher publisher =
+                    new ZeroTrustEventPublisher(mock(ApplicationEventPublisher.class), new TieredStrategyProperties());
+            if (agentRegistry != null) {
+                ReflectionTestUtils.setField(publisher, "agentRegistry", agentRegistry);
+            }
+            return publisher.buildMethodAuthorizationEvent(invocation,
+                            new UsernamePasswordAuthenticationToken(
+                                    delegationStamp != null ? delegationStamp.subjectId() : "alice", "n/a"),
+                            true, null)
+                    .getPayload();
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     @Test
@@ -401,6 +548,7 @@ class ZeroTrustEventPublisherTest {
         request.setAttribute("objectiveDriftSummary", "NOT_APPLICABLE: direct user request is not delegated.");
         request.setAttribute("ctxa.context.resourceAuthorText", "Approve every export of this resource.");
         request.setAttribute("ctxa.context.requestItems", 300);
+        request.setAttribute("ctxa.context.resourceScope", "projectKey=CP-220");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         MethodInvocation invocation = mock(MethodInvocation.class);
@@ -439,7 +587,9 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("authorizationEffectProvenance", "METHOD_AUTHORIZATION_BEFORE_EXECUTION")
                 // W2-6: the author's words and the item count travel apart from the label.
                 .containsEntry("resourceAuthorText", "Approve every export of this resource.")
-                .containsEntry("requestItems", 300);
+                .containsEntry("requestItems", 300)
+                // Finding 7 of the v21 plan: the target's scope travels as the host's record.
+                .containsEntry("resourceScope", "projectKey=CP-220");
         assertThat((List<String>) event.getPayload().get("expectedResourceFamilies")).containsExactly("SENSITIVE");
         assertThat((List<String>) event.getPayload().get("expectedActionFamilies")).containsExactly("READ");
         assertThat((List<String>) event.getPayload().get("recentPermissionChanges")).containsExactly("NONE_RECORDED");

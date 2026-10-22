@@ -1,7 +1,7 @@
 {
   "key": "S02",
-  "version": 1,
-  "frozenOn": "2026-10-07",
+  "version": 2,
+  "frozenOn": "2026-10-19",
   "title": {
     "ko": "승인된 대량 처리",
     "en": "Approved bulk delivery"
@@ -20,7 +20,8 @@
       "maxItems": 500,
       "validFromOffset": "-P1D",
       "validUntilOffset": "P1D",
-      "status": "APPROVED"
+      "status": "APPROVED",
+      "recordedAtOffset": "-P1D"
     }
   ],
   "steps": [

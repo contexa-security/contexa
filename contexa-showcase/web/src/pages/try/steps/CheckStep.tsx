@@ -3,15 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { useAnatomy } from '../../../api/anatomy';
 import type { LabCase } from '../../../api/lab';
 import { useMeasuredCase } from '../../../api/measured';
-import { SourceMark } from '../../../components/common/SourceMark';
 import { Icon, type IconName } from '../../../components/Icon';
-import { JustSaw } from '../../../components/journey/JourneyParts';
-import { ActionBar, StepHeader } from '../../../components/journey/StepParts';
+import { SourceLine } from '../../../components/journey/FrameParts';
+import { ScreenBody } from '../../../components/journey/ScreenBody';
+import { NextLink } from '../../../components/journey/StepParts';
 import { StateScreen } from '../../../components/StateScreen';
 import { count, seconds } from '../../../journey/format';
 import type { Difference } from '../../../journey/journey';
 import { stepPath, type Mode, type StepFlow } from '../experience';
-import styles from '../Experience.module.css';
+import styles from './AfterStep.module.css';
 import { useTryRun } from './tryRun';
 
 interface CheckStepProps {
@@ -21,114 +21,119 @@ interface CheckStepProps {
   readonly flow: StepFlow;
 }
 
+interface CheckItem {
+  readonly icon: IconName;
+  readonly text: string;
+  readonly value: string;
+}
+
 /**
- * Try 2-7, the identity check (e2-check): what the doubted real employee paid, as the three steps, each with the stored
- * value of that step under it (decided in n s, code accepted, re-sent in n s and n items delivered). It is the visitor's own run when
- * Contexa asked them for a check; otherwise the screen says so plainly and shows the latest measured run that asked for
- * one, naming whether it belongs to the current measurement setting (D-31). Every value is the stored record.
+ * Screen 2-5, the identity check (화면재편 T7): how a doubted real employee gets through, as the three steps of one
+ * finished check, each with its stored value under it (judged in n s, code accepted, the original request out again
+ * in n s with n records). The check is the visitor's own when Contexa asked them and they entered the code on 2-2;
+ * otherwise the guide says so and the screen shows another real request that finished a check, its source line naming
+ * whether it was sent under the current setting (D-31, V-20). Every value is the stored record.
  */
 export function CheckStep({ mode, labCase, see, flow }: CheckStepProps) {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   const run = useTryRun(labCase.key, labCase.requests.length);
-  const view = run.view;
-  const measured = useMeasuredCase(labCase.key).data ?? null;
-  const ownAnatomy = useAnatomy(view?.runId ?? null, 1).data ?? null;
-  const ownCheck = ownAnatomy?.recovery?.challenge ?? null;
+  const runId = run.view?.runId ?? null;
+  const own = useAnatomy(runId, 1);
+  const ownCheck = own.data?.recovery?.challenge ?? null;
   const ownAnswered = ownCheck?.answered === true && ownCheck.reissue_outcome !== null;
-  const example = !ownAnswered ? (measured?.resumed ?? null) : null;
-  const exampleAnatomy = useAnatomy(example?.runId ?? null, 1).data ?? null;
-  const record = ownAnswered ? ownAnatomy : exampleAnatomy;
+  const measured = useMeasuredCase(labCase.key);
+  const example = ownAnswered ? null : (measured.data?.resumed ?? null);
+  const other = useAnatomy(example?.runId ?? null, 1);
+  const record = ownAnswered ? (own.data ?? null) : (other.data ?? null);
   const check = record?.recovery?.challenge ?? null;
-  const elapsed = check?.reissue_elapsed_ms ?? null;
 
   useEffect(() => {
     if (record && check) {
       see(5);
     }
-    // Seen once a stored check is on screen; `see` is recreated on every render.
+    // Seen once a finished check is on screen; `see` is recreated on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record !== null && check !== null]);
 
   if (run.pending) {
     return <StateScreen kind="loading" />;
   }
-  if (!view?.runId) {
+  if (!runId) {
     return (
-      <>
-        <StepHeader title={t('experience.step.check')} purpose={t('e1.run.notSent')} />
-        <ActionBar back={{ to: stepPath('owner', 'predict', mode), label: t('e1.run.toPredict') }} />
-      </>
+      <ScreenBody
+        title={t('screen.2-5.title')}
+        purpose={t('p1.unsent.guide')}
+        back={null}
+        main={<NextLink to={stepPath('owner', 'predict', mode)} label={t('p1.unsent.go')} />}
+      >
+        {null}
+      </ScreenBody>
     );
   }
+  if (own.isPending || (!ownAnswered && (measured.isPending || (example !== null && other.isPending)))) {
+    return <StateScreen kind="loading" />;
+  }
 
-  // One figure: each of the three steps with the stored value of that step under it (decided, accepted, re-sent and
-  // delivered), so the steps and their timing are read together instead of as two lists.
-  const steps: readonly { readonly icon: IconName; readonly text: string; readonly value: string | null }[] =
-    [
-      {
-        icon: 'mail',
-        text: t('e2.check.step.code'),
-        value: record
-          ? t('e2.check.flow.judged', {
-              seconds:
-                record.interpretation.timings.totalAnalysisMs === null
-                  ? '-'
-                  : seconds(record.interpretation.timings.totalAnalysisMs),
-            })
-          : null,
-      },
-      { icon: 'key', text: t('e2.check.step.enter'), value: record ? t('e2.check.flow.verified') : null },
-      {
-        icon: 'arrowRight',
-        text: t('e2.check.step.resume'),
-        value: record
-          ? `${t('e2.check.flow.reissued', { seconds: elapsed === null ? '-' : seconds(elapsed) })} · ${t(
-              'e2.check.flow.delivered',
-              { items: check?.reissue_delivered == null ? '-' : count(check.reissue_delivered, language) },
-            )}`
-          : null,
-      },
-    ];
-  const exampleDate = example ? new Date(example.startedAt).toISOString().slice(0, 10) : '';
+  const shown = record !== null && check !== null;
+  const guide = ownAnswered
+    ? 'screen.2-5.guide'
+    : !shown
+      ? 'p2.check.guide.noExample'
+      : ownCheck
+        ? 'p2.check.guide.unfinished'
+        : 'p2.check.guide.notAsked';
+  const analysisMs = record?.interpretation.timings.totalAnalysisMs ?? null;
+  const elapsed = check?.reissue_elapsed_ms ?? null;
+  const delivered = check?.reissue_delivered ?? null;
+  const items: readonly CheckItem[] = shown
+    ? [
+        {
+          icon: 'mail',
+          text: t('p2.check.step.code'),
+          value: t('p2.check.value.judged', { seconds: analysisMs === null ? '-' : seconds(analysisMs) }),
+        },
+        { icon: 'key', text: t('p2.check.step.enter'), value: t('p2.check.value.verified') },
+        {
+          icon: 'arrowRight',
+          text: t('p2.check.step.resume'),
+          value: t('p2.check.value.resent', {
+            seconds: elapsed === null ? '-' : seconds(elapsed),
+            items: delivered === null ? '-' : count(delivered, language),
+          }),
+        },
+      ]
+    : [];
 
   return (
-    <>
-      <StepHeader
-        title={t(ownAnswered ? 'e2.check.title' : 'e2.check.noneTitle')}
-        purpose={t(ownAnswered ? 'e2.check.purpose' : 'e2.check.nonePurpose')}
-        source={record ? <SourceMark kind="ENGINE" runId={record.runId} step={1} /> : null}
-      />
-      {!ownAnswered && example ? (
-        <p className={styles.exampleTag}>
-          {t(example.current ? 'e2.check.exampleCurrent' : 'e2.check.exampleOld', { date: exampleDate })}
-        </p>
-      ) : null}
-      {record && check ? (
-        <>
-          <ol className={styles.checkSteps} aria-label={t('e2.check.title')}>
-            {steps.map((step, index) => (
-              <li key={step.text} className={styles.checkStep}>
-                <span className={styles.checkDot}>
-                  <Icon name="check" />
-                </span>
-                <span className={styles.flowNumber}>{index + 1}</span>
-                <Icon name={step.icon} className={styles.flowIcon} />
-                <span className={styles.flowText}>{step.text}</span>
-                {step.value ? <span className={styles.checkValue}>{step.value}</span> : null}
-              </li>
-            ))}
-          </ol>
-          <p className={styles.callout}>{t('e2.check.learn')}</p>
-          <JustSaw
-            difference={5}
-            sentence="e2Check"
-            values={{ seconds: elapsed === null ? '-' : seconds(elapsed) }}
+    <ScreenBody
+      title={t('screen.2-5.title')}
+      purpose={t(guide)}
+      sourceLine={
+        shown && record ? (
+          <SourceLine
+            kind={ownAnswered ? 'run' : example?.current ? 'earlier' : 'older'}
+            runId={record.runId}
           />
-        </>
+        ) : null
+      }
+      back={flow.back}
+      main={flow.next}
+    >
+      {items.length > 0 ? (
+        <ol className={styles.flow} aria-label={t('p2.check.figure')} data-branch="verify">
+          {items.map((item, index) => (
+            <li key={item.icon} className={styles.item}>
+              <span className={styles.step}>
+                <Icon name={item.icon} className={styles.icon} />
+                <span className={styles.text}>{item.text}</span>
+                <span className={styles.value}>{item.value}</span>
+              </span>
+              {index < items.length - 1 ? <Icon name="arrowRight" className={styles.arrow} /> : null}
+            </li>
+          ))}
+        </ol>
       ) : null}
-      {!ownAnswered && !example && measured ? <p className={styles.lead}>{t('e2.check.noExample')}</p> : null}
-      <ActionBar back={flow.back} main={flow.next} teaser={flow.teaser} />
-    </>
+    </ScreenBody>
   );
 }

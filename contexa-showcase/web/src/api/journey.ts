@@ -42,7 +42,7 @@ export interface RecapLine {
 }
 
 export interface Prediction {
-  readonly experience: 'E1' | 'E2';
+  readonly experience: 'E1' | 'E2' | 'E3';
   readonly engine?: EngineCall | null;
   readonly existing?: ExistingCall | null;
   readonly numberRule?: NumberRuleCall | null;
@@ -57,6 +57,12 @@ export interface PredictionScore {
   readonly existingActual: ExistingCall | null;
   readonly numberRuleActual: NumberRuleCall | null;
   readonly runId: string | null;
+  /** Contexa's final judgment in the visitor's run; null before it was sent (화면재편-구현계획 P-4). */
+  readonly engineActual: string | null;
+  /** The call is that very judgment. */
+  readonly engineSameAction: boolean | null;
+  /** The call handles the request the same way: both keep the data in, or both let it through. */
+  readonly engineSameStop: boolean | null;
 }
 
 export interface JourneyView {

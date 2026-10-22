@@ -45,7 +45,27 @@ public class LabStore {
      */
     public record RecentRun(String runId, String caseKey, boolean designed, List<String> changed,
                             Map<String, Object> conditions, Instant composedAt, String call,
-                            Map<String, String> approaches) {
+                            Map<String, String> approaches, String referenceRunId, Boolean callRight) {
+
+        /** The same run with its call scored against the case's set answer (B-08). */
+        public RecentRun scored(String classification) {
+            return new RecentRun(runId, caseKey, designed, changed, conditions, composedAt, call, approaches,
+                    referenceRunId, LabStore.callRight(designed, call, classification));
+        }
+    }
+
+    /**
+     * Whether the visitor's call was right (B-08 of docs/showcase/영상전-검토.md): only for a case sent as designed whose
+     * answer is set in advance (THREAT or NORMAL) and a call of attack or normal work; null otherwise.
+     */
+    static Boolean callRight(boolean designed, String call, String classification) {
+        if (!designed || call == null || !("THREAT".equals(classification) || "NORMAL".equals(classification))) {
+            return null;
+        }
+        if (!"ATTACK".equals(call) && !"NORMAL".equals(call)) {
+            return null;
+        }
+        return "ATTACK".equals(call) == "THREAT".equals(classification);
     }
 
     /**
@@ -135,7 +155,13 @@ public class LabStore {
     public List<RecentRun> recent(String visitor, int limit) {
         return jdbc.query("""
                         select c.run_id, c.case_key, c.designed, c.changed::text, c.conditions::text, c.composed_at,
-                               p.call, coalesce(p.approaches::text, '{}')
+                               p.call, coalesce(p.approaches::text, '{}'),
+                               (select o.run_id from run o
+                                 where o.scenario_key = c.case_key and o.run_id <> c.run_id and o.status = 'COMPLETED'
+                                   and o.forced_action is null and o.setting_hash is not distinct from r.setting_hash
+                                   and not exists (select 1 from lab_composition oc
+                                                    where oc.run_id = o.run_id and not oc.designed)
+                                 order by o.started_at desc nulls last, o.run_id desc limit 1)
                           from lab_composition c
                           join run r on r.run_id = c.run_id
                           left join visitor_prediction p on p.run_id = c.run_id
@@ -144,7 +170,7 @@ public class LabStore {
                 new MapSqlParameterSource("visitor", visitor).addValue("limit", limit),
                 (rs, n) -> new RecentRun(rs.getString(1), rs.getString(2), rs.getBoolean(3),
                         read(rs.getString(4), STRINGS), read(rs.getString(5), MAP), rs.getTimestamp(6).toInstant(),
-                        rs.getString(7), read(rs.getString(8), CALLS_BY_APPROACH)));
+                        rs.getString(7), read(rs.getString(8), CALLS_BY_APPROACH), rs.getString(9), null));
     }
 
     /**
@@ -208,13 +234,17 @@ public class LabStore {
         if (run.settingHash() == null) {
             return Optional.empty();
         }
+        // A run of the case as designed is a lab run with nothing changed, or a run that is no lab run at all (the
+        // main flow's own send, a measured run): 6-2 compares with the visitor's own main-flow run (IN-6).
         return jdbc.queryForList("""
-                        select c.run_id from lab_composition c join run r on r.run_id = c.run_id
-                         where c.case_key = :case and c.designed and c.run_id <> :run
+                        select r.run_id from run r left join lab_composition c on c.run_id = r.run_id
+                         where r.scenario_key = :case and r.run_id <> :run
+                           and (c.run_id is null or c.designed)
                            and r.status = 'COMPLETED' and r.forced_action is null and r.setting_hash = :setting
                            and (:anyTemplate or r.template_id is not distinct from cast(:template as varchar))
                          order by (r.live_visitor_hash is not distinct from cast(:visitor as varchar)) desc,
-                                  abs(extract(epoch from (c.composed_at - cast(:at as timestamptz)))), c.run_id
+                                  abs(extract(epoch from (coalesce(c.composed_at, r.started_at)
+                                      - cast(:at as timestamptz)))), r.run_id
                          limit 1""",
                 new MapSqlParameterSource("case", run.caseKey()).addValue("run", run.runId())
                         .addValue("setting", run.settingHash())

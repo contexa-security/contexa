@@ -70,7 +70,8 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
             return TicketCoverage.none();
         }
         List<TicketCoverage> candidates = database.jdbc().query("""
-                        select ticket_key, requester, approver, project_key, purpose, valid_from, valid_until, status
+                        select ticket_key, requester, approver, project_key, purpose, valid_from, valid_until, status,
+                               kind
                           from itsm_ticket
                          where requester = :employee and (run_id is null or run_id = :run)
                          order by ticket_key""",
@@ -105,8 +106,9 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
         if (!ACTIVE_TICKET_STATUSES.contains(rs.getString(8))) {
             mismatches.add("STATUS");
         }
+        // The ticket's kind is the ticket system's own value; the company policy names the kind it needs.
         return new TicketCoverage(mismatches.isEmpty(), rs.getString(1), approver, purpose, validFrom, validUntil,
-                List.copyOf(mismatches));
+                List.copyOf(mismatches), rs.getString(9));
     }
 
     @Override
@@ -117,7 +119,8 @@ public class JdbcBusinessContextLookup implements BusinessContextLookup {
             return new ClaimCheck(ticketKey, false, TicketCoverage.none());
         }
         return database.jdbc().query("""
-                        select ticket_key, requester, approver, project_key, purpose, valid_from, valid_until, status
+                        select ticket_key, requester, approver, project_key, purpose, valid_from, valid_until, status,
+                               kind
                           from itsm_ticket
                          where ticket_key = :ticket and requester = :employee and (run_id is null or run_id = :run)""",
                 params().addValue("ticket", ticketKey).addValue("employee", principal.get().employeeKey())

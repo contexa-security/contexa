@@ -1,0 +1,517 @@
+/*
+ * Group 6, shake it and compare (설계서 5-1 ~ 5-4, numbered 6-1 ~ 6-3 since IN-6), and the insider's measured pair of
+ * 5-3 with its request picker: result tables of two and three columns, the rule switch (its cells flip,
+ * 0.3초), the condition presets, the prompt lines a change changed (gold, 0.3초) and the run matrix (rows fill, 0.6초).
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.cardTitle {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4) 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.grid3[data-head] {
+  padding: var(--space-3) 0;
+  border-block-start: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.rowName {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.grid3[data-contexa] .rowName,
+.matrixRow[data-contexa] .rowName {
+  color: var(--color-accent);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+/* A chip in a narrow cell wraps its words inside the cell instead of running over the next one (B-17). */
+.chips > * {
+  max-inline-size: 100%;
+  white-space: normal;
+}
+
+/* 5-3: the requests Contexa decided itself, one picked at a time (V-02). */
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pickerLegend {
+  float: inline-start;
+  margin-inline-end: var(--space-2);
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pick[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+.pick:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.pickName {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: 2.75rem;
+  cursor: pointer;
+}
+
+.switchInput {
+  position: absolute;
+  inline-size: 4rem;
+  block-size: 2.125rem;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The track only shows the state: a press goes through it to the switch itself. */
+.switchTrack {
+  position: relative;
+  flex: none;
+  pointer-events: none;
+  inline-size: 4rem;
+  block-size: 2.125rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface-raised);
+  transition: background-color var(--duration-base) var(--ease-standard);
+}
+
+.switchTrack::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 0.25rem;
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text);
+  transition: transform var(--duration-base) var(--ease-standard);
+}
+
+.switchInput:checked + .switchTrack {
+  background-color: var(--color-accent);
+}
+
+.switchInput:checked + .switchTrack::after {
+  transform: translateX(1.875rem);
+}
+
+.switchInput:focus-visible + .switchTrack {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.flip {
+  display: inline-flex;
+  animation: cell-flip var(--duration-slow) var(--ease-out) both;
+}
+
+.why {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-normal);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  color: var(--color-accent);
+  font-size: var(--text-md);
+}
+
+.send {
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+
+.send:disabled {
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+/* L-38: once the run is in, sending again steps back and the way on is the gold button. */
+.send[data-quiet]:not(:disabled) {
+  border: 1px solid var(--color-border-strong);
+  background-color: transparent;
+  color: var(--color-text-body);
+}
+
+.send:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+.preset {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.preset[data-selected] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+.preset:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.presetName {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.presetFrom {
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+}
+
+.presetArrow {
+  color: var(--color-accent);
+}
+
+.presetTo {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.lanes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* L-38: before the send, what the waiting lanes will hold. */
+.lanesNote {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.diffLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-log-line);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-log-bg);
+}
+
+.diffMore > summary {
+  min-block-size: 2.75rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.diffPair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.diffPair code {
+  overflow-wrap: anywhere;
+  animation: diff-in var(--duration-slow) var(--ease-out) both;
+}
+
+.diffPair code[data-side='before'] {
+  color: var(--color-bad);
+}
+
+.diffPair code[data-side='after'] {
+  color: var(--color-ok);
+}
+
+.matrixRow {
+  --dot-size: 0.6875rem;
+
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr) minmax(0, 1fr) 13rem;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4) 0;
+  border-block-start: 1px solid var(--color-border);
+}
+
+.matrixRow[data-head] {
+  padding: var(--space-3) 0;
+  border-block-start: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  animation: row-fill var(--motion-row) var(--ease-out) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+.dot {
+  inline-size: var(--dot-size, 0.75rem);
+  block-size: var(--dot-size, 0.75rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-subtle);
+  cursor: pointer;
+}
+
+.dot:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.dot[data-tone='stopped'] {
+  background-color: var(--color-block);
+}
+
+.dot[data-tone='partly'] {
+  background-color: var(--color-auth);
+}
+
+.dot[data-tone='bad'] {
+  background-color: var(--color-bad);
+}
+
+.dot[data-tone='passed'] {
+  background-color: var(--color-allow);
+}
+
+.sum {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+}
+
+@keyframes cell-flip {
+  from {
+    opacity: 0;
+    transform: rotateX(90deg);
+  }
+}
+
+@keyframes diff-in {
+  from {
+    background-color: var(--color-accent-soft);
+  }
+}
+
+@keyframes row-fill {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+
+@media (width <= 72rem) {
+  .change {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .matrixRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .matrixRow[data-head] span:first-child,
+  .matrixRow[data-head] span:last-child {
+    display: none;
+  }
+
+  .matrixRow .rowName,
+  .matrixRow .sum {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (width <= 40rem) {
+  .pickerLegend {
+    flex-basis: 100%;
+  }
+
+  .grid3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .grid3 > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .grid3[data-head] > :first-child {
+    display: none;
+  }
+
+  .preset {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .presetName {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip,
+  .diffPair code,
+  .dots {
+    animation: none;
+  }
+}

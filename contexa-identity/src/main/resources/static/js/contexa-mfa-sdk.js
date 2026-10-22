@@ -1512,6 +1512,169 @@
             withAuthorization: withAuthorization, shouldAttach: shouldAttach, presentedBearer: presentedBearer };
     })();
 
+    /**
+     * The cut of a monitored response (BlockableServletOutputStream): the server writes the in-band marker and ends the
+     * stream. Only the marker means a cut; a stream that fails without it is a network failure or the application's
+     * own abort and reaches the application as it is. The marker is found in bytes, also when it is split across two
+     * chunks, and what came before it reaches the application. After a cut the page moves to the application root
+     * (__MFA_CONFIG__.urlPrefix + '/'), where the server filters send it to the right page.
+     */
+    const ContexaResponseCut = (function() {
+        const MARKER = '\n__CONTEXA_RESPONSE_BLOCKED__:';
+        const MARKER_BYTES = new TextEncoder().encode(MARKER);
+        const PROBE_LIMIT = 65536;
+
+        function target() {
+            const cfg = window.__MFA_CONFIG__;
+            return (cfg && cfg.urlPrefix ? cfg.urlPrefix : '') + '/';
+        }
+
+        function navigate() {
+            if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                window.location.href = target();
+            }
+        }
+
+        function concat(head, tail) {
+            if (head.length === 0) {
+                return tail;
+            }
+            const joined = new Uint8Array(head.length + tail.length);
+            joined.set(head, 0);
+            joined.set(tail, head.length);
+            return joined;
+        }
+
+        function indexOf(bytes) {
+            let at = bytes.indexOf(MARKER_BYTES[0]);
+            while (at !== -1 && at <= bytes.length - MARKER_BYTES.length) {
+                let matched = 1;
+                while (matched < MARKER_BYTES.length && bytes[at + matched] === MARKER_BYTES[matched]) {
+                    matched++;
+                }
+                if (matched === MARKER_BYTES.length) {
+                    return at;
+                }
+                at = bytes.indexOf(MARKER_BYTES[0], at + 1);
+            }
+            return -1;
+        }
+
+        /** How many trailing bytes could be the start of a marker the next chunk completes. */
+        function heldBack(bytes) {
+            for (let length = Math.min(MARKER_BYTES.length - 1, bytes.length); length > 0; length--) {
+                const start = bytes.length - length;
+                let matched = 0;
+                while (matched < length && bytes[start + matched] === MARKER_BYTES[matched]) {
+                    matched++;
+                }
+                if (matched === length) {
+                    return length;
+                }
+            }
+            return 0;
+        }
+
+        function actionAfter(bytes, at) {
+            const rest = new TextDecoder().decode(bytes.subarray(at + MARKER_BYTES.length));
+            const match = rest.match(/^\w+/);
+            return match ? match[0] : 'BLOCK';
+        }
+
+        /** The response with a body that stops at the marker; url, redirected and type stay those of the response. */
+        function watch(response) {
+            const reader = response.body.getReader();
+            let pending = new Uint8Array(0);
+            const body = new ReadableStream({
+                async pull(controller) {
+                    for (;;) {
+                        let result;
+                        try {
+                            result = await reader.read();
+                        } catch (error) {
+                            if (pending.length > 0) {
+                                controller.enqueue(pending);
+                                pending = new Uint8Array(0);
+                            }
+                            controller.error(error);
+                            return;
+                        }
+                        if (result.done) {
+                            if (pending.length > 0) {
+                                controller.enqueue(pending);
+                                pending = new Uint8Array(0);
+                            }
+                            controller.close();
+                            return;
+                        }
+                        const bytes = concat(pending, result.value);
+                        const at = indexOf(bytes);
+                        if (at !== -1) {
+                            if (at > 0) {
+                                controller.enqueue(bytes.slice(0, at));
+                            }
+                            pending = new Uint8Array(0);
+                            reader.cancel().catch(function() {});
+                            const action = actionAfter(bytes, at);
+                            ContexaMFAUtils.log('Response blocked by AI security decision: ' + action, 'warn');
+                            navigate();
+                            controller.error(new Error('Response blocked: ' + action));
+                            return;
+                        }
+                        const hold = heldBack(bytes);
+                        pending = bytes.slice(bytes.length - hold);
+                        if (bytes.length - hold > 0) {
+                            controller.enqueue(bytes.slice(0, bytes.length - hold));
+                            return;
+                        }
+                    }
+                },
+                cancel(reason) {
+                    return reader.cancel(reason);
+                }
+            });
+            const wrapped = new Response(body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers
+            });
+            ['url', 'redirected', 'type'].forEach(function(name) {
+                try {
+                    Object.defineProperty(wrapped, name, { value: response[name] });
+                } catch (e) {
+                }
+            });
+            return wrapped;
+        }
+
+        /** Whether the body of a response cut before its commit (403) carries the marker; it may end abruptly. */
+        async function carriesMarker(response) {
+            if (!response.body) {
+                return false;
+            }
+            const reader = response.clone().body.getReader();
+            let seen = new Uint8Array(0);
+            try {
+                for (;;) {
+                    const result = await reader.read();
+                    if (result.done) {
+                        break;
+                    }
+                    seen = concat(seen, result.value);
+                    if (indexOf(seen) !== -1 || seen.length > PROBE_LIMIT) {
+                        reader.cancel().catch(function() {});
+                        break;
+                    }
+                }
+            } catch (e) {
+                // The cut ends the stream without its final chunk; what arrived is still read.
+            }
+            return indexOf(seen) !== -1;
+        }
+
+        return { MARKER: MARKER, navigate: navigate, watch: watch, carriesMarker: carriesMarker };
+    })();
+
     (function installGlobalFetchInterceptor() {
         const originalFetch = window.fetch;
         window.__contexaOriginalFetch = originalFetch;
@@ -1533,66 +1696,15 @@
                 throw networkError;
             }
 
-            var isMonitored = response.headers.get('X-Contexa-Monitored') === 'true';
+            const isMonitored = response.headers.get('X-Contexa-Monitored') === 'true';
+            if (isMonitored && response.status === 403 && await ContexaResponseCut.carriesMarker(response)) {
+                // Cut before the commit: 403 and the marker only.
+                ContexaMFAUtils.log('Response blocked by AI security decision', 'warn');
+                ContexaResponseCut.navigate();
+                return new Promise(() => {});
+            }
             if (response.ok && response.body && isMonitored) {
-                var BLOCK_SIGNAL = '__CONTEXA_RESPONSE_BLOCKED__';
-                var BLOCK_SIGNAL_PATTERN = /__CONTEXA_RESPONSE_BLOCKED__:(\w+)/;
-                var blockSignalDecoder = new TextDecoder();
-                var originalBody = response.body;
-                var wrappedStream = new ReadableStream({
-                    start: function(controller) {
-                        var reader = originalBody.getReader();
-
-                        function handleBlocked(action) {
-                            var effectiveAction = action || 'BLOCK';
-                            if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                var prefix = '';
-                                var cfg = window.__MFA_CONFIG__;
-                                if (cfg && cfg.urlPrefix) {
-                                    prefix = cfg.urlPrefix;
-                                } else {
-                                    var path = window.location.pathname;
-                                    var segments = path.split('/').filter(Boolean);
-                                    if (segments.length > 0 && segments[0] !== 'api') {
-                                        var firstSegment = '/' + segments[0];
-                                        if (firstSegment !== '/mfa' && firstSegment !== '/login'
-                                            && firstSegment !== '/zero-trust' && firstSegment !== '/logout') {
-                                            prefix = firstSegment;
-                                        }
-                                    }
-                                }
-                                window.location.href = prefix + '/';
-                            }
-                            controller.error(new Error('Response blocked: ' + effectiveAction));
-                        }
-
-                        function pump() {
-                            reader.read().then(function(result) {
-                                if (result.done) {
-                                    controller.close();
-                                    return;
-                                }
-                                var text = blockSignalDecoder.decode(result.value, { stream: true });
-                                if (text.indexOf(BLOCK_SIGNAL) !== -1) {
-                                    var match = text.match(BLOCK_SIGNAL_PATTERN);
-                                    handleBlocked(match ? match[1] : null);
-                                    return;
-                                }
-                                controller.enqueue(result.value);
-                                pump();
-                            }).catch(function(streamError) {
-                                handleBlocked(null);
-                            });
-                        }
-                        pump();
-                    }
-                });
-
-                return new Response(wrappedStream, {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers
-                });
+                return ContexaResponseCut.watch(response);
             }
 
             if (response.status === 401) {
@@ -1646,12 +1758,6 @@
                         return new Promise(() => {});
                     }
 
-                    if (data.error === 'RESPONSE_BLOCKED') {
-                        ContexaMFAUtils.log('Response blocked by AI security decision', 'warn', data);
-                        ContexaMFAUtils.renderResponseBlockedPage();
-                        return new Promise(() => {});
-                    }
-
                     if (data.error === 'BLOCK_MFA_FAILED' && data.redirectUrl) {
                         ContexaMFAUtils.log(
                             `Block MFA failed (${data.failCount}/${data.maxAttempts}), redirecting to: ${data.redirectUrl}`,
@@ -1695,125 +1801,97 @@
      * Intercepts XMLHttpRequest responses to detect security-related status codes
      * (401 MFA Challenge, 403 Account Blocked, 423 Security Review)
      * and automatically redirects to the appropriate page.
+     *
+     * A subclass of the browser's XMLHttpRequest, so its constants (XMLHttpRequest.DONE) and instanceof stay. A
+     * monitored text response is read for the in-band marker from where the last read stopped; a failure without the
+     * marker stays with the application.
      */
     (function installGlobalXhrInterceptor() {
-        var OriginalXHR = window.XMLHttpRequest;
+        const OriginalXHR = window.XMLHttpRequest;
 
-        function InterceptedXHR() {
-            var xhr = new OriginalXHR();
-            var originalOpen = xhr.open;
-            var isMonitored = false;
-            var blockedRedirectUrl = null;
+        class InterceptedXHR extends OriginalXHR {
+            constructor() {
+                super();
+                const xhr = this;
+                let isMonitored = false;
+                let blockHandled = false;
+                let readUpTo = 0;
 
-            xhr.open = function() {
-                return originalOpen.apply(xhr, arguments);
-            };
-
-            var BLOCK_SIGNAL = '__CONTEXA_RESPONSE_BLOCKED__';
-            var BLOCK_SIGNAL_PATTERN = /__CONTEXA_RESPONSE_BLOCKED__:(\w+)/;
-            var xhrBlockHandled = false;
-
-            xhr.addEventListener('readystatechange', function() {
-                if (xhr.readyState >= 2) {
+                xhr.addEventListener('readystatechange', function() {
+                    if (xhr.readyState >= 2 && !isMonitored) {
+                        try {
+                            isMonitored = xhr.getResponseHeader('X-Contexa-Monitored') === 'true';
+                        } catch (e) {
+                        }
+                    }
+                    if (xhr.readyState < 3 || !isMonitored || blockHandled
+                        || (xhr.responseType !== '' && xhr.responseType !== 'text')) {
+                        return;
+                    }
+                    let text;
                     try {
-                        var monitored = xhr.getResponseHeader('X-Contexa-Monitored');
-                        if (monitored === 'true') {
-                            isMonitored = true;
-                            blockedRedirectUrl = xhr.getResponseHeader('X-Contexa-Blocked-Redirect');
+                        text = xhr.responseText;
+                    } catch (e) {
+                        return;
+                    }
+                    if (!text) {
+                        return;
+                    }
+                    const at = text.indexOf(ContexaResponseCut.MARKER,
+                        Math.max(0, readUpTo - ContexaResponseCut.MARKER.length));
+                    readUpTo = text.length;
+                    if (at !== -1) {
+                        blockHandled = true;
+                        ContexaMFAUtils.log('XHR: In-band block signal detected', 'warn');
+                        ContexaResponseCut.navigate();
+                        xhr.abort();
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    try {
+                        const status = xhr.status;
+                        if (status !== 401 && status !== 403 && status !== 423) {
+                            return;
+                        }
+
+                        const contentType = xhr.getResponseHeader('Content-Type');
+                        if (!contentType || contentType.indexOf('application/json') === -1) {
+                            return;
+                        }
+
+                        const data = JSON.parse(xhr.responseText);
+
+                        if (status === 401 && (data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED') && (data.challengeNoticeUrl || data.mfaUrl)) {
+                            const xhrRedirectTarget = data.challengeNoticeUrl || data.mfaUrl;
+                            ContexaMFAUtils.log(
+                                'XHR: MFA Challenge detected, redirecting to: ' + xhrRedirectTarget,
+                                'info', data);
+                            window.location.href = xhrRedirectTarget;
+                            return;
+                        }
+
+                        if (status === 403 && data.error === 'ACCOUNT_BLOCKED' && data.redirectUrl) {
+                            ContexaMFAUtils.log(
+                                'XHR: Account blocked detected, redirecting to: ' + data.redirectUrl,
+                                'info', data);
+                            window.location.href = data.redirectUrl;
+                            return;
+                        }
+
+                        if (status === 423 && data.error === 'SECURITY_REVIEW_IN_PROGRESS'
+                                && data.redirectUrl) {
+                            ContexaMFAUtils.log(
+                                'XHR: Security review in progress, redirecting to: ' + data.redirectUrl,
+                                'info', data);
+                            window.location.href = data.redirectUrl;
                         }
                     } catch (e) {
                     }
-                }
-                if (xhr.readyState >= 3 && isMonitored && !xhrBlockHandled) {
-                    try {
-                        if (xhr.responseText && xhr.responseText.indexOf(BLOCK_SIGNAL) !== -1) {
-                            xhrBlockHandled = true;
-                            var match = xhr.responseText.match(BLOCK_SIGNAL_PATTERN);
-                            var action = match ? match[1] : 'BLOCK';
-                            ContexaMFAUtils.log('XHR: In-band block signal detected: ' + action, 'warn');
-                            if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                var xhrPrefix = '';
-                                var xhrCfg = window.__MFA_CONFIG__;
-                                if (xhrCfg && xhrCfg.urlPrefix) {
-                                    xhrPrefix = xhrCfg.urlPrefix;
-                                }
-                                window.location.href = xhrPrefix + '/';
-                            }
-                            xhr.abort();
-                        }
-                    } catch (e) {
-                    }
-                }
-            });
-
-            xhr.addEventListener('error', function() {
-                if (isMonitored && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                    ContexaMFAUtils.log('XHR: Monitored response terminated by security decision', 'warn');
-                    if (blockedRedirectUrl) {
-                        window.location.href = blockedRedirectUrl;
-                    } else {
-                        ContexaMFAUtils.renderResponseBlockedPage();
-                    }
-                }
-            });
-
-            xhr.addEventListener('load', function() {
-                try {
-                    var status = xhr.status;
-                    if (status !== 401 && status !== 403 && status !== 423) {
-                        return;
-                    }
-
-                    var contentType = xhr.getResponseHeader('Content-Type');
-                    if (!contentType || contentType.indexOf('application/json') === -1) {
-                        return;
-                    }
-
-                    var data = JSON.parse(xhr.responseText);
-
-                    if (status === 401 && (data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED') && (data.challengeNoticeUrl || data.mfaUrl)) {
-                        var xhrRedirectTarget = data.challengeNoticeUrl || data.mfaUrl;
-                        ContexaMFAUtils.log(
-                            'XHR: MFA Challenge detected, redirecting to: ' + xhrRedirectTarget,
-                            'info', data);
-                        window.location.href = xhrRedirectTarget;
-                        return;
-                    }
-
-                    if (status === 403 && data.error === 'RESPONSE_BLOCKED') {
-                        ContexaMFAUtils.log('XHR: Response blocked by AI security decision', 'warn', data);
-                        if (blockedRedirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                            window.location.href = blockedRedirectUrl;
-                        } else {
-                            ContexaMFAUtils.renderResponseBlockedPage();
-                        }
-                        return;
-                    }
-
-                    if (status === 403 && data.error === 'ACCOUNT_BLOCKED' && data.redirectUrl) {
-                        ContexaMFAUtils.log(
-                            'XHR: Account blocked detected, redirecting to: ' + data.redirectUrl,
-                            'info', data);
-                        window.location.href = data.redirectUrl;
-                        return;
-                    }
-
-                    if (status === 423 && data.error === 'SECURITY_REVIEW_IN_PROGRESS'
-                            && data.redirectUrl) {
-                        ContexaMFAUtils.log(
-                            'XHR: Security review in progress, redirecting to: ' + data.redirectUrl,
-                            'info', data);
-                        window.location.href = data.redirectUrl;
-                        return;
-                    }
-                } catch (e) {
-                }
-            });
-
-            return xhr;
+                });
+            }
         }
 
-        InterceptedXHR.prototype = OriginalXHR.prototype;
         window.XMLHttpRequest = InterceptedXHR;
 
         ContexaMFAUtils.log(

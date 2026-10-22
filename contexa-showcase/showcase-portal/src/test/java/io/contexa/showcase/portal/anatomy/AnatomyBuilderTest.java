@@ -260,6 +260,32 @@ class AnatomyBuilderTest {
         assertThat(anatomy.figures().departureCount()).as("one dimension listed, none different").isZero();
     }
 
+    /**
+     * SC-10 (docs/showcase/프롬프트-v21-구현계획.md): a v21 record's RECORDS AND COMPARISONS lines are drawn from the same
+     * sealed decision facts, so its comparison is the sealed one; it was empty while only the v20 layout was read (the
+     * stolen-account runs of L1, run-7e090f6363a5, showed no difference from the usual).
+     */
+    @Test
+    void aV21RecordsComparisonIsTheSealedOne() {
+        ObjectNode metadata = JSON.createObjectNode().put("userPromptLayoutVersion", "v21-dictionary-blocks");
+        ArrayNode deviations = metadata.putObject("sealedEvidence.canonicalContext").putObject("decisionFacts")
+                .putArray("deviations");
+        deviations.addObject().put("dimension", "DEVICE").put("current", "Safari/19 on MACOS").put("compared", true)
+                .put("different", true);
+        deviations.addObject().put("dimension", "TIME").put("current", "14").put("compared", true)
+                .put("different", false);
+
+        DecisionAnatomy anatomy = fromMetadata(metadata, null);
+
+        assertThat(anatomy.context().usualVsNow()).extracting(DecisionAnatomy.Comparison::dimension,
+                DecisionAnatomy.Comparison::inUsual).containsExactly(tuple("device", "false"), tuple("accessHour", "true"));
+        assertThat(anatomy.juxtaposition().departures()).extracting(DecisionAnatomy.Comparison::dimension)
+                .containsExactly("device");
+        assertThat(anatomy.figures().departureCount()).isEqualTo(1);
+        assertThat(anatomy.juxtaposition().coreAdverseLabels())
+                .as("a v21 decision's inspector reads no adverse conditions").isEmpty();
+    }
+
     /** N-DEP-1: a v19 record keeps the comparison of its label matrix, even with decision facts in its context. */
     @Test
     void aV19RecordKeepsItsLabelMatrix() throws IOException {
@@ -309,6 +335,28 @@ class AnatomyBuilderTest {
                             .startsWith("yes ").contains("approval APR-f2855b9824ce-1"));
                 });
         assertThat(BeforeSend.companyAdverse(owner.juxtaposition().coreAdverseLabels())).isEmpty();
+    }
+
+    /**
+     * The retrieval's own sessions left out (rag search scope, core since 2026-10-09) are HTTP session identifiers; the
+     * visitor's anatomy masks them as it masks every other one (C-14: no session identifier in a visitor answer).
+     */
+    @Test
+    void theSessionsTheRetrievalLeftOutAreMasked() throws Exception {
+        ObjectNode metadata = JSON.createObjectNode();
+        ObjectNode scope = metadata.putObject("ragSearchScope");
+        scope.put("scope", "PERSONAL_RETRIEVED_SUBSET");
+        scope.putArray("excludedSessionIds").add("319848E0AD5EA10506357656D7336205").add("31CD85478BA05674EB1CC66D1F2A64E5");
+
+        DecisionAnatomy anatomy = fromMetadata(metadata, "");
+        String json = JSON.writeValueAsString(anatomy);
+
+        assertThat(AnatomyBuilder.SESSION_ID.matcher(json).find()).as("no session identifier left").isFalse();
+        assertThat(JSON.valueToTree(anatomy.context().rag()).path("ragSearchScope").path("excludedSessionIds"))
+                .as("the list keeps its length, each entry masked").hasSize(2)
+                .allSatisfy(entry -> assertThat(entry.asText()).isEqualTo("<SESSION>"));
+        assertThat(JSON.valueToTree(anatomy.context().rag()).path("ragSearchScope").path("scope").asText())
+                .isEqualTo("PERSONAL_RETRIEVED_SUBSET");
     }
 
     /** Step 1 of a case of anatomy/v20-deviations.json, built as the store builds it; no model call is kept. */

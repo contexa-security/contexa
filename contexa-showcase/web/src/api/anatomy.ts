@@ -59,6 +59,7 @@ export interface StoredCheck {
   readonly answered: boolean;
   readonly reason: string | null;
   readonly reissue_outcome: string | null;
+  readonly reissue_status?: number | null;
   readonly reissue_delivered: number | null;
   readonly reissue_elapsed_ms: number | null;
 }
@@ -84,7 +85,13 @@ export interface DecisionAnatomyView {
       personalBaselineEstablished?: string | null;
       carryMissingFacts?: readonly string[] | null;
     }> | null;
-    readonly resource: Readonly<{ sensitivity?: string | null; businessLabel?: string | null }> | null;
+    readonly resource: Readonly<{
+      sensitivity?: string | null;
+      businessLabel?: string | null;
+      /** The request as the engine received it: its method and path. */
+      httpMethod?: string | null;
+      requestPath?: string | null;
+    }> | null;
     readonly company: Readonly<{
       approvalLineage?: readonly string[] | null;
       approvalRequired?: boolean | null;
@@ -122,6 +129,8 @@ export interface DecisionAnatomyView {
       readonly applied: string | null;
       /** The kinds of evidence the model cited, as recorded. */
       readonly evidenceRefs: readonly string[] | null;
+      /** Where each field of the decision came from: MODEL (the model wrote it), ABSENT and the other sources. */
+      readonly fieldProvenance?: Readonly<Record<string, string>> | null;
     };
     readonly modelReasoning: string | null;
     readonly reasoningDiffers: boolean;
@@ -176,6 +185,8 @@ export interface DecisionAnatomyView {
       readonly riskScore: number | null;
       readonly userAgentBrowser: string | null;
       readonly userAgentOS: string | null;
+      /** The record the engine stored, as it wrote it. */
+      readonly content?: string | null;
     }[];
   } | null;
   readonly juxtaposition: {
@@ -320,6 +331,8 @@ export interface BeforeSendView {
   readonly departures: readonly UsualVsNow[];
   /** How many dimensions departed from the baseline, counted by the portal. */
   readonly departureCount: number;
+  /** How many dimensions the engine compared this time (in or out of the usual), counted by the portal (V-10). */
+  readonly comparedCount?: number;
   /** The company record labels the core's response inspector read as adverse in that run. */
   readonly companyAdverse: readonly AdverseLabel[];
   /** How many they are, counted by the portal (the screen's "flagged by company records"). */
@@ -330,6 +343,12 @@ export interface BeforeSendView {
   /** The same step's company facts as the business lookup returned them (the run's stored step result). */
   readonly businessFacts: readonly { readonly code: string; readonly value: string | null }[];
   readonly sensitivity: string | null;
+  /** The export's size against the usual largest export, counted by the portal (FP-1); null when either is unknown. */
+  readonly sizeRatio?: {
+    readonly items: number;
+    readonly usualLargest: number;
+    readonly times: number;
+  } | null;
   /**
    * The judgment rules' elevated-risk boundary in the engine's input (sensitivity HIGH or CRITICAL, an established
    * baseline, a departing label, ApprovalMissing=true), read by the portal; `applies` is null when one is unknown.
@@ -357,6 +376,11 @@ export interface BeforeSendView {
     }[];
     readonly applies: boolean | null;
   } | null;
+  /**
+   * SC-2: the input was drawn by a v21 bundle, whose text states no line it always keeps (neither rules nor a
+   * boundary); the decision is the model's own reasoning. Absent from an older portal.
+   */
+  readonly modelJudges?: boolean;
 }
 
 /** `comparison` is null when no run of the same definition and template exists yet. */

@@ -1,0 +1,39 @@
+{
+  "console": {
+    "file": "console.webm",
+    "captions": {
+      "ko": "console.ko.vtt",
+      "en": "console.en.vtt"
+    },
+    "durationSec": 70.1,
+    "recordedAt": "2026-10-21T03:20:57Z",
+    "screens": "v4",
+    "scenes": [
+      {
+        "key": "guide.console.request",
+        "start": 1.628
+      },
+      {
+        "key": "guide.console.arrive",
+        "start": 13.685
+      },
+      {
+        "key": "guide.console.hold",
+        "start": 20.432
+      },
+      {
+        "key": "guide.console.bars",
+        "start": 34.446
+      },
+      {
+        "key": "guide.console.log",
+        "start": 47.614
+      },
+      {
+        "key": "guide.console.judgment",
+        "start": 58.254
+      }
+    ],
+    "end": 68.264
+  }
+}

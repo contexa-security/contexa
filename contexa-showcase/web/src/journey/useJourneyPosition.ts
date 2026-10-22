@@ -20,7 +20,9 @@ export function useJourneyPosition() {
   const act = screen?.act ?? null;
 
   useEffect(() => {
-    if (!visitor.isSuccess || screenId === null) {
+    // Only the main flow is a place to return to; a "learn more" screen (group 0) leaves the stored place as it is, so
+    // "back to the flow" leads to the screen the visitor left the flow from.
+    if (!visitor.isSuccess || screenId === null || act === 0) {
       return;
     }
     void update({ route, step: screenId, ...(act === null ? {} : { act }) });

@@ -159,6 +159,51 @@ class IamSeedDataAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("A1-6: an enterprise-managed database gets only the OSS tables it lacks, with their indexes")
+    void enterpriseManagedSchemaGetsOnlyTheMissingOssTables() {
+        String sql = """
+                create table users (id bigint primary key);
+
+                create table agent_registration (
+                    id bigserial primary key,
+                    agent_id varchar(255) not null
+                );
+
+                create unique index if not exists ux_agent_registration_tenant_agent
+                    on agent_registration (agent_id);
+
+                create index if not exists idx_users_id on users (id);
+
+                alter table users add column if not exists locale varchar(10);
+
+                insert into admin_menu (id, label) values (1, 'skip');
+                """;
+
+        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(
+                IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(sql), Set.of("agent_registration"));
+
+        assertThat(creation)
+                .contains("create table if not exists agent_registration")
+                .contains("ux_agent_registration_tenant_agent")
+                .doesNotContain("users")
+                .doesNotContain("admin_menu");
+        assertThat(IamSeedDataAutoConfiguration.extractMissingTableCreationSql(sql, Set.of())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A1-6: the canonical schema creates the agent registry idempotently, so every database can gain it")
+    void canonicalSchemaCreatesTheAgentRegistryIdempotently() throws Exception {
+        String schema = IamSeedDataAutoConfiguration.sanitizeSchemaSqlForInstalledDatabase(
+                new ClassPathResource("db/schema.sql").getContentAsString(StandardCharsets.UTF_8));
+
+        String creation = IamSeedDataAutoConfiguration.extractMissingTableCreationSql(schema, Set.of("agent_registration"));
+
+        assertThat(creation)
+                .contains("create table if not exists agent_registration")
+                .contains("ux_agent_registration_tenant_agent");
+    }
+
+    @Test
     @DisplayName("IAM schema maintenance should replay only idempotent schema evolution statements")
     void iamSchemaMaintenanceExtractsOnlyIdempotentSchemaEvolutionStatements() {
         String sql = """

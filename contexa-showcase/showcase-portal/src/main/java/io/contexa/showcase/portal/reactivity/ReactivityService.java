@@ -254,9 +254,12 @@ public class ReactivityService {
         return new InvarianceEvaluator(evaluator).evaluate(repetitions);
     }
 
-    /** The designed run of a case in a batch: the index-th, or the first when there are fewer. */
-    private static Optional<ReactivityRuns.Entry> baseOf(List<ReactivityRuns.Entry> entries, String caseKey,
-                                                         int index) {
+    /**
+     * The designed run of a case in a batch, or N-INJ-6 the run of a control variant, which the harness records as a
+     * base under its variant key, the key an injection place names as its base: the index-th, or the first when there
+     * are fewer.
+     */
+    static Optional<ReactivityRuns.Entry> baseOf(List<ReactivityRuns.Entry> entries, String caseKey, int index) {
         List<ReactivityRuns.Entry> bases = entries.stream()
                 .filter(entry -> entry.kind() == ReactivityRuns.Kind.BASE && entry.caseKey().equals(caseKey))
                 .toList();

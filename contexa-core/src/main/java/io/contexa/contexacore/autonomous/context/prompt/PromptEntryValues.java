@@ -110,6 +110,11 @@ public final class PromptEntryValues {
             this.entries = entries == null ? List.of() : List.copyOf(entries);
         }
 
+        /** Whether the builder's dictionary has the entry (a v21 dictionary has no PolicySatisfied). */
+        public boolean has(PromptBlock block, String name) {
+            return entries.stream().anyMatch(entry -> entry.block() == block && entry.name().equals(name));
+        }
+
         /** The value of a single-line entry; a blank value leaves the entry without a value. */
         public Builder value(PromptBlock block, String name, String value) {
             PromptDictionaryEntry entry = entry(block, name);

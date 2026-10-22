@@ -3,8 +3,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 /**
- * The prompt trust checks C-20 to C-23 (docs/showcase/화면설계-프롬프트신뢰-보강안.md 6) on a real portal: the fact
- * cards, source chips and quality ribbon show the facts and quality views of the step (C-20); every reason code leads
+ * The prompt trust checks C-20 to C-23 (docs/showcase/화면설계-프롬프트신뢰-보강안.md 6) on a real portal: the
+ * decision details' prompt tab shows the facts, their sources and the checks of the step's facts and quality views,
+ * and its original record tab the seal and the inspection (C-20, moved there in the redesign's R7); every reason code leads
  * to the fact card of its fact ID, and a reason without one says "no link" (C-21); the lab result's changed lines are
  * the server's delta of the run (C-22); and every number of the prompt-quality tab has its denominator, the measured
  * date and its 95% interval, or the tab says nothing is measured on a 404 (C-23). Every value on screen is compared
@@ -18,9 +19,11 @@ const MESSAGES: Record<'ko' | 'en', Dictionary> = {
 };
 const LANGUAGES = ['ko', 'en'] as const;
 const RUN_TIMEOUT = 240_000;
-/** The five parts in reading order and the two folds (web components/facts/factWords.ts). */
+/** The five parts in reading order and the two after them (web components/facts/factWords.ts). */
 const CHUNKS = ['REQUEST', 'SESSION', 'USER_BASELINE', 'DECISION_FACTS', 'UNKNOWN'] as const;
 const FOLDS = ['PAST_RECORDS', 'UNTRUSTED_TEXT'] as const;
+/** The facts the decision details' prompt tab shows at a time (web components/detail/PromptTab.tsx). */
+const PAGE = 4;
 
 interface Fact {
   readonly line: number;
@@ -60,7 +63,7 @@ interface Quality {
       readonly unverifiable: number;
     }[];
   } | null;
-  readonly reasonCodes: readonly { readonly code: string; readonly fact: string | null }[];
+  readonly reasonCodes: readonly { readonly code: string; readonly fact: string | null; readonly contract?: string | null }[];
   readonly ribbon: {
     readonly facts: number;
     readonly withSource: number;
@@ -88,7 +91,10 @@ function format(template: string | undefined, values: Readonly<Record<string, st
 }
 
 /** A GET of the visitor API from the page, with its status (a 404 is an answer here). */
-async function api<T>(page: Page, path: string): Promise<{ readonly status: number; readonly body: T | null }> {
+async function api<T>(
+  page: Page,
+  path: string,
+): Promise<{ readonly status: number; readonly body: T | null }> {
   return page.evaluate(async (target) => {
     const response = await fetch(target, { headers: { Accept: 'application/json' } });
     return { status: response.status, body: response.ok ? await response.json() : null };
@@ -108,14 +114,20 @@ function labelWords(m: Dictionary, label: string): string {
 
 function verdictWords(m: Dictionary, action: string | null): string {
   const key =
-    { ALLOW: 'verdict.allow', CHALLENGE: 'verdict.verify', ESCALATE: 'verdict.review', BLOCK: 'verdict.block' }[
-      action ?? ''
-    ] ?? 'verdict.none';
+    {
+      ALLOW: 'verdict.allow',
+      CHALLENGE: 'verdict.verify',
+      ESCALATE: 'verdict.review',
+      BLOCK: 'verdict.block',
+    }[action ?? ''] ?? 'verdict.none';
   return m[key] ?? '';
 }
 
 /** Reads a view until the server has it (the seal and the inspection come shortly after a decision). */
-async function settled<T extends { readonly available: boolean }>(page: Page, path: string): Promise<T | null> {
+async function settled<T extends { readonly available: boolean }>(
+  page: Page,
+  path: string,
+): Promise<T | null> {
   let body: T | null = null;
   await expect
     .poll(
@@ -132,14 +144,16 @@ async function settled<T extends { readonly available: boolean }>(page: Page, pa
 
 /** The run the prompt screen shows: the visitor's own try 1 run, or else the measured run the teasers name. */
 async function promptRun(page: Page): Promise<string> {
-  const journey = (await api<{ runs: { scenarioKey: string; status: string; runId: string }[] }>(page, '/api/journey'))
-    .body;
+  const journey = (
+    await api<{ runs: { scenarioKey: string; status: string; runId: string }[] }>(page, '/api/journey')
+  ).body;
   const own = journey?.runs.find((line) => line.scenarioKey === 'A3' && line.status === 'COMPLETED');
   if (own) {
     return own.runId;
   }
-  const teasers = (await api<{ teasers: { key: string; source: { ref: string } | null }[] }>(page, '/api/teasers'))
-    .body;
+  const teasers = (
+    await api<{ teasers: { key: string; source: { ref: string } | null }[] }>(page, '/api/teasers')
+  ).body;
   const ref = teasers?.teasers.find((teaser) => teaser.key === 'G_HOW_LINES')?.source?.ref;
   if (!ref) {
     throw new Error('missing: the measured run of G_HOW_LINES');
@@ -147,102 +161,112 @@ async function promptRun(page: Page): Promise<string> {
   return ref;
 }
 
-async function expectRibbon(scope: Locator, m: Dictionary, ribbon: NonNullable<Quality['ribbon']>) {
-  const group = scope.getByRole('group', { name: m['quality.ribbon.title'] ?? '' });
-  await expect(group).toContainText(format(m['quality.ribbon.source'], { n: ribbon.withSource, total: ribbon.facts }));
-  // The inspection's two counts are null until the seal is inspected: the ribbon says it is not inspected yet.
+/** The decision details' checks of the text sent to the AI: the server's counts, an item that does not hold crossed. */
+async function expectChecks(
+  scope: Locator,
+  m: Dictionary,
+  ribbon: NonNullable<Quality['ribbon']>,
+  language: 'ko' | 'en',
+) {
+  const locale = language === 'ko' ? 'ko-KR' : 'en-US';
+  const group = scope.getByRole('list', { name: m['detail.r7.prompt.check.title'] ?? '' });
+  await expect(group).toContainText(
+    format(m['detail.r7.prompt.check.source'], { n: ribbon.withSource, total: ribbon.facts }),
+  );
+  // The inspection's two counts are null until the seal is inspected; a comparison of no fact shows no match.
   await expect(group).toContainText(
     ribbon.factAccuracy === null
-      ? (m['quality.ribbon.accuracyPending'] ?? '')
-      : format(m['quality.ribbon.accuracy'], { n: ribbon.factAccuracy.matched, total: ribbon.factAccuracy.total }),
+      ? (m['detail.r7.prompt.check.accuracyPending'] ?? '')
+      : ribbon.factAccuracy.total === 0
+        ? (m['detail.r7.prompt.check.accuracyNone'] ?? '')
+        : format(m['detail.r7.prompt.check.accuracy'], {
+            n: ribbon.factAccuracy.matched,
+            total: ribbon.factAccuracy.total,
+          }),
   );
   await expect(group).toContainText(
     ribbon.contradictions === null
-      ? (m['quality.ribbon.contradictionsPending'] ?? '')
-      : format(m['quality.ribbon.contradictions'], { n: ribbon.contradictions }),
+      ? (m['detail.r7.prompt.check.contradictionsPending'] ?? '')
+      : format(m['detail.r7.prompt.check.contradictions'], {
+          n: ribbon.contradictions.toLocaleString(locale),
+        }),
   );
-  await expect(group).toContainText(format(m['quality.ribbon.unknown'], { n: ribbon.unknown }));
-  // An item that does not hold is a cross with its counts (the same pair the server gave), never left out.
-  const failing = group.locator('li[data-ok="false"]');
+  await expect(group).toContainText(
+    format(m['detail.r7.prompt.check.unknown'], { n: ribbon.unknown.toLocaleString(locale) }),
+  );
   const expected =
     (ribbon.withSource === ribbon.facts ? 0 : 1) +
     (ribbon.factAccuracy === null || ribbon.factAccuracy.matched === ribbon.factAccuracy.total ? 0 : 1) +
     (ribbon.contradictions === null || ribbon.contradictions === 0 ? 0 : 1);
-  await expect(failing).toHaveCount(expected);
-  await expect(group.locator('li[data-ok="pending"]')).toHaveCount(
-    (ribbon.factAccuracy === null ? 1 : 0) + (ribbon.contradictions === null ? 1 : 0),
-  );
+  await expect(group.locator('[data-ok="false"]')).toHaveCount(expected);
 }
 
-/** A fact card shows the server's fact: its ID, the entry's words, the source chip, and the line as sent. */
-async function expectCard(page: Page, m: Dictionary, fact: Fact) {
-  const card = page.locator(`[id="fact-line-${fact.line}"]`);
-  await expect(card).toBeVisible();
-  if (fact.factId) {
-    await expect(card).toContainText(fact.factId);
-  }
-  await expect(card).toContainText(labelWords(m, fact.label));
-  await expect(card).toContainText(m[`fact.source.${fact.source ?? 'NONE'}`] ?? '');
-  // N-UI-1 (U1-5): a grey line under the card names the grade the server read, and only then.
-  const sufficiency = card.locator('[data-sufficiency]');
+/**
+ * A fact of the text sent to the AI, as the decision details' table shows it: the entry's plain name, its source, the
+ * line's value as sent (the record's own text) and, only for a line the server read as below strong, its grade.
+ */
+async function expectFact(scope: Locator, m: Dictionary, fact: Fact) {
+  const row = scope.locator(`tr[data-line="${fact.line}"]`);
+  await expect(row).toBeVisible();
+  await expect(row).toContainText(labelWords(m, fact.label));
+  await expect(row).toContainText(m[`fact.source.${fact.source ?? 'NONE'}`] ?? '');
+  await expect(row.locator('code[data-original]')).toHaveText(fact.value);
+  const sufficiency = row.locator('[data-sufficiency]');
   if (fact.sufficiency) {
     await expect(sufficiency).toHaveAttribute('data-sufficiency', fact.sufficiency.grade);
-    await expect(sufficiency).toContainText(m[`fact.sufficiency.${fact.sufficiency.grade}`] ?? '');
+    await expect(sufficiency).toContainText(m[`detail.r7.sufficiency.${fact.sufficiency.grade}`] ?? '');
   } else {
     await expect(sufficiency).toHaveCount(0);
   }
-  await card.getByRole('button', { name: m['source.original'] ?? '' }).click();
-  await expect(card.locator('code[data-original]')).toHaveText(`${fact.label}: ${fact.value}`);
 }
 
 for (const language of LANGUAGES) {
   const m = MESSAGES[language];
 
-  test(`C-20: the fact cards, source chips and quality ribbon are the server's facts and quality (${language})`, async ({
+  test(`C-20: the facts, their sources and the checks of the text sent to the AI are the server's (${language})`, async ({
     page,
   }) => {
     test.setTimeout(180_000);
-    await page.goto(`/try/prompt?lng=${language}`);
+    await page.goto(`/?lng=${language}`);
     const runId = await promptRun(page);
     const facts = (await api<Facts>(page, `/api/runs/${runId}/steps/1/facts`)).body;
     const quality = (await api<Quality>(page, `/api/runs/${runId}/steps/1/quality`)).body;
+    // The prompt screen's fact cards and its other-bundle comparison are the decision details' prompt tab (R7 RO-1).
+    await page.goto(`/run/${runId}/detail?step=1&tab=prompt&lng=${language}`);
+    const dialog = page.getByRole('dialog');
+    const panel = dialog.getByRole('tabpanel');
     if (!facts?.available) {
-      // A step without a sealed v20 prompt (or a 404) says why and keeps its blocks as written.
-      await expect(page.locator('main [data-state="no-facts"]')).toContainText(
-        m[`factsReason.${facts?.reason ?? 'other'}`] ?? m['factsReason.other'] ?? '',
+      // A step without a sealed v20 prompt (or a 404) says why.
+      await expect(panel.locator('[data-state="no-facts"]')).toContainText(
+        m[`detail.r7.prompt.reason.${facts?.reason ?? 'other'}`] ?? m['detail.r7.prompt.reason.other'] ?? '',
       );
-      test.info().annotations.push({ type: 'C-20', description: `run ${runId} has no fact view (${facts?.reason})` });
+      test
+        .info()
+        .annotations.push({ type: 'C-20', description: `run ${runId} has no fact view (${facts?.reason})` });
       return;
     }
     if (quality?.available && quality.ribbon) {
-      await expectRibbon(page.locator('main'), m, quality.ribbon);
+      await expectChecks(panel, m, quality.ribbon, language);
     }
     const factsOf = (block: string) => facts.blocks.find((entry) => entry.block === block)?.facts ?? [];
-    const parts = page.getByRole('list', { name: m['prompt.chunks'] ?? '' }).locator(':scope > li > button');
-    await expect(parts).toHaveCount(CHUNKS.length);
-    for (const [index, block] of CHUNKS.entries()) {
-      const part = parts.nth(index);
-      await expect(part).toContainText(m[`prompt.block.${block}`] ?? '');
-      if ((await part.getAttribute('aria-expanded')) !== 'true') {
-        await part.click();
+    const chooser = panel.getByLabel(m['detail.r7.prompt.choose'] ?? '');
+    for (const block of [...CHUNKS, ...FOLDS]) {
+      await chooser.selectOption(block);
+      const all = factsOf(block);
+      // The table shows four facts at a time; the next page shows the next four.
+      for (let first = 0; first < all.length; first += PAGE) {
+        for (const fact of all.slice(first, first + PAGE)) {
+          await expectFact(panel, m, fact);
+        }
+        if (first + PAGE < all.length) {
+          await panel.getByRole('button', { name: m['detail.r7.prompt.nextPage'] ?? '' }).click();
+        }
       }
-      // The part's chips are its facts' sources, each named by its words.
-      for (const fact of factsOf(block)) {
-        await expect(part).toContainText(m[`fact.source.${fact.source ?? 'NONE'}`] ?? '');
-        await expectCard(page, m, fact);
-      }
-    }
-    // A part opens below itself; nothing opened a window.
-    await expect(page.getByRole('dialog')).toBeHidden();
-    const folds = page.getByRole('group', { name: m['prompt.folds'] ?? '' });
-    for (const block of FOLDS) {
-      const fold = folds.locator('details').filter({ hasText: m[`prompt.block.${block}`] ?? '' });
-      await fold.locator('summary').click();
-      for (const fact of factsOf(block)) {
-        await expectCard(page, m, fact);
+      if (all.length === 0) {
+        await expect(panel).toContainText(m['detail.r7.prompt.noFacts'] ?? '');
       }
     }
-    // The same case under the other bundle: offered only when the server found the run, each side under its source.
+    // The same situation under the other bundle: offered only when the server found the run, each side under its source.
     const other = (
       await api<{
         available: boolean;
@@ -251,99 +275,86 @@ for (const language of LANGUAGES) {
         lines?: { before: string; beforeLines: number; after: string; afterLines: number } | null;
       }>(page, `/api/runs/${runId}/steps/1/other-bundle`)
     ).body;
-    const offer = page.getByRole('button', { name: m['prompt.compare.open'] ?? '' });
+    const offer = chooser.locator('option[value="compare"]');
     if (other?.available && other.current && other.other) {
-      await offer.click();
-      const sides = page.getByRole('dialog');
-      await expect(sides).toContainText(m['prompt.compare.lead'] ?? '');
-      await expect(sides.getByRole('region', { name: m['prompt.compare.current'] ?? '' })).toContainText(
-        other.current.runId,
-      );
-      await expect(sides.getByRole('region', { name: m['prompt.compare.other'] ?? '' })).toContainText(
-        other.other.runId,
-      );
+      await chooser.selectOption('compare');
+      await expect(panel).toContainText(m['detail.r7.prompt.compare.lead'] ?? '');
+      await expect(
+        panel.getByRole('region', { name: m['detail.r7.prompt.compare.current'] ?? '' }),
+      ).toContainText(other.current.runId);
+      await expect(
+        panel.getByRole('region', { name: m['detail.r7.prompt.compare.other'] ?? '' }),
+      ).toContainText(other.other.runId);
       if (other.other.bundle.version) {
-        await expect(sides).toContainText(other.other.bundle.version);
+        await expect(panel).toContainText(other.other.bundle.version);
       }
-      await page.keyboard.press('Escape');
-      await expect(sides).toBeHidden();
+      // N-UI-1 (U2-6): the same situation's user prompt lengths are the server's pair, the earlier bundle first.
+      const sameCase = panel.locator('[data-lines]');
+      if (other.lines) {
+        const locale = language === 'ko' ? 'ko-KR' : 'en-US';
+        await expect(sameCase).toHaveText(
+          format(m['detail.r7.prompt.compare.lines'], {
+            before: other.lines.before,
+            beforeLines: other.lines.beforeLines.toLocaleString(locale),
+            after: other.lines.after,
+            afterLines: other.lines.afterLines.toLocaleString(locale),
+          }),
+        );
+      } else {
+        await expect(sameCase).toHaveCount(0);
+      }
     } else {
       await expect(offer).toHaveCount(0);
     }
-    // N-UI-1 (U2-6): the same case's user prompt lengths are the server's pair, the earlier bundle first.
-    const sameCase = page.locator('main [data-lines]');
-    if (other?.available && other.lines) {
-      const lines = other.lines;
-      const locale = language === 'ko' ? 'ko-KR' : 'en-US';
-      await expect(sameCase).toHaveText(
-        format(m['prompt.compare.lines'], {
-          before: lines.before,
-          beforeLines: lines.beforeLines.toLocaleString(locale),
-          after: lines.after,
-          afterLines: lines.afterLines.toLocaleString(locale),
-        }),
-      );
-    } else {
-      await expect(sameCase).toHaveCount(0);
-    }
     expect(await seriousViolations(page)).toEqual([]);
 
-    // The decision details: the ribbon on the summary, and the bundle, seal and inspection on "original and checks".
-    await page.goto(`/run/${runId}/detail?lng=${language}`);
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('tab')).toHaveCount(6);
-    if (quality?.available && quality.ribbon) {
-      await expectRibbon(dialog, m, quality.ribbon);
-    }
-    await dialog.getByRole('tab', { name: m['detail.tab.original'] ?? '' }).click();
+    // The original record's checks: the bundle, the seal, the seal check and the inspection, by name.
+    await dialog.getByRole('tab', { name: m['detail.r7.tab.original'] ?? '' }).click();
+    await panel.getByLabel(m['detail.r7.original.choose'] ?? '').selectOption('checks');
     if (quality?.bundle?.version) {
-      await expect(dialog).toContainText(quality.bundle.version);
+      await expect(panel).toContainText(quality.bundle.version);
     }
     if (quality?.seal) {
-      await expect(dialog).toContainText(m['detail.verify.sealed'] ?? '');
-      await expect(dialog).toContainText(quality.seal.packageId);
+      await expect(panel).toContainText(m['detail.r7.verify.sealed'] ?? '');
+      await expect(panel).toContainText(quality.seal.packageId);
     } else {
-      await expect(dialog).toContainText(m['detail.verify.sealNone'] ?? '');
+      await expect(panel).toContainText(m['detail.r7.verify.sealNone'] ?? '');
     }
-    // The seal check: the inspector's seal integrity row; the sentence only when it found no mismatch, and never a
-    // claim that the input was drawn again.
-    const sealPart = dialog.getByRole('region', { name: m['detail.verify.sealCheck'] ?? '' });
+    // The seal check: the inspector's seal integrity row; the sentence only when it found no mismatch.
     const sealRow = quality?.inspection?.checks.find((check) => check.code === 'SEAL_INTEGRITY') ?? null;
     if (sealRow) {
-      await expect(sealPart).toContainText(
-        format(m['detail.verify.sealCheckCounts'], {
+      await expect(panel).toContainText(
+        format(m['detail.r7.verify.sealCheckCounts'], {
           matched: sealRow.matched,
           mismatched: sealRow.mismatched,
           unverifiable: sealRow.unverifiable,
         }),
       );
-      await expect(sealPart).toContainText(
-        (sealRow.mismatched === 0 ? m['detail.verify.sealSame'] : m['detail.verify.sealCheckFailed']) ?? '',
+      await expect(panel).toContainText(
+        (sealRow.mismatched === 0 ? m['detail.r7.verify.sealSame'] : m['detail.r7.verify.sealCheckFailed']) ??
+          '',
       );
-      if (quality?.seal?.packageHash) {
-        await expect(sealPart).toContainText(quality.seal.packageHash);
-      }
     } else {
-      await expect(sealPart).toContainText(m['detail.verify.sealCheckNone'] ?? '');
+      await expect(panel).toContainText(m['detail.r7.verify.sealCheckNone'] ?? '');
     }
     if (quality?.inspection) {
-      await expect(dialog).toContainText(
-        format(m['detail.verify.inspected'], { verdict: m[`quality.verdict.${quality.inspection.verdict}`] ?? '' }),
+      await expect(panel).toContainText(
+        format(m['detail.r7.verify.inspected'], {
+          verdict: m[`quality.verdict.${quality.inspection.verdict}`] ?? '',
+        }),
       );
-      await dialog.getByText(m['detail.verify.byCheck'] ?? '', { exact: true }).click();
-      const rows = dialog.locator('tbody > tr');
-      await expect(rows).toHaveCount(quality.inspection.checks.length);
-      // The failed checks first.
-      const failed = quality.inspection.checks.filter((check) => check.mismatched > 0).length;
-      for (let index = 0; index < quality.inspection.checks.length; index += 1) {
-        if (index < failed) {
-          await expect(rows.nth(index)).toHaveAttribute('data-failed', 'true');
-        } else {
-          await expect(rows.nth(index)).not.toHaveAttribute('data-failed');
+      const failed = quality.inspection.checks.filter((check) => check.mismatched > 0);
+      if (failed.length === 0) {
+        await expect(panel).toContainText(m['detail.r7.verify.noneFailed'] ?? '');
+      } else {
+        for (const check of failed) {
+          await expect(panel).toContainText(
+            m[`detail.r7.checkName.${check.code}`] ?? m['detail.r7.checkName.other'] ?? '',
+          );
         }
       }
     } else {
-      await expect(dialog).toContainText(m['detail.verify.inspectionNone'] ?? '');
+      await expect(panel).toContainText(m['detail.r7.verify.inspectionNone'] ?? '');
     }
     expect(await seriousViolations(page)).toEqual([]);
   });
@@ -380,7 +391,8 @@ for (const language of LANGUAGES) {
     if (!view) {
       throw new Error('missing: the prompt-quality view');
     }
-    const interval = (rate: Rate) => format(m['benchmark.interval'], { low: percent(rate.low), high: percent(rate.high) });
+    const interval = (rate: Rate) =>
+      format(m['benchmark.interval'], { low: percent(rate.low), high: percent(rate.high) });
     const cards = page.getByRole('region', { name: m['promptQuality.cards'] ?? '' });
     const shown: readonly (readonly [string, Rate, string])[] = [
       ['delivery', view.delivery, `${view.delivery.hits}/${view.delivery.total}`],
@@ -412,7 +424,9 @@ for (const language of LANGUAGES) {
     const more = page.getByRole('list', { name: m['promptQuality.more'] ?? '' });
     for (const name of ['accuracy', 'reasonMatch', 'consistency'] as const) {
       const line = more.locator(`[data-more="${name}"]`);
-      await expect(line).toContainText(format(m[`promptQuality.more.${name}`], { rate: percent(view[name].rate) }));
+      await expect(line).toContainText(
+        format(m[`promptQuality.more.${name}`], { rate: percent(view[name].rate) }),
+      );
       await expect(line).toContainText(`${view[name].hits}/${view[name].total}`);
       await expect(line).toContainText(interval(view[name]));
     }
@@ -438,11 +452,15 @@ test('C-21: every reason code leads to the fact card of its fact ID, a reason wi
   test.setTimeout(RUN_TIMEOUT + 240_000);
   // One live try 1 run, sent as the experience e2e sends it.
   await page.goto('/try/attacker/predict?lng=ko');
-  const options = (await api<{ cases: { key: string; requests: { items: number }[] }[] }>(page, '/api/lab/options'))
-    .body;
+  const options = (
+    await api<{ cases: { key: string; requests: { items: number }[] }[] }>(page, '/api/lab/options')
+  ).body;
   const a3 = options?.cases.find((candidate) => candidate.key === 'A3');
   const ko = MESSAGES.ko;
-  await page.getByText(ko['e1.predict.CHALLENGE'] ?? '', { exact: true }).first().click();
+  await page
+    .getByText(ko['e1.predict.CHALLENGE'] ?? '', { exact: true })
+    .first()
+    .click();
   await page.getByText(ko['e1.predict.existing.SOME'] ?? '', { exact: true }).click();
   await page
     .getByRole('button', {
@@ -463,7 +481,8 @@ test('C-21: every reason code leads to the fact card of its fact ID, a reason wi
   ).body;
   const answer = exchanges?.calls.at(-1)?.answer ?? null;
   if (answer) {
-    const recorded = (JSON.parse(answer) as { reasonCodes?: { code: string; fact: string | null }[] }).reasonCodes;
+    const recorded = (JSON.parse(answer) as { reasonCodes?: { code: string; fact: string | null }[] })
+      .reasonCodes;
     if (recorded) {
       expect(codes.map((code) => [code.code, code.fact ?? null])).toEqual(
         recorded.map((code) => [code.code, code.fact ?? null]),
@@ -494,7 +513,14 @@ test('C-21: every reason code leads to the fact card of its fact ID, a reason wi
       if (fact) {
         const card = row.locator(`[data-fact="${code.fact}"]`);
         await expect(card).toContainText(labelWords(m, fact.label));
-        await row.getByRole('button', { name: new RegExp(m[`reasonCode.${code.code}`]?.slice(0, 8) ?? code.code) }).click();
+        await row
+          .getByRole('button', {
+            // SC-6: a code of the output contract v4 has the v4 meaning.
+            name: new RegExp(
+              m[`${code.contract === 'V4' ? 'reasonCodeV4' : 'reasonCode'}.${code.code}`]?.slice(0, 8) ?? code.code,
+            ),
+          })
+          .click();
         await expect(card).toHaveAttribute('data-highlight', 'true');
       } else if (code.fact !== null && !facts?.available) {
         await expect(row).toContainText(m['reasonChain.noCard'] ?? '');
@@ -502,7 +528,17 @@ test('C-21: every reason code leads to the fact card of its fact ID, a reason wi
         await expect(row).toContainText(m['reasonChain.noLink'] ?? '');
       }
     }
-    await expect(chain).toContainText(verdictWords(m, (await api<{ verdicts: { score: { finalAction: string | null } }[] }>(page, `/api/runs/${runId}/score`)).body?.verdicts[0]?.score.finalAction ?? null));
+    await expect(chain).toContainText(
+      verdictWords(
+        m,
+        (
+          await api<{ verdicts: { score: { finalAction: string | null } }[] }>(
+            page,
+            `/api/runs/${runId}/score`,
+          )
+        ).body?.verdicts[0]?.score.finalAction ?? null,
+      ),
+    );
     expect(await seriousViolations(page)).toEqual([]);
   }
 });

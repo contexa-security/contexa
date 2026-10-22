@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ACT_MINUTES, DIFFERENCES, type Act } from '../../journey/journey';
+import { DIFFERENCES } from '../../journey/journey';
+import { useJourneyPlace } from '../../journey/useJourneyPlace';
 import type { CardCopy } from '../../journey/copy';
-import { ActionChip } from '../common/ActionChip';
 import { SourceMark } from '../common/SourceMark';
 import { DifferenceMark } from './JourneyParts';
-import { ActionBar, MoreRow, NextLink } from './StepParts';
+import { RouteScreen } from './RouteScreen';
 import styles from './Cards.module.css';
 
 interface TeaserBandProps {
@@ -45,106 +44,42 @@ export function TeaserBand({ copy, label }: TeaserBandProps) {
   );
 }
 
-interface ActEndCardProps {
-  readonly act: Exclude<Act, 4>;
-  readonly differences: readonly number[];
-  /** The sentence from the visitor's own run (work 18); null when there is no run of the act's case at all. */
+interface PartWrapProps {
+  /** The sentence from the visitor's own run (work 18); null when there is no run of the part's case at all. */
   readonly sentence: string | null;
   /** The sentence comes from a run of the measurement because the visitor skipped the experience (D-37). */
   readonly measured: boolean;
-  readonly runId: string | null;
-  /** The next act's teaser (question and measured number). */
-  readonly next: CardCopy;
-  readonly continueTo: string;
-  /** The screen before, as the action area's way back. */
-  readonly back: { readonly to: string; readonly label: string };
-  readonly resendAsyncTo?: string | null;
-  readonly benchmarkTo: string;
-  /** The address to copy for "copy a link to this point". */
-  readonly shareUrl: string;
+  readonly differences: readonly number[];
 }
 
 /**
- * The act-end screen (act-end, D-41) in the screen grammar every screen follows: the card is the content (one
- * sentence from the visitor's own run and the six differences, the unseen ones as questions), the chips under it open
- * more, and the action area carries the next act's teaser over its one main button.
+ * The wrap-up screen of a part (화면재편-기획안 T8, 8절): "what you saw so far", one sentence from the visitor's own run
+ * under the part's guide line, and the six differences, the seen ones filled and the rest as the
+ * questions still open. It takes over the act-end card, its "just seen" lines and its teaser; the frame adds the place,
+ * the source line and the one main button to the next part.
  */
-export function ActEndCard({
-  act,
-  differences,
-  sentence,
-  measured,
-  runId,
-  next,
-  continueTo,
-  back,
-  resendAsyncTo = null,
-  benchmarkTo,
-  shareUrl,
-}: ActEndCardProps) {
+export function PartWrap({ sentence, measured, differences }: PartWrapProps) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const place = useJourneyPlace();
+  const number = place.screen?.number ?? '';
   const seen = new Set(differences);
-  const nextAct = (act + 1) as Act;
   return (
-    <>
-      <section className={styles.actEnd} aria-labelledby={`act-end-${act}`}>
-        <header className={styles.actEndHead}>
-          <h1 id={`act-end-${act}`} className={styles.actEndTitle}>
-            {t('actEnd.title', { n: act, minutes: ACT_MINUTES[act] })}
-          </h1>
-        </header>
-        {sentence ? (
-          <p className={styles.sentence}>
-            {sentence}
-            <SourceMark kind="ENGINE" runId={runId} measured={measured}>
-              {measured ? t('actEnd.measured') : null}
-            </SourceMark>
-          </p>
-        ) : null}
-        <ol className={styles.six}>
-          {DIFFERENCES.map((difference) => (
-            <li key={difference} className={styles.sixCell} data-seen={seen.has(difference) || undefined}>
-              <DifferenceMark difference={difference} seen={seen.has(difference)} />
-              <span>
-                {seen.has(difference)
-                  ? t(`difference.${difference}`)
-                  : t(`difference.question.${difference}`)}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <MoreRow>
-        {resendAsyncTo ? (
-          <ActionChip to={resendAsyncTo} icon="refresh" variant="open">
-            {t('actEnd.resendAsync')}
-          </ActionChip>
-        ) : null}
-        <ActionChip
-          variant="open"
-          icon={copied ? 'check' : 'link'}
-          onClick={() => {
-            void navigator.clipboard?.writeText(shareUrl).then(() => setCopied(true));
-          }}
-        >
-          {copied ? t('actEnd.copied') : t('actEnd.copyLink')}
-        </ActionChip>
-        <ActionChip to={benchmarkTo} icon="chart" variant="open">
-          {t('actEnd.benchmark')}
-        </ActionChip>
-      </MoreRow>
-      <ActionBar
-        back={back}
-        teaser={
-          <TeaserBand
-            copy={next}
-            label={t('actEnd.nextAct', { n: nextAct, minutes: ACT_MINUTES[nextAct] })}
-          />
-        }
-        main={<NextLink to={continueTo} label={t('actEnd.start', { n: nextAct })} />}
-        skip={false}
-      />
-    </>
+    <RouteScreen
+      title={t(`screen.${number}.title`)}
+      purpose={t(`screen.${number}.guide`)}
+      sourceLine={sentence ? t(measured ? 'frame.source.measured' : 'frame.source.run') : null}
+    >
+      {sentence ? <p className={styles.wrapSentence}>{sentence}</p> : null}
+      <ol className={styles.six} data-count="exempt">
+        {DIFFERENCES.map((difference) => (
+          <li key={difference} className={styles.sixCell} data-seen={seen.has(difference) || undefined}>
+            <DifferenceMark difference={difference} seen={seen.has(difference)} />
+            <span>
+              {seen.has(difference) ? t(`difference.${difference}`) : t(`difference.question.${difference}`)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </RouteScreen>
   );
 }

@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+// The final screen design (최종화면-구현계획 F0-1) replaced the flow this spec walks; mainFlow.spec.ts and
+// keyboard.spec.ts walk the new one. This spec is on the deletion list for the user (최종화면-구현계획 4절).
+test.skip(true, 'replaced by mainFlow.spec.ts (최종화면-구현계획 FC-2)');
+
 /**
  * Deck p.15 on the real portal: after both scenes of a recorded replay (opened from the library; the first screen is
  * the hands-on experience and asks for no vote), the end screen shows the result the server scored (the same answer of

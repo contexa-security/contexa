@@ -163,6 +163,11 @@ public final class DeliveryEvaluator {
         }
     }
 
+    /** N-INJ-6: the labels whose lines differ in every run by construction; the injection check leaves them out. */
+    Pattern volatileLabels() {
+        return volatileLabels;
+    }
+
     public Delivery compare(PromptFacts base, PromptFacts variant, String condition) {
         return compare(base, variant, condition, null);
     }

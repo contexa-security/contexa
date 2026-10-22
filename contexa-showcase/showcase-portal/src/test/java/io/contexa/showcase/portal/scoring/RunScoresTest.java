@@ -79,7 +79,8 @@ class RunScoresTest {
 
     @Test
     void aRunWithoutItsDefinitionIsScoredOnlyAgainstTheSameCatalogVersion() {
-        RunScore same = scores.score(new RunRow("run-2", "A3ST", 1, "COMPLETED", null),
+        // A3ST is at version 2 since its approval names when it was decided (변경 4 of the v21 plan).
+        RunScore same = scores.score(new RunRow("run-2", "A3ST", 2, "COMPLETED", null),
                 step(1, "DELIVERED", 200, 40, null), Map.of(), Map.of());
         assertThat(same.truthSource()).isEqualTo(TruthSource.CATALOG_SAME_VERSION);
         assertThat(same.truth().normal()).isTrue();
@@ -96,7 +97,7 @@ class RunScoresTest {
 
     @Test
     void aCheckThatWasAnsweredAndReissuedLetsLegitimateWorkPass() {
-        RunScore answered = scores.score(new RunRow("run-4", "A3ST", 1, "COMPLETED", null),
+        RunScore answered = scores.score(new RunRow("run-4", "A3ST", 2, "COMPLETED", null),
                 step(1, "REFUSED", 401, 40, "MFA_CHALLENGE_REQUIRED"),
                 Map.of(1, new Check(1, true, "DELIVERED", 9_000L)),
                 Map.of(1, new Decision(1, "CHALLENGE", "CHALLENGE", false, "BEFORE_RESPONSE")));
@@ -104,7 +105,7 @@ class RunScoresTest {
         assertThat(answered.verdicts().get(0).score().friction()).isTrue();
         assertThat(answered.checks()).containsExactly(new Check(1, true, "DELIVERED", 9_000L));
 
-        RunScore unanswered = scores.score(new RunRow("run-5", "A3ST", 1, "COMPLETED", null),
+        RunScore unanswered = scores.score(new RunRow("run-5", "A3ST", 2, "COMPLETED", null),
                 step(1, "REFUSED", 401, 40, null), Map.of(1, new Check(1, false, null, null)),
                 Map.of(1, new Decision(1, "CHALLENGE", "CHALLENGE", true, "BEFORE_RESPONSE")));
         assertThat(unanswered.business().get("D").result()).as("a fallback hold that stopped the work")
@@ -136,6 +137,9 @@ class RunScoresTest {
         assertThat(RunScores.source(new Decision(2, null, null, false, "NONE"), refusedByEarlier))
                 .isEqualTo(DecisionSource.PRIOR_DECISION);
         assertThat(RunScores.source(null, refusedByRole)).isEqualTo(DecisionSource.STATIC_AUTHORIZATION);
+        // Finding 13 of the v21 plan: the hold an earlier ESCALATE puts on the account refuses what follows (423).
+        Arm heldForReview = new Arm(2, "D", "REFUSED", 423, 0, "SECURITY_REVIEW_IN_PROGRESS");
+        assertThat(RunScores.source(null, heldForReview)).isEqualTo(DecisionSource.PRIOR_DECISION);
         assertThat(RunScores.source(null, delivered)).isEqualTo(DecisionSource.NOT_ANALYSED);
         assertThat(RunScores.source(new Decision(1, "ALLOW", "ALLOW", false, "NEXT_REQUEST"), delivered))
                 .isEqualTo(DecisionSource.MODEL);

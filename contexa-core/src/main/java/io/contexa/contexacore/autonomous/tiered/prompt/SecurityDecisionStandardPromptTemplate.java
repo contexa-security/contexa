@@ -15,6 +15,7 @@
  */
 package io.contexa.contexacore.autonomous.tiered.prompt;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -98,8 +99,9 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
      * and its usual login line takes a login of two methods (W5-10 D6, {@code 2026.10.16-v20.21}) and a login holding a
      * usual login and more is no departure (P5-변경-17, {@code 2026.10.16-v20.22}) and the golden render draws the P5 gate
      * measurement (two-method logins included, {@code 2026.10.16-v20.23}) and the business label is an untrusted text
-     * (N-INJ-3) and the usual rate counts the hour up to each request (N-RATE-1), so it ships as
-     * {@code 2026.10.16-v20.24}; the
+     * (N-INJ-3) and the usual rate counts the hour up to each request (N-RATE-1, {@code 2026.10.16-v20.24}) and
+     * every Ticket value fits its form (N-DIC-2) and the usual rate needs 60 counts and a satisfied assigned limit
+     * explains a size within it (N-FRIC-2), so it ships as {@code 2026.10.17-v20.25}; the
      * earlier v20 manifests stay as the records of what they were. It is not approved for runtime and not evaluated yet (version management 10: evaluation and
      * approval come in P6 to P8).
      */
@@ -107,14 +109,62 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
             new PromptGovernanceDescriptor(
                     "cortex.security-decision",
                     STANDARD_TEMPLATE_KEY,
-                    "2026.10.16-v20.24",
+                    "2026.10.17-v20.25",
                     "CORTEX_PROMPT_CONTRACT_V3",
                     PromptReleaseStatus.DRAFT,
                     "contexa-cortex-core",
-                    "N-INJ-3-2026-10-16",
+                    "N-FRIC-2-2026-10-17",
                     "NOT-EVALUATED",
                     "2026.10.16-v19.20",
-                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks the boundaries, the reason claims and the reason codes on the facts the prompt was drawn from (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket without a recorded decision time says what was not checked and does not prevent covered work (N-WORD-1, N-WORD-2). The business label is untrusted text (N-INJ-3); the usual rate counts the hour up to a request (N-RATE-1). P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: each dimension with its counts, days and first and last times, first seen apart from rare, one denominator, maturity by dates and convergence with the reasons it misses, one request rate, logins of two factors kept, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7). Logins of two methods are kept and one holding a usual login is no departure (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1).",
+                    "Zero Trust runtime decision prompt in the v20 dictionary format (W3-1 to W3-19, TO-1 to TO-5, LU-1 to LU-4, R4-T, R4-B9 and the P3 extra work; the 2026.10.14-v20.14 manifest lists them), with the P4 system text: the minimum action rules the host turned on, each naming its floor, P1 and P2 a challenge and P3 a review because a verified user does not supply a missing record (W4-4, N-P3-1); the boundaries and evidence rules on prompt facts only, the BLOCK boundary naming what is observed and a repeat, a new target or a large volume no risk by itself (N-RULE-1, N-WORD-1, N-FRIC-1); the output contract v3 block with the meaning and the cited line of every reason code, MATERIAL_MISSING_EVIDENCE citing the ID the UNKNOWN line gives each missing fact (W4-2, N-UID-1); no fixed reason sentences (W4-3). The response checker falls back to the contract's action after a failed retry (N-OUT-1, W4-5) and checks boundaries, reason claims and reason codes on the prompt's facts (W4-8). The golden render draws the baseline the sealed prompts state (N-GOLD-1). An approval or ticket without a decision time says what was not checked and does not prevent covered work (N-WORD-1, N-WORD-2). The business label is untrusted text (N-INJ-3); the usual rate counts the hour up to a request (N-RATE-1). Every Ticket value fits its form (N-DIC-2); the usual rate needs 60 counts and an assigned limit explains a size within it (N-FRIC-2). P5 drew the learning and memory facts anew: the non-allowed records (W5-4), one protection of what is learned (W5-9), and baseline statistics v2: counts, days and first and last times per dimension, one denominator, maturity by dates and convergence, one request rate, the organization usual by frequency, the peer comparison with the group size and the tenant in the baseline key (W5-10); the bundle declares its vocabulary (W5-7). Logins of two methods are kept and one holding a usual login is no departure (W5-10 D6); P3 takes only a floor the facts can meet (N-CONF-1).",
+                    List.of(
+                            "STRICT_JSON_SCHEMA",
+                            "LOW_TEMPERATURE_SECURITY_DECISION",
+                            "EVIDENCE_ONLY_RETRIEVAL",
+                            "MODEL_COMPATIBLE_OPENAI_ANTHROPIC_GEMINI"
+                    ),
+                    SecurityDecisionStandardPromptTemplate.class.getName());
+
+    /**
+     * The v21 bundle (V-1 to V-7 of the v21 plan): the verdict is the model's judgment from the context. Its system text
+     * states the mission, how to read the evidence, the method of competing explanations, what each response does and
+     * the honesty rules, with no decision rule, numeric threshold, floor or later enforcement. Its user prompt is the
+     * v20 dictionary blocks with the facts as records, measurements and comparisons and no conclusion of the core: no
+     * policy satisfaction line, no record that "covers" the request, no difference marked explained, no "within" or
+     * "outside" a scope. Its output contract v4 adds the explanations the model weighed. Rollback goes to v20.25.
+     */
+    public static final PromptGovernanceDescriptor SECURITY_DECISION_V21_PROMPT_GOVERNANCE =
+            new PromptGovernanceDescriptor(
+                    "cortex.security-decision",
+                    STANDARD_TEMPLATE_KEY,
+                    "2026.10.20-v21.8",
+                    "CORTEX_PROMPT_CONTRACT_V4",
+                    PromptReleaseStatus.DRAFT,
+                    "contexa-cortex-core",
+                    "V21-2026-10-19",
+                    "NOT-EVALUATED",
+                    "2026.10.17-v20.25",
+                    "Zero Trust runtime decision prompt v21: the model judges each request from its context. System text:"
+                            + " the mission (sign-in, permissions and fixed rules cannot tell a stolen account or an insider "
+                            + "misusing their permission from legitimate work), how to read the evidence, competing explanations "
+                            + "(legitimate work, account takeover, insider misuse, automation or error, another one), differences "
+                            + "checked against company records by the model, the four responses (a challenge verifies who holds the"
+                            + " account, not the owner's purpose), the honesty rules; no decision rule, threshold, floor or later "
+                            + "enforcement. User prompt: the v20 dictionary blocks, decision facts titled RECORDS AND COMPARISONS "
+                            + "without the core's conclusions (no PolicySatisfied, covers tails, explained marks, within or "
+                            + "outside). Output contract v4: action, hypotheses, reasonCodes, reason, riskScore, confidence, mitre."
+                            + " The response check asks again only for a broken format, a wrong citation or a second analysis "
+                            + "ESCALATE, and never changes the action. v21.1 (R2): a value not recorded is unknown; the owner's "
+                            + "records weigh between legitimate work and insider misuse, not against a takeover; responses are "
+                            + "weighed across the explanations left possible. v21.2: an approval or ticket is a person's earlier "
+                            + "judgment of the purpose; the weighing follows how strongly the request's facts support each other "
+                            + "explanation. v21.3: a record line states the host's own check against the request as the host's "
+                            + "fact. v21.4: the target's scope in the host's records is a host fact. v21.5: the past records' "
+                            + "counted fact is a line an earlier allowed record on the same target cites. v21.6: ESCALATE hands the"
+                            + " request to the second analysis, which chooses ALLOW, CHALLENGE or BLOCK (no person reviews it). "
+                            + "v21.7: after a first pass that retrieved its past records the second analysis gets none as new. "
+                            + "v21.8: the second analysis decides from the same facts, with past records only when the first pass "
+                            + "could not retrieve them.",
                     List.of(
                             "STRICT_JSON_SCHEMA",
                             "LOW_TEMPERATURE_SECURITY_DECISION",
@@ -212,16 +262,16 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         String domainPrompt = generateDomainSystemPrompt(request, systemMetadata);
         String formatInstructions = shouldIncludeFormatInstructions(request)
-                ? SecurityDecisionContractSectionBuilder.formatInstructions(v20Bundle(request)) : null;
+                ? SecurityDecisionContractSectionBuilder.formatInstructions(layout(request)) : null;
         return assembleSystemPrompt(domainPrompt, formatInstructions, null);
     }
 
-    /** Whether the request's event runs the v20 bundle; its bundle is fixed on the event by its first prompt. */
-    private boolean v20Bundle(AIRequest<? extends DomainContext> request) {
+    /** The user prompt layout of the request's bundle; its bundle is fixed on the event by its first prompt. */
+    private SecurityDecisionPromptBundles.UserPromptLayout layout(AIRequest<? extends DomainContext> request) {
         return request instanceof SecurityDecisionRequest securityDecisionRequest
                 && securityDecisionRequest.getContext() != null
-                && promptBundle(securityDecisionRequest.getContext().getSecurityEvent()).layout()
-                == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS;
+                ? promptBundle(securityDecisionRequest.getContext().getSecurityEvent()).layout()
+                : SecurityDecisionPromptBundles.UserPromptLayout.V19_SECTIONS;
     }
 
     @Override
@@ -260,6 +310,11 @@ public class SecurityDecisionStandardPromptTemplate extends AbstractStandardProm
     }
 
     /** The bundle the event runs, fixed on the event for its later prompts (W3-16, W3-18). */
+    /** The canonical context the event's prompt is drawn with, as a replay of a sealed decision draws it. */
+    public void useCanonicalContext(SecurityEvent event, CanonicalSecurityContext context) {
+        promptSections.useCanonicalContext(event, context);
+    }
+
     public SecurityDecisionPromptBundles.Bundle promptBundle(SecurityEvent event) {
         return promptSections.bundleOf(event);
     }

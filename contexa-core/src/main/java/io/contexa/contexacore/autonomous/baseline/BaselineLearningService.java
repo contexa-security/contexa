@@ -89,6 +89,14 @@ public class BaselineLearningService {
         this.lockService = lockService;
     }
 
+    /**
+     * The same service over other baselines: the settings stay, the store is the one given (a sealed decision drawn
+     * again reads the baselines it was drawn against).
+     */
+    public BaselineLearningService readingFrom(BaselineDataStore store) {
+        return new BaselineLearningService(store, zeroTrustProperties);
+    }
+
     public boolean learnIfNormal(String userId, SecurityDecision decision, SecurityEvent event) {
         if (!zeroTrustProperties.getBaseline().getLearning().isEnabled()) {
             return false;

@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.IOException;
 
@@ -49,7 +50,10 @@ public class OpsPortConfiguration {
                     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                                     FilterChain chain) throws ServletException, IOException {
                         boolean opsPort = request.getLocalPort() == port;
-                        boolean opsPath = request.getRequestURI().startsWith(OPS_PREFIX);
+                        // The decoded path Spring MVC routes by; the raw request URI would let "/%6Fps/..." past
+                        // this rule and still reach an operator handler.
+                        String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+                        boolean opsPath = path.startsWith(OPS_PREFIX);
                         if (opsPort != opsPath) {
                             response.sendError(HttpServletResponse.SC_NOT_FOUND);
                             return;

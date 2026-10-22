@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -151,6 +152,26 @@ public class WorkloadAdmin {
     public Optional<JsonNode> inspectSealed(String requestId) throws IOException {
         Response response = engine("ops").postJson("/internal/decisions/" + requestId + "/inspection", null, null,
                 "{}");
+        if (response.status() == 404) {
+            return Optional.empty();
+        }
+        return Optional.of(read(response));
+    }
+
+    /**
+     * V-2.2 of the v21 plan: how long a replay of a sealed decision may take: a model call and its one retry, and up to
+     * three second pass calls with theirs when the replay asks the second pass (판정층 7절).
+     */
+    private static final Duration REPLAY_TIMEOUT = Duration.ofMinutes(12);
+
+    /**
+     * V-2.2 of the v21 plan: control D draws the decision's sealed prompt again with a bundle and the baselines of the
+     * template its run cloned, and asks the model once; nothing is applied. Empty when the decision was not sealed.
+     */
+    public Optional<JsonNode> replay(String requestId, Map<String, Object> request) throws IOException {
+        Response response = new WorkloadClient(endpoints.d(), signer, new RunIdentity("ops", null, null, null, null),
+                REPLAY_TIMEOUT).postJson("/internal/decisions/" + requestId + "/replay", null, null,
+                json.writeValueAsString(request));
         if (response.status() == 404) {
             return Optional.empty();
         }

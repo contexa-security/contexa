@@ -25,6 +25,7 @@ import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -266,6 +267,121 @@ class SynchronousProtectableDecisionServiceTest {
 
         verify(unanalysed).record(event, ZeroTrustAction.CHALLENGE);
         verify(unanalysed, never()).record(event, ZeroTrustAction.ALLOW);
+    }
+
+    @Test
+    @DisplayName("A1-5: an agent request with no decision on record is decided in place, not let through")
+    void asyncGate_unrecordedAgentRequestIsDecidedInPlace() {
+        ZeroTrustSpringEvent event = subjectEvent("DELEGATED_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        SynchronousProtectableDecisionService.AsyncProtectableGate gate = service.asyncGate(methodInvocation, authentication);
+
+        assertThat(gate.decideInPlace()).isTrue();
+        assertThat(gate.restriction()).isNull();
+        assertThat(service.storedRestriction(methodInvocation, authentication)).isNull();
+    }
+
+    @Test
+    @DisplayName("A1-5: an autonomous agent is an agent too")
+    void asyncGate_unrecordedAutonomousAgentRequestIsDecidedInPlace() {
+        ZeroTrustSpringEvent event = subjectEvent("AUTONOMOUS_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(service.asyncGate(methodInvocation, authentication).decideInPlace()).isTrue();
+    }
+
+    @Test
+    @DisplayName("A1-5: a person's request with no decision on record proceeds as before")
+    void asyncGate_unrecordedPersonsRequestProceeds() {
+        ZeroTrustSpringEvent event = subjectEvent("HUMAN_USER");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        SynchronousProtectableDecisionService.AsyncProtectableGate gate = service.asyncGate(methodInvocation, authentication);
+
+        assertThat(gate.decideInPlace()).isFalse();
+        assertThat(gate.restriction()).isNull();
+    }
+
+    @Test
+    @DisplayName("A1-5: an agent's decision on record is used: an ALLOW proceeds, a CHALLENGE restricts")
+    void asyncGate_recordedAgentDecisionIsUsed() {
+        ZeroTrustSpringEvent event = subjectEvent("DELEGATED_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH))
+                .thenReturn(ZeroTrustAction.ALLOW, ZeroTrustAction.CHALLENGE);
+
+        SynchronousProtectableDecisionService.AsyncProtectableGate allowed = service.asyncGate(methodInvocation, authentication);
+        SynchronousProtectableDecisionService.AsyncProtectableGate restricted = service.asyncGate(methodInvocation, authentication);
+
+        assertThat(allowed.decideInPlace()).isFalse();
+        assertThat(allowed.restriction()).isNull();
+        assertThat(restricted.restriction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(restricted.decideInPlace()).isFalse();
+    }
+
+    @Test
+    @DisplayName("A1-5: the host can let unrecorded agent requests proceed as a person's do")
+    void asyncGate_proceedSettingLetsUnrecordedAgentRequestsThrough() {
+        service.setUnrecordedAgentRequest(SecurityZeroTrustProperties.UnrecordedAgentRequest.PROCEED);
+        ZeroTrustSpringEvent event = subjectEvent("DELEGATED_AGENT");
+        when(eventPublisher.buildMethodAuthorizationEvent(methodInvocation, authentication, true, null)).thenReturn(event);
+        when(eventListener.generateAuthorizationContextBindingHash(event)).thenReturn(CONTEXT_HASH);
+        when(actionRepository.getCurrentAction(USER_ID, CONTEXT_HASH)).thenReturn(ZeroTrustAction.PENDING_ANALYSIS);
+
+        assertThat(service.asyncGate(methodInvocation, authentication).decideInPlace()).isFalse();
+    }
+
+    @Test
+    @DisplayName("A1-5: when the model cannot be reached the technical fallback decided in place is the answer")
+    void analyze_technicalFallbackIsTheAnswer() {
+        MockHttpServletRequest request = request("/api/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        stubEvent(event);
+        ProcessingResult processingResult = ProcessingResult.builder()
+                .action(ZeroTrustAction.ESCALATE.name())
+                .technicalFallbackApplied(true)
+                .technicalFallbackCategory("LLM_UNAVAILABLE")
+                .technicalFallbackAction(ZeroTrustAction.ESCALATE.name())
+                .build();
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult", processingResult));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.ESCALATE);
+    }
+
+    @Test
+    @DisplayName("A1-5: a failed analysis leaves no decision, so the request is not let through")
+    void analyze_failedProcessingLeavesNoDecision() {
+        MockHttpServletRequest request = request("/api/reports");
+        bindRequest(request);
+        ZeroTrustSpringEvent event = methodEvent("/api/reports");
+        stubEvent(event);
+        SecurityEventContext processingContext = mock(SecurityEventContext.class);
+        when(processingContext.getMetadata()).thenReturn(Map.of("processingResult",
+                ProcessingResult.failure(ProcessingResult.ProcessingPath.COLD_PATH, "AI analysis failed")));
+        when(securityPlaneAgent.processSecurityEvent(any(SecurityEvent.class))).thenReturn(processingContext);
+
+        assertThat(service.analyze(methodInvocation, authentication).action()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS);
+    }
+
+    private ZeroTrustSpringEvent subjectEvent(String subjectKind) {
+        return ZeroTrustSpringEvent.builder(this)
+                .category(ZeroTrustEventCategory.AUTHORIZATION)
+                .eventType(ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD)
+                .userId(USER_ID)
+                .resource("/api/reports")
+                .payload(Map.of("requestPath", "/api/reports", "executionSubjectKind", subjectKind))
+                .build();
     }
 
     private ZeroTrustSpringEvent methodEvent(String path) {

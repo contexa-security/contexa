@@ -20,37 +20,34 @@ import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 /**
  * ServletOutputStream wrapper that checks BlockingSignalBroadcaster on every
  * write() and flush(). When a BLOCK decision is detected mid-stream:
  *
- * 1. Writes an in-band block signal marker to the stream (detected by client fetch/XHR interceptors)
+ * 1. Writes an in-band block signal marker to the stream (detected by client fetch/XHR interceptors);
+ *    before the commit the buffered output is dropped first and the status is 403 (ResponseCut)
  * 2. Throws IOException to stop the server-side streaming loop
  *
- * Client-side detection uses two paths:
- * - In-band signal: fetch/XHR interceptors detect the BLOCK_SIGNAL marker in response data
- * - Stream error: pump() catch handles network errors when the connection is disrupted
+ * Client-side detection uses the in-band signal: the fetch/XHR interceptors act on the marker only, and a broken
+ * stream without it reaches the application as the error it is.
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
 
-    private static final String BLOCK_SIGNAL_PREFIX = "\n__CONTEXA_RESPONSE_BLOCKED__:";
-
     private final ServletOutputStream delegate;
-    private final BlockingSignalBroadcaster registry;
-    private final String userId;
-    private final HttpServletResponse response;
-    private volatile boolean aborted = false;
+    private final ResponseCut cut;
 
     public BlockableServletOutputStream(ServletOutputStream delegate,
                                         BlockingSignalBroadcaster registry,
                                         String userId,
                                         HttpServletResponse response) {
+        this(delegate, new ResponseCut(response, registry, userId, System.nanoTime()));
+        cut.useStream(delegate);
+    }
+
+    BlockableServletOutputStream(ServletOutputStream delegate, ResponseCut cut) {
         this.delegate = delegate;
-        this.registry = registry;
-        this.userId = userId;
-        this.response = response;
+        this.cut = cut;
     }
 
     @Override
@@ -79,7 +76,7 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void flush() throws IOException {
-        if (aborted) {
+        if (cut.isCut()) {
             return;
         }
         checkBlocked();
@@ -88,7 +85,7 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void close() throws IOException {
-        if (aborted) {
+        if (cut.isCut()) {
             return;
         }
         checkBlocked();
@@ -97,7 +94,7 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public boolean isReady() {
-        return !aborted && delegate.isReady();
+        return !cut.isCut() && delegate.isReady();
     }
 
     @Override
@@ -108,26 +105,8 @@ public class BlockableServletOutputStream extends ServletOutputStream {
     }
 
     private void checkBlocked() throws IOException {
-        if (aborted) {
-            throw new IOException("Response aborted: user blocked");
-        }
-        if (registry != null && registry.isBlocked(userId)) {
-            aborted = true;
-            try {
-                if (response != null && !response.isCommitted()) {
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                }
-            } catch (Exception ignored) {
-            }
-            try {
-                String action = registry.getBlockAction(userId);
-                byte[] signal = (BLOCK_SIGNAL_PREFIX + (action != null ? action : "BLOCK") + "\n")
-                        .getBytes(StandardCharsets.UTF_8);
-                delegate.write(signal);
-                delegate.flush();
-            } catch (Exception ignored) {
-            }
-            throw new IOException("Response aborted: user " + userId + " blocked by security decision");
+        if (cut.cutIfBlocked()) {
+            throw new IOException("Response aborted: user " + cut.userId() + " blocked by security decision");
         }
     }
 }

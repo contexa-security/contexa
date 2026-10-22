@@ -1,45 +1,83 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-12);
+/* Screen 0: the two people side by side, each one card; one under the other on phones. */
+.people {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--frame-block-gap);
 }
 
-.head {
+.person {
   display: flex;
   flex-direction: column;
+  gap: var(--frame-inner-gap);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.name {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-frame);
+}
+
+.line {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
 }
 
-.title {
+.label {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.value {
   margin: 0;
-  font-size: var(--text-2xl);
 }
 
-.sub {
+/* The files that went out: the screen's one emphasised value. */
+.count {
   margin: 0;
-  color: var(--color-text-body);
-  font-size: var(--text-lg);
+  color: var(--color-text);
+  font-size: var(--type-emphasis);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
 }
 
-.stage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-height: 25rem;
-}
-
-.note {
+.identity {
+  max-width: var(--frame-measure);
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
 }
 
-/* Phones (mobile slide): the replay stage keeps room for its two columns one under the other. */
 @media (width <= 40rem) {
-  .stage {
-    min-height: 46rem;
+  .people {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .person {
+    padding: var(--space-5);
   }
 }

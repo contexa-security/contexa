@@ -1,7 +1,19 @@
 import { useUrlModal } from '../common/useUrlModal';
 
-/** The decision details' six tabs, in the design's order (anat-1). */
-export const DETAIL_TABS = ['summary', 'received', 'process', 'prompt', 'answer', 'original'] as const;
+/**
+ * The decision details' seven tabs (화면재편-구현계획 5절, RO-1): the summary with each number's source, what Contexa
+ * received, the nine steps of the judgment, the text sent to the AI, the published rules line by line, the right
+ * handling of the situation, and the original record. The ids stay those of the old addresses; 'rules' is new.
+ */
+export const DETAIL_TABS = [
+  'summary',
+  'received',
+  'process',
+  'prompt',
+  'rules',
+  'answer',
+  'original',
+] as const;
 export type DetailTab = (typeof DETAIL_TABS)[number];
 
 export const DETAIL_MODAL = 'detail';

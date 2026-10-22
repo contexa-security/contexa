@@ -12,20 +12,24 @@ import {
 import { GlossaryModal } from './components/common/Glossary';
 import { DetailAddress } from './components/detail/DetailAddress';
 import { DETAIL_MODAL } from './components/detail/useDetail';
-import { SiteFooter } from './components/SiteFooter';
 import { AppHeader } from './components/AppHeader';
 import ReplayPage from './pages/ReplayPage';
-import HookPage from './pages/try/HookPage';
+import OpeningPage from './pages/main/OpeningPage';
 import {
-  adoptChangeScreen,
   approachesScreen,
-  compareScreen,
-  conceptScreen,
-  dilemmaScreen,
+  briefingScreen,
+  changeScreen,
+  consoleScreen,
+  diffScreen,
+  checkScreen,
+  evidenceMapScreen,
+  evidencePromptScreen,
+  evidenceVerdictScreen,
   experienceScreen,
   followScreen,
   howScreen,
-  introScreen,
+  insideScreen,
+  introMapScreen,
   labBeforeScreen,
   labCaseScreen,
   labChangeScreen,
@@ -35,77 +39,115 @@ import {
   labSendScreen,
   learnWhyScreen,
   learnedScreen,
-  promptScreen,
   learnAfterScreen,
-  orderScreen,
-  quizScreen,
-  recapScreen,
-  rulesScreen,
+  moreScreen,
+  nextScreen,
+  requestScreen,
+  resultScreen,
+  ruleSwitchScreen,
+  runsScreen,
   stackScreen,
+  summaryScreen,
   timingScreen,
-  valueScreen,
-  whereScreen,
+  withDictionary,
 } from './screens';
 
 // The first screen (hook) and the recorded replay, opened straight from shared links, ship in the main bundle
-// (P2-FE-03); every other screen is loaded when it is opened (P5-FE-01).
-const AdoptPage = lazy(() => import('./pages/AdoptPage'));
-const PolicyPage = lazy(() => import('./pages/PolicyPage'));
+// (P2-FE-03); every other screen is loaded when it is opened (P5-FE-01), and, outside the main flow, drawn once the rest
+// of the dictionary is in (FC-4, withDictionary).
+const AdoptPage = lazy(withDictionary(() => import('./pages/AdoptPage')));
+const PolicyPage = lazy(withDictionary(() => import('./pages/PolicyPage')));
 // The decision details' window is loaded the first time a screen opens it.
-const DecisionDetailModal = lazy(() =>
-  import('./components/detail/DecisionDetail').then((module) => ({ default: module.DecisionDetailModal })),
+const DecisionDetailModal = lazy(
+  withDictionary(() =>
+    import('./components/detail/DecisionDetail').then((module) => ({ default: module.DecisionDetailModal })),
+  ),
 );
-const BenchSummaryPage = lazy(() => import('./pages/benchmark/BenchSummaryPage'));
-const BenchCasesPage = lazy(() => import('./pages/benchmark/BenchCasesPage'));
-const BenchJudgmentPage = lazy(() => import('./pages/benchmark/BenchJudgmentPage'));
-const BenchPromptPage = lazy(() => import('./pages/benchmark/BenchPromptPage'));
-const BenchLimitsPage = lazy(() => import('./pages/benchmark/BenchLimitsPage'));
+const BenchSummaryPage = lazy(withDictionary(() => import('./pages/benchmark/BenchSummaryPage')));
+const BenchApproachesPage = lazy(withDictionary(() => import('./pages/benchmark/BenchApproachesPage')));
+const BenchCasesPage = lazy(withDictionary(() => import('./pages/benchmark/BenchCasesPage')));
+const BenchJudgmentPage = lazy(withDictionary(() => import('./pages/benchmark/BenchJudgmentPage')));
+const BenchReasoningPage = lazy(withDictionary(() => import('./pages/benchmark/BenchReasoningPage')));
+const BenchLimitsPage = lazy(withDictionary(() => import('./pages/benchmark/BenchLimitsPage')));
 
 // The design mock and its sample data exist only in development builds; Vite removes this branch
 // from the production bundle, so no sample data can reach visitors.
-const DesignStatesPage = import.meta.env.DEV ? lazy(() => import('./pages/design/DesignStatesPage')) : null;
-const DesignPartsPage = import.meta.env.DEV ? lazy(() => import('./pages/design/DesignPartsPage')) : null;
+const DesignStatesPage = import.meta.env.DEV
+  ? lazy(withDictionary(() => import('./pages/design/DesignStatesPage')))
+  : null;
+const DesignPartsPage = import.meta.env.DEV
+  ? lazy(withDictionary(() => import('./pages/design/DesignPartsPage')))
+  : null;
 
 export default function App() {
   return (
     <BrowserRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          <Route path="/" element={<HookPage />} />
-          <Route path="/replay/:pairKey" element={<ReplayPage />} />
-          {/* Try 1 of act 1 in its seven steps (7.1). */}
-          <Route path="/try/attacker/:step" element={<experienceScreen.Screen role="attacker" />} />
-          {/* Act 2 (7.2): try 2 in its seven steps, the published rules, the follow-up map and the act's end. */}
-          <Route path="/try/owner/:step" element={<experienceScreen.Screen role="owner" />} />
-          <Route path="/intro/how/rules" element={<rulesScreen.Screen />} />
+          {/* The main flow (최종화면-구현계획 2절, IN-6): seven groups, each from group 2 on opened by its cover (T0). */}
+          <Route path="/" element={<OpeningPage />} />
+          <Route path="/intro/map" element={<introMapScreen.Screen />} />
+          <Route path="/attack" element={<briefingScreen.Screen />} />
+          <Route path="/attack/request" element={<requestScreen.Screen role="attacker" />} />
+          <Route path="/attack/console" element={<consoleScreen.Screen role="attacker" />} />
+          <Route path="/attack/result" element={<resultScreen.Screen />} />
+          <Route path="/evidence" element={<briefingScreen.Screen />} />
+          <Route path="/evidence/map" element={<evidenceMapScreen.Screen />} />
+          <Route path="/evidence/prompt" element={<evidencePromptScreen.Screen />} />
+          <Route path="/evidence/verdict" element={<evidenceVerdictScreen.Screen />} />
+          <Route path="/normal" element={<briefingScreen.Screen />} />
+          <Route path="/normal/request" element={<requestScreen.Screen role="owner" />} />
+          <Route path="/normal/console" element={<consoleScreen.Screen role="owner" />} />
+          <Route path="/normal/diff" element={<diffScreen.Screen />} />
+          <Route path="/normal/check" element={<checkScreen.Screen />} />
+          <Route path="/insider" element={<briefingScreen.Screen />} />
+          <Route path="/insider/request" element={<requestScreen.Screen role="insider" />} />
+          <Route path="/insider/console" element={<consoleScreen.Screen role="insider" />} />
+          <Route path="/insider/reason" element={<insideScreen.Screen />} />
+          <Route path="/compare" element={<briefingScreen.Screen />} />
+          <Route path="/compare/rule" element={<ruleSwitchScreen.Screen />} />
+          <Route path="/compare/change" element={<changeScreen.Screen />} />
+          {/* The attack inside the rules became group 2's stolen account (IN-6); its address leads to the insider. */}
+          <Route path="/compare/inside" element={<Navigate to="/insider/reason" replace />} />
+          <Route path="/compare/runs" element={<runsScreen.Screen />} />
+          <Route path="/summary" element={<summaryScreen.Screen />} />
+          <Route path="/summary/next" element={<nextScreen.Screen />} />
+          {/* "Learn more": the screens of the flow before, walked by topic and ending back at the hub. */}
+          <Route path="/more" element={<moreScreen.Screen />} />
           <Route path="/intro/learning" element={<learnWhyScreen.Screen />} />
           <Route path="/intro/learning/learned" element={<learnedScreen.Screen />} />
           <Route path="/intro/how" element={<howScreen.Screen />} />
-          <Route path="/try/prompt" element={<promptScreen.Screen />} />
-          <Route path="/try/timing/:step" element={<timingScreen.Screen />} />
           <Route path="/try/stack" element={<stackScreen.Screen />} />
           <Route path="/try/summary/learning" element={<learnAfterScreen.Screen ending={false} />} />
-          <Route path="/try/summary/learning/end" element={<learnAfterScreen.Screen ending />} />
+          <Route path="/try/timing/:step" element={<timingScreen.Screen />} />
           <Route path="/try/follow" element={<followScreen.Screen ending={false} />} />
-          <Route path="/try/follow/end" element={<followScreen.Screen ending />} />
-          <Route path="/intro" element={<introScreen.Screen />} />
-          <Route path="/intro/concept" element={<conceptScreen.Screen />} />
-          <Route path="/intro/compare" element={<compareScreen.Screen />} />
-          <Route path="/intro/order" element={<orderScreen.Screen />} />
           <Route path="/intro/approaches" element={<approachesScreen.Screen />} />
-          <Route path="/intro/approaches/where" element={<whereScreen.Screen />} />
-          <Route path="/try/summary/dilemma" element={<dilemmaScreen.Screen />} />
-          <Route path="/try/summary/recap" element={<recapScreen.Screen />} />
-          <Route path="/try/summary/quiz" element={<quizScreen.Screen />} />
-          <Route path="/try/summary/value" element={<valueScreen.Screen />} />
-          <Route path="/try/summary/adopt" element={<adoptChangeScreen.Screen />} />
-          {/* Trying it and changing the conditions are part of the experience now. */}
+          <Route path="/replay/:pairKey" element={<ReplayPage />} />
+          {/* The flow before: its addresses lead to the screen of the new flow that took their place. */}
+          <Route path="/part/:part" element={<PartAddress />} />
+          <Route path="/try/attacker/:step" element={<TryAddress role="attacker" />} />
+          <Route path="/try/owner/:step" element={<TryAddress role="owner" />} />
+          <Route path="/try/prompt" element={<Navigate to="/evidence/prompt" replace />} />
+          <Route path="/try/timing/end" element={<Navigate to="/more" replace />} />
+          <Route path="/try/follow/end" element={<Navigate to="/more" replace />} />
+          <Route path="/try/summary/learning/end" element={<Navigate to="/more" replace />} />
+          <Route path="/try/summary/dilemma" element={<Navigate to="/compare/rule" replace />} />
+          <Route path="/try/summary/recap" element={<Navigate to="/summary" replace />} />
+          <Route path="/try/summary/quiz" element={<Navigate to="/summary" replace />} />
+          <Route path="/try/summary/value" element={<Navigate to="/summary" replace />} />
+          <Route path="/try/summary/adopt" element={<Navigate to="/summary/next" replace />} />
+          <Route path="/try/summary/end" element={<Navigate to="/summary/next" replace />} />
+          <Route path="/intro/how/rules" element={<Navigate to="/evidence/verdict" replace />} />
+          <Route path="/intro" element={<Navigate to="/" replace />} />
+          <Route path="/intro/concept" element={<Navigate to="/" replace />} />
+          <Route path="/intro/compare" element={<Navigate to="/" replace />} />
+          <Route path="/intro/order" element={<Navigate to="/" replace />} />
+          <Route path="/intro/approaches/where" element={<Navigate to="/intro/approaches" replace />} />
           <Route path="/try" element={<Navigate to="/" replace />} />
           <Route path="/explore" element={<Navigate to="/" replace />} />
           {/* W4-5: the old "other scenes" and "statistics" screens gave way to the lab and the benchmark. */}
           <Route path="/stats" element={<Navigate to="/benchmark" replace />} />
-          {/* The old end screen counted on the screen (T-42); its address leads to what the visitor did. */}
-          <Route path="/end/:pairKey" element={<Navigate to="/try/summary/recap" replace />} />
+          <Route path="/end/:pairKey" element={<Navigate to="/summary" replace />} />
           <Route path="/library" element={<Navigate to="/lab" replace />} />
           <Route path="/adopt" element={<AdoptPage />} />
           <Route path="/privacy" element={<PolicyPage />} />
@@ -119,14 +161,16 @@ export default function App() {
           <Route path="/lab/result" element={<labResultScreen.Screen />} />
           <Route path="/lab/rules" element={<labRulesScreen.Screen />} />
           <Route path="/benchmark" element={<BenchSummaryPage />} />
+          <Route path="/benchmark/approaches" element={<BenchApproachesPage />} />
           <Route path="/benchmark/cases" element={<BenchCasesPage />} />
           <Route path="/benchmark/cases/:caseKey" element={<CaseAddress />} />
           <Route path="/benchmark/judgment" element={<BenchJudgmentPage />} />
-          <Route path="/benchmark/prompt" element={<BenchPromptPage />} />
+          <Route path="/benchmark/reasoning" element={<BenchReasoningPage />} />
+          <Route path="/benchmark/prompt" element={<Navigate to="/benchmark/reasoning" replace />} />
           <Route path="/benchmark/limits" element={<BenchLimitsPage />} />
           {DesignStatesPage ? <Route path="/design/states" element={<DesignStatesPage />} /> : null}
           {DesignPartsPage ? <Route path="/design/parts" element={<DesignPartsPage />} /> : null}
-          <Route path="*" element={<HookPage />} />
+          <Route path="*" element={<OpeningPage />} />
         </Routes>
       </Suspense>
       <VisitorChrome />
@@ -190,7 +234,6 @@ function VisitorChrome() {
   }
   return pathname.startsWith('/design') ? null : (
     <>
-      <SiteFooter />
       <GlossaryModal />
       {detailWanted ? (
         <Suspense fallback={null}>
@@ -199,6 +242,56 @@ function VisitorChrome() {
       ) : null}
     </>
   );
+}
+
+/** Where an old part's briefing leads (최종화면-구현계획 2절): the cover of the group that took its place. */
+const PART_COVERS: Readonly<Record<string, string>> = {
+  '1': '/attack',
+  '2': '/normal',
+  '3': '/more',
+  '4': '/more',
+  '5': '/compare',
+};
+
+function PartAddress() {
+  const { part = '' } = useParams();
+  return <Navigate replace to={PART_COVERS[part] ?? '/'} />;
+}
+
+/** Where an old try step leads: the screen of the new flow that shows the same moment. */
+const TRY_STEPS: Readonly<Record<'attacker' | 'owner', Readonly<Record<string, string>>>> = {
+  attacker: {
+    scene: '/attack/request',
+    compare: '/attack/request',
+    predict: '/attack/request',
+    run: '/attack/console',
+    result: '/attack/result',
+    reason: '/attack/result',
+    after: '/attack/result',
+    end: '/evidence',
+  },
+  owner: {
+    scene: '/normal/request',
+    compare: '/normal/request',
+    predict: '/normal/request',
+    run: '/normal/console',
+    result: '/normal/diff',
+    reason: '/normal/diff',
+    after: '/normal/console',
+  },
+};
+
+/**
+ * An old try step's address. The run step the timing topic sends its asynchronous resend on stays the try's run page
+ * (a request sent "from=timing" belongs to that topic); every other step leads to the new flow.
+ */
+function TryAddress({ role }: { readonly role: 'attacker' | 'owner' }) {
+  const { step = '' } = useParams();
+  const [params] = useSearchParams();
+  if (step === 'run' && params.get('from')?.startsWith('timing')) {
+    return <experienceScreen.Screen role={role} />;
+  }
+  return <Navigate replace to={TRY_STEPS[role][step] ?? (role === 'attacker' ? '/attack' : '/normal')} />;
 }
 
 /** A case's own address (7.8, `/benchmark/cases/:caseKey`): the case window over the case list. */

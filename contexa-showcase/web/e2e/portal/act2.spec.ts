@@ -2,6 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
+// The final screen design (최종화면-구현계획 F0-1) replaced the flow this spec walks; mainFlow.spec.ts and
+// keyboard.spec.ts walk the new one. This spec is on the deletion list for the user (최종화면-구현계획 4절).
+test.skip(true, 'replaced by mainFlow.spec.ts (최종화면-구현계획 FC-2)');
+
 /**
  * Act 2 on the real portal (screen design v2.3, 7.2): try 2 sends one real export as the real employee through the
  * visitor's own gate (answering the identity check in place when Contexa asks), then the published rules, the
@@ -57,7 +61,9 @@ const api = (page: Page, path: string) =>
 for (const language of ['ko', 'en'] as const) {
   const m = MESSAGES[language];
 
-  test(`try 2 sends one live run and every act 2 screen shows its records (${language})`, async ({ page }) => {
+  test(`try 2 sends one live run and every act 2 screen shows its records (${language})`, async ({
+    page,
+  }) => {
     test.setTimeout(RUN_TIMEOUT + 180_000);
     await page.goto(`/try/owner/scene?lng=${language}`);
     const options = await api(page, '/api/lab/options');
@@ -118,7 +124,11 @@ for (const language of ['ko', 'en'] as const) {
       const right = score.correct[control];
       const cell = rows.nth(index).locator('td').nth(1);
       await expect(cell).toContainText(
-        right === undefined ? (m['mark.neither'] ?? '') : right ? (m['mark.right'] ?? '') : (m['mark.wrong'] ?? ''),
+        right === undefined
+          ? (m['mark.neither'] ?? '')
+          : right
+            ? (m['mark.right'] ?? '')
+            : (m['mark.wrong'] ?? ''),
       );
     }
     const journey = await api(page, '/api/journey');
@@ -130,12 +140,19 @@ for (const language of ['ko', 'en'] as const) {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
     await page.goto(`/intro/how/rules?lng=${language}`);
-    for (const verdict of ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK']) {
-      await expect(page.getByText(m[`gRules.verdict.${verdict}`] ?? '')).toBeVisible();
-    }
     const teasers = await api(page, '/api/teasers');
-    const promptRun = teasers.teasers.find((teaser: { key: string }) => teaser.key === 'G_HOW_LINES').source.ref;
+    const promptRun = teasers.teasers.find((teaser: { key: string }) => teaser.key === 'G_HOW_LINES').source
+      .ref;
     const anatomy = await api(page, `/api/runs/${promptRun}/steps/1/anatomy`);
+    // SC-7: a v21 prompt (its records block) shows how the AI judges instead of the v20 rules.
+    const v21 = (anatomy.promptLines.sections as { name: string }[]).some((section) =>
+      section.name.startsWith('RECORDS AND COMPARISONS'),
+    );
+    for (const verdict of ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK']) {
+      await expect(
+        page.getByText(m[v21 ? `gRules.verdictV21.${verdict}` : `gRules.verdict.${verdict}`] ?? ''),
+      ).toBeVisible();
+    }
     const lines = anatomy.promptLines.systemPhysical as number;
     await page.getByRole('button', { name: format(m['gRules.original'] ?? '', { lines }) }).click();
     await expect(page.locator('dialog ol li')).toHaveCount(lines);

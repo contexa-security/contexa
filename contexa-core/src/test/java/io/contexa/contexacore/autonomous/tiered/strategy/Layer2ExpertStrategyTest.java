@@ -29,6 +29,7 @@ import io.contexa.contexacore.autonomous.context.decision.PolicySatisfaction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -58,7 +59,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -138,9 +138,12 @@ class Layer2ExpertStrategyTest {
         assertThat(decision.getLlmModel()).isEqualTo("gpt-6-luna-2026-09-30");
     }
 
-    /** Q-87 (N-P3-1): an ESCALATE the policy rule asks for stays the final action; it waits for a review. */
+    /**
+     * 판정층 8절 7: no analysis follows the second pass and no person reviews a request, so a second pass ESCALATE is
+     * terminalized also where a v20 policy rule (P3) asks for one; the Q-87 exception is withdrawn.
+     */
     @Test
-    void anEscalateThePolicyRuleAsksForStaysFinal() {
+    void anEscalateThePolicyRuleAsksForIsTerminalizedToo() {
         SecurityEvent event = buildTestEvent();
         event.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
                 .resource(CanonicalSecurityContext.Resource.builder().resourceClass("CRITICAL").actionFamily("EXPORT").build())
@@ -155,10 +158,11 @@ class Layer2ExpertStrategyTest {
 
         SecurityDecision decision = strategy.performDeepAnalysis(event);
 
-        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.ESCALATE);
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintReasons()).contains("LAYER2_ESCALATE_TERMINALIZED");
     }
 
-    /** Q-87 (N-P3-1): under a rule whose floor is a challenge (P1) the ESCALATE is terminalized as before. */
+    /** Under a rule whose floor is a challenge (P1) the ESCALATE is terminalized as before. */
     @Test
     void anEscalateUnderAChallengeFloorIsStillTerminalized() {
         SecurityEvent event = buildTestEvent();
@@ -521,24 +525,74 @@ class Layer2ExpertStrategyTest {
         assertThat(decision.getReasoning()).doesNotContain("trusted internal security signal");
     }
 
-    /** W3-9: a first pass with a model verdict whose past record search came back empty is not asked again. */
+    /**
+     * 판정층 E-4 (replaces W3-9's skip): a first pass that handed the request over is decided by the second pass's own
+     * model, also when its past record search found nothing new; the first verdict never becomes the final one.
+     */
     @Test
-    void aFirstPassWithNothingNewIsNotAskedAgain() {
+    void aFirstPassWithNothingNewIsStillDecidedByTheSecondPassModel() {
         Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w39-nothing-new", "ZERO_RESULTS", false, V20_LAYOUT);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
 
         SecurityDecision decision = secondPass.performDeepAnalysis(event);
 
-        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class));
+        assertThat(captor.getValue().getParameters())
+                .containsEntry("layer2FirstPassVerdict", "ESCALATE")
+                .containsEntry("layer2FirstPassPastRecordsState", "ZERO_RESULTS");
+        assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ALLOW);
+        assertThat(decision.getProcessingLayer()).isEqualTo(2);
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
+    }
+
+    /** 판정층 E-5: a v21 second pass that still answers ESCALATE is terminalized like every other bundle's. */
+    @Test
+    void aV21SecondPassEscalateIsTerminalized() {
+        TieredStrategyProperties v21 = new TieredStrategyProperties();
+        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        Layer2ExpertStrategy secondPass = strategyWith(v21);
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ESCALATE");
+        response.setReasoning("The facts conflict.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(response));
+
+        SecurityDecision decision = secondPass.performDeepAnalysis(buildTestEvent());
+
         assertThat(decision.getAction()).isEqualTo(ZeroTrustAction.ESCALATE);
         assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
         assertThat(decision.getAutonomyConstraintReasons()).contains("LAYER2_ESCALATE_TERMINALIZED");
-        assertThat(decision.getLlmDecisionPresent()).isTrue();
-        assertThat(decision.getTechnicalFallbackApplied()).isFalse();
-        assertThat(decision.getProcessingLayer()).isEqualTo(2);
-        assertThat(decision.getReasoning()).contains("Business intent remains uncertain.");
-        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
+    }
+
+    /**
+     * 판정층 E-5: v21 has no rule floor (V-5), so a v21 second pass ESCALATE is terminalized also where a v20 minimum
+     * action rule would ask for a review.
+     */
+    @Test
+    void aV21SecondPassEscalateIsTerminalizedAlsoWhereAV20RuleWouldAskForAReview() {
+        TieredStrategyProperties v21 = new TieredStrategyProperties();
+        v21.getPromptBundle().setActive(SecurityDecisionPromptBundles.V21.version());
+        Layer2ExpertStrategy secondPass = strategyWith(v21);
+        SecurityEvent event = buildTestEvent();
+        event.addMetadata("sealedEvidence.canonicalContext", CanonicalSecurityContext.builder()
+                .resource(CanonicalSecurityContext.Resource.builder().resourceClass("CRITICAL").actionFamily("EXPORT").build())
+                .decisionFacts(new DecisionFacts(List.of(), List.of(),
+                        new PolicySatisfaction(false, null, List.of(), "no approval", List.of()), List.of()))
+                .build());
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.setAction("ESCALATE");
+        response.setReasoning("No approval covers the export.");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(response));
+
+        SecurityDecision decision = secondPass.performDeepAnalysis(event);
+
+        assertThat(decision.resolveAutonomousAction()).isEqualTo(ZeroTrustAction.CHALLENGE);
+        assertThat(decision.getAutonomyConstraintReasons()).contains("LAYER2_ESCALATE_TERMINALIZED");
     }
 
     /** W3-9: past records the first pass could not retrieve and this pass found are the only facts added. */
@@ -659,40 +713,50 @@ class Layer2ExpertStrategyTest {
 
     /**
      * W3-16: one event runs one bundle, so the first prompt's layout decides the second pass; no setting of this layer
-     * does (the user prompt format setting is gone). A v20 first prompt with nothing new is not asked again.
+     * does (the user prompt format setting is gone). A v20 first prompt is drawn again for the second pass, which asks
+     * its model (판정층 E-4: also with nothing new).
      */
     @Test
     void theFirstPromptsBundleDecidesTheSecondPassWithoutAnySetting() {
         Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalated("w316-v20-first", "ZERO_RESULTS", false, V20_LAYOUT);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(allow()));
 
         secondPass.performDeepAnalysis(event);
 
-        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+        ArgumentCaptor<SecurityDecisionRequest> captor = ArgumentCaptor.forClass(SecurityDecisionRequest.class);
+        verify(pipelineOrchestrator).execute(captor.capture(), any(PipelineConfiguration.class),
                 eq(SecurityDecisionResponse.class));
-        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
+        assertThat(captor.getValue().getParameters()).containsKeys(
+                "layer2FirstPassUserPrompt", "layer2FirstPassVerdict", "layer2FirstPassPastRecordsState");
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
     }
 
     /**
-     * N-RSN-1: a first pass with nothing new is not asked again, and the decision keeps the first pass's model values
-     * with its verdict: the reason codes with the fact IDs they cite, the risk score, the confidence and the provenance
-     * of these fields.
+     * 판정층 E-4 (replaces N-RSN-1's kept first verdict): the first pass's model values reach the second pass on the
+     * cold path's hand-over, and the decision is the second pass model's with its own values; the first pass's
+     * ESCALATE, risk score, confidence and reason codes do not become the final ones.
      */
     @Test
-    void aFirstPassWithNothingNewKeepsTheFirstPassModelValues() {
+    void theSecondPassDecisionCarriesItsOwnValuesNotTheFirstPasss() {
         Layer2ExpertStrategy secondPass = strategyWith(new TieredStrategyProperties());
         SecurityEvent event = firstPassEscalatedWithModelValues("n-rsn-1-values");
+        SecurityDecisionResponse answer = allow();
+        answer.setRiskScore(0.31);
+        answer.setConfidence(0.84);
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(answer));
 
         ThreatAssessment assessment = secondPass.evaluate(event);
 
-        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class),
-                any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
-        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS");
-        assertThat(assessment.getAction()).isEqualTo(ZeroTrustAction.ESCALATE.name());
-        assertThat(assessment.getReasonCodes()).containsExactlyElementsOf(FIRST_PASS_REASON_CODES);
-        assertThat(assessment.resolveAuditRiskScore()).isEqualTo(0.78);
-        assertThat(assessment.resolveAuditConfidence()).isEqualTo(0.97);
-        assertThat(assessment.getFieldProvenance()).isEqualTo(FIRST_PASS_PROVENANCE);
+        verify(pipelineOrchestrator).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(assessment.getAction()).isEqualTo(ZeroTrustAction.ALLOW.name());
+        assertThat(assessment.resolveAuditRiskScore()).isEqualTo(0.31);
+        assertThat(assessment.resolveAuditConfidence()).isEqualTo(0.84);
+        // The second pass answered without reason codes, so the decision has none of the first pass's.
+        assertThat(assessment.getReasonCodes()).isNullOrEmpty();
     }
 
     private static final List<SecurityDecisionOutputContract.Citation> FIRST_PASS_REASON_CODES = List.of(

@@ -133,6 +133,16 @@ export interface QualityRibbonView {
   readonly unknown: number;
 }
 
+/** SC-8: an explanation a v21 decision weighed, with the model's assessment and the facts for and against it. */
+export interface Hypothesis {
+  readonly id: string;
+  /** The model's name of an explanation it added (H5); null for H1 to H4. */
+  readonly name: string | null;
+  readonly assessment: 'MOST_LIKELY' | 'POSSIBLE' | 'UNLIKELY' | 'NO_EVIDENCE' | string;
+  readonly for: readonly string[];
+  readonly against: readonly string[];
+}
+
 export interface RunQuality {
   readonly available: boolean;
   readonly reason: ViewReason | null;
@@ -142,6 +152,8 @@ export interface RunQuality {
   readonly inspection: Inspection | null;
   /** The reason codes of the sealed decision, each with the fact ID it cites. */
   readonly reasonCodes: readonly ReasonCode[];
+  /** SC-8: the explanations the decision weighed; empty before v21 (absent from an older portal). */
+  readonly hypotheses?: readonly Hypothesis[];
   readonly ribbon: QualityRibbonView | null;
 }
 

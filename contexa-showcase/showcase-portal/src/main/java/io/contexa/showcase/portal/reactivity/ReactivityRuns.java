@@ -13,7 +13,10 @@ import java.util.List;
  */
 public class ReactivityRuns {
 
-    /** A case as designed, one lab condition changed, a case-definition variant, an injection. */
+    /**
+     * A case as designed (N-INJ-6: or the control variant an injection place names as its base), one lab condition
+     * changed, a case-definition variant, an injection.
+     */
     public enum Kind { BASE, LAB, VARIANT, INJECTION }
 
     /** One harness run: the case or variant key it ran, and when it was recorded. */

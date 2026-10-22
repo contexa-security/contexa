@@ -35,6 +35,7 @@ import io.contexa.showcase.portal.template.TemplateMaintainer;
 import io.contexa.showcase.portal.template.TemplateStore;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -91,6 +92,15 @@ public class OrchestrationConfiguration {
                                     AnatomyStore anatomies) {
         return new RunOrchestrator(endpoints, admin, signer, runStore, templateCurrency, specs, contract,
                 objectMapper, anatomies);
+    }
+
+    /**
+     * 벤치마크 계획 BM-S9: no protocol runs when this portal starts (its jobs live in the portal), so a protocol a stopped
+     * portal left unfinished is closed at its last run; its scores then state the runs it made.
+     */
+    @Bean
+    ApplicationRunner unfinishedProtocolCloser(RunStore runStore) {
+        return arguments -> runStore.closeUnfinishedProtocols();
     }
 
     @Bean

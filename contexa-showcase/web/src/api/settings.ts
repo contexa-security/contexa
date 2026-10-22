@@ -32,6 +32,9 @@ export interface PublicSettingsView {
     readonly effectiveMode: string | null;
     /** How many adverse conditions the core's response inspector checks in every answer. */
     readonly inspectorConditions: number;
+    /** The models the first and the second analysis run on, as control D states them (판정층 E-8c). */
+    readonly layer1Model?: string | null;
+    readonly layer2Model?: string | null;
   };
   readonly retention: { readonly behaviorDays: number | null; readonly promptOriginalDays: number };
   /** How long control D keeps a sealed package found clean and the share of decisions it inspects; absent until

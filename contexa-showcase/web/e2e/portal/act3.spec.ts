@@ -2,6 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
+// The final screen design (최종화면-구현계획 F0-1) replaced the flow this spec walks; mainFlow.spec.ts and
+// keyboard.spec.ts walk the new one. This spec is on the deletion list for the user (최종화면-구현계획 4절).
+test.skip(true, 'replaced by mainFlow.spec.ts (최종화면-구현계획 FC-2)');
+
 /**
  * Act 3 on the real portal (screen design v2.3, 7.3): prior learning, how it judges, the prompt, the two decision
  * modes with the visitor's attack sent again asynchronously, try 3 sent live, learning after a decision and the act-end
@@ -60,44 +64,49 @@ for (const language of ['ko', 'en'] as const) {
   }) => {
     test.setTimeout(2 * RUN_TIMEOUT + 240_000);
 
-    // Prior learning 1: the learned hours of try 1's employee with the request's hour marked.
+    // 3-0, part 3's cover (화면재편 T1): the question, and how many learned requests came at try 1's request hour.
     await page.goto(`/intro/learning?lng=${language}`);
     const options = await api(page, '/api/lab/options');
     const a3 = options.cases.find((candidate: { key: string }) => candidate.key === 'A3');
     const slot = options.timeSlots.find(
       (candidate: { slot: string }) => candidate.slot === a3.conditions.timeSlot,
     );
-    const when = format(m[`lab.slot.${slot.slot}`] ?? '', { time: slot.representativeTime });
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      format(m['learnWhy.title'] ?? '', { when }),
-    );
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(m['screen.3-0.title'] ?? '');
     const baseline = await api(page, `/api/live/baseline/${a3.conditions.employee}`);
     const hour = Number(slot.representativeTime.slice(0, 2));
-    if (baseline.learned.hours[hour] === 0) {
-      await expect(page.locator('main')).toContainText(
-        format(m['learnWhy.known.zero'] ?? '', { n: items(baseline.learned.requests, language), hour }),
-      );
-    }
+    const atHour: number = baseline.learned.hours[hour] ?? 0;
+    const learned = items(baseline.learned.requests, language);
+    await expect(page.locator('main')).toContainText(
+      atHour === 0
+        ? format(m['p3.why.known.zero'] ?? '', { n: learned })
+        : format(m['p3.why.known.some'] ?? '', { n: learned, at: items(atHour, language) }),
+    );
     expect(await seriousViolations(page)).toEqual([]);
 
-    // Prior learning 2: the engine's own learning states and the learned requests.
+    // 3-1 (F-4): the body writes the count the engine learned; the window holds the sent count and every request sent.
     await page.goto(`/intro/learning/learned?lng=${language}`);
     await expect(
-      page.getByText(m[`learned.state.${baseline.hours.personalBaselineStatus}`] ?? ''),
+      page.getByRole('heading', { level: 2, name: format(m['p3.learned.hours'] ?? '', { n: learned }) }),
     ).toBeVisible();
-    await expect(page.getByText(m[`learned.state.${baseline.hours.roleScopeState}`] ?? '')).toBeVisible();
-    await page
-      .getByRole('button', { name: format(m['learned.requestsOpen'] ?? '', { n: baseline.sent }) })
-      .click();
-    await expect(page.locator('dialog table tbody tr')).toHaveCount(baseline.sent);
+    await page.getByRole('button', { name: m['p3.learned.open'] ?? '' }).click();
+    const requests = page.getByRole('dialog');
+    await expect(requests).toContainText(
+      format(m['p3.learned.window.counts'] ?? '', {
+        sent: items(baseline.sent, language),
+        allowed: items(baseline.allowed, language),
+        learned,
+      }),
+    );
+    await expect(requests.locator('table tbody tr')).toHaveCount(baseline.sent);
     await page.keyboard.press('Escape');
     expect(await seriousViolations(page)).toEqual([]);
 
-    // How it judges: nine cells, each saying what it does when pressed.
+    // 3-2: the nine steps a request passes, read, not pressed.
     await page.goto(`/intro/how?lng=${language}`);
-    await expect(page.locator('main ol button')).toHaveCount(9);
-    await page.getByRole('button', { name: new RegExp(m['inside.cell.company'] ?? '') }).click();
-    await expect(page.getByText(m['how.cell.company'] ?? '')).toBeVisible();
+    await expect(
+      page.getByRole('list', { name: m['p3.how.figure'] ?? '' }).locator(':scope > li'),
+    ).toHaveCount(9);
+    await expect(page.locator('[data-zone="body"] button')).toHaveCount(0);
     expect(await seriousViolations(page)).toEqual([]);
 
     // The prompt (U-2): the five parts in reading order when the step has a fact view, and every block's line count,

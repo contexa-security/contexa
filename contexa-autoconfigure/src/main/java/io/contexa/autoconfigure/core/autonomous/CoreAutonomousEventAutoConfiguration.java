@@ -18,6 +18,8 @@ package io.contexa.autoconfigure.core.autonomous;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.context.collector.ContextObservationRecorder;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.blocking.BlockedStateProbe;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
@@ -121,8 +123,9 @@ public class CoreAutonomousEventAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean
         @ConditionalOnBean(type = "org.redisson.api.RedissonClient")
-        public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
-            return new BlockingDecisionRegistry(redissonClient);
+        public BlockingDecisionRegistry blockingDecisionRegistry(
+                RedissonClient redissonClient, ObjectProvider<ZeroTrustActionRepository> decisions) {
+            return new BlockingDecisionRegistry(redissonClient, decisionInForce(decisions));
         }
     }
 
@@ -141,8 +144,17 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(BlockingSignalBroadcaster.class)
-    public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
-        return new InMemoryBlockingSignalBroadcaster();
+    public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster(
+            ObjectProvider<ZeroTrustActionRepository> decisions) {
+        return new InMemoryBlockingSignalBroadcaster(decisionInForce(decisions));
+    }
+
+    /** Reads the decision in force, so a BLOCK whose signal was missed still cuts a response in flight. */
+    static BlockedStateProbe decisionInForce(ObjectProvider<ZeroTrustActionRepository> decisions) {
+        return userId -> {
+            ZeroTrustActionRepository repository = decisions.getIfAvailable();
+            return repository != null && repository.getCurrentAction(userId, null) == ZeroTrustAction.BLOCK;
+        };
     }
 
 

@@ -1,18 +1,21 @@
-// S9 check on the real stack (C-3, C-4, C-5, C-16): the decision details window in Korean and English, each of its
-// six tabs for a measured model decision, the summary of a request an earlier decision refused, and the stored real
-// record of a recorded pair and of a measured case; the first screen again, since its replay moved to the shared stage.
-// Every capture is taken at 390, 768, 1024 and 1440 px; the window's limits are counted inside the window.
+// S9 check on the real stack (C-3, C-4, C-5, C-16; redesign R7 RO-1): the decision details window in Korean and
+// English, each of its seven tabs for a measured model decision, the summary of a request an earlier decision refused,
+// and the stored real record of a recorded pair and of a measured case; the first screen again, since its replay moved
+// to the shared stage. Every capture is taken at 390, 768, 1024 and 1440 px; each tab is also judged inside the window
+// by the redesign's limits (frameMeasure.mjs: the tab's body and source line, the tab buttons aside), its length being
+// the tab panel's height.
 // Usage: node e2e/s9-detail.mjs <out dir> [base url]
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { judge, LIMITS, measure } from './frameMeasure.mjs';
 import { capture } from './screenCheck.mjs';
 
 const out = process.argv[2];
 const base = process.argv[3] ?? 'http://127.0.0.1:5180';
 mkdirSync(out, { recursive: true });
 
-const TABS = ['summary', 'received', 'process', 'prompt', 'answer', 'original'];
+const TABS = ['summary', 'received', 'process', 'prompt', 'rules', 'answer', 'original'];
 const benchmark = await (await fetch(`${base}/api/benchmark`)).json();
 const runOf = (key) => benchmark.cases.find((row) => row.key === key)?.runIds[0];
 const decided = runOf('A3');
@@ -21,6 +24,7 @@ const refused = runOf('A6');
 const browser = await chromium.launch();
 const report = [];
 const values = [];
+const frames = [];
 for (const language of ['ko', 'en']) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
@@ -38,6 +42,19 @@ for (const language of ['ko', 'en']) {
     const heading = root === 'main' ? 'main h1' : 'dialog[open] h2';
     values.push({ language, screen: name, heading: await page.locator(heading).first().innerText(), url: page.url() });
     await capture(page, out, language, name, report, root);
+    if (root !== 'main') {
+      // The window's tab in the redesign's limits, at 1440 and again at 390 for the phone limits and the tab's length.
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+        await page.waitForTimeout(300);
+        const m = await page.evaluate(measure);
+        const panel = await page.evaluate(() => document.querySelector('#detail-panel')?.getBoundingClientRect().height ?? 0);
+        const fails = judge({}, width, m, {}, false, language).filter((fail) => !fail.startsWith('height'));
+        if (width === 390 && panel > LIMITS.height390) fails.push(`tab length ${Math.round(panel)} > ${LIMITS.height390}`);
+        frames.push({ language, screen: name, width, press: m.press, boxes: m.boxes, numbers: m.numbers, fails });
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
   };
 
   for (const tab of TABS) {
@@ -52,7 +69,7 @@ for (const language of ['ko', 'en']) {
 }
 await browser.close();
 
-writeFileSync(join(out, 'report.json'), JSON.stringify({ decided, refused, report, values }, null, 2));
+writeFileSync(join(out, 'report.json'), JSON.stringify({ decided, refused, report, values, frames }, null, 2));
 const problems = report.filter(
   (entry) =>
     entry.overflow > 0 ||
@@ -69,5 +86,10 @@ for (const entry of problems) {
   console.log(JSON.stringify(entry));
 }
 for (const entry of values.filter((value) => value.screen === 'errors' && value.errors.length > 0)) {
+  console.log(JSON.stringify(entry));
+}
+const framed = frames.filter((entry) => entry.fails.length > 0);
+console.log(`${frames.length} tab checks, ${framed.length} beyond the redesign's limits`);
+for (const entry of framed) {
   console.log(JSON.stringify(entry));
 }

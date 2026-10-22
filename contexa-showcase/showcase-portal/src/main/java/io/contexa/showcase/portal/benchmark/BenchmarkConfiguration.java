@@ -30,4 +30,10 @@ public class BenchmarkConfiguration {
         return new BenchmarkService(jdbc, scores, catalog, objectMapper, BenchmarkService.prices(prices),
                 priceSource.isBlank() ? null : priceSource, Clock.systemUTC());
     }
+
+    /** BM-S8 of docs/showcase/벤치마크-구현계획.md: the decision quality an operator published for a setting. */
+    @Bean
+    DecisionQualityPublications decisionQualityPublications(NamedParameterJdbcTemplate jdbc) {
+        return new DecisionQualityPublications(jdbc);
+    }
 }

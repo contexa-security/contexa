@@ -4,7 +4,7 @@ import { Term, TermScope } from '../../components/common/Glossary';
 import { SourceMark } from '../../components/common/SourceMark';
 import { CumulativeMeter } from '../../components/inside/CumulativeMeter';
 import { DecisionDetail, InsidePanel } from '../../components/inside/InsidePanel';
-import { ActEndCard, TeaserBand } from '../../components/journey/Cards';
+import { TeaserBand } from '../../components/journey/Cards';
 import { GoalChips, IdentityDefinition, JustSaw, RoleBanner } from '../../components/journey/JourneyParts';
 import styles from './DesignStatesPage.module.css';
 
@@ -35,19 +35,6 @@ export default function DesignPartsPage() {
           <section aria-label="cards">
             <TeaserBand
               copy={{ question: sample(t('teaser.HOOK_TRY.question')), teaser: '…', teaserItem: null }}
-            />
-            <ActEndCard
-              act={1}
-              differences={[1, 2, 4, 5]}
-              sentence={sample('…')}
-              measured
-              runId="run-000000000000"
-              next={{ question: sample(t('teaser.E1_AFTER_RULES.question')), teaser: null, teaserItem: null }}
-              continueTo="/try/owner/scene"
-              back={{ to: '/try/attacker/after', label: sample('…') }}
-              resendAsyncTo="/try/timing/try?from=attacker"
-              benchmarkTo="/benchmark"
-              shareUrl="http://localhost/try/attacker/after"
             />
           </section>
           <section aria-label="inside">

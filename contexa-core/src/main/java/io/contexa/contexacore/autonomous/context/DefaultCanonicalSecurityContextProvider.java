@@ -748,6 +748,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .resourceType(firstText(metadata.get("resourceType"), metadata.get("resourceCategory")))
                 .businessLabel(firstText(metadata.get("resourceLabel"), metadata.get("businessLabel")))
                 .authorText(firstText(metadata.get("resourceAuthorText")))
+                .scope(firstText(metadata.get("resourceScope")))
                 .requestedItems(resolveInteger(metadata.get("requestItems")))
                 .sensitivity(resolveResourceSensitivity(metadata, sensitiveResource, privileged, exportSensitive))
                 .requestPath(requestPath)

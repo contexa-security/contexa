@@ -46,6 +46,8 @@ public record DelegatedExecutionContext(
 
     public static final String EXECUTION_MODE_DIRECT_USER = "DIRECT_USER";
     public static final String EXECUTION_MODE_DELEGATED_AGENT = "DELEGATED_AGENT";
+    /** An agent acting on its own, for no person (A1-3, {@code SubjectKind.AUTONOMOUS_AGENT}). */
+    public static final String EXECUTION_MODE_AUTONOMOUS_AGENT = "AUTONOMOUS_AGENT";
     public static final String LINEAGE_STATE_DIRECT = "DIRECT";
     public static final String LINEAGE_STATE_DECLARED = "DECLARED";
     public static final String LINEAGE_STATE_IMPUTED_SERVICE_CLIENT = "IMPUTED_SERVICE_CLIENT";
@@ -110,6 +112,10 @@ public record DelegatedExecutionContext(
 
     public boolean directUserExecution() {
         return EXECUTION_MODE_DIRECT_USER.equals(executionMode);
+    }
+
+    public boolean autonomousAgentExecution() {
+        return EXECUTION_MODE_AUTONOMOUS_AGENT.equals(executionMode);
     }
 
     public boolean declaredLineage() {

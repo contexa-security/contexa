@@ -1,7 +1,7 @@
-// S8 check on the real stack (C-3, C-4, C-5, C-16): the stepped lab in Korean and English. The entrance, picking a
-// case, changing one condition (and the employee's usual behaviour window), the comparison before sending, predicting
-// and sending (one real run per language), the result, and the rule tightening on both tabs. Every screen is captured
-// at 390, 768, 1024 and 1440 px and checked like the routes.
+// S8 check on the real stack (C-3, C-4, C-5, C-16; 화면재편 R7 RO-2): the lab in the redesigned frame, in Korean and
+// English. The entrance, picking a situation, changing one condition, the comparison before sending, predicting and
+// sending (one real run per language), the result, and the rule tightening with one setting changed. Every screen is
+// captured at 390, 768, 1024 and 1440 px and checked like the routes.
 // Usage: node e2e/s8-lab.mjs <out dir> [base url]
 import { chromium } from '@playwright/test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -40,42 +40,26 @@ for (const language of ['ko', 'en']) {
 
   await open('lab-0', '/lab');
   await open('lab-1', '/lab/case?case=A3T');
-  await open('lab-2', '/lab/change?case=A3T&field=approval');
-  // The chip names the employee: the dictionary's sentence with any name in its place.
-  const usualName = new RegExp(
-    m['labChange.usual']
-      .replace(/<\/?name>/g, '')
-      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      .replace('\\{\\{name\\}\\}', '.+'),
-  );
-  await page.getByRole('button', { name: usualName }).first().click();
-  await page.getByRole('dialog').waitFor();
-  await page.waitForTimeout(600);
-  for (const width of [390, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(out, `lab-usual-${language}-${width}.png`) });
-    report.push({ language, name: 'lab-usual', width, ...(await inspect(page)) });
-  }
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.keyboard.press('Escape');
+  await open('lab-2', '/lab/change?case=A3T&field=approval&approval=false');
   await open('lab-compare', '/lab/before?case=A3T&approval=false');
   await open('lab-send', '/lab/send?case=A3T&approval=false');
 
-  // One real run: the call, then the run screen while it goes and the result once it ended.
-  await page.getByLabel(m['labSend.calls.ATTACK'], { exact: true }).check();
-  await page.getByRole('button', { name: m['labSend.send'] }).click();
+  // One real run: the call, then the run screen once it ended and the result.
+  const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // The radio itself is visually hidden; a visitor presses its label, as here.
+  await page.locator('label').filter({ has: page.getByRole('radio', { name: new RegExp(escape(m['lab.r7.send.call.ATTACK'])) }) }).click();
+  await page.getByRole('button', { name: m['lab.r7.send.send'] }).click();
   await page.waitForURL(/sent=/, { timeout: 60_000 });
-  await page.getByRole('link', { name: m['labSend.toResult'] }).waitFor({ timeout: 240_000 });
+  await page.getByRole('link', { name: m['lab.r7.run.next'] }).waitFor({ timeout: 240_000 });
   await capture(page, out, language, 'lab-run', report);
-  await page.getByRole('link', { name: m['labSend.toResult'] }).click();
+  await page.getByRole('link', { name: m['lab.r7.run.next'] }).click();
   await page.waitForURL(/\/lab\/result/);
   await page.waitForTimeout(1200);
   values.push({ language, screen: 'lab-3', heading: await page.locator('h1').innerText(), url: page.url() });
   await capture(page, out, language, 'lab-3', report);
 
   await open('lab-rules', '/lab/rules');
-  await open('lab-rules-c2', '/lab/rules?tab=c2');
+  await open('lab-rules-c2', '/lab/rules?rule=approval&value=off');
   values.push({ language, screen: 'errors', errors });
   await context.close();
 }

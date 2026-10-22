@@ -1,16 +1,30 @@
+/* The top bar (최종화면-구현계획 F0-2): brand, LIVE, today's runs, terms and menu, then the six groups. */
+.header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0);
+  z-index: var(--layer-raised);
+  border-block-end: 1px solid var(--color-border);
+  background-color: var(--color-bar);
+  backdrop-filter: blur(8px);
+}
+
 .bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
-  min-block-size: var(--header-height);
-  padding: 0 var(--space-6);
-  border-block-end: 1px solid var(--color-border);
+  min-block-size: var(--frame-bar-height);
+  padding: 0 var(--frame-gutter);
 }
 
 .brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  align-self: center;
+  padding-block-start: var(--space-3);
   color: var(--color-accent);
-  font-size: var(--text-sm);
+  font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wide);
   text-decoration: none;
@@ -18,137 +32,306 @@
 
 .brandDemo {
   color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
 }
 
-.nav {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  justify-content: center;
-}
-
-.navLink {
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-live-line);
   border-radius: var(--radius-pill);
+  background-color: var(--color-live-soft);
+  color: var(--color-live-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+/* Only the run number is a code; the Korean words keep the body font so they do not spread apart (L-02). */
+.liveRun {
+  font-family: var(--font-mono);
+}
+
+.liveDot {
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-live);
+  box-shadow: var(--ring-live);
+  animation: live-pulse var(--motion-pulse) var(--ease-standard) infinite;
+}
+
+@keyframes live-pulse {
+  50% {
+    box-shadow: var(--ring-live-small);
+  }
+}
+
+.spacer {
+  flex: 1;
+}
+
+.stats {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-  text-decoration: none;
+  white-space: nowrap;
 }
 
-.navLink:hover {
+/* The counts: the shared figures style (tokens.css), so '320' never reads as '32Ø' (L-01). */
+.stats b {
   color: var(--color-text);
-}
-
-.navActive {
-  background-color: var(--color-surface-raised);
-  color: var(--color-text);
+  font-family: var(--font-figures);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--weight-semibold);
 }
 
-/*
- * On tablets and phones: the brand, the glossary and the languages in the first row, the five menu items under it (one
- * row in Korean; longer words wrap rather than hide), so the screen's own content starts high.
- */
-@media (width < 64rem) {
-  .bar {
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-  }
-
-  .nav {
-    order: 3;
-    justify-content: flex-start;
-    flex-basis: 100%;
-    gap: 0;
-  }
-
-  .navLink {
-    padding: var(--space-1) var(--space-2);
-    white-space: nowrap;
-  }
-
-  .language,
-  .glossary {
-    padding: var(--space-1) var(--space-2);
-  }
-
-  .brand {
-    margin-inline-end: auto;
-  }
-}
-
-/* Phones (mobile slide): every pressable part of the bar is at least 44 px. */
-@media (width <= 40rem) {
-  .brand,
-  .navLink,
-  .language,
-  .glossary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-  }
-
-  /* The brand's two words keep their space as flex items. */
-  .brand {
-    gap: var(--space-1);
-  }
-
-  /* Only the other language is offered, so the bar's first line holds the brand, the glossary and the switch. */
-  .language[aria-pressed='true'] {
-    display: none;
-  }
-
-  /*
-   * The menu is one row that slides sideways: wrapped, it took one or two rows depending on how wide the font drew
-   * the words, and the late demo font moved every screen up by a row (C-13, layout shift 0.32).
-   */
-  .nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .navLink {
-    flex-shrink: 0;
-  }
-}
-
-.languages {
+.terms,
+.menuButton {
   display: inline-flex;
-  gap: var(--space-1);
-}
-
-.language {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid transparent;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
   background-color: transparent;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
-.language[aria-pressed='true'] {
-  border-color: var(--color-border-strong);
+.menuButton {
   color: var(--color-text);
 }
 
-.glossary {
-  min-height: 2.75rem;
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background-color: transparent;
+.menuIcon {
+  flex: none;
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--frame-gutter) var(--space-3);
+  list-style: none;
+  background-color: var(--color-bar-soft);
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  transition:
+    background-color var(--duration-slow) var(--ease-standard),
+    color var(--duration-slow) var(--ease-standard);
+}
+
+.groupMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.groupCheck {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.groupName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group[data-state='done'] {
+  border-color: var(--color-accent-line);
+  color: var(--color-accent);
+}
+
+.group[data-state='done'] .groupMark {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.group[data-state='now'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: var(--weight-bold);
+}
+
+.group[data-state='now'] .groupMark {
+  background-color: var(--color-accent-ink);
+  color: var(--color-accent);
+}
+
+.space {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--frame-gutter) var(--space-3);
+  background-color: var(--color-bar-soft);
+}
+
+.moreName {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+}
+
+.spaceName,
+.moreName {
+  color: var(--color-accent);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.moreTopic {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.moreBack {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.moreIcon {
+  flex: none;
+}
+
+.progress {
+  flex-basis: 100%;
+  block-size: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-border);
+}
+
+.progressFill {
+  display: block;
+  block-size: 100%;
+  background-color: var(--color-accent);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--type-body);
+  text-align: start;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.glossary:focus-visible {
+.terms:focus-visible,
+.menuButton:focus-visible,
+.menuItem:focus-visible,
+.moreName:focus-visible,
+.moreBack:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* A narrower window: the statistics leave first, then the group names shorten to the current one. */
+@media (width <= 72rem) {
+  .stats {
+    display: none;
+  }
+}
+
+@media (width <= 56rem) {
+  .group:not([data-state='now']) .groupName {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .groups {
+    grid-template-columns: repeat(7, auto);
+    justify-content: start;
+  }
+
+  .group:not([data-state='now']) {
+    padding: var(--space-2);
+  }
+}
+
+/* Phones: the brand shortens to its name, the menu to its icon (its name stays for screen readers). */
+@media (width <= 40rem) {
+  .bar {
+    gap: var(--space-2);
+  }
+
+  .brandDemo,
+  .liveRun {
+    display: none;
+  }
+
+  .groups {
+    gap: var(--space-1);
+  }
+
+  .menuButton {
+    justify-content: center;
+    min-width: 2.75rem;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .menuButton span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .terms {
+    padding: var(--space-1) var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
 }

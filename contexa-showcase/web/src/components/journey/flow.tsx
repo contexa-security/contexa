@@ -1,79 +1,38 @@
 import type { TFunction } from 'i18next';
 import type { ReactNode } from 'react';
-import type { TeasersView } from '../../api/teasers';
-import { teaserCopy } from '../../journey/copy';
-import type { Route, Screen } from '../../journey/journey';
-import { TeaserBand } from './Cards';
+import { MORE_PATH, type Screen } from '../../journey/journey';
 import { NextLink } from './StepParts';
 
-/**
- * How a screen connects to its neighbours (U-3): the way back to the screen before on the route, the main button, and
- * the teaser band the route puts over it.
- */
+/** How a screen connects to its neighbours: the way back and the one main button. */
 export interface RouteFlow {
   readonly back: { readonly to: string; readonly label: string } | null;
   readonly next: ReactNode;
-  /** The teaser band over the main button (0-3 table); null where the route puts a plain "next" button. */
+  /** Kept for the screens not yet redone; the teaser band is gone (R-6), so it is always null. */
   readonly teaser: ReactNode;
 }
 
-/**
- * A neighbouring screen's name on a button: the step name the place band shows, with its act in front when the screen
- * belongs to another act ("back · act 1 wrap-up"), so a button never names a step the band does not show.
- */
-export function stepName(t: TFunction, target: Screen, from: Screen | null): string {
-  const name = t(`place.step.${target.id}`);
-  return target.act !== null && from?.act !== null && from?.act !== undefined && target.act !== from.act
-    ? `${t('act.label', { n: target.act })} ${name}`
-    : name;
-}
-
 interface Place {
-  readonly route: Route;
   readonly screen: Screen | null;
   readonly next: Screen | null;
   readonly previous: Screen | null;
-  readonly differences: readonly number[];
 }
 
 /**
- * The flow of a screen from its place on the route, the same for every screen: back names the screen before, the main
- * button names the next one (or reads "see next" under a teaser band), and on the concept path both keep ?route=intro
- * (D-37). A screen whose main button names its next step in its own words passes that label, and names the screen the
- * words are for when the routes lead on differently: on a route where the next screen is another one, the band's step
- * name is used (U-11, S12).
+ * The flow of a "learn more" screen from its place in its topic (최종화면-구현계획 2절): "back" leads to the screen
+ * before in the topic, the main button names the next screen of the topic, and the topic's last screen leads back to
+ * the hub. A screen with its own action (Send) passes its own main.
  */
-export function routeFlow(
-  t: TFunction,
-  language: 'ko' | 'en',
-  place: Place,
-  teasers: TeasersView | undefined,
-  nextLabel?: string,
-  nextLabelFor?: string,
-): RouteFlow {
-  const intro = place.route === 'INTRO';
-  const suffix = intro ? '?route=intro' : '';
+export function routeFlow(t: TFunction, place: Place): RouteFlow {
   const { screen, next, previous } = place;
-  const teaser =
-    !intro && screen?.teaser && !screen.actEnd && next ? (
-      <TeaserBand copy={teaserCopy(t, language, screen.teaser, teasers, place.differences.length)} />
-    ) : null;
+  let main: ReactNode = null;
+  if (screen && next) {
+    main = <NextLink to={next.path} label={t('frame.nextNamed', { name: t(`more.name.${next.id}`) })} />;
+  } else if (screen && screen.act === 0) {
+    main = <NextLink to={MORE_PATH} label={t('more.toHub')} />;
+  }
   return {
-    back: previous
-      ? { to: `${previous.path}${suffix}`, label: t('step.back', { step: stepName(t, previous, screen) }) }
-      : null,
-    next: next ? (
-      <NextLink
-        to={`${next.path}${suffix}`}
-        label={
-          teaser
-            ? t('teaser.see')
-            : nextLabel && (!nextLabelFor || next.id === nextLabelFor)
-              ? nextLabel
-              : t('step.next', { step: stepName(t, next, screen) })
-        }
-      />
-    ) : null,
-    teaser,
+    back: previous ? { to: previous.path, label: t('frame.back') } : null,
+    next: main,
+    teaser: null,
   };
 }

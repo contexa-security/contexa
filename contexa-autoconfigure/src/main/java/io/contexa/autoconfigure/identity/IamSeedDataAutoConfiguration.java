@@ -48,7 +48,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @AutoConfiguration(after = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class, CoreDataAutoConfiguration.class})
@@ -101,6 +104,11 @@ public class IamSeedDataAutoConfiguration {
     /** Q-32: the sample accounts (one shared password) are seeded only when asked for; the rest always is. */
     static final String ACCOUNT_SEED_LOCATION = "db/data-accounts.sql";
     static final String ACCOUNT_SEED_PROPERTY = "contexa.iam.seed.accounts.enabled";
+
+    private static final Pattern CREATE_TABLE_IF_NOT_EXISTS =
+            Pattern.compile("^create table if not exists ([\\w.\"]+)");
+    private static final Pattern CREATE_INDEX_IF_NOT_EXISTS =
+            Pattern.compile("^create (?:unique )?index if not exists \\S+ on (?:only )?([\\w.\"]+)");
 
     /** The seed files the initializer runs, in order; the sample accounts last, and only when the property is true. */
     static List<String> seedLocations(Environment environment) {
@@ -209,6 +217,7 @@ public class IamSeedDataAutoConfiguration {
                 applyCanonicalSchemaMaintenance(dataSource);
             } else {
                 log.info("[IamSeedData] Enterprise provenance is present; OSS canonical DDL maintenance is skipped");
+                createMissingOssTables(dataSource);
             }
         }
         for (String location : seedLocations) {
@@ -258,6 +267,75 @@ public class IamSeedDataAutoConfiguration {
         }
         executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION + "#maintenance", maintenanceSql);
         log.info("[IamSeedData] {} idempotent schema maintenance executed", CANONICAL_SCHEMA_LOCATION);
+    }
+
+    /**
+     * A1-6: an OSS table added after an enterprise took over the schema has no other way in. The enterprise migrations
+     * run after this initializer, and the OSS inventory must be complete before them, so the tables the database lacks
+     * are created here with their indexes. Tables that exist are left alone: their evolution stays the enterprise's.
+     */
+    static void createMissingOssTables(DataSource dataSource) throws IOException, SQLException {
+        Resource schema = new ClassPathResource(CANONICAL_SCHEMA_LOCATION);
+        if (!schema.exists()) {
+            return;
+        }
+        ContexaSchemaInventory.Snapshot inventory = ContexaSchemaInventory.fromResources(
+                OssSchemaGovernance.OSS_OWNER, List.of(schema));
+        Set<String> missingTables = ContexaSchemaInventory.diff(
+                inventory, ContexaSchemaInventory.readDatabase(dataSource)).missingTables();
+        if (missingTables.isEmpty()) {
+            return;
+        }
+        String creationSql = extractMissingTableCreationSql(
+                sanitizeSchemaSqlForInstalledDatabase(schema.getContentAsString(StandardCharsets.UTF_8)), missingTables);
+        if (creationSql.isBlank()) {
+            return;
+        }
+        executeSchemaSql(dataSource, CANONICAL_SCHEMA_LOCATION + "#missing-tables", creationSql);
+        log.info("[IamSeedData] OSS tables missing from the enterprise-managed database were created: {}", missingTables);
+    }
+
+    /** The {@code create table if not exists} and {@code create index if not exists} statements of the given tables. */
+    static String extractMissingTableCreationSql(String sql, Set<String> missingTables) {
+        if (sql == null || sql.isBlank() || missingTables == null || missingTables.isEmpty()) {
+            return "";
+        }
+        Set<String> missing = new LinkedHashSet<>();
+        for (String table : missingTables) {
+            missing.add(table.toLowerCase(Locale.ROOT));
+        }
+        StringBuilder creation = new StringBuilder();
+        for (String statement : splitSqlStatements(sql)) {
+            String candidate = statement.trim();
+            String normalized = normalizeSqlStatement(candidate);
+            String table = matchedTable(CREATE_TABLE_IF_NOT_EXISTS, normalized);
+            if (table == null) {
+                table = matchedTable(CREATE_INDEX_IF_NOT_EXISTS, normalized);
+            }
+            if (table != null && missing.contains(table)) {
+                creation.append(candidate).append(";\n");
+            }
+        }
+        return creation.toString();
+    }
+
+    private static String matchedTable(Pattern pattern, String normalizedStatement) {
+        Matcher matcher = pattern.matcher(normalizedStatement);
+        if (!matcher.find()) {
+            return null;
+        }
+        String name = matcher.group(1).replace("\"", "");
+        int schemaSeparator = name.lastIndexOf('.');
+        return schemaSeparator >= 0 ? name.substring(schemaSeparator + 1) : name;
+    }
+
+    private static String normalizeSqlStatement(String sqlStatement) {
+        return sqlStatement
+                .replaceAll("(?s)/\\*.*?\\*/", " ")
+                .replaceAll("(?m)--.*$", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
     }
 
     private void completePqaOfficialSchemaIfNeeded(DataSource dataSource) throws SQLException, IOException {
@@ -342,7 +420,7 @@ public class IamSeedDataAutoConfiguration {
         }
     }
 
-    private void executeSchemaSql(DataSource dataSource, String location, String sql) throws SQLException {
+    static void executeSchemaSql(DataSource dataSource, String location, String sql) throws SQLException {
         List<String> statements = splitSqlStatements(sql);
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
@@ -499,7 +577,7 @@ public class IamSeedDataAutoConfiguration {
                 .isEmpty();
     }
 
-    private String abbreviate(String sqlStatement) {
+    private static String abbreviate(String sqlStatement) {
         String singleLine = sqlStatement.replaceAll("\\s+", " ").trim();
         return singleLine.length() <= 500 ? singleLine : singleLine.substring(0, 500) + "...";
     }

@@ -135,6 +135,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Read before the decision in force: a BLOCK the response did not pass is one received after it.
+        long responseStartNanos = System.nanoTime();
         String userId = extractUserId(auth);
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
@@ -154,7 +156,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 recordStopped(auth, ZeroTrustAction.ESCALATE);
                 handleEscalate(request, response, userId);
             }
-            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId);
+            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId, responseStartNanos);
             default -> filterChain.doFilter(request, response);
         }
     }
@@ -416,7 +418,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private void handlePendingAnalysis(HttpServletRequest request,
                                         HttpServletResponse response,
                                         FilterChain filterChain,
-                                        String userId) throws ServletException, IOException {
+                                        String userId,
+                                        long responseStartNanos) throws ServletException, IOException {
         if (blockingDecisionRegistry == null) {
             filterChain.doFilter(request, response);
             return;
@@ -424,13 +427,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         String blockedRedirectUrl = resolveBlockedRedirectUrl();
         BlockableResponseWrapper wrapper = new BlockableResponseWrapper(
-                response, blockingDecisionRegistry, userId, blockedRedirectUrl);
+                response, blockingDecisionRegistry, userId, blockedRedirectUrl, responseStartNanos);
+        // The block signal stays after a cut, so the user's other responses in flight are cut too; the release
+        // paths (MFA success, administrator, account purge) clear it.
         try {
             filterChain.doFilter(request, wrapper);
         } catch (IOException e) {
-            if (blockingDecisionRegistry.isBlocked(userId)) {
+            if (wrapper.isCut()) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user (IOException): userId={}", userId);
-                blockingDecisionRegistry.registerUnblock(userId);
                 if (!response.isCommitted()) {
                     response.sendRedirect(request.getContextPath() + "/");
                     return;
@@ -439,7 +443,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             throw e;
         } catch (ResponseBlockedException e) {
             log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user (PrintWriter): userId={}", userId);
-            blockingDecisionRegistry.registerUnblock(userId);
             if (!response.isCommitted()) {
                 response.sendRedirect(request.getContextPath() + "/");
                 return;

@@ -70,8 +70,14 @@ public interface BusinessContextLookup {
      * @param ticketKey the fitting ticket, or the closest candidate when none fits
      * @param mismatches conditions the closest candidate fails (approver, target, purpose, validity, status)
      */
+    /** A ticket checked against a request, with its kind as the ticket system names it (CHANGE, INCIDENT). */
     record TicketCoverage(boolean covered, String ticketKey, String approver, String purpose, Instant validFrom,
-                          Instant validUntil, List<String> mismatches) {
+                          Instant validUntil, List<String> mismatches, String kind) {
+
+        public TicketCoverage(boolean covered, String ticketKey, String approver, String purpose, Instant validFrom,
+                              Instant validUntil, List<String> mismatches) {
+            this(covered, ticketKey, approver, purpose, validFrom, validUntil, mismatches, null);
+        }
 
         public static TicketCoverage none() {
             return new TicketCoverage(false, null, null, null, null, null, List.of("NO_TICKET"));

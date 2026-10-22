@@ -85,11 +85,15 @@ public final class CoreAdverseLabels {
      * decision facts state, the blocked user of the session's or the company's record, and a policy the decision facts
      * state, met when PolicySatisfied does not state it as met. The values are what the engine sealed for the
      * condition. Null for a record of another layout or without sealed decision facts (its prompt is read as the v19
-     * inspector reads it).
+     * inspector reads it). A v21 decision has none: its inspector checks the answer against the facts it was given and
+     * reads no adverse conditions (SC-10 of docs/showcase/프롬프트-v21-구현계획.md), so no screen states a count of them.
      */
     public static List<Reading> sealed(JsonNode metadata) {
-        if (metadata == null
-                || !SealedDeviations.V20_LAYOUT.equals(metadata.path("userPromptLayoutVersion").asText(null))) {
+        String layout = metadata == null ? null : metadata.path("userPromptLayoutVersion").asText(null);
+        if (SealedDeviations.V21_LAYOUT.equals(layout)) {
+            return List.of();
+        }
+        if (!SealedDeviations.V20_LAYOUT.equals(layout)) {
             return null;
         }
         JsonNode context = metadata.path("sealedEvidence.canonicalContext");

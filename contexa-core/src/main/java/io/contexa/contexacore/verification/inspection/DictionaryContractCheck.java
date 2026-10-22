@@ -44,7 +44,17 @@ public final class DictionaryContractCheck implements PromptInspectionCheck {
     private final List<PromptDictionaryEntry> entries;
 
     public DictionaryContractCheck() {
-        this.entries = SecurityDecisionPromptDictionary.ENTRIES;
+        this(SecurityDecisionPromptDictionary.ENTRIES);
+    }
+
+    private DictionaryContractCheck(List<PromptDictionaryEntry> entries) {
+        this.entries = entries;
+    }
+
+    /** The contract of the v21 dictionary. */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new DictionaryContractCheck(SecurityDecisionPromptDictionary.V21_ENTRIES);
     }
 
     @Override

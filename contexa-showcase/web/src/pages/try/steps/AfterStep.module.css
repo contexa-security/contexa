@@ -1,0 +1,101 @@
+/* After the stop (화면재편 1-6, T7): one flow of what follows the judgment, its steps in a row with arrows between. */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  gap: var(--frame-inner-gap);
+}
+
+/* A step is read, not pressed: one plain card with its picture and words. */
+.step {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-self: stretch;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+/* Where the request ends if nobody acts, or what the account holder cannot do: the screen's one emphasis. */
+.step[data-tone='stop'] {
+  border-color: var(--color-loss);
+}
+
+.icon {
+  color: var(--color-accent);
+  font-size: var(--type-emphasis);
+}
+
+.step[data-tone='stop'] .icon {
+  color: var(--color-loss);
+}
+
+.text {
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+/* The stored value of a step (2-5): what the record says happened at that step. */
+.value {
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+.arrow {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--type-emphasis);
+}
+
+/* The source line's one button: quiet, but clearly pressable. */
+.sourceOpen {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sourceOpen:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Phones: the steps stacked, each arrow pointing down to the next. */
+@media (width <= 40rem) {
+  .flow {
+    flex-direction: column;
+  }
+
+  .item {
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .arrow {
+    align-self: center;
+    transform: rotate(90deg);
+  }
+}

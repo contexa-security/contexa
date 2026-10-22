@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.showcase.portal.orchestrator.WorkloadAdmin;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -178,6 +179,26 @@ class ReactivityServiceTest {
         assertThat(ReactivityService.sameAsBase(List.of(same))).isEqualTo(1);
     }
 
+    /**
+     * N-INJ-6: an injection place's runs are judged against the batch's runs of the base the place names; the base of
+     * a place whose variant adds a step to its case is its control variant, whose runs the harness records as bases
+     * under the variant's key.
+     */
+    @Test
+    void anInjectionPlaceIsJudgedAgainstTheRunsOfTheBaseItNames() {
+        InjectionEvaluator injection = InjectionEvaluator.fromResources();
+        List<ReactivityRuns.Entry> entries = List.of(entry("run-a3", ReactivityRuns.Kind.BASE, "A3:designed", "A3"),
+                entry("run-c3-1", ReactivityRuns.Kind.BASE, "A3-C3:control", "A3-C3"),
+                entry("run-c3-2", ReactivityRuns.Kind.BASE, "A3-C3:control", "A3-C3"),
+                entry("run-i3", ReactivityRuns.Kind.INJECTION, "A3-I3:repeated X-Request-ID", "A3-I3"));
+
+        assertThat(ReactivityService.baseOf(entries, injection.placeOfKey("A3-I3").orElseThrow().base(), 1)
+                .map(ReactivityRuns.Entry::runId)).as("the second run of the control").contains("run-c3-2");
+        assertThat(ReactivityService.baseOf(entries, injection.placeOfKey("A3-I1").orElseThrow().base(), 0)
+                .map(ReactivityRuns.Entry::runId)).as("a place whose variant adds no step").contains("run-a3");
+        assertThat(ReactivityService.baseOf(entries, "A1T-C1", 0)).as("a base the batch did not run").isEmpty();
+    }
+
     /** The same sealed prompt for each request: compared under the invariant condition, nothing changed. */
     private void seal(String... requestIds) throws Exception {
         for (String requestId : requestIds) {
@@ -194,5 +215,9 @@ class ReactivityServiceTest {
             decisions.add(new ReactivityService.Decision(i + 1, prefix + "-" + (i + 1), finalActions[i], null));
         }
         return decisions;
+    }
+
+    private static ReactivityRuns.Entry entry(String runId, ReactivityRuns.Kind kind, String label, String caseKey) {
+        return new ReactivityRuns.Entry(runId, "batch-1", kind, label, caseKey, Instant.parse("2026-10-17T00:00:00Z"));
     }
 }

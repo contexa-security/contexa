@@ -17,7 +17,7 @@ package io.contexa.contexacore.autonomous.execution;
 
 import java.util.List;
 import java.util.Locale;
-
+
 public class DelegatedExecutionPolicyContextAdapter {
 
     public ExecutionPolicyView adapt(DelegatedExecutionPolicyContext context) {
@@ -54,9 +54,12 @@ public class DelegatedExecutionPolicyContextAdapter {
                     null,
                     null);
         }
+        // An agent acting on its own (A1-3) is an agent subject as a delegated one is.
+        boolean agentExecution = context.delegatedExecution()
+                || DelegatedExecutionContext.EXECUTION_MODE_AUTONOMOUS_AGENT.equals(context.executionMode());
         String subjectType = context.serviceClientPrincipal()
                 ? ExecutionSubjectTypes.SERVICE_CLIENT
-                : (context.delegatedExecution() ? ExecutionSubjectTypes.AGENT_RUNTIME : ExecutionSubjectTypes.HUMAN_USER);
+                : (agentExecution ? ExecutionSubjectTypes.AGENT_RUNTIME : ExecutionSubjectTypes.HUMAN_USER);
         String summary = String.format(Locale.ROOT,
                 "%s execution for objective %s under protocol compatibility mode.",
                 context.executionMode() != null ? context.executionMode() : "UNKNOWN",

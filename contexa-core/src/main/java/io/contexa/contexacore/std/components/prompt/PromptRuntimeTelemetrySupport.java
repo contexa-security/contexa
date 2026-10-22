@@ -312,6 +312,12 @@ public final class PromptRuntimeTelemetrySupport {
     public static final String FIRST_PASS_REASON_CODES = "firstPassReasonCodes";
 
     /**
+     * V-3 of the v21 plan: the event metadata key of the explanations the first pass's v21 model weighed; kept with the
+     * first verdict as its reason codes are, and dropped with them once the analysis ends.
+     */
+    public static final String FIRST_PASS_HYPOTHESES = "firstPassHypotheses";
+
+    /**
      * W6-6: the event metadata key of the model call stages of a decision: one entry per layer that called the model,
      * kept when the next layer clears its telemetry.
      */

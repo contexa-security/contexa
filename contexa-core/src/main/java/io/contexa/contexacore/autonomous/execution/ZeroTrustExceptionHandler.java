@@ -17,6 +17,7 @@ package io.contexa.contexacore.autonomous.execution;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
@@ -49,6 +50,8 @@ public class ZeroTrustExceptionHandler {
     @ExceptionHandler(ZeroTrustAccessDeniedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleZeroTrustDenied(
             ZeroTrustAccessDeniedException ex, HttpServletRequest request, HttpServletResponse servletResponse) {
+        // R-12: this deny response answers the decision itself and carries no protected data; a BLOCK must not cut it.
+        BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
         log.error("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
             ex.getAction(), ex.getResourceId(), ex.getRiskScore(), ex.getReason());
@@ -72,7 +75,8 @@ public class ZeroTrustExceptionHandler {
 
     @ExceptionHandler(AnomalyDetectedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleAnomalyDetected(
-            AnomalyDetectedException ex) {
+            AnomalyDetectedException ex, HttpServletResponse servletResponse) {
+        BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
         log.error("Anomaly detection access denied - message: {}", ex.getMessage());
 
@@ -95,7 +99,8 @@ public class ZeroTrustExceptionHandler {
 
     @ExceptionHandler(RapidProtectableReentryDeniedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleRapidProtectableReentryDenied(
-            RapidProtectableReentryDeniedException ex) {
+            RapidProtectableReentryDeniedException ex, HttpServletResponse servletResponse) {
+        BlockableResponseWrapper.permitOwnDenyResponse(servletResponse);
 
         log.error("Rapid protectable re-entry denied - resource: {}, windowSeconds: {}",
             ex.getResourceId(), ex.getWindowSeconds());

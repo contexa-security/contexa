@@ -71,7 +71,17 @@ public final class UnknownDeclaredCheck implements PromptInspectionCheck {
     private final List<PromptDictionaryEntry> entries;
 
     public UnknownDeclaredCheck() {
-        this.entries = SecurityDecisionPromptDictionary.ENTRIES;
+        this(SecurityDecisionPromptDictionary.ENTRIES);
+    }
+
+    private UnknownDeclaredCheck(List<PromptDictionaryEntry> entries) {
+        this.entries = entries;
+    }
+
+    /** The declared unknowns of a v21 package, read with the v21 dictionary. */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new UnknownDeclaredCheck(SecurityDecisionPromptDictionary.V21_ENTRIES);
     }
 
     @Override

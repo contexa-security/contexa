@@ -61,6 +61,7 @@ export const FACT_LABELS = [
   'Time',
   'Action',
   'Target',
+  'TargetScope',
   'Size',
   'ResourceClass',
   'Network',

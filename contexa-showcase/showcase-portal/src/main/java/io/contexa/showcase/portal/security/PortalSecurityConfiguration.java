@@ -57,14 +57,17 @@ public class PortalSecurityConfiguration {
                                 "/api/stats", "/api/results/*", "/api/rules/cases",
                                 "/api/runs/*/steps/*/anatomy", "/api/runs/*/steps/*/exchanges",
                                 "/api/runs/*/steps/*/input-changes", "/api/runs/*/versus",
-                                "/api/runs/*/steps/*/result", "/api/benchmark", "/api/benchmark/runs",
+                                "/api/runs/*/steps/*/result", "/api/runs/*/steps/*/responses", "/api/follow/release",
+                                "/api/benchmark", "/api/benchmark/runs",
                                 "/api/runs/*/steps/*/peer-assessments",
                                 "/api/runs/*/score", "/api/lab/options", "/api/lab/runs/recent", "/api/cases",
                                 "/api/hook", "/api/journey", "/api/journey/act-end", "/api/quiz", "/api/tally",
                                 "/api/settings",
                                 // W7-13: sealed prompt facts, quality and other bundle; lab delta; prompt quality.
                                 "/api/runs/*/steps/*/facts", "/api/runs/*/steps/*/quality", "/api/lab/runs/*/delta",
-                                "/api/benchmark/prompt-quality", "/api/runs/*/steps/*/other-bundle")
+                                "/api/benchmark/prompt-quality", "/api/runs/*/steps/*/other-bundle",
+                                // BM-S8: the decision quality an operator published for a setting.
+                                "/api/benchmark/decision-quality")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/predictions", "/api/shares",
                                 "/api/runs/*/steps/*/assessment", "/api/rules/evaluate", "/api/journey",

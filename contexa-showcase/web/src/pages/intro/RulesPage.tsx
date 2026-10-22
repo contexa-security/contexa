@@ -14,7 +14,7 @@ import { ActionBar, MoreRow, StepHeader } from '../../components/journey/StepPar
 import { VerdictChip } from '../../components/VerdictChip';
 import { useJourneyPosition } from '../../journey/useJourneyPosition';
 import experience from '../try/Experience.module.css';
-import { G_RULES_CARDS, G_RULES_PLAIN } from './rulesLines';
+import { G_RULES_CARDS, G_RULES_CARDS_V21, G_RULES_PLAIN, isV21Prompt } from './rulesLines';
 import styles from './RulesPage.module.css';
 
 const VERDICTS = ['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'] as const;
@@ -25,11 +25,11 @@ const ORIGINAL_MODAL = 'rules-original';
  * G-rules (g-rules, 7.2): the AI judges by published rules. The screen is the four decisions with what each means and
  * the lines the rules always keep; the original rules, as the model received them in the designated prompt run, open
  * from a chip with their own line numbers and a plain-words note on its rule lines (cards and notes: rulesLines). On
- * the default route the teaser band leads on; on the concept path a "next" button does (D-33).
+ * the default route the teaser band leads on; on the concept path a "next" button does (D-33). SC-7: when that run's
+ * prompt was drawn by a v21 bundle, which states no decision rule, the screen says how the AI judges instead.
  */
 export default function RulesPage() {
-  const { t, i18n } = useTranslation();
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
+  const { t } = useTranslation();
   useVisitor();
   const position = useJourneyPosition();
   const teasers = useTeasers();
@@ -38,7 +38,9 @@ export default function RulesPage() {
   const anatomy = useAnatomy(promptRun, 1).data ?? null;
   const exchanges = useExchanges(promptRun, 1, modal.open);
   const systemLines = anatomy?.promptLines?.systemPhysical ?? null;
-  const flow = routeFlow(t, language, position, teasers.data);
+  const v21 = isV21Prompt(anatomy?.promptLines?.sections);
+  const cards = v21 ? G_RULES_CARDS_V21 : G_RULES_CARDS;
+  const flow = routeFlow(t, position);
 
   return (
     <>
@@ -47,27 +49,29 @@ export default function RulesPage() {
         <JourneyBar />
         <div className={experience.step}>
           <StepHeader
-            title={t('gRules.title')}
-            purpose={t('gRules.purpose')}
+            title={t(v21 ? 'gRules.titleV21' : 'gRules.title')}
+            purpose={t(v21 ? 'gRules.purposeV21' : 'gRules.purpose')}
             source={promptRun ? <SourceMark kind="ENGINE" runId={promptRun} step={1} /> : null}
           />
           <ul className={styles.verdicts}>
             {VERDICTS.map((verdict) => (
               <li key={verdict} className={styles.verdict}>
                 <VerdictChip verdict={verdict} />
-                <span className={styles.verdictMeaning}>{t(`gRules.verdict.${verdict}`)}</span>
+                <span className={styles.verdictMeaning}>
+                  {t(v21 ? `gRules.verdictV21.${verdict}` : `gRules.verdict.${verdict}`)}
+                </span>
               </li>
             ))}
           </ul>
           <section className={styles.lines} aria-labelledby="rules-lines">
             <h2 id="rules-lines" className={experience.panelTitle}>
-              {t('gRules.lines.title')}
+              {t(v21 ? 'gRules.lines.titleV21' : 'gRules.lines.title')}
             </h2>
             <ol className={styles.lineList}>
-              {G_RULES_CARDS.map((line) => (
+              {cards.map((line) => (
                 <li key={line.key} className={styles.line}>
                   <Icon name={line.icon} className={styles.lineIcon} />
-                  {t(`gRules.line.${line.key}`)}
+                  {t(v21 ? `gRules.lineV21.${line.key}` : `gRules.line.${line.key}`)}
                 </li>
               ))}
             </ol>
@@ -96,7 +100,7 @@ export default function RulesPage() {
               <p className={experience.lead}>{t('gRules.source', { runId: promptRun ?? '-' })}</p>
               <ol className={styles.original}>
                 {exchanges.data.calls[0].systemPrompt.split('\n').map((text, index) => {
-                  const plain = G_RULES_PLAIN.find((candidate) => text.startsWith(candidate.starts));
+                  const plain = G_RULES_PLAIN.find((candidate) => text.trimStart().startsWith(candidate.starts));
                   return (
                     // The original's own line order is the identity of a line.
                     <li key={index} className={styles.originalLine} data-plain={plain ? true : undefined}>

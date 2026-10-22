@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FactBlock, PromptFact, RunFacts, RunQuality } from '../../api/promptQuality';
 import { Icon } from '../Icon';
+import { blockNameKey, blockWhatKey } from '../inside/promptSections';
 import { FactCard } from './FactCard';
 import { blockOfLine, CHUNKS, factAnchor, factsOf, FOLDS, ribbonLines, sourcesOf, type RibbonItem } from './factWords';
 import { QualityRibbon } from './QualityRibbon';
@@ -42,6 +43,7 @@ export function PromptChunks({ facts, quality }: PromptChunksProps) {
         <FactCard fact={fact} block={block} anchor={factAnchor(fact.line)} highlighted={marked === fact.line} />
       </li>
     ));
+  const v21 = facts.bundle?.layout === 'v21-dictionary-blocks';
   const shownFolds = FOLDS.filter((block) => block !== 'SECOND_PASS' || factsOf(facts, block).length > 0);
   return (
     <div className={styles.chunks}>
@@ -66,8 +68,8 @@ export function PromptChunks({ facts, quality }: PromptChunksProps) {
                 <span className={styles.chunkNumber} aria-hidden="true">
                   {index + 1}
                 </span>
-                <span className={styles.chunkName}>{t(`prompt.block.${block}`)}</span>
-                <span className={styles.chunkWhat}>{t(`prompt.blockWhat.${block}`)}</span>
+                <span className={styles.chunkName}>{t(blockNameKey(block, v21))}</span>
+                <span className={styles.chunkWhat}>{t(blockWhatKey(block, v21))}</span>
                 <span className={styles.chunkSources}>
                   {sourcesOf(list).map((source) => (
                     <SourceChip key={source ?? 'NONE'} source={source} />
@@ -77,7 +79,7 @@ export function PromptChunks({ facts, quality }: PromptChunksProps) {
               </button>
               {expanded ? (
                 list.length > 0 ? (
-                  <ul id={panel} className={styles.chunkFacts} aria-label={t(`prompt.block.${block}`)}>
+                  <ul id={panel} className={styles.chunkFacts} aria-label={t(blockNameKey(block, v21))}>
                     {cards(block, list)}
                   </ul>
                 ) : (

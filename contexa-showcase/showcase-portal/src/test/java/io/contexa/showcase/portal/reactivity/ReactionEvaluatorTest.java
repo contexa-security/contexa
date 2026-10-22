@@ -162,6 +162,28 @@ class ReactionEvaluatorTest {
                 .formatted(deviations, satisfied);
     }
 
+    /**
+     * SC-4 of docs/showcase/프롬프트-v21-구현계획.md: the fact rules P1 to P3 are those of the v20 text. A v21 prompt
+     * states no "(unexplained)" mark and no PolicySatisfied line (the lines of the real v21.3 decision of A3T,
+     * run-9061d9f71432), so no rule is met and the direction is the model's own judgment.
+     */
+    @Test
+    void theFactRulesNeverMeetAV21PromptWhoseDirectionIsTheModels() throws Exception {
+        PromptFacts facts = facts("""
+                {"lines": [{"label": "Action", "value": "EXPORT (declared) POST"},
+                           {"label": "ResourceClass", "value": "CRITICAL (sensitivity CRITICAL, sensitive-resource flag, export-sensitive)"},
+                           {"label": "DeviationsFromBaseline", "value": "4 of 9 compared -> time 03 seen 0 of 24 on 0 of 5 days, first time; target projectKey seen 0 of 24 on 0 of 5 days, first time; class CRITICAL seen 0 of 24 on 0 of 5 days, first time; size 4,831 items, usual up to 29 items per export (median 17, 5 exports)"},
+                           {"label": "Policy", "value": "EXPORT_APPROVAL requires a covering approval (exceptions: assigned target up to 500 items; ticket while on call)"}]}""");
+
+        ReactionEvaluator.Expectation expectation = ReactionEvaluator.expectation(
+                List.of(new ReactionEvaluator.Step(1, "ALLOW", List.of(), facts)));
+
+        assertThat(ReactionEvaluator.unexplained(facts)).isEmpty();
+        assertThat(expectation.rules()).isEmpty();
+        assertThat(expectation.ruleSteps()).isEmpty();
+        assertThat(expectation.direction()).isEqualTo(ReactionEvaluator.MODEL_JUDGES);
+    }
+
     private static PromptFacts facts(String json) throws Exception {
         return PromptFacts.of(JSON.readTree(json));
     }

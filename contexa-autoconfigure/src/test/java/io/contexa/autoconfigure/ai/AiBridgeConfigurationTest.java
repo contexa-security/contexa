@@ -19,6 +19,9 @@ import io.contexa.contexacommon.security.bridge.AuthBridge;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
 import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
+import io.contexa.contexacommon.security.bridge.resolver.DelegationStampResolver;
+import io.contexa.contexacommon.security.bridge.resolver.SessionDelegationStampResolver;
+import io.contexa.contexacommon.security.bridge.resolver.TokenDelegationStampResolver;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
@@ -62,6 +65,20 @@ class AiBridgeConfigurationTest {
             assertThat(context).hasSingleBean(ContexaAuthBridgeHandler.class);
             assertThat(context).hasSingleBean(BridgeResolutionFilter.class);
             assertThat(ContexaAuthBridge.isInitialized()).isTrue();
+        });
+    }
+
+    /** A1-1: the access token's delegation is read first, then the session, request attribute and header channels. */
+    @Test
+    void shouldRegisterTheTokenDelegationResolverBeforeTheOtherChannels() {
+        contextRunner.run(context -> {
+            List<DelegationStampResolver> resolvers =
+                    context.getBeanProvider(DelegationStampResolver.class).orderedStream().toList();
+
+            assertThat(resolvers).hasSize(4);
+            assertThat(resolvers.get(0)).isInstanceOf(TokenDelegationStampResolver.class);
+            assertThat(resolvers.get(1)).isInstanceOf(SessionDelegationStampResolver.class);
+            assertThat(context.getBean(BridgeProperties.class).getDelegation().getToken().isEnabled()).isTrue();
         });
     }
 

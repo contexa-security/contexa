@@ -1,31 +1,39 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCases } from '../../../api/anatomy';
 import { useHook } from '../../../api/hook';
 import { useJourney, type PredictionScore } from '../../../api/journey';
-import { useStepResult, type LabCase } from '../../../api/lab';
-import { useMeasuredCase, type MeasuredCase } from '../../../api/measured';
+import type { LabCase } from '../../../api/lab';
 import { useRunScore } from '../../../api/queries';
-import type { RunScore } from '../../../api/types';
-import { ActionChip } from '../../../components/common/ActionChip';
-import { useDetail } from '../../../components/detail/useDetail';
-import { JustSaw } from '../../../components/journey/JourneyParts';
-import { SourceMark } from '../../../components/common/SourceMark';
-import { ActionBar, MoreRow, RightMark, StepHeader } from '../../../components/journey/StepParts';
+import type { CaseResult, RunScore } from '../../../api/types';
+import { DetailChip, SourceLine } from '../../../components/journey/FrameParts';
+import { ScreenBody } from '../../../components/journey/ScreenBody';
+import { NextLink } from '../../../components/journey/StepParts';
 import { StateScreen } from '../../../components/StateScreen';
-import { CONTROL_ORDER } from '../../../domain/verdict';
-import { count, seconds } from '../../../journey/format';
+import { VerdictChip } from '../../../components/VerdictChip';
+import { CONTROL_ORDER, VERDICTS, type ControlId, type Verdict } from '../../../domain/verdict';
+import { count } from '../../../journey/format';
 import type { Difference } from '../../../journey/journey';
+import { useJourneyPlace } from '../../../journey/useJourneyPlace';
 import { stepPath, type Mode, type Role, type StepFlow } from '../experience';
-import styles from '../Experience.module.css';
+import styles from './ResultStep.module.css';
 import { useTryAnalysis, useTryRun } from './tryRun';
 
-const ENGINE_ACTION_KEYS: Readonly<Record<string, string>> = {
-  ALLOW: 'e1.predict.ALLOW',
-  CHALLENGE: 'e1.predict.CHALLENGE',
-  ESCALATE: 'e1.predict.ESCALATE',
-  BLOCK: 'e1.predict.BLOCK',
+/**
+ * The plain word of each scored result (화면재편-기획안 11.2): what the approach did, said as right or as the kind of
+ * wrong it was. NOT_SCORED has none; its cell shows what the record has.
+ */
+const RESULT_WORDS: Readonly<Partial<Record<CaseResult, string>>> = {
+  STOPPED: 'p1.result.word.STOPPED',
+  PARTLY_STOPPED: 'p1.result.word.PARTLY_STOPPED',
+  MISSED: 'p1.result.word.MISSED',
+  PASSED: 'p1.result.word.PASSED',
+  PASSED_AFTER_CHECK: 'p1.result.word.PASSED_AFTER_CHECK',
+  HALTED: 'p1.result.word.HALTED',
+  UNRESOLVED: 'p1.result.word.UNRESOLVED',
 };
+
+/** The judgments a stopping headline names; any other stop is said without the judgment. */
+const STOPPING_ACTIONS = new Set(['BLOCK', 'CHALLENGE', 'ESCALATE']);
 
 interface ResultStepProps {
   readonly role: Role;
@@ -36,241 +44,158 @@ interface ResultStepProps {
 }
 
 /**
- * Try 1-5, the result (e1-result): who answered right, the five approaches and the visitor. The headline is the one the
- * server's result codes pick, every approach is scored against the right answer by the one scoring rule, Contexa's row
- * carries the same conditions measured several times, and the visitor's call is the server's score of it. The case's
- * reason for the right answer is folded (D-41).
+ * Screens 1-4 and 2-3, the result (T5): the one sentence the server's results pick as the title, the visitor's
+ * prediction in one line under it as the server compared it, and one table of the five approaches. Every cell is the
+ * server's score of the run: Contexa's judgment, and each approach's result in plain words.
  */
 export function ResultStep({ role, mode, labCase, see, flow }: ResultStepProps) {
   const { t, i18n } = useTranslation();
-  const detail = useDetail();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
+  const number = useJourneyPlace().screen?.number ?? (role === 'attacker' ? '1-4' : '2-3');
   const run = useTryRun(labCase.key, labCase.requests.length);
-  const view = run.view;
   const runId = run.runId;
   const score = useRunScore(runId, runId ? 'result' : null, 1).data ?? null;
-  const step = useStepResult(runId, 1).data ?? null;
-  const decision = useTryAnalysis(view, run.stored).decision;
+  const decision = useTryAnalysis(run.view, run.stored).decision;
   const journey = useJourney();
-  const cases = useCases();
-  const measured = useMeasuredCase(labCase.key).data ?? null;
+  const call = journey.data?.predictions.find((prediction) => prediction.caseKey === labCase.key) ?? null;
 
   if (run.pending) {
     return <StateScreen kind="loading" />;
   }
   if (!runId) {
     return (
-      <>
-        <StepHeader title={t('experience.step.result')} purpose={t('e1.run.notSent')} />
-        <ActionBar back={{ to: stepPath(role, 'predict', mode), label: t('e1.run.toPredict') }} />
-      </>
+      <ScreenBody
+        title={t('p1.result.empty')}
+        purpose={t('p1.notSent')}
+        back={flow.back}
+        main={<NextLink to={stepPath(role, 'predict', mode)} label={t('p1.toPredict')} />}
+      >
+        {null}
+      </ScreenBody>
     );
   }
-  if (!score || !step) {
+  if (!score) {
     return <StateScreen kind="loading" />;
   }
 
   if (role === 'owner') {
-    return (
-      <OwnerResult
-        labCase={labCase}
-        runId={runId}
-        score={score}
-        measured={measured}
-        call={journey.data?.predictions.find((prediction) => prediction.caseKey === labCase.key) ?? null}
-        rationale={
-          cases.data?.cases.find((candidate) => candidate.key === labCase.key)?.rationale[language] ?? null
-        }
-        see={see}
-        flow={flow}
-      />
-    );
+    return <OwnerResult number={number} runId={runId} score={score} call={call} see={see} flow={flow} />;
   }
 
   const contexa = score.business.D;
   const engineAction = decision?.finalAction ?? score.verdicts[0]?.score.finalAction ?? null;
-  const analysisMs = decision?.totalAnalysisMs ?? null;
   const headlineKey =
     contexa.result === 'STOPPED'
-      ? `e1.result.headline.STOPPED.${engineAction && engineAction !== 'ALLOW' ? engineAction : 'other'}`
+      ? `e1.result.headline.STOPPED.${engineAction && STOPPING_ACTIONS.has(engineAction) ? engineAction : 'other'}`
       : contexa.result === 'PARTLY_STOPPED' || contexa.result === 'MISSED'
         ? `e1.result.headline.${contexa.result}`
         : 'e1.result.headline.other';
-  const caseView = cases.data?.cases.find((candidate) => candidate.key === labCase.key) ?? null;
-  const call = journey.data?.predictions.find((prediction) => prediction.caseKey === labCase.key) ?? null;
-  const rulesStopped = score.business.C1.result === 'STOPPED' && score.business.C2.result === 'STOPPED';
-  const layers = new Map(step.layers.map((layer) => [layer.control, layer]));
-  const threat = labCase.classification === 'THREAT';
 
   return (
-    <>
-      <StepHeader
-        title={t(headlineKey, {
-          seconds: analysisMs === null ? '-' : seconds(analysisMs),
-          items: count(contexa.exposedItems, language),
-        })}
-        purpose={t(threat ? 'e1.purpose.result.THREAT' : 'e1.purpose.result.NORMAL')}
-        source={
-          <SourceMark kind="ENGINE" runId={runId} step={1}>
-            {measured ? t('e1.result.sourceMeasured', { protocol: measured.protocolId }) : null}
-          </SourceMark>
-        }
-      />
+    <ScreenBody
+      title={t(headlineKey, { items: count(contexa.exposedItems, language) })}
+      purpose={t(`screen.${number}.guide`)}
+      more={<DetailChip runId={runId} step={1} />}
+      sourceLine={<SourceLine kind="run" runId={runId} />}
+      back={flow.back}
+      main={flow.next}
+    >
+      <PredictionLine call={call} runId={runId} />
       <table className={styles.results}>
         <thead>
           <tr>
             <th scope="col">{t('e1.result.table.approach')}</th>
             <th scope="col">{t('e1.result.table.result')}</th>
             <th scope="col">{t('e1.result.table.out')}</th>
-            <th scope="col">{t('e1.result.table.right')}</th>
           </tr>
         </thead>
         <tbody>
           {CONTROL_ORDER.map((control) => {
-            const layer = layers.get(control);
+            const business = score.business[control];
             return (
               <tr key={control} data-contexa={control === 'D' || undefined}>
-                <th scope="row">{controlName(t, control)}</th>
+                <th scope="row">{t(`control.${control}.name`)}</th>
                 <td>
-                  <span className={styles.resultValue}>
-                    {!layer
-                      ? '-'
-                      : control === 'D' && layer.verdict
-                        ? t(`verdict.${verdictWord(layer.verdict)}`)
-                        : layer.outcome === 'DELIVERED'
-                          ? t('e1.result.allowed')
-                          : t('e1.result.denied', {
-                              rule: layer.ruleId
-                                ? t(`ruleId.${layer.ruleId}`, { defaultValue: layer.ruleId })
-                                : '-',
-                            })}
-                  </span>
-                  {control === 'D' && measured ? (
-                    <span className={styles.resultMeasured}>{measuredText(t, language, measured)}</span>
-                  ) : null}
+                  <ResultCell score={score} control={control} />
                 </td>
-                <td>
-                  {t('e1.result.items', { items: count(score.business[control].exposedItems, language) })}
-                </td>
-                <td>
-                  <RightMark right={score.correct[control]} />
+                <td className={styles.items} data-label={t('e1.result.table.out')}>
+                  {business ? t('e1.result.items', { items: count(business.exposedItems, language) }) : '-'}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <div className={styles.tableNote}>
-        {role === 'attacker' && rulesStopped ? <p>{t('e1.result.rulesToo')}</p> : null}
-        <p>{t('hook.note')}</p>
-      </div>
-      <div className={styles.mine}>
-        <p className={styles.mineLine}>
-          <span className={styles.mineLabel}>{t('e1.result.mineLabel')}</span>
-          {call?.call.engine ? (
-            <>
-              <strong>{t(ENGINE_ACTION_KEYS[call.call.engine] ?? call.call.engine)}</strong>
-              <RightMark right={call.engineRight} />
-            </>
-          ) : (
-            <span>{t('e1.result.mineNoneShort')}</span>
-          )}
-          <span className={styles.mineAnswer}>
-            {t('e1.result.answerShort', {
-              actions: score.truth.allowedEngineActions
-                .map((action) => t(ENGINE_ACTION_KEYS[action] ?? action))
-                .join(t('e1.result.or')),
-            })}
-          </span>
-        </p>
-        {call?.call.existing && call.existingActual ? (
-          <p className={styles.mineLine}>
-            <span className={styles.mineLabel}>{t('e1.result.existingLabel')}</span>
-            {t('e1.result.existingShort', {
-              call: t(`e1.predict.existing.${call.call.existing}`),
-              actual: t(`e1.predict.existing.${call.existingActual}`),
-            })}
-          </p>
-        ) : null}
-      </div>
-      <MoreRow>
-        {caseView?.rationale[language] ? (
-          <details className={styles.more}>
-            <summary>{t('e1.result.rationaleOpen')}</summary>
-            <p className={styles.foldText}>
-              {caseView.rationale[language]}
-              <SourceMark kind="CASE">{labCase.key}</SourceMark>
-            </p>
-          </details>
-        ) : null}
-        <ActionChip onClick={() => detail.show(runId)} icon="search" variant="open">
-          {t('e1.result.detail')}
-        </ActionChip>
-      </MoreRow>
-      <ActionBar back={flow.back} main={flow.next} teaser={flow.teaser} />
-    </>
+    </ScreenBody>
   );
 }
 
-/** An approach's name; the business record rule carries "*", the mark of a rule written for these cases (3절). */
-function controlName(t: ReturnType<typeof useTranslation>['t'], control: string): string {
-  return control === 'C2' ? `${t('control.C2.name')}*` : t(`control.${control}.name`);
-}
-
-/** The same conditions measured several times (V-17): every value is the portal's count of the measurement. */
-function measuredText(
-  t: ReturnType<typeof useTranslation>['t'],
-  language: string,
-  measured: MeasuredCase,
-): string {
-  const range = measured.analysisMs;
-  const items = measured.exposedItems;
-  const itemsText =
-    items === null
-      ? '-'
-      : items.min === items.max
-        ? count(items.min, language)
-        : `${count(items.min, language)}~${count(items.max, language)}`;
-  if (!measured.allSame) {
-    return t('e1.result.measuredMixed', {
-      runs: measured.runs,
-      results: Object.entries(measured.results)
-        .map(([result, n]) =>
-          t('measured.times', { result: t(`measured.${result}`, { defaultValue: result }), n }),
-        )
-        .join(' · '),
-    });
+/** Contexa's judgment of the run's first request as the server scored it; null when it made none. */
+function scoredVerdict(score: RunScore): { readonly verdict: Verdict; readonly unresolved: boolean } | null {
+  const judged = score.verdicts.find((entry) => entry.score.stepNo === 1)?.score ?? null;
+  if (judged === null || judged.finalAction === null || !(judged.finalAction in VERDICTS)) {
+    return null;
   }
-  return range === null || range.min === range.max
-    ? t('e1.result.measuredOne', {
-        runs: measured.runs,
-        from: range === null ? '-' : seconds(range.min),
-        items: itemsText,
-      })
-    : t('e1.result.measured', {
-        runs: measured.runs,
-        from: seconds(range.min),
-        to: seconds(range.max),
-        items: itemsText,
-      });
+  return { verdict: judged.finalAction as Verdict, unresolved: judged.result === 'UNRESOLVED' };
 }
 
-function verdictWord(verdict: NonNullable<RunScore['verdicts'][number]['score']['finalAction']>): string {
-  switch (verdict) {
-    case 'ALLOW':
-      return 'allow';
-    case 'CHALLENGE':
-      return 'verify';
-    case 'ESCALATE':
-      return 'review';
-    case 'BLOCK':
-      return 'block';
-    default:
-      return 'none';
+/**
+ * One approach's result cell: Contexa's judgment chip where it judged, then the scored result in plain words; a
+ * result the server scored as wrong is marked, by word and color together.
+ */
+function ResultCell({ score, control }: { readonly score: RunScore; readonly control: ControlId }) {
+  const { t } = useTranslation();
+  const result = score.business[control]?.result ?? null;
+  const judged = control === 'D' ? scoredVerdict(score) : null;
+  // A failed judgment is said once, by the word.
+  const chip = judged && !judged.unresolved ? judged.verdict : null;
+  const wordKey = result ? RESULT_WORDS[result] : undefined;
+  return (
+    <span className={styles.cell}>
+      {chip ? <VerdictChip verdict={chip} /> : null}
+      {wordKey ? (
+        <span className={styles.word} data-wrong={score.correct[control] === false || undefined}>
+          {t(wordKey)}
+        </span>
+      ) : chip ? null : (
+        <span className={styles.word}>-</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The visitor's prediction in one line (F-5): the pick, then the sentence the server's comparison picks. The same
+ * judgment, a different judgment that still keeps the data in, or a different handling. Nothing shows before the
+ * server has compared the pick with this very run.
+ */
+function PredictionLine({ call, runId }: { readonly call: PredictionScore | null; readonly runId: string }) {
+  const { t } = useTranslation();
+  const engine = call?.call.engine ?? null;
+  if (
+    call === null ||
+    engine === null ||
+    call.runId !== runId ||
+    call.engineSameAction === null ||
+    call.engineSameStop === null
+  ) {
+    return null;
   }
+  const sentence = call.engineSameAction
+    ? 'p1.result.mine.same'
+    : call.engineSameStop
+      ? 'p1.result.mine.sameStop'
+      : 'p1.result.mine.other';
+  return (
+    <p className={styles.mine}>
+      <span className={styles.mineLabel}>{t('p1.result.mine.label')}</span>
+      <VerdictChip verdict={engine} />
+      <span>{t(sentence)}</span>
+    </p>
+  );
 }
 
-/** Try 2 headline, chosen from the record: Contexa result first, then the threshold rule result (e2-result). */
+/** Try 2 headline, chosen from the record: Contexa result first, then the time and volume limits' result (2-3). */
 function ownerHeadline(score: RunScore): string {
   const contexa = score.business.D.result;
   if (contexa === 'PASSED') {
@@ -285,26 +210,21 @@ function ownerHeadline(score: RunScore): string {
 }
 
 interface OwnerResultProps {
-  readonly labCase: LabCase;
+  readonly number: string;
   readonly runId: string;
   readonly score: RunScore;
-  readonly measured: MeasuredCase | null;
   readonly call: PredictionScore | null;
-  readonly rationale: string | null;
   readonly see: (difference: Difference) => void;
   readonly flow: StepFlow;
 }
 
 /**
- * Try 2-5, the result (e2-result): the same request with the opposite right answer, as one table of the two tries
- * side by side, every cell the server score of that run. Try 1 is the visitor own run of it, or the designated measured
- * run when they skipped it, which the column says. The business record rule note shows only when it answered both
- * right, and "just seen 3" only when the record says what it states.
+ * Screen 2-3: the same request by the person with a stolen account and by the real employee, as one table side by
+ * side, every cell the server's score of that run. The first case is the visitor's own run of it, or the recorded run
+ * the first screen shows when they skipped it, which the column says.
  */
-function OwnerResult({ labCase, runId, score, measured, call, rationale, see, flow }: OwnerResultProps) {
-  const { t, i18n } = useTranslation();
-  const detail = useDetail();
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
+function OwnerResult({ number, runId, score, call, see, flow }: OwnerResultProps) {
+  const { t } = useTranslation();
   const journey = useJourney();
   const hook = useHook();
   const own =
@@ -314,7 +234,6 @@ function OwnerResult({ labCase, runId, score, measured, call, rationale, see, fl
   const contexa = score.business.D.result;
   const shown =
     score.business.C1.result === 'HALTED' && (contexa === 'PASSED' || contexa === 'PASSED_AFTER_CHECK');
-  const recordsBoth = first !== null && first.correct.C2 === true && score.correct.C2 === true;
 
   useEffect(() => {
     if (shown) {
@@ -324,101 +243,39 @@ function OwnerResult({ labCase, runId, score, measured, call, rationale, see, fl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown]);
 
-  const cell = (result: string | undefined, right: boolean | undefined) => (
-    <span className={styles.tryCell}>
-      <span>
-        {result
-          ? t(result === 'HALTED' ? 'e2.result.halted' : `measured.${result}`, { defaultValue: result })
-          : '-'}
-      </span>
-      <RightMark right={right} />
-    </span>
-  );
+  const attacker = t(own ? 'p2.result.table.attacker' : 'p2.result.table.attackerRecord');
+  const owner = t('p2.result.table.owner');
 
   return (
-    <>
-      <StepHeader
-        title={t(ownerHeadline(score))}
-        purpose={t('e2.purpose.result')}
-        source={
-          <SourceMark kind="ENGINE" runId={runId} step={1}>
-            {measured ? t('e1.result.sourceMeasured', { protocol: measured.protocolId }) : null}
-          </SourceMark>
-        }
-      />
-      <table className={styles.results} data-tries="two">
+    <ScreenBody
+      title={t(ownerHeadline(score))}
+      purpose={t(`screen.${number}.guide`)}
+      more={<DetailChip runId={runId} step={1} />}
+      sourceLine={<SourceLine kind="run" runId={runId} />}
+      back={flow.back}
+      main={flow.next}
+    >
+      <PredictionLine call={call} runId={runId} />
+      <table className={styles.results} data-cases="two">
         <thead>
           <tr>
             <th scope="col">{t('e1.result.table.approach')}</th>
-            <th scope="col">{t(own ? 'e2.result.table.try1' : 'e2.result.table.try1Measured')}</th>
-            <th scope="col">{t('e2.result.table.try2')}</th>
+            <th scope="col">{attacker}</th>
+            <th scope="col">{owner}</th>
           </tr>
         </thead>
         <tbody>
           {CONTROL_ORDER.map((control) => (
             <tr key={control} data-contexa={control === 'D' || undefined}>
-              <th scope="row">{controlName(t, control)}</th>
-              <td data-label={t(own ? 'e2.result.table.try1' : 'e2.result.table.try1Measured')}>
-                {first ? cell(first.business[control]?.result, first.correct[control]) : '-'}
-              </td>
-              <td data-label={t('e2.result.table.try2')}>
-                {cell(score.business[control]?.result, score.correct[control])}
-                {control === 'D' && measured ? (
-                  <span className={styles.resultMeasured}>{measuredText(t, language, measured)}</span>
-                ) : null}
+              <th scope="row">{t(`control.${control}.name`)}</th>
+              <td data-label={attacker}>{first ? <ResultCell score={first} control={control} /> : '-'}</td>
+              <td data-label={owner}>
+                <ResultCell score={score} control={control} />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className={styles.tableNote}>
-        <p>{t(recordsBoth ? 'e2.result.recordsToo' : 'hook.note')}</p>
-      </div>
-      <div className={styles.mine}>
-        <p className={styles.mineLine}>
-          <span className={styles.mineLabel}>{t('e1.result.mineLabel')}</span>
-          {call?.call.engine ? (
-            <>
-              <strong>{t(ENGINE_ACTION_KEYS[call.call.engine] ?? call.call.engine)}</strong>
-              <RightMark right={call.engineRight} />
-            </>
-          ) : (
-            <span>{t('e1.result.mineNoneShort')}</span>
-          )}
-          <span className={styles.mineAnswer}>
-            {t('e1.result.answerShort', {
-              actions: score.truth.allowedEngineActions
-                .map((action) => t(ENGINE_ACTION_KEYS[action] ?? action))
-                .join(t('e1.result.or')),
-            })}
-          </span>
-        </p>
-        {call?.call.numberRule && call.numberRuleActual ? (
-          <p className={styles.mineLine}>
-            <span className={styles.mineLabel}>{t('e2.result.numberLabel')}</span>
-            {t('e2.result.numberShort', {
-              call: t(`e2.predict.numberRule.${call.call.numberRule}`),
-              actual: t(`e2.predict.numberRule.${call.numberRuleActual}`),
-            })}
-          </p>
-        ) : null}
-      </div>
-      <MoreRow>
-        {rationale ? (
-          <details className={styles.more}>
-            <summary>{t('e1.result.rationaleOpen')}</summary>
-            <p className={styles.foldText}>
-              {rationale}
-              <SourceMark kind="CASE">{labCase.key}</SourceMark>
-            </p>
-          </details>
-        ) : null}
-        <ActionChip onClick={() => detail.show(runId)} icon="search" variant="open">
-          {t('e1.result.detail')}
-        </ActionChip>
-      </MoreRow>
-      {shown ? <JustSaw difference={3} sentence="e2Result" /> : null}
-      <ActionBar back={flow.back} main={flow.next} teaser={flow.teaser} />
-    </>
+    </ScreenBody>
   );
 }

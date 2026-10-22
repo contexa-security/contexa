@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{contexa/fragments/common-head :: head-elements(pageTitle=#{admin.agents.title})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{contexa/fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{contexa/fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <div class="mb-8 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.agents.title}">Agents</h1>
+                <p class="text-dark-muted mt-1" th:text="#{admin.agents.subtitle}">Agents seen in requests and registered by identity providers</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-6 items-center">
+                <a th:each="f : ${ {'all', 'active', 'suspended', 'deregistered', 'observed', 'registered'} }"
+                   th:href="@{/contexa/admin/agents(filter=${f}, keyword=${keyword})}"
+                   th:classappend="${currentFilter == f} ? 'filter-active' : 'filter-inactive'"
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300"
+                   th:text="#{${'admin.agents.filter.' + f}}">All</a>
+
+                <span style="flex:1;"></span>
+                <form th:action="@{/contexa/admin/agents}" method="get" class="flex items-center gap-2" style="margin:0;">
+                    <input type="hidden" name="filter" th:value="${currentFilter}" />
+                    <input type="text" name="keyword" th:value="${keyword}"
+                           class="px-3 py-2 rounded-lg text-sm"
+                           style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;max-width:240px;"
+                           th:placeholder="#{admin.agents.search.placeholder}" />
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                            style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <a th:href="@{/contexa/admin/agents(filter=${currentFilter})}" class="px-3 py-2 rounded-lg text-sm font-medium"
+                       style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </form>
+            </div>
+
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full w-full text-sm text-left">
+                    <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.agent}">Agent</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.name}">Name</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.type}">Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.subject}">Subject</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.sponsor}">Sponsor</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.status}">Status</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.allowlisted}">Approved</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.first.seen}">First seen</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.agents.table.last.seen}">Last seen</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                    <tr th:each="a : ${agents}" style="border-color: rgba(71, 85, 105, 0.3);">
+                        <td class="py-4 px-6 font-mono text-xs" th:text="${a.agentId}"></td>
+                        <td class="py-4 px-6" th:text="${a.displayName != null} ? ${a.displayName} : '-'"></td>
+                        <td class="py-4 px-6" th:text="${a.agentType != null} ? ${a.agentType} : '-'"></td>
+                        <td class="py-4 px-6">
+                            <span th:if="${a.subjectKind != null}" class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  th:classappend="${a.subjectKind == 'DELEGATED_AGENT'} ? 'chip-delegated' : 'chip-autonomous'"
+                                  th:text="#{${'admin.agents.subject.' + a.subjectKind}}">Delegated agent</span>
+                            <span th:if="${a.subjectKind == null}" class="text-xs" style="color: #64748b;">-</span>
+                        </td>
+                        <td class="py-4 px-6" th:text="${a.sponsorId != null} ? ${a.sponsorId} : '-'"></td>
+                        <td class="py-4 px-6">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  th:classappend="'status-' + ${#strings.toLowerCase(a.status)}"
+                                  th:text="#{${'admin.agents.status.' + a.status}}">Active</span>
+                        </td>
+                        <td class="py-4 px-6" th:text="${a.allowlisted} ? #{admin.agents.allowlisted.yes} : #{admin.agents.allowlisted.no}"></td>
+                        <td class="py-4 px-6" th:text="${a.firstSeenAt != null} ? ${#temporals.format(a.firstSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
+                        <td class="py-4 px-6" th:text="${a.lastSeenAt != null} ? ${#temporals.format(a.lastSeenAt, 'yyyy-MM-dd HH:mm')} : '-'"></td>
+                        <td class="py-4 px-6">
+                            <a th:href="@{/contexa/admin/agents/detail(agentId=${a.agentId}, tenant=${a.tenantId})}"
+                               class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                               th:text="#{common.detail}">Detail</a>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(agents)}">
+                        <td colspan="10" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.agents.empty}">
+                            No agents yet.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{contexa/fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+
+<style>
+    .filter-active {
+        background: rgba(99, 102, 241, 0.3);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+    }
+    .filter-inactive {
+        background: rgba(30, 41, 59, 0.5);
+        color: #94a3b8;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .filter-inactive:hover {
+        background: rgba(51, 65, 85, 0.5);
+        color: #e2e8f0;
+    }
+    .chip-delegated {
+        background: rgba(56, 189, 248, 0.2);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .chip-autonomous {
+        background: rgba(168, 85, 247, 0.2);
+        color: #c084fc;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    .status-active {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .status-suspended {
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .status-deregistered {
+        background: rgba(100, 116, 139, 0.2);
+        color: #94a3b8;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+    }
+</style>
+
+</body>
+</html>

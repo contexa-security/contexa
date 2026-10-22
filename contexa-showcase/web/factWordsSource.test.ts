@@ -34,7 +34,8 @@ describe('prompt trust words of the core source', () => {
     const entries = [...readFileSync(`${CORE}/SecurityDecisionPromptDictionary.java`, 'utf-8').matchAll(/entry\(PromptBlock\.\w+,\s*"([^"]+)"/g)].map((match) =>
       (match[1] ?? '').replace('{i}', ''),
     );
-    expect(entries).toHaveLength(76);
+    // 76 entries of the v20 dictionary and the v21 dictionary's TargetScope (v21.4, finding 7 of the v21 plan).
+    expect(entries).toHaveLength(77);
     expect([...FACT_LABELS].sort()).toEqual([...entries].sort());
     expectWords([...FACT_LABELS, 'other'].flatMap((label) => [`fact.label.${label}`, `fact.meaning.${label}`]));
   });
@@ -43,6 +44,15 @@ describe('prompt trust words of the core source', () => {
     const codes = [...readFileSync(`${CORE}/SecurityDecisionOutputContract.java`, 'utf-8').matchAll(/code\(Group\.\w+,\s*"(\w+)"/g)].map((match) => match[1] ?? '');
     expect(codes.length).toBeGreaterThan(50);
     expectWords(codes.map((code) => `reasonCode.${code}`));
+    // SC-9: the output contract v4 (a v21 decision) has meanings of its own (변경 6 of 프롬프트-v21-구현계획.md).
+    const v4 = [...readFileSync(`${CORE}/SecurityDecisionOutputContractV4.java`, 'utf-8').matchAll(/code\(Group\.\w+,\s*"(\w+)"/g)].map((match) => match[1] ?? '');
+    expect(v4).toHaveLength(49);
+    expectWords(v4.map((code) => `reasonCodeV4.${code}`));
+    // SC-7, SC-8: how a v21 decision judges, and the explanations it weighed.
+    expectWords(['H1', 'H2', 'H3', 'H4', 'H5'].map((id) => `hypothesis.${id}`));
+    expectWords(['MOST_LIKELY', 'POSSIBLE', 'UNLIKELY', 'NO_EVIDENCE'].map((assessment) => `hypothesis.assessment.${assessment}`));
+    expectWords(['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK'].map((verdict) => `gRules.verdictV21.${verdict}`));
+    expectWords(['mission', 'hypotheses', 'records', 'response', 'honesty'].map((card) => `gRules.lineV21.${card}`));
     expectWords([...FACT_SOURCES, 'NONE'].map((source) => `fact.source.${source}`));
     expectWords(INSPECTION_CHECKS.map((code) => `quality.check.${code}`));
     expectWords(INSPECTION_VERDICTS.map((verdict) => `quality.verdict.${verdict}`));

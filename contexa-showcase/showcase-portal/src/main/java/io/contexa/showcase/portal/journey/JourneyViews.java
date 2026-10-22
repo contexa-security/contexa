@@ -30,12 +30,22 @@ import java.util.regex.Pattern;
 public class JourneyViews {
 
     /** The case each experience sends (decision 2). */
-    static final Map<String, String> EXPERIENCE_CASES = Map.of("E1", "A3", "E2", "A3T");
-    static final Set<String> ROUTES = Set.of("DEFAULT", "INTRO");
+    /**
+     * The cases of the main flow's experiences (IN-6 확정 설계 of docs/showcase/최종화면-구현계획.md): the stolen account
+     * (E1), the owner's same export (E2) and the insider (E3), whose runs every existing control let through alike (L1).
+     */
+    static final Map<String, String> EXPERIENCE_CASES = Map.of("E1", "S13", "E2", "S13T", "E3", "S16");
+    /** One route only: the redesigned flow has no concept path (docs/showcase/화면재편-구현계획.md P-1). */
+    static final Set<String> ROUTES = Set.of("DEFAULT");
     static final Set<String> ENGINE_CALLS = Set.of("ALLOW", "CHALLENGE", "ESCALATE", "BLOCK");
     static final Set<String> EXISTING_CALLS = Set.of("ALL", "SOME", "NONE");
     static final Set<String> NUMBER_RULE_CALLS = Set.of("STOP", "PASS");
     static final Pattern STEP = Pattern.compile("[a-z0-9-]{1,40}");
+    /**
+     * The place on the flow: the seven groups of the main flow (최종화면-구현계획 F0-1, the insider group of IN-6); 0
+     * before the first.
+     */
+    static final int LAST_PART = 7;
     static final List<String> EXISTING_CONTROLS = List.of("A", "B", "C1", "C2");
 
     /** A change of the journey; absent fields stay as they were. */
@@ -73,9 +83,14 @@ public class JourneyViews {
      * @param existingActual   how many of the four existing approaches stopped the visitor's latest run of the case
      *                         (ALL, SOME, NONE); null before the visitor sent it
      * @param numberRuleActual whether the number rule stopped that run (STOP, PASS); null before
+     * @param engineActual     Contexa's final judgment in that run; null before the visitor sent it
+     * @param engineSameAction whether the visitor's call is that very judgment (화면재편-구현계획 P-4, F-5)
+     * @param engineSameStop   whether the call handles the request the same way: both keep the data in, or both
+     *                         let it through
      */
     public record PredictionScore(String experience, String caseKey, Prediction call, Boolean engineRight,
-                                  String existingActual, String numberRuleActual, String runId) {
+                                  String existingActual, String numberRuleActual, String runId,
+                                  String engineActual, Boolean engineSameAction, Boolean engineSameStop) {
     }
 
     public record View(State state, List<RecapLine> runs, List<PredictionScore> predictions) {
@@ -214,7 +229,7 @@ public class JourneyViews {
         if (update.route() != null && !ROUTES.contains(update.route())) {
             return false;
         }
-        if (update.act() != null && (update.act() < 0 || update.act() > 4)) {
+        if (update.act() != null && (update.act() < 0 || update.act() > LAST_PART)) {
             return false;
         }
         if (update.step() != null && !STEP.matcher(update.step()).matches()) {
@@ -266,7 +281,8 @@ public class JourneyViews {
             }
         }
         if (latest == null) {
-            return new PredictionScore(experience, caseKey, prediction, engineRight, null, null, null);
+            return new PredictionScore(experience, caseKey, prediction, engineRight, null, null, null, null, null,
+                    null);
         }
         int stopping = 0;
         for (String control : EXISTING_CONTROLS) {
@@ -276,8 +292,20 @@ public class JourneyViews {
         }
         String existing = stopping == EXISTING_CONTROLS.size() ? "ALL" : stopping == 0 ? "NONE" : "SOME";
         String numberRule = stopped(latest.business().get("C1")) ? "STOP" : "PASS";
+        String actual = latest.verdicts().stream().map(verdict -> verdict.score().finalAction())
+                .filter(Objects::nonNull).findFirst().orElse(null);
         return new PredictionScore(experience, caseKey, prediction, engineRight, existing, numberRule,
-                latest.runId());
+                latest.runId(), actual, sameAction(prediction.engine(), actual), sameStop(prediction.engine(), actual));
+    }
+
+    /** Whether the visitor's call is Contexa's very judgment; null before the call or the run. */
+    static Boolean sameAction(String call, String actual) {
+        return call == null || actual == null ? null : call.equals(actual);
+    }
+
+    /** Whether the call handles the request as Contexa did: both keep the data in, or both let it through. */
+    static Boolean sameStop(String call, String actual) {
+        return call == null || actual == null ? null : "ALLOW".equals(call) == "ALLOW".equals(actual);
     }
 
     /** An approach stopped the request: the attack or the work did not go through. */

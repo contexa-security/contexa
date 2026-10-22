@@ -20,6 +20,8 @@
     "bundleGuard.ts",
     "precompress.ts",
     "languagePreload.ts",
+    "dictionarySplit.ts",
+    "dictionarySplit.test.ts",
     "firstScreenPreload.ts",
     "firstScreenPreload.test.ts",
     "src/firstScreens.ts",
@@ -29,6 +31,7 @@
     "screenIntegrity.test.ts",
     "factWordsSource.test.ts",
     "benchPromptPhone.test.ts",
+    "frameStyles.test.ts",
     "e2e"
   ]
 }

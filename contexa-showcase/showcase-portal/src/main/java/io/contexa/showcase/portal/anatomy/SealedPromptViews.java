@@ -1,9 +1,11 @@
 package io.contexa.showcase.portal.anatomy;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import io.contexa.showcase.portal.replay.ReplayViews;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -117,7 +119,12 @@ public final class SealedPromptViews {
     public record Seal(String packageId, String packageHash, String capturedAt) {
     }
 
-    public record ReasonCode(String code, String fact) {
+    /** A reason code and the fact it cites; contract "V4" for a code of the output contract v4 (SC-6). */
+    public record ReasonCode(String code, String fact, String contract) {
+
+        public ReasonCode(String code, String fact) {
+            this(code, fact, null);
+        }
     }
 
     /** The fact accuracy check's compared facts: those that matched their sealed source over all compared. */
@@ -137,13 +144,24 @@ public final class SealedPromptViews {
     }
 
     /**
+     * SC-8 (docs/showcase/프롬프트-v21-구현계획.md): an explanation a v21 decision weighed, as the model assessed it,
+     * with the IDs of the facts it named for and against it.
+     *
+     * @param assessment MOST_LIKELY, POSSIBLE, UNLIKELY or NO_EVIDENCE
+     */
+    public record Hypothesis(String id, String name, String assessment, @JsonProperty("for") List<String> supporting,
+                             List<String> against) {
+    }
+
+    /**
      * The quality of a step's sealed prompt.
      *
      * @param inspection the latest inspection as control D gives it (verdict, inspector version, time, checks with
      *                   their mismatches); null when the seal has none yet
+     * @param hypotheses SC-8: the explanations the decision weighed; empty for a decision before v21
      */
     public record QualityView(boolean available, String reason, Bundle bundle, Seal seal, JsonNode inspection,
-                              List<ReasonCode> reasonCodes, Ribbon ribbon) {
+                              List<ReasonCode> reasonCodes, List<Hypothesis> hypotheses, Ribbon ribbon) {
     }
 
     /** The facts view of a step; without facts when a reason is given. */
@@ -168,18 +186,25 @@ public final class SealedPromptViews {
     /** The quality view of a step; without values when a reason is given. */
     public static QualityView quality(String reason, JsonNode facts) {
         if (reason != null || facts == null) {
-            return new QualityView(false, reason, null, null, null, List.of(), null);
+            return new QualityView(false, reason, null, null, null, List.of(), List.of(), null);
         }
         JsonNode inspection = facts.path("inspection").isObject() ? facts.path("inspection") : null;
+        String contract = ReplayViews.contractOf(text(facts.path("contractVersion")),
+                text(facts.path("userPromptLayoutVersion")));
         List<ReasonCode> codes = new ArrayList<>();
         for (JsonNode code : facts.path("reasonCodes")) {
-            codes.add(code.isTextual() ? new ReasonCode(code.asText(), null)
-                    : new ReasonCode(text(code.path("code")), text(code.path("fact"))));
+            codes.add(code.isTextual() ? new ReasonCode(code.asText(), null, contract)
+                    : new ReasonCode(text(code.path("code")), text(code.path("fact")), contract));
         }
         Seal seal = new Seal(text(facts.path("packageId")), text(facts.path("packageHash")),
                 text(facts.path("capturedAt")));
+        List<Hypothesis> hypotheses = new ArrayList<>();
+        for (JsonNode hypothesis : facts.path("hypotheses")) {
+            hypotheses.add(new Hypothesis(text(hypothesis.path("id")), text(hypothesis.path("name")),
+                    text(hypothesis.path("assessment")), ids(hypothesis.path("for")), ids(hypothesis.path("against"))));
+        }
         return new QualityView(true, null, bundle(facts), seal, inspection == null ? null : masked(inspection),
-                List.copyOf(codes), ribbon(facts.path("lines"), inspection));
+                List.copyOf(codes), List.copyOf(hypotheses), ribbon(facts.path("lines"), inspection));
     }
 
     /** The ribbon's counts from the prompt's entry lines and the latest inspection (null without one). */
@@ -326,6 +351,12 @@ public final class SealedPromptViews {
             }
         }
         return null;
+    }
+
+    private static List<String> ids(JsonNode array) {
+        List<String> ids = new ArrayList<>();
+        array.forEach(id -> ids.add(id.asText()));
+        return List.copyOf(ids);
     }
 
     private static String text(JsonNode node) {

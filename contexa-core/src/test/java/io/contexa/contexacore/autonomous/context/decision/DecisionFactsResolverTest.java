@@ -444,12 +444,13 @@ class DecisionFactsResolverTest {
     }
 
     /**
-     * N-RATE-1, administrator A (seal 9134): reads at 11:25, 11:59 and 12:07 of 09-25, 42 minutes, and single reads
-     * hours apart. By clock hours the usual 95th percentile was 2, so 3 requests in the last 60 minutes were a
-     * difference nothing explained; counted as the request being judged is counted, the usual 95th percentile is 3.
+     * N-RATE-1, N-FRIC-2, administrator A (seal 9134): reads at 11:25, 11:59 and 12:07 of 09-25, 42 minutes, and single
+     * reads hours apart, 18 requests. By clock hours the usual 95th percentile was 2, so 3 requests in the last 60
+     * minutes were a difference nothing explained; fewer than 60 counts give no usual rate, so the rate is not
+     * compared.
      */
     @Test
-    void threeRequestsInTheLastHourAreAsUsualForAUserWhoMadeThreeWithinFortyTwoMinutes() {
+    void threeRequestsInTheLastHourAreNotComparedWithTheRateOfAWeekOfEighteenRequests() {
         List<BaselineViewCalculator.Observation> history = new ArrayList<>();
         for (String time : List.of("2026-09-25T11:25:00Z", "2026-09-25T11:59:00Z", "2026-09-25T12:07:00Z")) {
             history.add(adminRead(Instant.parse(time)));
@@ -467,10 +468,10 @@ class DecisionFactsResolverTest {
         DecisionFacts facts = DecisionFactsResolver.resolve(context, evidence(current("CRITICAL", "Chrome/140",
                 "10.40.12.0/24"), personal(), view), UTC);
 
-        assertThat(value(facts, "SameAsBaseline")).contains("rate 3 requests in the last 60 min, "
-                + "usual median 1, 95th percentile 3 in the 60 min up to a request");
+        assertThat(value(facts, "DeviationsFromBaseline")).contains("rate (no usual rate in the view)");
+        assertThat(value(facts, "SameAsBaseline")).doesNotContain("requests in the last 60 min");
         assertThat(facts.deviations()).filteredOn(deviation -> deviation.dimension() == DeviationDimension.RATE)
-                .singleElement().extracting(Deviation::different).isEqualTo(false);
+                .singleElement().extracting(Deviation::compared).isEqualTo(false);
     }
 
     /**
@@ -571,6 +572,72 @@ class DecisionFactsResolverTest {
                 .isEqualTo("action READ within the scope group's actions (READ); scope group of 3 other users");
         assertThat(DecisionFactsResolver.resolve(alone, null, UTC).unavailable())
                 .containsEntry("RoleScope", "no peers besides the user");
+    }
+
+    /**
+     * V-4: in the records notation (v21) the same approval is stated by its values: no policy satisfaction, no "covers"
+     * tail, no difference marked explained. What the core computes for itself (whether the differences are explained,
+     * the policy) is the same as in the v20 notation.
+     */
+    @Test
+    void theRecordsNotationStatesTheApprovalByItsValuesAndComputesTheSame() {
+        ApprovalRecord approval = ApprovalRecord.builder().approvalId("APR-1").status("APPROVED").approver("pm-11")
+                .purpose("PROJECT_TRANSFER").target("GB-500").maxItems(5000).usedItems(0)
+                .validFrom(AT.minus(Duration.ofDays(1))).validUntil(AT.plus(Duration.ofDays(1))).hostCovers(true)
+                .build();
+        CanonicalSecurityContext context = export(4831, friction(List.of(approval)));
+        LearningContextEvidence evidence = evidence(current("CRITICAL", "Chrome/140", "10.40.12.0/24"), personal(),
+                adminView());
+
+        DecisionFacts records = DecisionFactsResolver.resolve(context, evidence, UTC, DecisionFactsResolver.Notation.RECORDS);
+        DecisionFacts conclusions = DecisionFactsResolver.resolve(context, evidence, UTC);
+
+        assertThat(records.fact("PolicySatisfied")).isEmpty();
+        assertThat(value(records, "DeviationsFromBaseline")).contains("time 03 seen 0 of 25")
+                .doesNotContain("explained").doesNotContain("unexplained");
+        assertThat(records.fact("DeviationsFromBaseline").orElseThrow().recordIds()).isEmpty();
+        assertThat(value(records, "Approval")).isEqualTo("APR-1 by pm-11, APPROVED, PROJECT_TRANSFER, GB-500, "
+                + "up to 5,000 items, used 0 before this request, valid 09-29 03:17..10-01 03:17 "
+                + "(from 24 h before to 24 h after this request), "
+                + "decision time not recorded, the host's own check marks no mismatch with this request");
+        assertThat(records.fact("Approval").orElseThrow().codes()).isEmpty();
+        assertThat(records.fact("Approval").orElseThrow().recordIds()).containsExactly("APR-1");
+        // The computation is the same: the structured differences and the policy the core keeps for itself.
+        assertThat(records.deviations()).isEqualTo(conclusions.deviations());
+        assertThat(records.policy()).isEqualTo(conclusions.policy());
+        assertThat(records.unexplained()).isEmpty();
+    }
+
+    /** V-4: what the host marks as not matching and what the core could not check stay on a record line, as facts. */
+    @Test
+    void theRecordsNotationKeepsWhatTheHostMarksAndWhatCouldNotBeChecked() {
+        ApprovalRecord approval = ApprovalRecord.builder().approvalId("APR-1").status("APPROVED").approver("pm-11")
+                .purpose("PROJECT_TRANSFER").target("GB-400").maxItems(5000)
+                .validFrom(AT.minus(Duration.ofDays(1))).validUntil(AT.plus(Duration.ofDays(1)))
+                .hostMismatches(new ArrayList<>(List.of("TARGET"))).build();
+
+        DecisionFacts records = DecisionFactsResolver.resolve(export(4831, friction(List.of(approval))),
+                evidence(current("CRITICAL", "Chrome/140", "10.40.12.0/24"), personal(), adminView()), UTC,
+                DecisionFactsResolver.Notation.RECORDS);
+
+        assertThat(value(records, "Approval")).contains("GB-400").contains("the host marks: it is for another target")
+                .doesNotContain("cover");
+    }
+
+    /** V-4: the records notation states the request's value against the scope group's list, not within or outside. */
+    @Test
+    void theRecordsNotationStatesTheScopeGroupsListsWithoutWithinOrOutside() {
+        CanonicalSecurityContext outside = export(10, friction(List.of()));
+        outside.setRoleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                .currentActionFamily("EXPORT").expectedActionFamilies(new ArrayList<>(List.of("READ")))
+                .currentResourceFamily("PROJECT_DOCUMENTS")
+                .expectedResourceFamilies(new ArrayList<>(List.of("TEAM_NOTES", "project_documents"))).build());
+
+        DecisionFacts records = DecisionFactsResolver.resolve(outside, null, UTC, DecisionFactsResolver.Notation.RECORDS);
+
+        assertThat(value(records, "RoleScope")).isEqualTo("action EXPORT against the scope group's actions (READ); "
+                + "category PROJECT_DOCUMENTS against the scope group's categories (TEAM_NOTES, project_documents)");
+        assertThat(records.fact("RoleScope").orElseThrow().codes()).isEmpty();
     }
 
     @Test
@@ -700,6 +767,34 @@ class DecisionFactsResolverTest {
 
     private static String value(DecisionFacts facts, String name) {
         return facts.fact(name).orElseThrow().value();
+    }
+
+    /**
+     * N-FRIC-2, case S13T: a requester assigned to the project exports 480 items, more than the usual 29, where the
+     * policy lets assigned work export up to 500 without an approval. The satisfied assigned limit explains the size as
+     * a covering record explains the work it covers; it explains no other dimension, and over the limit nothing
+     * explains the size.
+     */
+    @Test
+    void aSatisfiedAssignedLimitExplainsAnExportSizeWithinIt() {
+        FrictionProfile assigned = friction(List.of());
+        assigned.setAssignment(CanonicalSecurityContext.AssignmentRecord.builder().target("GB-500").assigned(true)
+                .build());
+
+        DecisionFacts within = DecisionFactsResolver.resolve(export(480, assigned), evidence(current("CRITICAL",
+                "Chrome/140", "10.40.12.0/24"), personal(), adminView()), UTC);
+        DecisionFacts over = DecisionFactsResolver.resolve(export(4831, assigned), evidence(current("CRITICAL",
+                "Chrome/140", "10.40.12.0/24"), personal(), adminView()), UTC);
+
+        assertThat(value(within, "PolicySatisfied"))
+                .isEqualTo("yes \u2014 assigned to GB-500, 480 items within the assigned limit of 500");
+        assertThat(value(within, "DeviationsFromBaseline")).contains("size 480 items, usual up to 29 items per export "
+                + "(median 17, 5 exports) (explained by the assigned limit of 500 items)")
+                .contains("time 03 seen 0 of 25 (unexplained)");
+        assertThat(within.unexplained()).extracting(Deviation::dimension).doesNotContain(DeviationDimension.SIZE)
+                .contains(DeviationDimension.TIME);
+        assertThat(value(over, "DeviationsFromBaseline")).contains("size 4,831 items, usual up to 29 items per export "
+                + "(median 17, 5 exports) (unexplained)");
     }
 
     private static CanonicalSecurityContext export(int items, FrictionProfile friction) {

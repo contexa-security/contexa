@@ -287,7 +287,10 @@ public class LabController {
         if (visitor.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(store.recent(visitor.get(), 5));
+        return ResponseEntity.ok(store.recent(visitor.get(), 5).stream()
+                .map(run -> run.scored(catalog.find(run.caseKey())
+                        .map(scenario -> scenario.oracle().classification()).orElse(null)))
+                .toList());
     }
 
     private LabStore.Prediction prediction(PredictionRequest request) {

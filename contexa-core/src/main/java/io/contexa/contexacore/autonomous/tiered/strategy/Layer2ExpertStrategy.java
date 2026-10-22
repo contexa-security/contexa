@@ -26,7 +26,6 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
 import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -205,6 +204,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .reasoning(expertDecision.getReasoning())
                 .llmReasoning(expertDecision.getLlmReasoning())
                 .reasonCodes(expertDecision.getReasonCodes())
+                .hypotheses(expertDecision.getHypotheses())
                 .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
                 .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
                 .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
@@ -252,27 +252,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityResponse response;
             SecurityDecisionResponse pipelineResponse = null;
-            // N-RSN-1: the first pass's verdict with its model values, when this pass keeps it without a model call.
-            SecurityDecisionResponse firstPassVerdict = null;
             clearPromptRuntimeTelemetry(event);
-            List<Document> newPastRecords = secondPass ? firstPass.newPastRecords(relatedDocuments) : List.of();
-            if (secondPass && newPastRecords.isEmpty()) {
-                // W3-9: nothing new to give a second pass; asking again with the same facts only draws again.
-                event.addMetadata("layer2ModelCallSkipped", "NO_NEW_FACTS");
-                SecurityDecisionResponse firstVerdict = new SecurityDecisionResponse();
-                firstVerdict.setAction(firstPass.verdict());
-                firstVerdict.setReasoning(firstPass.reason());
-                // N-RSN-1: the verdict kept is the first pass's model verdict, so are its model values: the risk score
-                // and confidence, the reason codes with the fact IDs they cite, and the provenance of these fields.
-                firstVerdict.setRiskScore(firstPass.riskScore());
-                firstVerdict.setConfidence(firstPass.confidence());
-                firstVerdict.setReasonCodes(firstPass.reasonCodes());
-                firstVerdict.setFieldProvenance(firstPass.fieldProvenance());
-                firstPassVerdict = firstVerdict;
-                response = validateAndFixResponse(firstVerdict.toSecurityResponse());
-            } else if (pipelineOrchestrator != null) {
+            // 판정층 E-4: the first pass handed the request over (ESCALATE), so this pass decides it with its own model,
+            // also when its search found nothing new; the first verdict never becomes the final one.
+            if (pipelineOrchestrator != null) {
                 long pipelineStart = System.currentTimeMillis();
-                // In a second pass the documents are the new past records: the first pass had none.
+                // In a second pass the block draws these past records as new only when the first pass could not
+                // retrieve its own (판정층 E-4b); otherwise the first prompt already holds the first pass's records.
                 SecurityDecisionRequest request = buildSecurityDecisionRequest(event, sessionCtx, behaviorCtx,
                         relatedDocuments);
                 if (secondPass) {
@@ -309,13 +295,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
             expertDecision.setLlmDecisionPresent(true);
             expertDecision.setTechnicalFallbackApplied(false);
-            if (pipelineResponse != null) {
-                applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
-                applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
-            } else if (firstPassVerdict != null) {
-                applyReasonCodesAndProvenance(expertDecision, firstPassVerdict);
-            }
-            terminalizeLayer2EscalateDecision(expertDecision, event);
+            applyResponseActionFallback(expertDecision, pipelineResponse.getAction());
+            applySecurityDecisionRuntimeTelemetry(expertDecision, pipelineResponse);
+            terminalizeLayer2EscalateDecision(expertDecision);
             applyCanonicalDecisionReasoning(expertDecision, event, relatedDocuments);
             applyMinimumActionRules(expertDecision, event);
 
@@ -525,7 +507,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         "Layer2 LLM response action was invalid; CHALLENGE was applied.");
     }
 
-    private void terminalizeLayer2EscalateDecision(SecurityDecision decision, SecurityEvent event) {
+    private void terminalizeLayer2EscalateDecision(SecurityDecision decision) {
+        // 판정층 E-5: no analysis follows this one, so an ESCALATE left after it is terminalized in every bundle; the
+        // v21 system text and response check ask the second analysis for ALLOW, CHALLENGE or BLOCK. The v20 exception
+        // of Q-87 (an ESCALATE kept under a review floor) is withdrawn (판정층 8절 7): no person reviews a request.
         if (decision == null || tieredStrategyProperties.getLayer2().isAllowEscalateFinalAction()) {
             return;
         }
@@ -539,11 +524,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 || fallback == ZeroTrustAction.ESCALATE
                 || fallback == ZeroTrustAction.PENDING_ANALYSIS) {
             fallback = ZeroTrustAction.CHALLENGE;
-        }
-        // Q-87 (N-P3-1): the ESCALATE stays when the fallback ranks below the floor of a minimum action rule that
-        // applies (P3 asks for a review; a verification of the user does not supply a missing record).
-        if (MinimumActionRules.violatedBy(fallback.name(), minimumActionHits(event))) {
-            return;
         }
         decision.setAutonomousAction(fallback);
         decision.setAutonomyConstraintApplied(true);

@@ -27,7 +27,7 @@ describe('try helpers', () => {
     expect(plainValue(t, 'network', '10.40.12.0/24')).toBe('10.40.12.0/24');
     expect(plainValue(t, 'operatingSystem', 'WINDOWS')).toBe('Windows');
     expect(plainValue(t, 'operatingSystem', 'Windows')).toBe('Windows');
-    expect(plainPath(t, '/api/projects/GB-500/exports/*')).toBe('GB-500 반출');
+    expect(plainPath(t, '/api/projects/GB-500/exports/*')).toBe('GB-500 내보내기');
     expect(plainPath(t, '/api/documents/PLM-OPS-NTE-00284/download/*')).toBe('PLM-OPS 문서 내려받기');
     expect(plainPath(t, '/api/documents/PLM-OPS-SPC-00175')).toBe('PLM-OPS 문서 열람');
   });

@@ -3,6 +3,7 @@ package io.contexa.showcase.portal.anatomy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.contexa.showcase.portal.anatomy.DecisionAnatomy.Call;
 import io.contexa.showcase.portal.anatomy.DecisionAnatomy.Comparison;
@@ -33,8 +34,11 @@ import java.util.regex.Pattern;
  */
 public final class AnatomyBuilder {
 
-    /** Raised when the anatomy's shape or a rule of copying changes; stored anatomies keep the version they had. */
-    public static final int VERSION = 11;
+    /**
+     * Raised when the anatomy's shape or a rule of copying changes; stored anatomies keep the version they had. 13: a v21
+     * record's comparison is its sealed one and it reads no adverse conditions (SC-10).
+     */
+    public static final int VERSION = 13;
 
     /**
      * The dimensions the core compares (its label names) in a v19 record; a v20 record's are sealed
@@ -118,7 +122,8 @@ public final class AnatomyBuilder {
         Map<String, Object> prompt = new LinkedHashMap<>();
         metadata.fieldNames().forEachRemaining(name -> {
             if (name.startsWith("rag")) {
-                rag.put(name, value(metadata.get(name)));
+                // The search scope names the HTTP sessions it left out; they are masked like every other one (C-14).
+                rag.put(name, value(masked(metadata.get(name))));
             }
         });
         for (String name : List.of("promptSectionSet", "omittedSections", "compactedLineCountBySection",
@@ -359,6 +364,12 @@ public final class AnatomyBuilder {
             for (Map.Entry<String, JsonNode> field : node.properties()) {
                 copy.set(field.getKey(), masked(field.getValue()));
             }
+            return copy;
+        }
+        if (node.isArray()) {
+            // A list of identifiers (the retrieval's excluded sessions) is masked entry by entry.
+            ArrayNode copy = json.createArrayNode();
+            node.forEach(entry -> copy.add(masked(entry)));
             return copy;
         }
         return node;

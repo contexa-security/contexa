@@ -14,11 +14,15 @@ import java.util.Map;
  * @param layers        each control's business result over the whole case of the runs with a ground truth, by the
  *                      one scoring rule (docs/showcase/데모-재설계.md 5.0)
  * @param specCount     distinct execution specifications among the counted runs
- * @param releases      block releases recorded for the counted runs (the follow-up map's block line, D-32)
+ * @param releases           blocks of the counted runs that were actually released; a block met without a release
+ *                           (the attacker never asks) is not one (the follow-up map's block line, D-32)
+ * @param escalateHeld       review decisions whose step control D held before the response (423)
+ * @param blockedAfterReview blocks met after a review decision of the same run expired unresolved, with no block
+ *                           decision of the engine up to that step (승인대기 Q-07: ESCALATE 423 then BLOCK)
  */
 public record StatsView(Instant computedAt, Runs runs, DecisionTime decisionTime, Map<String, Long> engineActions,
                         Unresolved unresolved, Agreement agreement, Scope scope, List<LayerStats> layers, Spec spec,
-                        long specCount, long releases) {
+                        long specCount, long releases, long escalateHeld, long blockedAfterReview) {
 
     /** The engine's resolved decisions of every final action together, counted here so the screen adds nothing. */
     @JsonProperty(value = "engineDecisions", access = JsonProperty.Access.READ_ONLY)

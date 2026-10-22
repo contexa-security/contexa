@@ -55,8 +55,26 @@ public class ExecutionStats {
         return new StatsView(now, runs(now), decisionTime(), engineActions(), unresolved(), agreement(),
                 scope(scored), layers(scored), spec(), jdbc.getJdbcTemplate().queryForObject(
                 "select count(distinct r.spec_hash) from run r where " + COUNTED_RUNS, Long.class),
-                jdbc.getJdbcTemplate().queryForObject("select count(*) from run_release x join run r on r.run_id = "
-                        + "x.run_id where " + COUNTED_RUNS, Long.class));
+                count("select count(*) from run_release x join run r on r.run_id = x.run_id where %s and x.released"),
+                count("""
+                        select count(*)
+                          from run_decision d join run r on r.run_id = d.run_id
+                          join run_arm_result a on a.run_id = d.run_id and a.step_no = d.step_no and a.control = 'D'
+                         where %s and d.final_action = 'ESCALATE' and not coalesce(d.unresolved, false)
+                           and d.applied = 'BEFORE_RESPONSE' and a.http_status = 423"""),
+                count("""
+                        select count(*)
+                          from run_release x join run r on r.run_id = x.run_id
+                         where %s
+                           and exists (select 1 from run_decision e where e.run_id = x.run_id
+                                          and e.step_no < x.step_no and e.final_action = 'ESCALATE')
+                           and not exists (select 1 from run_decision b where b.run_id = x.run_id
+                                              and b.step_no <= x.step_no and b.final_action = 'BLOCK')"""));
+    }
+
+    private long count(String sql) {
+        Long value = jdbc.getJdbcTemplate().queryForObject(sql.formatted(COUNTED_RUNS), Long.class);
+        return value == null ? 0L : value;
     }
 
     private StatsView.Runs runs(Instant now) {

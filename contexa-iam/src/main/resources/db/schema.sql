@@ -715,6 +715,35 @@ create table blocked_user
     mfa_verified_at      timestamp(6)
 );
 
+-- Agents Contexa knows (A1-6): observed from requests and registered by identity providers.
+create table if not exists agent_registration
+(
+    id                 bigserial
+        primary key,
+    tenant_key         varchar(255) default '' not null,
+    agent_id           varchar(255)            not null,
+    display_name       varchar(255),
+    agent_type         varchar(255),
+    client_id          varchar(255),
+    sponsor_id         varchar(255),
+    status             varchar(32)             not null,
+    allowlisted        boolean default false   not null,
+    source             varchar(32)             not null,
+    last_subject_kind  varchar(32),
+    first_seen_at      timestamp(6),
+    last_seen_at       timestamp(6),
+    registered_at      timestamp(6),
+    deregistered_at    timestamp(6),
+    status_reason      text,
+    updated_at         timestamp(6)            not null
+);
+
+create unique index if not exists ux_agent_registration_tenant_agent
+    on agent_registration (tenant_key, agent_id);
+
+create index if not exists idx_agent_registration_last_seen
+    on agent_registration (last_seen_at desc);
+
 
 create table oauth2_authorization
 (

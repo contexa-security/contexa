@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * How long the prompt the engine sent was, counted by the server from the stored texts so the screen never counts
  * (work 19 of docs/showcase/화면설계서-v2-구현계획.md, D-38). One rule everywhere: a line is a line with content, so the
  * bundles add up to the total. A v19 prompt is counted under the seven bundles of the screen design, a v20 prompt
- * under one bundle per dictionary block (W3-10 of docs/showcase/프롬프트-최종-구현계획.md).
+ * under one bundle per dictionary block (W3-10 of docs/showcase/프롬프트-최종-구현계획.md). A v21 prompt has the same
+ * blocks; only its decision facts block carries the title RECORDS AND COMPARISONS (SC-1 of
+ * docs/showcase/프롬프트-v21-구현계획.md).
  *
  * @param total          content lines of the system and the user prompt together
  * @param system         content lines of the system prompt (the decision rules)
@@ -51,12 +54,16 @@ public record PromptLines(int total, int system, int user, int systemPhysical, i
     public static final List<String> V20_BUNDLES = List.of("RULES", "REQUEST", "SESSION", "USER_BASELINE",
             "DECISION_FACTS", "UNKNOWN", "PAST_RECORDS", "UNTRUSTED_TEXT", "SECOND_PASS", "OTHER");
 
+    /** The v21 render's title of the decision facts block ({@code PromptBlock.v21Title}). */
+    static final String V21_FACTS_TITLE = "RECORDS AND COMPARISONS";
+
     /** The core's v20 block titles ({@code PromptBlock}) by bundle; a header may add a qualifier in brackets. */
     static final Map<String, String> V20_BLOCK_BUNDLES = Map.of(
             "USER BASELINE", "USER_BASELINE",
             "SESSION", "SESSION",
             "REQUEST", "REQUEST",
             "DECISION FACTS", "DECISION_FACTS",
+            V21_FACTS_TITLE, "DECISION_FACTS",
             "PAST RECORDS", "PAST_RECORDS",
             "UNKNOWN", "UNKNOWN",
             "UNTRUSTED TEXT", "UNTRUSTED_TEXT",
@@ -142,6 +149,15 @@ public record PromptLines(int total, int system, int user, int systemPhysical, i
         counts.forEach((bundle, lines) -> bundles.add(new Bundle(bundle, lines)));
         return new PromptLines(system + user, system, user, physicalLines(systemPrompt), physicalLines(userPrompt),
                 List.copyOf(sections), List.copyOf(bundles), v20 ? V20_BLOCKS : V19_SECTIONS);
+    }
+
+    /**
+     * Whether a user prompt was drawn by a v21 bundle: its decision facts block carries the v21 title. A v21 system
+     * text states no decision rules, so no minimum action rule and no elevated-risk boundary is read from it.
+     */
+    public static boolean v21(String userPrompt) {
+        return userPrompt != null && userPrompt.lines().map(PromptLines::header).filter(Objects::nonNull)
+                .map(PromptLines::blockTitle).anyMatch(V21_FACTS_TITLE::equals);
     }
 
     /** A v20 header's block title: the header without its qualifier in brackets, as the core reads it. */

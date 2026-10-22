@@ -61,21 +61,27 @@ test('largest contentful paint on slow 4G', async ({ page, context }, info) => {
 });
 
 interface RecordedScene {
+  readonly kind: 'ATTACK' | 'LEGITIMATE';
   readonly runId: string;
   readonly agreeing: number;
   readonly repetitions: number;
-  readonly layers: readonly {
-    readonly control: string;
-    readonly outcome: string;
-    readonly verdict: string | null;
-    readonly evidence: { readonly deliveredItems: number };
-  }[];
 }
 
 interface StoredScore {
-  readonly title: { readonly en: string } | null;
-  readonly truth: { readonly classification: string | null };
+  readonly business: Readonly<Record<string, { readonly result: string } | undefined>>;
 }
+
+/** The result words of the result screens (src/pages/ReplayPage.tsx RESULT_WORDS). */
+const RESULT_WORDS: Readonly<Record<string, string>> = {
+  STOPPED: 'p1.result.word.STOPPED',
+  PARTLY_STOPPED: 'p1.result.word.PARTLY_STOPPED',
+  MISSED: 'p1.result.word.MISSED',
+  PASSED: 'p1.result.word.PASSED',
+  PASSED_AFTER_CHECK: 'p1.result.word.PASSED_AFTER_CHECK',
+  HALTED: 'p1.result.word.HALTED',
+  UNRESOLVED: 'p1.result.word.UNRESOLVED',
+};
+const CONTROLS = ['A', 'B', 'C1', 'C2', 'D'] as const;
 
 const english = JSON.parse(readFileSync(join(process.cwd(), 'src/i18n/en.json'), 'utf-8')) as Record<
   string,
@@ -92,11 +98,6 @@ function word(key: string): string {
 
 function fill(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key] ?? `{{${key}}}`));
-}
-
-/** The screens' one way to write seconds (src/journey/format.ts). */
-function seconds(ms: number): string {
-  return ms >= 1000 ? (ms / 1000).toFixed(1) : (ms / 1000).toFixed(2);
 }
 
 async function recordings(request: APIRequestContext) {
@@ -120,55 +121,56 @@ async function recordings(request: APIRequestContext) {
 }
 
 /**
- * The stored real record (D-35, T-111) on real recordings: every published pair replays each recorded run as one
- * column of the first screen's replay, every rule row and Contexa's row as the record says, the case's right answer
- * from the run's score and the measurement line from the recording.
+ * The stored real record (D-35, T-111, R7 RO-5) on real recordings: every published pair shows its two recorded runs
+ * side by side, one column per run named by who sent it, every approach's cell the run's score in the result screens'
+ * words, and the repeated sends' line from the recording.
  */
 test('every published replay renders exactly its recorded results', async ({ page, request }, info) => {
   test.skip(info.project.name !== 'chromium', 'record comparison is checked once');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const pair of await recordings(request)) {
     await page.goto(`/replay/${pair.key}?lng=en`);
-    for (const { scene, score } of pair.scenes) {
-      const normal = score.truth.classification === 'NORMAL';
-      const title = score.title?.en ?? word('detail.unnamed');
-      const column = page.locator('section').filter({ has: page.getByRole('heading', { name: title }) });
-      await expect(column).toContainText(word(normal ? 'hook.answer.pass' : 'hook.answer.stop'));
-      for (const layer of scene.layers) {
-        if (layer.control === 'C1' || layer.control === 'C2') {
-          const expected =
-            layer.outcome === 'DELIVERED'
-              ? word('hook.passed')
-              : word(normal ? 'hook.halted' : 'hook.stopped');
-          await expect(column.locator(`li[data-row="${layer.control}"] > span:nth-child(2)`)).toHaveText(
-            expected,
-          );
-        }
-        if (layer.control === 'D') {
-          const result =
-            layer.verdict === 'ALLOW' && layer.outcome === 'DELIVERED'
-              ? word('hook.passed')
-              : layer.verdict === 'CHALLENGE'
-                ? word('verdict.verify')
-                : layer.verdict === 'ESCALATE'
-                  ? word('verdict.review')
-                  : layer.verdict === 'BLOCK'
-                    ? word('verdict.block')
-                    : word(layer.outcome === 'DELIVERED' ? 'hook.passed' : 'hook.stopped');
-          await expect(column.locator('li[data-row="D"] > span:nth-child(2)')).toHaveText(
-            fill(word('hook.withItems'), {
-              result,
-              items: layer.evidence.deliveredItems.toLocaleString('en-US'),
-            }),
-          );
+    const body = page.locator('[data-zone="body"]');
+    await expect(body.locator('table')).toBeVisible();
+    for (const [index, { scene, score }] of pair.scenes.entries()) {
+      const who = word(scene.kind === 'ATTACK' ? 'p2.result.table.attacker' : 'p2.result.table.owner');
+      await expect(body.getByRole('columnheader').nth(index + 1)).toHaveText(who);
+      for (const control of CONTROLS) {
+        const result = score.business[control]?.result ?? null;
+        const key = result ? RESULT_WORDS[result] : undefined;
+        const cell = body
+          .locator('tr')
+          .filter({
+            has: page.getByRole('rowheader', { name: word(`control.${control}.name`), exact: true }),
+          })
+          .locator('td')
+          .nth(index);
+        if (key) {
+          await expect(cell).toContainText(word(key));
         }
       }
-      await expect(column).toContainText(
-        scene.agreeing === scene.repetitions
-          ? fill(word('hook.measuredSame'), { runs: scene.repetitions })
-          : fill(word('hook.measuredSome'), { runs: scene.repetitions, same: scene.agreeing }),
-      );
     }
+    // The source line: the recording's repeated sends and how often they agreed.
+    const [first] = pair.scenes;
+    const allSame = pair.scenes.every(
+      ({ scene }) => scene.agreeing === scene.repetitions && scene.repetitions === first?.scene.repetitions,
+    );
+    await expect(page.locator('[data-zone="source"]')).toHaveText(
+      allSame
+        ? fill(word('space.r7.replay.sourceSame'), { runs: first?.scene.repetitions ?? 0 })
+        : `${word('space.r7.replay.source')} · ${pair.scenes
+            .map(
+              ({ scene }) =>
+                `${word(scene.kind === 'ATTACK' ? 'p2.result.table.attacker' : 'p2.result.table.owner')}: ${
+                  scene.agreeing === scene.repetitions
+                    ? fill(word('space.r7.replay.repeat.same'), { runs: scene.repetitions })
+                    : fill(word('space.r7.replay.repeat.some'), {
+                        runs: scene.repetitions,
+                        same: scene.agreeing,
+                      })
+                }`,
+            )
+            .join(', ')}`,
+    );
     expect(await seriousViolations(page)).toEqual([]);
     if (evidenceDir) {
       await page.screenshot({ path: join(evidenceDir, `replay-${pair.key}.png`), fullPage: true });
@@ -188,19 +190,18 @@ test('every published replay leads to the decision details and its recorded anal
   for (const pair of await recordings(request)) {
     await page.goto(`/replay/${pair.key}?lng=en`);
     const address = page.url();
-    for (const [index, { scene, score }] of pair.scenes.entries()) {
-      const title = score.title?.en ?? word('detail.unnamed');
+    for (const [index, { scene }] of pair.scenes.entries()) {
+      const who = word(scene.kind === 'ATTACK' ? 'p2.result.table.attacker' : 'p2.result.table.owner');
       const anatomy = (await (await request.get(`/api/runs/${scene.runId}/steps/1/anatomy`)).json()) as {
         interpretation: { timeline: readonly unknown[]; sinceStartMs: readonly (number | null)[] };
       };
-      await page.getByRole('button', { name: fill(word('replay2.detailOf'), { name: title }) }).click();
+      await page.getByRole('button', { name: fill(word('space.r7.replay.detailOf'), { who }) }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
-      await dialog.getByRole('tab', { name: word('detail.tab.process') }).click();
-      const stages = dialog.getByRole('tabpanel').locator('ol').first().locator('li > span:first-child');
-      await expect(stages).toHaveText(
-        anatomy.interpretation.sinceStartMs.map((ms) => fill(word('detail.after'), { s: seconds(ms ?? 0) })),
-      );
+      // The judging tab walks the nine steps of 3-2 with this request's values (R7-검수 V-47).
+      await dialog.getByRole('tab', { name: word('detail.r7.tab.process') }).click();
+      await expect(dialog.getByRole('tabpanel').locator('ol').first().locator(':scope > li')).toHaveCount(9);
+      expect(anatomy.interpretation.timeline.length).toBeGreaterThan(0);
       expect(await seriousViolations(page)).toEqual([]);
       if (evidenceDir) {
         await page.screenshot({ path: join(evidenceDir, `timeline-${pair.key}-${index}.png`) });

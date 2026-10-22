@@ -40,7 +40,7 @@ class OrchestratorUnitTest {
         assertThat(catalog.all()).extracting(ScenarioDefinition::key)
                 .containsExactly("A1", "A1T", "A3", "A3A", "A3S", "A3ST", "A3T", "A3TA", "A5", "A5T", "A6", "A6T", "A8", "A8T", "K2", "R1", "S01", "S02",
                         "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S09C", "S10", "S11", "S11T", "S12", "S13",
-                        "S13T", "S14", "S15");
+                        "S13T", "S14", "S15", "S16", "S16T", "S17", "S17T", "S18", "S19", "S19T");
         for (ScenarioDefinition scenario : catalog.all()) {
             assertThat(scenario.title()).as(scenario.key()).containsKeys("ko", "en");
             assertThat(scenario.frozenOn()).as(scenario.key() + " is frozen (W2-5)").isNotNull();
@@ -184,10 +184,11 @@ class OrchestratorUnitTest {
 
     /**
      * W2-5, case S12: the approval's decision is recorded 20 minutes after the request while its validity starts two
-     * hours before it; the other approvals of the cases leave the decision time unrecorded.
+     * hours before it. V21 finding 4: the approvals decided before the request record that decision at the start of
+     * their validity, as a company's approval system records every decision.
      */
     @Test
-    void anApprovalFactCarriesWhenItsDecisionWasRecordedOnlyWhenTheCaseSaysSo() throws Exception {
+    void anApprovalFactCarriesWhenItsDecisionWasRecorded() throws Exception {
         ScenarioCatalog catalog = new ScenarioCatalog(json);
         Instant time = Instant.parse("2026-09-30T14:20:00Z");
 
@@ -198,8 +199,13 @@ class OrchestratorUnitTest {
             assertThat(approval.approvedAt()).isEqualTo(Instant.parse("2026-09-30T14:40:00Z"));
             assertThat(approval.validFrom()).isEqualTo(Instant.parse("2026-09-30T12:20:00Z"));
         });
-        assertThat(transfer.approvals()).singleElement()
-                .satisfies(approval -> assertThat(approval.approvedAt()).isNull());
+        assertThat(transfer.approvals()).singleElement().satisfies(approval -> {
+            assertThat(approval.approvedAt()).isEqualTo(Instant.parse("2026-09-29T14:20:00Z"));
+            assertThat(approval.validFrom()).isEqualTo(approval.approvedAt());
+        });
+        assertThat(catalog.all()).flatExtracting(ScenarioDefinition::facts)
+                .filteredOn(fact -> "APPROVAL".equals(fact.kind()))
+                .allSatisfy(fact -> assertThat(fact.recordedAtOffset()).isNotNull());
     }
 
     @Test
@@ -357,6 +363,94 @@ class OrchestratorUnitTest {
     }
 
     /**
+     * IN-6 확정 설계 (docs/showcase/최종화면-구현계획.md): the insider pair joins the catalog as S16 and S16T with the
+     * definitions of the variants INS-V1 and INS-V2 the L1 measurement ran, only the key, the pair's name in the
+     * rationale and the rule-blind suite (the cases no rule was written for) differ. Whether every existing control lets
+     * a run through is read from its record (G1 of docs/showcase/프롬프트-v21-구현계획.md), not from the suite.
+     */
+    @Test
+    void theInsiderPairJoinsTheCatalogWithTheDefinitionsTheMeasurementRan() throws Exception {
+        ScenarioCatalog catalog = new ScenarioCatalog(json);
+
+        assertThat(catalog.all()).filteredOn(scenario -> ScenarioDefinition.RULE_BLIND.equals(scenario.suite()))
+                .extracting(ScenarioDefinition::key).contains("S13", "S13T", "S16", "S16T");
+        for (String[] pair : new String[][]{{"S16", "INS-V1"}, {"S16T", "INS-V2"}}) {
+            JsonNode moved;
+            JsonNode variant;
+            try (InputStream catalogFile = OrchestratorUnitTest.class.getResourceAsStream("/scenarios/" + pair[0] + ".json");
+                 InputStream variantFile = OrchestratorUnitTest.class.getResourceAsStream(
+                         "/reactivity/variants/" + pair[1] + ".json")) {
+                moved = json.readTree(catalogFile);
+                variant = json.readTree(variantFile);
+            }
+            for (String field : List.of("version", "frozenOn", "title", "protagonist", "template", "timeSlot", "device",
+                    "pace", "facts", "steps")) {
+                assertThat(moved.path(field)).as(pair[0] + " " + field).isEqualTo(variant.path(field));
+            }
+            assertThat(moved.path("oracle").path("classification")).isEqualTo(variant.path("oracle").path("classification"));
+            assertThat(moved.path("oracle").path("allowedEngineActions"))
+                    .isEqualTo(variant.path("oracle").path("allowedEngineActions"));
+            assertThat(moved.path("oracle").path("rationale").path("ko").asText())
+                    .isEqualTo(variant.path("oracle").path("rationale").path("ko").asText().replace("INS-V1", "S16"));
+        }
+        // The insider is the account's owner: an additional check reaches their own mailbox.
+        assertThat(catalog.find("S16").orElseThrow().oracle().ownerActs()).isTrue();
+        assertThat(catalog.find("S16T").orElseThrow().oracle().ownerActs()).isFalse();
+        assertThat(catalog.find("S13").orElseThrow().oracle().ownerActs()).as("a stolen account").isFalse();
+    }
+
+    /**
+     * 4.6 of docs/showcase/프롬프트-v21-구현계획.md: the camouflage cases are designed so that every existing control
+     * passes them by its own definition (each step expected to be allowed by all four), in the rule-blind suite, each
+     * attack with a normal pair that differs in the device alone (S18's pair is S16T, which differs in the documents
+     * alone); the insider's extra check reaches the owner. Whether the controls let a run through is read from the run
+     * records (G1), not from these expectations.
+     */
+    @Test
+    void theCamouflageCasesPassEveryRuleByDesignAndDifferFromTheirPairInOneFact() throws Exception {
+        ScenarioCatalog catalog = new ScenarioCatalog(json);
+        for (String key : List.of("S17", "S17T", "S18", "S19", "S19T")) {
+            ScenarioDefinition scenario = catalog.find(key).orElseThrow();
+            assertThat(scenario.suite()).as(key).isEqualTo(ScenarioDefinition.RULE_BLIND);
+            assertThat(scenario.protagonist()).as(key).isEqualTo("eng-k");
+            assertThat(scenario.timeSlot()).as(key + " is outside the night hours").isNotEqualTo(TimeSlot.DAWN);
+            for (ScenarioDefinition.Step step : scenario.steps()) {
+                assertThat(step.expected()).as(key).containsOnly(Map.entry("A", "ALLOW"), Map.entry("B", "ALLOW"),
+                        Map.entry("C1", "ALLOW"), Map.entry("C2", "ALLOW"));
+                assertThat(step.items() == null || step.items() <= 500).as(key + " within the limits").isTrue();
+            }
+        }
+        for (String[] pair : new String[][]{{"S17", "S17T"}, {"S19", "S19T"}}) {
+            JsonNode attack;
+            JsonNode normal;
+            try (InputStream attackFile = OrchestratorUnitTest.class.getResourceAsStream("/scenarios/" + pair[0] + ".json");
+                 InputStream normalFile = OrchestratorUnitTest.class.getResourceAsStream("/scenarios/" + pair[1] + ".json")) {
+                attack = json.readTree(attackFile);
+                normal = json.readTree(normalFile);
+            }
+            for (String field : List.of("protagonist", "template", "timeSlot", "pace", "facts", "steps")) {
+                assertThat(normal.path(field)).as(pair[1] + " " + field).isEqualTo(attack.path(field));
+            }
+            assertThat(attack.path("device").asText()).isEqualTo("NEW");
+            assertThat(normal.path("device").asText()).isEqualTo("USUAL");
+            assertThat(attack.path("oracle").path("classification").asText()).isEqualTo("THREAT");
+            assertThat(normal.path("oracle").path("classification").asText()).isEqualTo("NORMAL");
+        }
+        JsonNode insider;
+        JsonNode pair;
+        try (InputStream insiderFile = OrchestratorUnitTest.class.getResourceAsStream("/scenarios/S18.json");
+             InputStream pairFile = OrchestratorUnitTest.class.getResourceAsStream("/scenarios/S16T.json")) {
+            insider = json.readTree(insiderFile);
+            pair = json.readTree(pairFile);
+        }
+        for (String field : List.of("protagonist", "template", "timeSlot", "device", "pace", "steps")) {
+            assertThat(insider.path(field)).as("S18 " + field).isEqualTo(pair.path(field));
+        }
+        assertThat(catalog.find("S18").orElseThrow().oracle().ownerActs()).isTrue();
+        assertThat(catalog.find("S19").orElseThrow().pace()).isEqualTo(ScenarioDefinition.Pace.RAPID);
+    }
+
+    /**
      * W7-5: the new bundle is normal work in combinations the rules were not written for, counted apart under its own
      * suite: a new laptop on a registered trip at the company's dawn, usual work on a resource of internal grade, and
      * the requests of S11 under an approval they stay within.
@@ -367,10 +461,13 @@ class OrchestratorUnitTest {
 
         assertThat(catalog.all()).filteredOn(scenario -> ScenarioDefinition.NORMAL_COMBINATION.equals(scenario.suite()))
                 .extracting(ScenarioDefinition::key).containsExactly("S11T", "S14", "S15");
+        // S11T's approval gained its decision time in its version 2 (V21 finding 4).
+        Map<String, Integer> versions = Map.of("S11T", 2, "S14", 1, "S15", 1);
+        Map<String, String> frozen = Map.of("S11T", "2026-10-19", "S14", "2026-10-16", "S15", "2026-10-16");
         for (String key : List.of("S11T", "S14", "S15")) {
             ScenarioDefinition scenario = catalog.find(key).orElseThrow();
-            assertThat(scenario.version()).isEqualTo(1);
-            assertThat(scenario.frozenOn()).isEqualTo(LocalDate.parse("2026-10-16"));
+            assertThat(scenario.version()).as(key).isEqualTo(versions.get(key));
+            assertThat(scenario.frozenOn()).as(key).isEqualTo(LocalDate.parse(frozen.get(key)));
             assertThat(scenario.oracle().classification()).as(key).isEqualTo("NORMAL");
             assertThat(scenario.oracle().allowedEngineActions()).as(key).containsExactly("ALLOW", "CHALLENGE");
             assertThat(scenario.template()).as(key).isTrue();
@@ -439,10 +536,11 @@ class OrchestratorUnitTest {
                 variant = json.readValue(in, ScenarioDefinition.class);
             }
             keys.add(variant.key());
+            // N-INJ-6: the control A1T-C1 reads its note when A1T-I1 does.
             assertThat(RunOrchestrator.signInTime(variant, companyTime)).as(variant.key()).isEqualTo(
-                    "A1T-I1".equals(variant.key()) ? Instant.parse("2026-09-29T23:48:00Z") : usual);
+                    Set.of("A1T-I1", "A1T-C1").contains(variant.key()) ? Instant.parse("2026-09-29T23:48:00Z") : usual);
         }
-        assertThat(keys).as("the variants read").contains("A3-I3", "A1T-I1");
+        assertThat(keys).as("the variants read").contains("A3-I3", "A1T-I1", "A3-C3", "A1T-C1");
     }
 
     /** N-INJ-5: a new session survives the round trip of its definition, and only a step that starts one names it. */

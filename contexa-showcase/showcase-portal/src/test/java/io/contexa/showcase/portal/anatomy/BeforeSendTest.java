@@ -3,6 +3,7 @@ package io.contexa.showcase.portal.anatomy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.showcase.portal.replay.ReplayView;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -35,6 +36,31 @@ class BeforeSendTest {
         assertThat(usual.get("pathFamily").label()).as("the prompt lists the most frequent paths").isEqualTo(
                 "FrequentPaths");
         assertThat(usual.get("pathFamily").values()).contains("/api/projects/PLM-OPS/exports/*");
+    }
+
+    @Test
+    void theSizeRatioIsTheRequestedItemsOverTheUsualLargestExportRounded() {
+        Map<String, BeforeSend.Usual> usual = Map.of("size", new BeforeSend.Usual("UsualExportSize", List.of("29")));
+        List<ReplayView.Fact> facts = List.of(new ReplayView.Fact("NO_APPROVAL", null),
+                new ReplayView.Fact("ITEMS", "4831"));
+
+        assertThat(BeforeSend.sizeRatio(usual, facts)).isEqualTo(new BeforeSend.SizeRatio(4831, 29, 167));
+        assertThat(BeforeSend.sizeRatio(Map.of(), facts)).as("no usual export size").isNull();
+        assertThat(BeforeSend.sizeRatio(usual, List.of())).as("no requested items").isNull();
+        assertThat(BeforeSend.sizeRatio(Map.of("size", new BeforeSend.Usual("UsualExportSize", List.of("0"))), facts))
+                .as("no export learned").isNull();
+    }
+
+    // Review before the guide videos (2026-10-21, V-10): the screen said '10 items' while the engine compared 9.
+    @Test
+    void theComparedCountLeavesOutTheItemsTheEngineCouldNotCompare() {
+        List<DecisionAnatomy.Comparison> rows = List.of(
+                new DecisionAnatomy.Comparison("device", "Safari/18", "false", List.of()),
+                new DecisionAnatomy.Comparison("accessHour", "14", "true", List.of()),
+                new DecisionAnatomy.Comparison("rate", "-", "UNKNOWN", List.of()));
+
+        assertThat(BeforeSend.comparedCount(rows)).isEqualTo(2);
+        assertThat(BeforeSend.comparedCount(List.of())).isZero();
     }
 
     @Test
@@ -173,6 +199,28 @@ class BeforeSendTest {
                 .containsExactly("MIN_P1_IDENTITY_DEVIATION", "MIN_P3_POLICY_NOT_SATISFIED");
         assertThat(rules.rules()).extracting(BeforeSend.MinimumRule::floor).containsOnlyNulls();
         assertThat(rules.applies()).as("a record without findings: no rule met").isFalse();
+    }
+
+    /**
+     * SC-2 of docs/showcase/프롬프트-v21-구현계획.md: the texts of a real v21.3 decision (test/resources/anatomy/
+     * v21-prompts.json) state no minimum action rule and no elevated-risk boundary, so the screen names neither.
+     */
+    @Test
+    void aV21DecisionStatesNoMinimumActionRuleAndNoBoundary() throws Exception {
+        JsonNode sample;
+        try (InputStream in = BeforeSendTest.class.getResourceAsStream("/anatomy/v21-prompts.json")) {
+            sample = JSON.readTree(in).path("samples").get(0);
+        }
+        String system = sample.path("systemPrompt").asText();
+        String user = sample.path("userPrompt").asText();
+
+        BeforeSend.MinimumRules rules = BeforeSend.minimumRules(system, "[]");
+
+        assertThat(rules).isNull();
+        assertThat(BeforeSend.boundaryOf(rules, user, "CRITICAL", 3, List.of())).isNull();
+        String v20 = "=== DECISION FACTS ===\nApprovalMissing: true";
+        assertThat(BeforeSend.boundaryOf(null, v20, "CRITICAL", 3, List.of()))
+                .as("a text before v21 without minimum action rules").isNotNull();
     }
 
     @Test

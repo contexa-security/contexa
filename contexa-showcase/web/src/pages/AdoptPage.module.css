@@ -1,83 +1,60 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  max-width: 56rem;
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-4) var(--space-16);
+/*
+ * The adopt space (RO-4, RO-9) inside the shared frame. The "what changes" cells look like screen 5-3's (the same
+ * kind of content); the code is the one ground of its view.
+ */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--frame-inner-gap);
+  margin: 0;
 }
 
-.page:lang(ko) {
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-.header {
+.cell {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-
-.title {
-  font-size: var(--text-2xl);
-}
-
-.lead {
-  max-width: 44rem;
-  color: var(--color-text-muted);
-}
-
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   padding: var(--space-5);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background-color: var(--color-surface);
-  counter-increment: step;
 }
 
-.stepTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.name {
+  margin: 0;
   color: var(--color-text);
-  font-size: var(--text-lg);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
 }
 
-.stepTitle::before {
-  content: counter(step);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--space-8);
-  block-size: var(--space-8);
-  border-radius: var(--radius-pill);
-  background-color: var(--color-accent);
-  color: var(--color-accent-ink);
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
+.value {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+}
+
+/* One step of a view: its name, its sentence, its code and its links. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  min-width: 0;
+  max-width: var(--frame-measure);
 }
 
 .text {
+  margin: 0;
   color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
-.code {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.inline {
+  font-family: var(--font-mono);
+  font-size: inherit;
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
 }
 
 .pre {
@@ -85,10 +62,10 @@
   padding: var(--space-4);
   overflow-x: auto;
   border-radius: var(--radius-md);
-  background-color: var(--color-bg);
+  background-color: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
   line-height: var(--leading-normal);
   word-break: normal;
   overflow-wrap: normal;
@@ -98,105 +75,49 @@
   outline: 2px solid var(--color-focus);
 }
 
-.codeActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.copy {
-  padding: var(--space-1) var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: transparent;
-  color: var(--color-text-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.copied {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.shadow {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 0;
-}
-
-.shadow div {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.shadow dt {
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-}
-
-.shadow dd {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-}
-
-.note {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.sectionTitle {
-  color: var(--color-text);
-  font-size: var(--text-lg);
+.lineOn {
+  color: var(--color-accent);
+  font-weight: var(--weight-bold);
 }
 
 .links {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3) var(--space-6);
+  gap: var(--space-3);
 }
 
-.links a {
+.link {
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
-  background-color: var(--color-surface);
+  background-color: transparent;
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
   font-weight: var(--weight-semibold);
   text-decoration: none;
 }
 
-.links a:hover {
+.link:hover {
   border-color: var(--color-accent);
   background-color: var(--color-surface-accent);
 }
 
-.lineOn {
-  color: var(--color-accent);
-  font-weight: var(--weight-bold);
+.link:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
-/* Phones (mobile slide): the copy button reaches 44 px. */
+@media (width <= 48rem) {
+  .cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (width <= 40rem) {
-  .copy {
-    min-height: 2.75rem;
+  .cell {
+    padding: var(--space-4);
   }
 }

@@ -1,40 +1,29 @@
-.page {
-  max-width: 52rem;
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-4) var(--space-16);
-}
-
-.page:lang(ko) {
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-.article {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.title {
-  color: var(--color-text);
-  font-size: var(--text-xl);
-}
-
+/* The privacy notice (RO-7) inside the shared frame: one section per heading, the facts as lists and tables. */
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
 }
 
 .heading {
+  margin: 0;
   color: var(--color-text);
-  font-size: var(--text-lg);
+  font-size: var(--type-body);
   font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
 }
 
-.paragraph {
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-measure);
+  margin: 0;
+  padding-inline-start: var(--space-5);
   color: var(--color-text-body);
-  line-height: var(--leading-normal);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
 .tableWrap {
@@ -46,7 +35,8 @@
 .table {
   inline-size: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
 }
 
 .table th,
@@ -59,7 +49,7 @@
 }
 
 .table thead th {
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
   font-weight: var(--weight-medium);
 }
 
@@ -68,11 +58,17 @@
   font-weight: var(--weight-semibold);
 }
 
+.table code {
+  font-family: var(--font-mono);
+  font-size: inherit;
+}
+
 .table tbody tr:last-child th,
 .table tbody tr:last-child td {
   border-block-end: none;
 }
 
+/* Phones: one block per row, each cell under its row's name and led by its column's name. */
 @media (width < 768px) {
   .table,
   .table tbody,
@@ -92,6 +88,9 @@
   }
 
   .table tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     border-block-end: 1px solid var(--color-border);
   }
@@ -102,7 +101,13 @@
 
   .table tbody th,
   .table tbody td {
-    padding: var(--space-1) 0;
+    padding: 0;
     border: none;
+  }
+
+  .table td::before {
+    margin-inline-end: var(--space-2);
+    color: var(--color-text-muted);
+    content: attr(data-label);
   }
 }

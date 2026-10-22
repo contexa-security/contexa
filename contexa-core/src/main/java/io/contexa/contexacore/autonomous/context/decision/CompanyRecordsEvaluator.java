@@ -160,6 +160,31 @@ public final class CompanyRecordsEvaluator {
                 && profile.getCheckedRecordKinds().stream().anyMatch(kind::equalsIgnoreCase);
     }
 
+    /**
+     * N-FRIC-2: the item limit of an assigned exception that holds for the request while the policies are satisfied,
+     * null otherwise. The company lets assigned work export that many items, so the policy explains a size within it as
+     * a covering record explains the work it covers; it explains no other dimension.
+     */
+    static Integer itemLimitHeld(FrictionProfile profile, Request request, Evaluation evaluation) {
+        if (profile == null || request == null || request.items() == null || evaluation == null
+                || !Boolean.TRUE.equals(evaluation.policy().satisfied()) || profile.getPolicies() == null) {
+            return null;
+        }
+        String target = targetName(profile, request);
+        for (CompanyPolicy policy : profile.getPolicies()) {
+            if (policy == null || policy.getExceptions() == null) {
+                continue;
+            }
+            for (PolicyException exception : policy.getExceptions()) {
+                if (exception != null && "ASSIGNED".equals(upper(exception.getKind())) && exception.getLimit() != null
+                        && exceptionCheck(exception, profile, request, Optional.empty(), null, target).met() != null) {
+                    return exception.getLimit();
+                }
+            }
+        }
+        return null;
+    }
+
     /** Whether the profile holds records whose validity the engine computes: approvals or tickets. */
     public static boolean hasRecords(FrictionProfile profile) {
         return profile != null

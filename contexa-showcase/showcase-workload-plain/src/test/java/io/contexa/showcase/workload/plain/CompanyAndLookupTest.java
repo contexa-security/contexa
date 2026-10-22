@@ -107,9 +107,12 @@ class CompanyAndLookupTest {
                 .startsWith("Document DOC-doc1-1 'Externally supplied work note' revision 1 (NOTE) of project CP-220")
                 .doesNotContain(summary);
         assertThat(request.getAttribute(BusinessRequestAttributes.RESOURCE_AUTHOR_TEXT)).isEqualTo(summary);
+        // Finding 7 of the v21 plan: the project the database holds the document in, as the host's record.
+        assertThat(request.getAttribute(BusinessRequestAttributes.RESOURCE_SCOPE)).isEqualTo("projectKey=CP-220");
         MockHttpServletRequest export = new MockHttpServletRequest();
         attributes.describeExport(export, "CP-220", 4);
         assertThat(export.getAttribute(BusinessRequestAttributes.REQUEST_ITEMS)).isEqualTo(4);
+        assertThat(export.getAttribute(BusinessRequestAttributes.RESOURCE_SCOPE)).isEqualTo("projectKey=CP-220");
         long companyDocuments = generated.documents().stream()
                 .filter(document -> document.projectKey().equals("CP-220")).count();
         assertThat((String) export.getAttribute(BusinessRequestAttributes.RESOURCE_BUSINESS_LABEL))

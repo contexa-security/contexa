@@ -29,6 +29,7 @@ import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
+import io.contexa.contexacore.std.llm.model.TieredLayerModelVerifier;
 import io.contexa.contexacore.std.llm.runtime.LlmRuntimeCatalog;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
@@ -124,8 +125,21 @@ public class CoreLLMTieredAutoConfiguration {
     public DynamicModelRegistry dynamicModelRegistry(
             ApplicationContext applicationContext,
             TieredLLMProperties tieredLLMProperties,
-            LlmRuntimeCatalog llmRuntimeCatalog) {
-        return new DynamicModelRegistry(applicationContext, tieredLLMProperties, llmRuntimeCatalog);
+            LlmRuntimeCatalog llmRuntimeCatalog,
+            @Qualifier("primaryChatModel") ObjectProvider<ChatModel> primaryChatModel) {
+        DynamicModelRegistry registry = new DynamicModelRegistry(applicationContext, tieredLLMProperties,
+                llmRuntimeCatalog);
+        // A layer model named in application.yml with no runtime binding runs on a copy of the primary chat model.
+        registry.setVariantBase(primaryChatModel::getIfAvailable);
+        return registry;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(name = "primaryChatModel")
+    public TieredLayerModelVerifier tieredLayerModelVerifier(DynamicModelRegistry dynamicModelRegistry,
+                                                             TieredLLMProperties tieredLLMProperties) {
+        return new TieredLayerModelVerifier(dynamicModelRegistry, tieredLLMProperties);
     }
 
     @Bean(name = "primaryChatModel")

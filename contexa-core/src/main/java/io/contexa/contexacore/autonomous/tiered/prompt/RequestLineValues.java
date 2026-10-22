@@ -50,6 +50,21 @@ public final class RequestLineValues {
         return SecurityDecisionPromptValues.targetLabel(resource);
     }
 
+    /** What the target line states of the category: a token as it is, else where its text is (N-INJ-4), or null. */
+    public static String targetCategory(CanonicalSecurityContext.Resource resource) {
+        return SecurityDecisionPromptValues.targetCategory(resource);
+    }
+
+    /** The scope the host's records hold the target in, as its v21 line states it, or null (finding 7). */
+    public static String targetScope(CanonicalSecurityContext.Resource resource) {
+        return SecurityDecisionPromptValues.targetScope(resource);
+    }
+
+    /** The category's text when it is not a token and so an UNTRUSTED TEXT line (N-INJ-4), else null. */
+    public static String untrustedCategory(CanonicalSecurityContext.Resource resource) {
+        return SecurityDecisionPromptValues.untrustedCategory(resource);
+    }
+
     /** The device the sealed context names, or null. */
     public static String sealedDeviceName(CanonicalSecurityContext.Device device) {
         return SecurityDecisionPromptValues.sealedDeviceName(device);

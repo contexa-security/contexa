@@ -106,7 +106,7 @@ describe('act-end sentence', () => {
         },
       }),
     ).toBe(
-      '당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa는 8.0초 판단 뒤 본인 확인을 요구해 0건에서 멈췄습니다.',
+      '당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa는 8.0초 판단 뒤 추가 인증을 요구해 0건에서 멈췄습니다.',
     );
     expect(
       actEndSentence(t, 'ko', {
@@ -122,7 +122,7 @@ describe('act-end sentence', () => {
           result: 'MISSED',
         },
       }),
-    ).toBe('당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa는 허용해 4,831건이 나갔습니다.');
+    ).toBe('당신은 정상 비밀번호로 4,831건을 빼내려 했고, Contexa가 통과시켜 4,831건이 나갔습니다.');
   });
 
   it('states the second and third acts as their runs ended', () => {
@@ -134,7 +134,7 @@ describe('act-end sentence', () => {
         runId: 'run-3',
         values: { result: 'PASSED', numberRule: 'HALTED' },
       }),
-    ).toBe('진짜 직원의 승인된 반출은 통과시켰고, 숫자 규칙은 같은 업무를 막았습니다.');
+    ).toBe('정상 사용자의 결재된 내보내기는 통과시켰고, 고정 규칙은 같은 업무를 막았습니다.');
     expect(
       actEndSentence(t, 'ko', {
         act: 3,
@@ -143,6 +143,34 @@ describe('act-end sentence', () => {
         runId: 'run-4',
         values: { from: 21, to: 25 },
       }),
-    ).toBe('요청이 쌓이자 평소 모습이 21건에서 25건으로 늘었습니다.');
+    ).toBe('요청이 쌓이자 배운 요청이 21건에서 25건으로 늘었습니다.');
+  });
+
+  /** Part 4 (화면재편 4-4, P-2): when the judgment applied, what left before it and the next request, as recorded. */
+  function timing(values: Record<string, unknown>) {
+    return actEndSentence(t, 'ko', { act: 4, caseKey: 'A3A', source: 'VISITOR_RUN', runId: 'run-5', values });
+  }
+
+  it('states the fourth part by when the judgment applied and what happened to the next request', () => {
+    const sent = { requested: 4831, engineAction: 'ESCALATE', applied: 'NEXT_REQUEST', analysisMs: 4199, delivered: 4831 };
+    expect(timing({ ...sent, nextStopped: true })).toBe(
+      '다음 요청부터 차단으로 보내자 판단 전에 4,831건이 나갔고, 다음 요청은 막혔습니다.',
+    );
+    expect(timing({ ...sent, delivered: 1200, nextStopped: false })).toBe(
+      '다음 요청부터 차단으로 보내자 판단 전에 1,200건이 나갔고, 다음 요청도 나갔습니다.',
+    );
+    // A run without a second request says nothing about one.
+    expect(timing({ ...sent, nextStopped: null })).toBe('다음 요청부터 차단으로 보내자 판단 전에 4,831건이 나갔습니다.');
+    expect(timing({ ...sent, applied: 'BEFORE_RESPONSE', delivered: 0, nextStopped: null })).toBe(
+      '판단을 응답 전에 적용해 판단이 끝날 때까지 응답을 붙잡았고, 0건이 나갔습니다.',
+    );
+  });
+
+  it('falls back to the plain sentence when the record lacks what a frame needs', () => {
+    const other = '이번 기록에서는 판단을 언제 적용했는지 읽지 못했습니다.';
+    expect(timing({})).toBe(other);
+    expect(timing({ applied: 'NEXT_REQUEST', delivered: null, nextStopped: true })).toBe(other);
+    expect(timing({ applied: 'MID_RESPONSE', delivered: 4831, nextStopped: null })).toBe(other);
+    expect(timing({ applied: null, delivered: 4831, nextStopped: true })).toBe(other);
   });
 });

@@ -46,6 +46,21 @@ class PromptInspectionCoverageTest {
                 && !why.source().isBlank() && why.reason() != null && !why.reason().isBlank());
     }
 
+    /** Finding 7 of the v21 plan: every entry of the v21 dictionary alone is compared once its line is drawn. */
+    @Test
+    void everyEntryOfTheV21DictionaryAloneIsComparedWhenDrawn() {
+        Set<String> v20 = SecurityDecisionPromptDictionary.ENTRIES.stream()
+                .map(entry -> entry.block().name() + "." + entry.name()).collect(Collectors.toSet());
+        Set<String> v21Only = SecurityDecisionPromptDictionary.V21_ENTRIES.stream()
+                .map(entry -> entry.block().name() + "." + entry.name()).filter(name -> !v20.contains(name))
+                .collect(Collectors.toSet());
+
+        assertThat(FactAccuracyCheck.COMPARED_V21).isEqualTo(v21Only);
+        assertThat(FactAccuracyCheck.COMPARED_V21).doesNotContainAnyElementsOf(FactAccuracyCheck.COMPARED)
+                .doesNotContainAnyElementsOf(FactAccuracyCheck.INSPECTED_ELSEWHERE.keySet())
+                .doesNotContainAnyElementsOf(FactAccuracyCheck.NOT_COMPARABLE.keySet());
+    }
+
     @Test
     void aDrawnLineOfAnEntryWithoutASealedSourceIsCountedNotComparableWithItsReason() {
         SealedEvidencePackage sealed = InspectionGolden.showcaseSealed().stream()

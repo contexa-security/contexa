@@ -1,0 +1,298 @@
+/* EV-3: the LLM's structured answer as a card, then the chain from the facts to the verdict. */
+.hero {
+  --verdict-tone: var(--color-accent);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5) var(--space-8);
+  align-items: start;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-inline-start: 6px solid var(--verdict-tone);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.hero[data-tone='allow'],
+.chainEnd[data-tone='allow'] {
+  --verdict-tone: var(--color-allow);
+}
+
+.hero[data-tone='auth'],
+.chainEnd[data-tone='auth'] {
+  --verdict-tone: var(--color-auth);
+}
+
+.hero[data-tone='block'],
+.chainEnd[data-tone='block'] {
+  --verdict-tone: var(--color-block);
+}
+
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.action {
+  margin: 0;
+  color: var(--verdict-tone);
+  font-size: var(--type-emphasis);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.actionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.actionMeta code {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+.gauge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-3);
+  align-items: end;
+}
+
+.gaugeValue {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--type-counter);
+  line-height: var(--leading-none);
+}
+
+.gaugeTrack {
+  grid-column: 1 / -1;
+  position: relative;
+  block-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--color-ok), var(--color-auth), var(--color-bad));
+}
+
+.gaugeTrack[data-kind='confidence'] {
+  background: linear-gradient(90deg, var(--color-lane-track), var(--color-allow));
+}
+
+.gaugeMark {
+  position: absolute;
+  inset-block: calc(var(--space-1) * -1.5);
+  inline-size: 0.5rem;
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text);
+  translate: -50% 0;
+}
+
+.gaugeScale {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.source {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.source[data-model] {
+  border-color: var(--color-accent-line);
+  color: var(--color-accent);
+}
+
+.reason {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+}
+
+.reasonLabel {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.reasonText {
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-normal);
+}
+
+/* The chain: a fact, an arrow, the reason code in plain words; the verdict at the end. */
+.chain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.chainTitle {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: var(--text-lg);
+}
+
+.chainHead,
+.link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.chainHead {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-raised);
+}
+
+.fact,
+.code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.factName,
+.codePlain {
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.factValue,
+.codeName {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* The original code under its plain words, marked as the original (V-48). */
+.codeTag {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
+/* A long cited line shows two lines until it is opened. */
+.factValue {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.factValue[data-whole] {
+  display: block;
+}
+
+.factMore {
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.codes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.linkArrow {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  color: var(--color-accent);
+}
+
+.chainEnd {
+  --verdict-tone: var(--color-accent);
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.chainEnd b {
+  color: var(--verdict-tone);
+  font-size: var(--text-lg);
+}
+
+@media (width <= 64rem) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 40rem) {
+  .chainHead {
+    display: none;
+  }
+
+  .link {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .link .linkArrow {
+    rotate: 90deg;
+  }
+}

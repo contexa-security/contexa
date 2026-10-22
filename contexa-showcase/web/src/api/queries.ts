@@ -86,12 +86,15 @@ export function useSpec(specHash: string | undefined) {
   });
 }
 
-/** Reading the visitor state issues the visitor cookie and the CSRF cookie before the first vote. */
+/**
+ * Reading the visitor state issues the visitor cookie and the CSRF cookie before the first vote. Screens only wait for
+ * it, so it is read once: a screen mounted later (its code loaded after the bar) does not ask again.
+ */
 export function useVisitor() {
   return useQuery({
     queryKey: ['visitor'],
     queryFn: () => getJson<VisitorState>('/api/visitor'),
-    retry: false,
+    ...STATIC,
   });
 }
 

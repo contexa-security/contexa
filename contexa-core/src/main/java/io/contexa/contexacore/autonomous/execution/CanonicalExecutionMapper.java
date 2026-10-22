@@ -64,7 +64,9 @@ public class CanonicalExecutionMapper {
                     effectiveContext.agentRuntimeId(),
                     effectiveContext.delegationId(),
                     effectiveContext.parentExecutionId(),
-                    "DELEGATED_AGENT",
+                    effectiveContext.autonomousAgentExecution()
+                            ? DelegatedExecutionContext.EXECUTION_MODE_AUTONOMOUS_AGENT
+                            : DelegatedExecutionContext.EXECUTION_MODE_DELEGATED_AGENT,
                     null,
                     null,
                     effectiveContext.allowedToolChain());

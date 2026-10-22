@@ -92,6 +92,12 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
             "DECISION_FACTS.BlockedUser", "DECISION_FACTS.BreakGlass",
             "UNKNOWN.Coverage", "UNTRUSTED_TEXT.UntrustedText{i}");
 
+    /**
+     * The entries of the v21 dictionary only that this check compares with their sealed sources, when their line is
+     * drawn (a v20 render has none of them).
+     */
+    public static final Set<String> COMPARED_V21 = Set.of("REQUEST.TargetScope");
+
     /** The entries another check inspects, with that check's code. */
     public static final Map<String, String> INSPECTED_ELSEWHERE = Map.ofEntries(
             Map.entry("DECISION_FACTS.DeviationsFromBaseline", DecisionFactMatchCheck.CODE),
@@ -181,6 +187,9 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
         time(tally, request.get("Time"), context);
         action(tally, request.get("Action"), context);
         target(tally, request.get("Target"), context);
+        // v21.4 (finding 7): only a v21 render draws the target scope.
+        expected(tally, request.get("TargetScope"), RequestLineValues.targetScope(context.getResource()),
+                CONTEXT + "resource.scope", "target scope");
         size(tally, request.get("Size"), context);
         resourceClass(tally, request.get("ResourceClass"), context);
         network(tally, request.get("Network"), context);
@@ -288,6 +297,8 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                         resource != null ? resource.getAuthorText() : null, CONTEXT + "resource.authorText");
                 case UntrustedTextSources.BUSINESS_LABEL -> text(tally, line, source,
                         resource != null ? resource.getBusinessLabel() : null, CONTEXT + "resource.businessLabel");
+                case UntrustedTextSources.RESOURCE_CATEGORY -> text(tally, line, source,
+                        RequestLineValues.untrustedCategory(resource), CONTEXT + "resource.resourceCategory");
                 case UntrustedTextSources.ANOMALY_SIGNAL_HEADER -> text(tally, line, source,
                         context.getIntent() != null ? context.getIntent().getUntrustedAnomalySignalClaim() : null,
                         CONTEXT + "intent.untrustedAnomalySignalClaim");
@@ -921,10 +932,13 @@ public final class FactAccuracyCheck implements PromptInspectionCheck {
                     : "the target names a business label the sealed resource does not hold");
             return;
         }
-        String category = text(resource.getResourceCategory());
+        // N-INJ-4: a category that is not a token is named only by where it is (its text: an UNTRUSTED TEXT line).
+        String category = RequestLineValues.targetCategory(resource);
         if (!Objects.equals(category, drawnCategory)) {
             mismatch(tally, line, category, drawnCategory, CONTEXT + "resource.resourceCategory",
-                    "the target's category is not the sealed one");
+                    RequestLineValues.untrustedCategory(resource) != null
+                            ? "the target line does not say where the sealed category is (an UNTRUSTED TEXT line)"
+                            : "the target's category is not the sealed one");
             return;
         }
         tally.matched(line);

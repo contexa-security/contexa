@@ -32,5 +32,10 @@ public enum PromptBundleSelectionSource {
      * W6-9 (P6-CHANGE-6): the registry's shadow release, run on sampled requests apart from the decision, sealed and
      * never enforced or learned.
      */
-    SHADOW
+    SHADOW,
+    /**
+     * A sealed decision drawn again with a chosen bundle and asked once, apart from any decision: nothing is enforced,
+     * learned or sealed (V-2.2 of the v21 plan).
+     */
+    REPLAY
 }

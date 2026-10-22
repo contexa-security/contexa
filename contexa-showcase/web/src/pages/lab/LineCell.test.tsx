@@ -45,7 +45,7 @@ function minimumRules(
   };
 }
 
-function view(line: Pick<BeforeSendView, 'boundary' | 'minimumRules'>): BeforeSendView {
+function view(line: Pick<BeforeSendView, 'boundary' | 'minimumRules' | 'modelJudges'>): BeforeSendView {
   return {
     runId: 'run-a',
     stepNo: 1,
@@ -127,6 +127,13 @@ describe('the cell of the lines the rules always keep, before sending (N-K5-1)',
     const { container } = render(<LineCell designed={designed} now={now} changed />);
 
     expect(shown(container).states).toEqual([word('labBefore.line.applies'), word('labBefore.line.clear')]);
+  });
+
+  it('says a v21 input keeps no such line: the AI judges from the facts (SC-2)', () => {
+    const now = view({ boundary: null, minimumRules: null, modelJudges: true });
+    const { container } = render(<LineCell designed={null} now={now} changed={false} />);
+
+    expect(shown(container)).toEqual({ states: [word('labBefore.line.modelJudges')], rows: [] });
   });
 
   it('keeps the four boundary conditions of an input without minimum action rules', () => {

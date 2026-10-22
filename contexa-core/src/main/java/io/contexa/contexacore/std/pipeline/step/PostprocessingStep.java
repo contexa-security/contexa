@@ -24,6 +24,7 @@ import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySuppor
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -174,6 +175,14 @@ public class PostprocessingStep implements PipelineStep {
             Object retries = context.getMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, Object.class);
             if (retries != null) {
                 aiResponse.withMetadata(PromptRuntimeTelemetrySupport.OUTPUT_RETRIES, retries);
+            }
+            // V-3: the explanations a v21 answer weighed and what it still said wrongly after its retry.
+            for (String key : List.of(SecurityDecisionV21OutputInspector.HYPOTHESES,
+                    SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS)) {
+                Object value = context.getMetadata(key, Object.class);
+                if (value != null) {
+                    aiResponse.withMetadata(key, value);
+                }
             }
         }
     }

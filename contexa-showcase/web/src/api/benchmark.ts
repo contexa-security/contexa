@@ -31,6 +31,8 @@ export interface BenchmarkSpec {
   readonly protocolRuns: number;
   readonly firstRunAt: string;
   readonly lastRunAt: string;
+  /** SC-12: the prompt bundles the setting's runs ran (absent from an older portal). */
+  readonly promptBundles?: readonly string[];
 }
 
 export interface BenchmarkProtocol {
@@ -52,6 +54,9 @@ export interface BenchmarkScope {
   readonly otherRuns: number;
   readonly cases: number;
   readonly protocols: readonly BenchmarkProtocol[];
+  /** The counted runs of the case sent the fewest and the most times (BM-S9); absent from an older portal. */
+  readonly fewestRunsPerCase?: number;
+  readonly mostRunsPerCase?: number;
 }
 
 export interface ControlScore {
@@ -122,6 +127,8 @@ export interface BenchmarkCase {
       >
     >
   >;
+  /** Each run's business result per control, by run (FP-4: a dot of the run matrix opens its own run). */
+  readonly runResults?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** Contexa got at least one scored run of the case wrong (the case list's filter). */
   readonly contexaWrong: boolean;
   /** An attack case Contexa let through in every run (the limits screen). */
@@ -174,6 +181,85 @@ export interface BenchmarkEngine {
   readonly tokensMeasured: number;
   readonly modelCallsPerDecision: number | null;
   readonly modelCalls: number;
+  /** PB-3 (G4 of the v21 plan): the decisions against the model's own answers (absent from an older portal). */
+  readonly agreement?: ModelAgreement;
+  /** BM-S4: the measured decisions by how long they took, in the portal's bins (absent from an older portal). */
+  readonly analysisBins?: readonly AnalysisBin[];
+  /** BM-S6: what the model's answers show of its judgment (absent from an older portal). */
+  readonly reasoning?: BenchmarkReasoning;
+}
+
+/** BM-S6 of docs/showcase/벤치마크-구현계획.md, counted by the portal from the model calls of the setting's decisions. */
+export interface BenchmarkReasoning {
+  /** Per run truth, the decisions by the explanation their last answer judged most likely (H1 to H5, SEVERAL, NONE). */
+  readonly mostLikely: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  /** The decisions the response check asked again, by kind of what was wrong, and its five most frequent reasons. */
+  readonly retried: number;
+  readonly retryKinds: Readonly<Record<string, number>>;
+  readonly topRetryReasons: readonly { readonly reason: string; readonly decisions: number }[];
+  /** The asked-again decisions whose last answer named another action than the first, by FIRST->LAST. */
+  readonly flips: Readonly<Record<string, number>>;
+}
+
+/** A bin of decision times: from (inclusive) to (exclusive, null for the last, open bin), and its decisions. */
+export interface AnalysisBin {
+  readonly fromMs: number;
+  readonly toMs: number | null;
+  readonly decisions: number;
+}
+
+/** The decision records of a setting against the action in each one's last model answer, counted by the portal. */
+export interface ModelAgreement {
+  readonly decisions: number;
+  readonly modelAnswered: number;
+  readonly asAnswered: number;
+  readonly technical: number;
+  readonly held: number;
+}
+
+/** A case's runs every existing approach let through (an attack) or let pass (normal work), with Contexa's results. */
+export interface BlindSpotCase {
+  readonly key: string;
+  readonly runs: number;
+  readonly allPassed: number;
+  readonly contexa: Readonly<Record<string, number>>;
+  /** BM-S2: the runs counted in allPassed with Contexa's result in each, in run order (absent from an older portal). */
+  readonly passedRuns?: readonly BlindSpotRun[];
+}
+
+/** A run every existing approach let through (or let pass), with Contexa's business result in it. */
+export interface BlindSpotRun {
+  readonly runId: string;
+  readonly result: string;
+}
+
+/** BM-S2: an attack case and the normal case of the same conditions (null when none), in its group. */
+export interface BlindSpotPair {
+  readonly group: string;
+  readonly attack: string;
+  readonly normal: string | null;
+}
+
+/** BM-S2: the proof's totals (G1 to G3 of the v21 plan) over the blind-spot cases' runs. */
+export interface BlindSpotTotals {
+  /** The attack runs of the cases in the proof, and those every existing approach let through. */
+  readonly attackRuns: number;
+  readonly attackAllPassed: number;
+  /** Of those let through: the runs Contexa stopped (fully or after some items left), and fully. */
+  readonly contexaStopped: number;
+  readonly contexaFullyStopped: number;
+  /** The normal runs of the pairs, those every existing approach let pass, and of those the ones Contexa let pass. */
+  readonly normalRuns: number;
+  readonly normalAllPassed: number;
+  readonly contexaPassed: number;
+}
+
+/** PB-1, PB-2 (G1 to G3 of the v21 plan), counted by the portal from each run's own results. */
+export interface BlindSpot {
+  readonly attacks: readonly BlindSpotCase[];
+  readonly normals: readonly BlindSpotCase[];
+  readonly pairs?: readonly BlindSpotPair[];
+  readonly totals?: BlindSpotTotals;
 }
 
 export interface BenchmarkObservations {
@@ -213,6 +299,8 @@ export interface BenchmarkView {
   readonly riskJudged: { readonly runs: number; readonly stopped: number };
   /** Contexa's attack runs by how its answer came about; every kind is present, in this order. */
   readonly judgmentTiming: Readonly<Record<JudgmentTimingKind, number>>;
+  /** BM-S3: the items Contexa let out before its decision in those runs, by the same kinds (absent from an older portal). */
+  readonly judgmentExposure?: Readonly<Record<JudgmentTimingKind, number>>;
   readonly engine: BenchmarkEngine | null;
   readonly observations: BenchmarkObservations;
   readonly protocolRunsWithoutSetting: number;
@@ -222,6 +310,36 @@ export interface BenchmarkView {
   readonly conclusions: BenchmarkConclusions;
   /** The attack cases Contexa let through in every run, in case order. */
   readonly missedEveryRunCases: readonly string[];
+  /** The blind-spot proof of the setting's runs (4.8 of the v21 plan; absent from an older portal). */
+  readonly blindSpot?: BlindSpot;
+}
+
+/** BM-S8: the decision quality an operator published for a setting (G5 of the v21 plan); 404 until published. */
+export interface DecisionQualityPublication {
+  readonly setting: string;
+  readonly protocol: string;
+  readonly publishedAt: string;
+  readonly quality: {
+    readonly accuracy: BenchmarkRate;
+    readonly consistency: BenchmarkRate;
+    /** The decisions none of whose reason codes mismatched the line it cites, over the inspected ones. */
+    readonly reasonMatch: BenchmarkRate;
+    readonly forcedExcluded: number;
+  };
+}
+
+/** The decision quality published for a setting; no request without a setting. */
+export function useDecisionQuality(setting: string | null) {
+  return useQuery({
+    queryKey: ['decision-quality', setting],
+    queryFn: () =>
+      getJson<DecisionQualityPublication>(
+        `/api/benchmark/decision-quality?setting=${encodeURIComponent(setting ?? '')}`,
+      ),
+    enabled: setting !== null,
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 /** The address of a setting's raw records (every counted protocol run with its score), to download. */

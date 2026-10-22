@@ -1,125 +1,97 @@
-import type { TFunction } from 'i18next';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHook, type HookColumn } from '../../api/hook';
-import { useLabOptions } from '../../api/lab';
-import { useVisitor } from '../../api/queries';
-import { useTeasers } from '../../api/teasers';
-import { AppHeader } from '../../components/AppHeader';
-import { ActionChip } from '../../components/common/ActionChip';
-import { SourceMark } from '../../components/common/SourceMark';
-import { TeaserBand } from '../../components/journey/Cards';
-import { JourneyBar } from '../../components/journey/JourneyParts';
-import { ActionBar, NextLink } from '../../components/journey/StepParts';
-import { measuredLine } from '../../components/replay/replayLine';
-import { ReplayStage, type ReplayColumnData } from '../../components/replay/ReplayStage';
+import { useLabOptions, type LabOptions } from '../../api/lab';
+import { SourceLine } from '../../components/journey/FrameParts';
+import { RouteScreen } from '../../components/journey/RouteScreen';
 import { StateScreen } from '../../components/StateScreen';
-import { teaserCopy } from '../../journey/copy';
+import { VerdictChip } from '../../components/VerdictChip';
 import { count } from '../../journey/format';
-import { useJourneyPosition } from '../../journey/useJourneyPosition';
 import styles from './HookPage.module.css';
 
+/** Keeps a line's height while the record loads, so nothing below it moves when it arrives. */
+const HOLD = ' ';
+
 /**
- * The first screen (hook, 0-3): one message, that the same account, permission and request were told apart only by
- * Contexa. The stored measured runs of the export by someone with a stolen account and by the real employee replay side
- * by side, every approach's answer from the record with right or wrong by the one scoring rule, Contexa's last after
- * its real deciding time. The question that leads on is the teaser band's (D-41); the runs and the measurement behind
- * the replay are in its one source tag.
+ * Screen 0, the start (hook, 화면재편-기획안 7절 T1): the question, then the two people who signed in with the same
+ * password, each with the situation in one line, Contexa's judgment and how many files went out in the operator's
+ * representative measured run, then what Contexa is in one line. The guide says Contexa tells the two apart only when
+ * the measurement does (every attacker run stopped, every real-employee run through); otherwise a guide that claims
+ * nothing takes its place. The one way on is the flow's "Start".
  */
 export default function HookPage() {
-  const { t, i18n } = useTranslation();
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
-  useVisitor();
-  const position = useJourneyPosition();
+  const { t } = useTranslation();
   const hook = useHook();
-  const teasers = useTeasers();
   const options = useLabOptions();
-  const attackerCase = options.data?.cases.find((candidate) => candidate.key === hook.data?.attacker.caseKey);
-  const slot = options.data?.timeSlots.find(
-    (candidate) => candidate.slot === attackerCase?.conditions.timeSlot,
-  );
-  const items = attackerCase?.requests[0]?.items ?? null;
-  const copy = teaserCopy(t, language, 'HOOK_TRY', teasers.data, position.differences.length);
-  // The question keeps its line before the record arrives; only the record decides which question is true.
-  const question = hook.data ? t(hook.data.distinguished ? 'hook.question' : 'hook.questionFallback') : ' ';
+  const view = hook.data ?? null;
+  const guide = view
+    ? t(view.distinguished ? 'screen.0.guide' : 'p0.guide.fallback')
+    : hook.isError
+      ? t('p0.guide.fallback')
+      : HOLD;
 
   return (
-    <>
-      <AppHeader />
-      <main id="main" className={styles.page}>
-        <JourneyBar />
-        <header className={styles.head}>
-          <h1 className={styles.title}>{t('hook.title')}</h1>
-          <p className={styles.sub}>
-            {slot && items !== null
-              ? t('hook.sub', {
-                  when: t(`lab.slot.${slot.slot}`, { time: slot.representativeTime }),
-                  items: count(items, language),
-                })
-              : ' '}
-          </p>
-        </header>
-        {/* The replay keeps its place while the record loads, so nothing below it moves when it arrives. */}
-        <div className={styles.stage}>
-          {hook.isPending ? <StateScreen kind="loading" /> : null}
-          {hook.isError ? <StateScreen kind="notReady" /> : null}
-          {hook.data ? (
-            <>
-              <ReplayStage
-                source={
-                  <SourceMark kind="MEASUREMENT" runId={hook.data.attacker.runId} measured>
-                    {t('hook.source', {
-                      attacker: hook.data.attacker.runId,
-                      owner: hook.data.owner.runId,
-                      protocol: hook.data.attacker.measurement.protocolId,
-                    })}
-                  </SourceMark>
-                }
-                columns={[
-                  hookColumn(t, 'attacker', hook.data.attacker),
-                  hookColumn(t, 'owner', hook.data.owner),
-                ]}
-              />
-              <p className={styles.note}>{t('hook.note')}</p>
-            </>
-          ) : null}
+    <RouteScreen
+      title={t('screen.0.title')}
+      purpose={guide}
+      sourceLine={view ? <SourceLine kind="measured" runId={view.attacker.runId} /> : null}
+    >
+      {hook.isPending ? <StateScreen kind="loading" /> : null}
+      {hook.isError ? <StateScreen kind="notReady" /> : null}
+      {view ? (
+        <div className={styles.people}>
+          <Person side="attacker" column={view.attacker} options={options.data ?? null} />
+          <Person side="owner" column={view.owner} options={options.data ?? null} />
         </div>
-        {/* The three ways in (0-3): the one main button under the question, the other two on the left. */}
-        <ActionBar
-          teaser={<TeaserBand copy={{ ...copy, question }} />}
-          main={<NextLink to="/try/attacker/scene" label={t('hook.try')} />}
-          start={
-            <>
-              <ActionChip to="/intro?route=intro" icon="book">
-                {t('hook.concept')}
-              </ActionChip>
-              <ActionChip to="/benchmark" icon="chart">
-                {t('hook.benchmark')}
-              </ActionChip>
-            </>
-          }
-          skip={false}
-        />
-      </main>
-    </>
+      ) : null}
+      <p className={styles.identity}>{t('identity.line')}</p>
+    </RouteScreen>
   );
 }
 
-/** A case of the hook as a replayed column: the stolen account's export, or the real employee's approved one. */
-function hookColumn(t: TFunction, side: 'attacker' | 'owner', column: HookColumn): ReplayColumnData {
-  const measurement = column.measurement;
-  return {
-    key: side,
-    title: t(side === 'attacker' ? 'hook.attacker' : 'hook.owner'),
-    answer: t(side === 'attacker' ? 'hook.answer.stop' : 'hook.answer.pass'),
-    normal: side === 'owner',
-    layers: column.result.layers,
-    correct: column.correct,
-    measured: measuredLine(
-      t,
-      measurement.runs,
-      measurement.sameResult,
-      measurement.passedAfterCheck,
-      side === 'owner',
-    ),
-  };
+interface PersonProps {
+  readonly side: 'attacker' | 'owner';
+  readonly column: HookColumn;
+  readonly options: LabOptions | null;
+}
+
+/**
+ * One of the two people: who, the situation as the case defines it, and Contexa's recorded judgment and delivered
+ * files of the representative run (its control D layer). Nothing here is counted or decided by the screen.
+ */
+function Person({ side, column, options }: PersonProps) {
+  const { t, i18n } = useTranslation();
+  const language = i18n.language === 'ko' ? 'ko' : 'en';
+  const id = useId();
+  const items =
+    options?.cases.find((candidate) => candidate.key === column.caseKey)?.requests[0]?.items ?? null;
+  const contexa = column.result.layers.find((layer) => layer.control === 'D') ?? null;
+  return (
+    <section className={styles.person} aria-labelledby={id}>
+      <h2 id={id} className={styles.name}>
+        {t(`p0.${side}.name`)}
+      </h2>
+      <p className={styles.line}>
+        {items === null ? HOLD : t(`p0.${side}.line`, { items: count(items, language) })}
+      </p>
+      <dl className={styles.facts}>
+        <div className={styles.fact}>
+          <dt className={styles.label}>{t('p0.verdict')}</dt>
+          <dd className={styles.value}>
+            {contexa ? (
+              <VerdictChip verdict={contexa.verdict ?? 'NONE'} unresolved={contexa.evidence.unresolved} />
+            ) : (
+              '-'
+            )}
+          </dd>
+        </div>
+        <div className={styles.fact}>
+          <dt className={styles.label}>{t('p0.delivered')}</dt>
+          <dd className={styles.count}>
+            {contexa ? t('p0.items', { n: count(contexa.evidence.deliveredItems, language) }) : '-'}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
 }

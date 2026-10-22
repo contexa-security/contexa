@@ -1,0 +1,759 @@
+/* The benchmark's charts (docs/showcase/벤치마크-구현계획.md 1절): drawn in SVG from the portal's counts, every result
+   told by colour, mark and word together, each with its values as a table behind "show as a table". */
+
+/* L-03 of docs/showcase/영상전-검토.md: a figure ends where the frame's rule and buttons end (the wide width). */
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--frame-wide);
+  margin: 0;
+}
+
+.direction {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.axis {
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+}
+
+.tick {
+  fill: var(--color-text-subtle);
+  font-size: var(--type-aside);
+}
+
+.axisTitle {
+  fill: var(--color-text-muted);
+  font-size: var(--type-aside);
+}
+
+.range line {
+  stroke: var(--color-text-subtle);
+  stroke-width: 2;
+}
+
+.rangeEmphasis line {
+  stroke: var(--color-accent-line);
+  stroke-width: 3;
+}
+
+.mark {
+  fill: var(--color-bg);
+  stroke: var(--color-text-body);
+  stroke-width: 2.5;
+}
+
+.markEmphasis {
+  fill: var(--color-accent);
+  stroke: var(--color-accent-ink);
+  stroke-width: 2;
+}
+
+.label {
+  fill: var(--color-text-body);
+  font-size: var(--type-aside);
+}
+
+.labelEmphasis {
+  fill: var(--color-accent);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+
+/* Phone width: one card per approach, two bars each (the rate and its interval band). */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card,
+.cardEmphasis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.cardEmphasis {
+  border-color: var(--color-accent-line);
+}
+
+.cardName {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+
+.cardRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cardLabel,
+.cardValue {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.cardValue {
+  color: var(--color-text-body);
+}
+
+.track {
+  position: relative;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-lane-track);
+}
+
+/* The interval as a dashed box (B-02 of docs/showcase/영상전-검토.md), never a filled band that reads as the value. */
+.band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-text-subtle);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+}
+
+/* The value itself: a mark at the end of its bar, seen at zero too. */
+.valueMark,
+.valueMarkEmphasis {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.25rem;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text);
+}
+
+.valueMarkEmphasis {
+  background-color: var(--color-accent);
+}
+
+.fill,
+.fillEmphasis {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-text-body);
+}
+
+.fillEmphasis {
+  background-color: var(--color-accent);
+}
+
+/* "Show as a table": the chart's values, the same ones it draws. */
+.tableBox {
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+}
+
+.tableToggle {
+  width: fit-content;
+
+  /* A target of 44 px or more (WCAG 2.5.8, the phone rule). */
+  min-height: 2.75rem;
+  padding-block: var(--space-3);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.tableToggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.tableScroll {
+  max-width: 100%;
+  margin-top: var(--space-2);
+  overflow-x: auto;
+}
+
+.tableScroll:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.table tbody th {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* A 100% bar per row (B-4, B-5): a segment per kind, its mark and count inside when there is room. */
+.stackRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stackRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stackLabel {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.stack {
+  display: flex;
+  gap: var(--space-hairline);
+  height: 2.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-lane-track);
+}
+
+.segment {
+  display: flex;
+  flex-basis: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.25rem;
+  overflow: hidden;
+  color: var(--color-signal-ink);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.segmentLabel {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: inherit;
+}
+
+.segment[data-tone='accentHatch'] .segmentLabel {
+  background-color: var(--color-accent);
+}
+
+.segment[data-tone='otherHatch'] .segmentLabel {
+  background-color: var(--color-surface-accent);
+}
+
+/* The tones of a result follow the deck's four colours (설계서 679: 막음 · 일부 유출 · 놓침/오탐 · 허용), as the cells
+   and the 6-3 dot matrix do; the swatch of the legend is the segment itself. */
+.segment[data-tone='safe'],
+.legendSwatch[data-tone='safe'] {
+  background-color: var(--color-block);
+}
+
+.segment[data-tone='partial'],
+.legendSwatch[data-tone='partial'] {
+  background-color: var(--color-auth);
+}
+
+.segment[data-tone='loss'],
+.legendSwatch[data-tone='loss'] {
+  background-color: var(--color-bad);
+}
+
+.segment[data-tone='halt'],
+.legendSwatch[data-tone='halt'] {
+  background-color: var(--color-bad);
+}
+
+.segment[data-tone='neutral'],
+.legendSwatch[data-tone='neutral'] {
+  background-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+/* "Other" (B-14): hatched, so it never reads as the grey of the sign-in check's refusal. */
+.segment[data-tone='otherHatch'],
+.legendSwatch[data-tone='otherHatch'] {
+  background-color: var(--color-surface-accent);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 0.25rem,
+    var(--color-border-strong) 0.25rem 0.5rem
+  );
+  color: var(--color-text);
+}
+
+.segment[data-tone='accent'],
+.legendSwatch[data-tone='accent'] {
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.segment[data-tone='accentHatch'],
+.legendSwatch[data-tone='accentHatch'] {
+  background-color: var(--color-accent);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 0.375rem,
+    var(--color-stamp-veil) 0.375rem 0.625rem
+  );
+  color: var(--color-accent-ink);
+}
+
+.segment[data-tone='quiet'],
+.legendSwatch[data-tone='quiet'] {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text-muted);
+}
+
+/* The segments of a row too narrow to name inside, named under their bar (B-15). */
+.stackSmall {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* A swatch of the segment (B-15): its colour, pattern and mark. */
+.legendSwatch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-signal-ink);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-bold);
+}
+
+.legendCount {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* B-1: each blind-spot attack over the normal work of the same conditions, a cell per counted run. */
+.pairs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: var(--frame-wide);
+}
+
+.pairGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pairGroupTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.pairLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+}
+
+.pairName {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.pairSide {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+}
+
+.pairLine[data-side='attack'] .pairSide {
+  color: var(--color-accent);
+}
+
+.pairValue {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* A wrong run's items out and the button to its record, under its reason (L-41). */
+.pairRun {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* The line saying nothing was got wrong, in the body colour (L-41). */
+.noneLine {
+  margin: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.cells {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.cell {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-signal-ink);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-none);
+  cursor: pointer;
+}
+
+.cell:hover {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+/* Each result its own look (B-01), in the deck's four colours (설계서 679): 차단 purple, 일부 나간 뒤 차단 orange,
+   공격 통과(미탐) and 정상 업무 차단(오탐) red, 허용 blue; 추가 인증 뒤 허용 is the blue with a ring. */
+.cell[data-tone='safe'] {
+  background-color: var(--color-block);
+}
+
+.cell[data-tone='partial'] {
+  background-color: var(--color-auth);
+}
+
+.cell[data-tone='loss'],
+.cell[data-tone='halt'] {
+  background-color: var(--color-bad);
+}
+
+.cell[data-tone='pass'] {
+  background-color: var(--color-allow);
+}
+
+.cell[data-tone='passCheck'] {
+  border: 0.1875rem solid var(--color-bg);
+  background-color: var(--color-allow);
+}
+
+.cell[data-tone='quiet'] {
+  background-color: var(--color-surface-accent);
+  color: var(--color-text-muted);
+}
+
+/* The legend's mark is a cell, not a button. */
+.legendCell {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: var(--type-aside);
+  cursor: default;
+}
+
+.legendCell:hover {
+  outline: none;
+}
+
+@media (width <= 40rem) {
+  .pairLine {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* B-3: the case map, every situation against the five approaches, a small cell per run. */
+.map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* The filter as a clear control (L-40 of docs/showcase/영상전-검토.md): a pill with a larger box in the accent, lit
+   while it is on, never a small faint checkbox. */
+.filter {
+  display: inline-flex;
+  align-self: flex-start;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font-size: var(--type-aside);
+  cursor: pointer;
+}
+
+.filter:has(input:checked) {
+  border-color: var(--color-accent-line);
+  background-color: var(--color-surface-accent);
+}
+
+.filter input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.mapGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A group's title folds it (the first group is open). */
+.mapSummary {
+  min-height: 2.75rem;
+  padding-block: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.mapSummary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.mapGrid {
+  display: flex;
+  flex-direction: column;
+}
+
+/* L-40: the name takes what the five approach columns leave (each held to the width of its name), so a name is one
+   line at 1440 px instead of two to four. */
+.mapRow {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) repeat(5, minmax(4.5rem, 6.75rem));
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mapHead {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-medium);
+}
+
+.mapHead[data-contexa],
+.mapCell[data-contexa] {
+  color: var(--color-accent);
+}
+
+.mapCase {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.caseName {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+  text-align: left;
+  text-decoration: underline dotted;
+
+  /* L-40: under the letters, never across the final consonants. */
+  text-underline-offset: 0.3em;
+  cursor: pointer;
+}
+
+.caseName:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.answer {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+}
+
+.answer[data-answer='THREAT'] {
+  color: var(--color-loss);
+}
+
+.answer[data-answer='NORMAL'] {
+  color: var(--color-safe);
+}
+
+.mapCardLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cellCompact {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: var(--type-aside);
+}
+
+/* B-1: the five proof criteria, each what it checks and the portal's counts; rows with values at the end, a table,
+   so as wide as the pairs under them (L-03 of docs/showcase/영상전-검토.md). */
+.proofLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--frame-wide);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proofLine {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.proofId {
+  color: var(--color-accent);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-bold);
+}
+
+.proofText {
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.proofValue {
+  color: var(--color-text);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+@media (width <= 40rem) {
+  .proofLine {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+
+  .proofValue {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+/* B-4: decision times, a bar per bin. */
+.bar {
+  fill: var(--color-border-strong);
+}
+
+.barValue {
+  fill: var(--color-text);
+  font-size: var(--type-aside);
+  font-weight: var(--weight-semibold);
+}

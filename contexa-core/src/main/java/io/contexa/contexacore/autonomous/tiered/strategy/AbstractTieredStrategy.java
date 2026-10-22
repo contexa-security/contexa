@@ -50,6 +50,8 @@ import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.context.decision.MinimumActionRules;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContract;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionOutputContractV4;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
@@ -954,7 +956,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
 
-    /** Whether the event runs a v20 bundle, which reads its past records by the exact lookup (W3-18). */
+    /** Whether the event runs a dictionary bundle (v20, v21), which reads its past records by the exact lookup (W3-18). */
     private boolean readsPastRecordsExactly(SecurityEvent event) {
         return runsV20Bundle(event);
     }
@@ -979,7 +981,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      * (W4-5). The rules read the facts the prompt stated, from the canonical context the prompt was built on.
      */
     protected void applyMinimumActionRules(SecurityDecision decision, SecurityEvent event) {
-        if (decision == null) {
+        // V-5: a v21 decision is the model's judgment; no minimum action rule is evaluated or recorded for it.
+        if (decision == null || runsV21Bundle(event)) {
             return;
         }
         List<MinimumActionRules.Hit> hits = minimumActionHits(event);
@@ -1017,10 +1020,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 minimumActionSettings);
     }
 
-    /** Whether the event runs a v20 bundle (dictionary blocks, output contract v3). */
+    /**
+     * Whether the event runs a dictionary bundle: v20 (output contract v3) or v21 (output contract v4). Both read past
+     * records by the exact lookup, keep the model's reason and ask a provider for structured output.
+     */
     private boolean runsV20Bundle(SecurityEvent event) {
         SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
-        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V20_BLOCKS;
+        return bundle != null && bundle.layout().dictionaryBlocks();
+    }
+
+    /** Whether the event runs the v21 bundle: the model judges, no rule floor, the output contract v4 (V-5). */
+    protected boolean runsV21Bundle(SecurityEvent event) {
+        SecurityDecisionPromptBundles.Bundle bundle = promptBundleOf(event);
+        return bundle != null && bundle.layout() == SecurityDecisionPromptBundles.UserPromptLayout.V21_BLOCKS;
     }
 
     /** The bundle the event runs, fixed on the event for its later prompts; null without a template. */
@@ -1938,7 +1950,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // W4-2: a v20 request with native structured output asks the provider to enforce the output contract v3; the
         // v19 bundle keeps its own format, and without native output the system text states the schema.
         if (structuredOutputMode == StructuredOutputMode.NATIVE_STRUCTURED && runsV20Bundle(event)) {
-            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, SecurityDecisionOutputContract.providerSchema());
+            request.withParameter(ExecutionContext.OUTPUT_SCHEMA, runsV21Bundle(event)
+                    ? SecurityDecisionOutputContractV4.providerSchema() : SecurityDecisionOutputContract.providerSchema());
         }
         request.withParameter("structuredOutputPolicy", StructuredOutputPolicy.RAW_FORBIDDEN.name());
         request.withParameter("structuredOutputValidationMaxAttempts", 1);
@@ -2058,6 +2071,20 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         if (response.getFieldProvenance() != null && !response.getFieldProvenance().isEmpty()) {
             decision.setFieldProvenance(Map.copyOf(response.getFieldProvenance()));
+        }
+        // V-3: the explanations a v21 model weighed stay with its decision, as it gave them.
+        Map<String, Object> metadata = response.getAllMetadata();
+        if (metadata != null && metadata.get(SecurityDecisionV21OutputInspector.HYPOTHESES) instanceof List<?> given
+                && !given.isEmpty()) {
+            List<Map<String, Object>> hypotheses = new ArrayList<>();
+            for (Object item : given) {
+                if (item instanceof Map<?, ?> fields) {
+                    Map<String, Object> hypothesis = new LinkedHashMap<>();
+                    fields.forEach((key, value) -> hypothesis.put(String.valueOf(key), value));
+                    hypotheses.add(hypothesis);
+                }
+            }
+            decision.setHypotheses(List.copyOf(hypotheses));
         }
     }
 

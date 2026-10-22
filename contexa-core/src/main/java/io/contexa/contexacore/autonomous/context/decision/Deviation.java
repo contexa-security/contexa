@@ -88,6 +88,19 @@ public record Deviation(
      * request) (unexplained)}. The days and times need the event clock; without it they are left out.
      */
     public String describe(Instant requestAt, ZoneId zone) {
+        return describe(requestAt, zone, true);
+    }
+
+    /**
+     * The comparison as a record (v21): the request's value, how often and when it was seen and the usual value, without
+     * whether a record explains it, which is the model's to judge. A baseline not established yet and a dimension without
+     * a usual behaviour are still said, since they state what the comparison rests on.
+     */
+    public String describeRecord(Instant requestAt, ZoneId zone) {
+        return describe(requestAt, zone, false);
+    }
+
+    private String describe(Instant requestAt, ZoneId zone, boolean explanationMarked) {
         StringBuilder text = new StringBuilder(dimension.label());
         if (current != null) {
             text.append(' ').append(current);
@@ -116,7 +129,8 @@ public record Deviation(
         if (usual != null && !heldLogin) {
             text.append(", usual ").append(usual);
         }
-        if (explanation != null) {
+        if (explanation != null && (explanationMarked || explanation == Explanation.NOT_ESTABLISHED
+                || explanation == Explanation.UNKNOWN)) {
             text.append(" (").append(switch (explanation) {
                 case EXPLAINED -> "explained by " + explainedBy;
                 case UNEXPLAINED -> "unexplained";

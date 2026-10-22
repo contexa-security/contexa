@@ -84,6 +84,13 @@ final class SecurityDecisionPromptValues {
     private static final PromptBlock UNTRUSTED = PromptBlock.UNTRUSTED_TEXT;
     /** What the target line says of the business label: where its text is (N-INJ-3, shared with the dictionary). */
     static final String TARGET_LABEL_NOTE = "business label in UNTRUSTED TEXT";
+    /** What the target scope line says of its value: the host's own record (finding 7 of the v21 plan). */
+    static final String TARGET_SCOPE_NOTE = "host record of the target";
+    /** The form of a category the target line draws as it is, a token (N-INJ-4, the dictionary's too). */
+    static final String CATEGORY_TOKEN_FORM = "[A-Z][A-Z0-9_]{1,63}";
+    /** What the target line says of a category that is not a token: where its text is (N-INJ-4). */
+    static final String TARGET_CATEGORY_NOTE = "in UNTRUSTED TEXT";
+    private static final Pattern CATEGORY_TOKEN = Pattern.compile(CATEGORY_TOKEN_FORM);
     /** A time of the event clock ({@code 03:17}) or a compared hour ({@code time 03 }) in a decision fact. */
     private static final Pattern ON_THE_CLOCK = Pattern.compile("\\b\\d{2}:\\d{2}\\b|\\btime \\d{2} ");
 
@@ -205,6 +212,10 @@ final class SecurityDecisionPromptValues {
         values.value(REQUEST, "Action", action(context.getEvent(), resource, current));
         // Without a target the line is named unknown by withoutSource (N-INS-2).
         values.value(REQUEST, "Target", target(resource));
+        // v21.4 (finding 7): the scope the host's records hold the target in; the v20 dictionary has no such entry.
+        if (values.has(REQUEST, "TargetScope")) {
+            values.value(REQUEST, "TargetScope", targetScope(resource));
+        }
         values.value(REQUEST, "Size", requestedSize(resource != null ? resource.getRequestedItems() : null));
         values.value(REQUEST, "ResourceClass", resourceClass(resource));
         values.value(REQUEST, "Network", network(session, canonical != null ? canonical.getLocation() : null, current));
@@ -217,7 +228,7 @@ final class SecurityDecisionPromptValues {
         // Without the computation the repeat and the differences are named unknown by withoutSource (N-INS-2).
         if (facts != null) {
             for (DecisionFact fact : facts.facts()) {
-                if (has(FACTS, fact.name())) {
+                if (values.has(FACTS, fact.name())) {
                     values.value(FACTS, fact.name(), fact.value());
                     // A record's time or a compared hour is on the event clock (W3-13).
                     if (fact.value() != null && ON_THE_CLOCK.matcher(fact.value()).find()) {
@@ -226,7 +237,7 @@ final class SecurityDecisionPromptValues {
                 }
             }
             for (String name : facts.unknown()) {
-                if (has(FACTS, name)) {
+                if (values.has(FACTS, name)) {
                     String reason = facts.unavailable().get(name);
                     if (PromptUnknownKind.ofReason(reason) == PromptUnknownKind.UNAVAILABLE_NOW) {
                         values.unknown(FACTS, name, PromptUnknownKind.UNAVAILABLE_NOW, reason);
@@ -274,6 +285,9 @@ final class SecurityDecisionPromptValues {
         addUntrusted(items, UntrustedTextSources.BUSINESS_LABEL,
                 canonical != null && canonical.getResource() != null ? canonical.getResource().getBusinessLabel() : null,
                 limit);
+        // N-INJ-4: a category the host gives as text other than a token is the host's free text as well.
+        addUntrusted(items, UntrustedTextSources.RESOURCE_CATEGORY,
+                canonical != null ? untrustedCategory(canonical.getResource()) : null, limit);
         addUntrusted(items, UntrustedTextSources.REQUEST_BODY, sections.decodedPayload(context.getEvent()), limit);
         for (String text : sections.outsideThreatKnowledgeTexts(context.getBehaviorAnalysis())) {
             addUntrusted(items, UntrustedTextSources.THREAT_KNOWLEDGE, text, limit);
@@ -1293,7 +1307,7 @@ final class SecurityDecisionPromptValues {
         }
         String binding = BaselineViewCalculator.target(resource.getPathFamily(), resource.getRequestPath());
         String label = targetLabel(resource);
-        String category = StringUtils.hasText(resource.getResourceCategory()) ? resource.getResourceCategory().trim() : null;
+        String category = targetCategory(resource);
         if (binding == null && label == null) {
             return null;
         }
@@ -1308,12 +1322,39 @@ final class SecurityDecisionPromptValues {
     }
 
     /**
+     * {@code projectKey=HX-310 (host record of the target)}: the scope the host's records hold the target in, or null
+     * without one. Shared with the inspector.
+     */
+    static String targetScope(CanonicalSecurityContext.Resource resource) {
+        return resource != null && StringUtils.hasText(resource.getScope())
+                ? resource.getScope().trim() + " (" + TARGET_SCOPE_NOTE + ")" : null;
+    }
+
+    /**
      * Where the target's business label is ({@code business label in UNTRUSTED TEXT}), or null without a label. The
      * label is the host's free text (a document title, an export's description): it is drawn once, as an untrusted
      * text (N-INJ-3). R1b-2: shared with the inspector.
      */
     static String targetLabel(CanonicalSecurityContext.Resource resource) {
         return resource != null && StringUtils.hasText(resource.getBusinessLabel()) ? TARGET_LABEL_NOTE : null;
+    }
+
+    /**
+     * What the target line states of the category, or null without one: the category when it is a token as the
+     * normaliser writes one, else where its text is ({@code in UNTRUSTED TEXT}), which is then drawn once as an
+     * untrusted text (N-INJ-4). Shared with the inspector.
+     */
+    static String targetCategory(CanonicalSecurityContext.Resource resource) {
+        if (resource == null || !StringUtils.hasText(resource.getResourceCategory())) {
+            return null;
+        }
+        String category = resource.getResourceCategory().trim();
+        return CATEGORY_TOKEN.matcher(category).matches() ? category : TARGET_CATEGORY_NOTE;
+    }
+
+    /** The category's text when it is not a token (the untrusted text the target line points at), else null. */
+    static String untrustedCategory(CanonicalSecurityContext.Resource resource) {
+        return TARGET_CATEGORY_NOTE.equals(targetCategory(resource)) ? resource.getResourceCategory().trim() : null;
     }
 
     /**
@@ -1664,11 +1705,6 @@ final class SecurityDecisionPromptValues {
     private static String labelOf(String line) {
         int colon = line.indexOf(": ");
         return colon > 0 ? line.substring(0, colon) : "";
-    }
-
-    private static boolean has(PromptBlock block, String name) {
-        return SecurityDecisionPromptDictionary.ENTRIES.stream()
-                .anyMatch(entry -> entry.block() == block && entry.name().equals(name));
     }
 
     private static Instant requestTime(SecurityEvent event, CanonicalSecurityContext canonical) {

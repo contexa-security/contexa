@@ -59,9 +59,10 @@ public class AdminMenuService {
             Long accessId = createMenu("menu.nav.access", null, svgKey(), null, 3, "CORE", "access");
             Long iamId = createMenu("menu.nav.iam", null, svgPeople(), null, 4, "CORE", "iam");
             Long securityId = createMenu("menu.nav.security", null, svgEye(), null, 5, "CORE", "security");
-            Long aiMonitorId = createMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 6, "CORE", "ai-monitor");
-            Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 7, "ENTERPRISE", "enterprise");
-            Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 8, "SAAS", "saas");
+            Long agentsId = createMenu("menu.nav.agents", null, svgAgents(), null, 6, "CORE", "agents");
+            Long aiMonitorId = createMenu("menu.nav.aiMonitor", null, svgAiMonitor(), null, 7, "CORE", "ai-monitor");
+            Long enterpriseId = createMenu("menu.nav.enterprise", null, svgBuilding(), null, 8, "ENTERPRISE", "enterprise");
+            Long saasId = createMenu("menu.nav.saas", null, svgCloud(), null, 9, "SAAS", "saas");
 
             createMenu("menu.policy.center", "/contexa/admin/policy-center", "", policyId, 1, "CORE", "policy-center");
             createMenu("menu.access.center", "/contexa/admin/access-center", "", accessId, 1, "CORE", "access-center");
@@ -77,6 +78,7 @@ public class AdminMenuService {
             createMenu("menu.zerotrust.blacklist", "/contexa/admin/blacklist", "", securityId, 2, "CORE", "blacklist");
             createMenu("menu.security.sessions", "/contexa/admin/session-management", "", securityId, 3, "CORE", "session-management");
             createMenu("menu.security.ip", "/contexa/admin/ip-management", "", securityId, 4, "CORE", "ip-management");
+            createMenu("menu.agents.list", "/contexa/admin/agents", "", agentsId, 1, "CORE", "agents-list");
             createMenu("menu.aiMonitor.overview", "/contexa/admin/ai-monitor", "", aiMonitorId, 1, "CORE", "ai-monitor-overview");
             createMenu("menu.aiMonitor.llm", "/contexa/admin/ai-monitor/llm", "", aiMonitorId, 2, "CORE", "ai-monitor-llm");
             createMenu("menu.aiMonitor.failures", "/contexa/admin/ai-monitor/failures", "", aiMonitorId, 3, "CORE", "ai-monitor-failures");
@@ -203,6 +205,7 @@ public class AdminMenuService {
     private String svgPeople() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z\"/></svg>"; }
     private String svgEye() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M15 12a3 3 0 11-6 0 3 3 0 016 0z\"/></svg>"; }
     private String svgAiMonitor() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M9 3.75V6m6-2.25V6M9 18v2.25M15 18v2.25M3.75 9H6m-2.25 6H6M18 9h2.25M18 15h2.25M8.25 6h7.5A2.25 2.25 0 0118 8.25v7.5A2.25 2.25 0 0115.75 18h-7.5A2.25 2.25 0 016 15.75v-7.5A2.25 2.25 0 018.25 6z\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M9.75 9.75h4.5v4.5h-4.5z\"/></svg>"; }
+    private String svgAgents() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z\"/></svg>"; }
     private String svgBuilding() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21\"/></svg>"; }
     private String svgCloud() { return "<svg fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\" width=\"24\" height=\"24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z\"/></svg>"; }
 

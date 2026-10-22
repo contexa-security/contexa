@@ -1,5 +1,7 @@
 import type { IconName } from '../../components/Icon';
-import { MINIMUM_ACTION_PLAIN, type PlainRule } from '../../components/inside/promptSections';
+import { MINIMUM_ACTION_PLAIN, V21_RULES_PLAIN, type PlainRule } from '../../components/inside/promptSections';
+
+export { isV21Prompt } from '../../components/inside/promptSections';
 
 /**
  * The cards of the G-rules screen (RulesPage): the lines the rules always keep, each with the words of the rule line
@@ -13,10 +15,24 @@ export const G_RULES_CARDS: readonly { readonly key: string; readonly icon: Icon
 ];
 
 /**
+ * SC-7 (docs/showcase/프롬프트-v21-구현계획.md): the cards for a v21 system prompt (gRules.lineV21.<key>). The v21 text
+ * states no line it always keeps; the cards restate how it judges: its mission, the explanations it weighs, the
+ * records it checks itself, how it chooses a response, and its honesty.
+ */
+export const G_RULES_CARDS_V21: readonly { readonly key: string; readonly icon: IconName }[] = [
+  { key: 'mission', icon: 'search' },
+  { key: 'hypotheses', icon: 'user' },
+  { key: 'records', icon: 'book' },
+  { key: 'response', icon: 'arrowRight' },
+  { key: 'honesty', icon: 'check' },
+];
+
+/**
  * The rule lines the G-rules screen notes in the original rules, by how the line begins: the four decisions, the
- * boundaries, the least disruptive choice and the minimum action rules section (N-K5-1). A line gets the note of the
- * first rule whose start it has. Only lines are matched, never counted or numbered: the numbers are the original
- * text's own lines. The elevated-risk boundary stays for the v19 and early v20 runs the portal still keeps.
+ * boundaries, the least disruptive choice and the minimum action rules section (N-K5-1), and the lines of a v21 text
+ * (SC-7). A line gets the note of the first rule whose start it has. Only lines are matched, never counted or
+ * numbered: the numbers are the original text's own lines. The elevated-risk boundary stays for the v19 and early v20
+ * runs the portal still keeps.
  */
 export const G_RULES_PLAIN: readonly PlainRule[] = [
   { starts: 'ALLOW =', key: 'gRules.plain.ALLOW' },
@@ -37,4 +53,5 @@ export const G_RULES_PLAIN: readonly PlainRule[] = [
   },
   { starts: '6. Choose the least disruptive', key: 'gRules.plain.least' },
   ...MINIMUM_ACTION_PLAIN,
+  ...V21_RULES_PLAIN,
 ];

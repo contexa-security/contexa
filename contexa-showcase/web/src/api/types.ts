@@ -420,6 +420,8 @@ export interface Layer {
 export interface ReasonCode {
   readonly code: string;
   readonly fact: string | null;
+  /** 'V4' for a code of the output contract v4 (a v21 decision); null or absent for the contract v3. */
+  readonly contract?: string | null;
 }
 
 export interface EngineReason {
@@ -563,8 +565,12 @@ export interface StatsView {
     readonly timeZone: string;
   } | null;
   readonly specCount: number;
-  /** Block releases recorded for the counted runs (forced runs left out). */
+  /** Blocks of the counted runs that were actually released (forced runs left out); a block met without a release is not one. */
   readonly releases: number;
+  /** Review decisions whose step was held before the response (423). */
+  readonly escalateHeld: number;
+  /** Blocks met after a review decision of the same run expired unresolved, with no block decision before (Q-07). */
+  readonly blockedAfterReview: number;
 }
 
 /** A control's business result over a whole case by the server's one scoring rule (docs/showcase/데모-재설계.md 5.0). */

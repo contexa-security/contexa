@@ -24,6 +24,10 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticatedPrincipal;
 import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
 import org.springframework.util.ClassUtils;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Resolves the bridge principal id of OAuth2/JWT authentications.
  * <p>
@@ -66,6 +70,19 @@ public final class OAuth2AuthenticationSupport {
         Object value = ResourceServerTypes.tokenAttribute(authentication, name);
         String text = value != null ? value.toString().trim() : null;
         return text == null || text.isBlank() ? null : text;
+    }
+
+    /**
+     * Every claim or attribute of the token behind an OAuth2 resource server authentication, with its original value
+     * types (an RFC 8693 {@code act} claim stays a map); empty for any other authentication, including an OAuth2 or
+     * OpenID Connect login, which signs a person in rather than presenting an access token.
+     */
+    public static Map<String, Object> tokenClaims(@Nullable Authentication authentication) {
+        if (!RESOURCE_SERVER_PRESENT || authentication == null) {
+            return Map.of();
+        }
+        Map<String, Object> claims = ResourceServerTypes.tokenAttributes(authentication);
+        return claims == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(claims));
     }
 
     /**
@@ -112,6 +129,12 @@ public final class OAuth2AuthenticationSupport {
         static Object tokenAttribute(Authentication authentication, String name) {
             return authentication instanceof AbstractOAuth2TokenAuthenticationToken<?> token
                     ? token.getTokenAttributes().get(name)
+                    : null;
+        }
+
+        static Map<String, Object> tokenAttributes(Authentication authentication) {
+            return authentication instanceof AbstractOAuth2TokenAuthenticationToken<?> token
+                    ? token.getTokenAttributes()
                     : null;
         }
     }

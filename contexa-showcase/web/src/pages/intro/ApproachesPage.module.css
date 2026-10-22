@@ -1,65 +1,67 @@
-.hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-/* Five pressable rows (each opens its settings): the name, what it sees, what it cannot see, and an open mark. */
+/*
+ * Screen 5-0 (T1): the five methods, one line each (the name with its industry term, what it sees, what it misses),
+ * then where they sit in one line. Rows are parted by a rule, not boxed; only Contexa's line carries the accent.
+ */
 .rows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  max-width: var(--frame-wide);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: 10rem minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--space-4);
-  align-items: center;
-  inline-size: 100%;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.row:hover {
-  border-color: var(--color-accent);
-}
-
-.row:focus-visible {
+.rows:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 
+.row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-6);
+  align-items: baseline;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
 .row[data-contexa] {
-  border-color: var(--color-accent);
+  border-radius: var(--radius-md);
   background-color: var(--color-surface-accent);
 }
 
+.name,
+.line {
+  margin: 0;
+  line-height: var(--leading-frame);
+}
+
 .name {
+  color: var(--color-text);
+  font-size: var(--type-body);
+}
+
+.nameWord {
   font-weight: var(--weight-bold);
+  white-space: nowrap;
 }
 
-.row[data-contexa] .name {
-  color: var(--color-accent);
+.term {
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  white-space: nowrap;
 }
 
-.sees,
-.misses {
+.line {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-2);
   color: var(--color-text-body);
-  font-size: var(--text-sm);
+  font-size: var(--type-body);
 }
 
 .label {
@@ -67,44 +69,145 @@
   font-weight: var(--weight-semibold);
 }
 
-.seesIcon {
+.seesIcon,
+.missesIcon {
+  flex: none;
   align-self: center;
+}
+
+.seesIcon {
   color: var(--color-safe);
 }
 
 .missesIcon {
-  align-self: center;
   color: var(--color-loss);
 }
 
-.open {
+/* Where they sit: the request, the door outside the app, then the app's own steps in one dashed group. */
+.where {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
+  margin: 0;
+}
+
+/* The figure's title: where each method sits in a real deployment (V-54). */
+.whereTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+}
+
+.path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+  list-style: none;
+}
+
+.stop {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.insideStop {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.inside {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.arrow {
+  flex: none;
   color: var(--color-text-muted);
 }
 
-/* The settings window: names and values, an original value in code. */
+.zone {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.step {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+
+.step[data-contexa] {
+  font-weight: var(--weight-bold);
+}
+
+.honest {
+  max-width: var(--frame-measure);
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* The settings window: one method at a time, picked by name. */
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.pickButton {
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.pickButton[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.pickButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 @media (width <= 48rem) {
   .row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .name {
-    grid-column: 1;
-  }
-
-  .open {
-    grid-row: 1;
-    grid-column: 2;
-  }
-
-  .sees,
-  .misses {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 /*
- * Phones (mobile slide): the five approaches are cards side by side, swiped one at a time; the next card shows at the
- * edge, so a visitor sees there is more. Each card is a button, so the keyboard moves through them as well.
+ * Phones (mobile slide): the five lines are cards side by side, swiped one at a time, so the screen stays short; the
+ * next card shows at the edge. A card is parted by a rule on its left, not boxed; Contexa's keeps the accent.
  */
 @media (width <= 40rem) {
   .rows {
@@ -115,13 +218,16 @@
     scroll-snap-type: x mandatory;
   }
 
-  .rows > li {
+  .row {
     flex: 0 0 85%;
+    align-content: start;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 0;
+    border-left: 3px solid var(--color-border-strong);
     scroll-snap-align: start;
   }
 
-  .row {
-    align-content: start;
-    block-size: 100%;
+  .row[data-contexa] {
+    border-left-color: var(--color-accent);
   }
 }

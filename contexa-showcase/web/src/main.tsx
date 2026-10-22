@@ -3,10 +3,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/tokens.css';
 import './styles/base.css';
-import { i18nReady } from './i18n';
+import { dictionaryComplete, i18nReady } from './i18n';
 import App from './App';
 import { preloadFirstScreen } from './screens';
-import { fontInCache, loadFonts, loadFontsAfterFirstScreen } from './fonts';
+import { afterFirstScreen, fontInCache, loadFonts, loadFontsAfterFirstScreen } from './fonts';
 
 const queryClient = new QueryClient();
 
@@ -38,3 +38,9 @@ if (fontInCache()) {
 } else {
   loadFontsAfterFirstScreen();
 }
+
+// The rest of the dictionary (the screens outside the main flow and the decision details) is read once the first
+// screen is shown, so it never shares the network with what paints it (FC-4).
+afterFirstScreen(() => {
+  void dictionaryComplete().catch(() => undefined);
+});

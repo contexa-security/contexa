@@ -2,25 +2,11 @@ import { useTranslation } from 'react-i18next';
 import type { BeforeSendView } from '../../api/anatomy';
 import { Icon } from '../../components/Icon';
 import { MINIMUM_ACTION_PLAIN } from '../../components/inside/promptSections';
+import { lineState } from './labPlace';
 import styles from './LabPages.module.css';
 
 /** The four conditions of the judgment rules' elevated-risk boundary, in the rule's order. */
 const BOUNDARY = ['sensitive', 'established', 'departs', 'approvalMissing'] as const;
-
-type LineState = 'applies' | 'clear' | 'unknown' | 'none';
-
-function lineState(view: BeforeSendView | null): LineState {
-  if (!view) {
-    return 'none';
-  }
-  // N-K5-1: the minimum action rules the engine found met, or the boundary of a text without them.
-  const applies = view.minimumRules
-    ? view.minimumRules.applies
-    : view.boundary
-      ? view.boundary.applies
-      : null;
-  return applies === null ? 'unknown' : applies ? 'applies' : 'clear';
-}
 
 function mark(value: boolean | null): 'check' | 'cross' | 'dash' {
   return value === true ? 'check' : value === false ? 'cross' : 'dash';

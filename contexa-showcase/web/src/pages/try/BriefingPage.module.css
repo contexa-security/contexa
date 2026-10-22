@@ -1,0 +1,121 @@
+/*
+ * A group's cover (T0, 최종화면-구현계획 F0-7): the line the group before ended on, then one warm panel on the dark page,
+ * so a group's start stands apart at a glance. The number and the four cells slide in one after another (설계서 모션:
+ * 0.4초, 0.08초 간격); with reduced motion they are simply there.
+ */
+.past {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border: 1px dashed var(--color-accent-line);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+}
+
+.pastLabel {
+  color: var(--color-accent);
+}
+
+.hero {
+  --cover-step: 80ms;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: hidden;
+  padding: var(--space-8) var(--space-12) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--color-brief-bg), var(--color-brief-bg-end));
+  color: var(--color-brief-ink);
+}
+
+.numeral {
+  position: absolute;
+  inset-block-start: calc(var(--space-16) * -1);
+  inset-inline-end: var(--space-8);
+  color: var(--color-brief-numeral);
+  font-size: var(--type-cover-numeral);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-none);
+  animation: cover-in var(--motion-reveal) var(--ease-out) both;
+}
+
+.eyebrow {
+  position: relative;
+  margin: 0;
+  color: var(--color-brief-mark);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+}
+
+.question {
+  position: relative;
+  max-inline-size: 61rem;
+  margin: 0;
+  color: var(--color-brief-ink);
+  font-size: var(--type-cover);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.cells {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-12);
+  margin: var(--space-5) 0 0;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-block-start: 1.5px solid var(--color-brief-line);
+  animation: cover-in var(--motion-reveal) var(--ease-out) both;
+}
+
+.cellLabel {
+  color: var(--color-brief-muted);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.cellText {
+  margin: 0;
+  color: var(--color-brief-ink);
+  font-size: var(--type-cover-cell);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+@keyframes cover-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+}
+
+@media (width <= 40rem) {
+  .hero {
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .numeral,
+  .cell {
+    animation: none;
+  }
+}

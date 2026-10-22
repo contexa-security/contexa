@@ -45,6 +45,7 @@ import io.contexa.contexacore.verification.evidence.SealedEvidencePackage;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageAssembler;
 import io.contexa.contexacore.verification.evidence.SealedEvidencePackageIntegrity;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,15 +55,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * N-RSN-1: a Layer2 second pass that does not call the model again (W3-9, nothing new) keeps the first pass's model
- * verdict and, with it, the first pass's model values: the reason codes with the fact IDs they cite, the risk score,
- * the confidence and the provenance of these fields. The reason codes reach Layer2 on the cold path's own hand-over,
- * not on a key a test puts by hand (as N-L2-1 asks of the first prompt); the sealed decision record holds them.
+ * The cold path's hand-over from a Layer1 that answered ESCALATE to the real Layer2. Since 판정층 E-4 the second pass
+ * always asks its own model, also when its past record search found nothing new (W3-9's skip, which kept the first
+ * pass's ESCALATE and its model values, N-RSN-1, is gone): the decision and the sealed decision record are the second
+ * pass's.
  */
 class FirstPassModelValuesHandOverTest {
 
@@ -75,30 +75,46 @@ class FirstPassModelValuesHandOverTest {
             new SecurityDecisionOutputContract.Citation("DEVIATION_SIZE", "F1"));
     private static final Map<String, String> PROVENANCE = Map.of("reasoning", "MODEL", "riskScore", "MODEL",
             "confidence", "MODEL", "reasonCodes", "MODEL");
+    /** V-3 of the v21 plan (발견 9): the explanations a v21 first pass weighed, kept with its verdict. */
+    private static final List<Map<String, Object>> HYPOTHESES = List.of(
+            Map.of("id", "H1", "assessment", "POSSIBLE", "for", List.of("F4"), "against", List.of("F1")),
+            Map.of("id", "H3", "assessment", "MOST_LIKELY", "for", List.of("F1", "R4"), "against", List.of()));
 
     private final PipelineOrchestrator pipelineOrchestrator = mock(PipelineOrchestrator.class);
     private final SealedEvidencePromptTraceStore traceStore = new SealedEvidencePromptTraceStore();
 
+    /** 판정층 E-4: Layer2 asks its own model, also with nothing new, and the decision is the second pass's. */
     @Test
-    void theDecisionKeepsTheFirstPassModelValuesWhenLayer2DoesNotCallTheModel() {
+    void theDecisionIsTheSecondPassModelsAlsoWithNothingNew() {
         SecurityEvent event = event("n-rsn-1-result");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(secondPassAnswer()));
 
         ProcessingResult result = processor(event).processEvent(event, 0.5);
 
-        verify(pipelineOrchestrator, never()).execute(any(SecurityDecisionRequest.class),
-                any(PipelineConfiguration.class), eq(SecurityDecisionResponse.class));
-        assertThat(event.getMetadata()).containsEntry("layer2ModelCallSkipped", "NO_NEW_FACTS")
-                .doesNotContainKey("firstPassReasonCodes");
-        assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.ESCALATE.name());
-        assertThat(result.getReasonCodes()).containsExactlyElementsOf(REASON_CODES);
-        assertThat(result.resolveAuditRiskScore()).isEqualTo(0.78);
-        assertThat(result.resolveAuditConfidence()).isEqualTo(0.97);
-        assertThat(result.getFieldProvenance()).isEqualTo(PROVENANCE);
+        verify(pipelineOrchestrator).execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class));
+        assertThat(event.getMetadata()).doesNotContainKey("layer2ModelCallSkipped");
+        assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+        assertThat(result.resolveAuditRiskScore()).isEqualTo(0.91);
+        assertThat(result.resolveAuditConfidence()).isEqualTo(0.88);
     }
 
+    private static SecurityDecisionResponse secondPassAnswer() {
+        SecurityDecisionResponse answer = new SecurityDecisionResponse();
+        answer.setAction("BLOCK");
+        answer.setReasoning("The owner exports design data far outside their work.");
+        answer.setRiskScore(0.91);
+        answer.setConfidence(0.88);
+        return answer;
+    }
+
+    /** 판정층 E-4: the sealed decision record is the second pass's decision. */
     @Test
-    void theSealedDecisionRecordKeepsTheFirstPassModelValues() throws Exception {
+    void theSealedDecisionRecordIsTheSecondPassDecision() throws Exception {
         SecurityEvent event = event("n-rsn-1-seal");
+        when(pipelineOrchestrator.execute(any(SecurityDecisionRequest.class), any(PipelineConfiguration.class),
+                eq(SecurityDecisionResponse.class))).thenReturn(Mono.just(secondPassAnswer()));
         ProcessingResult result = processor(event).processEvent(event, 0.5);
         SecurityEventContext context = new SecurityEventContext(event);
         context.addMetadata("processingResult", result);
@@ -111,11 +127,8 @@ class FirstPassModelValuesHandOverTest {
         Map<String, Object> decision = JSON.readValue(sealed.getDecisionJson(), MAP);
         assertThat(decision)
                 .containsEntry("decisionAppliedStage", "LAYER2")
-                .containsEntry("reasonCodes", List.of(Map.of("code", "MIN_P3_POLICY_NOT_SATISFIED", "fact", "F4"),
-                        Map.of("code", "DEVIATION_SIZE", "fact", "F1")))
-                .containsEntry("riskScore", 0.78)
-                .containsEntry("confidence", 0.97)
-                .containsEntry("fieldProvenance", PROVENANCE);
+                .containsEntry("riskScore", 0.91)
+                .containsEntry("confidence", 0.88);
     }
 
     /** The cold path with a Layer1 that leaves on the event what its pipeline leaves, and the real Layer2. */
@@ -155,6 +168,7 @@ class FirstPassModelValuesHandOverTest {
                 .llmAuditConfidence(0.97)
                 .reasoning("Policy requires a covering approval, but none exists for GB-500.")
                 .reasonCodes(REASON_CODES)
+                .hypotheses(HYPOTHESES)
                 .fieldProvenance(PROVENANCE)
                 .build();
     }

@@ -43,11 +43,11 @@ export function fontInCache(): boolean {
 const FIRST_SCREEN_LIMIT_MS = 3000;
 
 /**
- * Loads the font once the browser reports that the application's first content is on the glass: the first largest
+ * Runs `work` once the browser reports that the application's first content is on the glass: the first largest
  * contentful paint outside the bar index.html paints before the application loads. A frame callback alone runs before
- * its frame is shown, which is too early. Browsers without that report load it two frames after the start.
+ * its frame is shown, which is too early. Browsers without that report run it two frames after the start.
  */
-export function loadFontsAfterFirstScreen(): void {
+export function afterFirstScreen(work: () => void): void {
   if (PerformanceObserver.supportedEntryTypes.includes('largest-contentful-paint')) {
     const observer = new PerformanceObserver((list) => {
       const shown = list.getEntries().some((entry) => {
@@ -56,16 +56,21 @@ export function loadFontsAfterFirstScreen(): void {
       });
       if (shown) {
         observer.disconnect();
-        setTimeout(loadFonts, 0);
+        setTimeout(work, 0);
       }
     });
     observer.observe({ type: 'largest-contentful-paint', buffered: true });
-    setTimeout(loadFonts, FIRST_SCREEN_LIMIT_MS);
+    setTimeout(work, FIRST_SCREEN_LIMIT_MS);
     return;
   }
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      setTimeout(loadFonts, 0);
+      setTimeout(work, 0);
     });
   });
+}
+
+/** Loads the font once the first screen is shown (C-13). */
+export function loadFontsAfterFirstScreen(): void {
+  afterFirstScreen(loadFonts);
 }

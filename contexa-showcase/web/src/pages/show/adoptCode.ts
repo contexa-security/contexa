@@ -24,7 +24,7 @@ export const ADOPT_CODE: readonly CodeExcerpt[] = [
   {
     path: 'showcase-workload-contexa/src/main/java/io/contexa/showcase/workload/contexa/business/ContexaBusinessOperations.java',
     lines: [
-      '    @Protectable',
+      '    @Protectable(category = DOCUMENTS, actions = "EXPORT", exportSensitive = true)',
       '    public ExportStream openExportStream(BusinessRequest request, String projectKey, int items) {',
       '        return delegate.openExportStream(request, projectKey, items);',
       '    }',

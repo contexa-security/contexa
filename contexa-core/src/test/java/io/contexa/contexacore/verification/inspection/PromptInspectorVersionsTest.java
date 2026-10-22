@@ -50,7 +50,47 @@ class PromptInspectorVersionsTest {
     /** N-INS-4, the first change after P8, is version 21. */
     @Test
     void thePastRecordsReasonsAreComparedFromVersionTwentyOne() {
-        assertThat(PromptInspectorVersions.current().number()).isEqualTo(21);
-        assertThat(PromptInspectorVersions.current().reason()).contains("(N-INS-4)");
+        PromptInspectorVersions.Version twentyOne = PromptInspectorVersions.ALL.get(20);
+        assertThat(twentyOne.number()).isEqualTo(21);
+        assertThat(twentyOne.reason()).contains("(N-INS-4)");
+    }
+
+    /** N-INJ-4 is version 22. */
+    @Test
+    void aCategoryThatIsNotATokenIsComparedFromVersionTwentyTwo() {
+        PromptInspectorVersions.Version twentyTwo = PromptInspectorVersions.ALL.get(21);
+        assertThat(twentyTwo.number()).isEqualTo(22);
+        assertThat(twentyTwo.reason()).contains("(N-INJ-4)");
+    }
+
+    /** V-6 of the v21 plan: the v21 packages are read from version 23. */
+    @Test
+    void theV21PackagesAreReadFromVersionTwentyThree() {
+        PromptInspectorVersions.Version twentyThree = PromptInspectorVersions.ALL.get(22);
+        assertThat(twentyThree.number()).isEqualTo(23);
+        assertThat(twentyThree.reason()).contains("v21").contains("(V-6 of the v21 plan)");
+    }
+
+    /** Finding 7 of the v21 plan: the target scope line of a v21 package is compared from version 24. */
+    @Test
+    void theTargetScopeIsComparedFromVersionTwentyFour() {
+        PromptInspectorVersions.Version twentyFour = PromptInspectorVersions.ALL.get(23);
+        assertThat(twentyFour.number()).isEqualTo(24);
+        assertThat(twentyFour.reason()).contains("(finding 7 of the v21 plan)");
+    }
+
+    /** Finding 12 of the v21 plan: a v21 reason code citing the past records' counted fact is checked from 25. */
+    @Test
+    void theCountedFactCitationIsCheckedFromVersionTwentyFive() {
+        assertThat(PromptInspectorVersions.current().number()).isEqualTo(25);
+        assertThat(PromptInspectorVersions.current().reason()).contains("(finding 12 of the v21 plan)");
+    }
+
+    /** N-OUT-3 lands in version 22 with N-INJ-4 (one build after P8), not in a version of its own. */
+    @Test
+    void theOutputRetriesAreComparedFromVersionTwentyTwo() {
+        PromptInspectorVersions.Version twentyTwo = PromptInspectorVersions.ALL.get(21);
+        assertThat(twentyTwo.number()).isEqualTo(22);
+        assertThat(twentyTwo.reason()).contains("(N-INJ-4)").contains("(N-OUT-3)");
     }
 }

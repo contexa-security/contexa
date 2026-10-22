@@ -1,4 +1,5 @@
 import type { IndexHtmlTransformContext, Plugin } from 'vite';
+import { beforeEntryScript } from './languagePreload';
 import {
   FIRST_RECORDS,
   FIRST_SCREEN_ADDRESSES,
@@ -124,11 +125,11 @@ export function firstScreenPreload(): Plugin {
     apply: 'build',
     transformIndexHtml: {
       order: 'post',
-      handler(_html, context) {
+      handler(html, context) {
         if (!context.bundle) {
           throw new Error('first screen preload: no bundle');
         }
-        return [{ tag: 'script', children: pickScript(firstScreenFiles(context.bundle)), injectTo: 'head' }];
+        return beforeEntryScript(html, pickScript(firstScreenFiles(context.bundle)));
       },
     },
   };

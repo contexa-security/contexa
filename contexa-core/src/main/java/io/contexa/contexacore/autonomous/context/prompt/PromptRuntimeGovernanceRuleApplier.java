@@ -215,12 +215,11 @@ public class PromptRuntimeGovernanceRuleApplier {
             lineStarts.add(offset);
             offset += line.length() + 1;
         }
-        String plainHeader = "=== " + block.title() + " ===";
-        String qualifiedHeader = "=== " + block.title() + " (";
+        // A v21 prompt titles the decision facts RECORDS AND COMPARISONS: a header may carry either title.
         List<SectionRange> ranges = new ArrayList<>();
         for (int index = 0; index < lines.length; index++) {
             String line = lines[index];
-            if (!line.equals(plainHeader) && !(line.startsWith(qualifiedHeader) && line.endsWith(") ==="))) {
+            if (!headerOf(line, block)) {
                 continue;
             }
             int endIndex = index + 1;
@@ -231,6 +230,17 @@ public class PromptRuntimeGovernanceRuleApplier {
             ranges.add(new SectionRange(lineStarts.get(index), Math.min(end, prompt.length())));
         }
         return List.copyOf(ranges);
+    }
+
+    /** Whether the line is the block's header under one of its titles, plain or with qualifiers. */
+    private static boolean headerOf(String line, PromptBlock block) {
+        for (String title : block.titles()) {
+            if (line.equals("=== " + title + " ===")
+                    || (line.startsWith("=== " + title + " (") && line.endsWith(") ==="))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

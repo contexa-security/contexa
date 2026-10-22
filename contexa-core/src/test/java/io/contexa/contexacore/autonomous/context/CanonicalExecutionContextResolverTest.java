@@ -15,7 +15,10 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacore.autonomous.execution.CanonicalExecutionBinding;
+import io.contexa.contexacore.autonomous.execution.DelegatedExecutionContext;
 import io.contexa.contexacore.autonomous.execution.ExecutionProtocolTypes;
+import io.contexa.contexacore.autonomous.execution.ExecutionSubjectTypes;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
@@ -61,6 +64,62 @@ class CanonicalExecutionContextResolverTest {
                 .build(), ExecutionProtocolTypes.MCP);
 
         assertThat(protocolOf(context)).isEqualTo(ExecutionProtocolTypes.MCP);
+    }
+
+    /** A1-3: a delegation a provider states after publishing outranks the DIRECT_USER the publisher wrote. */
+    @Test
+    void aDelegationStatedAfterPublishingOutranksThePublishersMode() {
+        CanonicalSecurityContext context = context("EMPLOYEE", CanonicalSecurityContext.Delegation.builder()
+                .delegated(true)
+                .build(), "UNKNOWN");
+        context.getAttributes().put("executionSubjectType", "HUMAN_USER");
+        context.getAttributes().put("executionMode", "DIRECT_USER");
+        context.getAttributes().put("lineageState", "DIRECT");
+
+        CanonicalExecutionBinding binding = resolver.resolveBinding(context);
+
+        // Before A1-3 the publisher's DIRECT_USER won and, without an agent ID, the request stayed a person's.
+        assertThat(binding.executionSubject().subjectType()).isEqualTo(ExecutionSubjectTypes.AGENT_RUNTIME);
+        assertThat(binding.executionEnvelope().executionMode())
+                .isEqualTo(DelegatedExecutionContext.EXECUTION_MODE_DELEGATED_AGENT);
+        assertThat(binding.executionEnvelope().lineageState()).isEqualTo(DelegatedExecutionContext.LINEAGE_STATE_DECLARED);
+    }
+
+    /** A1-3: an agent acting on its own is an agent subject in the autonomous mode, not a delegated one. */
+    @Test
+    void anAgentActingOnItsOwnIsAnAutonomousAgent() {
+        CanonicalSecurityContext context = context(null, CanonicalSecurityContext.Delegation.builder()
+                .delegated(false)
+                .agentId("agent-sp-1")
+                .build(), "UNKNOWN");
+
+        CanonicalExecutionBinding binding = resolver.resolveBinding(context);
+
+        assertThat(binding.executionSubject().subjectType()).isEqualTo(ExecutionSubjectTypes.AGENT_RUNTIME);
+        assertThat(binding.executionSubject().delegatedAgentProfile().agentClass())
+                .isEqualTo(DelegatedExecutionContext.EXECUTION_MODE_AUTONOMOUS_AGENT);
+        assertThat(binding.executionEnvelope().executionMode())
+                .isEqualTo(DelegatedExecutionContext.EXECUTION_MODE_AUTONOMOUS_AGENT);
+        assertThat(binding.executionEnvelope().lineageState()).isEqualTo(DelegatedExecutionContext.LINEAGE_STATE_DIRECT);
+    }
+
+    /** A1-3: a person's request keeps today's subject, mode and protocol. */
+    @Test
+    void aPersonsRequestStaysAHumanUser() {
+        CanonicalExecutionBinding binding = resolver.resolveBinding(context("EMPLOYEE", null, "UNKNOWN"));
+
+        assertThat(binding.executionSubject().subjectType()).isEqualTo(ExecutionSubjectTypes.HUMAN_USER);
+        assertThat(binding.executionEnvelope().executionMode())
+                .isEqualTo(DelegatedExecutionContext.EXECUTION_MODE_DIRECT_USER);
+        assertThat(binding.executionEnvelope().provenance().protocolType()).isEqualTo(ExecutionProtocolTypes.HUMAN_SESSION);
+    }
+
+    /** A1-3: a client's own token, which the bridge stamps as SERVICE_CLIENT, is a service client. */
+    @Test
+    void aClientsOwnTokenIsAServiceClient() {
+        CanonicalExecutionBinding binding = resolver.resolveBinding(context("SERVICE_CLIENT", null, "UNKNOWN"));
+
+        assertThat(binding.executionSubject().subjectType()).isEqualTo(ExecutionSubjectTypes.SERVICE_CLIENT);
     }
 
     private CanonicalSecurityContext context(String principalType, CanonicalSecurityContext.Delegation delegation,

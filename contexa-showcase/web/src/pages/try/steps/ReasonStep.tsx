@@ -1,25 +1,29 @@
+import type { TFunction } from 'i18next';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LabCase } from '../../../api/lab';
-import { useRunFacts, useRunQuality } from '../../../api/promptQuality';
-import { ActionChip } from '../../../components/common/ActionChip';
-import { useDetail } from '../../../components/detail/useDetail';
-import { ReasonChain } from '../../../components/facts/ReasonChain';
-import { SourceMark } from '../../../components/common/SourceMark';
-import { Icon } from '../../../components/Icon';
-import { JustSaw } from '../../../components/journey/JourneyParts';
-import { ActionBar, MoreRow, StepHeader } from '../../../components/journey/StepParts';
+import { useRunFacts, useRunQuality, type RunFacts } from '../../../api/promptQuality';
+import type { LiveDecision } from '../../../api/types';
+import {
+  ReasonChain,
+  ReasonFigure,
+  type ChangedFact,
+  type ReasonItem,
+} from '../../../components/facts/ReasonChain';
+import { DetailChip } from '../../../components/journey/FrameParts';
+import { ScreenBody } from '../../../components/journey/ScreenBody';
+import { NextLink } from '../../../components/journey/StepParts';
 import { StateScreen } from '../../../components/StateScreen';
-import { VerdictChip } from '../../../components/VerdictChip';
 import type { Verdict } from '../../../domain/verdict';
 import type { Difference } from '../../../journey/journey';
-import { approvalFact, decisionDetail } from '../decision';
+import { approvalFact } from '../decision';
 import { stepPath, type Mode, type Role, type StepFlow } from '../experience';
-import styles from '../Experience.module.css';
 import { useTryAnalysis, useTryRun } from './tryRun';
 
-const TITLED_CODES = new Set(['CHALLENGE_ELEVATED_RISK_BOUNDARY']);
 const ACTIONS = new Set(['ALLOW', 'CHALLENGE', 'ESCALATE', 'BLOCK']);
+
+/** The lines of the company approval among the facts the AI received, in the order they are looked for. */
+const APPROVAL_LABELS = ['PolicySatisfied', 'Approval'] as const;
 
 interface ReasonStepProps {
   readonly role: Role;
@@ -29,23 +33,65 @@ interface ReasonStepProps {
   readonly flow: StepFlow;
 }
 
+/** The ID of the approval line among the facts the AI received; null when the facts cannot be read or hold none. */
+function approvalFactId(facts: RunFacts | null): string | null {
+  if (!facts?.available) {
+    return null;
+  }
+  for (const label of APPROVAL_LABELS) {
+    for (const block of facts.blocks) {
+      const line = block.facts.find((fact) => fact.label === label && fact.factId !== null);
+      if (line?.factId) {
+        return line.factId;
+      }
+    }
+  }
+  return null;
+}
+
 /**
- * Try 1-6, the reasons (e1-reason): which recorded facts led to the decision, as one figure, and the reason the engine
- * wrote (the fixed Korean of a contract sentence, the original behind its fold). The evidence it cited and the core
- * inspector's adverse conditions are folded under "details" (D-41). Every value is control D's decision block of the
- * visitor's run. With the sealed decision's reason codes (U-3) the figure is the chain from the facts the AI
- * received through the reason codes to the decision, each code on the row of the fact it cites.
+ * The figure's cards when the decision recorded no reason codes: the decision's own facts (how many compared items
+ * differ, the sensitivity, the approval as the inspector read it), each as one card.
+ */
+function recordedItems(t: TFunction, decision: LiveDecision, changedTag: string | null): readonly ReasonItem[] {
+  const approval = approvalFact(t, decision.adverseLabels);
+  const sensitivity = decision.reason?.resourceSensitivity ?? null;
+  return [
+    ...(changedTag ? [{ key: 'approval', tag: changedTag, words: approval ? [approval] : [] }] : []),
+    { key: 'differs', name: t('e1.reason.differs', { n: decision.reason?.baselineDeltaCount ?? '-' }), words: [] },
+    ...(sensitivity
+      ? [
+          {
+            key: 'sensitivity',
+            name: t('e1.reason.sensitivity', {
+              level: t(`dim.sensitivity.${sensitivity}`, { defaultValue: sensitivity }),
+            }),
+            words: [],
+          },
+        ]
+      : []),
+    ...(!changedTag && approval ? [{ key: 'approval', name: approval, words: [] }] : []),
+  ];
+}
+
+/**
+ * The reasons (화면재편 1-5 and 2-4, T6): why Contexa judged the visitor's run as it did, as one figure, each fact the
+ * reasons cite once in plain words, then the judgment, and the one "see details" chip. Engine codes, fact IDs, the
+ * model's own sentence (English, in the decision details' original record), the inspector and the prompt stay in the
+ * decision details (F-1, F-2, V-6). Try 2 marks the one thing that changed, the company approval. Every value is
+ * control D's record of the run: the sealed reason codes and facts, else the decision's own.
  */
 export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) {
   const { t } = useTranslation();
-  const details = useDetail();
   const run = useTryRun(labCase.key, labCase.requests.length);
   const view = run.view;
   const analysis = useTryAnalysis(view, run.stored);
   const decision = analysis.decision;
-  // U-3: the sealed decision's reason codes and the facts they cite, read once the engine has decided.
-  const quality = useRunQuality(decision ? (view?.runId ?? null) : null, 1).data ?? null;
-  const runFacts = useRunFacts(decision ? (view?.runId ?? null) : null, 1).data ?? null;
+  // The sealed decision's reason codes and the facts they cite, read once the engine has decided.
+  const sealedRun = decision ? (view?.runId ?? null) : null;
+  const quality = useRunQuality(sealedRun, 1);
+  const runFacts = useRunFacts(sealedRun, 1);
+  const number = role === 'owner' ? '2-4' : '1-5';
 
   useEffect(() => {
     if (decision) {
@@ -60,153 +106,71 @@ export function ReasonStep({ role, mode, labCase, see, flow }: ReasonStepProps) 
   }
   if (!view?.runId) {
     return (
-      <>
-        <StepHeader title={t('experience.step.reason')} purpose={t('e1.run.notSent')} />
-        <ActionBar back={{ to: stepPath(role, 'predict', mode), label: t('e1.run.toPredict') }} />
-      </>
+      <ScreenBody
+        title={t(`screen.${number}.title`)}
+        purpose={t('p1.unsent.guide')}
+        back={null}
+        main={<NextLink to={stepPath(role, 'predict', mode)} label={t('p1.unsent.go')} />}
+      >
+        {null}
+      </ScreenBody>
     );
   }
   if (!decision) {
     // A stored run without a decision of the engine says so; otherwise the decision is still coming.
     return analysis.missing ? (
-      <>
-        <StepHeader title={t('e1.reason.title.other')} purpose={t('e1.reason.none')} />
-        <ActionBar back={flow.back} main={flow.next} teaser={flow.teaser} />
-      </>
+      <ScreenBody title={t(`screen.${number}.title`)} purpose={t('p1.reason.none')} back={flow.back} main={flow.next}>
+        {null}
+      </ScreenBody>
     ) : (
       <StateScreen kind="loading" />
     );
   }
+  if (quality.isLoading || runFacts.isLoading) {
+    return <StateScreen kind="loading" />;
+  }
 
-  const runId = view.runId;
-  const canonical = decision.reason?.canonical ?? null;
-  const reasonCodes = decision.reason?.reasonCodes ?? [];
+  const facts = runFacts.data ?? null;
+  const sealed = quality.data?.available ? quality.data.reasonCodes : [];
+  const recorded = decision.reason?.reasonCodes ?? [];
+  const reasonCodes = sealed.length > 0 ? sealed : recorded;
   const action = decision.finalAction;
-  const titleKey =
-    role === 'owner' && action === 'ALLOW'
-      ? 'e2.reason.title.ALLOW'
-      : canonical && TITLED_CODES.has(canonical)
-        ? `e1.reason.title.${canonical}`
-        : `e1.reason.title.${ACTIONS.has(action) ? action : 'other'}`;
-  const approval = approvalFact(t, decision.adverseLabels);
-  const detail = decisionDetail(t, decision);
-  // The chain needs the quality view's reason codes; without them the figure of the recorded facts stays.
-  const chain = quality?.available && quality.reasonCodes.length > 0 ? quality.reasonCodes : null;
-  const reasonCheck = quality?.inspection?.checks.find((check) => check.code === 'REASON_MATCH') ?? null;
   const verdict = (ACTIONS.has(action) ? action : 'NONE') as Verdict;
-  const facts = [
-    t('e1.reason.differs', { n: decision.reason?.baselineDeltaCount ?? '-' }),
-    ...(decision.reason?.resourceSensitivity
-      ? [
-          t('e1.reason.sensitivity', {
-            level: t(`dim.sensitivity.${decision.reason.resourceSensitivity}`, {
-              defaultValue: decision.reason.resourceSensitivity,
-            }),
-          }),
-        ]
-      : []),
-    ...(approval ? [approval] : []),
-  ];
+  // A try 1 that Contexa let through is asked the other way round; the copy source's question presumes a stop.
+  const passed = role === 'attacker' && action === 'ALLOW';
+  const changedTag = role === 'owner' ? t('p2.reason.changed') : null;
+  const changed: ChangedFact | null = changedTag
+    ? {
+        fact: approvalFactId(facts),
+        tag: changedTag,
+        words: approvalFact(t, decision.adverseLabels),
+      }
+    : null;
 
   return (
-    <>
-      <StepHeader
-        title={t(titleKey)}
-        purpose={t(role === 'owner' ? 'e2.purpose.reason' : 'e1.purpose.reason')}
-        source={
-          <SourceMark
-            kind="ENGINE"
-            runId={view.runId}
-            step={1}
-            original={decision.reason?.reasoning ?? null}
-          />
-        }
-      />
-      {chain ? (
-        <ReasonChain reasonCodes={chain} facts={runFacts} verdict={verdict} check={reasonCheck} />
+    <ScreenBody
+      title={t(passed ? 'p1.reason.title.pass' : `screen.${number}.title`)}
+      purpose={t(passed ? 'p1.reason.guide.pass' : `screen.${number}.guide`)}
+      more={<DetailChip runId={view.runId} />}
+      back={flow.back}
+      main={flow.next}
+    >
+      {reasonCodes.length > 0 ? (
+        <ReasonChain
+          mode="plain"
+          reasonCodes={reasonCodes}
+          facts={facts}
+          verdict={verdict}
+          unresolved={decision.unresolved}
+          changed={changed}
+        />
       ) : (
-        <div className={styles.reasonFigure} aria-label={t('e1.reason.figure')}>
-          <ul className={styles.reasonFacts}>
-            {facts.map((fact) => (
-              <li key={fact} className={styles.reasonFact}>
-                {fact}
-              </li>
-            ))}
-          </ul>
-          <Icon name="arrowRight" className={styles.reasonArrow} />
-          <VerdictChip verdict={verdict} size="lg" />
-        </div>
+        <ReasonFigure
+          items={recordedItems(t, decision, changedTag)}
+          verdict={verdict}
+          unresolved={decision.unresolved}
+        />
       )}
-      <figure className={styles.quote}>
-        <figcaption className={styles.quoteLabel}>{t('e1.reason.wrote')}</figcaption>
-        {/* W4-3: the codes the engine cited, each with its fixed meaning and the prompt line it cites. */}
-        {!chain && reasonCodes.length > 0 ? (
-          <ul className={styles.reasonFacts} aria-label={t('e1.reason.codes')}>
-            {reasonCodes.map((code) => (
-              <li key={`${code.code}-${code.fact ?? ''}`} className={styles.reasonFact}>
-                {t('e1.reason.codeFact', {
-                  meaning: t(`reasonCode.${code.code}`, { defaultValue: code.code }),
-                  fact: code.fact ?? '-',
-                })}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {/* The sentence alone in the quote; whether the rules set it is said under it, not inside it. */}
-        <blockquote className={styles.quoteText}>
-          {canonical
-            ? t(`reason.canonical.${canonical}`, { defaultValue: decision.reason?.reasoning ?? '' })
-            : t('e1.reason.free')}
-        </blockquote>
-        {canonical ? (
-          <p className={styles.quoteNote}>
-            {t(role === 'owner' && action === 'ALLOW' ? 'e2.reason.allowNote' : 'e1.reason.canonical')}
-          </p>
-        ) : null}
-        {detail.original ? (
-          <details className={styles.more}>
-            <summary>{t('source.original')}</summary>
-            <p className={styles.original}>{detail.original}</p>
-          </details>
-        ) : null}
-      </figure>
-      <MoreRow>
-        <details className={styles.more}>
-          <summary>{t('e1.reason.details')}</summary>
-          <div className={styles.foldText}>
-            {detail.cited.length > 0 ? (
-              <p>
-                {t('e1.reason.citedLine', {
-                  refs: detail.cited.map((ref) => t(`evidenceRef.${ref}`, { defaultValue: ref })).join(' · '),
-                })}
-              </p>
-            ) : null}
-            <p>
-              {t('e1.reason.inspector', {
-                total: detail.inspector.total,
-                met: detail.inspector.met,
-                names: detail.inspector.names.length > 0 ? `(${detail.inspector.names.join(', ')})` : '',
-              })}
-            </p>
-            <p>
-              {decision.riskScore === null && decision.confidence === null
-                ? t('e1.reason.riskNone')
-                : t('e1.reason.risk', {
-                    risk: decision.riskScore ?? t('e1.reason.noValue'),
-                    confidence: decision.confidence ?? t('e1.reason.noValue'),
-                  })}
-            </p>
-          </div>
-        </details>
-        <ActionChip to="/try/prompt" icon="code" variant="open">
-          {t('e1.reason.promptLink')}
-        </ActionChip>
-        <ActionChip onClick={() => details.show(runId)} icon="search" variant="open">
-          {t('e1.result.detail')}
-        </ActionChip>
-      </MoreRow>
-      {role === 'attacker' ? <JustSaw difference={4} sentence="e1Reason" /> : null}
-      <ActionBar back={flow.back} main={flow.next} teaser={flow.teaser} />
-    </>
+    </ScreenBody>
   );
 }

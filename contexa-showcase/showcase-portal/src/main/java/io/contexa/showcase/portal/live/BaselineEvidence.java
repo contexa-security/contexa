@@ -36,6 +36,15 @@ public class BaselineEvidence {
             Pattern.compile("(?m)^\\s*RoleScopeEvidenceState:\\s*([A-Z_]+)\\s*$");
     private static final Pattern OBSERVED_SCOPE_SUMMARY =
             Pattern.compile("(?m)^\\s*ObservedScopeSummary:\\s*(.+?)\\s*$");
+    // The v20 prompt's names for the same facts (화면재편 F-3): an optional fact tag ("[B1] ") before the name, the
+    // role scope's evidence at the end of its line, and both hour lists in one line.
+    private static final Pattern V20_BASELINE_STATUS =
+            Pattern.compile("(?m)^\\s*(?:\\[[A-Z0-9]+]\\s*)?BaselineStatus:\\s*([A-Z_]+)");
+    private static final Pattern V20_ROLE_SCOPE_STATE =
+            Pattern.compile("(?m)^\\s*(?:\\[[A-Z0-9]+]\\s*)?RoleScope:.*?\\bevidence\\s+([A-Z_]+)");
+    private static final Pattern V20_USUAL_HOURS =
+            Pattern.compile("(?m)^\\s*(?:\\[[A-Z0-9]+]\\s*)?UsualHours:\\s*(.+?)\\s*$");
+    private static final Pattern V20_SEEN = Pattern.compile("\\bseen\\s+([0-9, ]+)");
 
     /**
      * One request sent to teach the template, as the learner sent it and the engine answered it.
@@ -128,9 +137,15 @@ public class BaselineEvidence {
 
     /** Everything the card reads from one rendered prompt; each value is copied from its line as written. */
     static EngineHours of(String prompt, String runId, int stepNo, Instant companyTime) {
-        return new EngineHours(hours(NORMAL_ACCESS_HOURS, prompt), hours(OBSERVED_HOURS, prompt), runId, stepNo,
-                companyTime, line(PERSONAL_BASELINE_STATUS, prompt), line(WORK_PROFILE_STATE, prompt),
-                line(ROLE_SCOPE_STATE, prompt), line(OBSERVED_SCOPE_SUMMARY, prompt));
+        return new EngineHours(normalAccessHours(prompt), observedHours(prompt), runId, stepNo, companyTime,
+                firstLine(prompt, PERSONAL_BASELINE_STATUS, V20_BASELINE_STATUS), line(WORK_PROFILE_STATE, prompt),
+                firstLine(prompt, ROLE_SCOPE_STATE, V20_ROLE_SCOPE_STATE), line(OBSERVED_SCOPE_SUMMARY, prompt));
+    }
+
+    /** The value of the first of the lines the prompt has: the older name first, then the v20 one. */
+    private static String firstLine(String prompt, Pattern older, Pattern v20) {
+        String value = line(older, prompt);
+        return value != null ? value : line(v20, prompt);
     }
 
     /** The value of a one-value line; null when the line is missing. */
@@ -160,11 +175,53 @@ public class BaselineEvidence {
         return List.copyOf(hours);
     }
 
+    /**
+     * The usual hours: the older NormalAccessHours line, else the hour ranges of the v20 UsualHours line before its
+     * "(seen ...)" part ("10-11, 13-14, 17" is 10, 11, 13, 14, 17).
+     */
     static List<Integer> normalAccessHours(String prompt) {
-        return hours(NORMAL_ACCESS_HOURS, prompt);
+        List<Integer> older = hours(NORMAL_ACCESS_HOURS, prompt);
+        if (!older.isEmpty()) {
+            return older;
+        }
+        String usual = line(V20_USUAL_HOURS, prompt);
+        if (usual == null || usual.startsWith("seen ")) {
+            return List.of();
+        }
+        int seen = usual.indexOf("(seen");
+        List<Integer> hours = new ArrayList<>();
+        for (String part : (seen < 0 ? usual : usual.substring(0, seen)).split(",")) {
+            String range = part.trim();
+            if (range.isEmpty()) {
+                continue;
+            }
+            int dash = range.indexOf('-');
+            int from = Integer.parseInt((dash < 0 ? range : range.substring(0, dash)).trim());
+            int to = dash < 0 ? from : Integer.parseInt(range.substring(dash + 1).trim());
+            for (int hour = from; hour <= to; hour++) {
+                hours.add(hour);
+            }
+        }
+        return List.copyOf(hours);
     }
 
+    /** Every hour seen: the older ObservedHours line, else the "seen ..." part of the v20 UsualHours line. */
     static List<Integer> observedHours(String prompt) {
-        return hours(OBSERVED_HOURS, prompt);
+        List<Integer> older = hours(OBSERVED_HOURS, prompt);
+        if (!older.isEmpty()) {
+            return older;
+        }
+        String usual = line(V20_USUAL_HOURS, prompt);
+        Matcher seen = usual == null ? null : V20_SEEN.matcher(usual);
+        if (seen == null || !seen.find()) {
+            return List.of();
+        }
+        List<Integer> hours = new ArrayList<>();
+        for (String value : seen.group(1).split(",")) {
+            if (!value.isBlank()) {
+                hours.add(Integer.parseInt(value.trim()));
+            }
+        }
+        return List.copyOf(hours);
     }
 }

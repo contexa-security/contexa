@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
@@ -117,6 +118,9 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("GET /api/runs/{runId}/versus", Reach.READ),
             // The stored result of a step of any run, every approach side by side (5A.1 comparison, 5A.2 run list).
             Map.entry("GET /api/runs/{runId}/steps/{stepNo}/result", Reach.READ),
+            Map.entry("GET /api/runs/{runId}/steps/{stepNo}/responses", Reach.READ),
+            // FU-4: the latest released block, the run and step whose stored anatomy shows the release.
+            Map.entry("GET /api/follow/release", Reach.READ),
             // W7-13: a step's sealed prompt, the facts by block with their sources and the quality ribbon with the
             // bundle, seal and inspection, read from control D's record of the seal; HTTP session identifiers masked.
             Map.entry("GET /api/runs/{runId}/steps/{stepNo}/facts", Reach.READ),
@@ -127,6 +131,7 @@ class VisitorPortExposureIntegrationTest {
             Map.entry("GET /api/lab/runs/{runId}/delta", Reach.COMPUTE),
             // W7-13: the prompt quality an operator published for a measurement setting: stored values only.
             Map.entry("GET /api/benchmark/prompt-quality", Reach.READ),
+            Map.entry("GET /api/benchmark/decision-quality", Reach.READ),
             // The benchmark of a measurement setting, counted from stored protocol runs (5A.2, W5).
             Map.entry("GET /api/benchmark", Reach.READ),
             // The counted protocol runs of a setting with their scores: the benchmark's raw data (S10).
@@ -234,6 +239,17 @@ class VisitorPortExposureIntegrationTest {
     }
 
     @Test
+    void anEncodedOperatorPathIsRefusedOnTheVisitorPort() {
+        // The servlet container and Spring MVC match the decoded path, so the port rule must see it decoded too.
+        for (String path : new String[]{"/%6Fps/live/status", "/%6fps/recordings", "/o%70s/live/status"}) {
+            assertThat(http.getForEntity(URI.create(http.getRootUri() + path), String.class).getStatusCode())
+                    .as(path).isEqualTo(HttpStatus.NOT_FOUND);
+        }
+        assertThat(http.getForEntity(URI.create("http://127.0.0.1:" + OPS_PORT + "/%6Fps/live/status"), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void errorsAndTheActuatorExposeNothingInternal() {
         for (String path : new String[]{"/api/not-a-real-endpoint", "/api/replays/..%2F..%2Fetc", "/api/specs/x'"}) {
             ResponseEntity<String> refused = http.getForEntity(path, String.class);
@@ -278,6 +294,61 @@ class VisitorPortExposureIntegrationTest {
                 .as("not a lab run").isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(http.getForEntity("/api/benchmark/prompt-quality", String.class).getStatusCode())
                 .as("nothing published").isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * FU-4 (C-14): the latest released block answers on the visitor port with its run, step and case, and names a
+     * development-only forced block as forced.
+     */
+    @Test
+    void theLatestReleaseAnswersWithItsRunAndWhetherTheBlockWasForced() {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status, forced_action)
+                values (?, 'A3T', 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', now(), 'COMPLETED', 'BLOCK')""",
+                runId, "v" + runId);
+        jdbc.update("""
+                insert into run_release (run_id, step_no, request_id, released, blocked_at, approved_at)
+                values (?, 1, ?, true, now(), now() + interval '1 hour')""", runId, UUID.randomUUID());
+
+        ResponseEntity<String> answer = http.getForEntity("/api/follow/release", String.class);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(answer.getBody()).contains(runId, "\"stepNo\":1", "\"scenarioKey\":\"A3T\"",
+                "\"forcedAction\":\"BLOCK\"");
+    }
+
+    /**
+     * EV-1 (C-14): each approach's stored answer to a step answers on the visitor port with the body as stored, and no
+     * session identifier or other credential in a body leaves the portal.
+     */
+    @Test
+    void theStepAnswersShowTheBodiesWithoutACredential() {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status)
+                values (?, 'A3', 1, 'adm-a', ?, 'org', 'tenant', '10.40.12.77', 'test', now(), 'COMPLETED')""",
+                runId, "v" + runId);
+        String challenge = "{\"error\":\"MFA_CHALLENGE_REQUIRED\",\"sessionId\":\"5cd2-jUPNvwGnErZN6ROA\","
+                + "\"note\":\"" + SESSION_ID + "\"}";
+        String export = "{\"deliveredItems\":4831,\"documents\":[{\"documentKey\":\"GB-500-BOM-00002\"}]}";
+        for (Object[] row : new Object[][]{{"B", 200, 4831, export}, {"D", 401, 0, challenge}}) {
+            jdbc.update("""
+                    insert into run_arm_result (run_id, step_no, control, request_id, operation, method, path,
+                        company_time, http_status, outcome, delivered_items, response_excerpt, elapsed_ms, sent_at)
+                    values (?, 1, ?, ?, 'EXPORT', 'POST', '/api/projects/GB-500/exports?items=4831', now(), ?,
+                        'DELIVERED', ?, ?, 30, now())""", runId, row[0], UUID.randomUUID(), row[1], row[2], row[3]);
+        }
+
+        ResponseEntity<String> answer = http.getForEntity("/api/runs/" + runId + "/steps/1/responses", String.class);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(answer.getBody()).contains("GB-500-BOM-00002", "MFA_CHALLENGE_REQUIRED", "<SESSION>")
+                .doesNotContain("5cd2-jUPNvwGnErZN6ROA", SESSION_ID);
+        assertThat(http.getForEntity("/api/runs/run-000000000000/steps/1/responses", String.class).getStatusCode())
+                .as("no such run").isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     /**

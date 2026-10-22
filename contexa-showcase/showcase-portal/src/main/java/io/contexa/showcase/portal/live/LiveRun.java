@@ -432,7 +432,8 @@ public final class LiveRun implements ChallengeResponder, RunListener {
                     if (requestStatus != 200 && requestStatus != 302) {
                         return failed(challenge, "code request " + requestStatus, requested, null);
                     }
-                    if ("THREAT".equals(challenge.classification())) {
+                    // An attacker has no mailbox; an insider is the owner and reads the code (IN-6).
+                    if ("THREAT".equals(challenge.classification()) && !challenge.ownerActs()) {
                         return finish(Stage.NO_MAILBOX, new ChallengeTrace(false, "NO_MAILBOX",
                                 challenge.challengedAt(), requested, null, null), null);
                     }

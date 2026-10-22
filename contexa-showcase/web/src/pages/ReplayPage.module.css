@@ -1,39 +1,38 @@
-/* The stored real record (D-35): the same frame as the first screen, the replay stage in its middle. */
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-12);
-}
-
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.title {
+/* The stored real record (D-35, RO-5) inside the shared frame: the situation, then the result table of 1-4 and 2-3. */
+.situation {
+  max-width: var(--frame-measure);
   margin: 0;
-  font-size: var(--text-2xl);
+  color: var(--color-text);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
-.sub {
-  margin: 0;
-  color: var(--color-text-body);
-  font-size: var(--text-lg);
-}
-
-.stage {
+/* A recorded pair: one line per situation, named as its column (V-18). */
+.situations {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  min-height: 25rem;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.situationName {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-semibold);
 }
 
 .note {
+  max-width: var(--frame-measure);
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+/* A pair's two "see details" chips, side by side or one under the other. */
+.details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--frame-inner-gap);
 }

@@ -30,6 +30,8 @@ import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,7 +61,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("write(int) passes through when not blocked")
     void writeInt_notBlocked_delegatesToOriginal() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         stream.write(65);
@@ -72,7 +74,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("write(byte[]) passes through when not blocked")
     void writeByteArray_notBlocked_delegatesToOriginal() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
         byte[] data = "test data".getBytes();
 
         // when
@@ -86,7 +88,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("write(byte[], off, len) passes through when not blocked")
     void writeByteArrayWithOffset_notBlocked_delegatesToOriginal() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
         byte[] data = "test data".getBytes();
 
         // when
@@ -100,7 +102,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("write(int) throws IOException when blocked")
     void writeInt_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> stream.write(65))
@@ -113,7 +115,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("write(byte[]) throws IOException when blocked")
     void writeByteArray_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> stream.write("data".getBytes()))
@@ -122,16 +124,16 @@ class BlockableServletOutputStreamTest {
     }
 
     @Test
-    @DisplayName("Aborted flag prevents redundant isBlocked checks")
+    @DisplayName("The cut flag prevents redundant block checks")
     void abortedFlag_preventsRedundantChecks() {
         // given - first call sets aborted=true
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         assertThatThrownBy(() -> stream.write(65))
                 .isInstanceOf(IOException.class);
 
         // when - second call should throw immediately due to aborted flag
-        // without calling broadcaster.isBlocked again
+        // without asking the broadcaster again
         assertThatThrownBy(() -> stream.write(66))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("aborted");
@@ -141,7 +143,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("flush passes through when not blocked")
     void flush_notBlocked_delegatesToOriginal() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         stream.flush();
@@ -154,7 +156,7 @@ class BlockableServletOutputStreamTest {
     @DisplayName("flush throws IOException when blocked")
     void flush_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> stream.flush())

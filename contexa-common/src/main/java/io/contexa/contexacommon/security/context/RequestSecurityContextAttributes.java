@@ -42,6 +42,11 @@ public final class RequestSecurityContextAttributes {
         RESOURCE_AUTHOR_TEXT("resourceAuthorText", List.of("resourceAuthorText")),
         /** How many items the request asks for, as the host counts them. */
         REQUEST_ITEMS("requestItems", List.of("requestItems")),
+        /**
+         * The scope the target belongs to in the host's records, as {@code key=value} (projectKey=HX-310 for a document
+         * of that project): the host's record, not the requester's text.
+         */
+        RESOURCE_SCOPE("resourceScope", List.of("resourceScope")),
         RESOURCE_ID("resourceId", List.of("resourceId", "requestedResourceId", "protectedResourceId")),
         PREVIOUS_PATH("previousPath", List.of("previousPath")),
         LAST_REQUEST_INTERVAL_MS("lastRequestIntervalMs", List.of("lastRequestIntervalMs")),

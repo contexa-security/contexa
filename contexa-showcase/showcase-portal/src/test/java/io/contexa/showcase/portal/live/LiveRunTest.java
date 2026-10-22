@@ -205,6 +205,26 @@ class LiveRunTest {
         assertThat(actions.submitted).isEmpty();
     }
 
+    /**
+     * IN-6: an insider is the account's owner, so the code reaches their own mailbox and they read it, as the real
+     * employee does; an additional check does not stop them.
+     */
+    @Test
+    void anInsiderAskingForTheCodeReadsItFromTheirOwnMailbox() throws Exception {
+        CompletableFuture<ChallengeTrace> answer = CompletableFuture.supplyAsync(
+                () -> run.respond(new Challenge("THREAT", true, START, actions)));
+        await(view -> view.stage() == LiveRun.Stage.WAITING);
+        run.requestCode();
+
+        LiveRun.ChallengeView shown = await(view -> view.stage() == LiveRun.Stage.CODE_SHOWN);
+        assertThat(shown.code()).isEqualTo("481516");
+        run.answer("481516");
+        ChallengeTrace trace = answer.get(5, TimeUnit.SECONDS);
+
+        assertThat(trace.answered()).as("the check passes the insider").isTrue();
+        assertThat(actions.submitted).containsExactly("481516");
+    }
+
     @Test
     void theRealEmployeePassesTheCheckFilesTheRequestAndTheApprovalBringsTheWorkBack() throws Exception {
         FakeRelease release = new FakeRelease();

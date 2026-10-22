@@ -1,0 +1,52 @@
+/* The two themes side by side (IN-6): what is real in each; the theme of the screen is outlined. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.theme {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.theme[data-current] {
+  border: 2px solid var(--color-accent);
+}
+
+/* B-12: the theme not shown here is faint, and the shown one says so; neither is a button. */
+.theme[data-other] {
+  opacity: 0.55;
+}
+
+.current {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.name {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.line {
+  color: var(--color-text-body);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+@media (width <= 40rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

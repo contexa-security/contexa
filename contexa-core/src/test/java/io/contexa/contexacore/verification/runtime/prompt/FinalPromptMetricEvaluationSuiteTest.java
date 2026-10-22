@@ -9,8 +9,6 @@ import io.contexa.contexacore.verification.runtime.OfficialVerificationMessageRe
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
@@ -30,6 +28,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class FinalPromptMetricEvaluationSuiteTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    // 판정층 8절 12: the sample prompt is the harness's browser-equivalent render; the local document it was read
+    // from (docs/실제 프롬프트.md) was never in the repository.
+    private final PromptGovernanceExtremeTestHarness sampleHarness = new PromptGovernanceExtremeTestHarness();
 
     @Test
     void evaluatorExceptionPropagatesInsteadOfBecomingARegularMetricFailure() {
@@ -799,7 +800,7 @@ class FinalPromptMetricEvaluationSuiteTest {
 
     @Test
     void pfrUsesRepositoryPromptFilesAndAcceptsPromptWithoutTruncatedMarker() throws Exception {
-        String systemPrompt = extractSystemPrompt(Files.readString(repositoryFile("docs", "실제 프롬프트.md")));
+        String systemPrompt = repositorySystemPrompt();
         String userPrompt = repositoryUserPrompt();
         SealedEvidencePackage evidencePackage = packageFor(systemPrompt, userPrompt);
 
@@ -2488,40 +2489,12 @@ class FinalPromptMetricEvaluationSuiteTest {
             String description
     ) {}
 
-    private Path repositoryFile(String first, String second) {
-        Path direct = Path.of(first, second);
-        if (Files.exists(direct)) {
-            return direct;
-        }
-        Path fromModule = Path.of("..", first, second);
-        if (Files.exists(fromModule)) {
-            return fromModule;
-        }
-        return direct;
+    private String repositoryUserPrompt() {
+        return sampleHarness.browserEquivalentPromptWithRagDocuments().userText();
     }
 
-    private String repositoryUserPrompt() throws Exception {
-        Path splitPrompt = repositoryFile("docs", "userPrompt.md");
-        if (Files.exists(splitPrompt)) {
-            return Files.readString(splitPrompt, StandardCharsets.UTF_8);
-        }
-        return extractUserPrompt(Files.readString(repositoryFile("docs", "실제 프롬프트.md"), StandardCharsets.UTF_8));
-    }
-
-    private String extractSystemPrompt(String fullPrompt) {
-        int userPromptStart = fullPrompt.indexOf("=== CURRENT REQUEST AND EVENT ===");
-        if (userPromptStart < 0) {
-            return fullPrompt;
-        }
-        return fullPrompt.substring(0, userPromptStart).trim();
-    }
-
-    private String extractUserPrompt(String fullPrompt) {
-        int userPromptStart = fullPrompt.indexOf("=== CURRENT REQUEST AND EVENT ===");
-        if (userPromptStart < 0) {
-            return fullPrompt;
-        }
-        return fullPrompt.substring(userPromptStart).trim();
+    private String repositorySystemPrompt() {
+        return sampleHarness.browserEquivalentPromptWithRagDocuments().systemText();
     }
 
     private SealedEvidencePackage packageFor(String systemPrompt, String userPrompt) {

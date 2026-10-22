@@ -2,10 +2,23 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { VERDICTS, type Verdict } from '../../domain/verdict';
 import i18n from '../../i18n';
+import ko from '../../i18n/ko.json';
+import { required } from '../../test/required';
 import HookPage from './HookPage';
 
-const layer = (control: string, outcome: string, verdict: string | null, items: number, ms: number) => ({
+const KO: Readonly<Record<string, string>> = ko;
+
+function word(key: string): string {
+  return required(KO[key], key);
+}
+
+function fill(key: string, values: Readonly<Record<string, string>>): string {
+  return word(key).replace(/\{\{(\w+)\}\}/g, (_, name: string) => values[name] ?? '');
+}
+
+const layer = (control: string, outcome: string, verdict: string | null, items: number) => ({
   control,
   outcome,
   verdict,
@@ -13,63 +26,61 @@ const layer = (control: string, outcome: string, verdict: string | null, items: 
   ruleId: null,
   reason: null,
   ruleFacts: {},
-  evidence: { deliveredItems: items, responseMs: ms, verdict, outcome },
+  evidence: { deliveredItems: items, responseMs: 40, verdict, outcome, unresolved: false },
 });
 
-function hook(distinguished: boolean) {
-  const column = (
-    caseKey: string,
-    runId: string,
-    contexa: ReturnType<typeof layer>,
-    c2: string,
-    check: number,
-    correct: Record<string, boolean>,
-  ) => ({
-    caseKey,
-    runId,
+interface Side {
+  readonly caseKey: string;
+  readonly runId: string;
+  readonly verdict: Verdict;
+  readonly outcome: string;
+  readonly delivered: number;
+}
+
+/** The hook as the portal gives it (HookViews): each column's representative run with every approach's layer. */
+function hook(attacker: Side, owner: Side, distinguished: boolean) {
+  const column = (side: Side) => ({
+    caseKey: side.caseKey,
+    runId: side.runId,
     startedAt: '2026-10-07T21:31:53Z',
     result: {
       companyTime: '2026-09-30T03:17:00Z',
       layers: [
-        layer('A', 'DELIVERED', null, 4831, 67),
-        layer('B', 'DELIVERED', null, 4831, 40),
-        layer('C1', 'STOPPED', null, 0, 12),
-        layer('C2', c2, null, c2 === 'DELIVERED' ? 4831 : 0, 23),
-        contexa,
+        layer('A', 'DELIVERED', null, 4831),
+        layer('B', 'DELIVERED', null, 4831),
+        layer('C1', 'STOPPED', null, 0),
+        layer('C2', 'STOPPED', null, 0),
+        layer('D', side.outcome, side.verdict, side.delivered),
       ],
     },
     business: null,
-    correct,
+    correct: { A: false, B: false, C1: true, C2: true, D: true },
     check: null,
-    measurement: {
-      protocolId: 'protocol-1',
-      runs: 3,
-      sameResult: 3 - check,
-      passedAfterCheck: check,
-      results: {},
-    },
+    measurement: { protocolId: 'protocol-1', runs: 3, sameResult: 3, passedAfterCheck: 0, results: {} },
   });
-  return {
-    attacker: column('A3', 'run-a', layer('D', 'HELD', 'CHALLENGE', 0, 6768), 'STOPPED', 0, {
-      A: false,
-      B: false,
-      C1: true,
-      C2: true,
-      D: true,
-    }),
-    owner: column('A3T', 'run-b', layer('D', 'DELIVERED', 'ALLOW', 4831, 7337), 'DELIVERED', 1, {
-      A: true,
-      B: true,
-      C1: false,
-      C2: true,
-      D: true,
-    }),
-    distinguished,
-    textsKeptUntil: null,
-  };
+  return { attacker: column(attacker), owner: column(owner), distinguished, textsKeptUntil: null };
 }
 
+/** Two records with different values, so a card that shows a constant fails one of them. */
+const RECORDS = [
+  {
+    name: 'held and passed',
+    attacker: { caseKey: 'A3', runId: 'run-a', verdict: 'ESCALATE', outcome: 'HELD', delivered: 0 },
+    owner: { caseKey: 'A3T', runId: 'run-b', verdict: 'ALLOW', outcome: 'DELIVERED', delivered: 4831 },
+    items: { A3: 4831, A3T: 4831 },
+    shown: { attacker: '0', owner: '4,831', attackerItems: '4,831', ownerItems: '4,831' },
+  },
+  {
+    name: 'blocked and checked',
+    attacker: { caseKey: 'A3', runId: 'run-c', verdict: 'BLOCK', outcome: 'STOPPED', delivered: 0 },
+    owner: { caseKey: 'A3T', runId: 'run-d', verdict: 'CHALLENGE', outcome: 'HELD', delivered: 120 },
+    items: { A3: 1200, A3T: 1200 },
+    shown: { attacker: '0', owner: '120', attackerItems: '1,200', ownerItems: '1,200' },
+  },
+] as const;
+
 let current: unknown;
+let caseItems: Readonly<Record<string, number>> = {};
 
 beforeEach(async () => {
   await i18n.changeLanguage('ko');
@@ -84,17 +95,20 @@ beforeEach(async () => {
         '/api/hook': current,
         '/api/visitor': { predictions: {} },
         '/api/journey': {
-          state: { route: 'DEFAULT', act: 1, step: 'hook', differences: [] },
+          state: { route: 'DEFAULT', act: 0, step: 'hook', differences: [] },
           runs: [],
           predictions: [],
         },
-        '/api/teasers': { computedAt: '2026-10-08T00:00:00Z', teasers: [] },
         '/api/lab/options': {
           employees: [],
           timeSlots: [{ slot: 'DAWN', representativeTime: '03:17' }],
           items: [],
           operations: [],
-          cases: [{ key: 'A3', conditions: { timeSlot: 'DAWN' }, requests: [{ items: 4831 }] }],
+          cases: Object.entries(caseItems).map(([key, items]) => ({
+            key,
+            conditions: { timeSlot: 'DAWN' },
+            requests: [{ items }],
+          })),
           calls: [],
           assessmentReasons: [],
         },
@@ -113,7 +127,7 @@ afterEach(() => {
 });
 
 function renderHook() {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
         <HookPage />
@@ -122,36 +136,95 @@ function renderHook() {
   );
 }
 
-/** The first screen (hook): the recorded answers of both runs, and the question only when the record makes it true. */
-describe('hook', () => {
-  it('replays the recorded answers and asks the question the measurement makes true', async () => {
-    current = hook(true);
+/**
+ * Screen 0, the start (화면재편-기획안 7절 T1): the question, two people with Contexa's recorded judgment and the files
+ * that went out, the identity line and one source line; the guide claims the two are told apart only when the
+ * measurement does.
+ */
+// The final screen design (최종화면-구현계획 F0-1) opens this screen at no address any more; its address leads to the
+// new flow. The screen and this test are on the deletion list for the user (최종화면-구현계획 4절).
+describe.skip('start screen', () => {
+  it.each(RECORDS)("shows each person's judgment and files out as recorded ($name)", async (record) => {
+    current = hook(record.attacker, record.owner, true);
+    caseItems = record.items;
     renderHook();
-    const attacker = await screen.findByRole('region', { name: '계정을 훔친 사람' });
-    expect(within(attacker).getByText('본인 확인 · 0건')).toBeInTheDocument();
-    expect(within(attacker).getByText('3회 측정 모두 같은 결과')).toBeInTheDocument();
-    const owner = screen.getByRole('region', { name: '진짜 직원 · 회사 승인 있음' });
-    expect(within(owner).getByText('통과 · 4,831건')).toBeInTheDocument();
-    expect(within(owner).getByText('막음 · 업무 중단')).toBeInTheDocument();
-    expect(within(owner).getByText('3회 중 1회는 확인 뒤 통과')).toBeInTheDocument();
-    // Right and wrong are the server's scores, as a word next to the icon: the gate and the rules against Contexa.
-    expect(within(attacker).getAllByText('틀림')).toHaveLength(1);
-    expect(within(attacker).getAllByText('맞음')).toHaveLength(3);
-    expect(within(owner).getAllByText('틀림')).toHaveLength(1);
-    expect(within(attacker).getByText('막아야 정답')).toBeInTheDocument();
-    expect(within(owner).getByText('통과가 정답')).toBeInTheDocument();
-    expect(screen.getByText('새벽 03:17, 담당이 아닌 프로젝트의 설계 자료 4,831건 반출')).toBeInTheDocument();
+
+    const attacker = await screen.findByRole('region', { name: word('p0.attacker.name') });
     expect(
-      screen.getByText('미리 써 둔 규칙 없이 둘을 구별했습니다. Contexa는 어떻게 알았을까요?'),
+      await within(attacker).findByText(fill('p0.attacker.line', { items: record.shown.attackerItems })),
     ).toBeInTheDocument();
+    expect(within(attacker).getByText(word(VERDICTS[record.attacker.verdict].labelKey))).toBeInTheDocument();
+    expect(within(attacker).getByText(fill('p0.items', { n: record.shown.attacker }))).toBeInTheDocument();
+
+    const owner = screen.getByRole('region', { name: word('p0.owner.name') });
+    expect(
+      await within(owner).findByText(fill('p0.owner.line', { items: record.shown.ownerItems })),
+    ).toBeInTheDocument();
+    expect(within(owner).getByText(word(VERDICTS[record.owner.verdict].labelKey))).toBeInTheDocument();
+    expect(within(owner).getByText(fill('p0.items', { n: record.shown.owner }))).toBeInTheDocument();
   });
 
-  it('asks the fallback question when the measurement did not tell the two apart', async () => {
-    current = hook(false);
-    renderHook();
-    expect(
-      await screen.findByText('같은 요청에 Contexa는 두 사람을 이렇게 판정했습니다. 왜 그랬을까요?'),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/미리 써 둔 규칙 없이 둘을 구별했습니다/)).not.toBeInTheDocument();
+  it('keeps only the question, the two people, the identity line, the source line and Start', async () => {
+    current = hook(RECORDS[0].attacker, RECORDS[0].owner, true);
+    caseItems = RECORDS[0].items;
+    const { container } = renderHook();
+    await screen.findByRole('region', { name: word('p0.attacker.name') });
+
+    expect(screen.getByRole('heading', { level: 1, name: word('screen.0.title') })).toBeInTheDocument();
+    expect(screen.getByText(word('identity.line'))).toBeInTheDocument();
+    const source = required(container.querySelector<HTMLElement>('[data-zone="source"]'), 'the source line');
+    expect(source).toHaveTextContent(word('frame.source.measured'));
+    expect(within(source).getAllByRole('button')).toHaveLength(1);
+    expect(within(source).getByRole('button', { name: word('frame.source.open') })).toBeInTheDocument();
+    // The one way on is the flow's main button; the body holds nothing to press.
+    expect(screen.getByRole('link', { name: word('screen.0.next') })).toHaveAttribute(
+      'href',
+      '/part/1',
+    );
+    const body = required(container.querySelector<HTMLElement>('[data-zone="body"]'), 'the body');
+    expect(body.querySelectorAll('a, button, summary, details, table')).toHaveLength(0);
+
+    // Gone from the start: the five-approach table, right and wrong, the replay and its measured lines, the
+    // footnote, the two other ways in and the teaser's question.
+    const text = document.body.textContent ?? '';
+    for (const key of [
+      'control.A.name',
+      'control.B.name',
+      'control.C1.name',
+      'control.C2.name',
+      'mark.right',
+      'mark.wrong',
+      'hook.replay',
+      'hook.replayAgain',
+      'hook.note',
+      'hook.concept',
+      'hook.benchmark',
+      'hook.question',
+      'hook.questionFallback',
+      'hook.answer.stop',
+      'hook.answer.pass',
+    ]) {
+      expect(text, key).not.toContain(word(key));
+    }
+    expect(text).not.toMatch(/\d+회 측정/);
+  });
+
+  it('says the two are told apart only when the measurement does', async () => {
+    current = hook(RECORDS[0].attacker, RECORDS[0].owner, true);
+    caseItems = RECORDS[0].items;
+    const first = renderHook();
+    await screen.findByRole('region', { name: word('p0.attacker.name') });
+    expect(required(first.container.querySelector('[data-guide]'), 'the guide')).toHaveTextContent(
+      word('screen.0.guide'),
+    );
+    cleanup();
+
+    current = hook(RECORDS[0].attacker, RECORDS[0].owner, false);
+    const second = renderHook();
+    await screen.findByRole('region', { name: word('p0.attacker.name') });
+    expect(required(second.container.querySelector('[data-guide]'), 'the guide')).toHaveTextContent(
+      word('p0.guide.fallback'),
+    );
+    expect(screen.queryByText(word('screen.0.guide'))).not.toBeInTheDocument();
   });
 });

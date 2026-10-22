@@ -15,6 +15,8 @@
  */
 package io.contexa.contexacore.autonomous.context;
 
+import io.contexa.contexacommon.security.subject.SubjectClassifier;
+import io.contexa.contexacommon.security.subject.SubjectKind;
 import io.contexa.contexacore.autonomous.context.support.MetadataValueResolver;
 import io.contexa.contexacore.autonomous.execution.AttestationEnvelope;
 import io.contexa.contexacore.autonomous.execution.CanonicalExecutionBinding;
@@ -33,7 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.springframework.util.StringUtils;
-
+
 public class CanonicalExecutionContextResolver {
 
     private final CanonicalExecutionMapper canonicalExecutionMapper;
@@ -62,8 +64,8 @@ public class CanonicalExecutionContextResolver {
         }
         Map<String, Object> attributes = context.getAttributes() != null ? context.getAttributes() : Map.of();
         CanonicalSecurityContext.Actor actor = context.getActor();
-        CanonicalSecurityContext.Delegation delegation = context.getDelegation();
-        boolean serviceClientPrincipal = isServiceClientPrincipal(actor, attributes);
+        SubjectClassifier.Result subjectKind = classify(context, attributes);
+        boolean serviceClientPrincipal = subjectKind.kind() == SubjectKind.SERVICE_CLIENT;
         String tenantId = firstText(
                 actor != null ? actor.getTenantId() : null,
                 actor != null ? actor.getOrganizationId() : null,
@@ -71,7 +73,7 @@ public class CanonicalExecutionContextResolver {
                 text(attributes.get("tenant_id")),
                 text(attributes.get("organizationId")));
         String clientId = firstText(text(attributes.get("clientId")), text(attributes.get("client_id")), actor != null ? actor.getExternalSubjectId() : null);
-        DelegatedExecutionContext delegatedExecutionContext = toDelegatedExecutionContext(context, clientId);
+        DelegatedExecutionContext delegatedExecutionContext = toDelegatedExecutionContext(context, subjectKind);
         CanonicalExecutionBinding binding = canonicalExecutionMapper.toCanonical(tenantId, clientId, serviceClientPrincipal, delegatedExecutionContext);
         ExecutionSubject subject = overrideSubject(binding.executionSubject(), actor, tenantId, clientId, serviceClientPrincipal, delegatedExecutionContext);
         ExecutionEnvelope envelope = overrideEnvelope(binding.executionEnvelope(), attributes, serviceClientPrincipal);
@@ -157,24 +159,38 @@ public class CanonicalExecutionContextResolver {
                 provenance);
     }
 
-    private DelegatedExecutionContext toDelegatedExecutionContext(CanonicalSecurityContext context, String clientId) {
+    /**
+     * A1-3: who the request acts as, decided by the same {@link SubjectClassifier} as the event publisher, from the
+     * final delegation (after the providers ran). The mode and lineage the publisher recorded are declarations the
+     * classifier weighs, so a delegation a provider stated afterwards is no longer hidden behind the DIRECT_USER
+     * the publisher wrote before it.
+     */
+    private SubjectClassifier.Result classify(CanonicalSecurityContext context, Map<String, Object> attributes) {
+        CanonicalSecurityContext.Actor actor = context.getActor();
+        CanonicalSecurityContext.Delegation delegation = context.getDelegation();
+        Boolean delegated = delegation != null ? delegation.getDelegated() : null;
+        return SubjectClassifier.classify(SubjectClassifier.Facts.builder()
+                .delegated(delegated != null ? delegated : resolveBoolean(attributes.get("delegated")))
+                .agentId(firstText(delegation != null ? delegation.getAgentId() : null, text(attributes.get("agentId"))))
+                .delegationId(text(attributes.get("delegationId")))
+                .declaredSubjectType(text(attributes.get("executionSubjectType")))
+                .declaredExecutionMode(text(attributes.get("executionMode")))
+                .declaredLineageState(text(attributes.get("lineageState")))
+                .actorType(text(attributes.get("actorType")))
+                .principalType(firstText(actor != null ? actor.getPrincipalType() : null, text(attributes.get("principalType"))))
+                .serviceClientPrincipal(Boolean.TRUE.equals(resolveBoolean(attributes.get("serviceClientPrincipal"))))
+                .build());
+    }
+
+    private DelegatedExecutionContext toDelegatedExecutionContext(CanonicalSecurityContext context,
+                                                                  SubjectClassifier.Result subjectKind) {
         Map<String, Object> attributes = context.getAttributes() != null ? context.getAttributes() : Map.of();
         CanonicalSecurityContext.Actor actor = context.getActor();
         CanonicalSecurityContext.Delegation delegation = context.getDelegation();
-        String executionMode = firstText(
-                text(attributes.get("executionMode")),
-                delegation != null && Boolean.TRUE.equals(delegation.getDelegated())
-                        ? DelegatedExecutionContext.EXECUTION_MODE_DELEGATED_AGENT
-                        : DelegatedExecutionContext.EXECUTION_MODE_DIRECT_USER);
-        String lineageState = firstText(
-                text(attributes.get("lineageState")),
-                delegation != null && Boolean.TRUE.equals(delegation.getDelegated())
-                        ? DelegatedExecutionContext.LINEAGE_STATE_DECLARED
-                        : DelegatedExecutionContext.LINEAGE_STATE_DIRECT);
         return new DelegatedExecutionContext(
                 firstText(text(attributes.get("executionId")), text(attributes.get("requestId"))),
-                executionMode,
-                lineageState,
+                subjectKind.executionMode(),
+                subjectKind.lineageState(),
                 firstText(actor != null ? actor.getUserId() : null, text(attributes.get("actorUserId"))),
                 firstText(delegation != null ? delegation.getAgentId() : null, text(attributes.get("agentId"))),
                 firstText(text(attributes.get("agentRuntimeId")), text(attributes.get("clientId"))),
@@ -196,17 +212,6 @@ public class CanonicalExecutionContextResolver {
                 normalizeList(attributes.get("allowedToolChain")),
                 Boolean.TRUE.equals(delegation != null ? delegation.getContainmentOnly() : resolveBoolean(attributes.get("containmentOnly"))),
                 Boolean.TRUE.equals(delegation != null ? delegation.getPrivilegedExportAllowed() : resolveBoolean(attributes.get("privilegedExportAllowed"))));
-    }
-
-    private boolean isServiceClientPrincipal(CanonicalSecurityContext.Actor actor, Map<String, Object> attributes) {
-        String principalType = firstText(actor != null ? actor.getPrincipalType() : null, text(attributes.get("principalType")));
-        if (StringUtils.hasText(principalType)) {
-            String normalized = principalType.trim().toUpperCase();
-            if (normalized.contains("SERVICE") || normalized.contains("CLIENT") || normalized.contains("WORKLOAD")) {
-                return true;
-            }
-        }
-        return Boolean.TRUE.equals(resolveBoolean(attributes.get("serviceClientPrincipal")));
     }
 
     private String text(Object value) {

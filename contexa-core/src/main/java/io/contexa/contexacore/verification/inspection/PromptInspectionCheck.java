@@ -29,4 +29,12 @@ public interface PromptInspectionCheck {
 
     /** Records every item the check looks at on the tally's subject. */
     void inspect(PromptInspectionTally tally);
+
+    /**
+     * The check of a v21 package (V-6 of the v21 plan): a check bound to the v20 dictionary, notation or reason codes
+     * gives one bound to the v21 ones; any other check is the same for both.
+     */
+    default PromptInspectionCheck forV21() {
+        return this;
+    }
 }

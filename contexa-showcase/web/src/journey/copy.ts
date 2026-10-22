@@ -164,10 +164,34 @@ export function actEndSentence(t: TFunction, language: string, card: ActEnd): st
     }
     return t(result === 'HALTED' ? 'actEnd.2.halted' : 'actEnd.2.other');
   }
+  if (card.act === 4) {
+    return timingSentence(t, language, values);
+  }
   const from = number(values['from']);
   const to = number(values['to']);
   if (from === null || to === null) {
     return t('actEnd.3.other');
   }
   return t(to > from ? 'actEnd.3.grew' : 'actEnd.3.same', { from, to });
+}
+
+/**
+ * Part 4's sentence (화면재편 4-4, P-2): when the first request's judgment applied, what left before it and, where the
+ * run sent one, whether the next request was stopped, all as the server recorded them. A value missing for the frame
+ * it would need leaves the plain sentence that the record does not say.
+ */
+function timingSentence(t: TFunction, language: string, values: ActEnd['values']): string {
+  const applied = values['applied'];
+  if (typeof values['delivered'] !== 'number') {
+    return t('actEnd.4.other');
+  }
+  const params = { delivered: formatted(values['delivered'], language) };
+  if (applied === 'NEXT_REQUEST') {
+    const next = values['nextStopped'];
+    return t(
+      next === true ? 'actEnd.4.next.stopped' : next === false ? 'actEnd.4.next.passed' : 'actEnd.4.next.only',
+      params,
+    );
+  }
+  return t(applied === 'BEFORE_RESPONSE' ? 'actEnd.4.before' : 'actEnd.4.other', params);
 }

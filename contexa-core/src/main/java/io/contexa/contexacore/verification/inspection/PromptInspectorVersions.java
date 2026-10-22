@@ -75,7 +75,17 @@ public final class PromptInspectorVersions {
                     + "keep the records of the sealed decision counted as its facts not compared, not as a source "
                     + "without facts (N-SRC-2)"),
             new Version(21, "the past records' reasons compared with the sealed search state: the state line without "
-                    + "the event clock, and the UNKNOWN line's past record names by kind and reason (N-INS-4)"));
+                    + "the event clock, and the UNKNOWN line's past record names by kind and reason (N-INS-4)"),
+            new Version(22, "a target category that is not a token compared on the UNTRUSTED TEXT line that holds its "
+                    + "text, the target line saying only where it is (N-INJ-4); the decision's output retries compared "
+                    + "with its model call stages and the last one with its single retry fields (N-OUT-3)"),
+            new Version(23, "a v21 package read as a dictionary prompt with the v21 dictionary, its decision facts "
+                    + "computed again in the records notation and its reason codes checked against the output "
+                    + "contract v4 (V-6 of the v21 plan)"),
+            new Version(24, "the scope the host's records hold the target in compared on its v21 line with the sealed "
+                    + "resource (finding 7 of the v21 plan)"),
+            new Version(25, "a v21 reason code of an earlier allowed record on the same target matched on the past "
+                    + "records' counted fact as on a record line (finding 12 of the v21 plan)"));
 
     private PromptInspectorVersions() {
     }

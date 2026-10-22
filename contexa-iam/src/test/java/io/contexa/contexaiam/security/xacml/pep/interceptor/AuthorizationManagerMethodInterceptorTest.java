@@ -305,8 +305,8 @@ class AuthorizationManagerMethodInterceptorTest {
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
             enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
-            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
-                    .thenReturn(ZeroTrustAction.CHALLENGE);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE));
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
                     .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
@@ -324,8 +324,8 @@ class AuthorizationManagerMethodInterceptorTest {
             SecurityZeroTrustProperties shadow = new SecurityZeroTrustProperties();
             shadow.setMode(SecurityZeroTrustProperties.SecurityMode.SHADOW);
             interceptor.setSecurityZeroTrustProperties(shadow);
-            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
-                    .thenReturn(ZeroTrustAction.CHALLENGE);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.restricted(ZeroTrustAction.CHALLENGE));
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
             verify(methodInvocation).proceed();
@@ -340,11 +340,126 @@ class AuthorizationManagerMethodInterceptorTest {
             SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
             enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
             interceptor.setSecurityZeroTrustProperties(enforce);
-            when(synchronousProtectableDecisionService.storedRestriction(methodInvocation, authentication))
-                    .thenReturn(null);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED);
 
             assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
             verify(methodInvocation).proceed();
+        }
+    }
+
+    @Nested
+    @DisplayName("A1-5: an agent request with no decision on record at an asynchronous Protectable")
+    class UnrecordedAgentRequestTests {
+
+        private void enforceWithGate(SecurityZeroTrustProperties.SecurityMode mode) {
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties properties = new SecurityZeroTrustProperties();
+            properties.setMode(mode);
+            interceptor.setSecurityZeroTrustProperties(properties);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.DECIDE_IN_PLACE);
+        }
+
+        private void decided(ZeroTrustAction action) {
+            when(synchronousProtectableDecisionService.analyze(methodInvocation, authentication))
+                    .thenReturn(new SynchronousProtectableDecisionService.SyncDecisionResult(null, null, action, null, null));
+        }
+
+        @Test
+        @DisplayName("an ALLOW decided in place lets the method run")
+        void decidedAllowRuns() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("result");
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            decided(ZeroTrustAction.ALLOW);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+            verify(synchronousProtectableDecisionService).analyze(methodInvocation, authentication);
+            // The decision was made in the request; no second analysis is queued for it.
+            verify(zeroTrustEventPublisher, never()).publishMethodAuthorization(any(), any(), anyBoolean(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a BLOCK decided in place stops the method")
+        void decidedBlockStops() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            decided(ZeroTrustAction.BLOCK);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
+                            denied -> assertThat(denied.getHttpStatus()).isEqualTo(403));
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("when the model is unavailable the technical fallback (ESCALATE) answers with 423, never a pass")
+        void technicalFallbackAnswersWithLocked() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            decided(ZeroTrustAction.ESCALATE);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class, denied -> {
+                        assertThat(denied.getAction()).isEqualTo(ZeroTrustAction.ESCALATE.name());
+                        assertThat(denied.getHttpStatus()).isEqualTo(423);
+                    });
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("an analysis that leaves no decision answers that analysis is required (503), never a pass")
+        void noDecisionAnswersAnalysisRequired() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            decided(ZeroTrustAction.PENDING_ANALYSIS);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
+                            denied -> assertThat(denied.getHttpStatus()).isEqualTo(503));
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("a request while the session's analysis is in progress waits instead of running undecided")
+        void rapidReentryWaits() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(false);
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+
+            assertThatThrownBy(() -> interceptor.invoke(methodInvocation))
+                    .isInstanceOfSatisfying(ZeroTrustAccessDeniedException.class,
+                            denied -> assertThat(denied.getAction()).isEqualTo(ZeroTrustAction.PENDING_ANALYSIS.name()));
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
+            verify(methodInvocation, never()).proceed();
+        }
+
+        @Test
+        @DisplayName("SHADOW mode: the decision in place is observed and the method runs")
+        void shadowObservesAndRuns() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("result");
+            enforceWithGate(SecurityZeroTrustProperties.SecurityMode.SHADOW);
+            decided(ZeroTrustAction.BLOCK);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+            verify(synchronousProtectableDecisionService).analyze(methodInvocation, authentication);
+        }
+
+        @Test
+        @DisplayName("a person's request (the gate says proceed) runs without a decision in place, as before")
+        void personsRequestProceeds() throws Throwable {
+            when(rapidReentryGuard.tryAcquire(eq(authentication), eq(methodInvocation), anyString())).thenReturn(true);
+            when(methodInvocation.proceed()).thenReturn("result");
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+            SecurityZeroTrustProperties enforce = new SecurityZeroTrustProperties();
+            enforce.setMode(SecurityZeroTrustProperties.SecurityMode.ENFORCE);
+            interceptor.setSecurityZeroTrustProperties(enforce);
+            when(synchronousProtectableDecisionService.asyncGate(methodInvocation, authentication))
+                    .thenReturn(SynchronousProtectableDecisionService.AsyncProtectableGate.PROCEED);
+
+            assertThat(interceptor.invoke(methodInvocation)).isEqualTo("result");
+            verify(synchronousProtectableDecisionService, never()).analyze(any(), any());
         }
     }
 

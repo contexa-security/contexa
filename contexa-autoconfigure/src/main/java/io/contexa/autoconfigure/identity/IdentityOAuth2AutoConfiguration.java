@@ -114,6 +114,7 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
@@ -429,6 +430,12 @@ public class IdentityOAuth2AutoConfiguration {
             Object deviceId = context.get("device_id");
             if (deviceId != null) {
                 context.getClaims().claim("device_id", deviceId);
+            }
+
+            // RFC 9068: an access token names the client it was issued to. A resource server then tells a client's
+            // own token (client credentials, sub = client_id) from a person's token issued to the same client (A1-2).
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) && context.getRegisteredClient() != null) {
+                context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
             }
 
             // The login facts of the authentication the token is issued for. The token engine hands the customizer

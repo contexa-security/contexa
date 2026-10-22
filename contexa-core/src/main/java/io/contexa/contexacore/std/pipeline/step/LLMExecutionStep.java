@@ -41,6 +41,7 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.observation.SecurityDecisionObservationContextResolver;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector;
 import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionRawOutputContractInspector.Inspection;
+import io.contexa.contexacore.std.pipeline.processor.SecurityDecisionV21OutputInspector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -63,6 +64,7 @@ public class LLMExecutionStep implements PipelineStep {
 
     private final SecurityDecisionRawOutputContractInspector rawOutputContractInspector =
             new SecurityDecisionRawOutputContractInspector();
+    private final SecurityDecisionV21OutputInspector v21OutputInspector = new SecurityDecisionV21OutputInspector();
 
     private static final List<String> EXECUTION_METADATA_KEYS = List.of(
             "requestedModelId",
@@ -373,6 +375,11 @@ public class LLMExecutionStep implements PipelineStep {
                 null,
                 StructuredOutputMode.LEGACY_RAW,
                 StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+        // V-5: a v21 decision is checked for what it says, never for its action.
+        SecurityDecisionV21OutputInspector.V21Check v21Check = v21Check(request, context);
+        if (v21Check != null) {
+            return executeV21Guarded(prompt, request, context, executionContext, v21Check);
+        }
         // W4-5 (plan 7): the minimum action rules are checked here only in enforce mode; observe mode records them.
         SecurityDecisionRawOutputContractInspector.MinimumActionCheck ruleCheck = minimumActionCheck(request);
         // W4-8: a v20 decision is checked on the facts its prompt was drawn from.
@@ -455,6 +462,130 @@ public class LLMExecutionStep implements PipelineStep {
                                 }
                             });
                 });
+    }
+
+    /**
+     * V-5: a v21 decision. An answer without a usable form, or one that says what the prompt's lines do not state, is
+     * asked again once with what was wrong; an answer cut at the output limit is asked again with twice the limit. The
+     * answer after the retry is kept as the model gave it unless it still has no usable form (a technical failure, as
+     * for every bundle); what it still says wrongly is recorded. The action is the model's either way.
+     */
+    private <T extends DomainContext> Mono<String> executeV21Guarded(
+            Prompt prompt,
+            AIRequest<T> request,
+            PipelineExecutionContext context,
+            ExecutionContext executionContext,
+            SecurityDecisionV21OutputInspector.V21Check v21Check) {
+        context.addMetadata(SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT,
+                SecurityDecisionV21OutputInspector.OUTPUT_CONTRACT_V4);
+        return executeRaw(executionContext, context)
+                .onErrorResume(error -> truncatedAtTheOutputLimit(executionContext) && emptyAnswer(error)
+                        ? Mono.just("")
+                        : Mono.error(error))
+                .flatMap(rawResponse -> {
+                    SecurityDecisionV21OutputInspector.V21Inspection initial = v21OutputInspector.inspect(
+                            rawResponse, request.getRequestId(), "initial", v21Check);
+                    Inspection initialCheck = initial.inspection();
+                    if (!initialCheck.requiresRetry()) {
+                        context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, initial.hypotheses());
+                        return Mono.just(rawResponse);
+                    }
+                    recordInitialSecurityDecisionFailure(context, initialCheck, rawResponse);
+                    boolean truncated = truncatedAtTheOutputLimit(executionContext);
+                    String retryReason = truncated ? OUTPUT_TRUNCATED : initialCheck.retryReason();
+                    context.addMetadata("securityDecisionOutputRetryAttempted", true);
+                    context.addMetadata("securityDecisionOutputRetryReason", retryReason);
+                    ExecutionContext retryContext = buildExecutionContext(
+                            truncated ? prompt : correctivePromptV21(prompt, rawResponse, retryReason),
+                            request,
+                            context,
+                            null,
+                            StructuredOutputMode.LEGACY_RAW,
+                            StructuredOutputPolicy.ALLOW_RAW_FALLBACK);
+                    if (truncated && executionContext.getMaxTokens() != null) {
+                        retryContext.setMaxTokens(executionContext.getMaxTokens() * 2);
+                    }
+                    AtomicBoolean retryRecorded = new AtomicBoolean();
+                    return executeRaw(retryContext, context)
+                            .map(retryResponse -> {
+                                SecurityDecisionV21OutputInspector.V21Inspection retry = v21OutputInspector.inspect(
+                                        retryResponse, request.getRequestId(), "retry", v21Check);
+                                Inspection retryCheck = retry.inspection();
+                                boolean succeeded = !retryCheck.requiresRetry();
+                                context.addMetadata("securityDecisionOutputRetrySucceeded", succeeded);
+                                recordOutputRetry(context, retryReason, succeeded,
+                                        succeeded ? null : retryCheck.retryReason());
+                                retryRecorded.set(true);
+                                context.addMetadata("securityDecisionRetryRawOutput", retryResponse);
+                                if (!retryCheck.parsingFallback() && retryCheck.response() != null) {
+                                    context.addMetadata("securityDecisionRetryAction", retryCheck.response().getAction());
+                                }
+                                if (retryCheck.parsingFallback()) {
+                                    // No usable answer after the retry: the technical failure every bundle has.
+                                    context.addMetadata("securityDecisionOutputRetryFailureReason",
+                                            retryCheck.retryReason());
+                                    context.addMetadata(
+                                            SecurityDecisionRawOutputContractInspector.CONTRACT_FALLBACK_ACTION,
+                                            "ESCALATE");
+                                    throw new StructuredOutputExecutionException(
+                                            StructuredOutputFailureCategory.VALIDATION_FAILED,
+                                            "Security decision output had no usable form after retry: "
+                                                    + retryCheck.retryReason());
+                                }
+                                if (!succeeded) {
+                                    // The answer is kept; the retry's fields name its failure as the retries do.
+                                    context.addMetadata("securityDecisionOutputRetryFailureReason",
+                                            retryCheck.retryReason());
+                                    context.addMetadata(SecurityDecisionV21OutputInspector.UNRESOLVED_FINDINGS,
+                                            retryCheck.retryReason());
+                                }
+                                context.addMetadata(SecurityDecisionV21OutputInspector.HYPOTHESES, retry.hypotheses());
+                                return retryResponse;
+                            })
+                            .doOnError(error -> {
+                                context.addMetadata("securityDecisionOutputRetrySucceeded", false);
+                                if (!retryRecorded.getAndSet(true)) {
+                                    recordOutputRetry(context, retryReason, false, null);
+                                }
+                            });
+                });
+    }
+
+    /**
+     * V-5: the v21 inputs of the response check: the canonical context the prompt was drawn from (on the event), the
+     * user prompt it drew and whether the render drew a second analysis (판정층 E-3); null when the prompt is not the
+     * v21 dictionary blocks.
+     */
+    private static SecurityDecisionV21OutputInspector.V21Check v21Check(AIRequest<?> request,
+                                                                       PipelineExecutionContext context) {
+        PromptGenerationResult generated = context.getStepResult(
+                PipelineConfiguration.PipelineStep.PROMPT_GENERATION, PromptGenerationResult.class);
+        PromptExecutionMetadata metadata = generated != null ? generated.getPromptExecutionMetadata() : null;
+        Object layout = metadata != null && metadata.supplementalMetadata() != null
+                ? metadata.supplementalMetadata().get(PromptExecutionMetadata.USER_PROMPT_LAYOUT_VERSION) : null;
+        if (!SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21.equals(layout)
+                || !(request.getContext() instanceof SecurityDecisionContext decision)
+                || decision.getSecurityEvent() == null || decision.getSecurityEvent().getMetadata() == null
+                || !(decision.getSecurityEvent().getMetadata().get("sealedEvidence.canonicalContext")
+                        instanceof CanonicalSecurityContext canonical)) {
+            return null;
+        }
+        return new SecurityDecisionV21OutputInspector.V21Check(canonical, generated.getUserPrompt(),
+                Boolean.TRUE.equals(metadata.supplementalMetadata().get("layer2SecondPass")));
+    }
+
+    /**
+     * V-5: the v21 prompt again with the answer it got and what it said that the lines do not state, so the retry
+     * corrects what it says; the action stays the model's to choose.
+     */
+    static Prompt correctivePromptV21(Prompt prompt, String previousAnswer, String violation) {
+        List<Message> messages = new ArrayList<>(prompt.getInstructions());
+        messages.add(new AssistantMessage(previousAnswer != null ? previousAnswer : ""));
+        messages.add(new UserMessage("The previous answer did not follow the output contract or cited what the lines do"
+                + " not state (" + violation + "). Answer again with one JSON object that follows the output contract,"
+                + " with explanations and reason codes that cite only the lines that state them. Your action is yours"
+                + " to choose."));
+        return new Prompt(messages, prompt.getOptions());
     }
 
     /**

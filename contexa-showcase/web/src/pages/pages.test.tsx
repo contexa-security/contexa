@@ -8,11 +8,7 @@ import '../i18n';
 import i18n from '../i18n';
 import { replayFixture } from '../test/replayFixture';
 import { required } from '../test/required';
-import type { StatsView } from '../api/types';
-import ReplayPage from './ReplayPage';
-import AdoptPage from './AdoptPage';
 import EndPage from './EndPage';
-import PolicyPage from './PolicyPage';
 
 const spec = {
   specHash: 'a'.repeat(64),
@@ -86,170 +82,8 @@ function renderAt(path: string, element: ReactNode, state?: unknown) {
   );
 }
 
-/** A stored run's score as the portal returns it, with the parts the record page reads. */
-function score(runId: string, title: string, classification: 'THREAT' | 'NORMAL', steps = 1) {
-  return {
-    runId,
-    scenarioKey: 'X',
-    scenarioVersion: 1,
-    status: 'COMPLETED',
-    truthSource: 'RUN_SNAPSHOT',
-    truth: { classification, allowedEngineActions: [] },
-    definedSteps: steps,
-    executedSteps: steps,
-    business: {
-      D: { result: classification === 'THREAT' ? 'MISSED' : 'PASSED', exposedItems: 0, worstStep: 1 },
-    },
-    correct: { A: false, D: classification !== 'THREAT' },
-    rightControls: 1,
-    verdicts: [],
-    checks: [],
-    title: { ko: title, en: title },
-  };
-}
-
-describe('the stored real record (D-35)', () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
-    );
-    routes['GET /api/runs/run-0000000000a1/score'] = () => ({
-      status: 200,
-      body: score('run-0000000000a1', 'Insider bulk export', 'THREAT'),
-    });
-    routes['GET /api/runs/run-0000000000b2/score'] = () => ({
-      status: 200,
-      body: score('run-0000000000b2', 'Approved project transfer', 'NORMAL'),
-    });
-  });
-
-  it("replays a recorded pair's runs as the first screen does, each run's answers as recorded", async () => {
-    await i18n.changeLanguage('en');
-    renderAt('/replay/A3', <ReplayPage />);
-
-    expect(await screen.findByRole('heading', { name: 'Insider bulk export' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Approved project transfer' })).toBeInTheDocument();
-    expect(screen.getAllByText('Same result in all 5 runs')).toHaveLength(2);
-    const attack = required(
-      screen.getByRole('heading', { name: 'Insider bulk export' }).closest('section'),
-    ) as HTMLElement;
-    expect(within(attack).getByText('Right answer: stop it')).toBeInTheDocument();
-    // Contexa's recorded answer of the attack run: it let 4,831 items out.
-    expect(within(attack).getByText('Passed · 4,831 records')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Decision details · Insider bulk export' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'To the first screen' })).toHaveAttribute('href', '/');
-  });
-
-  it("replays a case without a recording from its current measurement's middle run, and leads back", async () => {
-    await i18n.changeLanguage('en');
-    routes['GET /api/replays/A6T'] = () => ({ status: 404, body: null });
-    routes['GET /api/cases/A6T/measured'] = () => ({
-      status: 200,
-      body: {
-        caseKey: 'A6T',
-        settingHash: 's',
-        protocolId: 'protocol-1',
-        runs: 3,
-        results: { PASSED: 2, PASSED_AFTER_CHECK: 1 },
-        allSame: false,
-        analysisMs: null,
-        exposedItems: null,
-        list: [],
-        resumed: null,
-        responseMs: null,
-        middleRun: 'run-0000000000b2',
-      },
-    });
-    routes['GET /api/runs/run-0000000000b2/steps/1/result'] = () => ({
-      status: 200,
-      body: {
-        companyTime: '2026-09-30T03:17:00Z',
-        layers: required(replayFixture.scenes[1]).layers,
-        engineReason: null,
-        companyFacts: [],
-        tally: { stopped: 0, passed: 5, other: 0 },
-        existingTally: { stopped: 0, passed: 4, other: 0 },
-      },
-    });
-    routes['GET /api/runs/run-0000000000b2/score'] = () => ({
-      status: 200,
-      body: score('run-0000000000b2', 'Approved project transfer', 'NORMAL', 5),
-    });
-    renderAt('/replay/A6T', <ReplayPage />);
-
-    expect(await screen.findByRole('heading', { name: 'Approved project transfer' })).toBeInTheDocument();
-    expect(screen.getByText('Passed after a check in 1 of 3 runs')).toBeInTheDocument();
-    expect(screen.getByText(/This case has 5 requests/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Decision details' })).toBeInTheDocument();
-  });
-
-  it('says the record is being prepared when the case has neither a recording nor a measurement', async () => {
-    await i18n.changeLanguage('en');
-    routes['GET /api/replays/A3'] = () => ({ status: 404, body: null });
-    routes['GET /api/cases/A3/measured'] = () => ({ status: 404, body: null });
-    renderAt('/replay/A3', <ReplayPage />);
-    expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
-  });
-});
-
-const statsView: StatsView = {
-  computedAt: '2026-10-05T07:30:12.000Z',
-  runs: { completed: 1284, failed: 3, today: 41, live: 334, firstAt: '2026-10-04T06:00:00Z', lastAt: null },
-  decisionTime: { decisions: 760, p50Ms: 2500, p95Ms: 3850 },
-  engineActions: { ALLOW: 728, CHALLENGE: 1, BLOCK: 31, ESCALATE: 0 },
-  engineDecisions: 760,
-  unresolved: { technical: 87, noNewAnalysis: 29 },
-  agreement: {
-    agreeing: 9,
-    repetitions: 10,
-    recordings: [
-      { pairKey: 'A3', scene: 'ATTACK', agreeing: 4, repetitions: 5, recordedAt: '2026-10-05T01:00:00Z' },
-      { pairKey: 'A3', scene: 'LEGITIMATE', agreeing: 5, repetitions: 5, recordedAt: '2026-10-05T01:00:00Z' },
-    ],
-  },
-  scope: { threatRuns: 3, normalRuns: 1, otherRuns: 192 },
-  layers: [
-    {
-      control: 'A',
-      threat: { runs: 3, stopped: 1, partlyStopped: 0, missed: 2, unresolved: 0, exposedItems: 0 },
-      normal: { runs: 1, passed: 1, passedAfterCheck: 0, halted: 0, unresolved: 0 },
-    },
-    {
-      control: 'B',
-      threat: { runs: 3, stopped: 0, partlyStopped: 0, missed: 3, unresolved: 0, exposedItems: 0 },
-      normal: { runs: 1, passed: 1, passedAfterCheck: 0, halted: 0, unresolved: 0 },
-    },
-    {
-      control: 'C1',
-      threat: { runs: 3, stopped: 2, partlyStopped: 0, missed: 1, unresolved: 0, exposedItems: 0 },
-      normal: { runs: 1, passed: 0, passedAfterCheck: 0, halted: 1, unresolved: 0 },
-    },
-    {
-      control: 'C2',
-      threat: { runs: 3, stopped: 2, partlyStopped: 0, missed: 0, unresolved: 1, exposedItems: 0 },
-      normal: { runs: 1, passed: 1, passedAfterCheck: 0, halted: 0, unresolved: 0 },
-    },
-    {
-      control: 'D',
-      threat: { runs: 3, stopped: 1, partlyStopped: 0, missed: 2, unresolved: 0, exposedItems: 0 },
-      normal: { runs: 1, passed: 0, passedAfterCheck: 1, halted: 0, unresolved: 0 },
-    },
-  ],
-  spec: {
-    specHash: 'a'.repeat(64),
-    codeCommit: 'f1f5c2a4',
-    engineVersion: '0.1.0',
-    effectiveMode: 'ENFORCE',
-    chatModel: 'gpt-5-nano',
-    embeddingModel: 'text-embedding-3-small',
-    timeZone: 'UTC',
-  },
-  specCount: 2,
-  releases: 0,
-};
+// The stored real record, the privacy notice and the adopt space: ReplayPage.test.tsx, PolicyPage.test.tsx and
+// AdoptPage.test.tsx (R7, RO-4 to RO-7).
 
 const halfResult = {
   pairKey: 'A3',
@@ -425,43 +259,6 @@ describe('end screen', () => {
   it('says the result is being prepared when the pair is not published', async () => {
     await i18n.changeLanguage('en');
     renderAt('/end/A3', <EndPage />);
-    expect(await screen.findByText('The real run of this scene is being prepared')).toBeInTheDocument();
-  });
-});
-
-describe('privacy notice', () => {
-  it('says what is not collected and names the only cookies, with no choice to make', async () => {
-    await i18n.changeLanguage('en');
-    renderAt('/', <PolicyPage />);
-
-    expect(screen.getByRole('heading', { level: 1, name: 'Privacy notice' })).toBeInTheDocument();
-    expect(screen.getByRole('rowheader', { name: 'SC_VISITOR' })).toBeInTheDocument();
-    expect(screen.getByRole('rowheader', { name: 'XSRF-TOKEN' })).toBeInTheDocument();
-    expect(within(screen.getByRole('main')).queryByRole('button')).toBeNull();
-  });
-});
-
-describe('adopting Contexa', () => {
-  it('shows the real coordinates and the Shadow numbers counted from this demo', async () => {
-    await i18n.changeLanguage('en');
-    routes['GET /api/stats'] = () => ({ status: 200, body: statsView });
-    renderAt('/', <AdoptPage />);
-
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Adopt Contexa: attach, watch, enforce' }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText('Attach')).toHaveTextContent(
-      'implementation "ai.ctxa:spring-boot-starter-contexa:0.1.0"',
-    );
-    expect(screen.getByLabelText('Attach')).toHaveTextContent('@EnableAISecurity');
-    expect(screen.getByLabelText('Watch')).toHaveTextContent('mode: SHADOW');
-    expect(screen.getByLabelText('Enforce')).toHaveTextContent('mode: ENFORCE');
-    // The sentence carries the source tag of the engine's records beside it.
-    expect(
-      await screen.findByText(
-        /Counted from this demo’s 760 real engine decisions\. In Shadow mode they would only have been recorded, not enforced\./,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Would have been blocked').nextSibling).toHaveTextContent('31');
+    expect(await screen.findByText(i18n.t('state.notReady'))).toBeInTheDocument();
   });
 });

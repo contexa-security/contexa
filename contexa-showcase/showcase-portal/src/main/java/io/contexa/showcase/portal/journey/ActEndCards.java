@@ -17,14 +17,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The values of the card at the end of acts 1 to 3 (work 18 of docs/showcase/화면설계서-v2-구현계획.md): the server gives
+ * The values of the card at the end of parts 1 to 4 (work 18 of docs/showcase/화면설계서-v2-구현계획.md): the server gives
  * the numbers and codes of the visitor's own run of the act's case and the dictionary holds the sentence. A visitor who
  * skipped the experience gets the same measurement's run instead, marked as such (D-37).
  */
 public class ActEndCards {
 
-    /** The case whose run each act's card states. */
-    static final Map<Integer, String> ACT_CASES = Map.of(1, "A3", 2, "A3T", 3, "A6T");
+    /** The case whose run each part's wrap-up states; part 4 is the timing part's resend (화면재편 P-2). */
+    static final Map<Integer, String> ACT_CASES = Map.of(1, "A3", 2, "A3T", 3, "A6T", 4, "A3A");
 
     /**
      * @param source VISITOR_RUN, MEASUREMENT, or NONE when neither exists
@@ -74,8 +74,49 @@ public class ActEndCards {
         if (score.isEmpty()) {
             return Optional.of(new ActEnd(act, caseKey, "NONE", null, Map.of()));
         }
-        return Optional.of(new ActEnd(act, caseKey, source, runId, act == 3 ? learning(runId)
-                : outcome(caseKey, runId, score.get())));
+        Map<String, Object> values = switch (act) {
+            case 3 -> learning(runId);
+            case 4 -> timing(caseKey, runId);
+            default -> outcome(caseKey, runId, score.get());
+        };
+        return Optional.of(new ActEnd(act, caseKey, source, runId, values));
+    }
+
+    /** Part 4: the first request's judgment, when it applied and how long it took, what left, and the next request. */
+    private Map<String, Object> timing(String caseKey, String runId) {
+        MapSqlParameterSource run = new MapSqlParameterSource("run", runId);
+        List<Map<String, Object>> decision = jdbc.queryForList(
+                "select final_action, applied, total_analysis_ms from run_decision where run_id = :run and step_no = 1",
+                run);
+        List<Long> delivered = jdbc.queryForList(
+                "select delivered_items from run_arm_result where run_id = :run and step_no = 1 and control = 'D'", run,
+                Long.class);
+        List<String> next = jdbc.queryForList(
+                "select outcome from run_arm_result where run_id = :run and step_no = 2 and control = 'D'", run,
+                String.class);
+        Map<String, Object> first = decision.isEmpty() ? Map.of() : decision.get(0);
+        Object analysisMs = first.get("total_analysis_ms");
+        return timingValues(
+                scenarios.find(caseKey).map(definition -> definition.steps().get(0).items()).orElse(null),
+                (String) first.get("final_action"), (String) first.get("applied"),
+                analysisMs instanceof Number number ? number.longValue() : null,
+                delivered.isEmpty() ? null : delivered.get(0), next.isEmpty() ? null : next.get(0));
+    }
+
+    /**
+     * Part 4's values as the rows hold them; nextStopped is null without a second request, else whether its answer
+     * delivered nothing.
+     */
+    static Map<String, Object> timingValues(Integer requested, String engineAction, String applied, Long analysisMs,
+                                            Long delivered, String nextOutcome) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("requested", requested);
+        values.put("engineAction", engineAction);
+        values.put("applied", applied);
+        values.put("analysisMs", analysisMs);
+        values.put("delivered", delivered);
+        values.put("nextStopped", nextOutcome == null ? null : !"DELIVERED".equals(nextOutcome));
+        return values;
     }
 
     /** Acts 1 and 2: what was asked, what Contexa decided and when, what left, and the number rule's result. */

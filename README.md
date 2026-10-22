@@ -188,8 +188,8 @@ flowchart LR
 | `ALLOW` | Continue subject to the application's authorization checks |
 | `CHALLENGE` | Require additional identity verification through the configured flow |
 | `BLOCK` | Restrict access; recovery depends on the configured policy |
-| `ESCALATE` | Route the case into the configured escalation or review flow |
-| `PENDING_ANALYSIS` | Keep access pending while analysis or required review is unresolved |
+| `ESCALATE` | Internal hand-off to a deeper second analysis, which settles the case; an `ESCALATE` it still returns becomes `CHALLENGE` by default (`contexa.security.tiered.layer2.escalate-fallback-action`). Enforced only as a technical fallback when that analysis fails: requests receive `423 Locked` with `Retry-After` (browsers see an analysis-pending page) until the case is resolved or promoted to `BLOCK` |
+| `PENDING_ANALYSIS` | No decision has been recorded yet. The request proceeds with the user's existing authorities; if a `BLOCK` arrives while the response is being written, the response is cut off |
 
 Browser flows use verification or restriction pages, while APIs receive the corresponding HTTP response. With `ALLOW`, the application continues processing and produces its normal response.
 

@@ -1,37 +1,28 @@
-/* One lane per case: the kind (real work or attack), its name and where its values come from (live or replay). */
+/*
+ * Screen 3-3 (T4): two rows, the real work and the attack, each of five cells that fill as the requests are answered,
+ * with the learned-requests line under them. No row or cell is a box: a cell is a number and a word over a bar.
+ */
 .lane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-wide);
+  min-width: 0;
 }
 
-.lane[data-kind='work'] {
-  border-color: var(--color-safe);
-}
-
-.lane[data-kind='attack'] {
-  border-color: var(--color-loss);
-}
-
-.laneTitle {
+.laneName {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
   margin: 0;
   color: var(--color-text);
-  font-size: var(--text-lg);
+  font-size: var(--type-body);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-frame);
 }
 
 .laneKind {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface-raised);
-  font-size: var(--text-sm);
   font-weight: var(--weight-bold);
 }
 
@@ -43,40 +34,53 @@
   color: var(--color-loss);
 }
 
-.laneTag {
-  margin-inline-start: auto;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-regular);
-}
-
 .cells {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* The bar under a cell fills with the judgment's colour; a request without its own judgment fills quietly. */
 .cell {
+  --cell-bar: var(--color-border);
+
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised);
+  min-width: 0;
+  padding-block-end: var(--space-2);
+  border-block-end: 4px solid var(--cell-bar);
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
 }
 
-.cell[data-state='waiting'] {
-  color: var(--color-text-subtle);
+.cell[data-state='empty'] {
+  border-block-end-style: dashed;
 }
 
-.cell[data-state='prior'] {
-  color: var(--color-text-muted);
+.cell[data-state='word'] {
+  --cell-bar: var(--color-text-muted);
+}
+
+.cell[data-verdict='ALLOW'] {
+  --cell-bar: var(--color-verdict-allow);
+}
+
+.cell[data-verdict='CHALLENGE'] {
+  --cell-bar: var(--color-verdict-verify);
+}
+
+.cell[data-verdict='ESCALATE'] {
+  --cell-bar: var(--color-verdict-review);
+}
+
+.cell[data-verdict='BLOCK'] {
+  --cell-bar: var(--color-verdict-block);
 }
 
 .cellNumber {
@@ -84,42 +88,109 @@
   font-weight: var(--weight-bold);
 }
 
-.summary {
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+}
+
+.markIcon {
+  flex: none;
+}
+
+.word {
+  color: var(--color-text-body);
+}
+
+/* A request not sent yet: said quietly in its cell (V-38). */
+.faded {
+  color: var(--color-text-muted);
+}
+
+/* Whose record a lane shows when it is not the visitor's own send (V-38). */
+.whose {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--type-aside);
+  line-height: var(--leading-frame);
+}
+
+.learned {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
+  font-size: var(--type-body);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-frame);
 }
 
-.empty {
+/* The run's own state while it starts, or while the visitor's earlier run is still finishing. */
+.note {
+  max-width: var(--frame-measure);
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
 }
 
-.notice {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+/* Send is the screen's main button until the visitor's run exists, in the main button's shape (StepParts .next). */
+.send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-3) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
 }
 
-.runningNote {
-  color: var(--color-text-muted);
-  font-weight: var(--weight-semibold);
+.send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
+.send:focus-visible,
+.send:hover:enabled {
+  box-shadow: var(--shadow-raised);
+}
+
+.sendIcon {
+  flex: none;
+}
+
+/* Phones: one request per line, its number and its judgment side by side, the bar on the left. */
 @media (width <= 40rem) {
-  /* One request per row on phones: the number, then its decision on the same line. */
   .cells {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
   }
 
   .cell {
     flex-direction: row;
     align-items: center;
     gap: var(--space-3);
+    padding-block: var(--space-1);
+    padding-inline-start: var(--space-3);
+    border-block-end: 0;
+    border-inline-start: 4px solid var(--cell-bar);
   }
 
-  .laneTag {
-    margin-inline-start: 0;
+  .cell[data-state='empty'] {
+    border-inline-start-style: dashed;
+  }
+
+  /* In the phone's fixed bar the main button takes the bar's width; the same type as the flow's main button there. */
+  .send {
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--type-body);
+    line-height: var(--leading-tight);
   }
 }

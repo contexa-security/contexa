@@ -1,0 +1,57 @@
+[
+  {
+    "id": "learning",
+    "screens": [
+      { "number": "3-0", "id": "g-learn-why", "path": "/intro/learning", "act": 0, "type": "T7" },
+      { "number": "3-1", "id": "g-learned", "path": "/intro/learning/learned", "act": 0, "type": "T7" },
+      { "number": "3-2", "id": "g-how", "path": "/intro/how", "act": 0, "type": "T7" },
+      {
+        "number": "3-3",
+        "id": "e3-stack",
+        "path": "/try/stack",
+        "act": 0,
+        "type": "T4",
+        "guideAlternatives": [
+          "p3.stack.guide.unsent",
+          "p3.stack.guide.running",
+          "p3.stack.guide.failed",
+          "p3.stack.guide.closed"
+        ],
+        "mainAlternatives": ["p3.stack.send"]
+      },
+      { "number": "3-4", "id": "learn-after", "path": "/try/summary/learning", "act": 0, "type": "T7" }
+    ]
+  },
+  {
+    "id": "timing",
+    "screens": [
+      { "number": "4-0", "id": "sync-concept", "path": "/try/timing/concept", "act": 0, "type": "T7" },
+      {
+        "number": "4-1",
+        "id": "sync-try",
+        "path": "/try/timing/try",
+        "act": 0,
+        "type": "T4",
+        "guideAlternatives": ["screen.1-3.guide"],
+        "mainAlternatives": ["p1.predict.send", "p4.try.watch", "timing.try.backToResend"]
+      },
+      {
+        "number": "4-2",
+        "id": "sync-compare",
+        "path": "/try/timing/compare",
+        "act": 0,
+        "type": "T5",
+        "titleAlternatives": ["p4.compare.title.other"]
+      },
+      { "number": "4-3", "id": "sync-when", "path": "/try/timing/when", "act": 0, "type": "T7" }
+    ]
+  },
+  {
+    "id": "follow",
+    "screens": [{ "number": "2-6", "id": "follow", "path": "/try/follow", "act": 0, "type": "T7" }]
+  },
+  {
+    "id": "approaches",
+    "screens": [{ "number": "5-0", "id": "g3-five", "path": "/intro/approaches", "act": 0, "type": "T7" }]
+  }
+]

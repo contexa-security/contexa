@@ -1,178 +1,93 @@
-.figure {
+/*
+ * Screen 3-2 (T7): the nine steps one request passes, top to bottom, joined by a thin line between their numbers.
+ * Nothing is boxed or pressed: the number, the step's name and what it does, in one row (two lines on phones).
+ */
+.steps {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
-}
-
-.label {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-/* Nine cells in one row joined by arrows; each cell is a pressable card (it shows what the cell does). */
-.flow {
-  display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  gap: var(--space-3);
+  max-width: var(--frame-measure);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.item {
+.step {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.75rem minmax(8rem, 12rem) minmax(0, 1fr);
+  column-gap: var(--frame-inner-gap);
+  align-items: start;
+  padding-block-end: var(--frame-inner-gap);
 }
 
-.item + .item::before {
+.step:last-child {
+  padding-block-end: 0;
+}
+
+/* The line from a step's number down to the next step's number; the padding under each step keeps it unbroken. */
+.step:not(:last-child)::after {
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: calc(var(--space-3) * -1);
-  inline-size: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-align: center;
-  content: '›';
-  translate: 0 -50%;
-}
-
-.cell {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  min-block-size: 6rem;
-  padding: var(--space-3) var(--space-1);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.cell:hover {
-  border-color: var(--color-accent);
-}
-
-.cell:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.cell[aria-pressed='true'] {
-  border-color: var(--color-accent);
-  background-color: var(--color-surface-accent);
+  inset-block: 1.75rem 0;
+  inset-inline-start: 0.8125rem;
+  inline-size: 2px;
+  background-color: var(--color-border-strong);
+  content: '';
 }
 
 .number {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--type-aside);
   font-weight: var(--weight-bold);
-}
-
-.icon {
-  color: var(--color-accent);
-  font-size: var(--text-lg);
+  line-height: var(--leading-none);
 }
 
 .name {
-  font-size: var(--text-sm);
+  color: var(--color-text);
+  font-size: var(--type-body);
   font-weight: var(--weight-semibold);
-  text-align: center;
+  line-height: var(--leading-frame);
+  word-break: keep-all;
 }
 
-/* The way back from the last cell to the usual behaviour, right under the row. */
+.text {
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+  word-break: keep-all;
+}
+
+/* What is learned feeds the next request's usual: the screen's one emphasis. */
 .loop {
-  display: inline-flex;
-  align-self: flex-end;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: var(--frame-measure);
   margin: 0;
   color: var(--color-accent);
-  font-size: var(--text-sm);
+  font-size: var(--type-body);
   font-weight: var(--weight-semibold);
+  line-height: var(--leading-frame);
+  word-break: keep-all;
 }
 
 .loopIcon {
   flex: none;
 }
 
-.picked {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface-raised);
-  color: var(--color-text-body);
-  font-size: var(--text-md);
-}
-
-.pickedName {
-  color: var(--color-text);
-  font-weight: var(--weight-bold);
-}
-
-.compare {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.way {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border-left: 4px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface-raised);
-}
-
-.way[data-way='new'] {
-  border-left-color: var(--color-accent);
-  background-color: var(--color-surface-accent);
-}
-
-.wayName {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-}
-
-.wayText {
-  margin: 0;
-  color: var(--color-text-body);
-  font-size: var(--text-md);
-}
-
-/* Tablets: the nine cells in three rows of three, numbered, without the arrows between rows. */
-@media (width <= 64rem) {
-  .flow {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .item:nth-child(3n + 1)::before {
-    content: none;
-  }
-}
-
+/* Phones: the name over what it does, both beside the number. */
 @media (width <= 40rem) {
-  .compare {
-    grid-template-columns: minmax(0, 1fr);
+  .step {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
   }
 
-  .cell {
-    min-block-size: 5rem;
+  .text {
+    grid-column: 2;
   }
 }

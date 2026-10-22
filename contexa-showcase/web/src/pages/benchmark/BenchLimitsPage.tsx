@@ -1,110 +1,135 @@
 import { useTranslation } from 'react-i18next';
-import { useCases } from '../../api/anatomy';
-import { ActionChip } from '../../components/common/ActionChip';
-import { SourceMark } from '../../components/common/SourceMark';
-import { useDetail } from '../../components/detail/useDetail';
+import { useUrlModal } from '../../components/common/useUrlModal';
 import { NextLink } from '../../components/journey/StepParts';
 import { count } from '../../journey/format';
-import experience from '../try/Experience.module.css';
-import { BenchScreen } from './BenchScreen';
-import { useBenchView } from './benchData';
-import { fraction, useBenchSetting } from './benchPlace';
+import { BenchDetailChip, BenchScreen, BenchSource } from './BenchScreen';
+import { caseName, useBenchView } from './benchData';
+import { BENCH_MODALS, fraction } from './benchPlace';
+import { judgmentOthers } from './benchShapes';
+import { WrongCases } from './charts/WrongCases';
 import styles from './Bench.module.css';
 
 /**
- * B4, the limits (honest, 7.8): the attack cases Contexa let through in every measured run, each with its designed
- * reason and its decision details; Contexa's three numbers that show the limit (stopped from the start, stopped at
- * some step, items out before a decision); why the first is low, from the judgment-and-timing count; and the two
- * limits of the explanations. The main button leads to the lab, to change a condition and try.
+ * The limits (화면재편-구현계획 RO-3; B-6 of docs/showcase/벤치마크-구현계획.md): the result in one line (the attacks
+ * Contexa let through every time they were sent, or none), the attacks it let through and the normal work it blocked at
+ * least once as the server flagged them, each with a cell per run and the reason the model wrote, Contexa's three
+ * numbers (stopped with nothing out, stopped in the end, items leaked in attacks) with the refusals of the sign-in check
+ * they hold, why the first is low from the judgment and timing count (its "other" runs named with their results), and
+ * the two limits of the explanations. "See details" opens the first missed situation's window; the main button leads
+ * out of the benchmark to the lab, to change a condition and send it.
  */
 export default function BenchLimitsPage() {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const { search } = useBenchSetting();
-  const detail = useDetail();
-  const catalog = useCases().data ?? null;
+  const method = useUrlModal(BENCH_MODALS.method);
+  const benchCase = useUrlModal(BENCH_MODALS.benchCase, ['case']);
   const { view, empty, state } = useBenchView();
   const contexa = view?.controls.find((score) => score.control === 'D') ?? null;
-  const repeat = view?.scope.protocols.map((protocol) => protocol.repeat).join(', ') ?? '-';
+  const others = view ? judgmentOthers(view) : [];
+  const nameOf = (key: string) => {
+    const row = view?.cases.find((candidate) => candidate.key === key);
+    return row ? caseName(t, row, language) : key;
+  };
   const missed = (view?.missedEveryRunCases ?? [])
     .map((key) => view?.cases.find((row) => row.key === key))
     .filter((row) => row !== undefined);
+  const first = missed[0] ?? null;
   return (
     <BenchScreen
       view="limits"
-      title={
-        view
-          ? missed.length > 0
-            ? t('benchmark.limits.title', { repeat, n: view.missedEveryRunCases.length })
-            : t('benchmark.limits.titleNone', { repeat })
-          : t('benchmark.limits.titleLoading')
-      }
-      purpose={t('benchmark.limits.purpose')}
-      source={
-        view ? (
-          <SourceMark kind="MEASUREMENT" measured>
-            {t('benchmark.judgment.source', {
-              protocol: view.scope.protocols.map((protocol) => protocol.protocolId).join(', '),
-            })}
-          </SourceMark>
+      type="T6"
+      title={t('bench.r7.limits.title')}
+      purpose={t('bench.r7.limits.guide')}
+      more={first ? <BenchDetailChip onClick={() => benchCase.show({ case: first.key })} /> : null}
+      sourceLine={
+        view && contexa ? (
+          <BenchSource text={t('frame.source.measured')} onOpen={() => method.show()} />
         ) : null
       }
-      back={{ to: `/benchmark/prompt${search}`, label: t('benchmark.toPrompt') }}
-      main={<NextLink to="/lab" label={t('benchmark.limits.toLab')} />}
+      main={<NextLink to="/lab" label={t('bench.r7.next.lab')} />}
     >
       {state}
-      {empty ? <p className={experience.lead}>{t('bench.empty')}</p> : null}
+      {empty ? <p className={styles.line}>{t('bench.r7.empty')}</p> : null}
       {view && contexa ? (
         <>
-          {missed.length > 0 ? (
-            <ul className={styles.cards}>
-              {missed.map((row) => {
-                const definition = catalog?.cases.find((candidate) => candidate.key === row.key) ?? null;
-                const first = row.runIds[0] ?? null;
-                return (
-                  <li key={row.key} className={styles.card}>
-                    <h2 className={styles.cardTitle}>{row.title[language] ?? row.key}</h2>
-                    {definition?.rationale[language] ? (
-                      <p className={styles.cardText}>{definition.rationale[language]}</p>
-                    ) : null}
-                    <p className={styles.cardCount}>{t('benchmark.limits.missed', { runs: row.runs })}</p>
-                    {first ? (
-                      <ActionChip onClick={() => detail.show(first)} icon="search" variant="open" size="sm">
-                        {t('e1.result.detail')}
-                      </ActionChip>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-          <dl className={styles.bigNumbers}>
+          <p className={styles.result}>
+            {missed.length > 0
+              ? t('bench.r7.limits.missed', { count: missed.length })
+              : t('bench.r7.limits.missedNone')}
+          </p>
+          <WrongCases
+            rows={view.cases.filter((row) => row.classification === 'THREAT' && row.contexaWrong)}
+            wrongRuns={view.wrongRuns}
+            nameOf={(row) => caseName(t, row, language)}
+            title={t('bench.chart.limits.missedTitle')}
+            none={t('bench.chart.limits.none.THREAT')}
+          />
+          <WrongCases
+            rows={view.cases.filter((row) => row.classification === 'NORMAL' && row.contexaWrong)}
+            wrongRuns={view.wrongRuns}
+            nameOf={(row) => caseName(t, row, language)}
+            title={t('bench.chart.limits.haltedTitle')}
+            none={t('bench.chart.limits.none.NORMAL')}
+          />
+          <dl className={styles.figures}>
             <div>
-              <dt>{t('benchmark.limits.stopped')}</dt>
+              <dt>{t('bench.r7.score.stopped')}</dt>
               <dd>{fraction(contexa.stopped)}</dd>
             </div>
             <div>
-              <dt>{t('benchmark.limits.stoppedAny')}</dt>
+              <dt>{t('bench.r7.score.stoppedAny')}</dt>
               <dd>{fraction(contexa.stoppedAny)}</dd>
             </div>
             <div>
-              <dt>{t('benchmark.limits.exposed')}</dt>
-              <dd>{t('e1.result.items', { items: count(contexa.exposedItems, language) })}</dd>
+              <dt>{t('bench.r7.limits.exposed')}</dt>
+              <dd>{t('bench.r7.items', { items: count(contexa.exposedItems, language) })}</dd>
             </div>
           </dl>
-          <p className={styles.callout}>
-            {t('benchmark.limits.why', {
-              timing: view.judgmentTiming.NEXT_REQUEST,
-              judged: view.judgmentTiming.JUDGED_ALLOW,
-            })}
-          </p>
-          <section className={styles.windowPart} aria-labelledby="limits-explain">
-            <h2 id="limits-explain" className={experience.panelTitle}>
-              {t('benchmark.limits.explainTitle')}
+          {view.judgmentTiming.STATIC_REFUSAL > 0 ? (
+            <p className={styles.note}>
+              {t('bench.r7.limits.staticNote', { count: view.judgmentTiming.STATIC_REFUSAL })}
+            </p>
+          ) : null}
+          <div className={styles.callout}>
+            <p className={styles.calloutLine}>
+              {t('bench.r7.limits.why', {
+                timing: view.judgmentTiming.NEXT_REQUEST,
+                judged: view.judgmentTiming.JUDGED_ALLOW,
+              })}
+            </p>
+            {others.length > 0 ? (
+              <p className={styles.calloutLine}>
+                {t('bench.r7.limits.whyOthers', {
+                  n: view.judgmentTiming.OTHER,
+                  runs: others
+                    .map((run) =>
+                      t('bench.r7.limits.whyOther', {
+                        name: nameOf(run.caseKey),
+                        result: t(`main.result.${run.result}`, { defaultValue: run.result }),
+                      }),
+                    )
+                    .join(' · '),
+                })}
+              </p>
+            ) : null}
+          </div>
+          <section className={styles.explain} aria-labelledby="limits-explain">
+            <h2 id="limits-explain" className={styles.explainTitle}>
+              {t('bench.r7.limits.explainTitle')}
             </h2>
             <ul className={styles.plainList}>
-              <li>{t('benchmark.limits.explain.approval')}</li>
-              <li>{t('benchmark.limits.explain.inspector')}</li>
+              {/* The explanations' limits of the bundle the setting ran: the v20 ones do not hold for v21. */}
+              {(view.spec?.promptBundles ?? []).some((bundle) => bundle.includes('-v21')) ? (
+                <>
+                  <li>{t('bench.chart.limits.explain.retry')}</li>
+                  <li>{t('bench.chart.limits.explain.async')}</li>
+                </>
+              ) : (
+                <>
+                  <li>{t('bench.r7.limits.explain.approval')}</li>
+                  <li>{t('bench.r7.limits.explain.inspector')}</li>
+                </>
+              )}
             </ul>
           </section>
         </>

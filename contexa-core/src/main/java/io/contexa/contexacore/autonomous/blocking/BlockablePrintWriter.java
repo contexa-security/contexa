@@ -19,20 +19,24 @@ import java.io.PrintWriter;
 
 /**
  * PrintWriter wrapper that checks BlockingSignalBroadcaster before every write.
- * Throws ResponseBlockedException (RuntimeException) on block detection,
- * bypassing PrintWriter's internal IOException suppression.
+ * On block detection the response is cut the same way as a byte stream (ResponseCut: 403 and only the marker before
+ * the commit, the marker after it) and ResponseBlockedException (RuntimeException) is thrown,
+ * bypassing PrintWriter's internal IOException suppression; every later write throws it again.
  */
 public class BlockablePrintWriter extends PrintWriter {
 
-    private final BlockingSignalBroadcaster registry;
-    private final String userId;
+    private final ResponseCut cut;
 
     public BlockablePrintWriter(PrintWriter delegate,
                                 BlockingSignalBroadcaster registry,
                                 String userId) {
+        this(delegate, new ResponseCut(null, registry, userId, System.nanoTime()));
+        cut.useWriter(delegate);
+    }
+
+    BlockablePrintWriter(PrintWriter delegate, ResponseCut cut) {
         super(delegate, true);
-        this.registry = registry;
-        this.userId = userId;
+        this.cut = cut;
     }
 
     @Override
@@ -61,14 +65,25 @@ public class BlockablePrintWriter extends PrintWriter {
 
     @Override
     public void flush() {
+        if (cut.isCut()) {
+            return;
+        }
         checkBlocked();
         super.flush();
     }
 
+    @Override
+    public void close() {
+        if (cut.isCut()) {
+            return;
+        }
+        super.close();
+    }
+
     private void checkBlocked() {
-        if (registry != null && registry.isBlocked(userId)) {
+        if (cut.cutIfBlocked()) {
             throw new ResponseBlockedException(
-                    "Response aborted: user " + userId + " blocked by security decision");
+                    "Response aborted: user " + cut.userId() + " blocked by security decision");
         }
     }
 }

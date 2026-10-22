@@ -610,6 +610,10 @@ public class SealedEvidencePackageAssembler {
         if (result.getReasonCodes() != null && !result.getReasonCodes().isEmpty()) {
             decision.put("reasonCodes", result.getReasonCodes());
         }
+        // V-3: the explanations a v21 model weighed, with the fact IDs for and against each; none before v21.
+        if (result.getHypotheses() != null && !result.getHypotheses().isEmpty()) {
+            decision.put("hypotheses", result.getHypotheses());
+        }
         decision.put("processingPath", result.getProcessingPath() != null
                 ? result.getProcessingPath().name() : null);
         decision.put("llmProposedAction", result.getProposedAction());

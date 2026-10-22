@@ -2,50 +2,54 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { useAnatomies } from '../../api/anatomy';
 import { postJson } from '../../api/http';
 import {
   startLabRun,
   useLabOptions,
   useRecentLabRuns,
-  useRunStepResults,
   type LabCase,
   type LabPrediction,
 } from '../../api/lab';
-import { useLiveAnalysis, useLiveConfig, useLiveRun } from '../../api/queries';
+import { useLiveAnalysis, useLiveRun } from '../../api/queries';
 import type { LiveRunView } from '../../api/types';
-import { CumulativeMeter } from '../../components/inside/CumulativeMeter';
-import { InsidePanel } from '../../components/inside/InsidePanel';
-import { meterRows } from '../../components/inside/meterRows';
+import { Icon, type IconName } from '../../components/Icon';
+import { SourceLine } from '../../components/journey/FrameParts';
 import { NextLink } from '../../components/journey/StepParts';
 import { LiveChallenge } from '../../components/LiveChallenge';
-import { Icon } from '../../components/Icon';
 import { useRecordPath } from '../../components/replay/replayLine';
 import { StateScreen } from '../../components/StateScreen';
 import { CONTROL_ORDER } from '../../domain/verdict';
 import { useLiveSend } from '../../hooks/useLiveSend';
-import { seconds } from '../../journey/format';
-import experience from '../try/Experience.module.css';
-import { ACTIVE, CHECK_ENDED, panelCells, requestName } from '../try/steps/liveRun';
+import { ACTIVE, CHECK_ENDED } from '../try/steps/liveRun';
 import { Bar } from '../try/steps/LiveRunBar';
 import { LabScreen } from './LabScreen';
-import { labQuery, readChanges } from './labPlace';
-import styles from './LabPages.module.css';
+import {
+  CONDITION_KEYS,
+  LAB_BAR_WORDS,
+  conditionText,
+  labQuery,
+  readChanges,
+  situationName,
+} from './labPlace';
+import styles from './LabScreens.module.css';
 
-const CALLS = ['ATTACK', 'NORMAL', 'UNSURE'] as const;
-const GUESSES = ['BLOCK', 'PASS'] as const;
+/** The three calls a visitor can make before sending, each with its mark. */
+const CALLS: readonly { readonly call: LabPrediction['call']; readonly icon: IconName }[] = [
+  { call: 'ATTACK', icon: 'lock' },
+  { call: 'NORMAL', icon: 'check' },
+  { call: 'UNSURE', icon: 'dash' },
+];
 
 /**
- * L2-3, predicting and sending (7.6): the visitor's call before sending (attack, legitimate work or unsure, and a guess
- * per approach folded away), the human check and the runs left today, then the real run on the same screen with the
- * time bars and the inside panel, the meter pinned for a case of several requests. The run's address keeps the sent
- * run, so a reload shows it again.
+ * Predicting and sending (화면재편 R7, T3 then T4): one question, three calls (an attack, legitimate work, not sure) and
+ * Send, off until one is picked; the call is stored with the run. Sending goes through the same gate as every live run
+ * (the human check, the requests left today). Once sent, the same address keeps the run, so a reload shows it again.
  */
 export default function LabSendPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n.language === 'ko' ? 'ko' : 'en';
   const [params, setParams] = useSearchParams();
   const options = useLabOptions().data ?? null;
-  const config = useLiveConfig().data ?? null;
   const caseKey = params.get('case');
   const labCase = options?.cases.find((candidate) => candidate.key === caseKey) ?? null;
   const recordPath = useRecordPath(caseKey ?? '');
@@ -53,7 +57,6 @@ export default function LabSendPage() {
   const changed = Object.keys(changes).length > 0;
   const sent = params.get('sent');
   const [call, setCall] = useState<LabPrediction['call'] | null>(null);
-  const [approaches, setApproaches] = useState<LabPrediction['approaches']>({});
   const { send, sending, ready, refusal, waiting, turnstileContainer, turnstileRequired } = useLiveSend(
     caseKey ?? '',
     (run) => {
@@ -66,7 +69,7 @@ export default function LabSendPage() {
         const answer = await startLabRun(
           caseKey ?? '',
           changed ? changes : null,
-          { call: call ?? 'UNSURE', approaches },
+          { call: call ?? 'UNSURE', approaches: {} },
           token,
         );
         const run = answer.body?.run ?? null;
@@ -82,7 +85,6 @@ export default function LabSendPage() {
       matches: () => true,
     },
   );
-  const query = labCase ? labQuery(labCase.key, changes) : '';
 
   if (!options) {
     return <StateScreen kind="loading" />;
@@ -91,94 +93,86 @@ export default function LabSendPage() {
     return (
       <LabScreen
         step="send"
-        title={t('labSend.title')}
-        purpose={t('labChange.noCase')}
-        back={{ to: '/lab/case', label: t('labChange.back') }}
+        type="T3"
+        title={t('lab.r7.send.title')}
+        purpose={t('lab.r7.change.noCase')}
+        back={{ to: '/lab/case', label: t('frame.back') }}
+        main={<NextLink to="/lab/case" label={t('lab.r7.toCase')} />}
       >
         {null}
       </LabScreen>
     );
   }
+  const query = labQuery(labCase.key, changes);
   if (sent) {
-    return <LabRun labCase={labCase} liveRunId={sent} changes={changes} query={query} />;
+    return <LabRun labCase={labCase} liveRunId={sent} query={query} />;
   }
+  // L-23: what is about to be sent, so the call is about a known request: the situation and its change, if any.
+  const changedKeys = CONDITION_KEYS.filter((key) => changes[key] !== undefined);
+  const change =
+    changedKeys.length > 0
+      ? t('lab.r7.before.changed', {
+          list: changedKeys
+            .map((key) =>
+              t('lab.r7.before.change', {
+                name: t(`lab.field.${key}`),
+                from: conditionText(t, key, labCase.conditions[key], options, language),
+                to: conditionText(t, key, changes[key], options, language),
+              }),
+            )
+            .join(' · '),
+        })
+      : t('lab.r7.send.asDesigned');
   return (
     <LabScreen
       step="send"
-      title={t('labSend.title')}
-      purpose={t('labSend.purpose')}
-      back={{ to: `/lab/before?${query}`, label: t('labSend.back') }}
+      type="T3"
+      title={t('lab.r7.send.title')}
+      purpose={t('lab.r7.send.guide')}
+      back={{ to: `/lab/before?${query}`, label: t('frame.back') }}
       main={
-        <div className={experience.sendBlock}>
+        <>
+          {/* L-23: the off button says what turns it on. */}
+          {call === null ? <span className={styles.offNote}>{t('lab.r7.send.pickFirst')}</span> : null}
           <button
             type="button"
-            className={experience.send}
+            className={styles.send}
             data-main
             disabled={!ready || call === null}
             onClick={() => void send()}
           >
-            {sending ? t('e1.predict.sending') : t('labSend.send')}
+            {t(sending ? 'lab.r7.send.sending' : 'lab.r7.send.send')}
             <Icon name="arrowRight" />
           </button>
-          <span className={experience.sendNote}>
-            {call === null
-              ? t('labSend.pickFirst')
-              : config
-                ? t('exp.console.note', { remaining: config.remainingToday })
-                : null}
-          </span>
-        </div>
+        </>
       }
     >
-      <fieldset className={styles.panel}>
-        <legend className={styles.panelTitle}>{t('labSend.call')}</legend>
-        <div className={styles.filters}>
-          {CALLS.map((value) => (
-            <label key={value} className={styles.choice} data-chosen={call === value || undefined}>
-              <input
-                type="radio"
-                name="call"
-                value={value}
-                checked={call === value}
-                onChange={() => setCall(value)}
-              />
-              {t(`labSend.calls.${value}`)}
-            </label>
-          ))}
-        </div>
-        <details className={styles.advanced}>
-          <summary>{t('labSend.approaches')}</summary>
-          <div className={styles.advancedInputs}>
-            {CONTROL_ORDER.map((control) => (
-              <label key={control} className={styles.advancedInput}>
-                <span>{t(`control.${control}.name`)}</span>
-                <select
-                  className={styles.select}
-                  value={approaches[control] ?? ''}
-                  onChange={(event) => {
-                    const value = event.target.value as (typeof GUESSES)[number] | '';
-                    setApproaches((current) => {
-                      const others = Object.fromEntries(
-                        Object.entries(current).filter(([name]) => name !== control),
-                      ) as LabPrediction['approaches'];
-                      return value === '' ? others : { ...others, [control]: value };
-                    });
-                  }}
-                >
-                  <option value="">{t('labSend.guess.none')}</option>
-                  {GUESSES.map((guess) => (
-                    <option key={guess} value={guess}>
-                      {t(`labSend.guess.${guess}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-        </details>
+      <p className={styles.line}>
+        <span className={styles.label}>{t('lab.r7.send.what')}</span>
+        <span className={styles.strong}>{situationName(t, labCase.key, labCase.title, language)}</span>
+        {' · '}
+        {change}
+      </p>
+      {/* The calls are counted apart from the screen's limits (RC-1), like every screen's choice cards. */}
+      <fieldset className={styles.choices} data-count="exempt" data-block>
+        <legend className="visually-hidden">{t('lab.r7.send.title')}</legend>
+        {CALLS.map(({ call: value, icon }) => (
+          <label key={value} className={styles.choice} data-selected={call === value || undefined}>
+            <input
+              type="radio"
+              name="call"
+              className="visually-hidden"
+              checked={call === value}
+              onChange={() => setCall(value)}
+            />
+            <Icon name={icon} className={styles.choiceIcon} />
+            <span className={styles.choiceName}>{t(`lab.r7.send.call.${value}`)}</span>
+            <span className={styles.choiceHint}>{t(`lab.r7.send.hint.${value}`)}</span>
+          </label>
+        ))}
       </fieldset>
       {turnstileRequired ? <div ref={turnstileContainer} /> : null}
-      {waiting ? <p className={styles.note}>{t('live.sendAfterEarlier')}</p> : null}
+      {waiting ? <p className={styles.line}>{t('p1.predict.waitEarlier')}</p> : null}
       {refusal ? (
         <StateScreen
           kind={refusal === 'dailyLimit' ? 'dailyLimit' : refusal === 'paused' ? 'paused' : 'outage'}
@@ -193,14 +187,16 @@ export default function LabSendPage() {
 interface LabRunProps {
   readonly labCase: LabCase;
   readonly liveRunId: string;
-  readonly changes: Record<string, unknown>;
   readonly query: string;
 }
 
-/** The sent run, drawn as the tries draw theirs: the time bars, the inside panel, the check and the next request. */
-function LabRun({ labCase, liveRunId, changes, query }: LabRunProps) {
-  const { t, i18n } = useTranslation();
-  const language = i18n.language === 'ko' ? 'ko' : 'en';
+/**
+ * The sent run (T4), drawn as the tries draw theirs: the time line of the five answers to the latest request sent,
+ * "send the next request" while a case of several requests waits, the identity check when Contexa asks for one, and
+ * "see the result" once the run has ended. What the engine received stays in the decision details.
+ */
+function LabRun({ labCase, liveRunId, query }: LabRunProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const live = useLiveRun(true);
   const view: LiveRunView | null = live.data?.liveRunId === liveRunId ? live.data : null;
@@ -210,19 +206,7 @@ function LabRun({ labCase, liveRunId, changes, query }: LabRunProps) {
   const recent = useRecentLabRuns().data ?? [];
   const steps = labCase.requests.length;
   const finished = view !== null && !ACTIVE.has(view.status) && view.runId !== null;
-  const anatomies = useAnatomies(finished && steps > 1 ? view.runId : null, steps).map((entry) => entry.data);
-  const results = useRunStepResults(finished && steps > 1 ? view.runId : null, steps);
-  // The case as sent: a changed count is what the first request asked for.
-  const sentCase: LabCase =
-    changes['items'] !== undefined
-      ? {
-          ...labCase,
-          requests: labCase.requests.map((request, index) =>
-            index === 0 ? { ...request, items: changes['items'] as number } : request,
-          ),
-        }
-      : labCase;
-  // The visitor's previous lab run of the same case, the one this run is compared with.
+  // The visitor's previous lab run of the same case, the one the result compares this run with.
   const previous =
     recent.find((entry) => entry.caseKey === labCase.key && entry.runId !== view?.runId)?.runId ?? null;
 
@@ -240,126 +224,97 @@ function LabRun({ labCase, liveRunId, changes, query }: LabRunProps) {
     finished && view?.runId
       ? `/lab/result?run=${encodeURIComponent(view.runId)}${previous ? `&against=${encodeURIComponent(previous)}` : ''}`
       : null;
+  // The latest request sent: its five answers are the line the visitor watches.
+  const stepNo = view ? Math.max(1, ...view.steps.map((step) => step.stepNo)) : 1;
+  const layers = view?.steps.find((step) => step.stepNo === stepNo)?.layers ?? {};
+  const streams = view?.steps.find((step) => step.stepNo === stepNo)?.streams ?? {};
+  const axis = Math.max(
+    ...CONTROL_ORDER.map((control) => layers[control]?.elapsedMs ?? streams[control]?.atMs ?? 0),
+    1,
+  );
+  const remaining = analysing && !decision ? (analysis.data?.decisionWait?.remainingSeconds ?? null) : null;
+
+  // V-04: the request is named only in a run of more than one request sent, or one waiting for the next.
+  const named = view !== null && (view.steps.length > 1 || view.status === 'AWAITING');
+  // L-26: while the request goes out on its own, nothing offers to leave it; a wait for the visitor (the next request,
+  // the identity check, the queue) keeps the way back.
+  const going = view !== null && (view.status === 'STARTING' || view.status === 'RUNNING');
+
   return (
     <LabScreen
       step="send"
-      title={t('labSend.runTitle')}
-      purpose={t('labSend.runPurpose')}
-      back={{ to: `/lab/change?${query}`, label: t('labSend.toChange') }}
-      main={resultTo ? <NextLink to={resultTo} label={t('labSend.toResult')} /> : null}
+      type="T4"
+      // V-04: an ended run is titled as ended, not as still sending.
+      title={t(finished ? 'lab.r7.run.titleDone' : 'lab.r7.run.title')}
+      purpose={view ? t(finished ? 'lab.r7.run.guideDone' : 'lab.r7.run.guide') : t('lab.r7.run.ended')}
+      sourceLine={finished && view?.runId ? <SourceLine kind="run" runId={view.runId} /> : null}
+      back={going ? null : { to: `/lab/change?${query}`, label: t('frame.back') }}
+      main={resultTo ? <NextLink to={resultTo} label={t('lab.r7.run.next')} /> : null}
     >
-      {view === null ? <p className={styles.note}>{t('labSend.ended')}</p> : null}
-      {view && steps > 1 && finished ? (
-        <CumulativeMeter caption={t('labSend.meter')} rows={meterRows(anatomies, results)} />
+      {view?.status === 'QUEUED' ? (
+        <StateScreen
+          kind="queued"
+          queuePosition={view.queuePosition}
+          remainingSeconds={view.queueWaitSeconds}
+        />
       ) : null}
-      {view ? (
-        <div className={experience.runGrid}>
-          <div className={experience.runMain}>
-            <ul className={experience.legend} aria-label={t('e1.run.legend.label')}>
-              <li>
-                <span className={experience.swatch} data-outcome="DELIVERED" aria-hidden="true" />
-                {t('e1.run.legend.out')}
-              </li>
-              <li>
-                <span className={experience.swatch} data-outcome="STOPPED" aria-hidden="true" />
-                {t('e1.run.legend.denied')}
-              </li>
+      {view?.status === 'STARTING' ? <p className={styles.line}>{t('e1.run.preparing')}</p> : null}
+      {view && view.status !== 'QUEUED' && view.status !== 'STARTING' ? (
+        <section className={styles.request} aria-label={t('lab.r7.run.title')}>
+          {/* One block for the gap check: the request's name and its five answers belong together. */}
+          <div className={styles.requestLine} data-block>
+            {named ? (
+              <h2 className={styles.requestTitle}>{t('lab.r7.run.request', { n: stepNo, total: steps })}</h2>
+            ) : null}
+            <ul className={styles.bars}>
+              {CONTROL_ORDER.map((control) => (
+                <Bar
+                  key={control}
+                  control={control}
+                  layer={layers[control] ?? null}
+                  stream={streams[control] ?? null}
+                  axis={axis}
+                  held={false}
+                  words={LAB_BAR_WORDS}
+                  verdict={stepNo === 1 && control === 'D' ? (decision?.finalAction ?? null) : null}
+                  decidingKey="p1.run.deciding"
+                  deciding={stepNo === 1 && control === 'D' && decision === null && !finished}
+                  waitingLabel={
+                    stepNo === 1 && control === 'D' && remaining !== null
+                      ? t('p1.run.waitingFor', { seconds: remaining })
+                      : undefined
+                  }
+                />
+              ))}
             </ul>
-            {view.status === 'QUEUED' ? (
-              <StateScreen
-                kind="queued"
-                queuePosition={view.queuePosition}
-                remainingSeconds={view.queueWaitSeconds}
-              />
-            ) : null}
-            {labCase.requests.map((_, index) => {
-              const stepNo = index + 1;
-              const stepLayers = view.steps.find((step) => step.stepNo === stepNo)?.layers ?? {};
-              const sentStep = stepNo === 1 || view.steps.some((step) => step.stepNo === stepNo);
-              const axis = Math.max(
-                ...CONTROL_ORDER.map((control) => stepLayers[control]?.elapsedMs ?? 0),
-                1,
-              );
-              const what = requestName(t, language, sentCase, stepNo);
-              return (
-                <section key={stepNo} className={experience.runStep} aria-label={what}>
-                  {steps > 1 ? (
-                    <h2 className={experience.sectionTitle}>
-                      {t(stepNo === 1 ? 'e1.run.request.first' : 'e1.run.request.next', { what })}
-                    </h2>
-                  ) : null}
-                  {view.status === 'AWAITING' && view.awaitingStep === stepNo ? (
-                    <button
-                      type="button"
-                      className={experience.primary}
-                      onClick={() => void act('/api/live/runs/current/next')}
-                    >
-                      {t('e1.run.sendNext', { what })}
-                    </button>
-                  ) : null}
-                  {sentStep ? (
-                    <ul className={experience.bars}>
-                      {CONTROL_ORDER.map((control) => (
-                        <Bar
-                          key={control}
-                          control={control}
-                          layer={stepLayers[control] ?? null}
-                          axis={axis}
-                          held={false}
-                          verdict={stepNo === 1 && control === 'D' ? (decision?.finalAction ?? null) : null}
-                        />
-                      ))}
-                    </ul>
-                  ) : null}
-                  {CONTROL_ORDER.every((control) => stepLayers[control] !== undefined) ? (
-                    <p className={experience.axis}>
-                      <span aria-hidden="true" />
-                      <span className={experience.axisScale}>
-                        <span>{t('e1.run.axis', { seconds: '0' })}</span>
-                        <span>{t('e1.run.axis', { seconds: seconds(axis / 2) })}</span>
-                        <span>{t('e1.run.axis', { seconds: seconds(axis) })}</span>
-                      </span>
-                    </p>
-                  ) : null}
-                </section>
-              );
-            })}
-            {analysing && !decision && !finished ? (
-              <StateScreen
-                kind="waiting"
-                remainingSeconds={analysis.data?.decisionWait?.remainingSeconds ?? null}
-              />
-            ) : null}
-            {view.challenge && finished && CHECK_ENDED.has(view.challenge.stage) ? (
-              <p className={styles.note}>
-                {t('labSend.check', {
-                  result: t(`e1.after.reason.${view.challenge.stage}`, {
-                    defaultValue: t('e1.after.reason.other'),
-                  }),
-                })}
-              </p>
-            ) : view.challenge ? (
-              <LiveChallenge
-                challenge={view.challenge}
-                onRequestCode={() => void act('/api/live/runs/current/code')}
-                onAnswer={(code) => void act('/api/live/runs/current/answer', { code })}
-                onCancel={() => void act('/api/live/runs/current/cancel')}
-                onRestart={() => void act('/api/live/runs/current/abandon')}
-              />
-            ) : null}
           </div>
-          <InsidePanel
-            cells={panelCells(
-              t,
-              language,
-              sentCase,
-              view,
-              analysis.data?.stages ?? null,
-              decision,
-              analysis.data?.decisionWait?.waitedMs ?? null,
-            )}
-          />
-        </div>
+          {view.status === 'AWAITING' ? (
+            <button
+              type="button"
+              className={styles.sendNext}
+              onClick={() => void act('/api/live/runs/current/next')}
+            >
+              {t('p1.run.sendNext')}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+      {view?.challenge && finished && CHECK_ENDED.has(view.challenge.stage) ? (
+        <p className={styles.line}>
+          {t('labSend.check', {
+            result: t(`e1.after.reason.${view.challenge.stage}`, {
+              defaultValue: t('e1.after.reason.other'),
+            }),
+          })}
+        </p>
+      ) : view?.challenge ? (
+        <LiveChallenge
+          challenge={view.challenge}
+          onRequestCode={() => void act('/api/live/runs/current/code')}
+          onAnswer={(code) => void act('/api/live/runs/current/answer', { code })}
+          onCancel={() => void act('/api/live/runs/current/cancel')}
+          onRestart={() => void act('/api/live/runs/current/abandon')}
+        />
       ) : null}
     </LabScreen>
   );

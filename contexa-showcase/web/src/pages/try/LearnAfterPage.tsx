@@ -1,189 +1,175 @@
 import { useTranslation } from 'react-i18next';
-import { useAnatomies, useAnatomy } from '../../api/anatomy';
+import { useAnatomies, type DecisionAnatomyView } from '../../api/anatomy';
 import { useActEnd, useJourney } from '../../api/journey';
+import { useLabOptions } from '../../api/lab';
 import { useMeasuredCase } from '../../api/measured';
 import { useVisitor } from '../../api/queries';
-import { useTeasers } from '../../api/teasers';
-import { AppHeader } from '../../components/AppHeader';
-import { SourceMark } from '../../components/common/SourceMark';
-import { Icon } from '../../components/Icon';
-import { ActEndCard } from '../../components/journey/Cards';
-import { JourneyBar, JustSaw } from '../../components/journey/JourneyParts';
+import { PartWrap } from '../../components/journey/Cards';
+import { routeFlow } from '../../components/journey/flow';
+import { SourceLine } from '../../components/journey/FrameParts';
 import { RouteScreen } from '../../components/journey/RouteScreen';
-import { actEndSentence, teaserCopy } from '../../journey/copy';
+import { StateScreen } from '../../components/StateScreen';
+import { actEndSentence } from '../../journey/copy';
 import { useJourneyPosition } from '../../journey/useJourneyPosition';
 import { CASES } from './experience';
-import experience from './Experience.module.css';
+import { latestRun, learnedText } from './learned';
 import styles from './LearnAfterPage.module.css';
 
+/** The three kinds of learning a run of this demo can show; the fourth line (an admin unblocking) has no run here. */
+type Kind = 'allow' | 'checked' | 'stopped';
+
+/** The case whose runs show each kind: try 3's real work, try 2's real employee, try 1's stolen account. */
+const CASE_OF: Readonly<Record<Kind, string>> = {
+  allow: 'A6T',
+  checked: CASES.owner.sync,
+  stopped: CASES.attacker.sync,
+};
+
+/** Whether a run's stored records really are of the kind its line names, read from the records alone. */
+const FITS: Readonly<Record<Kind, (records: readonly DecisionAnatomyView[]) => boolean>> = {
+  allow: (records) => records.every((record) => record.interpretation.recorded.finalAction === 'ALLOW'),
+  checked: (records) => {
+    const check = records[0]?.recovery?.challenge ?? null;
+    return check?.answered === true && check.reissue_outcome !== null;
+  },
+  stopped: (records) => {
+    const action = records[0]?.interpretation.recorded.finalAction ?? null;
+    return action !== null && action !== 'ALLOW' && records[0]?.recovery?.challenge?.answered !== true;
+  },
+};
+
+interface LineRecord {
+  readonly pending: boolean;
+  /** The values are the visitor's own run's. */
+  readonly own: boolean;
+  /** The figures of the run shown, null when no run of this kind exists. */
+  readonly figures: DecisionAnatomyView['figures'] | null;
+  readonly found: boolean;
+}
+
 /**
- * The run of a case that shows one kind of learning: the visitor's latest run of it when that run is of that kind,
- * else the measured run the screen names (and says so). A passed check is told by the stored check; a stopped request
- * by a decision other than allow.
+ * The run behind a line: the visitor's latest run of the case when its records are of the line's kind, else the
+ * current measurement's run of that kind (the middle run, or the latest one that passed a check), else none.
  */
-function useCaseRun(caseKey: string, kind: 'allow' | 'checked' | 'stopped') {
+function useLine(kind: Kind, steps: number): LineRecord {
+  const caseKey = CASE_OF[kind];
   const journey = useJourney();
-  const measured = useMeasuredCase(caseKey).data ?? null;
-  const own =
-    [...(journey.data?.runs ?? [])]
-      .reverse()
-      .find((line) => line.scenarioKey === caseKey && line.status === 'COMPLETED')?.runId ?? null;
-  const ownFirst = useAnatomy(kind === 'allow' ? null : own, 1).data ?? null;
-  const check = ownFirst?.recovery?.challenge ?? null;
-  const ownFits =
-    own !== null &&
-    (kind === 'allow' ||
-      (kind === 'checked' && check?.answered === true && check.reissue_outcome !== null) ||
-      (kind === 'stopped' &&
-        ownFirst !== null &&
-        ownFirst.interpretation.recorded.finalAction !== null &&
-        ownFirst.interpretation.recorded.finalAction !== 'ALLOW'));
-  const fallback = kind === 'checked' ? (measured?.resumed?.runId ?? null) : (measured?.middleRun ?? null);
-  return { runId: ownFits ? own : fallback, measured: !ownFits };
-}
-
-type LineKind = 'allow' | 'checked' | 'stopped' | 'released';
-
-interface LineProps {
-  readonly kind: LineKind;
-  readonly rule: string;
-  readonly example: string | null;
-  readonly measured: boolean;
-  /** The line has no run of this demo behind it: the core's documented behaviour. */
-  readonly core?: boolean;
-}
-
-/** One decision, what the engine does with it for learning, and this demo's record of it. */
-function Line({ kind, rule, example, measured, core = false }: LineProps) {
-  const { t } = useTranslation();
-  return (
-    <li className={styles.line}>
-      <span className={styles.kind} data-kind={kind}>
-        {t(`learnAfter.kind.${kind}`)}
-      </span>
-      <Icon name="arrowRight" className={styles.arrow} />
-      <span className={styles.rule}>{rule}</span>
-      <span className={styles.example} data-core={core || undefined}>
-        {core ? t('learnAfter.core') : (example ?? '-')}
-        {measured && !core ? <span className={styles.measured}>{t('learnAfter.measured')}</span> : null}
-      </span>
-    </li>
-  );
+  const measured = useMeasuredCase(caseKey);
+  const ownId = latestRun(journey.data?.runs, caseKey);
+  const own = useAnatomies(ownId, steps);
+  const ownSettled = !journey.isPending && steps > 0 && own.every((query) => !query.isPending);
+  const ownRecords = own.flatMap((query) => (query.data ? [query.data] : []));
+  const ownFits = ownId !== null && ownSettled && ownRecords.length === steps && FITS[kind](ownRecords);
+  const fallback =
+    kind === 'checked' ? (measured.data?.resumed?.runId ?? null) : (measured.data?.middleRun ?? null);
+  const otherId = ownSettled && !ownFits && fallback !== ownId ? fallback : null;
+  const other = useAnatomies(otherId, steps);
+  const otherSettled = other.every((query) => !query.isPending);
+  const otherRecords = other.flatMap((query) => (query.data ? [query.data] : []));
+  const otherFits =
+    otherId !== null && otherSettled && otherRecords.length === steps && FITS[kind](otherRecords);
+  const records = ownFits ? ownRecords : otherFits ? otherRecords : null;
+  return {
+    pending: !ownSettled || (!ownFits && (measured.isPending || !otherSettled)),
+    own: ownFits,
+    figures: records ? (records[records.length - 1]?.figures ?? null) : null,
+    found: records !== null,
+  };
 }
 
 /**
- * After a decision (learn-after, 7.3): what each decision does to the usual behaviour, each with the record of this
- * demo that shows it (the visitor's own run, or else the measured run, said so), the warning that one allow is already
- * "usual", and the difference revisited. The end of act 3 is a screen of its own (D-41).
+ * After a judgment (learn-after), screens 3-4 and 3-5. The end of the part is its wrap-up (PartWrap, T8): the sentence
+ * of the visitor's own learning, from the server, and the differences seen.
  */
 export default function LearnAfterPage({ ending }: { readonly ending: boolean }) {
   return ending ? <ActThreeEnd /> : <LearnAfter />;
 }
 
+/**
+ * Screen 3-4, what it learns and what not (화면재편 T7): four lines, one per kind of request, saying what Contexa does
+ * with it for learning, each with the learned requests of a real run of that kind (the visitor's own, else an earlier
+ * real request of the same situation, named in the source line); the admin's unblocking has no run in this demo and
+ * says it is Contexa's set behaviour. One plain warning line closes it: one pass is usual at once.
+ */
 function LearnAfter() {
-  const { t } = useTranslation();
-  const allowRun = useCaseRun('A6T', 'allow');
-  const checkRun = useCaseRun(CASES.owner.sync, 'checked');
-  const stopRun = useCaseRun(CASES.attacker.sync, 'stopped');
-  const allow = useAnatomies(allowRun.runId, 5).map((query) => query.data);
-  const check = useAnatomy(checkRun.runId, 1).data ?? null;
-  const stop = useAnatomy(stopRun.runId, 1).data ?? null;
-  const allowFigures = allow[allow.length - 1]?.figures ?? null;
-  const change = (
-    try_: string,
-    figures: { baselineBefore: number | null; baselineAfter: number | null } | null,
-  ) =>
-    figures && figures.baselineBefore !== null && figures.baselineAfter !== null
-      ? t(figures.baselineBefore === figures.baselineAfter ? 'learnAfter.same' : 'learnAfter.grew', {
-          try: try_,
-          from: figures.baselineBefore,
-          to: figures.baselineAfter,
-        })
-      : null;
-  // "The runs you saw today" holds while one line is the visitor's own run; with none, the lines are measured runs.
-  const title = t(
-    allowRun.measured && checkRun.measured && stopRun.measured ? 'learnAfter.titleMeasured' : 'learnAfter.title',
-  );
+  const { t, i18n } = useTranslation();
+  const language = i18n.language === 'ko' ? 'ko' : 'en';
+  const position = useJourneyPosition();
+  const flow = routeFlow(t, position);
+  const options = useLabOptions();
+  // Try 3's run is read whole (every request must have passed); the others are one-request cases.
+  const allowSteps = options.isError
+    ? 1
+    : (options.data?.cases.find((candidate) => candidate.key === CASE_OF.allow)?.requests.length ?? 0);
+  const lines: Readonly<Record<Kind, LineRecord>> = {
+    allow: useLine('allow', allowSteps),
+    checked: useLine('checked', 1),
+    stopped: useLine('stopped', 1),
+  };
+  const kinds: readonly Kind[] = ['allow', 'checked', 'stopped'];
+  const pending = kinds.some((kind) => lines[kind].pending);
+  const shown = kinds.filter((kind) => lines[kind].found);
+  const ownShown = shown.filter((kind) => lines[kind].own).length;
+  const sourceLine =
+    pending || shown.length === 0 ? null : ownShown === shown.length ? (
+      <span>{t('p3.after.source.own')}</span>
+    ) : ownShown > 0 ? (
+      <span>{t('p3.after.source.mixed')}</span>
+    ) : (
+      <SourceLine kind="earlier" />
+    );
+  const value = (kind: Kind) =>
+    lines[kind].found ? learnedText(t, language, lines[kind].figures) : t('p3.after.value.none');
+
   return (
     <RouteScreen
-      title={title}
-      purpose={t('learnAfter.purpose')}
-      source={
-        <SourceMark kind="ENGINE" runId={allowRun.runId}>
-          {t('learnAfter.source', {
-            allow: allowRun.runId ?? '-',
-            check: checkRun.runId ?? '-',
-            stop: stopRun.runId ?? '-',
-          })}
-        </SourceMark>
-      }
-      justSaw={<JustSaw difference={6} sentence="learnAfter" again />}
-      nextLabel={t('learnAfter.next')}
-      nextLabelFor="act-end-3"
+      title={t('screen.3-4.title')}
+      purpose={t('screen.3-4.guide')}
+      sourceLine={sourceLine}
+      back={flow.back}
+      main={flow.next}
     >
-      <ol className={styles.lines} aria-label={title}>
-        <Line
-          kind="allow"
-          rule={t('learnAfter.rule.allow')}
-          example={change(t('learnAfter.try3'), allowFigures)}
-          measured={allowRun.measured}
-        />
-        <Line
-          kind="checked"
-          rule={t('learnAfter.rule.checked')}
-          example={change(t('learnAfter.try2'), check?.figures ?? null)}
-          measured={checkRun.measured}
-        />
-        <Line
-          kind="stopped"
-          rule={t('learnAfter.rule.stopped')}
-          example={change(t('learnAfter.try1'), stop?.figures ?? null)}
-          measured={stopRun.measured}
-        />
-        <Line kind="released" rule={t('learnAfter.rule.released')} example={null} measured={false} core />
-      </ol>
+      {pending ? (
+        <StateScreen kind="loading" />
+      ) : (
+        <ol className={styles.lines} aria-label={t('screen.3-4.title')}>
+          {kinds.map((kind) => (
+            <li key={kind} className={styles.line} data-learns={kind !== 'stopped'}>
+              <span className={styles.kind}>{t(`p3.after.kind.${kind}`)}</span>
+              <span className={styles.rule}>{t(`p3.after.rule.${kind}`)}</span>
+              <span className={styles.value}>{value(kind)}</span>
+            </li>
+          ))}
+          <li className={styles.line} data-learns>
+            <span className={styles.kind}>{t('p3.after.kind.released')}</span>
+            <span className={styles.rule}>{t('p3.after.rule.released')}</span>
+            <span className={styles.value} data-set>
+              {t('p3.after.value.set')}
+            </span>
+          </li>
+        </ol>
+      )}
       <p className={styles.warning}>
-        <span className={styles.warningName}>{t('learnAfter.warningName')}</span>
-        {t('learnAfter.warning')}
+        <span className={styles.warningName}>{t('p3.after.warningName')}</span> {t('p3.after.warning')}
       </p>
     </RouteScreen>
   );
 }
 
-/** The end of act 3 (act-end): the visitor's own learning sentence, the six differences and act 4's teaser. */
+/** Screen 3-5, the part's wrap-up (T8): the visitor's own learning sentence and the differences seen. */
 function ActThreeEnd() {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
   useVisitor();
   const position = useJourneyPosition();
-  const teasers = useTeasers();
   const actEnd = useActEnd(3, true);
   return (
-    <>
-      <AppHeader />
-      <main id="main" className={experience.page}>
-        <JourneyBar />
-        <ActEndCard
-          act={3}
-          differences={position.differences}
-          sentence={
-            actEnd.data && actEnd.data.source !== 'NONE' ? actEndSentence(t, language, actEnd.data) : null
-          }
-          measured={actEnd.data?.source === 'MEASUREMENT'}
-          runId={actEnd.data?.runId ?? null}
-          next={teaserCopy(
-            t,
-            language,
-            'LEARN_AFTER_FALSE_BLOCKS',
-            teasers.data,
-            position.differences.length,
-          )}
-          continueTo={position.next?.path ?? '/intro/approaches'}
-          back={{ to: '/try/summary/learning', label: t('step.back', { step: t('place.step.learn-after') }) }}
-          benchmarkTo="/benchmark"
-          shareUrl={window.location.href}
-        />
-      </main>
-    </>
+    <PartWrap
+      sentence={
+        actEnd.data && actEnd.data.source !== 'NONE' ? actEndSentence(t, language, actEnd.data) : null
+      }
+      measured={actEnd.data?.source === 'MEASUREMENT'}
+      differences={position.differences}
+    />
   );
 }

@@ -54,6 +54,54 @@ export const MINIMUM_ACTION_PLAIN: readonly PlainRule[] = [
     key: 'gRules.plain.unexplained',
   },
 ];
+/** The title the v21 render gives the decision facts block (the portal counts it as DECISION_FACTS, SC-1). */
+const V21_FACTS_BLOCK = 'RECORDS AND COMPARISONS';
+
+/**
+ * Whether the prompt the server counted was drawn by a v21 bundle: its user prompt has the v21 decision facts block.
+ * The sections are the server's; the screen only reads their names.
+ */
+export function isV21Prompt(sections: readonly { readonly name: string }[] | undefined | null): boolean {
+  return (sections ?? []).some((section) => section.name.startsWith(V21_FACTS_BLOCK));
+}
+
+/**
+ * SC-7: the words of a block of a v21 prompt where they differ from v20: its rules state how the AI judges and no line
+ * they always keep, and its decision facts block holds the records and comparisons without the core's conclusions.
+ */
+export function blockNameKey(block: string, v21: boolean): string {
+  return v21 && block === 'DECISION_FACTS' ? 'prompt.blockV21.DECISION_FACTS' : `prompt.block.${block}`;
+}
+
+export function blockWhatKey(block: string, v21: boolean): string {
+  return v21 && (block === 'RULES' || block === 'DECISION_FACTS')
+    ? `prompt.blockWhatV21.${block}`
+    : `prompt.blockWhat.${block}`;
+}
+
+/**
+ * SC-7 (docs/showcase/프롬프트-v21-구현계획.md): the lines of a v21 system prompt that get a plain-words note. The v21
+ * text states no decision rule: its mission, how it reads the evidence, the explanations it weighs, what each response
+ * does and how it chooses one, and its honesty. A line is matched on how it begins, as for the other bundles.
+ */
+export const V21_RULES_PLAIN: readonly PlainRule[] = [
+  { starts: 'Sign-in, permissions and fixed rules have already let this request through', key: 'gRules.plain.v21Mission' },
+  { starts: '* An UNKNOWN fact is neither a match nor a mismatch', key: 'gRules.plain.v21Unknown' },
+  { starts: "* An approval or a ticket records a person's earlier judgment", key: 'gRules.plain.v21Records' },
+  { starts: '2. Weigh these explanations against every fact:', key: 'gRules.plain.v21Hypotheses' },
+  { starts: "The account owner's records (assignment, duty, approvals, past work)", key: 'gRules.plain.v21OwnerRecords' },
+  { starts: '3. Check each difference yourself', key: 'gRules.plain.v21Differences' },
+  { starts: '4. Read what the data is', key: 'gRules.plain.v21Data' },
+  { starts: 'ALLOW: the request goes on now.', key: 'gRules.plain.v21ALLOW' },
+  { starts: 'CHALLENGE: the request waits until the account owner passes an extra check', key: 'gRules.plain.v21CHALLENGE' },
+  { starts: 'ESCALATE: the facts here cannot settle the response', key: 'gRules.plain.v21ESCALATE' },
+  // The line of v21.1 to v21.5, which recorded runs keep: it called ESCALATE a person's review (corrected in v21.6).
+  { starts: 'ESCALATE: the request is held until a person reviews it.', key: 'gRules.plain.v21ESCALATEBefore216' },
+  { starts: 'BLOCK: the account is stopped until it is released.', key: 'gRules.plain.v21BLOCK' },
+  { starts: 'Choose the response from the explanation you judged most likely', key: 'gRules.plain.v21Choose' },
+  { starts: '* Use only what the lines state.', key: 'gRules.plain.v21Honesty' },
+];
+
 export const PLAIN: Readonly<Record<Bundle, readonly PlainRule[]>> = {
   RULES: [
     { starts: 'ALLOW =', key: 'gRules.plain.ALLOW' },
@@ -62,6 +110,7 @@ export const PLAIN: Readonly<Record<Bundle, readonly PlainRule[]>> = {
     { starts: 'BLOCK =', key: 'gRules.plain.BLOCK' },
     { starts: 'Required elevated-risk boundary', key: 'gRules.plain.elevated' },
     ...MINIMUM_ACTION_PLAIN,
+    ...V21_RULES_PLAIN,
   ],
   REQUEST: [
     { starts: 'User is requesting', key: 'prompt.plain.requesting' },

@@ -34,6 +34,11 @@ export interface LabFact {
   readonly city: string | null;
   readonly country: string | null;
   readonly network: string | null;
+  /** A DOCUMENT fact's document as the case defines it (its title by language and its author); absent otherwise. */
+  readonly document?: {
+    readonly title?: Readonly<Record<string, string>>;
+    readonly author?: string | null;
+  } | null;
 }
 
 /** What one request of the case asks for; the rule controls' expected answers are left out (review R-25). */
@@ -101,6 +106,10 @@ export interface RecentLabRun {
   readonly call: string | null;
   /** What the visitor expected of each approach before sending (BLOCK or PASS), when they said. */
   readonly approaches: Readonly<Partial<Record<string, 'BLOCK' | 'PASS'>>>;
+  /** The latest real run of the same case sent as designed under the same setting, to compare a first send with. */
+  readonly referenceRunId?: string | null;
+  /** Whether the call was right: a case sent as designed with a set answer and a call of attack or normal work. */
+  readonly callRight?: boolean | null;
 }
 
 /** The visitor's call before sending (5A.1 ②): the request as a whole and, optionally, each approach. */

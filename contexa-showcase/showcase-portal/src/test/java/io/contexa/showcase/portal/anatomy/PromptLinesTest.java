@@ -110,8 +110,44 @@ class PromptLinesTest {
         assertThat(lines.bundles()).contains(new PromptLines.Bundle("REQUEST", 2));
     }
 
+    /**
+     * SC-1 of docs/showcase/프롬프트-v21-구현계획.md: a v21 prompt has the v20 blocks, its decision facts block titled
+     * RECORDS AND COMPARISONS. The sample in test/resources/anatomy/v21-prompts.json is the system and user prompt the
+     * portal stored for a real v21.3 decision (2026-10-19, A3T, run-9061d9f71432, step 1, call 1); the expected numbers
+     * were counted apart by an independent script on the same texts.
+     */
+    @Test
+    void aV21PromptCountsItsRecordsBlockAsTheDecisionFacts() throws IOException {
+        JsonNode a3t = sample("/anatomy/v21-prompts.json", "A3T");
+        String userPrompt = a3t.path("userPrompt").asText();
+        PromptLines lines = PromptLines.of(a3t.path("systemPrompt").asText(), userPrompt);
+
+        assertThat(PromptLines.v21(userPrompt)).isTrue();
+        assertThat(PromptLines.v21(sample("A3").path("userPrompt").asText())).as("a v20 prompt").isFalse();
+        assertThat(lines.layout()).isEqualTo(PromptLines.V20_BLOCKS);
+        assertThat(lines.system()).isEqualTo(91);
+        assertThat(lines.user()).isEqualTo(59);
+        assertThat(lines.sections()).extracting(PromptLines.Section::name, PromptLines.Section::bundle,
+                PromptLines.Section::lines).containsExactly(
+                tuple("USER BASELINE (learned; time zone UTC)", "USER_BASELINE", 16), tuple("SESSION", "SESSION", 7),
+                tuple("REQUEST (time zone UTC)", "REQUEST", 10),
+                tuple("RECORDS AND COMPARISONS (time zone UTC)", "DECISION_FACTS", 12),
+                tuple("PAST RECORDS (scope PERSONAL_RETRIEVED_SUBSET; time zone UTC)", "PAST_RECORDS", 8),
+                tuple("UNKNOWN", "UNKNOWN", 3), tuple("UNTRUSTED TEXT (untrusted)", "UNTRUSTED_TEXT", 3));
+        assertThat(lines.bundles()).containsExactly(new PromptLines.Bundle("RULES", 91),
+                new PromptLines.Bundle("REQUEST", 10), new PromptLines.Bundle("SESSION", 7),
+                new PromptLines.Bundle("USER_BASELINE", 16), new PromptLines.Bundle("DECISION_FACTS", 12),
+                new PromptLines.Bundle("UNKNOWN", 3), new PromptLines.Bundle("PAST_RECORDS", 8),
+                new PromptLines.Bundle("UNTRUSTED_TEXT", 3), new PromptLines.Bundle("SECOND_PASS", 0),
+                new PromptLines.Bundle("OTHER", 0));
+    }
+
     private static JsonNode sample(String caseKey) throws IOException {
-        try (InputStream in = PromptLinesTest.class.getResourceAsStream("/anatomy/v20-prompts.json")) {
+        return sample("/anatomy/v20-prompts.json", caseKey);
+    }
+
+    private static JsonNode sample(String resource, String caseKey) throws IOException {
+        try (InputStream in = PromptLinesTest.class.getResourceAsStream(resource)) {
             for (JsonNode sample : JSON.readTree(in).path("samples")) {
                 if (sample.path("case").asText().equals(caseKey)) {
                     return sample;

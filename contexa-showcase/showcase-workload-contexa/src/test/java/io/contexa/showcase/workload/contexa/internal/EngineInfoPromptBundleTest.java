@@ -3,6 +3,7 @@ package io.contexa.showcase.workload.contexa.internal;
 import io.contexa.autoconfigure.iam.admin.PqaOssSealedEvidenceCaptureProperties;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionPromptBundles;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -44,7 +45,8 @@ class EngineInfoPromptBundleTest {
                 null, null, null, null, beans.getBeanProvider(TieredStrategyProperties.class),
                 new SecurityZeroTrustProperties(), "openai", "gpt-6-luna", "", "text-embedding-3-small", 1024,
                 beans.getBeanProvider(BuildProperties.class), false, null,
-                beans.getBeanProvider(PqaOssSealedEvidenceCaptureProperties.class));
+                beans.getBeanProvider(PqaOssSealedEvidenceCaptureProperties.class),
+                beans.getBeanProvider(TieredLLMProperties.class));
         return controller.engine();
     }
 }

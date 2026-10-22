@@ -113,6 +113,8 @@ class LabIntegrationTest {
         assertThat(mine.get(0).path("call").asText()).isEqualTo("ATTACK");
         assertThat(mine.get(0).path("designed").asBoolean()).isTrue();
         assertThat(mine.get(0).path("approaches").path("D").asText()).isEqualTo("BLOCK");
+        // Review before the guide videos (2026-10-21, B-08): A3 is an attack sent as designed, so the call is scored.
+        assertThat(mine.get(0).path("callRight").asBoolean()).isTrue();
         assertThat(json.readTree(mvc.perform(get("/api/lab/runs/recent").cookie(other))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())).isEmpty();
         assertThat(jdbc.queryForObject("select predicted_at from visitor_prediction where run_id = ?",
@@ -181,6 +183,41 @@ class LabIntegrationTest {
         String own = labRun("A3", visitor, setting, "COMPLETED", null, List.of(), at.minusSeconds(86400));
         assertThat(store.designedBase(run)).as("the visitor's own designed run first").contains(own);
         assertThat(store.composition("run-000000000000")).as("not a lab run").isEmpty();
+    }
+
+    /**
+     * IN-6: a run of the case as designed is also one that is no lab run (the visitor's own main-flow send of 6-2's
+     * "before", a measured run); the visitor's own comes first, and a lab run with a condition changed never.
+     */
+    @Test
+    void aMainFlowRunOfTheCaseIsADesignedBaseToo() throws Exception {
+        String setting = "5".repeat(64);
+        String visitor = "4".repeat(64);
+        Instant at = Instant.parse("2026-10-19T19:40:00Z");
+        String lab = labRun("S13", visitor, setting, "COMPLETED", null, List.of("timeSlot"), at);
+        LabStore.Composition run = store.composition(lab).orElseThrow();
+        assertThat(store.designedBase(run)).as("no run of the case as designed yet").isEmpty();
+
+        labRun("S13", visitor, setting, "COMPLETED", null, List.of("device"), at.minusSeconds(30));
+        String measured = plainRun("S13", null, setting, at.minusSeconds(7200));
+        assertThat(store.designedBase(run)).as("a measured run of the case").contains(measured);
+
+        String mainFlow = plainRun("S13", visitor, setting, at.minusSeconds(600));
+        plainRun("S13T", visitor, setting, at.minusSeconds(60));
+        plainRun("S13", visitor, "3".repeat(64), at.minusSeconds(60));
+        assertThat(store.designedBase(run)).as("the visitor's own main-flow run first").contains(mainFlow);
+    }
+
+    /** A run that is no lab run: the main flow's send of a visitor, or with no visitor a measured run. */
+    private String plainRun(String caseKey, String visitor, String setting, Instant startedAt) {
+        String runId = "run-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        jdbc.update("""
+                insert into run (run_id, scenario_key, scenario_version, employee_key, principal, organization_id,
+                    tenant_id, client_ip, device, company_time, status, live_visitor_hash, live_run, setting_hash,
+                    started_at)
+                values (?, ?, 1, 'eng-k', ?, 'org', 'tenant', '10.40.21.77', 'test', now(), 'COMPLETED', ?, ?, ?,
+                    ?)""", runId, caseKey, "v" + runId, visitor, visitor != null, setting, Timestamp.from(startedAt));
+        return runId;
     }
 
     private String labRun(String caseKey, String visitor, String setting, String status, String forced,

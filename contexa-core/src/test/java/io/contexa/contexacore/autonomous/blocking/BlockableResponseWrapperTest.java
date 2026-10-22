@@ -31,6 +31,8 @@ import java.io.PrintWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,7 +56,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Not blocked - getOutputStream returns stream normally")
     void getOutputStream_notBlocked_returnsStream() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         ServletOutputStream outputStream = wrapper.getOutputStream();
@@ -68,7 +70,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Not blocked - getWriter returns writer normally")
     void getWriter_notBlocked_returnsWriter() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         PrintWriter writer = wrapper.getWriter();
@@ -81,7 +83,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Blocked - sendError throws IOException with 403 status")
     void sendError_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> wrapper.sendError(500))
@@ -93,7 +95,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Blocked - sendError with message throws IOException")
     void sendErrorWithMessage_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> wrapper.sendError(500, "Internal Error"))
@@ -105,7 +107,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Blocked - sendRedirect throws IOException")
     void sendRedirect_blocked_throwsIOException() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> wrapper.sendRedirect("/login"))
@@ -117,7 +119,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Not blocked - sendError works normally")
     void sendError_notBlocked_worksNormally() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         wrapper.sendError(404);
@@ -130,7 +132,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Not blocked - sendRedirect works normally")
     void sendRedirect_notBlocked_worksNormally() throws IOException {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(false);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(false);
 
         // when
         wrapper.sendRedirect("/home");
@@ -143,7 +145,7 @@ class BlockableResponseWrapperTest {
     @DisplayName("Blocked - status is set to 403 FORBIDDEN")
     void ensureNotBlocked_blocked_setsForbiddenStatus() {
         // given
-        when(broadcaster.isBlocked(USER_ID)).thenReturn(true);
+        when(broadcaster.shouldCut(eq(USER_ID), anyLong())).thenReturn(true);
 
         // when & then
         assertThatThrownBy(() -> wrapper.sendError(500))

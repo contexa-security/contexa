@@ -349,6 +349,18 @@ public class RunStore {
                 new MapSqlParameterSource("id", protocolId));
     }
 
+    /**
+     * Closes the protocols a stopped portal left unfinished (벤치마크 계획 BM-S9): a protocol's job lives in the portal
+     * that ran it, so no more runs come to them; each ends at its last run, or at its start when none ran.
+     */
+    public int closeUnfinishedProtocols() {
+        return jdbc.update("""
+                        update measurement_protocol p
+                           set finished_at = coalesce((select max(coalesce(r.finished_at, r.started_at)) from run r
+                                                        where r.protocol_id = p.protocol_id), p.started_at)
+                         where p.finished_at is null""", new MapSqlParameterSource());
+    }
+
     public void finish(String runId, String status, String failure, Map<String, Object> cleanup) {
         jdbc.update("""
                         update run set status = :status, failure = :failure, cleanup = cast(:cleanup as jsonb),

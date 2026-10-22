@@ -1,0 +1,67 @@
+/* The role card: who the visitor is now, and the situation in up to three lines. */
+.role {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frame-inner-gap);
+  max-width: var(--frame-measure);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.roleName {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--type-emphasis);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.roleLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-frame);
+  list-style: none;
+}
+
+/* The source line's one button and the details chip: quiet, but clearly pressable. */
+.sourceOpen {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.detail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.detailIcon {
+  flex: none;
+}
+
+.sourceOpen:focus-visible,
+.detail:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

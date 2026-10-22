@@ -436,48 +436,30 @@ class BaselineViewTest {
     @Test
     void theUsualRateIsTheMedianAndTheNinetyFifthPercentileOfTheCountsOfTheHourUpToEachRequest() {
         // N-RATE-1 (W5-10 D5): each request of the window counts the window's requests of the 60 minutes up to it, as
-        // the decision facts count the request being judged. Five days hold 1, 2, 2, 3 and 10 requests a minute apart:
-        // the counts are 1; 1, 2; 1, 2; 1, 2, 3; and 1 to 10, so 18 counts of median 3 and 95th percentile 10.
-        List<Observation> history = new ArrayList<>();
-        int[] perHour = {1, 2, 2, 3, 10};
-        for (int slot = 0; slot < perHour.length; slot++) {
-            LocalDateTime hour = NOW.minusDays(1 + slot).withHour(10).withMinute(0);
-            for (int index = 0; index < perHour[slot]; index++) {
-                history.add(read(hour.plusMinutes(index)));
-            }
-        }
-
-        assertThat(calculate(history).counts().rate()).isEqualTo(new BaselineView.Rate(18, 3, 10));
+        // the decision facts count the request being judged.
+        assertThat(calculate(fiveBusyHoursAndQuietDays()).counts().rate()).isEqualTo(new BaselineView.Rate(60, 1, 7));
     }
 
     @Test
     void theUsualRateLineStatesTheCountsOfTheHourUpToEachRequestAndHowManyWereCounted() {
         // N-RATE-1: the line states the definition the decision facts compare the request's rate with.
-        List<Observation> history = new ArrayList<>();
-        int[] perHour = {1, 2, 2, 3, 10};
-        for (int slot = 0; slot < perHour.length; slot++) {
-            LocalDateTime hour = NOW.minusDays(1 + slot).withHour(10).withMinute(0);
-            for (int index = 0; index < perHour[slot]; index++) {
-                history.add(read(hour.plusMinutes(index)));
-            }
-        }
-
-        assertThat(BaselineLineValues.of(calculate(history)).get("UsualRequestRate"))
-                .isEqualTo("median 3, 95th percentile 10 requests in the 60 min up to a request (18 requests)");
+        assertThat(BaselineLineValues.of(calculate(fiveBusyHoursAndQuietDays())).get("UsualRequestRate"))
+                .isEqualTo("median 1, 95th percentile 7 requests in the 60 min up to a request (60 requests)");
     }
 
     /**
-     * N-RATE-1, administrator A's week (seal 9134): requests at 11:25, 11:59 and 12:07 of one day, 42 minutes, and
-     * single requests hours apart. By clock hours the three were 2 and 1, so the usual 95th percentile was 2 while the
-     * decision facts counted 3 in the 60 minutes up to 12:07; counted the same way, the usual 95th percentile is 3.
+     * N-FRIC-2, administrator A's week (seal 9134): requests at 11:25, 11:59 and 12:07 of one day, 42 minutes, and
+     * single requests hours apart, 18 counts. The 95th percentile of fewer than 60 counts is one of the three highest,
+     * so a quiet week's busiest moment would set what is usual (P8: 3 requests within 10 minutes against a 95th
+     * percentile of 2 from 21 counts were a difference): the view holds no usual rate and draws no rate line.
      */
     @Test
-    void threeRequestsWithinFortyTwoMinutesAcrossAClockHourAreAUsualThreeInTheHourUpToARequest() {
+    void aWindowOfFewerThanSixtyCountsHoldsNoUsualRateAndDrawsNoRateLine() {
         BaselineView view = calculate(administratorAWeek());
 
-        assertThat(view.counts().rate()).isEqualTo(new BaselineView.Rate(18, 1, 3));
-        assertThat(BaselineLineValues.of(view).get("UsualRequestRate"))
-                .isEqualTo("median 1, 95th percentile 3 requests in the 60 min up to a request (18 requests)");
+        assertThat(view.observed()).isTrue();
+        assertThat(view.counts().rate()).isNull();
+        assertThat(BaselineLineValues.of(view)).doesNotContainKey("UsualRequestRate");
         // The clock hour that held the most requests is a count of its own (W2-5), not the usual rate.
         assertThat(view.counts().busiestActiveHourRequests()).isEqualTo(2);
     }
@@ -490,7 +472,7 @@ class BaselineViewTest {
     @Test
     void aRateSealedUnderTheClockHourDefinitionReadsAsNoUsualRateAndDrawsNoRateLine() throws Exception {
         ObjectMapper json = new ObjectMapper();
-        BaselineView view = calculate(administratorAWeek());
+        BaselineView view = calculate(fiveBusyHoursAndQuietDays());
         String written = json.writeValueAsString(view);
         String clockHours = written.replace("\"requests\":" + view.counts().rate().requests(), "\"activeHours\":17");
 
@@ -504,6 +486,28 @@ class BaselineViewTest {
     }
 
     /** Administrator A's week: 11:25, 11:59 and 12:07 of one day, and fifteen single requests two hours apart. */
+    /**
+     * Five days hold 1, 2, 2, 3 and 10 requests a minute apart at 10:00, and six days seven single requests two hours
+     * or more apart: the counts of the 60 minutes up to each request are 1; 1, 2; 1, 2; 1, 2, 3; 1 to 10; and 42 times
+     * 1, so 60 counts of median 1 and 95th percentile 7 (N-RATE-1, N-FRIC-2).
+     */
+    private static List<Observation> fiveBusyHoursAndQuietDays() {
+        List<Observation> history = new ArrayList<>();
+        int[] perHour = {1, 2, 2, 3, 10};
+        for (int slot = 0; slot < perHour.length; slot++) {
+            LocalDateTime hour = NOW.minusDays(1 + slot).withHour(10).withMinute(0);
+            for (int index = 0; index < perHour[slot]; index++) {
+                history.add(read(hour.plusMinutes(index)));
+            }
+        }
+        for (int days = 1; days <= 6; days++) {
+            for (int hour : new int[] {8, 12, 14, 16, 18, 20, 22}) {
+                history.add(read(NOW.minusDays(days).withHour(hour).withMinute(0)));
+            }
+        }
+        return history;
+    }
+
     private static List<Observation> administratorAWeek() {
         LocalDateTime day = NOW.minusDays(3);
         List<Observation> history = new ArrayList<>(List.of(read(day.withHour(11).withMinute(25)),

@@ -137,6 +137,61 @@ class BridgeResolutionFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(hostAuthentication);
     }
 
+    /**
+     * A1-1: a host's own resource server validated the token (Contexa does not own the chain); the delegation the
+     * token states is taken before the one a session object states, since the authorization server signed it.
+     */
+    @Test
+    void shouldTakeTheDelegationAHostValidatedTokenStatesBeforeTheSessionOne() throws Exception {
+        BridgeResolutionFilter filter = createTokenFirstFilter(new BridgeProperties());
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+                Jwt.withTokenValue("header.payload.signature")
+                        .header("alg", "RS256")
+                        .claim("sub", "alice")
+                        .claim("act", Map.of("sub", "agent-7"))
+                        .issuedAt(Instant.parse("2026-10-21T09:00:00Z"))
+                        .expiresAt(Instant.parse("2026-10-21T10:00:00Z"))
+                        .build(),
+                AuthorityUtils.createAuthorityList("SCOPE_reports.read")));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("LOGIN_USER", sessionUser("alice", List.of("ROLE_USER")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setSession(session);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.delegationStamp()).isNotNull();
+        assertThat(result.delegationStamp().agentId()).isEqualTo("agent-7");
+        assertThat(result.delegationStamp().subjectId()).isEqualTo("alice");
+        assertThat(result.delegationStamp().delegated()).isTrue();
+        assertThat(result.delegationStamp().attributes()).containsEntry("delegationResolver", "TOKEN");
+    }
+
+    /** A1-1: a token that names no agent leaves the delegation to the session object, as before. */
+    @Test
+    void shouldLeaveTheDelegationToTheSessionWhenTheTokenNamesNoAgent() throws Exception {
+        BridgeResolutionFilter filter = createTokenFirstFilter(new BridgeProperties());
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
+                Jwt.withTokenValue("header.payload.signature")
+                        .header("alg", "RS256")
+                        .claim("sub", "alice")
+                        .claim("azp", "web-app")
+                        .build(),
+                AuthorityUtils.createAuthorityList("SCOPE_reports.read")));
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute("LOGIN_USER", sessionUser("alice", List.of("ROLE_USER")));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/export");
+        request.setSession(session);
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
+        assertThat(result.delegationStamp()).isNotNull();
+        assertThat(result.delegationStamp().agentId()).isEqualTo("agent-1");
+        assertThat(result.delegationStamp().attributes()).containsEntry("delegationResolver", "SESSION");
+    }
+
     @Test
     void shouldIgnoreHeaderContextByDefault() throws Exception {
         BridgeProperties properties = new BridgeProperties();
@@ -448,6 +503,22 @@ class BridgeResolutionFilterTest {
                         new SessionDelegationStampResolver(),
                         new HeaderDelegationStampResolver()
                 ),
+                new BridgeCoverageEvaluator()
+        );
+    }
+
+    /** The delegation resolvers in the order the auto-configuration registers them (token first, A1-1). */
+    private BridgeResolutionFilter createTokenFirstFilter(BridgeProperties properties) {
+        return new BridgeResolutionFilter(
+                properties,
+                new RequestContextCollector(),
+                List.of(new SecurityContextAuthenticationStampResolver()),
+                List.of(new SecurityContextAuthorizationStampResolver()),
+                List.of(
+                        new TokenDelegationStampResolver(),
+                        new SessionDelegationStampResolver(),
+                        new RequestAttributeDelegationStampResolver(),
+                        new HeaderDelegationStampResolver()),
                 new BridgeCoverageEvaluator()
         );
     }

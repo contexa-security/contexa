@@ -46,6 +46,15 @@ class BusinessFrictionProviderApprovalTest {
         assertThat(profile.getApprovalMissing()).isFalse();
     }
 
+    /** V21 finding: the ticket's kind the ticket system names reaches the engine, as the company policy names one. */
+    @Test
+    void theTicketsKindReachesTheEngine() {
+        FrictionProfile profile = enrich(new Stub(false, false, true, true), 300);
+
+        assertThat(profile.getTicketRecords()).singleElement()
+                .satisfies(record -> assertThat(record.getKind()).isEqualTo("INCIDENT"));
+    }
+
     @Test
     void aTicketWithoutOnCallDutyStillNeedsAnApproval() {
         FrictionProfile profile = enrich(new Stub(false, false, true, false), 300);
@@ -269,7 +278,7 @@ class BusinessFrictionProviderApprovalTest {
         public TicketCoverage ticketCovers(String username, String projectKey, BusinessOperation operation,
                                            Instant at) {
             return ticket ? new TicketCoverage(true, "TCK-1", "pm-11", "INCIDENT_RECOVERY", at.minusSeconds(3600),
-                    at.plusSeconds(3600), List.of()) : TicketCoverage.none();
+                    at.plusSeconds(3600), List.of(), "INCIDENT") : TicketCoverage.none();
         }
 
         @Override

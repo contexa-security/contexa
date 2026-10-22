@@ -90,10 +90,12 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .success(true)
                     .build();
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore, listenerMetadata);
-            // N-L2-1: the first prompt was kept only for the second pass; N-RSN-1: so were the first reason codes.
+            // N-L2-1: the first prompt was kept only for the second pass; N-RSN-1: so were the first reason codes,
+            // and (V-3) the explanations it weighed.
             if (event.getMetadata() != null) {
                 event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_USER_PROMPT);
                 event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_REASON_CODES);
+                event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES);
             }
             result.setAction(analysisResult.getAction());
             result.setProposedAction(analysisResult.getProposedAction());
@@ -112,6 +114,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
             result.setReasoning(analysisResult.getReasoning());
             result.setLlmReasoning(analysisResult.getLlmReasoning());
             result.setReasonCodes(analysisResult.getReasonCodes());
+            result.setHypotheses(analysisResult.getHypotheses());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
@@ -209,6 +212,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     result.setReasoning(layer1Assessment.getReasoning());
                     result.setLlmReasoning(layer1Assessment.getLlmReasoning());
                     result.setReasonCodes(layer1Assessment.getReasonCodes());
+                    result.setHypotheses(layer1Assessment.getHypotheses());
                     result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                     result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                     result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -325,6 +329,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 result.setReasoning(layer2Assessment.getReasoning());
                 result.setLlmReasoning(layer2Assessment.getLlmReasoning());
                 result.setReasonCodes(layer2Assessment.getReasonCodes());
+                result.setHypotheses(layer2Assessment.getHypotheses());
                 result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
@@ -371,6 +376,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                 result.setProposedAction(layer1Assessment.getAction());
                 result.setLlmReasoning(layer1Assessment.getLlmReasoning());
                 result.setReasonCodes(layer1Assessment.getReasonCodes());
+                result.setHypotheses(layer1Assessment.getHypotheses());
                 result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
                 result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
                 result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
@@ -546,6 +552,8 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
         private String reasoning;
         private String llmReasoning;
         private List<SecurityDecisionOutputContract.Citation> reasonCodes;
+        /** V-3: the explanations a v21 model weighed; none before v21. */
+        private List<Map<String, Object>> hypotheses;
         private Boolean llmDecisionPresent;
         private Boolean technicalFallbackApplied;
         private String technicalFallbackCategory;
@@ -623,6 +631,7 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
                     .reasoning(reasoningPrefix + (reasoning != null ? reasoning : "No additional reasoning"))
                     .llmReasoning(llmReasoning)
                     .reasonCodes(reasonCodes)
+                    .hypotheses(hypotheses)
                     .autonomyConstraintApplied(autonomyConstraintApplied)
                     .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
                     .autonomyConstraintSummary(autonomyConstraintSummary)
@@ -950,6 +959,14 @@ public class ColdPathEventProcessor implements IPathProcessor, ExpiringStateStor
     private void putFirstPassReasonCodes(SecurityEvent event, ThreatAssessment layer1Assessment) {
         if (event == null || event.getMetadata() == null) {
             return;
+        }
+        // V-3: the explanations a v21 first pass weighed go with its verdict as its reason codes do.
+        List<Map<String, Object>> hypotheses = layer1Assessment != null ? layer1Assessment.getHypotheses() : null;
+        if (hypotheses == null || hypotheses.isEmpty()) {
+            event.getMetadata().remove(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES);
+        }
+        else {
+            event.getMetadata().put(PromptRuntimeTelemetrySupport.FIRST_PASS_HYPOTHESES, List.copyOf(hypotheses));
         }
         List<SecurityDecisionOutputContract.Citation> reasonCodes =
                 layer1Assessment != null ? layer1Assessment.getReasonCodes() : null;

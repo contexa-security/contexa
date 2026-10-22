@@ -15,27 +15,44 @@
  */
 package io.contexa.contexacore.autonomous.blocking;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
+import java.util.function.LongSupplier;
 
 /**
- * In-memory implementation of BlockingSignalBroadcaster for standalone mode.
- * Uses ConcurrentHashMap instead of Redisson RTopic for single-JVM deployments.
+ * In-memory implementation of BlockingSignalBroadcaster for standalone mode (one JVM). The probe reads the decision in
+ * force from the decision store, so a BLOCK written without its signal still cuts.
  */
 public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcaster {
 
-    private final ConcurrentHashMap<String, String> blockedUsers = new ConcurrentHashMap<>();
+    private final BlockSignals signals;
+
+    public InMemoryBlockingSignalBroadcaster() {
+        this(null, BlockSignals.DEFAULT_PROBE_INTERVAL);
+    }
+
+    public InMemoryBlockingSignalBroadcaster(BlockedStateProbe probe) {
+        this(probe, BlockSignals.DEFAULT_PROBE_INTERVAL);
+    }
+
+    public InMemoryBlockingSignalBroadcaster(BlockedStateProbe probe, Duration probeInterval) {
+        this(probe, probeInterval, System::nanoTime);
+    }
+
+    InMemoryBlockingSignalBroadcaster(BlockedStateProbe probe, Duration probeInterval, LongSupplier clock) {
+        this.signals = new BlockSignals(probe, probeInterval, clock);
+    }
 
     @Override
     public void registerBlock(String userId, String action) {
         if (userId != null && !userId.isBlank()) {
-            blockedUsers.put(userId, (action != null && !action.isBlank()) ? action : "BLOCK");
+            signals.put(userId, (action != null && !action.isBlank()) ? action : "BLOCK");
         }
     }
 
     @Override
     public void registerUnblock(String userId) {
         if (userId != null && !userId.isBlank()) {
-            blockedUsers.remove(userId);
+            signals.remove(userId);
         }
     }
 
@@ -44,7 +61,7 @@ public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcas
         if (userId == null || userId.isBlank()) {
             return false;
         }
-        return blockedUsers.containsKey(userId);
+        return signals.contains(userId);
     }
 
     @Override
@@ -52,6 +69,14 @@ public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcas
         if (userId == null || userId.isBlank()) {
             return null;
         }
-        return blockedUsers.get(userId);
+        return signals.action(userId);
+    }
+
+    @Override
+    public boolean shouldCut(String userId, long responseStartNanos) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        return signals.cuts(userId, responseStartNanos);
     }
 }

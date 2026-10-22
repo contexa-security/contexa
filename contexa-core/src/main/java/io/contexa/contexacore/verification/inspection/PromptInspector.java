@@ -57,16 +57,23 @@ public final class PromptInspector {
             + ".promptBundleVersion";
     /** The sealed user prompt layout of a dictionary prompt ({@code userPromptLayoutVersion}). */
     public static final String V20_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V20;
+    public static final String V21_LAYOUT = SecurityDecisionPromptSections.USER_PROMPT_LAYOUT_V21;
+    /** The v21 dictionary a v21 result names, by the digest of its content as {@link #DICTIONARY_VERSION} does. */
+    public static final String V21_DICTIONARY_VERSION = SecurityDecisionPromptDictionary.V21_VERSION + "@"
+            + SecurityDecisionPromptDictionary.contentDigestV21().substring(0, 12);
 
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
 
     private final List<PromptInspectionCheck> checks;
+    /** The checks of a v21 package: the same checks, bound to the v21 dictionary, notation and reason codes. */
+    private final List<PromptInspectionCheck> v21Checks;
     private final ObjectMapper objectMapper;
     private final CanonicalSecurityContextSerializer contextSerializer;
 
     public PromptInspector(List<PromptInspectionCheck> checks, ObjectMapper objectMapper) {
         this.checks = List.copyOf(Objects.requireNonNull(checks, "checks"));
+        this.v21Checks = this.checks.stream().map(PromptInspectionCheck::forV21).toList();
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
         this.contextSerializer = new CanonicalSecurityContextSerializer(objectMapper);
     }
@@ -103,16 +110,18 @@ public final class PromptInspector {
         if (userPrompt == null) {
             return error(packageId, layout, List.of(), "the user prompt the model got is not sealed");
         }
-        boolean dictionaryPrompt = V20_LAYOUT.equals(layout);
+        boolean v21 = V21_LAYOUT.equals(layout);
+        boolean dictionaryPrompt = V20_LAYOUT.equals(layout) || v21;
+        String dictionaryVersion = v21 ? V21_DICTIONARY_VERSION : DICTIONARY_VERSION;
         // R1b-7 (P3 extra 17): the dictionary checks read a package only when it was drawn in this build's form, with
         // this build's dictionary and render; a package of another form would give findings of format changes.
         String sealedBundle = sealedBundle(metadata);
-        boolean thisForm = !dictionaryPrompt || drawnInThisForm(metadata, sealedBundle);
+        boolean thisForm = !dictionaryPrompt || drawnInThisForm(metadata, sealedBundle, v21);
         PromptInspectionSubject subject = new PromptInspectionSubject(evidencePackage, layout,
                 InspectedPrompt.parse(userPrompt), metadata,
                 contextSerializer.deserialize(evidencePackage.getCanonicalContextJson()));
         List<PromptInspectionCheckResult> results = new ArrayList<>();
-        for (PromptInspectionCheck check : checks) {
+        for (PromptInspectionCheck check : v21 ? v21Checks : checks) {
             if (check.dictionaryPromptOnly() && !dictionaryPrompt) {
                 continue;
             }
@@ -137,7 +146,7 @@ public final class PromptInspector {
             }
             results.add(tally.result());
         }
-        return new PromptInspectionResult(packageId, INSPECTOR_VERSION, DICTIONARY_VERSION, layout,
+        return new PromptInspectionResult(packageId, INSPECTOR_VERSION, dictionaryVersion, layout,
                 verdictOf(results, dictionaryPrompt), results, null);
     }
 
@@ -173,8 +182,13 @@ public final class PromptInspector {
      * build's v20 bundle (B3), R1b-7.
      */
     static boolean drawnInThisForm(PromptBundleManifest sealed, PromptBundleManifest current) {
+        return drawnInThisForm(sealed, current, SecurityDecisionPromptDictionary.contentDigest());
+    }
+
+    /** Whether a bundle draws its prompt with that dictionary (B2) and the render of the given bundle (B3). */
+    static boolean drawnInThisForm(PromptBundleManifest sealed, PromptBundleManifest current, String dictionaryDigest) {
         String render = presentHash(current, "B3");
-        return SecurityDecisionPromptDictionary.contentDigest().equals(presentHash(sealed, "B2"))
+        return dictionaryDigest.equals(presentHash(sealed, "B2"))
                 && render != null && render.equals(presentHash(sealed, "B3"));
     }
 
@@ -199,17 +213,20 @@ public final class PromptInspector {
     }
 
     /** Whether the bundle the package names draws in this build's form (R1b-7). */
-    private static boolean drawnInThisForm(Map<String, Object> metadata, String sealedBundle) {
+    private static boolean drawnInThisForm(Map<String, Object> metadata, String sealedBundle, boolean v21) {
         if (sealedBundle == null
                 || !(metadata.get(PromptExecutionMetadata.GOVERNANCE_DESCRIPTOR) instanceof Map<?, ?> descriptor)
                 || !(descriptor.get("promptKey") instanceof String promptKey)) {
             return false;
         }
-        PromptGovernanceDescriptor current = SecurityDecisionPromptBundles.V20.descriptor();
+        PromptGovernanceDescriptor current = (v21 ? SecurityDecisionPromptBundles.V21
+                : SecurityDecisionPromptBundles.V20).descriptor();
+        String dictionaryDigest = v21 ? SecurityDecisionPromptDictionary.contentDigestV21()
+                : SecurityDecisionPromptDictionary.contentDigest();
         PromptBundleCatalog catalog = PromptBundleCatalog.shared();
         return catalog.find(promptKey, sealedBundle)
                 .flatMap(sealed -> catalog.find(current.promptKey(), current.promptVersion())
-                        .map(ours -> drawnInThisForm(sealed, ours)))
+                        .map(ours -> drawnInThisForm(sealed, ours, dictionaryDigest)))
                 .orElse(false);
     }
 

@@ -65,6 +65,8 @@ public class SecurityDecision {
 
     /** The reason codes of the output contract v3 with the fact IDs they cite (W4-3); empty for a v19 decision. */
     private List<SecurityDecisionOutputContract.Citation> reasonCodes;
+    /** V-3: the explanations a v21 model weighed (id, name, assessment, the fact ids for and against); none before v21. */
+    private List<Map<String, Object>> hypotheses;
 
     private List<String> iocIndicators;
     private Map<String, String> mitreMapping;

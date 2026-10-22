@@ -1,112 +1,60 @@
 import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useBenchmark } from '../../api/benchmark';
-import { usePublicSettings } from '../../api/settings';
-import { ActionChip } from '../../components/common/ActionChip';
-import { SourceMark } from '../../components/common/SourceMark';
+import { SourceLine } from '../../components/journey/FrameParts';
 import { RouteScreen } from '../../components/journey/RouteScreen';
-import { NextLink } from '../../components/journey/StepParts';
 import { count, dollars, seconds } from '../../journey/format';
-import { useJourneyPlace } from '../../journey/useJourneyPlace';
 import styles from './AdoptChangePage.module.css';
 
-/** The eight things that change when a system adopts Contexa, in the design's order (adopt-change). */
-const CELLS = ['code', 'flow', 'time', 'cost', 'data', 'employee', 'admin', 'start'] as const;
+/** The four things that change when a system adopts Contexa (화면재편-구현계획 4절 5-3); the rest is on /adopt. */
+const CELLS = ['code', 'flow', 'time', 'cost'] as const;
 type Cell = (typeof CELLS)[number];
 
 /**
- * What changes when you adopt it (adopt-change, 7.4): eight cells, from the code to how to start. The time and the cost
- * are the benchmark's measurement, the retention periods are the running settings, the employee line is Contexa's
- * normal-work record; the rest is what the library does. The default route ends here and goes on to the install steps.
+ * Screen 5-3, what changes when you adopt it (화면재편-기획안 7절, T7): four cells, from the one line of code to the
+ * cost. The code line and the request flow are what the library does; the judgment time and the cost per judgment are
+ * the benchmark's measurement (the server's), and a value the measurement does not hold says so. The kept data, the
+ * employee's and the security team's side and how to start live on the adopt screen.
  */
 export default function AdoptChangePage() {
   const { t, i18n } = useTranslation();
   const language = i18n.language === 'ko' ? 'ko' : 'en';
-  const place = useJourneyPlace();
   const benchmark = useBenchmark(null);
-  const settings = usePublicSettings().data ?? null;
   const engine = benchmark.data?.engine ?? null;
-  const contexa = benchmark.data?.controls.find((entry) => entry.control === 'D') ?? null;
-  const time = (ms: number | null | undefined) => (typeof ms === 'number' ? seconds(ms) : '-');
+  const p50 = engine?.analysisP50Ms ?? null;
+  const p95 = engine?.analysisP95Ms ?? null;
+  const usd = engine?.costPerDecisionUsd ?? null;
+  const tokens = engine?.tokensPerDecision ?? null;
   const values: Readonly<Record<Cell, ReactNode>> = {
     code: (
       <Trans
-        i18nKey="adoptChange.value.code"
+        i18nKey="p5.adopt.code"
         components={{ code: <code className={styles.inline} data-original /> }}
       />
     ),
-    flow: t('adoptChange.value.flow'),
-    time: t('adoptChange.value.time', { p50: time(engine?.analysisP50Ms), p95: time(engine?.analysisP95Ms) }),
+    flow: t('p5.adopt.flow'),
+    time:
+      p50 !== null && p95 !== null
+        ? t('p5.adopt.time', { p50: seconds(p50), p95: seconds(p95), mode: t('timing.mode.sync') })
+        : t('p5.adopt.timeNone'),
     cost:
-      engine && engine.costPerDecisionUsd !== null
-        ? t('adoptChange.value.cost', {
-            usd: dollars(engine.costPerDecisionUsd),
-            tokens:
-              engine.tokensPerDecision === null ? '-' : count(Math.round(engine.tokensPerDecision), language),
-          })
-        : t('adoptChange.value.costNone'),
-    data:
-      settings?.retention.behaviorDays !== null && settings?.retention.behaviorDays !== undefined
-        ? t('adoptChange.value.data', {
-            behavior: count(settings.retention.behaviorDays, language),
-            prompt: count(settings.retention.promptOriginalDays, language),
-          })
-        : t('adoptChange.value.dataNoBehavior', {
-            prompt: settings ? count(settings.retention.promptOriginalDays, language) : '-',
-          }),
-    employee: contexa
-      ? t('adoptChange.value.employee', {
-          normal: count(contexa.falseBlock.total, language),
-          blocked: count(contexa.falseBlock.hits, language),
-          checked: count(contexa.friction.hits, language),
-        })
-      : '-',
-    admin: t('adoptChange.value.admin'),
-    start: t('adoptChange.value.start'),
+      usd === null
+        ? t('adoptChange.value.costNone')
+        : tokens === null
+          ? t('p5.adopt.costOnly', { usd: dollars(usd) })
+          : t('p5.adopt.cost', { usd: dollars(usd), tokens: count(Math.round(tokens), language) }),
   };
-  const mode = settings?.engine.effectiveMode ?? null;
-  // U-7: the sealed inputs' retention and the inspected share as the running settings state them; without them the line
-  // says what the library does, with no number.
-  const sealed = settings?.sealedEvidence ?? null;
-  const sealLine =
-    sealed && sealed.samplePercent !== null && sealed.cleanPeriodDays !== null
-      ? t('adoptChange.value.sealKept', {
-          days: count(sealed.cleanPeriodDays, language),
-          percent: count(sealed.samplePercent, language),
-        })
-      : t('adoptChange.value.seal');
-  const intro = place.route === 'INTRO';
   return (
     <RouteScreen
-      title={t('adoptChange.title')}
-      purpose={t('adoptChange.purpose')}
-      source={
-        <SourceMark kind="MEASUREMENT" measured>
-          {t('adoptChange.source', { setting: benchmark.data?.spec?.settingHash.slice(0, 8) ?? '-' })}
-        </SourceMark>
-      }
-      more={
-        intro ? (
-          <ActionChip to="/adopt" icon="code" variant="open">
-            {t('adoptChange.main')}
-          </ActionChip>
-        ) : null
-      }
-      main={intro ? undefined : <NextLink to="/adopt" label={t('adoptChange.main')} />}
+      title={t('screen.5-3.title')}
+      purpose={t('screen.5-3.guide')}
+      sourceLine={engine ? <SourceLine kind="measured" /> : null}
     >
-      <dl className={styles.cells} aria-label={t('adoptChange.title')}>
+      <dl className={styles.cells} aria-label={t('screen.5-3.title')} data-block>
         {CELLS.map((cell) => (
           <div key={cell} className={styles.cell} data-cell={cell}>
             <dt className={styles.name}>{t(`adoptChange.name.${cell}`)}</dt>
-            <dd className={styles.value}>
-              <span>{values[cell]}</span>
-              {cell === 'data' ? <span className={styles.mode}>{sealLine}</span> : null}
-              {cell === 'start' && mode ? (
-                <span className={styles.mode}>
-                  {t('adoptChange.mode', { mode: t(`adoptChange.modeName.${mode}`, { defaultValue: mode }) })}
-                </span>
-              ) : null}
-            </dd>
+            <dd className={styles.value}>{values[cell]}</dd>
           </div>
         ))}
       </dl>

@@ -123,11 +123,24 @@ export function useStoredCheck(runId: string | null, stored: boolean): string | 
   return check.reason ?? (check.answered ? 'DONE' : 'other');
 }
 
-/** The engine's analysis events as the engine recorded them with the decision. */
+/**
+ * The engine's analysis events as the engine recorded them with the decision, each at the time after the first entry
+ * of the recorded timeline that the server worked out (sinceStartMs).
+ */
 function storedStages(anatomy: DecisionAnatomyView): readonly AnalysisStage[] {
+  const { timeline, sinceStartMs } = anatomy.interpretation;
+  let from = 0;
+  const atOf = (type: string): number | null => {
+    const index = timeline.findIndex((entry, at) => at >= from && entry.kind === 'EVENT' && entry.name === type);
+    if (index < 0) {
+      return null;
+    }
+    from = index + 1;
+    return sinceStartMs[index] ?? null;
+  };
   return anatomy.interpretation.timings.events.map((event) => ({
     type: event.type,
-    atMs: null,
+    atMs: atOf(event.type),
     action: event.action,
     layer: event.layer,
     riskScore: event.riskScore,

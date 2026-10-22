@@ -134,6 +134,17 @@ public class AiBridgeConfiguration {
         return new HeaderAuthorizationStampResolver();
     }
 
+    /**
+     * A1-1: the delegation an access token states comes first, since the authorization server signed it; a token that
+     * names no agent yields no stamp and the session, request attribute and header channels decide as before.
+     */
+    @Bean
+    @Order(1)
+    @ConditionalOnMissingBean(TokenDelegationStampResolver.class)
+    public DelegationStampResolver tokenDelegationStampResolver() {
+        return new TokenDelegationStampResolver();
+    }
+
     @Bean
     @Order(5)
     @ConditionalOnMissingBean(SessionDelegationStampResolver.class)

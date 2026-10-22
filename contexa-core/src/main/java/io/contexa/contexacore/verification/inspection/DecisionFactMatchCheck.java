@@ -53,9 +53,22 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
             DecisionFactsResolver.DEVIATIONS_FROM_BASELINE, DecisionFactsResolver.SAME_AS_BASELINE);
 
     private final List<PromptDictionaryEntry> entries;
+    private final DecisionFactsResolver.Notation notation;
 
     public DecisionFactMatchCheck() {
-        this.entries = SecurityDecisionPromptDictionary.ENTRIES;
+        this(SecurityDecisionPromptDictionary.ENTRIES, DecisionFactsResolver.Notation.CONCLUSIONS);
+    }
+
+    private DecisionFactMatchCheck(List<PromptDictionaryEntry> entries, DecisionFactsResolver.Notation notation) {
+        this.entries = entries;
+        this.notation = notation;
+    }
+
+    /** The decision facts of a v21 package: its dictionary, and computed again in the records notation. */
+    @Override
+    public PromptInspectionCheck forV21() {
+        return new DecisionFactMatchCheck(SecurityDecisionPromptDictionary.V21_ENTRIES,
+                DecisionFactsResolver.Notation.RECORDS);
     }
 
     @Override
@@ -115,7 +128,7 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
             }
             tally.matched(line);
         }
-        recompute(tally, context, facts);
+        recompute(tally, context, facts, notation);
     }
 
     /**
@@ -123,7 +136,8 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
      * has the same state when computed again (its value, codes, records and source; or unknown, and why). The facts
      * that compare the request with the learned baseline read the learning evidence, which the package does not seal.
      */
-    private static void recompute(PromptInspectionTally tally, CanonicalSecurityContext context, DecisionFacts sealed) {
+    private static void recompute(PromptInspectionTally tally, CanonicalSecurityContext context, DecisionFacts sealed,
+                                  DecisionFactsResolver.Notation notation) {
         ZoneId zone = tally.subject().eventZone();
         if (zone == null) {
             tally.unverifiable(tally.unverifiableFinding().block(BLOCK.title())
@@ -131,7 +145,7 @@ public final class DecisionFactMatchCheck implements PromptInspectionCheck {
                     .reason("the decision facts cannot be computed again: the event time zone is not sealed").build());
             return;
         }
-        Map<String, String> expected = states(DecisionFactsResolver.resolve(context, null, zone));
+        Map<String, String> expected = states(DecisionFactsResolver.resolve(context, null, zone, notation));
         Map<String, String> actual = states(sealed);
         Set<String> names = new LinkedHashSet<>(actual.keySet());
         names.addAll(expected.keySet());

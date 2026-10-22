@@ -2,6 +2,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
+// The final screen design (최종화면-구현계획 F0-1) replaced the flow this spec walks; mainFlow.spec.ts and
+// keyboard.spec.ts walk the new one. This spec is on the deletion list for the user (최종화면-구현계획 4절).
+test.skip(true, 'replaced by mainFlow.spec.ts (최종화면-구현계획 FC-2)');
+
 /**
  * Act 4 on the real portal (screen design v2.3, 7.4): the five approaches with their published settings, where they
  * sit, the rules' dilemma, what the visitor did, the understanding check scored by the server, the core value and what

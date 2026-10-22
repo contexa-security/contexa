@@ -21,6 +21,11 @@ public final class SealedDeviations {
 
     /** The user prompt layout of a v20 decision, as its record names it (metadata userPromptLayoutVersion). */
     public static final String V20_LAYOUT = "v20-dictionary-blocks";
+    /**
+     * The user prompt layout of a v21 decision: its RECORDS AND COMPARISONS lines are drawn from the same sealed
+     * decision facts, so its comparison is read the same way.
+     */
+    public static final String V21_LAYOUT = "v21-dictionary-blocks";
     /** The prompt line that states the differences and the dimensions not compared. */
     static final String DIFFERENT_LINE = "DeviationsFromBaseline";
     /** The prompt line that states the dimensions whose value the usual behaviour holds. */
@@ -41,10 +46,11 @@ public final class SealedDeviations {
     /**
      * The sealed comparison of a decision, one entry per deviation in the engine's order: the deviation's current value
      * and whether the value was seen before, or for a dimension not compared the engine's UNKNOWN with why. Null when
-     * the record is not of the v20 layout or holds no sealed deviations (a v19 record keeps its labels).
+     * the record is not of the v20 or v21 layout or holds no sealed deviations (a v19 record keeps its labels).
      */
     public static List<DecisionAnatomy.Comparison> comparisons(JsonNode metadata) {
-        if (metadata == null || !V20_LAYOUT.equals(metadata.path("userPromptLayoutVersion").asText(null))) {
+        String layout = metadata == null ? null : metadata.path("userPromptLayoutVersion").asText(null);
+        if (!V20_LAYOUT.equals(layout) && !V21_LAYOUT.equals(layout)) {
             return null;
         }
         JsonNode deviations = metadata.path("sealedEvidence.canonicalContext").path("decisionFacts")

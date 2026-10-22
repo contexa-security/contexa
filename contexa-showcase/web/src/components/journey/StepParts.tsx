@@ -1,30 +1,28 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useJourneyPlace } from '../../journey/useJourneyPlace';
-import { ActionChip } from '../common/ActionChip';
 import { Icon } from '../Icon';
 import styles from './StepParts.module.css';
 
 interface StepHeaderProps {
   readonly title: ReactNode;
-  /** What this screen is for, in one sentence; the step's name is already in the step bar (U-1). */
+  /** What the visitor does on this screen, in one line (R-5). */
   readonly purpose?: ReactNode;
-  /** The screen's one source tag (U-4), at the end of the purpose line. */
+  /** The screen's source tag, until the part's redo moves it to the source line under the body (R-10). */
   readonly source?: ReactNode;
 }
 
 /**
- * The head of every screen (screen clarity rule U-1): the one headline and what the screen is for in one sentence, so
- * the visitor knows the screen's job before reading anything else.
+ * The title zone of the redesigned frame (화면재편-기획안 5절, R-5): the one headline saying what the screen is for and
+ * one guide line saying what to do. The zone marks are what the automatic check (e2e/frame-audit.mjs) measures.
  */
 export function StepHeader({ title, purpose = null, source = null }: StepHeaderProps) {
   return (
-    <header className={styles.header}>
+    // One block for the gap check: the headline and its guide line belong together (12-16 px apart by design).
+    <header className={styles.header} data-zone="title" data-block>
       <h1 className={styles.title}>{title}</h1>
       {purpose || source ? (
-        <p className={styles.purpose}>
-          {/* One flow of words, so a term inside the sentence keeps its particle; the source tag sits after it. */}
+        <p className={styles.purpose} data-guide>
           {purpose ? <span>{purpose}</span> : null}
           {source}
         </p>
@@ -34,59 +32,45 @@ export function StepHeader({ title, purpose = null, source = null }: StepHeaderP
 }
 
 interface ActionBarProps {
-  /** The step before, as a quiet way back. */
+  /** The screen before, as the quiet way back. */
   readonly back?: { readonly to: string; readonly label: string } | null;
-  /** In place of the way back on the first screen: the other ways in (concepts first, benchmark only). */
-  readonly start?: ReactNode;
-  /** The one main action: a link or button that names where it leads. */
+  /** The one main action: a link naming the next screen's question, or the screen's own action (send). */
   readonly main?: ReactNode;
-  /** The teaser band (the next screen's question and measured number), drawn right over the main action. */
+  /** Left over from the old frame (teaser band, other ways in, skip); not drawn, removed as each part is redone. */
+  readonly start?: ReactNode;
   readonly teaser?: ReactNode;
-  /** Whether "skip" belongs here; a screen whose main action already goes where skip would go leaves it out. */
   readonly skip?: boolean;
+  /** "Skip this part", on a part's cover only (화면재편-기획안 8절). */
+  readonly skipTo?: { readonly to: string; readonly label: string } | null;
 }
 
 /**
- * The same place at the end of every screen (U-3, redrawn 2026-10-08): one row with the way back on the left and, on
- * the right, "skip to act n" next to the one main action. A teaser band sits right over that row, so the question and
- * the button that answers it read as one. Actions about the screen's own content (details, originals) are not here;
- * they sit under that content (MoreRow).
+ * The action bar of the redesigned frame (화면재편-기획안 5절, R-2, R-6): "back" on the left and one main button on
+ * the right, nothing else. On phones the whole bar is fixed at the bottom and the page keeps its height free, so it
+ * never covers the content (F-8).
  */
-export function ActionBar({
-  back = null,
-  start = null,
-  main = null,
-  teaser = null,
-  skip = true,
-}: ActionBarProps) {
+export function ActionBar({ back = null, main = null, skipTo = null }: ActionBarProps) {
   const { t } = useTranslation();
-  const place = useJourneyPlace();
-  const skipTo = skip ? place.skip : null;
   return (
-    <nav className={styles.actions} aria-label={t('step.actions')}>
-      {teaser}
-      <div className={styles.row}>
-        {back ? (
-          <span className={styles.back}>
-            <ActionChip to={back.to} icon="arrowLeft">
-              {back.label}
-            </ActionChip>
-          </span>
-        ) : null}
-        {start && !back ? <span className={`${styles.back} ${styles.start}`}>{start}</span> : null}
-        {skipTo ? (
-          <span className={styles.skip}>
-            <ActionChip
-              to={`${skipTo.path}${place.route === 'INTRO' ? '?route=intro' : ''}`}
-              icon="skip"
-              variant="quiet"
-            >
-              {place.route === 'INTRO' ? t('route.skipStep') : t(`act.skipTo.${skipTo.act ?? 2}`)}
-            </ActionChip>
-          </span>
-        ) : null}
-        {main ? <div className={styles.main}>{main}</div> : null}
-      </div>
+    <nav className={styles.actions} aria-label={t('step.actions')} data-zone="actions">
+      {back ? (
+        <Link to={back.to} className={styles.back}>
+          <Icon name="arrowLeft" className={styles.backIcon} />
+          <span className={styles.backLabel}>{back.label}</span>
+        </Link>
+      ) : (
+        <span />
+      )}
+      {main || skipTo ? (
+        <div className={styles.main}>
+          {skipTo ? (
+            <Link to={skipTo.to} className={styles.skipPart}>
+              {skipTo.label}
+            </Link>
+          ) : null}
+          {main}
+        </div>
+      ) : null}
     </nav>
   );
 }
